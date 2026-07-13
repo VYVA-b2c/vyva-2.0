@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
@@ -7,6 +8,7 @@ import {
   CheckCircle2,
   Clock,
   Eye,
+  ExternalLink,
   FileText,
   Image as ImageIcon,
   Megaphone,
@@ -44,6 +46,7 @@ type CampaignStatus = typeof CAMPAIGN_STATUSES[number];
 type JourneyStatus = typeof JOURNEY_STATUSES[number];
 type ContentStatus = typeof CONTENT_STATUSES[number];
 type ConsentStatus = typeof CONSENT_STATUSES[number];
+type CountOption = { value: string; label: string; count: number };
 
 type MarketingSummary = {
   totals: {
@@ -111,6 +114,17 @@ type CampaignRecipient = {
   scheduledAt: string | null;
   snapshot: unknown;
   communicationLogId: string | null;
+};
+
+type ContentUsage = {
+  key: string;
+  kind: "campaign" | "journey";
+  label: string;
+  detail: string;
+  channel: Channel;
+  status: string;
+  campaignId?: string;
+  journeyId?: string;
 };
 
 type Campaign = {
@@ -181,6 +195,8 @@ type ContentAsset = {
   source: string;
   lovableExternalId: string | null;
   metadata?: Record<string, unknown>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type MarketingMediaAsset = {
@@ -194,6 +210,9 @@ type MarketingMediaAsset = {
   status: string;
   lovableExternalId: string | null;
   metadata?: Record<string, unknown>;
+  lastSyncedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type MarketingCampaignMetric = MarketingAnalyticsTotals & {
@@ -205,6 +224,12 @@ type MarketingCampaignMetric = MarketingAnalyticsTotals & {
   source: string;
   lovableExternalId: string | null;
   metadata?: Record<string, unknown>;
+};
+
+type CampaignMetricSummary = MarketingAnalyticsTotals & {
+  metricCount: number;
+  latestMetricDate: string | null;
+  channels: string[];
 };
 
 type JourneyEnrollment = {
@@ -299,6 +324,9 @@ type MarketingContact = {
   market: string | null;
   lists: string[];
   lovableExternalId: string | null;
+  lastSyncedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type MarketingAudience = {
@@ -312,9 +340,22 @@ type MarketingAudience = {
   memberCount: number;
   mappedMemberCount: number;
   contactExternalIds: string[];
+  memberPreview: Array<{
+    id: string;
+    fullName: string;
+    email: string | null;
+    phoneNumber: string | null;
+    whatsappNumber: string | null;
+    companyName: string | null;
+    roleLabel: string | null;
+    lovableExternalId: string | null;
+    contactExternalId: string | null;
+  }>;
   unmappedContactExternalIds: string[];
   lastSyncedAt: string | null;
   metadata?: Record<string, unknown>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type SyncRun = {
@@ -597,6 +638,14 @@ function formatCalendarTime(value: string | null) {
   return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
+function recordTimelineParts(record: { createdAt?: string | null; updatedAt?: string | null; lastSyncedAt?: string | null }) {
+  const parts: string[] = [];
+  if (record.updatedAt) parts.push(`Updated ${formatDate(record.updatedAt)}`);
+  if (record.lastSyncedAt) parts.push(`Synced ${formatDate(record.lastSyncedAt)}`);
+  if (!record.updatedAt && !record.lastSyncedAt && record.createdAt) parts.push(`Created ${formatDate(record.createdAt)}`);
+  return parts;
+}
+
 function calendarDayKey(value: string | null) {
   if (!value) return "unscheduled";
   const date = new Date(value);
@@ -621,7 +670,20 @@ function channelClass(channel: Channel) {
 }
 
 function lower(value: string | null | undefined) {
-  return value?.toLowerCase() ?? "";
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function lookupKeysForExternalId(value: string | null | undefined, prefixes: string[] = []) {
+  const normalized = lower(value);
+  if (!normalized) return [];
+  const keys = new Set([normalized]);
+  const [, suffix] = normalized.includes(":") ? normalized.split(/:(.+)/) : ["", ""];
+  if (suffix) keys.add(suffix);
+  const base = suffix || normalized;
+  for (const prefix of prefixes) {
+    keys.add(`${prefix}:${base}`);
+  }
+  return Array.from(keys);
 }
 
 function splitTags(value: string) {
@@ -629,7 +691,35 @@ function splitTags(value: string) {
 }
 
 function splitLines(value: string) {
-  return value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+  return Array.from(new Set(value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean)));
+}
+
+function contactAudienceMemberId(contact: MarketingContact) {
+  return contact.lovableExternalId || contact.id;
+}
+
+function parseAudienceMemberIds(draft: Pick<AudienceDraft, "contactExternalIds"> | null | undefined) {
+  return splitLines(draft?.contactExternalIds ?? "");
+}
+
+function updateAudienceDraftMemberIds<T extends AudienceDraft>(draft: T, ids: string[]): T {
+  return { ...draft, contactExternalIds: Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean))).join("\n") };
+}
+
+function audienceContactLabel(contact: MarketingContact) {
+  const name = contact.fullName || contact.email || contact.phoneNumber || contact.whatsappNumber || "Unnamed contact";
+  const details = [contact.email, contact.companyName, contact.roleLabel].filter(Boolean).join(" - ");
+  return details ? `${name} (${details})` : name;
+}
+
+function audienceContactExternalId(contact: MarketingContact, memberIds: string[]) {
+  const candidates = [contact.lovableExternalId, contact.id].map((id) => lower(id)).filter(Boolean);
+  return memberIds.find((id) => candidates.includes(lower(id))) ?? contact.lovableExternalId ?? contact.id;
+}
+
+function contactMatchesMemberIds(contact: MarketingContact, memberIds: string[]) {
+  const contactIds = [contact.id, contact.lovableExternalId].map((id) => lower(id)).filter(Boolean);
+  return memberIds.some((id) => contactIds.includes(lower(id)));
 }
 
 function groupCount<T>(items: T[], keyForItem: (item: T) => string | null | undefined) {
@@ -692,7 +782,7 @@ function mediaUrlFrom(value: unknown) {
 function contentMediaPreviewUrls(content: ContentAsset, linkedAssets: MarketingMediaAsset[]) {
   const embedded = Array.isArray(content.mediaAssets) ? content.mediaAssets.map(mediaUrlFrom) : [];
   const linked = linkedAssets.flatMap((asset) => [asset.originalUrl, asset.localUrl ?? ""]);
-  return Array.from(new Set([...embedded, ...linked].map((url) => url.trim()).filter(Boolean))).slice(0, 6);
+  return Array.from(new Set([...embedded, ...linked].map((url) => url.trim()).filter(Boolean)));
 }
 
 function isPreviewableImageUrl(url: string) {
@@ -712,13 +802,92 @@ function mediaPreviewLabel(url: string) {
   }
 }
 
+const designPreviewArrayKeys = ["blocks", "sections", "elements", "nodes", "components", "rows", "children", "items"] as const;
+const designPreviewObjectKeys = ["content", "props", "settings", "data", "attributes", "style", "styles"] as const;
+const designPreviewTitleKeys = ["headline", "heading", "title", "subject", "name", "label"] as const;
+const designPreviewBodyKeys = ["body", "copy", "text", "description", "caption", "message", "content", "plainText", "plain_text", "subtitle"] as const;
+const designPreviewCtaLabelKeys = ["ctaLabel", "cta_label", "buttonText", "button_text", "buttonLabel", "button_label", "linkText", "link_text"] as const;
+const designPreviewCtaUrlKeys = ["ctaUrl", "cta_url", "buttonUrl", "button_url", "linkUrl", "link_url", "href", "url"] as const;
+const designPreviewMediaKeys = ["imageUrl", "image_url", "src", "assetUrl", "asset_url", "mediaUrl", "media_url", "videoUrl", "video_url", "thumbnailUrl", "thumbnail_url", "coverImageUrl", "cover_image_url"] as const;
+
+type DesignPreviewBlock = {
+  key: string;
+  type: string;
+  title: string;
+  body: string;
+  mediaUrl: string;
+  ctaLabel: string;
+  ctaUrl: string;
+};
+
+function parsedDesignValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed || !/^[{[]/.test(trimmed)) return value;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+function designRecordText(record: Record<string, unknown>, keys: readonly string[]) {
+  for (const key of keys) {
+    const value = parsedDesignValue(record[key]);
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+  }
+  return "";
+}
+
+function designRecordMediaUrl(record: Record<string, unknown>) {
+  for (const key of designPreviewMediaKeys) {
+    const value = parsedDesignValue(record[key]);
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (value && typeof value === "object") {
+      const nested = mediaUrlFrom(value);
+      if (nested) return nested;
+    }
+  }
+  return "";
+}
+
+function collectDesignPreviewBlocks(value: unknown, path = "design", seen = new Set<unknown>()): DesignPreviewBlock[] {
+  const parsed = parsedDesignValue(value);
+  if (!parsed || typeof parsed !== "object") return [];
+  if (seen.has(parsed)) return [];
+  seen.add(parsed);
+
+  if (Array.isArray(parsed)) {
+    return parsed.flatMap((item, index) => collectDesignPreviewBlocks(item, `${path}.${index}`, seen));
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const title = designRecordText(record, designPreviewTitleKeys);
+  const body = designRecordText(record, designPreviewBodyKeys);
+  const mediaUrl = designRecordMediaUrl(record);
+  const ctaLabel = designRecordText(record, designPreviewCtaLabelKeys);
+  const ctaUrl = designRecordText(record, designPreviewCtaUrlKeys);
+  const type = designRecordText(record, ["type", "kind", "component", "blockType", "block_type"]) || "Block";
+  const current = title || body || mediaUrl || ctaLabel || ctaUrl
+    ? [{ key: path, type, title, body, mediaUrl, ctaLabel, ctaUrl }]
+    : [];
+  const children = [
+    ...designPreviewArrayKeys.flatMap((key) => collectDesignPreviewBlocks(record[key], `${path}.${key}`, seen)),
+    ...designPreviewObjectKeys.flatMap((key) => collectDesignPreviewBlocks(record[key], `${path}.${key}`, seen)),
+  ];
+  return [...current, ...children];
+}
+
 const lovableContentSourceLabels: Record<string, string> = {
   content: "Content",
   content_asset: "Content asset",
   saved_email_template: "Saved email template",
   template: "Template",
   content_brief: "Content brief",
+  journey_step_preset: "Journey step preset",
   social_post: "Social post",
+  missing_lovable_reference: "Missing Lovable reference",
 };
 
 function metadataString(value: unknown, key: string) {
@@ -745,6 +914,98 @@ function contentOriginLabel(item: ContentAsset) {
   return item.source;
 }
 
+const lovableContentSourceDetailKeys = [
+  "id",
+  "title",
+  "name",
+  "templateName",
+  "template_name",
+  "subject",
+  "subjectLine",
+  "subject_line",
+  "channel",
+  "platform",
+  "network",
+  "language",
+  "locale",
+  "status",
+  "audienceType",
+  "audience_type",
+  "campaignId",
+  "campaign_id",
+  "journeyId",
+  "journey_id",
+  "templateKind",
+  "template_kind",
+  "tags",
+  "hashtags",
+  "category",
+  "updatedAt",
+  "updated_at",
+  "createdAt",
+  "created_at",
+] as const;
+
+function humanizeMetadataKey(key: string) {
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (match) => match.toUpperCase());
+}
+
+function sourceDetailParsedValue(value: unknown) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed || !/^[{[]/.test(trimmed)) return value;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+function sourceDetailText(value: unknown) {
+  const parsed = sourceDetailParsedValue(value);
+  if (parsed === null || parsed === undefined) return "";
+  if (typeof parsed === "string") return parsed.trim();
+  if (typeof parsed === "number" || typeof parsed === "boolean") return String(parsed);
+  if (Array.isArray(parsed)) {
+    const values = parsed
+      .map((item) => sourceDetailText(item))
+      .filter(Boolean);
+    return values.length ? values.slice(0, 8).join(", ") : "";
+  }
+  return "";
+}
+
+function sourceDetailDisplayValue(key: string, value: unknown) {
+  const text = sourceDetailText(value);
+  if (!text) return "";
+  if (/(^|_|\b)(created|updated|scheduled|published|sent|date|at)(_|$|\b)/i.test(key)) {
+    const formatted = formatDate(text);
+    if (formatted !== "Unknown" && formatted !== "Not scheduled") return formatted;
+  }
+  return text.length > 220 ? `${text.slice(0, 217)}...` : text;
+}
+
+function lovableContentSourceDetails(content: ContentAsset) {
+  const metadata = recordValue(content.metadata);
+  const lovable = recordValue(metadata.lovable);
+  if (content.source !== "lovable" && Object.keys(lovable).length === 0) return [];
+  const rows = new Map<string, string>();
+  if (content.lovableExternalId) rows.set("Lovable ID", content.lovableExternalId);
+  rows.set("Source type", contentOriginLabel(content));
+  if (content.updatedAt) rows.set("VYVA updated", formatDate(content.updatedAt));
+  if (content.createdAt) rows.set("VYVA created", formatDate(content.createdAt));
+  for (const key of lovableContentSourceDetailKeys) {
+    const value = sourceDetailDisplayValue(key, lovable[key]);
+    if (value) rows.set(humanizeMetadataKey(key), value);
+  }
+  return Array.from(rows, ([label, value]) => ({ label, value }));
+}
+
 function contentAssetByReference(content: ContentAsset[], reference?: string | null) {
   const normalized = lower(reference);
   if (!normalized) return null;
@@ -758,6 +1019,64 @@ function contentAssetByReference(content: ContentAsset[], reference?: string | n
     `template:${item.lovableExternalId ?? ""}`,
     `content_brief:${item.lovableExternalId ?? ""}`,
   ].some((candidate) => lower(candidate) === normalized)) ?? null;
+}
+
+function contentReferenceKeys(content: ContentAsset) {
+  const keys = new Set<string>();
+  const prefixes = ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"];
+  for (const value of [content.id, content.lovableExternalId]) {
+    for (const key of lookupKeysForExternalId(value, prefixes)) keys.add(key);
+  }
+  return keys;
+}
+
+function contentReferenceMatches(content: ContentAsset, reference?: string | null) {
+  const normalized = lower(reference);
+  if (!normalized) return false;
+  const keys = contentReferenceKeys(content);
+  if (keys.has(normalized)) return true;
+  const [, suffix] = normalized.includes(":") ? normalized.split(/:(.+)/) : ["", ""];
+  return Boolean(suffix && keys.has(suffix));
+}
+
+function contentUsageFor(content: ContentAsset, campaigns: Campaign[], journeys: Journey[]): ContentUsage[] {
+  const usages: ContentUsage[] = [];
+  const seen = new Set<string>();
+  for (const campaign of campaigns) {
+    for (const channel of campaign.channels ?? []) {
+      if (!contentReferenceMatches(content, channel.contentAssetId)) continue;
+      const key = `campaign:${campaign.id}:${channel.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      usages.push({
+        key,
+        kind: "campaign",
+        campaignId: campaign.id,
+        label: campaign.name,
+        detail: `${channelLabel[channel.channel]} campaign channel${channel.scheduledAt ? ` / ${formatDate(channel.scheduledAt)}` : ""}`,
+        channel: channel.channel,
+        status: channel.status || campaign.status,
+      });
+    }
+  }
+  for (const journey of journeys) {
+    for (const step of journey.steps ?? []) {
+      if (!contentReferenceMatches(content, step.contentAssetId) && !contentReferenceMatches(content, step.templateRef)) continue;
+      const key = `journey:${journey.id}:${step.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      usages.push({
+        key,
+        kind: "journey",
+        journeyId: journey.id,
+        label: journey.name,
+        detail: `Step ${step.stepOrder + 1}: ${step.kind || "message"} / ${channelLabel[step.channel]} / day ${step.dayOffset}`,
+        channel: step.channel,
+        status: step.status || journey.status,
+      });
+    }
+  }
+  return usages;
 }
 
 function newDraftId() {
@@ -1357,6 +1676,30 @@ function recipientSnapshotLabel(recipient: CampaignRecipient) {
   return objectValue(recipient.snapshot, "fullName") || objectValue(recipient.snapshot, "email") || recipient.recipient;
 }
 
+function recipientSnapshotText(recipient: CampaignRecipient, keys: string[]) {
+  const snapshot = recordValue(recipient.snapshot);
+  const lovable = recordValue(snapshot.lovable);
+  const nestedContact = recordValue(lovable.contact ?? snapshot.contact);
+  for (const source of [snapshot, lovable, nestedContact]) {
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  return "";
+}
+
+function recipientContactLookupKeys(recipient: CampaignRecipient) {
+  return [
+    recipient.contactId,
+    recipientSnapshotText(recipient, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "lovableExternalId", "lovable_external_id", "id"]),
+  ].flatMap((value) => lookupKeysForExternalId(value, ["contact"]));
+}
+
+function recipientEmailLookupKey(recipient: CampaignRecipient) {
+  return lower(recipientSnapshotText(recipient, ["email", "emailAddress", "email_address"]) || recipient.recipient);
+}
+
 function sumMarketingMetrics(metrics: MarketingCampaignMetric[]): MarketingAnalyticsTotals {
   return metrics.reduce((totals, metric) => ({
     sent: totals.sent + metric.sent,
@@ -1370,7 +1713,57 @@ function sumMarketingMetrics(metrics: MarketingCampaignMetric[]): MarketingAnaly
   }), { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, replied: 0, socialEngagement: 0 });
 }
 
+function summarizeCampaignMetrics(metrics: MarketingCampaignMetric[]): CampaignMetricSummary {
+  const totals = sumMarketingMetrics(metrics);
+  const latestMetricDate = metrics
+    .map((metric) => metric.metricDate)
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+  return {
+    ...totals,
+    metricCount: metrics.length,
+    latestMetricDate,
+    channels: Array.from(new Set(metrics.map((metric) => metric.channel).filter(Boolean))).sort(),
+  };
+}
+
+function contactProfileSignals(contact: MarketingContact) {
+  const metadata = recordValue(contact.metadata);
+  const lovable = recordValue(metadata.lovable);
+  const profile = recordValue(lovable.profile ?? metadata.profile);
+  const segmentation = recordValue(metadata.segmentation ?? lovable.segmentation);
+  const sources = [metadata, lovable, profile, segmentation];
+  const entries = [
+    {
+      key: "crmScore",
+      label: "CRM",
+      value: firstMetadataText(sources, ["crmScore", "crm_score", "leadScore", "lead_score", "score", "profile.crmScore", "profile.crm_score"]),
+      className: "bg-emerald-50 text-emerald-800",
+    },
+    {
+      key: "lifecycle",
+      label: "Lifecycle",
+      value: firstMetadataText(sources, ["lifecycle", "lifeCycle", "life_cycle", "stage", "profile.lifecycle", "segmentation.lifecycle"]),
+      className: "bg-blue-50 text-blue-800",
+    },
+    {
+      key: "persona",
+      label: "Persona",
+      value: firstMetadataText(sources, ["persona", "profile.persona", "segment", "profile.segment"]),
+      className: "bg-purple-50 text-purple-800",
+    },
+    {
+      key: "profileEmail",
+      label: "Profile email",
+      value: firstMetadataText(sources, ["profile.emailAddress", "profile.email_address", "profile.email", "emailAddress", "email_address"]),
+      className: "bg-[#f5eee8] text-[#5b4a46]",
+    },
+  ].filter((entry) => entry.value);
+  return entries;
+}
+
 function contactSearchText(contact: MarketingContact) {
+  const profileSignals = contactProfileSignals(contact);
   return [
     contact.id,
     contact.fullName,
@@ -1390,9 +1783,32 @@ function contactSearchText(contact: MarketingContact) {
     contact.organizationId,
     contact.channelAvailability,
     contact.metadata,
+    ...profileSignals.flatMap((entry) => [entry.label, entry.value]),
     ...(contact.tags ?? []),
     ...(contact.lists ?? []),
   ].map(searchableValue).join(" ");
+}
+
+function countedOptions(values: Array<string | null | undefined>): CountOption[] {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const rawValue of values) {
+    const label = String(rawValue ?? "").trim();
+    if (!label) continue;
+    const value = label.toLowerCase();
+    const current = counts.get(value);
+    if (current) {
+      current.count += 1;
+    } else {
+      counts.set(value, { label, count: 1 });
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([value, item]) => ({ value, label: item.label, count: item.count }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function valueMatchesFilter(value: string | null | undefined, filter: string) {
+  return filter === "all" || String(value ?? "").trim().toLowerCase() === filter;
 }
 
 function searchableValue(value: unknown) {
@@ -1411,10 +1827,39 @@ function matchesSearch(search: string, values: unknown[]) {
   return values.map(searchableValue).join(" ").includes(query);
 }
 
+function displayText(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  return "";
+}
+
+function nestedValue(source: Record<string, unknown>, path: string) {
+  let current: unknown = source;
+  for (const segment of path.split(".")) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function firstMetadataText(sources: Record<string, unknown>[], paths: string[]) {
+  for (const source of sources) {
+    for (const path of paths) {
+      const text = displayText(nestedValue(source, path));
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
 const syncCountLabels = {
   campaigns: "Campaigns",
   contacts: "Contacts",
   content: "Content",
+  journeyStepPresetContent: "Journey step preset content",
+  missingContentReferences: "Missing content references",
   mediaAssets: "Media assets",
   campaignChannels: "Campaign channels",
   campaignMetrics: "Campaign metrics",
@@ -1428,6 +1873,101 @@ const syncCountLabels = {
 } as const;
 
 type SyncCountKey = keyof typeof syncCountLabels;
+
+const lovableDestinationRows: Array<{
+  key: string;
+  label: string;
+  sourceHint: string;
+  destination: string;
+  detail: string;
+  countKeys: SyncCountKey[];
+  contentSourceKeys?: string[];
+}> = [
+  {
+    key: "email-templates",
+    label: "Saved email templates",
+    sourceHint: "saved_email_templates, emailTemplates",
+    destination: "Content tab",
+    detail: "Email subject, HTML, CTA, design data, and media become editable content assets.",
+    countKeys: ["content"],
+    contentSourceKeys: ["saved_email_template", "email_template", "marketing_email_template"],
+  },
+  {
+    key: "social-posts",
+    label: "Social posts",
+    sourceHint: "social_posts, posts",
+    destination: "Content tab",
+    detail: "Platform, caption/body, image, and builder metadata become channel-specific content assets.",
+    countKeys: ["content"],
+    contentSourceKeys: ["social_post", "post", "marketing_social_post"],
+  },
+  {
+    key: "content-briefs",
+    label: "Content briefs",
+    sourceHint: "content_briefs, briefs",
+    destination: "Content tab",
+    detail: "Planning copy and structured brief sections are preserved as content assets and metadata.",
+    countKeys: ["content"],
+    contentSourceKeys: ["content_brief", "brief", "marketing_content_brief"],
+  },
+  {
+    key: "journey-step-presets",
+    label: "Journey step presets",
+    sourceHint: "journey steps with config.translations",
+    destination: "Content tab and Journeys tab",
+    detail: "Translated onboarding step copy hidden inside journey configs becomes editable content and is linked back to the journey step.",
+    countKeys: ["journeyStepPresetContent"],
+    contentSourceKeys: ["journey_step_preset"],
+  },
+  {
+    key: "media",
+    label: "Media assets",
+    sourceHint: "media_assets, mediaAssets, images",
+    destination: "Content > Media references",
+    detail: "Standalone and content-linked image/file URLs are listed and can be linked to content.",
+    countKeys: ["mediaAssets"],
+  },
+  {
+    key: "contacts",
+    label: "Contacts",
+    sourceHint: "contacts, email_unsubscribes",
+    destination: "Contacts tab",
+    detail: "Names, email, phone, WhatsApp, company, role, consent, tags, and segmentation fields are searchable.",
+    countKeys: ["contacts"],
+  },
+  {
+    key: "lists",
+    label: "Lists and audiences",
+    sourceHint: "audiences, contact_lists, contact_list_members",
+    destination: "Contacts tab > Lists",
+    detail: "List rules, member IDs, mapped contacts, and unmapped members are shown together.",
+    countKeys: ["audiences", "audienceMembers"],
+  },
+  {
+    key: "campaigns",
+    label: "Campaigns",
+    sourceHint: "campaigns, campaign channels, recipients",
+    destination: "Dashboard, Campaigns, Calendar",
+    detail: "Schedules, channels, linked content, recipient snapshots, and email send controls live in campaign details.",
+    countKeys: ["campaigns", "campaignChannels", "campaignRecipients"],
+  },
+  {
+    key: "analytics",
+    label: "Campaign metrics",
+    sourceHint: "campaignMetrics, analytics, performance",
+    destination: "Dashboard analytics",
+    detail: "Sent, delivered, opened, clicked, bounced, unsubscribed, replied, and social engagement metrics are summarized.",
+    countKeys: ["campaignMetrics"],
+  },
+  {
+    key: "journeys",
+    label: "Journeys",
+    sourceHint: "journeys, journey_steps, enrollments, events",
+    destination: "Journeys tab",
+    detail: "Triggers, goals, steps, enrollment progress, and journey event history are editable or inspectable.",
+    countKeys: ["journeys", "journeyEnrollments", "journeyStepEvents"],
+  },
+];
 
 function recordValue(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -1483,6 +2023,26 @@ function syncUnmappedSample(summary: Record<string, unknown>) {
     ...(Array.isArray(unmapped.campaignRecipientExternalIds) ? unmapped.campaignRecipientExternalIds : []),
   ];
   return ids.map((id) => String(id)).filter(Boolean).slice(0, 5);
+}
+
+function syncContentSourceItems(summary: Record<string, unknown>) {
+  return Object.entries(recordValue(summary.contentSourceCounts))
+    .map(([key, value]) => ({ key, label: contentSourceLabel(key), value: numberValue(value) }))
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+}
+
+function syncContentSourceCount(summary: Record<string, unknown>, keys: string[]) {
+  const counts = recordValue(summary.contentSourceCounts);
+  return keys.reduce((total, key) => total + numberValue(counts[key]), 0);
+}
+
+function syncDestinationCount(summary: Record<string, unknown>, row: typeof lovableDestinationRows[number]) {
+  const sourceCount = row.contentSourceKeys?.length ? syncContentSourceCount(summary, row.contentSourceKeys) : 0;
+  if (sourceCount) return sourceCount;
+  const exported = row.countKeys.reduce((total, key) => total + syncCountValue(summary, "exported", key), 0);
+  if (exported) return exported;
+  return row.countKeys.reduce((total, key) => total + syncCountValue(summary, "imported", key), 0);
 }
 
 function syncFieldCoverageItems(summary: Record<string, unknown>) {
@@ -1556,6 +2116,27 @@ function MetadataPanel({ title, value, testId }: { title: string; value?: Record
   );
 }
 
+function LovableContentSourceDetails({ content }: { content: ContentAsset }) {
+  const rows = lovableContentSourceDetails(content);
+  if (!rows.length) return null;
+  return (
+    <div className="rounded-xl border border-violet-100 bg-violet-50 p-3" data-testid="marketing-content-source-details">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-900">Lovable source details</p>
+        <Pill className="bg-white text-violet-800">{contentOriginLabel(content)}</Pill>
+      </div>
+      <dl className="mt-3 grid gap-2 md:grid-cols-2">
+        {rows.map((row) => (
+          <div key={`${row.label}-${row.value}`} className="rounded-lg bg-white px-3 py-2">
+            <dt className="text-[11px] font-black uppercase tracking-[0.1em] text-[#8b7a73]">{row.label}</dt>
+            <dd className="mt-1 break-words text-xs font-bold text-[#241133]">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function Pill({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black ${className}`}>{children}</span>;
 }
@@ -1597,7 +2178,68 @@ function MediaPreviewTile({ url, label, testId }: { url: string; label?: string;
   );
 }
 
-function LinkedContentPreview({ contentAsset, linkedMediaAssets, testId }: { contentAsset: ContentAsset | null; linkedMediaAssets: MarketingMediaAsset[]; testId: string }) {
+function LovableDesignPreview({
+  contentAsset,
+  testId = "marketing-content-design-preview",
+  mediaTestIdPrefix = "marketing-content-design-media",
+}: {
+  contentAsset: ContentAsset;
+  testId?: string;
+  mediaTestIdPrefix?: string;
+}) {
+  const blocks = collectDesignPreviewBlocks(contentAsset.designJson);
+  if (!blocks.length) return null;
+
+  return (
+    <div className="rounded-xl border border-purple-100 bg-[#fbf7ff] p-3" data-testid={testId}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Lovable design preview</p>
+          <p className="mt-1 text-xs font-bold text-[#7d6b65]">{blocks.length} visible design block{blocks.length === 1 ? "" : "s"} parsed from imported builder data.</p>
+        </div>
+        <Pill className="bg-purple-50 text-purple-800">Design rendered</Pill>
+      </div>
+      <div className="mt-3 grid max-h-[560px] gap-3 overflow-y-auto pr-1">
+        {blocks.map((block, index) => (
+          <article key={`${block.key}-${index}`} className="overflow-hidden rounded-xl border border-[#eadfd5] bg-white">
+            {block.mediaUrl ? (
+              <MediaPreviewTile url={block.mediaUrl} label={block.title || contentAsset.title} testId={`${mediaTestIdPrefix}-${index}`} />
+            ) : null}
+            <div className="p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill className="bg-purple-50 text-purple-800">{humanizeMetadataKey(block.type)}</Pill>
+                <span className="text-xs font-bold text-[#8b7a73]">{block.key}</span>
+              </div>
+              {block.title ? <h4 className="mt-2 text-base font-black text-[#241133]">{block.title}</h4> : null}
+              {block.body && block.body !== block.title ? (
+                <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-relaxed text-[#5b4a46]">{block.body}</p>
+              ) : null}
+              {block.ctaLabel || block.ctaUrl ? (
+                <p className="mt-3 text-xs font-black text-purple-700">
+                  CTA: {[block.ctaLabel, block.ctaUrl].filter(Boolean).join(" -> ")}
+                </p>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LinkedContentPreview({
+  contentAsset,
+  linkedMediaAssets,
+  testId,
+  onPreview,
+  onEdit,
+}: {
+  contentAsset: ContentAsset | null;
+  linkedMediaAssets: MarketingMediaAsset[];
+  testId: string;
+  onPreview?: (contentAsset: ContentAsset) => void;
+  onEdit?: (contentAsset: ContentAsset) => void;
+}) {
   if (!contentAsset) {
     return (
       <div className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-3 text-sm font-bold text-[#8b7a73]" data-testid={testId}>
@@ -1615,13 +2257,23 @@ function LinkedContentPreview({ contentAsset, linkedMediaAssets, testId }: { con
           <h4 className="mt-1 font-black text-[#241133]">{contentAsset.title}</h4>
           <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{contentAsset.subject || contentAsset.body || "No copy yet."}</p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap justify-end gap-1.5">
           <Pill className={channelClass(contentAsset.channel)}>{channelLabel[contentAsset.channel]}</Pill>
           <Pill className={statusClass(contentAsset.status)}>{contentAsset.status}</Pill>
           {contentAsset.source === "lovable" ? <Pill className="bg-violet-50 text-violet-700">{contentOriginLabel(contentAsset)}</Pill> : null}
           {contentAsset.hasHtml ? <Pill className="bg-blue-50 text-blue-800">HTML</Pill> : null}
           {contentAsset.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Design data</Pill> : null}
           {previewUrls.length ? <Pill className="bg-emerald-50 text-emerald-800">{previewUrls.length} media</Pill> : null}
+          {onPreview ? (
+            <button type="button" onClick={() => onPreview(contentAsset)} className="inline-flex min-h-7 items-center justify-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700" data-testid={`${testId}-preview`}>
+              <Eye size={12} /> Preview
+            </button>
+          ) : null}
+          {onEdit ? (
+            <button type="button" onClick={() => onEdit(contentAsset)} className="inline-flex min-h-7 items-center justify-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700" data-testid={`${testId}-edit`}>
+              <Pencil size={12} /> Edit
+            </button>
+          ) : null}
         </div>
       </div>
       {contentAsset.ctaLabel || contentAsset.ctaUrl ? (
@@ -1631,8 +2283,8 @@ function LinkedContentPreview({ contentAsset, linkedMediaAssets, testId }: { con
         <p className="mt-2 rounded-lg bg-white p-3 text-sm font-semibold text-[#5b4a46]">{contentAsset.body}</p>
       ) : null}
       {previewUrls.length ? (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {previewUrls.slice(0, 3).map((url) => (
+        <div className="mt-3 grid max-h-[420px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+          {previewUrls.map((url) => (
             <MediaPreviewTile key={url} url={url} label={contentAsset.title} />
           ))}
         </div>
@@ -1640,6 +2292,80 @@ function LinkedContentPreview({ contentAsset, linkedMediaAssets, testId }: { con
       {contentAsset.lovableExternalId ? (
         <p className="mt-2 break-all text-xs font-bold text-[#8b7a73]">Lovable ID: {contentAsset.lovableExternalId}</p>
       ) : null}
+    </div>
+  );
+}
+
+function ContentUsageList({
+  usages,
+  testId,
+  onOpenCampaign,
+  onOpenJourney,
+  compact = false,
+}: {
+  usages: ContentUsage[];
+  testId: string;
+  onOpenCampaign?: (campaignId: string) => void;
+  onOpenJourney?: (journeyId: string) => void;
+  compact?: boolean;
+}) {
+  if (!usages.length) {
+    return (
+      <div className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-3 text-sm font-bold text-[#8b7a73]" data-testid={testId}>
+        Not linked to a campaign or journey yet.
+      </div>
+    );
+  }
+  return (
+    <div className={compact ? "grid gap-2" : "rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3"} data-testid={testId}>
+      {!compact ? <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Used in campaigns and journeys</p> : null}
+      <div className={`grid gap-2 ${compact ? "" : "mt-3"}`}>
+        {usages.map((usage) => {
+          const canOpenCampaign = usage.kind === "campaign" && Boolean(usage.campaignId) && Boolean(onOpenCampaign);
+          const canOpenJourney = usage.kind === "journey" && Boolean(usage.journeyId) && Boolean(onOpenJourney);
+          return (
+            <article key={usage.key} className="rounded-lg border border-[#eadfd5] bg-white px-3 py-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Pill className={usage.kind === "campaign" ? "bg-blue-50 text-blue-800" : "bg-purple-50 text-purple-800"}>
+                      {usage.kind === "campaign" ? "Campaign" : "Journey"}
+                    </Pill>
+                    <Pill className={channelClass(usage.channel)}>{channelLabel[usage.channel]}</Pill>
+                    <Pill className={statusClass(usage.status)}>{usage.status}</Pill>
+                  </div>
+                  <p className="mt-1 text-sm font-black text-[#241133]">{usage.label}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-[#7d6b65]">{usage.detail}</p>
+                </div>
+                {canOpenCampaign ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (usage.campaignId) onOpenCampaign?.(usage.campaignId);
+                    }}
+                    className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700"
+                    data-testid={`button-marketing-open-content-usage-${usage.key}`}
+                  >
+                    <ExternalLink size={12} /> Open
+                  </button>
+                ) : null}
+                {canOpenJourney ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (usage.journeyId) onOpenJourney?.(usage.journeyId);
+                    }}
+                    className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700"
+                    data-testid={`button-marketing-open-content-usage-${usage.key}`}
+                  >
+                    <ExternalLink size={12} /> Open
+                  </button>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1676,6 +2402,11 @@ function SectionCard({ title, subtitle, children, action }: { title: string; sub
       <div className="mt-4">{children}</div>
     </section>
   );
+}
+
+function FloatingPanelPortal({ children }: { children: ReactNode }) {
+  if (typeof document === "undefined" || !document.body) return <>{children}</>;
+  return createPortal(children, document.body);
 }
 
 function SyncRunDiagnostics({ run }: { run: SyncRun }) {
@@ -1782,12 +2513,180 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
           </div>
         </div>
       ) : null}
+      <LovableDestinationMap summary={run.summary} />
+    </div>
+  );
+}
+
+function LovableImportCoveragePanel({
+  run,
+  title = "Lovable import coverage",
+  subtitle = "Latest sync coverage across Lovable export and VYVA import.",
+  focusKeys,
+  onOpenSettings,
+}: {
+  run: SyncRun | null;
+  title?: string;
+  subtitle?: string;
+  focusKeys?: SyncCountKey[];
+  onOpenSettings: () => void;
+}) {
+  const parity = run ? syncParityItems(run.summary) : [];
+  const focusedParity = focusKeys?.length
+    ? focusKeys.flatMap((key) => parity.find((item) => item.key === key) ?? [])
+    : parity;
+  const contentSources = run ? syncContentSourceItems(run.summary) : [];
+  const fieldCoverage = run ? syncFieldCoverageItems(run.summary) : [];
+  const unmappedCount = run ? syncUnmappedCount(run.summary) : 0;
+  const unmappedCampaignRecipientCount = run ? syncUnmappedCampaignRecipientCount(run.summary) : 0;
+  const isFailed = run?.status === "failed";
+  const coverageNote = !run
+    ? "No Lovable sync has run yet. Run sync from Settings to import campaigns, content, contacts, lists, media, metrics, and journey history."
+    : isFailed
+      ? (run.error || "The last Lovable sync failed. Open Settings to inspect the error and retry.")
+      : focusedParity.length
+        ? "Use this as the quick truth table for what Lovable sent versus what VYVA stored."
+        : "The last Lovable sync did not report import coverage counts.";
+
+  return (
+    <SectionCard
+      title={title}
+      subtitle={run ? `${subtitle} Last run: ${run.status} / ${formatDate(run.createdAt)}.` : subtitle}
+      action={(
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
+          data-testid="button-marketing-open-sync-coverage-settings"
+        >
+          <Settings size={14} /> Sync settings
+        </button>
+      )}
+    >
+      <div className={`rounded-xl border p-3 text-sm font-bold ${isFailed ? "border-red-100 bg-red-50 text-red-800" : "border-blue-100 bg-blue-50 text-blue-900"}`} data-testid="marketing-lovable-import-coverage">
+        <p>{coverageNote}</p>
+        {focusedParity.length ? (
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {focusedParity.map((item) => {
+              const badgeClass = item.status === "missing"
+                ? "bg-red-50 text-red-800"
+                : item.status === "review"
+                  ? "bg-amber-50 text-amber-800"
+                  : item.status === "derived"
+                    ? "bg-blue-50 text-blue-800"
+                    : "bg-emerald-50 text-emerald-800";
+              const detail = item.status === "missing"
+                ? `${item.missing} missing`
+                : item.status === "review"
+                  ? `${item.skipped} skipped`
+                  : item.status === "derived"
+                    ? "derived"
+                    : "complete";
+              return (
+                <div key={item.key} className="rounded-lg bg-white p-3 text-[#241133]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-black">{item.label}</p>
+                    <Pill className={badgeClass}>{detail}</Pill>
+                  </div>
+                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">Lovable {item.exported} / VYVA {item.imported}</p>
+                  {item.skipped ? <p className="mt-1 text-xs font-bold text-amber-800">Skipped: {item.skipped}</p> : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        {contentSources.length ? (
+          <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-content-source-buckets">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable content buckets</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {contentSources.map((item) => <Pill key={item.key} className="bg-purple-50 text-purple-800">{item.label}: {item.value}</Pill>)}
+            </div>
+          </div>
+        ) : null}
+        {fieldCoverage.length ? (
+          <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-field-coverage">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped Lovable fields</p>
+            <div className="mt-2 grid gap-2">
+              {fieldCoverage.map((item) => (
+                <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
+                  <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
+                  {item.firstClassFields.length ? (
+                    <p className="mt-1 text-xs font-semibold text-emerald-800">
+                      Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
+                    </p>
+                  ) : null}
+                  {item.metadataOnlyFields.length ? (
+                    <p className="mt-1 text-xs font-semibold text-amber-800">
+                      Metadata-only: {item.metadataOnlyFields.slice(0, 8).join(", ")}{item.metadataOnlyFields.length > 8 ? ` +${item.metadataOnlyFields.length - 8}` : ""}
+                    </p>
+                  ) : null}
+                  {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
+                    <details className="mt-2 rounded-lg border border-[#eadfd5] bg-white p-2 text-xs font-bold text-[#5b4a46]" data-testid={`marketing-lovable-field-map-${item.entity}`}>
+                      <summary className="cursor-pointer font-black text-[#241133]">View full field map</summary>
+                      <div className="mt-2 grid gap-2">
+                        {item.metadataOnlyFields.length ? (
+                          <p><span className="text-amber-800">Metadata-only:</span> {item.metadataOnlyFields.join(", ")}</p>
+                        ) : null}
+                        {item.firstClassFields.length ? (
+                          <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
+                        ) : null}
+                        {item.exportedFields.length ? (
+                          <p><span className="text-blue-800">All exported:</span> {item.exportedFields.join(", ")}</p>
+                        ) : null}
+                      </div>
+                    </details>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {run ? <LovableDestinationMap summary={run.summary} /> : null}
+        {unmappedCount || unmappedCampaignRecipientCount ? (
+          <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-lovable-unmapped-summary">
+            {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
+            {unmappedCampaignRecipientCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped campaign recipients: {unmappedCampaignRecipientCount}</Pill> : null}
+          </div>
+        ) : null}
+      </div>
+    </SectionCard>
+  );
+}
+
+function LovableDestinationMap({ summary }: { summary: Record<string, unknown> }) {
+  const rows = lovableDestinationRows.map((row) => ({ ...row, count: syncDestinationCount(summary, row) }));
+  const hasCounts = rows.some((row) => row.count > 0);
+  return (
+    <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-destination-map">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Where Lovable data appears</p>
+          <p className="mt-1 text-xs font-semibold text-[#8b7a73]">Use this map to find each imported Lovable source in VYVA after preview or sync.</p>
+        </div>
+        <Pill className={hasCounts ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{hasCounts ? "mapped" : "waiting for sync"}</Pill>
+      </div>
+      <div className="mt-3 grid gap-2 xl:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.key} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-black text-[#241133]">{row.label}</p>
+                <p className="mt-1 text-xs font-semibold text-[#8b7a73]">{row.sourceHint}</p>
+              </div>
+              <Pill className={row.count > 0 ? "bg-blue-50 text-blue-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{row.count}</Pill>
+            </div>
+            <p className="mt-2 text-xs font-black text-purple-800">Destination: {row.destination}</p>
+            <p className="mt-1 text-xs font-semibold text-[#5b4a46]">{row.detail}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 const inputClass = "h-11 w-full rounded-xl border border-[#E5D8CA] bg-white px-3 text-sm font-semibold text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
+const floatingContentPanelClass = "fixed bottom-6 left-1/2 top-20 z-[9999] w-[min(980px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-300 bg-white p-4 shadow-[0_24px_80px_rgba(36,17,51,0.35)]";
 
 export default function MarketingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
@@ -1820,27 +2719,42 @@ export default function MarketingAdminPage() {
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
   const [audienceFilter, setAudienceFilter] = useState<Audience | "all">("all");
   const [contentSourceFilter, setContentSourceFilter] = useState("all");
+  const [contactSourceFilter, setContactSourceFilter] = useState("all");
+  const [contactConsentFilter, setContactConsentFilter] = useState("all");
+  const [contactLanguageFilter, setContactLanguageFilter] = useState("all");
+  const [contactCategoryFilter, setContactCategoryFilter] = useState("all");
+  const [contactVerticalFilter, setContactVerticalFilter] = useState("all");
+  const [contactMarketFilter, setContactMarketFilter] = useState("all");
+  const [contactListFilter, setContactListFilter] = useState("all");
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>(() => emptyCampaignDraft());
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
+  const [confirmingCampaignDeleteId, setConfirmingCampaignDeleteId] = useState<string | null>(null);
+  const [confirmingCampaignSendId, setConfirmingCampaignSendId] = useState<string | null>(null);
+  const [confirmingDueEmailSend, setConfirmingDueEmailSend] = useState(false);
   const [editingJourneyId, setEditingJourneyId] = useState<string | "new" | null>(null);
   const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>(() => emptyJourneyEditDraft());
   const [journeySaving, setJourneySaving] = useState(false);
   const [journeyFeedback, setJourneyFeedback] = useState("");
+  const [confirmingJourneyDeleteId, setConfirmingJourneyDeleteId] = useState<string | null>(null);
   const [contentDraft, setContentDraft] = useState<ContentDraft>(() => emptyContentDraft());
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [editingContentId, setEditingContentId] = useState<string | null>(null);
   const [contentEditDraft, setContentEditDraft] = useState<ContentEditDraft | null>(null);
+  const [contentDrawerMode, setContentDrawerMode] = useState<"preview" | "edit" | null>(null);
   const [contentSaving, setContentSaving] = useState(false);
   const [contentFeedback, setContentFeedback] = useState("");
   const [contentActionFeedback, setContentActionFeedback] = useState("");
+  const [confirmingContentDeleteId, setConfirmingContentDeleteId] = useState<string | null>(null);
   const contentEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const contentPreviewPanelRef = useRef<HTMLDivElement | null>(null);
   const [editingMediaAssetId, setEditingMediaAssetId] = useState<string | null>(null);
   const [mediaEditDraft, setMediaEditDraft] = useState<MediaEditDraft | null>(null);
   const [mediaSaving, setMediaSaving] = useState(false);
   const [mediaFeedback, setMediaFeedback] = useState("");
+  const [confirmingMediaDeleteId, setConfirmingMediaDeleteId] = useState<string | null>(null);
+  const mediaEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const [contactDraft, setContactDraft] = useState<ContactDraft>({
     fullName: "",
     audienceType: "b2b",
@@ -1858,11 +2772,16 @@ export default function MarketingAdminPage() {
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactEditDraft, setContactEditDraft] = useState<ContactEditDraft | null>(null);
   const [contactSaving, setContactSaving] = useState(false);
+  const [confirmingContactDeleteId, setConfirmingContactDeleteId] = useState<string | null>(null);
+  const contactEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const [audienceDraft, setAudienceDraft] = useState<AudienceDraft>({ name: "", listType: "dynamic", description: "", rulesText: "{\n  \"market\": \"Spain\"\n}", contactExternalIds: "" });
   const [editingAudienceId, setEditingAudienceId] = useState<string | null>(null);
   const [audienceEditDraft, setAudienceEditDraft] = useState<AudienceEditDraft | null>(null);
   const [audienceSaving, setAudienceSaving] = useState(false);
   const [audienceFeedback, setAudienceFeedback] = useState("");
+  const [confirmingAudienceDeleteId, setConfirmingAudienceDeleteId] = useState<string | null>(null);
+  const audienceEditorPanelRef = useRef<HTMLDivElement | null>(null);
+  const [expandedAudienceMemberIds, setExpandedAudienceMemberIds] = useState<Set<string>>(() => new Set());
 
   async function refreshAll() {
     const marketingDataRequest = Promise.all([
@@ -1903,7 +2822,32 @@ export default function MarketingAdminPage() {
     refreshAll().catch((error) => setMessage(error.message));
   }, []);
 
+  const contentById = useMemo(() => new Map(content.map((item) => [item.id, item])), [content]);
   const contentTitleById = useMemo(() => new Map(content.map((item) => [item.id, item.title])), [content]);
+  const campaignById = useMemo(() => new Map(campaigns.map((campaign) => [campaign.id, campaign])), [campaigns]);
+  const journeyById = useMemo(() => new Map(journeys.map((journey) => [journey.id, journey])), [journeys]);
+  const contactById = useMemo(() => new Map(contacts.map((contact) => [contact.id, contact])), [contacts]);
+  const contentUsageById = useMemo(
+    () => new Map(content.map((item) => [item.id, contentUsageFor(item, campaigns, journeys)])),
+    [campaigns, content, journeys],
+  );
+  const contactByImportId = useMemo(() => {
+    const map = new Map<string, MarketingContact>();
+    for (const contact of contacts) {
+      for (const key of [...lookupKeysForExternalId(contact.id, ["contact"]), ...lookupKeysForExternalId(contact.lovableExternalId, ["contact"])]) {
+        map.set(key, contact);
+      }
+    }
+    return map;
+  }, [contacts]);
+  const contactByEmail = useMemo(() => {
+    const map = new Map<string, MarketingContact>();
+    for (const contact of contacts) {
+      const email = lower(contact.email);
+      if (email) map.set(email, contact);
+    }
+    return map;
+  }, [contacts]);
   const contentSourceOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of content) {
@@ -1950,6 +2894,36 @@ export default function MarketingAdminPage() {
     return campaignMatchesSearch && matchesAudience && matchesChannel;
   }), [campaigns, search, audienceFilter, channelFilter, audiences, contentTitleById]);
 
+  const visibleCampaignMetrics = useMemo(() => campaignMetrics.filter((metric) => {
+    const campaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
+    const metricMatchesSearch = matchesSearch(search, [
+      metric.id,
+      metric.campaignId,
+      metric.campaignName,
+      metric.channel,
+      metric.metricDate,
+      metric.source,
+      metric.lovableExternalId,
+      metric.metadata,
+      campaign?.name,
+      campaign?.objective,
+      campaign?.source,
+      campaign?.lovableExternalId,
+    ]);
+    const matchesAudience = audienceFilter === "all" || !campaign || campaign.audienceType === audienceFilter;
+    const matchesChannel = channelFilter === "all" || metric.channel === channelFilter || metric.channel === "all";
+    return metricMatchesSearch && matchesAudience && matchesChannel;
+  }), [campaignMetrics, search, audienceFilter, channelFilter, campaignById]);
+
+  const campaignMetricSummaryByCampaignId = useMemo(() => {
+    const grouped = new Map<string, MarketingCampaignMetric[]>();
+    for (const metric of campaignMetrics) {
+      if (!metric.campaignId) continue;
+      grouped.set(metric.campaignId, [...(grouped.get(metric.campaignId) ?? []), metric]);
+    }
+    return new Map(Array.from(grouped.entries()).map(([campaignId, metrics]) => [campaignId, summarizeCampaignMetrics(metrics)]));
+  }, [campaignMetrics]);
+
   const visibleContent = useMemo(() => content.filter((item) => {
     const contentMatchesSearch = matchesSearch(search, [
       item.id,
@@ -1974,6 +2948,7 @@ export default function MarketingAdminPage() {
   }), [content, search, channelFilter, contentSourceFilter]);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
+  const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
 
   const visibleMediaAssets = useMemo(() => mediaAssets.filter((item) => {
     const matchesText = matchesSearch(search, [
@@ -1993,11 +2968,35 @@ export default function MarketingAdminPage() {
     return matchesText && matchesSource;
   }), [mediaAssets, search, contentSourceFilter, visibleContentIdSet]);
 
+  const contactSourceOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.source)), [contacts]);
+  const contactConsentOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.consentStatus)), [contacts]);
+  const contactLanguageOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.language)), [contacts]);
+  const contactCategoryOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.category)), [contacts]);
+  const contactVerticalOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.vertical)), [contacts]);
+  const contactMarketOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.market)), [contacts]);
+  const contactListOptions = useMemo(() => countedOptions(contacts.flatMap((contact) => contact.lists ?? [])), [contacts]);
+  const contactFiltersActive = [
+    contactSourceFilter,
+    contactConsentFilter,
+    contactLanguageFilter,
+    contactCategoryFilter,
+    contactVerticalFilter,
+    contactMarketFilter,
+    contactListFilter,
+  ].some((value) => value !== "all");
+
   const visibleContacts = useMemo(() => contacts.filter((contact) => {
     const matchesSearch = !search || contactSearchText(contact).includes(search.toLowerCase());
     const matchesAudience = audienceFilter === "all" || contact.audienceType === audienceFilter;
-    return matchesSearch && matchesAudience;
-  }), [contacts, search, audienceFilter]);
+    const matchesSource = valueMatchesFilter(contact.source, contactSourceFilter);
+    const matchesConsent = valueMatchesFilter(contact.consentStatus, contactConsentFilter);
+    const matchesLanguage = valueMatchesFilter(contact.language, contactLanguageFilter);
+    const matchesCategory = valueMatchesFilter(contact.category, contactCategoryFilter);
+    const matchesVertical = valueMatchesFilter(contact.vertical, contactVerticalFilter);
+    const matchesMarket = valueMatchesFilter(contact.market, contactMarketFilter);
+    const matchesList = contactListFilter === "all" || contact.lists.some((list) => valueMatchesFilter(list, contactListFilter));
+    return matchesSearch && matchesAudience && matchesSource && matchesConsent && matchesLanguage && matchesCategory && matchesVertical && matchesMarket && matchesList;
+  }), [contacts, search, audienceFilter, contactSourceFilter, contactConsentFilter, contactLanguageFilter, contactCategoryFilter, contactVerticalFilter, contactMarketFilter, contactListFilter]);
 
   const visibleAudiences = useMemo(() => audiences.filter((audience) => {
     return matchesSearch(search, [
@@ -2011,8 +3010,36 @@ export default function MarketingAdminPage() {
       audience.metadata,
       ...(audience.contactExternalIds ?? []),
       ...(audience.unmappedContactExternalIds ?? []),
+      ...(audience.memberPreview ?? []).flatMap((member) => [
+        member.fullName,
+        member.email,
+        member.phoneNumber,
+        member.whatsappNumber,
+        member.companyName,
+        member.roleLabel,
+        member.lovableExternalId,
+        member.contactExternalId,
+      ]),
     ]);
   }), [audiences, search]);
+  const audienceDraftMemberIds = useMemo(() => parseAudienceMemberIds(audienceDraft), [audienceDraft]);
+  const audienceEditMemberIds = useMemo(() => parseAudienceMemberIds(audienceEditDraft), [audienceEditDraft]);
+  const audienceDraftMemberContacts = useMemo(
+    () => contacts.filter((contact) => contactMatchesMemberIds(contact, audienceDraftMemberIds)),
+    [contacts, audienceDraftMemberIds],
+  );
+  const audienceEditMemberContacts = useMemo(
+    () => contacts.filter((contact) => contactMatchesMemberIds(contact, audienceEditMemberIds)),
+    [contacts, audienceEditMemberIds],
+  );
+  const audienceDraftCandidateContacts = useMemo(
+    () => contacts.filter((contact) => !contactMatchesMemberIds(contact, audienceDraftMemberIds)),
+    [contacts, audienceDraftMemberIds],
+  );
+  const audienceEditCandidateContacts = useMemo(
+    () => contacts.filter((contact) => !contactMatchesMemberIds(contact, audienceEditMemberIds)),
+    [contacts, audienceEditMemberIds],
+  );
 
   const visibleJourneys = useMemo(() => journeys.filter((journey) => {
     const targetAudience = journeyTargetAudience(journey, audiences);
@@ -2047,11 +3074,89 @@ export default function MarketingAdminPage() {
     return journeyMatchesSearch && matchesAudience && matchesChannel;
   }), [journeys, search, audienceFilter, channelFilter, audiences, contentTitleById]);
 
+  const contactByJourneyEnrollmentId = useMemo(() => {
+    const map = new Map<string, MarketingContact>();
+    for (const enrollment of journeyEnrollments) {
+      const directContact = enrollment.contactId ? contactById.get(enrollment.contactId) ?? null : null;
+      const importedContact = enrollment.contactExternalId
+        ? lookupKeysForExternalId(enrollment.contactExternalId, ["contact"])
+          .map((key) => contactByImportId.get(key) ?? null)
+          .find((contact): contact is MarketingContact => Boolean(contact)) ?? null
+        : null;
+      const contact = directContact ?? importedContact;
+      if (contact) map.set(enrollment.id, contact);
+    }
+    return map;
+  }, [journeyEnrollments, contactById, contactByImportId]);
+
+  const contactByCampaignRecipientId = useMemo(() => {
+    const map = new Map<string, MarketingContact>();
+    for (const campaign of campaigns) {
+      for (const recipient of campaign.recipients ?? []) {
+        const directContact = recipient.contactId ? contactById.get(recipient.contactId) ?? null : null;
+        const importedContact = recipientContactLookupKeys(recipient)
+          .map((key) => contactByImportId.get(key) ?? null)
+          .find((contact): contact is MarketingContact => Boolean(contact)) ?? null;
+        const emailContact = contactByEmail.get(recipientEmailLookupKey(recipient)) ?? null;
+        const contact = directContact ?? importedContact ?? emailContact;
+        if (contact) map.set(recipient.id, contact);
+      }
+    }
+    return map;
+  }, [campaigns, contactById, contactByImportId, contactByEmail]);
+
+  const visibleJourneyEnrollments = useMemo(() => journeyEnrollments.filter((enrollment) => {
+    const journey = journeyById.get(enrollment.journeyId) ?? null;
+    const contact = contactByJourneyEnrollmentId.get(enrollment.id) ?? null;
+    const enrollmentMatchesSearch = matchesSearch(search, [
+      enrollment.id,
+      enrollment.journeyId,
+      enrollment.journeyName,
+      enrollment.contactId,
+      enrollment.contactExternalId,
+      enrollment.status,
+      enrollment.currentStepOrder,
+      enrollment.enteredAt,
+      enrollment.exitedAt,
+      enrollment.lastActivityAt,
+      enrollment.source,
+      enrollment.lovableExternalId,
+      enrollment.metadata,
+      journey?.name,
+      journey?.objective,
+      journey?.source,
+      journey?.lovableExternalId,
+      contact?.fullName,
+      contact?.email,
+      contact?.phoneNumber,
+      contact?.whatsappNumber,
+      contact?.companyName,
+      contact?.roleLabel,
+      ...(enrollment.events ?? []).flatMap((event) => [
+        event.id,
+        event.eventType,
+        event.stepOrder,
+        event.eventAt,
+        event.channel,
+        event.metadata,
+      ]),
+    ]);
+    const matchesAudience = audienceFilter === "all" || !journey || journey.audienceType === audienceFilter;
+    const matchesChannel = channelFilter === "all"
+      || (journey?.steps ?? []).some((step) => step.channel === channelFilter)
+      || (enrollment.events ?? []).some((event) => event.channel === channelFilter);
+    return enrollmentMatchesSearch && matchesAudience && matchesChannel;
+  }), [journeyEnrollments, search, audienceFilter, channelFilter, journeyById, contactByJourneyEnrollmentId]);
+
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
-  const selectedContent = useMemo(() => visibleContent.find((item) => item.id === selectedContentId) ?? visibleContent[0] ?? null, [selectedContentId, visibleContent]);
+  const selectedContent = useMemo(() => selectedContentId ? content.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, content]);
+  const selectedContentUsage = useMemo(
+    () => selectedContent ? contentUsageById.get(selectedContent.id) ?? [] : [],
+    [contentUsageById, selectedContent],
+  );
   const selectedContentMediaAssets = useMemo(() => {
     if (!selectedContent) return [];
     return mediaAssets.filter((item) => item.contentAssetId === selectedContent.id);
@@ -2059,6 +3164,42 @@ export default function MarketingAdminPage() {
   const selectedContentDesignSummary = useMemo(() => selectedContent ? designShapeSummary(selectedContent.designJson) : null, [selectedContent]);
   const selectedContentMediaPreviewUrls = useMemo(() => selectedContent ? contentMediaPreviewUrls(selectedContent, selectedContentMediaAssets) : [], [selectedContent, selectedContentMediaAssets]);
   const latestSyncRun = syncState.runs[0] ?? null;
+  const missingLovableReferenceContent = useMemo(
+    () => content.filter((item) => contentOriginKey(item) === "missing_lovable_reference"),
+    [content],
+  );
+  const missingLovableReferenceCount = useMemo(() => {
+    if (!latestSyncRun) return missingLovableReferenceContent.length;
+    return Math.max(
+      missingLovableReferenceContent.length,
+      syncCountValue(latestSyncRun.summary, "imported", "missingContentReferences"),
+      numberValue(recordValue(latestSyncRun.summary.contentSourceCounts).missing_lovable_reference),
+    );
+  }, [latestSyncRun, missingLovableReferenceContent.length]);
+
+  useEffect(() => {
+    if (!selectedContentId || contentIdSet.has(selectedContentId)) return;
+    if (editingContentId === selectedContentId && contentEditDraft) return;
+    setSelectedContentId(null);
+    setContentDrawerMode(null);
+    setContentActionFeedback("");
+    if (editingContentId === selectedContentId) {
+      setEditingContentId(null);
+      setContentEditDraft(null);
+      setContentFeedback("");
+    }
+  }, [selectedContentId, contentIdSet, editingContentId, contentEditDraft]);
+
+  useEffect(() => {
+    if (activeTab !== "content") return;
+    if (contentDrawerMode === "preview" && selectedContentId) {
+      scrollToContentPanel(contentPreviewPanelRef);
+    }
+    if (contentDrawerMode === "edit" && editingContentId) {
+      scrollToContentPanel(contentEditorPanelRef);
+    }
+  }, [activeTab, contentDrawerMode, selectedContentId, editingContentId]);
+
   const contentEmptyDiagnostic = useMemo(() => {
     if (content.length > 0 && visibleContent.length === 0) {
       return {
@@ -2117,6 +3258,11 @@ export default function MarketingAdminPage() {
     () => content.filter((item) => item.channel === campaignDraft.channel && item.status !== "archived"),
     [campaignDraft.channel, content],
   );
+  const campaignEditPrimaryContentOptions = useMemo(() => {
+    const options = content.filter((item) => item.channel === campaignEditDraft.channel && item.status !== "archived");
+    const selected = campaignEditDraft.contentAssetId ? content.find((item) => item.id === campaignEditDraft.contentAssetId) ?? null : null;
+    return selected && !options.some((item) => item.id === selected.id) ? [selected, ...options] : options;
+  }, [campaignEditDraft.channel, campaignEditDraft.contentAssetId, content]);
   const selectedCampaignDraftTargetAudience = useMemo(
     () => audiences.find((audience) => audience.id === campaignDraft.targetAudienceId) ?? null,
     [audiences, campaignDraft.targetAudienceId],
@@ -2215,6 +3361,8 @@ export default function MarketingAdminPage() {
   function startCampaignEdit(campaign: Campaign) {
     setEditingCampaignId(campaign.id);
     setCampaignEditDraft(campaignEditDraftFromCampaign(campaign, audiences));
+    setConfirmingCampaignDeleteId(null);
+    setConfirmingCampaignSendId(null);
     setMessage("");
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
@@ -2227,6 +3375,8 @@ export default function MarketingAdminPage() {
 
   function cancelCampaignEdit() {
     setEditingCampaignId(null);
+    setConfirmingCampaignDeleteId(null);
+    setConfirmingCampaignSendId(null);
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
     setCampaignEditDraft(emptyCampaignEditDraft());
@@ -2362,17 +3512,23 @@ export default function MarketingAdminPage() {
   }
 
   async function sendCampaignEmails(campaign: Campaign) {
-    if (!window.confirm(`Send email campaign "${campaign.name}" to ${campaign.recipientCount} saved recipient${campaign.recipientCount === 1 ? "" : "s"} now?`)) return;
+    if (confirmingCampaignSendId !== campaign.id) {
+      setConfirmingCampaignSendId(campaign.id);
+      setCampaignEmailFeedback(`Click Confirm send to email ${campaign.recipientCount} saved recipient${campaign.recipientCount === 1 ? "" : "s"} for "${campaign.name}".`);
+      return;
+    }
     setCampaignEmailSending(true);
     setCampaignEmailFeedback("Sending campaign emails...");
     try {
       const result = await api<CampaignEmailSendResponse>(`/api/admin/marketing/campaigns/${campaign.id}/send-email`, { method: "POST" });
       const summaryText = `Campaign email sent to ${result.sentCount} recipient${result.sentCount === 1 ? "" : "s"}. ${result.failedCount ? `${result.failedCount} failed. ` : ""}${result.skippedCount ? `${result.skippedCount} skipped.` : ""}`.trim();
+      setConfirmingCampaignSendId(null);
       setCampaignEmailFeedback(summaryText);
       setMessage(summaryText);
       await refreshAll();
     } catch (error) {
       const messageText = error instanceof Error ? error.message : "Campaign email could not be sent.";
+      setConfirmingCampaignSendId(null);
       setCampaignEmailFeedback(messageText);
       setMessage(messageText);
     } finally {
@@ -2381,7 +3537,11 @@ export default function MarketingAdminPage() {
   }
 
   async function sendDueCampaignEmails() {
-    if (!window.confirm("Send all due scheduled email campaigns now?")) return;
+    if (!confirmingDueEmailSend) {
+      setConfirmingDueEmailSend(true);
+      setDueEmailFeedback("Click Confirm run due emails to send every due scheduled email campaign.");
+      return;
+    }
     setDueEmailSending(true);
     setDueEmailFeedback("Checking due scheduled email campaigns...");
     try {
@@ -2389,11 +3549,13 @@ export default function MarketingAdminPage() {
       const summaryText = result.dueCount === 0
         ? "No scheduled email campaigns are due."
         : `Due email run checked ${result.dueCount} campaign${result.dueCount === 1 ? "" : "s"}: ${result.sentCount} sent, ${result.failedCount} failed, ${result.skippedCount} skipped.`;
+      setConfirmingDueEmailSend(false);
       setDueEmailFeedback(summaryText);
       setMessage(summaryText);
       await refreshAll();
     } catch (error) {
       const messageText = error instanceof Error ? error.message : "Due scheduled emails could not be sent.";
+      setConfirmingDueEmailSend(false);
       setDueEmailFeedback(messageText);
       setMessage(messageText);
     } finally {
@@ -2402,15 +3564,21 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteCampaign(campaign: Campaign) {
-    if (!window.confirm(`Delete campaign "${campaign.name}"? This removes the local VYVA planning record.`)) return;
+    if (confirmingCampaignDeleteId !== campaign.id) {
+      setConfirmingCampaignDeleteId(campaign.id);
+      setMessage(`Click Confirm delete to remove campaign "${campaign.name}".`);
+      return;
+    }
     setCampaignSaving(true);
     setMessage("Deleting campaign...");
     try {
       await api(`/api/admin/marketing/campaigns/${campaign.id}`, { method: "DELETE" });
       if (editingCampaignId === campaign.id) cancelCampaignEdit();
+      setConfirmingCampaignDeleteId(null);
       setMessage("Campaign deleted.");
       await refreshAll();
     } catch (error) {
+      setConfirmingCampaignDeleteId(null);
       setMessage(error instanceof Error ? error.message : "Campaign could not be deleted.");
     } finally {
       setCampaignSaving(false);
@@ -2420,6 +3588,7 @@ export default function MarketingAdminPage() {
   function startNewJourney() {
     setEditingJourneyId("new");
     setJourneyEditDraft(emptyJourneyEditDraft());
+    setConfirmingJourneyDeleteId(null);
     setJourneyFeedback("");
     setMessage("");
   }
@@ -2427,6 +3596,7 @@ export default function MarketingAdminPage() {
   function startJourneyEdit(journey: Journey) {
     setEditingJourneyId(journey.id);
     setJourneyEditDraft(journeyEditDraftFromJourney(journey, audiences));
+    setConfirmingJourneyDeleteId(null);
     setJourneyFeedback("");
     setMessage("");
   }
@@ -2434,6 +3604,7 @@ export default function MarketingAdminPage() {
   function cancelJourneyEdit() {
     setEditingJourneyId(null);
     setJourneyEditDraft(emptyJourneyEditDraft());
+    setConfirmingJourneyDeleteId(null);
     setJourneyFeedback("");
   }
 
@@ -2504,17 +3675,23 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteJourney(journey: Journey) {
-    if (!window.confirm(`Delete journey "${journey.name}"? This removes the local VYVA planning record.`)) return;
+    if (confirmingJourneyDeleteId !== journey.id) {
+      setConfirmingJourneyDeleteId(journey.id);
+      setJourneyFeedback(`Click Confirm delete to remove journey "${journey.name}".`);
+      return;
+    }
     setJourneySaving(true);
     setJourneyFeedback("Deleting journey...");
     try {
       await api(`/api/admin/marketing/journeys/${journey.id}`, { method: "DELETE" });
       if (editingJourneyId === journey.id) cancelJourneyEdit();
+      setConfirmingJourneyDeleteId(null);
       setJourneyFeedback("Deleted.");
       setMessage("Journey deleted.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Journey could not be deleted.";
+      setConfirmingJourneyDeleteId(null);
       setJourneyFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -2552,7 +3729,8 @@ export default function MarketingAdminPage() {
       setEditingContentId(result.content.id);
       setContentEditDraft(contentEditDraftFromContent(result.content));
       setContentFeedback("Content draft created.");
-      setContentActionFeedback("Content draft created. Editor opened below.");
+      setContentActionFeedback("Content draft created. Editor opened.");
+      setContentDrawerMode("edit");
       setMessage("Content draft created.");
       await refreshAll();
       scrollToContentPanel(contentEditorPanelRef);
@@ -2568,32 +3746,88 @@ export default function MarketingAdminPage() {
 
   function scrollToContentPanel(ref: RefObject<HTMLDivElement | null>) {
     window.setTimeout(() => {
-      if (typeof ref.current?.scrollIntoView === "function") {
-        ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      const node = ref.current;
+      if (!node) return;
+      if (typeof node.scrollIntoView === "function") {
+        node.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      if (typeof node.focus === "function") {
+        node.focus({ preventScroll: true });
+      }
+    }, 0);
+  }
+
+  function scrollToContentActionRow(contentId: string) {
+    window.setTimeout(() => {
+      const node = document.getElementById(`marketing-content-row-${contentId}`);
+      if (!node) return;
+      if (typeof node.scrollIntoView === "function") {
+        node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
       }
     }, 0);
   }
 
   function previewContent(contentAsset: ContentAsset) {
+    setActiveTab("content");
     setSelectedContentId(contentAsset.id);
+    setEditingContentId(null);
+    setContentEditDraft(null);
+    setContentDrawerMode("preview");
+    setConfirmingContentDeleteId(null);
     setContentActionFeedback(`Previewing "${contentAsset.title}".`);
-    scrollToContentPanel(contentPreviewPanelRef);
+    scrollToContentActionRow(contentAsset.id);
   }
 
   function startContentEdit(contentAsset: ContentAsset) {
+    setActiveTab("content");
     setSelectedContentId(contentAsset.id);
     setEditingContentId(contentAsset.id);
     setContentEditDraft(contentEditDraftFromContent(contentAsset));
+    setContentDrawerMode("edit");
+    setConfirmingContentDeleteId(null);
     setContentFeedback("");
     setContentActionFeedback(`Editing "${contentAsset.title}".`);
-    scrollToContentPanel(contentEditorPanelRef);
+    scrollToContentActionRow(contentAsset.id);
   }
 
   function cancelContentEdit() {
     setEditingContentId(null);
     setContentEditDraft(null);
+    setContentDrawerMode(null);
     setContentFeedback("");
     setContentActionFeedback("");
+    setConfirmingContentDeleteId(null);
+  }
+
+  function closeContentDrawer() {
+    if (contentDrawerMode === "edit") {
+      cancelContentEdit();
+      return;
+    }
+    setContentDrawerMode(null);
+    setContentActionFeedback("");
+  }
+
+  function openContentUsageCampaign(campaignId: string) {
+    const campaign = campaignById.get(campaignId);
+    if (!campaign) {
+      setMessage("Campaign reference could not be opened.");
+      return;
+    }
+    closeContentDrawer();
+    startCampaignEdit(campaign);
+    setActiveTab("dashboard");
+  }
+
+  function openContentUsageJourney(journeyId: string) {
+    const journey = journeyById.get(journeyId);
+    if (!journey) {
+      setMessage("Journey reference could not be opened.");
+      return;
+    }
+    closeContentDrawer();
+    startJourneyEdit(journey);
+    setActiveTab("journeys");
   }
 
   async function saveContentEdit(event: FormEvent) {
@@ -2613,6 +3847,7 @@ export default function MarketingAdminPage() {
       setSelectedContentId(result.content.id);
       setEditingContentId(result.content.id);
       setContentEditDraft(contentEditDraftFromContent(result.content));
+      setContentDrawerMode("edit");
       setContentFeedback("Updated.");
       setContentActionFeedback(`Updated "${result.content.title}".`);
       setMessage("Content updated.");
@@ -2628,13 +3863,21 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteContent(contentAsset: ContentAsset) {
-    if (!window.confirm(`Delete content "${contentAsset.title}"? Campaigns and journey steps will keep their records but lose this content link.`)) return;
+    if (confirmingContentDeleteId !== contentAsset.id) {
+      setConfirmingContentDeleteId(contentAsset.id);
+      setContentActionFeedback(`Click Confirm delete to remove "${contentAsset.title}". Campaigns and journey steps will keep their records but lose this content link.`);
+      scrollToContentActionRow(contentAsset.id);
+      return;
+    }
     setContentSaving(true);
     setContentFeedback("Deleting content...");
+    setContentActionFeedback(`Deleting "${contentAsset.title}"...`);
     try {
       await api(`/api/admin/marketing/content/${contentAsset.id}`, { method: "DELETE" });
       if (editingContentId === contentAsset.id) cancelContentEdit();
       if (selectedContentId === contentAsset.id) setSelectedContentId(null);
+      if (editingContentId === contentAsset.id || selectedContentId === contentAsset.id) setContentDrawerMode(null);
+      setConfirmingContentDeleteId(null);
       setContentFeedback("Deleted.");
       setContentActionFeedback(`Deleted "${contentAsset.title}".`);
       setMessage("Content deleted.");
@@ -2644,20 +3887,25 @@ export default function MarketingAdminPage() {
       setContentFeedback(errorMessage);
       setContentActionFeedback(errorMessage);
       setMessage(errorMessage);
+      setConfirmingContentDeleteId(null);
     } finally {
       setContentSaving(false);
     }
   }
 
   function startMediaEdit(asset: MarketingMediaAsset) {
+    setActiveTab("content");
     setEditingMediaAssetId(asset.id);
     setMediaEditDraft(mediaEditDraftFromAsset(asset));
-    setMediaFeedback("");
+    setConfirmingMediaDeleteId(null);
+    setMediaFeedback(`Editing media reference "${mediaPreviewLabel(asset.originalUrl)}".`);
+    scrollToContentPanel(mediaEditorPanelRef);
   }
 
   function cancelMediaEdit() {
     setEditingMediaAssetId(null);
     setMediaEditDraft(null);
+    setConfirmingMediaDeleteId(null);
     setMediaFeedback("");
   }
 
@@ -2691,18 +3939,24 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteMediaAsset(asset: MarketingMediaAsset) {
-    if (!window.confirm(`Delete media reference "${asset.originalUrl}"? This removes the VYVA media row only; the original Lovable URL is not changed.`)) return;
+    if (confirmingMediaDeleteId !== asset.id) {
+      setConfirmingMediaDeleteId(asset.id);
+      setMediaFeedback(`Click Confirm delete to remove this VYVA media reference. The original Lovable URL is not changed.`);
+      return;
+    }
     setMediaSaving(true);
     setMediaFeedback("Deleting media...");
     try {
       await api(`/api/admin/marketing/media/${asset.id}`, { method: "DELETE" });
       if (editingMediaAssetId === asset.id) cancelMediaEdit();
       setMediaAssets((current) => current.filter((item) => item.id !== asset.id));
+      setConfirmingMediaDeleteId(null);
       setMediaFeedback("Media deleted.");
       setMessage("Marketing media deleted.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Marketing media could not be deleted.";
+      setConfirmingMediaDeleteId(null);
       setMediaFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -2777,14 +4031,19 @@ export default function MarketingAdminPage() {
   }
 
   function startContactEdit(contact: MarketingContact) {
+    setActiveTab("contacts");
+    setContactView("contacts");
     setEditingContactId(contact.id);
     setContactEditDraft(contactEditDraftFromContact(contact));
-    setContactFeedback("");
+    setConfirmingContactDeleteId(null);
+    setContactFeedback(`Editing "${contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}".`);
+    scrollToContentPanel(contactEditorPanelRef);
   }
 
   function cancelContactEdit() {
     setEditingContactId(null);
     setContactEditDraft(null);
+    setConfirmingContactDeleteId(null);
     setContactFeedback("");
   }
 
@@ -2817,17 +4076,23 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteContact(contact: MarketingContact) {
-    if (!window.confirm(`Delete contact "${contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}"? Audience memberships will be removed and campaign/journey history will keep its records.`)) return;
+    if (confirmingContactDeleteId !== contact.id) {
+      setConfirmingContactDeleteId(contact.id);
+      setContactFeedback(`Click Confirm delete to remove "${contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}". Audience memberships will be removed.`);
+      return;
+    }
     setContactSaving(true);
     setContactFeedback("Deleting contact...");
     try {
       await api(`/api/admin/marketing/contacts/${contact.id}`, { method: "DELETE" });
       if (editingContactId === contact.id) cancelContactEdit();
+      setConfirmingContactDeleteId(null);
       setContactFeedback("Contact deleted.");
       setMessage("Marketing contact deleted.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Marketing contact could not be deleted.";
+      setConfirmingContactDeleteId(null);
       setContactFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -2878,15 +4143,46 @@ export default function MarketingAdminPage() {
   }
 
   function startAudienceEdit(audience: MarketingAudience) {
+    setActiveTab("contacts");
+    setContactView("lists");
     setEditingAudienceId(audience.id);
     setAudienceEditDraft(audienceEditDraftFromAudience(audience));
-    setAudienceFeedback("");
+    setConfirmingAudienceDeleteId(null);
+    setAudienceFeedback(`Editing list "${audience.name}".`);
+    scrollToContentPanel(audienceEditorPanelRef);
   }
 
   function cancelAudienceEdit() {
     setEditingAudienceId(null);
     setAudienceEditDraft(null);
+    setConfirmingAudienceDeleteId(null);
     setAudienceFeedback("");
+  }
+
+  function addAudienceDraftContact(contactId: string) {
+    const contact = contacts.find((item) => item.id === contactId);
+    if (!contact) return;
+    setAudienceDraft((draft) => updateAudienceDraftMemberIds(draft, [...parseAudienceMemberIds(draft), contactAudienceMemberId(contact)]));
+  }
+
+  function removeAudienceDraftContact(contact: MarketingContact) {
+    setAudienceDraft((draft) => updateAudienceDraftMemberIds(
+      draft,
+      parseAudienceMemberIds(draft).filter((id) => !contactMatchesMemberIds(contact, [id])),
+    ));
+  }
+
+  function addAudienceEditContact(contactId: string) {
+    const contact = contacts.find((item) => item.id === contactId);
+    if (!contact) return;
+    setAudienceEditDraft((draft) => draft ? updateAudienceDraftMemberIds(draft, [...parseAudienceMemberIds(draft), contactAudienceMemberId(contact)]) : draft);
+  }
+
+  function removeAudienceEditContact(contact: MarketingContact) {
+    setAudienceEditDraft((draft) => draft ? updateAudienceDraftMemberIds(
+      draft,
+      parseAudienceMemberIds(draft).filter((id) => !contactMatchesMemberIds(contact, [id])),
+    ) : draft);
   }
 
   async function saveAudienceEdit(event: FormEvent) {
@@ -2926,17 +4222,23 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteAudience(audience: MarketingAudience) {
-    if (!window.confirm(`Delete list "${audience.name}"? Contacts will stay in marketing contacts; only this list and its memberships are removed.`)) return;
+    if (confirmingAudienceDeleteId !== audience.id) {
+      setConfirmingAudienceDeleteId(audience.id);
+      setAudienceFeedback(`Click Confirm delete to remove list "${audience.name}". Contacts will stay in marketing contacts.`);
+      return;
+    }
     setAudienceSaving(true);
     setAudienceFeedback("Deleting audience...");
     try {
       await api(`/api/admin/marketing/audiences/${audience.id}`, { method: "DELETE" });
       if (editingAudienceId === audience.id) cancelAudienceEdit();
+      setConfirmingAudienceDeleteId(null);
       setAudienceFeedback("Audience deleted.");
       setMessage("Audience deleted.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Audience could not be deleted.";
+      setConfirmingAudienceDeleteId(null);
       setAudienceFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -3040,7 +4342,6 @@ export default function MarketingAdminPage() {
   const campaignEmailPromptIsBlocked = Boolean(!campaignEmailFeedback && campaignEmailBlockedReason);
   const journeyFeedbackIsError = Boolean(journeyFeedback && /fail|error|could not|required|valid json/i.test(journeyFeedback));
   const savedCampaignRecipients = editingCampaign?.recipients ?? [];
-  const visibleSavedCampaignRecipients = savedCampaignRecipients.slice(0, 8);
   const selectedCampaignMetrics = editingCampaign
     ? campaignMetrics.filter((metric) => metric.campaignId === editingCampaign.id)
     : [];
@@ -3127,6 +4428,11 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Clicks tracked" value={analyticsTotals.clicked} icon={CheckCircle2} />
               </div>
 
+              <LovableImportCoveragePanel
+                run={latestSyncRun}
+                onOpenSettings={() => setActiveTab("settings")}
+              />
+
               <div className="grid gap-4 xl:grid-cols-[1fr_0.75fr]">
                 <SectionCard title="By channel" subtitle="Planning coverage across campaign channels.">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -3155,11 +4461,11 @@ export default function MarketingAdminPage() {
                 </SectionCard>
               </div>
 
-              <SectionCard title="Analytics snapshots" subtitle={`${campaignMetrics.length} imported performance rows from Lovable or future providers.`}>
-                {campaignMetrics.length === 0 ? (
-                  <EmptyState text="No campaign analytics imported yet." />
+              <SectionCard title="Analytics snapshots" subtitle={`${visibleCampaignMetrics.length} visible of ${campaignMetrics.length} imported performance rows from Lovable or future providers.`}>
+                {visibleCampaignMetrics.length === 0 ? (
+                  <EmptyState text={campaignMetrics.length ? "No imported analytics match the current filters." : "No campaign analytics imported yet."} />
                 ) : (
-                  <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
+                  <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
                     <table className="w-full border-collapse text-left text-sm">
                       <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                         <tr>
@@ -3170,20 +4476,48 @@ export default function MarketingAdminPage() {
                           <th className="px-4 py-3">Opened</th>
                           <th className="px-4 py-3">Clicked</th>
                           <th className="px-4 py-3">Source</th>
+                          <th className="px-4 py-3">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {campaignMetrics.slice(0, 8).map((metric) => (
-                          <tr key={metric.id} className="border-t border-[#f0e7df]">
-                            <td className="px-4 py-3 font-black">{metric.campaignName || metric.lovableExternalId || "Unlinked campaign"}</td>
-                            <td className="px-4 py-3 font-bold">{metric.channel}</td>
-                            <td className="px-4 py-3 font-bold">{metric.sent}</td>
-                            <td className="px-4 py-3 font-bold">{metric.delivered}</td>
-                            <td className="px-4 py-3 font-bold">{metric.opened}</td>
-                            <td className="px-4 py-3 font-bold">{metric.clicked}</td>
-                            <td className="px-4 py-3 font-bold">{metric.source}</td>
-                          </tr>
-                        ))}
+                        {visibleCampaignMetrics.map((metric) => {
+                          const linkedCampaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
+                          return (
+                            <tr key={metric.id} className="border-t border-[#f0e7df]">
+                              <td className="px-4 py-3 font-black">
+                                <p>{metric.campaignName || metric.lovableExternalId || "Unlinked campaign"}</p>
+                                {metric.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable metric ID: {metric.lovableExternalId}</p> : null}
+                              </td>
+                              <td className="px-4 py-3 font-bold">{metric.channel}</td>
+                              <td className="px-4 py-3 font-bold">{metric.sent}</td>
+                              <td className="px-4 py-3 font-bold">{metric.delivered}</td>
+                              <td className="px-4 py-3 font-bold">{metric.opened}</td>
+                              <td className="px-4 py-3 font-bold">{metric.clicked}</td>
+                              <td className="px-4 py-3 font-bold">{metric.source}</td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-2">
+                                  {linkedCampaign ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        startCampaignEdit(linkedCampaign);
+                                        setMessage(`Opened campaign "${linkedCampaign.name}" from imported analytics.`);
+                                      }}
+                                      className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                      disabled={campaignSaving}
+                                      data-testid={`button-marketing-open-metric-campaign-${metric.id}`}
+                                    >
+                                      <ExternalLink size={13} /> Open campaign
+                                    </button>
+                                  ) : (
+                                    <Pill className="bg-amber-50 text-amber-800">Unlinked</Pill>
+                                  )}
+                                  <MetadataPanel title="Imported metric metadata" value={metric.metadata} testId={`marketing-analytics-metadata-${metric.id}`} />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -3269,10 +4603,17 @@ export default function MarketingAdminPage() {
                 <SectionCard title="Campaign list" subtitle={`${visibleCampaigns.length} visible of ${campaigns.length} campaigns. Click a campaign to open full details.`}>
                   <CampaignTable
                     campaigns={visibleCampaigns}
+                    contentById={contentById}
+                    contentTitleById={contentTitleById}
+                    metricsByCampaignId={campaignMetricSummaryByCampaignId}
+                    audiences={audiences}
                     activeCampaignId={editingCampaignId}
                     onEdit={startCampaignEdit}
                     onDelete={(campaign) => deleteCampaign(campaign).catch((error) => setMessage(error.message))}
+                    onPreviewContent={previewContent}
+                    onEditContent={startContentEdit}
                     actionsDisabled={campaignSaving}
+                    confirmingDeleteId={confirmingCampaignDeleteId}
                   />
                 </SectionCard>
 
@@ -3363,7 +4704,7 @@ export default function MarketingAdminPage() {
                               </div>
                             </div>
                             <div className="grid gap-2">
-                              {selectedCampaignMetrics.slice(0, 4).map((metric) => (
+                              {selectedCampaignMetrics.map((metric) => (
                                 <div key={metric.id} className="grid gap-2 rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span>{formatDate(metric.metricDate)} / {metric.channel} / {metric.source}</span>
@@ -3409,7 +4750,8 @@ export default function MarketingAdminPage() {
                               const channel = event.target.value as Channel;
                               setCampaignEditDraft((draft) => {
                                 const channels = campaignChannelsWithPrimary(draft);
-                                const firstContentAssetId = channel === "email" ? draft.contentAssetId : "";
+                                const selectedContent = draft.contentAssetId ? content.find((item) => item.id === draft.contentAssetId) ?? null : null;
+                                const firstContentAssetId = selectedContent?.channel === channel ? draft.contentAssetId : "";
                                 return {
                                   ...draft,
                                   channel,
@@ -3424,11 +4766,10 @@ export default function MarketingAdminPage() {
                               {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
                             </select>
                           </Field>
-                          <Field label="Primary email content">
+                          <Field label="Primary content asset">
                             <select
                               className={inputClass}
                               value={campaignEditDraft.contentAssetId}
-                              disabled={campaignEditDraft.channel !== "email"}
                               onChange={(event) => {
                                 const contentAssetId = event.target.value;
                                 setCampaignEditDraft((draft) => {
@@ -3442,8 +4783,8 @@ export default function MarketingAdminPage() {
                               }}
                               data-testid="select-marketing-edit-campaign-content"
                             >
-                              <option value="">{campaignEditDraft.channel === "email" ? "Select email content" : "Email only"}</option>
-                              {emailContentAssets.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                              <option value="">Select {channelLabel[campaignEditDraft.channel]} content</option>
+                              {campaignEditPrimaryContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
                             </select>
                           </Field>
                         </div>
@@ -3554,7 +4895,13 @@ export default function MarketingAdminPage() {
                                     </button>
                                   </div>
                                 </div>
-                                <LinkedContentPreview contentAsset={selectedChannelContent ?? null} linkedMediaAssets={selectedChannelMediaAssets} testId={`marketing-campaign-channel-content-preview-${index}`} />
+                                <LinkedContentPreview
+                                  contentAsset={selectedChannelContent ?? null}
+                                  linkedMediaAssets={selectedChannelMediaAssets}
+                                  testId={`marketing-campaign-channel-content-preview-${index}`}
+                                  onPreview={previewContent}
+                                  onEdit={startContentEdit}
+                                />
                               </div>
                             );
                           })}
@@ -3569,22 +4916,49 @@ export default function MarketingAdminPage() {
                           </div>
                           <Pill className="bg-purple-50 text-purple-800">{savedCampaignRecipients.length > 0 ? `${savedCampaignRecipients.length} shown` : "None saved"}</Pill>
                         </div>
-                        {visibleSavedCampaignRecipients.length === 0 ? (
+                        {savedCampaignRecipients.length === 0 ? (
                           <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-[#8b7a73]">No recipient snapshot saved yet.</p>
                         ) : (
-                          <div className="mt-3 grid gap-2">
-                            {visibleSavedCampaignRecipients.map((recipient) => (
-                              <div key={recipient.id} className="grid gap-2 rounded-lg bg-white p-2 text-sm font-bold">
+                          <div className="mt-3 grid max-h-[420px] gap-2 overflow-y-auto pr-1">
+                            {savedCampaignRecipients.map((recipient) => {
+                              const contact = contactByCampaignRecipientId.get(recipient.id) ?? null;
+                              const contactSummary = contact
+                                ? [contact.email, contact.phoneNumber, contact.whatsappNumber, contact.companyName].filter(Boolean).join(" - ")
+                                : "";
+                              return (
+                                <div key={recipient.id} className="grid gap-2 rounded-lg bg-white p-2 text-sm font-bold">
                                 <div className="flex items-center justify-between gap-3">
-                                  <span className="truncate text-[#241133]">{recipientSnapshotLabel(recipient)}</span>
-                                  <Pill className={channelClass(recipient.channel)}>{recipient.status}</Pill>
+                                  <div className="min-w-0">
+                                    <span className="block truncate text-[#241133]">{recipientSnapshotLabel(recipient)}</span>
+                                    <span className="block truncate text-xs text-[#8b7a73]">{recipient.recipient}</span>
+                                  </div>
+                                  <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                                    <Pill className={channelClass(recipient.channel)}>{recipient.channel}</Pill>
+                                    <Pill className={statusClass(recipient.status)}>{recipient.status}</Pill>
+                                  </div>
                                 </div>
+                                {contact ? (
+                                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900" data-testid={`marketing-campaign-recipient-contact-${recipient.id}`}>
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div>
+                                        <p className="text-sm font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
+                                        {contactSummary ? <p className="mt-0.5 text-emerald-800">{contactSummary}</p> : null}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => startContactEdit(contact)}
+                                        className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2 text-xs font-black text-emerald-800"
+                                        data-testid={`button-marketing-open-recipient-contact-${recipient.id}`}
+                                      >
+                                        <Pencil size={12} /> Open contact
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
                                 <MetadataPanel title="Saved recipient snapshot" value={recordValue(recipient.snapshot)} testId={`marketing-campaign-recipient-snapshot-${recipient.id}`} />
-                              </div>
-                            ))}
-                            {editingCampaign.recipientCount > visibleSavedCampaignRecipients.length ? (
-                              <p className="text-xs font-bold text-[#8b7a73]">+{editingCampaign.recipientCount - visibleSavedCampaignRecipients.length} more saved recipients.</p>
-                            ) : null}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -3615,11 +4989,10 @@ export default function MarketingAdminPage() {
                             {campaignRecipientPreview.length === 0 ? (
                               <EmptyState text="No eligible contacts match this audience, channel, and filter." />
                             ) : (
-                              <div className="flex flex-wrap gap-2">
-                                {campaignRecipientPreview.slice(0, 12).map((contact) => (
+                              <div className="flex max-h-[240px] flex-wrap gap-2 overflow-y-auto pr-1">
+                                {campaignRecipientPreview.map((contact) => (
                                   <Pill key={contact.id} className="bg-purple-50 text-purple-800">{contact.fullName || contact.email || contact.phoneNumber || contact.id}</Pill>
                                 ))}
-                                {campaignRecipientPreview.length > 12 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{campaignRecipientPreview.length - 12} more</Pill> : null}
                               </div>
                             )}
                           </div>
@@ -3643,10 +5016,10 @@ export default function MarketingAdminPage() {
                           type="button"
                           disabled={campaignEmailDisabled}
                           onClick={() => editingCampaign ? void sendCampaignEmails(editingCampaign) : undefined}
-                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8] ${confirmingCampaignSendId === editingCampaign.id ? "bg-red-700" : "bg-purple-700"}`}
                           data-testid="button-marketing-send-campaign-email"
                         >
-                          <Send size={15} /> {campaignEmailSending ? "Sending campaign..." : "Send campaign emails"}
+                          <Send size={15} /> {campaignEmailSending ? "Sending campaign..." : confirmingCampaignSendId === editingCampaign.id ? "Confirm send emails" : "Send campaign emails"}
                         </button>
                         <button type="button" onClick={cancelCampaignEdit} disabled={campaignSaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-cancel-campaign">
                           <X size={15} /> Close details
@@ -3724,17 +5097,47 @@ export default function MarketingAdminPage() {
                                 <Pencil size={14} /> Edit
                               </button>
                               <button type="button" onClick={() => deleteJourney(journey)} disabled={journeySaving} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-delete-journey-${journey.id}`}>
-                                <Trash2 size={14} /> Delete
+                                <Trash2 size={14} /> {confirmingJourneyDeleteId === journey.id ? "Confirm delete" : "Delete"}
                               </button>
+                              {confirmingJourneyDeleteId === journey.id ? (
+                                <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-journey-delete-confirmation-${journey.id}`}>
+                                  Click Confirm delete to remove this journey and its steps.
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {journey.steps.length === 0 ? <span className="text-sm font-bold text-[#8b7a73]">No steps yet.</span> : journey.steps.map((step) => (
-                              <span key={step.id} className={`rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>
-                                {step.stepOrder + 1}. {step.kind || "message"} / {channelLabel[step.channel]} / day {step.dayOffset ?? Math.floor(step.delayHours / 24)}
-                                {step.templateRef ? ` / ${step.templateRef}` : ""}
-                              </span>
-                            ))}
+                            {journey.steps.length === 0 ? <span className="text-sm font-bold text-[#8b7a73]">No steps yet.</span> : journey.steps.map((step) => {
+                              const stepContent = contentAssetByReference(content, step.contentAssetId) ?? contentAssetByReference(content, step.templateRef);
+                              return (
+                                <span key={step.id} className={`inline-flex flex-wrap items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>
+                                  <span>
+                                    {step.stepOrder + 1}. {step.kind || "message"} / {channelLabel[step.channel]} / day {step.dayOffset ?? Math.floor(step.delayHours / 24)}
+                                    {stepContent ? ` / ${stepContent.title}` : step.templateRef ? ` / ${step.templateRef}` : ""}
+                                  </span>
+                                  {stepContent ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => previewContent(stepContent)}
+                                        className="inline-flex min-h-6 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                                        data-testid={`button-marketing-preview-journey-step-content-${step.id}`}
+                                      >
+                                        <Eye size={11} /> Preview
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => startContentEdit(stepContent)}
+                                        className="inline-flex min-h-6 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                                        data-testid={`button-marketing-edit-journey-step-content-${step.id}`}
+                                      >
+                                        <Pencil size={11} /> Edit
+                                      </button>
+                                    </>
+                                  ) : null}
+                                </span>
+                              );
+                            })}
                           </div>
                         </article>
                       );
@@ -3909,7 +5312,13 @@ export default function MarketingAdminPage() {
                                       <input className={inputClass} value={step.templateRef} onChange={(event) => updateJourneyStep(step.id, { templateRef: event.target.value })} placeholder="Lovable or VYVA template ID" disabled={journeySaving} data-testid={`input-marketing-journey-step-template-ref-${index}`} />
                                     </Field>
                                   </div>
-                                  <LinkedContentPreview contentAsset={selectedContentOption} linkedMediaAssets={selectedStepMediaAssets} testId={`marketing-journey-step-content-preview-${index}`} />
+                                  <LinkedContentPreview
+                                    contentAsset={selectedContentOption}
+                                    linkedMediaAssets={selectedStepMediaAssets}
+                                    testId={`marketing-journey-step-content-preview-${index}`}
+                                    onPreview={previewContent}
+                                    onEdit={startContentEdit}
+                                  />
                                   <div className="grid gap-3 xl:grid-cols-2">
                                     <Field label="Internal notes">
                                       <textarea className={`${textareaClass} min-h-[72px]`} value={step.notes} onChange={(event) => updateJourneyStep(step.id, { notes: event.target.value })} disabled={journeySaving} data-testid={`textarea-marketing-journey-step-notes-${index}`} />
@@ -3951,17 +5360,30 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               </SectionCard>
-              <SectionCard title="Journey progress" subtitle={`${journeyEnrollments.length} imported enrollment records and event history rows.`}>
-                {journeyEnrollments.length === 0 ? (
-                  <EmptyState text="No journey enrollments imported yet." />
+              <SectionCard title="Journey progress" subtitle={`${visibleJourneyEnrollments.length} visible of ${journeyEnrollments.length} imported enrollment records and event history rows.`}>
+                {visibleJourneyEnrollments.length === 0 ? (
+                  <EmptyState text={journeyEnrollments.length ? "No journey enrollments match the current filters." : "No journey enrollments imported yet."} />
                 ) : (
                   <div className="grid gap-3" data-testid="marketing-journey-enrollments">
-                    {journeyEnrollments.slice(0, 10).map((enrollment) => (
-                      <article key={enrollment.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                    {visibleJourneyEnrollments.map((enrollment) => {
+                      const contact = contactByJourneyEnrollmentId.get(enrollment.id) ?? null;
+                      const contactSummary = contact
+                        ? [contact.email, contact.phoneNumber, contact.whatsappNumber, contact.companyName].filter(Boolean).join(" - ")
+                        : "";
+                      return (
+                        <article key={enrollment.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="font-black">{enrollment.journeyName || enrollment.journeyId}</p>
-                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">{enrollment.contactExternalId || enrollment.contactId || "No contact linked"}</p>
+                            {contact ? (
+                              <div className="mt-1 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900" data-testid={`marketing-journey-enrollment-contact-${enrollment.id}`}>
+                                <p className="text-sm font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
+                                {contactSummary ? <p className="mt-0.5 text-emerald-800">{contactSummary}</p> : null}
+                                <p className="mt-0.5 break-all text-emerald-700">Linked from {enrollment.contactExternalId || enrollment.contactId}</p>
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-xs font-bold text-[#7d6b65]">{enrollment.contactExternalId || enrollment.contactId || "No contact linked"}</p>
+                            )}
                             <p className="mt-1 text-xs font-bold text-[#8b7a73]">
                               Entered {formatDate(enrollment.enteredAt)} · Last activity {formatDate(enrollment.lastActivityAt)}
                               {enrollment.exitedAt ? ` · Exited ${formatDate(enrollment.exitedAt)}` : ""}
@@ -3979,7 +5401,7 @@ export default function MarketingAdminPage() {
                         <MetadataPanel title="Imported enrollment metadata" value={enrollment.metadata} testId={`marketing-journey-enrollment-metadata-${enrollment.id}`} />
                         {enrollment.events.length ? (
                           <div className="mt-3 grid gap-2">
-                            {enrollment.events.slice(0, 8).map((event) => (
+                            {enrollment.events.map((event) => (
                               <div key={event.id} className="rounded-lg border border-[#eadfd5] bg-white p-2" data-testid={`marketing-journey-event-${event.id}`}>
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <Pill className="bg-white text-[#5b4a46]">{event.eventType}</Pill>
@@ -3990,13 +5412,13 @@ export default function MarketingAdminPage() {
                                 <MetadataPanel title="Imported event metadata" value={event.metadata} testId={`marketing-journey-event-metadata-${event.id}`} />
                               </div>
                             ))}
-                            {enrollment.events.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{enrollment.events.length - 8}</Pill> : null}
                           </div>
                         ) : (
                           <p className="mt-3 text-xs font-bold text-[#8b7a73]">No event history for this enrollment.</p>
                         )}
-                      </article>
-                    ))}
+                        </article>
+                      );
+                    })}
                   </div>
                 )}
               </SectionCard>
@@ -4005,6 +5427,54 @@ export default function MarketingAdminPage() {
 
           {activeTab === "content" && (
             <div className="grid gap-4" data-testid="marketing-content-tab">
+              <LovableImportCoveragePanel
+                run={latestSyncRun}
+                title="Lovable content coverage"
+                subtitle="Quickly see whether Lovable exported templates, social posts, briefs, media, and campaign links."
+                focusKeys={["content", "mediaAssets", "campaigns", "campaignChannels", "journeys"]}
+                onOpenSettings={() => setActiveTab("settings")}
+              />
+              {missingLovableReferenceCount > 0 ? (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm" data-testid="marketing-missing-content-reference-panel">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="max-w-4xl">
+                      <p className="text-sm font-black uppercase tracking-[0.12em] text-amber-900">Needs Lovable content</p>
+                      <h3 className="mt-1 font-serif text-2xl text-[#241133]">Lovable referenced content that was not exported.</h3>
+                      <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">
+                        {missingLovableReferenceCount} campaign or journey content reference{missingLovableReferenceCount === 1 ? "" : "s"} arrived without the real body, HTML, design, or media. VYVA kept placeholder records so campaign and journey links do not break, but these need the matching Lovable export data or a replacement content asset here.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 text-sm font-black text-white"
+                      onClick={() => {
+                        setSearch("");
+                        setChannelFilter("all");
+                        setContentSourceFilter("missing_lovable_reference");
+                        setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
+                      }}
+                      data-testid="button-marketing-show-missing-content"
+                    >
+                      <Search size={15} /> Show placeholders
+                    </button>
+                  </div>
+                  {missingLovableReferenceContent.length ? (
+                    <div className="mt-4 grid gap-2">
+                      {missingLovableReferenceContent.map((item) => (
+                        <div key={item.id} className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#5b4a46]">
+                          <span className="font-black text-[#241133]">{item.title}</span>
+                          {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</span> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-4 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#6f5f59]">
+                      Sync reported missing references, but no placeholder rows are loaded in this view yet. Run the one-way sync again after Lovable exports the referenced content bodies.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+
               <SectionCard title="Content draft" subtitle="Create reusable campaign copy, templates, social posts, CTAs, HTML, and media references.">
                 <form className="grid gap-3" onSubmit={(event) => createContent(event).catch((error) => setMessage(error.message))} data-testid="marketing-content-draft-form">
                   <div className="grid gap-3 xl:grid-cols-[1fr_170px_140px_120px]">
@@ -4086,7 +5556,7 @@ export default function MarketingAdminPage() {
               >
                 <div className="grid gap-3">
                   {contentActionFeedback ? (
-                    <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contentActionFeedback.includes("failed") || contentActionFeedback.includes("required") || contentActionFeedback.includes("valid JSON") || contentActionFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`} data-testid="marketing-content-action-feedback">
+                    <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contentActionFeedback.includes("failed") || contentActionFeedback.includes("required") || contentActionFeedback.includes("valid JSON") || contentActionFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`} role="status" aria-live="polite" data-testid="marketing-content-action-feedback">
                       {contentActionFeedback}
                     </p>
                   ) : null}
@@ -4125,7 +5595,7 @@ export default function MarketingAdminPage() {
                       ) : null}
                     </div>
                   ) : (
-                    <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-content-library-table">
+                    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-content-library-table">
                       <table className="min-w-[1180px] border-collapse text-left text-sm">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                           <tr>
@@ -4137,12 +5607,21 @@ export default function MarketingAdminPage() {
                             <th className="px-4 py-3">Design/media</th>
                             <th className="px-4 py-3">CTA</th>
                             <th className="px-4 py-3">Source</th>
-                            <th className="px-4 py-3">Actions</th>
+                            <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {visibleContent.map((item) => (
-                            <tr key={item.id} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
+                          {visibleContent.map((item) => {
+                            const isPreviewingContent = item.id === selectedContentId && contentDrawerMode === "preview";
+                            const isEditingContent = item.id === editingContentId && contentDrawerMode === "edit";
+                            const isConfirmingDelete = confirmingContentDeleteId === item.id;
+                            const rowMediaAssets = mediaAssets.filter((asset) => asset.contentAssetId === item.id);
+                            const rowMediaPreviewUrls = contentMediaPreviewUrls(item, rowMediaAssets);
+                            const timelineParts = recordTimelineParts(item);
+                            const usageItems = contentUsageById.get(item.id) ?? [];
+                            return (
+                            <Fragment key={item.id}>
+                            <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
                               <td className="max-w-[360px] px-4 py-3">
                                 <p className="font-black text-[#241133]">{item.title}</p>
                                 <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
@@ -4172,30 +5651,285 @@ export default function MarketingAdminPage() {
                               <td className="max-w-[240px] px-4 py-3">
                                 <p className="text-xs font-black text-[#241133]">{item.source}</p>
                                 {item.lovableExternalId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {item.lovableExternalId}</p> : null}
+                                {timelineParts.length ? (
+                                  <div className="mt-2 grid gap-1" data-testid={`marketing-content-timeline-${item.id}`}>
+                                    {timelineParts.map((part) => (
+                                      <p key={part} className="text-xs font-semibold text-[#8b7a73]">{part}</p>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                {usageItems.length ? (
+                                  <div className="mt-2">
+                                    <ContentUsageList
+                                      usages={usageItems}
+                                      testId={`marketing-content-usage-${item.id}`}
+                                      compact
+                                      onOpenCampaign={openContentUsageCampaign}
+                                      onOpenJourney={openContentUsageJourney}
+                                    />
+                                  </div>
+                                ) : null}
                               </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-2">
-                                  <button type="button" onClick={() => previewContent(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black ${item.id === selectedContent?.id && editingContentId !== item.id ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} data-testid={`button-marketing-preview-content-${item.id}`}>
-                                    <Eye size={13} /> {item.id === selectedContent?.id && editingContentId !== item.id ? "Previewing" : "Preview"}
+                              <td className={`sticky right-0 z-10 w-[260px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.08)] ${item.id === selectedContent?.id || isConfirmingDelete ? "bg-purple-50" : "bg-white"}`}>
+                                <div className="flex w-[230px] flex-wrap gap-2">
+                                  <button type="button" onClick={() => previewContent(item)} aria-expanded={isPreviewingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d] ${isPreviewingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-preview-content-${item.id}`}>
+                                    <Eye size={13} /> {isPreviewingContent ? "Previewing" : "Preview"}
                                   </button>
-                                  <button type="button" onClick={() => startContentEdit(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${editingContentId === item.id ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
-                                    <Pencil size={13} /> {editingContentId === item.id ? "Editing" : "Edit"}
+                                  <button type="button" onClick={() => startContentEdit(item)} aria-expanded={isEditingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isEditingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
+                                    <Pencil size={13} /> {isEditingContent ? "Editing" : "Edit"}
                                   </button>
-                                  <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
-                                    <Trash2 size={13} /> Delete
+                                  <button type="button" onClick={() => void deleteContent(item)} aria-expanded={isConfirmingDelete} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isConfirmingDelete ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
+                                    <Trash2 size={13} /> {isConfirmingDelete ? "Confirm delete" : "Delete"}
                                   </button>
                                 </div>
+                                {isPreviewingContent || isEditingContent || isConfirmingDelete ? (
+                                  <div className={`mt-3 w-[230px] rounded-xl border px-3 py-2 text-xs font-bold shadow-sm ${isConfirmingDelete ? "border-red-200 bg-red-50 text-red-800" : "border-purple-200 bg-white text-purple-950"}`} role="status" aria-live="polite" data-testid={`marketing-content-action-card-${item.id}`}>
+                                    {isPreviewingContent ? (
+                                      <>
+                                        <p className="font-black">Preview opened.</p>
+                                        <p className="mt-1 line-clamp-3 text-[#6f5f59]">{item.body || item.subject || item.title}</p>
+                                        <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="mt-2 inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 font-black text-purple-700">
+                                          <ArrowDown size={12} /> Full preview
+                                        </button>
+                                      </>
+                                    ) : null}
+                                    {isEditingContent ? (
+                                      <>
+                                        <p className="font-black">Editor opened.</p>
+                                        <p className="mt-1 text-[#6f5f59]">Changes save to this VYVA content record.</p>
+                                        <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="mt-2 inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 font-black text-purple-700">
+                                          <ArrowDown size={12} /> Full editor
+                                        </button>
+                                      </>
+                                    ) : null}
+                                    {isConfirmingDelete ? (
+                                      <>
+                                        <p className="font-black">Confirm delete?</p>
+                                        <p className="mt-1 text-red-700">Lovable is not changed.</p>
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                          <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-red-700 px-2 font-black text-white" disabled={contentSaving} data-testid={`button-marketing-confirm-delete-content-inline-${item.id}`}>
+                                            <Trash2 size={12} /> Confirm
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setConfirmingContentDeleteId(null);
+                                              setContentActionFeedback("");
+                                            }}
+                                            className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-red-200 bg-white px-2 font-black text-red-700"
+                                            disabled={contentSaving}
+                                          >
+                                            <X size={12} /> Cancel
+                                          </button>
+                                        </div>
+                                      </>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                               </td>
                             </tr>
-                          ))}
+                            {isPreviewingContent || isEditingContent || isConfirmingDelete ? (
+                              <tr className="border-t border-purple-100 bg-purple-50/80">
+                                <td colSpan={9} className="px-4 py-3">
+                                  {isPreviewingContent ? (
+                                    <div className="rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-bold text-purple-950 shadow-sm" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
+                                      <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Preview panel opened.</p>
+                                          <p className="mt-1 text-base font-black text-[#241133]">{item.title}</p>
+                                          <div className="mt-2 flex flex-wrap gap-1.5">
+                                            <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                            <Pill className={statusClass(item.status)}>{item.status}</Pill>
+                                            <Pill className={item.source === "lovable" ? "bg-violet-50 text-violet-800" : "bg-[#f5eee8] text-[#5b4a46]"}>
+                                              {contentOriginLabel(item)}
+                                            </Pill>
+                                            {item.hasHtml ? <Pill className="bg-blue-50 text-blue-800">Rendered HTML available</Pill> : null}
+                                            {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Lovable design data</Pill> : null}
+                                            {item.mediaAssetCount ? <Pill className="bg-emerald-50 text-emerald-800">{item.mediaAssetCount} media refs</Pill> : null}
+                                          </div>
+                                          <p className="mt-1 text-[#5b4a46]">{item.subject || "No subject yet."}</p>
+                                          {item.ctaLabel || item.ctaUrl ? (
+                                            <p className="mt-2 text-xs font-black text-purple-700">CTA: {[item.ctaLabel, item.ctaUrl].filter(Boolean).join(" -> ")}</p>
+                                          ) : null}
+                                          <p className="mt-2 max-w-4xl whitespace-pre-wrap text-xs font-semibold leading-relaxed text-[#6f5f59]">{item.body || "No body copy yet."}</p>
+                                          {item.lovableExternalId ? <p className="mt-2 break-all text-xs font-semibold text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</p> : null}
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700">
+                                            <ArrowDown size={12} /> Focus preview
+                                          </button>
+                                          <button type="button" onClick={() => startContentEdit(item)} className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-purple-700 px-3 text-xs font-black text-white">
+                                            <Pencil size={12} /> Edit
+                                          </button>
+                                          <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]">
+                                            <X size={12} /> Close
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <div className="mt-4 grid gap-3" data-testid={`marketing-content-inline-preview-${item.id}`}>
+                                        <div className="whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
+                                          {item.body || item.subject || "No body copy yet."}
+                                        </div>
+                                        {item.htmlBody ? (
+                                          <iframe
+                                            title={`Inline preview ${item.title}`}
+                                            sandbox=""
+                                            srcDoc={item.htmlBody}
+                                            className="h-[320px] w-full rounded-xl border border-[#eadfd5] bg-white"
+                                          />
+                                        ) : null}
+                                        <LovableDesignPreview
+                                          contentAsset={item}
+                                          testId={`marketing-content-inline-design-preview-${item.id}`}
+                                          mediaTestIdPrefix={`marketing-content-inline-design-media-${item.id}`}
+                                        />
+                                        <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Media references</p>
+                                          {rowMediaPreviewUrls.length ? (
+                                            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                              {rowMediaPreviewUrls.map((url, index) => (
+                                                <MediaPreviewTile key={url} url={url} label={`${item.title} inline media ${index + 1}`} testId={`marketing-content-inline-media-preview-${item.id}-${index}`} />
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <p className="mt-2 text-xs font-semibold text-[#8b7a73]">No imported media URLs attached to this content.</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  {isEditingContent ? (
+                                    <div className="rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-bold text-purple-950 shadow-sm" role="status" data-testid={`marketing-content-editor-open-${item.id}`}>
+                                      <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Editor panel opened.</p>
+                                          <p className="mt-1 text-base font-black text-[#241133]">{item.title}</p>
+                                          <p className="mt-1 font-semibold text-[#6f5f59]">Edit and save this content directly here.</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700">
+                                            <ArrowDown size={12} /> Full editor
+                                          </button>
+                                          <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]">
+                                            <X size={12} /> Close
+                                          </button>
+                                        </div>
+                                      </div>
+                                      {contentEditDraft ? (
+                                        <form className="mt-4 grid gap-3 rounded-xl border border-purple-100 bg-purple-50 p-3" onSubmit={(event) => void saveContentEdit(event)} data-testid={`marketing-content-inline-editor-${item.id}`}>
+                                          <div className="grid gap-3 xl:grid-cols-[1.4fr_160px_160px_120px]">
+                                            <Field label="Title">
+                                              <input className={inputClass} value={contentEditDraft.title} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, title: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-title-${item.id}`} />
+                                            </Field>
+                                            <Field label="Channel">
+                                              <select className={inputClass} value={contentEditDraft.channel} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, channel: event.target.value as Channel }) : draft)} disabled={contentSaving} data-testid={`select-marketing-inline-edit-content-channel-${item.id}`}>
+                                                {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
+                                              </select>
+                                            </Field>
+                                            <Field label="Status">
+                                              <select className={inputClass} value={contentEditDraft.status} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, status: event.target.value as ContentStatus }) : draft)} disabled={contentSaving} data-testid={`select-marketing-inline-edit-content-status-${item.id}`}>
+                                                {CONTENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                                              </select>
+                                            </Field>
+                                            <Field label="Language">
+                                              <input className={inputClass} value={contentEditDraft.language} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, language: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-language-${item.id}`} />
+                                            </Field>
+                                          </div>
+                                          <div className="grid gap-3 xl:grid-cols-[1fr_220px_1fr]">
+                                            <Field label="Subject">
+                                              <input className={inputClass} value={contentEditDraft.subject} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, subject: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-subject-${item.id}`} />
+                                            </Field>
+                                            <Field label="CTA label">
+                                              <input className={inputClass} value={contentEditDraft.ctaLabel} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, ctaLabel: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-cta-label-${item.id}`} />
+                                            </Field>
+                                            <Field label="CTA URL">
+                                              <input className={inputClass} value={contentEditDraft.ctaUrl} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, ctaUrl: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-cta-url-${item.id}`} />
+                                            </Field>
+                                          </div>
+                                          <Field label="Plain copy">
+                                            <textarea className={textareaClass} value={contentEditDraft.body} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, body: event.target.value }) : draft)} disabled={contentSaving} data-testid={`textarea-marketing-inline-edit-content-body-${item.id}`} />
+                                          </Field>
+                                          <Field label="HTML body">
+                                            <textarea className={`${textareaClass} min-h-[120px] font-mono text-xs`} value={contentEditDraft.htmlBody} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, htmlBody: event.target.value }) : draft)} disabled={contentSaving} data-testid={`textarea-marketing-inline-edit-content-html-${item.id}`} />
+                                          </Field>
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contentSaving} data-testid={`button-marketing-save-inline-content-${item.id}`}>
+                                              <Save size={15} /> {contentSaving ? "Saving..." : "Save content"}
+                                            </button>
+                                            <button type="button" onClick={() => void deleteContent(item)} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === item.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-inline-content-${item.id}`}>
+                                              <Trash2 size={15} /> {confirmingContentDeleteId === item.id ? "Confirm delete" : "Delete"}
+                                            </button>
+                                            <button type="button" onClick={cancelContentEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133]" disabled={contentSaving} data-testid={`button-marketing-close-inline-content-${item.id}`}>
+                                              <X size={15} /> Close
+                                            </button>
+                                            {contentFeedback ? (
+                                              <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contentFeedback.includes("failed") || contentFeedback.includes("required") || contentFeedback.includes("valid JSON") || contentFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} data-testid={`marketing-content-inline-editor-feedback-${item.id}`}>
+                                                {contentFeedback}
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                        </form>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                  {isConfirmingDelete ? (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-800 shadow-sm" role="status" data-testid={`marketing-content-delete-confirmation-${item.id}`}>
+                                      <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                          <p>Click Confirm delete to remove this content.</p>
+                                          <p className="mt-1 text-xs font-semibold text-red-700">This removes the VYVA planning record only. Lovable is not changed.</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-red-700 px-3 text-xs font-black text-white" disabled={contentSaving} data-testid={`button-marketing-confirm-delete-content-${item.id}`}>
+                                            <Trash2 size={12} /> Confirm delete
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setConfirmingContentDeleteId(null);
+                                              setContentActionFeedback("");
+                                            }}
+                                            className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-red-200 bg-white px-3 text-xs font-black text-red-700"
+                                            disabled={contentSaving}
+                                            data-testid={`button-marketing-cancel-delete-content-${item.id}`}
+                                          >
+                                            <X size={12} /> Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </td>
+                              </tr>
+                            ) : null}
+                            </Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
                   )}
                 </div>
               </SectionCard>
-              <div ref={contentEditorPanelRef} data-testid="marketing-content-editor-panel">
-                <SectionCard title="Content editor" subtitle={editingContent ? `Editing ${editingContent.title}` : "Select a content asset to edit imported or local copy."}>
+              {contentDrawerMode === "edit" ? (
+              <FloatingPanelPortal>
+              <div
+                ref={contentEditorPanelRef}
+                data-testid="marketing-content-editor-panel"
+                role="dialog"
+                aria-modal={true}
+                tabIndex={-1}
+                className={floatingContentPanelClass}
+              >
+                <SectionCard
+                  title="Content editor"
+                  subtitle={editingContent ? `Editing ${editingContent.title}` : "Select a content asset to edit imported or local copy."}
+                  action={contentDrawerMode === "edit" ? (
+                    <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]" data-testid="button-marketing-close-content-drawer">
+                      <X size={14} /> Close
+                    </button>
+                  ) : null}
+                >
                   {contentEditDraft ? (
                     <form className="grid gap-4" onSubmit={(event) => void saveContentEdit(event)} data-testid="marketing-content-editor-form">
                     <div className="grid gap-3 xl:grid-cols-[1.4fr_160px_160px_120px]">
@@ -4257,8 +5991,8 @@ export default function MarketingAdminPage() {
                         <Save size={16} /> {contentSaving ? "Saving..." : "Save content"}
                       </button>
                       {editingContent ? (
-                        <button type="button" onClick={() => void deleteContent(editingContent)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contentSaving} data-testid="button-marketing-delete-editing-content">
-                          <Trash2 size={16} /> Delete
+                        <button type="button" onClick={() => void deleteContent(editingContent)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === editingContent.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid="button-marketing-delete-editing-content">
+                          <Trash2 size={16} /> {confirmingContentDeleteId === editingContent.id ? "Confirm delete" : "Delete"}
                         </button>
                       ) : null}
                       <button type="button" onClick={cancelContentEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133]" disabled={contentSaving}>
@@ -4276,9 +6010,35 @@ export default function MarketingAdminPage() {
                   )}
                 </SectionCard>
               </div>
+              </FloatingPanelPortal>
+              ) : null}
               <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
-                <div ref={contentPreviewPanelRef} data-testid="marketing-content-preview-panel">
-                  <SectionCard title="Content preview" subtitle={selectedContent ? selectedContent.title : "Select a content asset to inspect."}>
+                {contentDrawerMode === "preview" ? (
+                <FloatingPanelPortal>
+                <div
+                  ref={contentPreviewPanelRef}
+                  data-testid="marketing-content-preview-panel"
+                  role="dialog"
+                  aria-modal={true}
+                  tabIndex={-1}
+                  className={floatingContentPanelClass}
+                >
+                  <SectionCard
+                    title="Content preview"
+                    subtitle={selectedContent ? selectedContent.title : "Select a content asset to inspect."}
+                    action={contentDrawerMode === "preview" ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedContent ? (
+                          <button type="button" onClick={() => startContentEdit(selectedContent)} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white" data-testid="button-marketing-edit-previewed-content">
+                            <Pencil size={14} /> Edit
+                          </button>
+                        ) : null}
+                        <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]" data-testid="button-marketing-close-content-drawer">
+                          <X size={14} /> Close
+                        </button>
+                      </div>
+                    ) : null}
+                  >
                     {selectedContent ? (
                       <div className="grid gap-3" data-testid="marketing-content-preview">
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
@@ -4293,6 +6053,13 @@ export default function MarketingAdminPage() {
                           ) : null}
                         </div>
                       ) : null}
+                      <LovableContentSourceDetails content={selectedContent} />
+                      <ContentUsageList
+                        usages={selectedContentUsage}
+                        testId="marketing-selected-content-usage"
+                        onOpenCampaign={openContentUsageCampaign}
+                        onOpenJourney={openContentUsageJourney}
+                      />
                       {selectedContent.htmlBody ? (
                         <iframe
                           title={`Preview ${selectedContent.title}`}
@@ -4305,6 +6072,7 @@ export default function MarketingAdminPage() {
                           {selectedContent.body || "No body copy yet."}
                         </div>
                       )}
+                      <LovableDesignPreview contentAsset={selectedContent} />
                       <div className="grid gap-2 md:grid-cols-3">
                         <Pill className={selectedContent.hasDesign ? "bg-purple-50 text-purple-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{selectedContent.hasDesign ? "Design JSON present" : "No design JSON"}</Pill>
                         <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>
@@ -4319,7 +6087,7 @@ export default function MarketingAdminPage() {
                             <Pill className="bg-[#f5eee8] text-[#7d6b65]">No builder arrays found</Pill>
                           )}
                           {selectedContentDesignSummary?.topLevelKeys.length ? (
-                            <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.slice(0, 5).join(", ")}</Pill>
+                            <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.join(", ")}</Pill>
                           ) : null}
                           <Pill className={selectedContentMediaPreviewUrls.length ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
                             Media refs: {selectedContentMediaPreviewUrls.length}
@@ -4349,9 +6117,17 @@ export default function MarketingAdminPage() {
                     )}
                   </SectionCard>
                 </div>
+                </FloatingPanelPortal>
+                ) : null}
 
                 <SectionCard title="Media references" subtitle={`${visibleMediaAssets.length} visible of ${mediaAssets.length} imported media rows.`}>
+                  {mediaFeedback && !mediaEditDraft ? (
+                    <p className={`mb-3 rounded-xl px-4 py-3 text-sm font-bold ${mediaFeedback.toLowerCase().includes("updated") || mediaFeedback.toLowerCase().includes("deleted") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-testid="marketing-media-feedback">
+                      {mediaFeedback}
+                    </p>
+                  ) : null}
                   {mediaEditDraft ? (
+                    <div ref={mediaEditorPanelRef} tabIndex={-1}>
                     <form className="mb-4 grid gap-3 rounded-xl border border-purple-100 bg-purple-50 p-3" onSubmit={(event) => void saveMediaEdit(event)} data-testid="marketing-media-editor-form">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -4395,8 +6171,8 @@ export default function MarketingAdminPage() {
                           <Save size={15} /> {mediaSaving ? "Saving..." : "Save media"}
                         </button>
                         {editingMediaAsset ? (
-                          <button type="button" onClick={() => void deleteMediaAsset(editingMediaAsset)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={mediaSaving} data-testid="button-marketing-delete-editing-media">
-                            <Trash2 size={15} /> Delete
+                          <button type="button" onClick={() => void deleteMediaAsset(editingMediaAsset)} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingMediaDeleteId === editingMediaAsset.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={mediaSaving} data-testid="button-marketing-delete-editing-media">
+                            <Trash2 size={15} /> {confirmingMediaDeleteId === editingMediaAsset.id ? "Confirm delete" : "Delete"}
                           </button>
                         ) : null}
                         <button type="button" onClick={cancelMediaEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid="button-marketing-cancel-media">
@@ -4409,37 +6185,62 @@ export default function MarketingAdminPage() {
                         ) : null}
                       </div>
                     </form>
+                    </div>
                   ) : null}
                   <div className="grid gap-3" data-testid="marketing-media-assets-list">
                     {visibleMediaAssets.length === 0 ? (
                       <EmptyState text="No media references imported yet." />
-                    ) : visibleMediaAssets.slice(0, 12).map((asset) => (
-                      <article key={asset.id} className={`rounded-xl border p-3 ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex flex-wrap gap-1.5">
-                            <Pill className="bg-blue-50 text-blue-800">{asset.assetType}</Pill>
-                            <Pill className="bg-violet-50 text-violet-700">{asset.source}</Pill>
+                    ) : visibleMediaAssets.map((asset) => {
+                      const linkedContent = asset.contentAssetId ? content.find((item) => item.id === asset.contentAssetId) ?? null : null;
+                      const timelineParts = recordTimelineParts(asset);
+                      return (
+                        <article key={asset.id} className={`rounded-xl border p-3 ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap gap-1.5">
+                              <Pill className="bg-blue-50 text-blue-800">{asset.assetType}</Pill>
+                              <Pill className="bg-violet-50 text-violet-700">{asset.source}</Pill>
+                            </div>
+                            <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
                           </div>
-                          <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
-                        </div>
-                        <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
-                        {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable ID: {asset.lovableExternalId}</p> : null}
-                        <div className="mt-3" data-testid={`marketing-media-preview-${asset.id}`}>
-                          <MediaPreviewTile url={asset.localUrl || asset.originalUrl} label={asset.contentTitle || mediaPreviewLabel(asset.originalUrl)} />
-                        </div>
-                        <a className="mt-1 block break-all text-xs font-bold text-purple-700 underline" href={asset.originalUrl} target="_blank" rel="noreferrer">{asset.originalUrl}</a>
-                        {asset.localUrl ? <p className="mt-1 break-all text-xs font-bold text-emerald-700">Local: {asset.localUrl}</p> : null}
-                        <MetadataPanel title="Imported media metadata" value={asset.metadata} testId={`marketing-media-metadata-${asset.id}`} />
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button type="button" onClick={() => startMediaEdit(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-${asset.id}`}>
-                            <Pencil size={13} /> Edit
-                          </button>
-                          <button type="button" onClick={() => void deleteMediaAsset(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={mediaSaving} data-testid={`button-marketing-delete-media-${asset.id}`}>
-                            <Trash2 size={13} /> Delete
-                          </button>
-                        </div>
-                      </article>
-                    ))}
+                          <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
+                          {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable ID: {asset.lovableExternalId}</p> : null}
+                          {timelineParts.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5" data-testid={`marketing-media-timeline-${asset.id}`}>
+                              {timelineParts.map((part) => <Pill key={part} className="bg-white text-[#7d6b65]">{part}</Pill>)}
+                            </div>
+                          ) : null}
+                          <div className="mt-3" data-testid={`marketing-media-preview-${asset.id}`}>
+                            <MediaPreviewTile url={asset.localUrl || asset.originalUrl} label={asset.contentTitle || mediaPreviewLabel(asset.originalUrl)} />
+                          </div>
+                          <a className="mt-1 block break-all text-xs font-bold text-purple-700 underline" href={asset.originalUrl} target="_blank" rel="noreferrer">{asset.originalUrl}</a>
+                          {asset.localUrl ? <p className="mt-1 break-all text-xs font-bold text-emerald-700">Local: {asset.localUrl}</p> : null}
+                          <MetadataPanel title="Imported media metadata" value={asset.metadata} testId={`marketing-media-metadata-${asset.id}`} />
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {linkedContent ? (
+                              <>
+                                <button type="button" onClick={() => previewContent(linkedContent)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-preview-media-content-${asset.id}`}>
+                                  <Eye size={13} /> Preview content
+                                </button>
+                                <button type="button" onClick={() => startContentEdit(linkedContent)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-content-${asset.id}`}>
+                                  <FileText size={13} /> Edit content
+                                </button>
+                              </>
+                            ) : null}
+                            <button type="button" onClick={() => startMediaEdit(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-${asset.id}`}>
+                              <Pencil size={13} /> Edit media
+                            </button>
+                            <button type="button" onClick={() => void deleteMediaAsset(asset)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingMediaDeleteId === asset.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={mediaSaving} data-testid={`button-marketing-delete-media-${asset.id}`}>
+                              <Trash2 size={13} /> {confirmingMediaDeleteId === asset.id ? "Confirm delete" : "Delete"}
+                            </button>
+                            {confirmingMediaDeleteId === asset.id ? (
+                              <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-media-delete-confirmation-${asset.id}`}>
+                                Click Confirm delete to remove this VYVA media reference.
+                              </p>
+                            ) : null}
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
                 </SectionCard>
               </div>
@@ -4456,10 +6257,10 @@ export default function MarketingAdminPage() {
                     type="button"
                     onClick={() => void sendDueCampaignEmails()}
                     disabled={dueEmailSending}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                    className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8] ${confirmingDueEmailSend ? "bg-red-700" : "bg-purple-700"}`}
                     data-testid="button-marketing-run-due-email"
                   >
-                    <Send size={15} /> {dueEmailSending ? "Running..." : "Run due emails"}
+                    <Send size={15} /> {dueEmailSending ? "Running..." : confirmingDueEmailSend ? "Confirm run due emails" : "Run due emails"}
                   </button>
                 )}
               >
@@ -4473,16 +6274,30 @@ export default function MarketingAdminPage() {
                 ) : null}
                 <MarketingCalendarView
                   campaigns={visibleCampaigns}
+                  contentById={contentById}
+                  contentTitleById={contentTitleById}
+                  metricsByCampaignId={campaignMetricSummaryByCampaignId}
+                  audiences={audiences}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
+                  onPreviewContent={previewContent}
+                  onEditContent={startContentEdit}
+                  confirmingDeleteId={confirmingCampaignDeleteId}
                 />
               </SectionCard>
               <SectionCard title="Scheduled campaign details" subtitle="Table view for scheduled records.">
                 <CampaignTable
                   campaigns={visibleCampaigns.filter((campaign) => campaign.scheduleStartsAt || campaign.status === "scheduled")}
+                  contentById={contentById}
+                  contentTitleById={contentTitleById}
+                  metricsByCampaignId={campaignMetricSummaryByCampaignId}
+                  audiences={audiences}
                   activeCampaignId={editingCampaignId}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
+                  onPreviewContent={previewContent}
+                  onEditContent={startContentEdit}
+                  confirmingDeleteId={confirmingCampaignDeleteId}
                 />
               </SectionCard>
             </div>
@@ -4571,6 +6386,7 @@ export default function MarketingAdminPage() {
                     </form>
                   </SectionCard>
                   {contactEditDraft ? (
+                    <div ref={contactEditorPanelRef} tabIndex={-1}>
                     <SectionCard
                       title="Contact editor"
                       subtitle={editingContact ? `Editing ${editingContact.fullName || editingContact.email || editingContact.phoneNumber || "Unnamed contact"}.` : "Edit imported or manually created marketing contact data."}
@@ -4655,8 +6471,8 @@ export default function MarketingAdminPage() {
                         <Save size={16} /> {contactSaving ? "Saving..." : "Save contact"}
                       </button>
                       {editingContact ? (
-                        <button type="button" onClick={() => void deleteContact(editingContact)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contactSaving} data-testid="button-marketing-delete-editing-contact">
-                          <Trash2 size={16} /> Delete
+                        <button type="button" onClick={() => void deleteContact(editingContact)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContactDeleteId === editingContact.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contactSaving} data-testid="button-marketing-delete-editing-contact">
+                          <Trash2 size={16} /> {confirmingContactDeleteId === editingContact.id ? "Confirm delete" : "Delete"}
                         </button>
                       ) : null}
                       <button type="button" onClick={cancelContactEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid="button-marketing-cancel-contact">
@@ -4670,10 +6486,84 @@ export default function MarketingAdminPage() {
                     </div>
                       </form>
                     </SectionCard>
+                    </div>
                   ) : null}
                   <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
-                    <div className="overflow-hidden rounded-xl border border-[#eadfd5]">
-                      <table className="min-w-[1500px] border-collapse text-left text-sm">
+                    <div className="mb-3 grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-contact-segmentation-filters">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-[#241133]">Contact segmentation</p>
+                          <p className="text-xs font-bold text-[#7d6b65]">Filter imported Lovable contacts by list, consent, market, language, category, vertical, and source.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearch("");
+                            setAudienceFilter("all");
+                            setContactSourceFilter("all");
+                            setContactConsentFilter("all");
+                            setContactLanguageFilter("all");
+                            setContactCategoryFilter("all");
+                            setContactVerticalFilter("all");
+                            setContactMarketFilter("all");
+                            setContactListFilter("all");
+                          }}
+                          disabled={!search && audienceFilter === "all" && !contactFiltersActive}
+                          className="inline-flex min-h-9 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                          data-testid="button-marketing-clear-contact-filters"
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        <Field label="Source">
+                          <select className={inputClass} value={contactSourceFilter} onChange={(event) => setContactSourceFilter(event.target.value)} data-testid="select-marketing-contact-source-filter">
+                            <option value="all">All sources ({contacts.length})</option>
+                            {contactSourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Consent">
+                          <select className={inputClass} value={contactConsentFilter} onChange={(event) => setContactConsentFilter(event.target.value)} data-testid="select-marketing-contact-consent-filter">
+                            <option value="all">All consent ({contacts.length})</option>
+                            {contactConsentOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Language">
+                          <select className={inputClass} value={contactLanguageFilter} onChange={(event) => setContactLanguageFilter(event.target.value)} data-testid="select-marketing-contact-language-filter">
+                            <option value="all">All languages ({contacts.length})</option>
+                            {contactLanguageOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="List">
+                          <select className={inputClass} value={contactListFilter} onChange={(event) => setContactListFilter(event.target.value)} data-testid="select-marketing-contact-list-filter">
+                            <option value="all">All lists ({contacts.length})</option>
+                            {contactListOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <Field label="Category">
+                          <select className={inputClass} value={contactCategoryFilter} onChange={(event) => setContactCategoryFilter(event.target.value)} data-testid="select-marketing-contact-category-filter">
+                            <option value="all">All categories ({contacts.length})</option>
+                            {contactCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Vertical">
+                          <select className={inputClass} value={contactVerticalFilter} onChange={(event) => setContactVerticalFilter(event.target.value)} data-testid="select-marketing-contact-vertical-filter">
+                            <option value="all">All verticals ({contacts.length})</option>
+                            {contactVerticalOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Market">
+                          <select className={inputClass} value={contactMarketFilter} onChange={(event) => setContactMarketFilter(event.target.value)} data-testid="select-marketing-contact-market-filter">
+                            <option value="all">All markets ({contacts.length})</option>
+                            {contactMarketOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-contacts-table">
+                      <table className="min-w-[1650px] border-collapse text-left text-sm">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                           <tr>
                             <th className="px-4 py-3">Contact</th>
@@ -4687,22 +6577,29 @@ export default function MarketingAdminPage() {
                             <th className="px-4 py-3">Category</th>
                             <th className="px-4 py-3">Vertical</th>
                             <th className="px-4 py-3">Market</th>
+                            <th className="px-4 py-3">Lovable profile</th>
                             <th className="px-4 py-3">Tags / lists</th>
                             <th className="px-4 py-3">Consent</th>
                             <th className="px-4 py-3">Source</th>
-                            <th className="px-4 py-3">Actions</th>
+                            <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
                           {visibleContacts.length === 0 ? (
-                            <tr><td colSpan={15} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No contacts match the filters.</td></tr>
+                            <tr>
+                              <td colSpan={16} className="px-4 py-6 text-center font-bold text-[#8b7a73]" data-testid="marketing-contact-empty-diagnostic">
+                                {contacts.length ? "Contacts are loaded, but hidden by the current search or segmentation filters." : "No contacts imported yet."}
+                              </td>
+                            </tr>
                           ) : visibleContacts.map((contact) => {
                             const tagsAndLists = [
                               ...(contact.tags ?? []),
                               ...(contact.lists ?? []).map((list) => `List: ${list}`),
                             ];
+                            const profileSignals = contactProfileSignals(contact);
+                            const timelineParts = recordTimelineParts(contact);
                             return (
-                              <tr key={contact.id} className="border-t border-[#f0e7df] align-top">
+                              <tr key={contact.id} className={`border-t border-[#f0e7df] align-top ${editingContactId === contact.id ? "bg-purple-50" : ""}`}>
                                 <td className="px-4 py-3">
                                   <p className="font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
                                   {contact.profileId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p> : null}
@@ -4717,13 +6614,23 @@ export default function MarketingAdminPage() {
                                 <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.category || "-"}</td>
                                 <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.vertical || "-"}</td>
                                 <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.market || "-"}</td>
+                                <td className="max-w-[260px] px-4 py-3">
+                                  {profileSignals.length ? (
+                                    <div className="flex flex-wrap gap-1.5" data-testid={`marketing-contact-profile-signals-${contact.id}`}>
+                                      {profileSignals.map((entry) => (
+                                        <Pill key={entry.key} className={entry.className}>{entry.label}: {entry.value}</Pill>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs font-bold text-[#8b7a73]">No profile signals</span>
+                                  )}
+                                </td>
                                 <td className="max-w-[320px] px-4 py-3">
                                   {tagsAndLists.length ? (
                                     <div className="flex flex-wrap gap-1.5">
-                                      {tagsAndLists.slice(0, 8).map((segment, index) => (
+                                      {tagsAndLists.map((segment, index) => (
                                         <Pill key={`${segment}-${index}`} className="bg-purple-50 text-purple-800">{segment}</Pill>
                                       ))}
-                                      {tagsAndLists.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{tagsAndLists.length - 8}</Pill> : null}
                                     </div>
                                   ) : (
                                     <span className="text-xs font-bold text-[#8b7a73]">No tags or lists</span>
@@ -4742,17 +6649,29 @@ export default function MarketingAdminPage() {
                                     {contact.organizationId ? (
                                       <p className="break-all text-xs font-semibold text-[#7d6b65]">Org: {contact.organizationId}</p>
                                     ) : null}
+                                    {timelineParts.length ? (
+                                      <div className="grid gap-1" data-testid={`marketing-contact-timeline-${contact.id}`}>
+                                        {timelineParts.map((part) => (
+                                          <p key={part} className="text-xs font-semibold text-[#8b7a73]">{part}</p>
+                                        ))}
+                                      </div>
+                                    ) : null}
                                     <MetadataPanel title="Imported contact data" value={contact.metadata} testId={`marketing-contact-metadata-${contact.id}`} />
                                   </div>
                                 </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex flex-wrap gap-2">
+                                <td className={`sticky right-0 z-10 w-[210px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${editingContactId === contact.id || confirmingContactDeleteId === contact.id ? "bg-purple-50" : "bg-white"}`}>
+                                  <div className="flex w-[170px] flex-wrap gap-2">
                                     <button type="button" onClick={() => startContactEdit(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid={`button-marketing-edit-contact-${contact.id}`}>
                                       <Pencil size={13} /> Edit
                                     </button>
-                                    <button type="button" onClick={() => void deleteContact(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contactSaving} data-testid={`button-marketing-delete-contact-${contact.id}`}>
-                                      <Trash2 size={13} /> Delete
+                                    <button type="button" onClick={() => void deleteContact(contact)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContactDeleteId === contact.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contactSaving} data-testid={`button-marketing-delete-contact-${contact.id}`}>
+                                      <Trash2 size={13} /> {confirmingContactDeleteId === contact.id ? "Confirm delete" : "Delete"}
                                     </button>
+                                    {confirmingContactDeleteId === contact.id ? (
+                                      <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-contact-delete-confirmation-${contact.id}`}>
+                                        Click Confirm delete to remove this marketing contact.
+                                      </p>
+                                    ) : null}
                                   </div>
                                 </td>
                               </tr>
@@ -4789,8 +6708,36 @@ export default function MarketingAdminPage() {
                     <Field label="Rules JSON">
                       <textarea className={textareaClass} value={audienceDraft.rulesText} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, rulesText: event.target.value }))} disabled={audienceSaving} data-testid="input-marketing-audience-rules" />
                     </Field>
-                    <Field label="Contact external IDs">
-                      <textarea className={textareaClass} value={audienceDraft.contactExternalIds} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, contactExternalIds: event.target.value }))} placeholder="contact:123, contact:456" disabled={audienceSaving} data-testid="input-marketing-audience-contact-ids" />
+                    <Field label="Members">
+                      <div className="grid gap-2" data-testid="marketing-audience-member-picker">
+                        <select
+                          className={inputClass}
+                          value=""
+                          onChange={(event) => addAudienceDraftContact(event.target.value)}
+                          disabled={audienceSaving || audienceDraftCandidateContacts.length === 0}
+                          data-testid="select-marketing-audience-add-contact"
+                        >
+                          <option value="">{audienceDraftCandidateContacts.length ? "Add contact by name or email" : "All visible contacts are already listed"}</option>
+                          {audienceDraftCandidateContacts.map((contact) => (
+                            <option key={contact.id} value={contact.id}>{audienceContactLabel(contact)}</option>
+                          ))}
+                        </select>
+                        {audienceDraftMemberContacts.length ? (
+                          <div className="grid gap-2" data-testid="marketing-audience-selected-members">
+                            {audienceDraftMemberContacts.map((contact) => (
+                              <div key={contact.id} className="flex items-center justify-between gap-2 rounded-lg border border-[#eadfd5] bg-white px-3 py-2">
+                                <span className="text-xs font-bold text-[#5b4a46]">{audienceContactLabel(contact)}</span>
+                                <button type="button" onClick={() => removeAudienceDraftContact(contact)} className="text-xs font-black text-red-700" disabled={audienceSaving}>
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="rounded-lg bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#8b7a73]">No mapped contacts selected yet.</p>
+                        )}
+                        <textarea className={`${textareaClass} min-h-[76px] font-mono text-xs`} value={audienceDraft.contactExternalIds} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, contactExternalIds: event.target.value }))} placeholder="contact:123, contact:456" disabled={audienceSaving} data-testid="input-marketing-audience-contact-ids" />
+                      </div>
                     </Field>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -4806,6 +6753,7 @@ export default function MarketingAdminPage() {
                     </form>
                   </SectionCard>
                   {audienceEditDraft ? (
+                    <div ref={audienceEditorPanelRef} tabIndex={-1}>
                     <SectionCard
                       title="List editor"
                       subtitle={editingAudience ? `Editing ${editingAudience.name}. Members are stored as Lovable contact external IDs.` : "Edit imported or manually created marketing lists."}
@@ -4831,8 +6779,41 @@ export default function MarketingAdminPage() {
                       <Field label="Rules JSON">
                         <textarea className={`${textareaClass} font-mono text-xs`} value={audienceEditDraft.rulesText} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, rulesText: event.target.value }) : draft)} disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-rules" />
                       </Field>
-                      <Field label="Contact external IDs">
-                        <textarea className={`${textareaClass} font-mono text-xs`} value={audienceEditDraft.contactExternalIds} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, contactExternalIds: event.target.value }) : draft)} placeholder="contact:123&#10;contact:456" disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-contact-ids" />
+                      <Field label="Members">
+                        <div className="grid gap-2" data-testid="marketing-edit-audience-member-picker">
+                          <select
+                            className={inputClass}
+                            value=""
+                            onChange={(event) => addAudienceEditContact(event.target.value)}
+                            disabled={audienceSaving || audienceEditCandidateContacts.length === 0}
+                            data-testid="select-marketing-edit-audience-add-contact"
+                          >
+                            <option value="">{audienceEditCandidateContacts.length ? "Add contact by name or email" : "All visible contacts are already listed"}</option>
+                            {audienceEditCandidateContacts.map((contact) => (
+                              <option key={contact.id} value={contact.id}>{audienceContactLabel(contact)}</option>
+                            ))}
+                          </select>
+                          {audienceEditMemberContacts.length ? (
+                            <div className="grid gap-2" data-testid="marketing-edit-audience-selected-members">
+                              {audienceEditMemberContacts.map((contact) => (
+                                <div key={contact.id} className="flex items-center justify-between gap-2 rounded-lg border border-[#eadfd5] bg-white px-3 py-2">
+                                  <span className="text-xs font-bold text-[#5b4a46]">{audienceContactLabel(contact)}</span>
+                                  <button type="button" onClick={() => removeAudienceEditContact(contact)} className="text-xs font-black text-red-700" disabled={audienceSaving} data-testid={`button-marketing-remove-audience-member-${contact.id}`}>
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="rounded-lg bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#8b7a73]">No mapped contacts selected yet.</p>
+                          )}
+                          {audienceEditMemberIds.length > audienceEditMemberContacts.length ? (
+                            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+                              {audienceEditMemberIds.length - audienceEditMemberContacts.length} imported member ID{audienceEditMemberIds.length - audienceEditMemberContacts.length === 1 ? "" : "s"} are not mapped to contacts yet and remain in the raw list below.
+                            </p>
+                          ) : null}
+                          <textarea className={`${textareaClass} min-h-[76px] font-mono text-xs`} value={audienceEditDraft.contactExternalIds} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, contactExternalIds: event.target.value }) : draft)} placeholder="contact:123&#10;contact:456" disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-contact-ids" />
+                        </div>
                       </Field>
                     </div>
                     <div className="grid gap-3 xl:grid-cols-2">
@@ -4851,8 +6832,8 @@ export default function MarketingAdminPage() {
                         <Save size={16} /> {audienceSaving ? "Saving..." : "Save list"}
                       </button>
                       {editingAudience ? (
-                        <button type="button" onClick={() => void deleteAudience(editingAudience)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={audienceSaving} data-testid="button-marketing-delete-editing-audience">
-                          <Trash2 size={16} /> Delete
+                        <button type="button" onClick={() => void deleteAudience(editingAudience)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingAudienceDeleteId === editingAudience.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={audienceSaving} data-testid="button-marketing-delete-editing-audience">
+                          <Trash2 size={16} /> {confirmingAudienceDeleteId === editingAudience.id ? "Confirm delete" : "Delete"}
                         </button>
                       ) : null}
                       <button type="button" onClick={cancelAudienceEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid="button-marketing-cancel-audience">
@@ -4866,6 +6847,7 @@ export default function MarketingAdminPage() {
                     </div>
                       </form>
                     </SectionCard>
+                    </div>
                   ) : null}
                   <SectionCard title="Lists" subtitle={`${visibleAudiences.length} visible of ${audiences.length} imported lists.`}>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-audiences-list">
@@ -4873,6 +6855,41 @@ export default function MarketingAdminPage() {
                         <EmptyState text="No imported lists match the filters." />
                       ) : visibleAudiences.map((audience) => {
                         const unmappedCount = audience.unmappedContactExternalIds.length;
+                        const mappedContacts = contacts
+                          .filter((contact) => contactMatchesMemberIds(contact, audience.contactExternalIds))
+                          .map((contact) => ({
+                            id: contact.id,
+                            fullName: contact.fullName,
+                            email: contact.email,
+                            phoneNumber: contact.phoneNumber,
+                            whatsappNumber: contact.whatsappNumber,
+                            companyName: contact.companyName,
+                            roleLabel: contact.roleLabel,
+                            lovableExternalId: contact.lovableExternalId,
+                            contactExternalId: audienceContactExternalId(contact, audience.contactExternalIds),
+                          }));
+                        const mappedMemberById = new Map<string, typeof mappedContacts[number]>();
+                        for (const member of audience.memberPreview) {
+                          mappedMemberById.set(member.contactExternalId ?? member.lovableExternalId ?? member.id, member);
+                        }
+                        for (const member of mappedContacts) {
+                          mappedMemberById.set(member.contactExternalId ?? member.lovableExternalId ?? member.id, member);
+                        }
+                        const listMembers = Array.from(mappedMemberById.values()).map((member) => ({
+                          member,
+                          contact: contacts.find((contact) => contactMatchesMemberIds(contact, [
+                            member.contactExternalId,
+                            member.lovableExternalId,
+                            member.id,
+                          ].filter((value): value is string => Boolean(value)))) ?? null,
+                        }));
+                        const audienceExpanded = expandedAudienceMemberIds.has(audience.id);
+                        const visibleListMembers = audienceExpanded ? listMembers : listMembers.slice(0, 5);
+                        const visibleUnmappedIds = audienceExpanded ? audience.unmappedContactExternalIds : audience.unmappedContactExternalIds.slice(0, 3);
+                        const hiddenListMemberCount = Math.max(listMembers.length - visibleListMembers.length, 0);
+                        const hiddenUnmappedCount = Math.max(unmappedCount - visibleUnmappedIds.length, 0);
+                        const canExpandMembers = hiddenListMemberCount > 0 || hiddenUnmappedCount > 0 || audienceExpanded;
+                        const timelineParts = recordTimelineParts(audience);
                         return (
                           <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -4886,17 +6903,79 @@ export default function MarketingAdminPage() {
                               <Pill className="bg-blue-50 text-blue-800">{audience.memberCount} members</Pill>
                               <Pill className="bg-emerald-50 text-emerald-800">{audience.mappedMemberCount} mapped</Pill>
                               {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">{unmappedCount} unmapped</Pill> : null}
+                              {timelineParts.map((part) => <Pill key={part} className="bg-white text-[#7d6b65]">{part}</Pill>)}
                             </div>
                             {unmappedCount ? (
-                              <p className="mt-2 text-xs font-semibold text-[#8b5d13]">Unmapped examples: {audience.unmappedContactExternalIds.slice(0, 3).join(", ")}</p>
+                              <p className="mt-2 break-all text-xs font-semibold text-[#8b5d13]">
+                                Unmapped {audienceExpanded ? "IDs" : "examples"}: {visibleUnmappedIds.join(", ")}
+                                {hiddenUnmappedCount ? `, +${hiddenUnmappedCount} more` : ""}
+                              </p>
+                            ) : null}
+                            {listMembers.length ? (
+                              <div className="mt-3 grid gap-2" data-testid={`marketing-audience-member-preview-${audience.id}`}>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">List member preview</p>
+                                {visibleListMembers.map(({ member, contact }) => {
+                                  const contactLine = member.email || member.whatsappNumber || member.phoneNumber || member.contactExternalId || "No channel";
+                                  const roleLine = [member.roleLabel, member.companyName].filter(Boolean).join(" at ");
+                                  return (
+                                    <div key={`${member.id}-${member.contactExternalId ?? ""}`} className="rounded-lg border border-[#eadfd5] bg-white px-3 py-2">
+                                      <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div>
+                                          <p className="font-black text-[#241133]">{member.fullName || contactLine}</p>
+                                          {roleLine ? <p className="mt-0.5 text-xs font-bold text-[#7d6b65]">{roleLine}</p> : null}
+                                          <p className="mt-0.5 break-all text-xs font-semibold text-[#8b7a73]">{contactLine}</p>
+                                        </div>
+                                        <div className="flex flex-wrap justify-end gap-1.5">
+                                          <Pill className={contact ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                                            {contact ? "Mapped" : "Imported only"}
+                                          </Pill>
+                                          {contact ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => startContactEdit(contact)}
+                                              className="inline-flex min-h-7 items-center justify-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700"
+                                              data-testid={`button-marketing-open-audience-member-contact-${audience.id}-${contact.id}`}
+                                            >
+                                              <ExternalLink size={12} /> Open contact
+                                            </button>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {hiddenListMemberCount ? <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">+{hiddenListMemberCount} more list members</Pill> : null}
+                              </div>
+                            ) : (
+                              <p className="mt-3 rounded-lg bg-[#f5eee8] px-3 py-2 text-xs font-bold text-[#8b7a73]">No imported list members to preview yet.</p>
+                            )}
+                            {canExpandMembers ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedAudienceMemberIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(audience.id)) next.delete(audience.id);
+                                  else next.add(audience.id);
+                                  return next;
+                                })}
+                                className="mt-3 inline-flex min-h-8 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
+                                data-testid={`button-marketing-toggle-audience-members-${audience.id}`}
+                              >
+                                {audienceExpanded ? "Collapse members" : "Show all members"}
+                              </button>
                             ) : null}
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button type="button" onClick={() => startAudienceEdit(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid={`button-marketing-edit-audience-${audience.id}`}>
                                 <Pencil size={13} /> Edit
                               </button>
-                              <button type="button" onClick={() => void deleteAudience(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={audienceSaving} data-testid={`button-marketing-delete-audience-${audience.id}`}>
-                                <Trash2 size={13} /> Delete
+                              <button type="button" onClick={() => void deleteAudience(audience)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingAudienceDeleteId === audience.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={audienceSaving} data-testid={`button-marketing-delete-audience-${audience.id}`}>
+                                <Trash2 size={13} /> {confirmingAudienceDeleteId === audience.id ? "Confirm delete" : "Delete"}
                               </button>
+                              {confirmingAudienceDeleteId === audience.id ? (
+                                <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-audience-delete-confirmation-${audience.id}`}>
+                                  Click Confirm delete to remove this list and membership rows.
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                         );
@@ -5076,14 +7155,36 @@ function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPr
             {fieldCoverage.map((item) => (
               <div key={item.entity} className="rounded-lg bg-white px-3 py-2">
                 <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
+                {item.firstClassFields.length ? (
+                  <p className="mt-1 font-semibold text-emerald-800">
+                    Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
+                  </p>
+                ) : null}
                 {item.metadataOnly ? (
                   <p className="mt-1 font-semibold">Metadata-only: {item.metadataOnlyFields.slice(0, 6).join(", ")}{item.metadataOnlyFields.length > 6 ? ` +${item.metadataOnlyFields.length - 6}` : ""}</p>
                 ) : <p className="mt-1 font-semibold text-emerald-800">All exported fields are mapped first-class.</p>}
+                {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
+                  <details className="mt-2 rounded-lg border border-[#eadfd5] bg-blue-50 p-2" data-testid={`marketing-export-field-coverage-${item.entity}`}>
+                    <summary className="cursor-pointer font-black text-[#241133]">View full field map</summary>
+                    <div className="mt-2 grid gap-2">
+                      {item.metadataOnlyFields.length ? (
+                        <p><span className="text-amber-800">Metadata-only:</span> {item.metadataOnlyFields.join(", ")}</p>
+                      ) : null}
+                      {item.firstClassFields.length ? (
+                        <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
+                      ) : null}
+                      {item.exportedFields.length ? (
+                        <p><span className="text-blue-800">All exported:</span> {item.exportedFields.join(", ")}</p>
+                      ) : null}
+                    </div>
+                  </details>
+                ) : null}
               </div>
             ))}
           </div>
         </div>
       ) : null}
+      <LovableDestinationMap summary={preview.summary} />
       <MetadataPanel title="Recognized sample rows from Lovable" value={sampleRows} testId="marketing-export-preview-samples" />
       <MetadataPanel title="Raw top-level Lovable array samples" value={rawArraySamples} testId="marketing-export-preview-raw-samples" />
     </div>
@@ -5094,10 +7195,99 @@ function EmptyState({ text }: { text: string }) {
   return <p className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4 text-center text-sm font-bold text-[#8b7a73]">{text}</p>;
 }
 
-function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsDisabled = false }: { campaigns: Campaign[]; activeCampaignId?: string | null; onEdit?: (campaign: Campaign) => void; onDelete?: (campaign: Campaign) => void; actionsDisabled?: boolean }) {
+function CampaignPerformanceSummary({
+  summary,
+  testId,
+}: {
+  summary?: CampaignMetricSummary | null;
+  testId: string;
+}) {
+  if (!summary || summary.metricCount === 0) {
+    return (
+      <div className="grid gap-1" data-testid={testId}>
+        <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">No imported metrics</Pill>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid min-w-[170px] gap-1.5" data-testid={testId}>
+      <div className="flex flex-wrap gap-1.5">
+        <Pill className="bg-blue-50 text-blue-800">{summary.sent} sent</Pill>
+        <Pill className="bg-emerald-50 text-emerald-800">{summary.delivered} delivered</Pill>
+        <Pill className="bg-purple-50 text-purple-800">{summary.opened} opened</Pill>
+        <Pill className="bg-amber-50 text-amber-800">{summary.clicked} clicked</Pill>
+      </div>
+      <p className="text-xs font-bold text-[#8b7a73]">
+        {summary.metricCount} snapshot{summary.metricCount === 1 ? "" : "s"}
+        {summary.channels.length ? ` / ${summary.channels.join(", ")}` : ""}
+      </p>
+      {summary.latestMetricDate ? (
+        <p className="text-xs font-bold text-[#8b7a73]">Latest {formatDate(summary.latestMetricDate)}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function CampaignPerformanceInlineSummary({
+  summary,
+  testId,
+}: {
+  summary?: CampaignMetricSummary | null;
+  testId: string;
+}) {
+  if (!summary || summary.metricCount === 0) {
+    return (
+      <span className="block" data-testid={testId}>
+        <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">No imported metrics</Pill>
+      </span>
+    );
+  }
+
+  return (
+    <span className="block" data-testid={testId}>
+      <span className="flex flex-wrap gap-1.5">
+        <Pill className="bg-blue-50 text-blue-800">{summary.sent} sent</Pill>
+        <Pill className="bg-purple-50 text-purple-800">{summary.opened} opened</Pill>
+        <Pill className="bg-amber-50 text-amber-800">{summary.clicked} clicked</Pill>
+      </span>
+      <span className="mt-1 block text-xs font-bold text-[#8b7a73]">
+        {summary.metricCount} snapshot{summary.metricCount === 1 ? "" : "s"}
+      </span>
+    </span>
+  );
+}
+
+function CampaignTable({
+  campaigns,
+  contentById = new Map<string, ContentAsset>(),
+  contentTitleById = new Map<string, string>(),
+  metricsByCampaignId = new Map<string, CampaignMetricSummary>(),
+  audiences = [],
+  activeCampaignId,
+  onEdit,
+  onDelete,
+  onPreviewContent,
+  onEditContent,
+  actionsDisabled = false,
+  confirmingDeleteId = null,
+}: {
+  campaigns: Campaign[];
+  contentById?: ReadonlyMap<string, ContentAsset>;
+  contentTitleById?: ReadonlyMap<string, string>;
+  metricsByCampaignId?: ReadonlyMap<string, CampaignMetricSummary>;
+  audiences?: MarketingAudience[];
+  activeCampaignId?: string | null;
+  onEdit?: (campaign: Campaign) => void;
+  onDelete?: (campaign: Campaign) => void;
+  onPreviewContent?: (contentAsset: ContentAsset) => void;
+  onEditContent?: (contentAsset: ContentAsset) => void;
+  actionsDisabled?: boolean;
+  confirmingDeleteId?: string | null;
+}) {
   const showActions = Boolean(onEdit || onDelete);
   return (
-    <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
+    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
           <tr>
@@ -5105,16 +7295,20 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsD
             <th className="px-4 py-3">Audience</th>
             <th className="px-4 py-3">Channels</th>
             <th className="px-4 py-3">Schedule</th>
+            <th className="px-4 py-3">Performance</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Recipients</th>
-            {showActions ? <th className="px-4 py-3">Actions</th> : null}
+            {showActions ? <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
           {campaigns.length === 0 ? (
-            <tr><td colSpan={showActions ? 7 : 6} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
+            <tr><td colSpan={showActions ? 8 : 7} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
           ) : campaigns.map((campaign) => {
             const isActive = activeCampaignId === campaign.id;
+            const deleteIsArmed = confirmingDeleteId === campaign.id;
+            const targetAudience = campaignTargetAudience(campaign, audiences);
+            const metricSummary = metricsByCampaignId.get(campaign.id);
             return (
             <tr
               key={campaign.id}
@@ -5135,32 +7329,86 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsD
                 <p className="font-black">{campaign.name}</p>
                 <p className="text-xs font-semibold text-[#7d6b65]">{campaign.objective || campaign.source}</p>
               </td>
-              <td className="px-4 py-3 font-black">{campaign.audienceType.toUpperCase()}</td>
               <td className="px-4 py-3">
-                <div className="flex flex-wrap gap-1.5">
-                  {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => (
-                    <Pill key={item.id} className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                  ))}
+                <p className="font-black">{campaign.audienceType.toUpperCase()}</p>
+                {targetAudience ? (
+                  <div className="mt-1 grid gap-1 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-campaign-target-list-${campaign.id}`}>
+                    <span className="text-purple-800">List: {targetAudience.name}</span>
+                    <span>{targetAudience.mappedMemberCount}/{targetAudience.memberCount} mapped</span>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs font-bold text-[#8b7a73]">All eligible contacts</p>
+                )}
+              </td>
+              <td className="px-4 py-3">
+                <div className="grid gap-1.5">
+                  {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => {
+                    const contentAsset = item.contentAssetId ? contentById.get(item.contentAssetId) : null;
+                    const contentTitle = contentAsset?.title || (item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "");
+                    const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
+                    return (
+                      <div key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-campaign-channel-link-${item.id}`}>
+                        <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                        <span className={`max-w-[260px] truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
+                          {contentLabel}
+                        </span>
+                        {contentAsset && onPreviewContent ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onPreviewContent(contentAsset);
+                            }}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                            data-testid={`button-marketing-preview-campaign-content-${item.id}`}
+                          >
+                            <Eye size={11} /> Preview
+                          </button>
+                        ) : null}
+                        {contentAsset && onEditContent ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onEditContent(contentAsset);
+                            }}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                            data-testid={`button-marketing-edit-campaign-content-${item.id}`}
+                          >
+                            <Pencil size={11} /> Edit
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </td>
               <td className="px-4 py-3 font-bold text-[#7d6b65]">
                 <p>{formatDate(campaign.scheduleStartsAt)}</p>
                 {campaign.scheduleEndsAt ? <p className="text-xs">Ends {formatDate(campaign.scheduleEndsAt)}</p> : null}
               </td>
+              <td className="px-4 py-3">
+                <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-campaign-performance-${campaign.id}`} />
+              </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
               <td className="px-4 py-3 font-black">{campaign.recipientCount}</td>
               {showActions ? (
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
+                <td className={`sticky right-0 z-10 w-[230px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${isActive || deleteIsArmed ? "bg-purple-50" : "bg-white"}`}>
+                  <div className="flex w-[190px] flex-wrap gap-2">
                     {onEdit ? (
                       <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
                         <Pencil size={14} /> Edit
                       </button>
                     ) : null}
                     {onDelete ? (
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300" data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
-                        <Trash2 size={14} /> Delete
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} disabled={actionsDisabled} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300 ${deleteIsArmed ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
+                        <Trash2 size={14} /> {deleteIsArmed ? "Confirm delete" : "Delete"}
                       </button>
+                    ) : null}
+                    {deleteIsArmed ? (
+                      <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-campaign-delete-confirmation-${campaign.id}`}>
+                        Click Confirm delete to remove this campaign, its channels, and recipient snapshots.
+                      </p>
                     ) : null}
                   </div>
                 </td>
@@ -5174,7 +7422,29 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsD
   );
 }
 
-function MarketingCalendarView({ campaigns, onEdit, onDelete }: { campaigns: Campaign[]; onEdit: (campaign: Campaign) => void; onDelete: (campaign: Campaign) => void }) {
+function MarketingCalendarView({
+  campaigns,
+  contentById = new Map<string, ContentAsset>(),
+  contentTitleById = new Map<string, string>(),
+  metricsByCampaignId = new Map<string, CampaignMetricSummary>(),
+  audiences = [],
+  onEdit,
+  onDelete,
+  onPreviewContent,
+  onEditContent,
+  confirmingDeleteId = null,
+}: {
+  campaigns: Campaign[];
+  contentById?: ReadonlyMap<string, ContentAsset>;
+  contentTitleById?: ReadonlyMap<string, string>;
+  metricsByCampaignId?: ReadonlyMap<string, CampaignMetricSummary>;
+  audiences?: MarketingAudience[];
+  onEdit: (campaign: Campaign) => void;
+  onDelete: (campaign: Campaign) => void;
+  onPreviewContent?: (contentAsset: ContentAsset) => void;
+  onEditContent?: (contentAsset: ContentAsset) => void;
+  confirmingDeleteId?: string | null;
+}) {
   const scheduledCampaigns = [...campaigns]
     .filter((campaign) => campaign.scheduleStartsAt)
     .sort((a, b) => new Date(a.scheduleStartsAt ?? 0).getTime() - new Date(b.scheduleStartsAt ?? 0).getTime());
@@ -5201,7 +7471,10 @@ function MarketingCalendarView({ campaigns, onEdit, onDelete }: { campaigns: Cam
               <Pill className="bg-sky-50 text-sky-700">{day.campaigns.length} scheduled</Pill>
             </div>
             <div className="grid gap-2">
-              {day.campaigns.map((campaign) => (
+              {day.campaigns.map((campaign) => {
+                const targetAudience = campaignTargetAudience(campaign, audiences);
+                const metricSummary = metricsByCampaignId.get(campaign.id);
+                return (
                 <article key={campaign.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -5217,28 +7490,70 @@ function MarketingCalendarView({ campaigns, onEdit, onDelete }: { campaigns: Cam
                     <div className="flex flex-wrap justify-end gap-1.5">
                       <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
                       <Pill className="bg-purple-50 text-purple-700">{campaign.audienceType.toUpperCase()}</Pill>
+                      {targetAudience ? (
+                        <Pill className="bg-violet-50 text-violet-800">List: {targetAudience.name}</Pill>
+                      ) : null}
                       <Pill className="bg-[#f5eee8] text-[#7d6b65]">{campaign.recipientCount} recipients</Pill>
                     </div>
                   </div>
+                  <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                    <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-calendar-performance-${campaign.id}`} />
+                  </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="grid gap-1.5">
                       {campaign.channels.length === 0 ? (
                         <span className="text-xs font-bold text-[#8b7a73]">No channels</span>
-                      ) : campaign.channels.map((item) => (
-                        <Pill key={item.id} className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                      ))}
+                      ) : campaign.channels.map((item) => {
+                        const contentAsset = item.contentAssetId ? contentById.get(item.contentAssetId) : null;
+                        const contentTitle = contentAsset?.title || (item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "");
+                        const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
+                        return (
+                          <div key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-calendar-channel-link-${item.id}`}>
+                            <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                            <span className={`max-w-[260px] truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
+                              {contentLabel}
+                            </span>
+                            {contentAsset && onPreviewContent ? (
+                              <button
+                                type="button"
+                                onClick={() => onPreviewContent(contentAsset)}
+                                className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                                data-testid={`button-marketing-preview-calendar-content-${item.id}`}
+                              >
+                                <Eye size={11} /> Preview
+                              </button>
+                            ) : null}
+                            {contentAsset && onEditContent ? (
+                              <button
+                                type="button"
+                                onClick={() => onEditContent(contentAsset)}
+                                className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                                data-testid={`button-marketing-edit-calendar-content-${item.id}`}
+                              >
+                                <Pencil size={11} /> Edit
+                              </button>
+                            ) : null}
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button type="button" onClick={() => onEdit(campaign)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-calendar-edit-${campaign.id}`}>
                         <Pencil size={14} /> Edit
                       </button>
-                      <button type="button" onClick={() => onDelete(campaign)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700" data-testid={`button-marketing-calendar-delete-${campaign.id}`}>
-                        <Trash2 size={14} /> Delete
+                      <button type="button" onClick={() => onDelete(campaign)} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black ${confirmingDeleteId === campaign.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} data-testid={`button-marketing-calendar-delete-${campaign.id}`}>
+                        <Trash2 size={14} /> {confirmingDeleteId === campaign.id ? "Confirm delete" : "Delete"}
                       </button>
+                      {confirmingDeleteId === campaign.id ? (
+                        <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-calendar-delete-confirmation-${campaign.id}`}>
+                          Click Confirm delete to remove this scheduled campaign.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           </section>
         ))}
@@ -5251,7 +7566,10 @@ function MarketingCalendarView({ campaigns, onEdit, onDelete }: { campaigns: Cam
         </div>
         {unscheduledCampaigns.length === 0 ? (
           <EmptyState text="No unscheduled campaigns." />
-        ) : unscheduledCampaigns.map((campaign) => (
+        ) : unscheduledCampaigns.map((campaign) => {
+          const targetAudience = campaignTargetAudience(campaign, audiences);
+          const metricSummary = metricsByCampaignId.get(campaign.id);
+          return (
           <button
             key={campaign.id}
             type="button"
@@ -5264,9 +7582,32 @@ function MarketingCalendarView({ campaigns, onEdit, onDelete }: { campaigns: Cam
             <span className="mt-2 flex flex-wrap gap-1.5">
               <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
               <Pill className="bg-purple-50 text-purple-700">{campaign.audienceType.toUpperCase()}</Pill>
+              {targetAudience ? (
+                <Pill className="bg-violet-50 text-violet-800">List: {targetAudience.name}</Pill>
+              ) : null}
+            </span>
+            {campaign.channels.length ? (
+              <span className="mt-2 grid gap-1">
+                {campaign.channels.map((item) => {
+                  const contentTitle = item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "";
+                  const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
+                  return (
+                    <span key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-calendar-unscheduled-channel-link-${item.id}`}>
+                      <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                      <span className={`truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
+                        {contentLabel}
+                      </span>
+                    </span>
+                  );
+                })}
+              </span>
+            ) : null}
+            <span className="mt-3 block rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-2">
+              <CampaignPerformanceInlineSummary summary={metricSummary} testId={`marketing-calendar-unscheduled-performance-${campaign.id}`} />
             </span>
           </button>
-        ))}
+          );
+        })}
       </aside>
     </div>
   );
