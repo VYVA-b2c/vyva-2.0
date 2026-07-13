@@ -939,7 +939,7 @@ type BillDocumentAnalysis = {
 type UtilityInputMethod = "upload" | "photo" | "voice" | "manual";
 type UtilityType = "electricity" | "gas" | "dual";
 type SavingsPanelView = "overview" | "utilities";
-type ProviderSearchMode = "personal-care" | "specialist" | "residence" | "care";
+type ProviderSearchMode = "personal-care" | "specialist" | "residence" | "care" | "transport" | "pharmacy" | "home-service";
 type ProviderSearchCriterionKey = "nearby" | "reputation" | "accessible" | "clear-price" | "available-soon" | "coverage";
 
 interface NormalizedUtilityInput {
@@ -2303,11 +2303,17 @@ function providerSearchModeLabel(mode: ProviderSearchMode | null, es: boolean): 
   if (mode === "specialist") return es ? "especialista" : "specialist";
   if (mode === "residence") return es ? "residencia o centro de cuidado" : "residence or care home";
   if (mode === "care") return es ? "opciones de cuidado" : "care options";
+  if (mode === "transport") return es ? "transporte" : "transport";
+  if (mode === "pharmacy") return es ? "farmacia" : "pharmacy";
+  if (mode === "home-service") return es ? "servicio en casa" : "home service";
   return es ? "proveedor" : "provider";
 }
 
 function providerSearchSetupFocus(mode: ProviderSearchMode | null): string {
   if (mode === "specialist") return "doctor_clinic";
+  if (mode === "transport") return "transport";
+  if (mode === "pharmacy") return "pharmacy";
+  if (mode === "home-service") return "home_service";
   if (mode === "residence" || mode === "personal-care" || mode === "care") return "personal_care";
   return "other";
 }
@@ -4401,6 +4407,192 @@ function providerSearchActionDetails(item: ConciergePendingItem, isSpanish: bool
     categoryLabel: providerSearchCategoryLabel(category, isSpanish),
     criteria: cleanProviderSearchValue(criteria),
     contact: cleanProviderSearchValue(contact),
+  };
+}
+
+type ProviderRecoverySearchPlan = {
+  mode: ProviderSearchMode;
+  query: string;
+  criteria: ProviderSearchCriterionKey[];
+  notice: string;
+};
+
+function providerRecoveryModeFromCategory(category: ConciergeProviderCategoryId): ProviderSearchMode {
+  if (category === "transport") return "transport";
+  if (category === "pharmacy") return "pharmacy";
+  if (category === "home_service") return "home-service";
+  if (category === "doctor_clinic") return "specialist";
+  if (category === "personal_care") return "personal-care";
+  return "care";
+}
+
+function providerUnavailableRecoveryPlan(item: ConciergePendingItem, isSpanish: boolean): ProviderRecoverySearchPlan {
+  const payload = item.action_payload;
+  const failedProvider = providerSearchProviderName(item, isSpanish) || item.provider_name?.trim() || "";
+  const avoidLine = failedProvider
+    ? (isSpanish ? `Evita este proveedor: ${failedProvider}.` : `Avoid this provider: ${failedProvider}.`)
+    : "";
+  const safeEnd = isSpanish
+    ? "Prepara opciones verificables. No contactes, reserves ni compartas datos sin mi confirmacion."
+    : "Prepare verifiable options. Do not contact, book, or share details without my confirmation.";
+
+  if (item.use_case === "book_ride") {
+    const destination = payloadString(payload, ["destination_address", "destination", "dropoff_address", "to"]);
+    const pickup = payloadString(payload, ["pickup_address", "pickup", "start_location", "origin_address", "from"]);
+    const requestedTime = payloadString(payload, ["requested_time", "scheduled_for", "scheduled_time", "time"]);
+    const mobilityNeeds = stringList(payload?.mobility_needs).join(", ");
+    const query = isSpanish
+      ? [
+        "Busca otro transporte para este viaje.",
+        destination ? `Destino: ${destination}.` : "",
+        pickup ? `Recogida: ${pickup}.` : "",
+        requestedTime ? `Hora: ${requestedTime}.` : "",
+        mobilityNeeds ? `Ayuda necesaria: ${mobilityNeeds}.` : "",
+        avoidLine,
+        "Prioriza cercania, disponibilidad, precio claro y acceso facil.",
+        safeEnd,
+      ].filter(Boolean).join(" ")
+      : [
+        "Find another transport option for this ride.",
+        destination ? `Destination: ${destination}.` : "",
+        pickup ? `Pickup: ${pickup}.` : "",
+        requestedTime ? `Time: ${requestedTime}.` : "",
+        mobilityNeeds ? `Help needed: ${mobilityNeeds}.` : "",
+        avoidLine,
+        "Prioritize proximity, availability, clear price, and easy access.",
+        safeEnd,
+      ].filter(Boolean).join(" ");
+    return {
+      mode: "transport",
+      query,
+      criteria: ["nearby", "available-soon", "accessible", "clear-price", "reputation"],
+      notice: isSpanish ? "Busqueda de transporte preparada con los mismos detalles." : "Transport search prepared with the same details.",
+    };
+  }
+
+  if (item.use_case === "order_medicine") {
+    const itemText = payloadString(payload, ["item_text", "items", "item", "product_name", "medicine_name"]);
+    const fulfillment = payloadString(payload, ["fulfillment_preference", "fulfillment", "delivery_preference"]);
+    const requestedTime = payloadString(payload, ["requested_time", "scheduled_for", "scheduled_time", "time"]);
+    const notes = payloadString(payload, ["notes", "note", "brand", "quantity", "special_requests"]);
+    const query = isSpanish
+      ? [
+        "Busca otra farmacia para producto sin receta.",
+        itemText ? `Producto: ${itemText}.` : "",
+        fulfillment ? `Preferencia: ${fulfillment}.` : "",
+        requestedTime ? `Cuando: ${requestedTime}.` : "",
+        notes ? `Notas: ${notes}.` : "",
+        avoidLine,
+        "Prioriza stock, entrega o recogida clara, cercania y precio claro.",
+        safeEnd,
+      ].filter(Boolean).join(" ")
+      : [
+        "Find another pharmacy for an over-the-counter item.",
+        itemText ? `Item: ${itemText}.` : "",
+        fulfillment ? `Preference: ${fulfillment}.` : "",
+        requestedTime ? `When: ${requestedTime}.` : "",
+        notes ? `Notes: ${notes}.` : "",
+        avoidLine,
+        "Prioritize stock, clear delivery or pickup, proximity, and clear price.",
+        safeEnd,
+      ].filter(Boolean).join(" ");
+    return {
+      mode: "pharmacy",
+      query,
+      criteria: ["nearby", "available-soon", "clear-price", "reputation"],
+      notice: isSpanish ? "Busqueda de farmacia preparada con el producto original." : "Pharmacy search prepared with the original item.",
+    };
+  }
+
+  if (isHomeServicePendingAction(item)) {
+    const serviceType = payloadString(payload, ["service_type", "service_label", "provider_type", "issue_type", "service_needed"]);
+    const problem = payloadString(payload, ["problem_summary", "issue_summary", "service_needed", "reason", "detail"]);
+    const urgency = payloadString(payload, ["urgency", "priority", "requested_time"]);
+    const location = payloadString(payload, ["location", "address", "home_address"]);
+    const query = isSpanish
+      ? [
+        "Busca otro proveedor de servicio en casa.",
+        serviceType ? `Tipo: ${serviceType}.` : "",
+        problem ? `Problema: ${problem}.` : "",
+        urgency ? `Urgencia: ${urgency}.` : "",
+        location ? `Lugar: ${location}.` : "",
+        avoidLine,
+        "Prioriza disponibilidad, buenas opiniones, precio claro y facilidad para personas mayores.",
+        safeEnd,
+      ].filter(Boolean).join(" ")
+      : [
+        "Find another home-service provider.",
+        serviceType ? `Type: ${serviceType}.` : "",
+        problem ? `Problem: ${problem}.` : "",
+        urgency ? `Urgency: ${urgency}.` : "",
+        location ? `Location: ${location}.` : "",
+        avoidLine,
+        "Prioritize availability, good reputation, clear price, and senior-friendly service.",
+        safeEnd,
+      ].filter(Boolean).join(" ");
+    return {
+      mode: "home-service",
+      query,
+      criteria: ["available-soon", "reputation", "clear-price", "accessible"],
+      notice: isSpanish ? "Busqueda de servicio preparada con el problema original." : "Home-service search prepared with the original problem.",
+    };
+  }
+
+  if (item.use_case === "book_appointment") {
+    const reason = payloadString(payload, ["appointment_reason", "reason", "detail", "notes"]);
+    const appointmentType = payloadString(payload, ["appointment_type", "type"]);
+    const requestedTime = payloadString(payload, ["requested_time", "preferred_time", "scheduled_for", "time"]);
+    const location = payloadString(payload, ["location", "address", "area"]);
+    const query = isSpanish
+      ? [
+        "Busca otro medico o clinica para esta cita.",
+        appointmentType ? `Tipo: ${appointmentType}.` : "",
+        reason ? `Motivo: ${reason}.` : "",
+        requestedTime ? `Preferencia de hora: ${requestedTime}.` : "",
+        location ? `Zona: ${location}.` : "",
+        avoidLine,
+        "Prioriza cercania, reputacion, acceso, disponibilidad y cobertura si aplica.",
+        safeEnd,
+      ].filter(Boolean).join(" ")
+      : [
+        "Find another doctor or clinic for this appointment.",
+        appointmentType ? `Type: ${appointmentType}.` : "",
+        reason ? `Reason: ${reason}.` : "",
+        requestedTime ? `Preferred time: ${requestedTime}.` : "",
+        location ? `Area: ${location}.` : "",
+        avoidLine,
+        "Prioritize proximity, reputation, access, availability, and coverage if relevant.",
+        safeEnd,
+      ].filter(Boolean).join(" ");
+    return {
+      mode: "specialist",
+      query,
+      criteria: ["nearby", "reputation", "accessible", "available-soon", "coverage"],
+      notice: isSpanish ? "Busqueda de cita alternativa preparada." : "Alternative appointment search prepared.",
+    };
+  }
+
+  const details = providerSearchActionDetails(item, isSpanish);
+  const query = isSpanish
+    ? [
+      `Busca otra opcion parecida a ${details.providerName}.`,
+      `Categoria: ${details.categoryLabel}.`,
+      details.criteria ? `Mantener criterios: ${details.criteria}.` : "Prioriza cercania, reputacion, acceso y precio claro.",
+      avoidLine,
+      safeEnd,
+    ].filter(Boolean).join(" ")
+    : [
+      `Find another option similar to ${details.providerName}.`,
+      `Category: ${details.categoryLabel}.`,
+      details.criteria ? `Keep criteria: ${details.criteria}.` : "Prioritize proximity, reputation, access, and clear price.",
+      avoidLine,
+      safeEnd,
+    ].filter(Boolean).join(" ");
+  return {
+    mode: providerRecoveryModeFromCategory(details.category),
+    query,
+    criteria: DEFAULT_PROVIDER_SEARCH_CRITERIA,
+    notice: isSpanish ? "Busqueda alternativa preparada." : "Alternative search prepared.",
   };
 }
 
@@ -6824,11 +7016,16 @@ const ConciergeScreen = () => {
   }
 
   function handleProviderUnavailable(item: ConciergePendingItem) {
+    const recovery = providerUnavailableRecoveryPlan(item, isSpanish);
     setProviderReplyMode(null);
     setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
     setProviderReplyError(null);
-    setProviderReplyNotice(isSpanish ? "Puedes cambiar el proveedor o los detalles." : "You can change the provider or details.");
-    handleChangePendingAction(item);
+    setProviderReplyNotice(recovery.notice);
+    setIsRightNowHidden(false);
+    openProviderSearchPanel(recovery.mode, recovery.query);
+    setProviderSearchCriteria(recovery.criteria);
+    setInput(recovery.query);
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
   function handleProviderNeedMoreInfo(item: ConciergePendingItem) {

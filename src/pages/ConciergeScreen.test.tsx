@@ -2906,7 +2906,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("panel-provider-reply-confirmed-reply-route-confirmed")).toBeInTheDocument();
   });
 
-  it("reopens the original ride flow when a provider is unavailable", async () => {
+  it("opens a replacement transport search when a provider is unavailable", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url).endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
@@ -2934,11 +2934,92 @@ describe("ConciergeScreen route prefill", () => {
 
     fireEvent.click(await screen.findByTestId("button-provider-reply-unavailable-reply-unavailable-ride"));
 
-    expect(await screen.findByTestId("panel-transport-readiness")).toHaveTextContent("Tool ready");
-    expect(screen.getByTestId("input-transport-pickup")).toHaveValue("Saved home");
-    expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
-    expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow 09:00");
-    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("You can change the provider or details.");
+    expect(await screen.findByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    const transportQuery = (screen.getByTestId("input-offers-query") as HTMLInputElement).value;
+    expect(transportQuery).toContain("Find another transport option");
+    expect(transportQuery).toContain("Destination: City Clinic");
+    expect(transportQuery).toContain("Pickup: Saved home");
+    expect(transportQuery).toContain("Time: tomorrow 09:00");
+    expect(transportQuery).toContain("Avoid this provider: Radio Taxi");
+    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("Soon");
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Transport search prepared with the same details.");
+  });
+
+  it("opens a replacement pharmacy search when an OTC provider is unavailable", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-unavailable-otc",
+            use_case: "order_medicine",
+            provider_name: "Neighborhood Pharmacy",
+            provider_phone: "+34 600 333 444",
+            action_summary: "Pharmacy cannot supply the requested OTC item.",
+            action_payload: {
+              item_text: "Vitamin D",
+              fulfillment_preference: "pickup",
+              requested_time: "tomorrow",
+              notes: "Same brand",
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-reply-unavailable-reply-unavailable-otc"));
+
+    expect(await screen.findByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    const pharmacyQuery = (screen.getByTestId("input-offers-query") as HTMLInputElement).value;
+    expect(pharmacyQuery).toContain("Find another pharmacy");
+    expect(pharmacyQuery).toContain("Item: Vitamin D");
+    expect(pharmacyQuery).toContain("Preference: pickup");
+    expect(pharmacyQuery).toContain("Avoid this provider: Neighborhood Pharmacy");
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Pharmacy search prepared with the original item.");
+  });
+
+  it("opens a replacement home-service search when a provider is unavailable", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-unavailable-home-service",
+            use_case: "book_appointment",
+            provider_name: "Saved Plumber",
+            provider_phone: "+34 600 222 333",
+            action_summary: "Plumber is not available tomorrow.",
+            action_payload: {
+              appointment_type: "home-service",
+              service_type: "plumber",
+              problem_summary: "Leak under the kitchen sink",
+              urgency: "tomorrow",
+              location: "Home kitchen",
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-reply-unavailable-reply-unavailable-home-service"));
+
+    expect(await screen.findByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    const homeServiceQuery = (screen.getByTestId("input-offers-query") as HTMLInputElement).value;
+    expect(homeServiceQuery).toContain("Find another home-service provider");
+    expect(homeServiceQuery).toContain("Type: plumber");
+    expect(homeServiceQuery).toContain("Problem: Leak under the kitchen sink");
+    expect(homeServiceQuery).toContain("Avoid this provider: Saved Plumber");
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Home-service search prepared with the original problem.");
   });
 
   it("keeps provider questions inside VYVA when more information is needed", async () => {
