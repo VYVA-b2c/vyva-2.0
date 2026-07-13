@@ -2720,15 +2720,15 @@ describe("ConciergeScreen route prefill", () => {
 
     const callLink = await screen.findByTestId("link-concierge-phone-call-ride-1");
     expect(callLink).toHaveAttribute("href", "tel:+34612345678");
-    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Guided call");
-    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Use the script. Then save what happened.");
+    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Call step");
+    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Call now, then save what happened.");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Follow-through");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Ready for your OK");
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "upcoming");
     const checklist = screen.getByTestId("panel-concierge-flow-checklist");
-    expect(checklist).toHaveTextContent("What is missing");
-    expect(checklist).toHaveTextContent("VYVA asks before anything is sent, called, or booked.");
+    expect(checklist).toHaveTextContent("Ready check");
+    expect(checklist).toHaveTextContent("Nothing is sent, called, or booked without your OK.");
     expect(checklist).toHaveTextContent("Details");
     expect(checklist).toHaveTextContent("Ready");
     expect(checklist).toHaveTextContent("Provider");
@@ -2736,13 +2736,14 @@ describe("ConciergeScreen route prefill", () => {
     expect(checklist).toHaveTextContent("Contact");
     expect(checklist).toHaveTextContent("Phone call");
     expect(checklist).toHaveTextContent("Confirm");
-    expect(checklist).toHaveTextContent("Call and record outcome");
+    expect(checklist).toHaveTextContent("Call and save result");
     expect(screen.getByTestId("button-concierge-checklist-details")).toHaveTextContent("Review");
     expect(screen.getByTestId("button-concierge-checklist-provider")).toHaveTextContent("Change");
     expect(screen.getByTestId("button-concierge-checklist-confirm")).toHaveTextContent("OK");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Next step");
-    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Call and record outcome");
-    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Call from here and save the result to close the task.");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Call and save result");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Call from here, then save what happened to close the task.");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("You approve before anything is sent, called, or booked.");
     expect(screen.getByTestId("button-concierge-change-ride-1")).toHaveTextContent("Change");
     expect(screen.getByTestId("button-concierge-cancel-ride-1")).toHaveTextContent("Cancel");
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Review call script");
@@ -2804,7 +2805,7 @@ describe("ConciergeScreen route prefill", () => {
 
     await waitFor(() => {
       expect(completeBody).toMatchObject({
-        outcome_summary: "Call saved: Seguro Vida. Outcome: confirmed. Time: tomorrow 10:30. Reference: CL-9.",
+        outcome_summary: "Call saved with Seguro Vida. Result: confirmed. Time: tomorrow 10:30. Reference: CL-9.",
         outcome_payload: expect.objectContaining({
           flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
           execution_type: "phone_call_outcome_capture",
