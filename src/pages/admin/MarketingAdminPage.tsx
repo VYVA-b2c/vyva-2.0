@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
@@ -5113,8 +5113,13 @@ export default function MarketingAdminPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {visibleContent.map((item) => (
-                            <tr key={item.id} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
+                          {visibleContent.map((item) => {
+                            const isPreviewingContent = item.id === selectedContentId && contentDrawerMode === "preview";
+                            const isEditingContent = item.id === editingContentId && contentDrawerMode === "edit";
+                            const isConfirmingDelete = confirmingContentDeleteId === item.id;
+                            return (
+                            <Fragment key={item.id}>
+                            <tr className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
                               <td className="max-w-[360px] px-4 py-3">
                                 <p className="font-black text-[#241133]">{item.title}</p>
                                 <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
@@ -5147,55 +5152,96 @@ export default function MarketingAdminPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex flex-wrap gap-2">
-                                  <button type="button" onClick={() => previewContent(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d] ${item.id === selectedContent?.id && contentDrawerMode === "preview" ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-preview-content-${item.id}`}>
-                                    <Eye size={13} /> {item.id === selectedContent?.id && editingContentId !== item.id ? "Previewing" : "Preview"}
+                                  <button type="button" onClick={() => previewContent(item)} aria-expanded={isPreviewingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d] ${isPreviewingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-preview-content-${item.id}`}>
+                                    <Eye size={13} /> {isPreviewingContent ? "Previewing" : "Preview"}
                                   </button>
-                                  <button type="button" onClick={() => startContentEdit(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${editingContentId === item.id ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
-                                    <Pencil size={13} /> {editingContentId === item.id ? "Editing" : "Edit"}
+                                  <button type="button" onClick={() => startContentEdit(item)} aria-expanded={isEditingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isEditingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
+                                    <Pencil size={13} /> {isEditingContent ? "Editing" : "Edit"}
                                   </button>
-                                  <button type="button" onClick={() => void deleteContent(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === item.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
-                                    <Trash2 size={13} /> {confirmingContentDeleteId === item.id ? "Confirm delete" : "Delete"}
+                                  <button type="button" onClick={() => void deleteContent(item)} aria-expanded={isConfirmingDelete} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isConfirmingDelete ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
+                                    <Trash2 size={13} /> {isConfirmingDelete ? "Confirm delete" : "Delete"}
                                   </button>
-                                  {confirmingContentDeleteId === item.id ? (
-                                    <div className="basis-full rounded-lg border border-red-200 bg-red-50 px-2 py-2 text-xs font-black text-red-800" data-testid={`marketing-content-delete-confirmation-${item.id}`}>
-                                      <p>Click Confirm delete to remove this content.</p>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setConfirmingContentDeleteId(null);
-                                          setContentActionFeedback("");
-                                        }}
-                                        className="mt-1 text-red-700 underline"
-                                        disabled={contentSaving}
-                                        data-testid={`button-marketing-cancel-delete-content-${item.id}`}
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  ) : null}
-                                  {item.id === selectedContentId && contentDrawerMode === "preview" ? (
-                                    <div className="basis-full rounded-lg border border-purple-200 bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
-                                      <p>Preview panel opened.</p>
-                                      <p className="mt-1 text-[#241133]">{item.subject || item.title}</p>
-                                      <p className="mt-1 line-clamp-2 font-semibold text-[#6f5f59]">{item.body || "No body copy yet."}</p>
-                                      <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
-                                        <ArrowDown size={12} /> Focus preview
-                                      </button>
-                                    </div>
-                                  ) : null}
-                                  {item.id === editingContentId && contentDrawerMode === "edit" ? (
-                                    <div className="basis-full rounded-lg border border-purple-200 bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-editor-open-${item.id}`}>
-                                      <p>Editor panel opened.</p>
-                                      <p className="mt-1 font-semibold text-[#6f5f59]">You can edit this content in the focused panel now.</p>
-                                      <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
-                                        <ArrowDown size={12} /> Focus editor
-                                      </button>
-                                    </div>
-                                  ) : null}
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            {isPreviewingContent || isEditingContent || isConfirmingDelete ? (
+                              <tr className="border-t border-purple-100 bg-purple-50/80">
+                                <td colSpan={9} className="px-4 py-3">
+                                  {isPreviewingContent ? (
+                                    <div className="rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-bold text-purple-950 shadow-sm" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
+                                      <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Preview panel opened.</p>
+                                          <p className="mt-1 text-base font-black text-[#241133]">{item.title}</p>
+                                          <p className="mt-1 text-[#5b4a46]">{item.subject || "No subject yet."}</p>
+                                          <p className="mt-2 max-w-4xl whitespace-pre-wrap text-xs font-semibold leading-relaxed text-[#6f5f59]">{item.body || "No body copy yet."}</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700">
+                                            <ArrowDown size={12} /> Focus preview
+                                          </button>
+                                          <button type="button" onClick={() => startContentEdit(item)} className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-purple-700 px-3 text-xs font-black text-white">
+                                            <Pencil size={12} /> Edit
+                                          </button>
+                                          <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]">
+                                            <X size={12} /> Close
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  {isEditingContent ? (
+                                    <div className="rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-bold text-purple-950 shadow-sm" role="status" data-testid={`marketing-content-editor-open-${item.id}`}>
+                                      <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Editor panel opened.</p>
+                                          <p className="mt-1 text-base font-black text-[#241133]">{item.title}</p>
+                                          <p className="mt-1 font-semibold text-[#6f5f59]">You can edit this content in the focused panel now.</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700">
+                                            <ArrowDown size={12} /> Focus editor
+                                          </button>
+                                          <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]">
+                                            <X size={12} /> Close
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  {isConfirmingDelete ? (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-800 shadow-sm" role="status" data-testid={`marketing-content-delete-confirmation-${item.id}`}>
+                                      <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                          <p>Click Confirm delete to remove this content.</p>
+                                          <p className="mt-1 text-xs font-semibold text-red-700">This removes the VYVA planning record only. Lovable is not changed.</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-red-700 px-3 text-xs font-black text-white" disabled={contentSaving} data-testid={`button-marketing-confirm-delete-content-${item.id}`}>
+                                            <Trash2 size={12} /> Confirm delete
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setConfirmingContentDeleteId(null);
+                                              setContentActionFeedback("");
+                                            }}
+                                            className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-red-200 bg-white px-3 text-xs font-black text-red-700"
+                                            disabled={contentSaving}
+                                            data-testid={`button-marketing-cancel-delete-content-${item.id}`}
+                                          >
+                                            <X size={12} /> Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </td>
+                              </tr>
+                            ) : null}
+                            </Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
