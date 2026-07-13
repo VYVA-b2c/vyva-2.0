@@ -3714,6 +3714,9 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("timeline-step-waiting")).toHaveAttribute("data-state", "upcoming");
     expect(await screen.findByTestId("panel-concierge-form-plan")).toHaveTextContent("System: TheFork");
     expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs first: number of guests");
+    expect(screen.getByTestId("button-booking-form-add-details-form-task-1")).toHaveTextContent("Add details");
+    fireEvent.click(screen.getByTestId("button-booking-form-add-details-form-task-1"));
+    expect(screen.getByTestId("booking-form-notice")).toHaveTextContent("VYVA can help collect those details.");
     expect(screen.getAllByText("Add missing details").length).toBeGreaterThan(0);
   });
 
@@ -3751,7 +3754,81 @@ describe("ConciergeScreen route prefill", () => {
       "href",
       "https://www.thefork.es/restaurante/example?date=tomorrow",
     );
+    expect(screen.getByTestId("link-booking-form-open-form-ready-1")).toHaveAttribute(
+      "href",
+      "https://www.thefork.es/restaurante/example?date=tomorrow",
+    );
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Open appointment form");
     expect(screen.getByTestId("button-concierge-confirm-form-ready-1")).toHaveTextContent("Open appointment form");
+  });
+
+  it("records a submitted booking form through the existing completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/form-submit-1/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-form-submit-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "form-submit-1",
+            use_case: "book_appointment",
+            provider_name: "The Good Table",
+            provider_phone: null,
+            action_summary: "Booking form ready for The Good Table.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+              mission_status: "form_in_progress",
+              preferred_channel: "booking_url",
+              execution_channel: "booking_url",
+              booking_url: "https://www.thefork.es/restaurante/example",
+              form_automation_plan: {
+                adapter_label: "TheFork",
+                missing_fields: [],
+                next_step: "Use the supported booking page with the gathered details.",
+                prefilled_url: "https://www.thefork.es/restaurante/example?date=tomorrow",
+              },
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-booking-form-ready-form-submit-1")).toHaveTextContent("Open form");
+    fireEvent.change(screen.getByTestId("input-booking-form-reference-form-submit-1"), {
+      target: { value: "TF-88" },
+    });
+    fireEvent.change(screen.getByTestId("input-booking-form-notes-form-submit-1"), {
+      target: { value: "Submitted for tomorrow evening." },
+    });
+    fireEvent.click(screen.getByTestId("button-booking-form-submitted-form-submit-1"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Form submitted: The Good Table. Reference: TF-88.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+          execution_type: "form_booking_link_outcome_capture",
+          execution_channel: "booking_url",
+          form_outcome: "submitted",
+          provider_name: "The Good Table",
+          booking_url: "https://www.thefork.es/restaurante/example",
+          prefilled_url: "https://www.thefork.es/restaurante/example?date=tomorrow",
+          adapter_label: "TheFork",
+          missing_fields: [],
+          reference: "TF-88",
+          notes: "Submitted for tomorrow evening.",
+          completed_from: "booking_form_support_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
   });
 });
