@@ -1894,6 +1894,31 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("generates a smart campaign brief into the planner and content draft", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
+
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partners");
+    fireEvent.click(screen.getByTestId("button-marketing-apply-studio-draft"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("B2B partner introduction");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Tone: Direct.");
+    expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Draft applied");
+
+    fireEvent.click(screen.getByTestId("button-marketing-open-studio-content-draft"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("B2B partner introduction - LinkedIn");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Channel direction");
+  });
+
   it("creates campaign metadata without auto-dispatching", async () => {
     renderPage();
 

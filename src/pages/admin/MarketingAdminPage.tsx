@@ -19,6 +19,7 @@ import {
   Search,
   Send,
   Settings,
+  Sparkles,
   Trash2,
   UsersRound,
   Waypoints,
@@ -418,6 +419,43 @@ type CampaignDraft = {
   snapshotRecipients: boolean;
 };
 
+type CampaignStudioPlayId =
+  | "caregiver-onboarding"
+  | "family-confidence"
+  | "b2b-partner-outreach"
+  | "local-event"
+  | "reactivation"
+  | "health-insight"
+  | "product-education"
+  | "seasonal-check-in";
+
+type CampaignStudioToneId = "warm" | "expert" | "direct" | "uplifting";
+
+type CampaignStudioState = {
+  playId: CampaignStudioPlayId;
+  toneId: CampaignStudioToneId;
+  channel: Channel;
+  scheduleStartsAt: string;
+  targetAudienceId: string;
+};
+
+type CampaignStudioPlay = {
+  id: CampaignStudioPlayId;
+  label: string;
+  brief: string;
+  audienceType: Audience;
+  defaultChannel: Channel;
+  targetListHints: string[];
+  scheduleDaysFromNow: number;
+  campaignName: string;
+  contentTitle: string;
+  objective: string;
+  subject: string;
+  body: string;
+  ctaLabel: string;
+  ctaUrl: string;
+};
+
 type CampaignEditDraft = {
   name: string;
   audienceType: Audience;
@@ -608,6 +646,160 @@ const channelLabel: Record<Channel, string> = {
   linkedin: "LinkedIn",
   tiktok: "TikTok",
 };
+
+const campaignStudioToneLabel: Record<CampaignStudioToneId, string> = {
+  warm: "Warm",
+  expert: "Expert",
+  direct: "Direct",
+  uplifting: "Uplifting",
+};
+
+const campaignStudioToneGuidance: Record<CampaignStudioToneId, string> = {
+  warm: "Reassuring, human, and gentle. Lead with care and clarity.",
+  expert: "Credible, precise, and useful. Lead with the practical value.",
+  direct: "Short, action-oriented, and easy to scan. Lead with the next step.",
+  uplifting: "Positive, energetic, and encouraging. Lead with momentum.",
+};
+
+const campaignStudioChannelGuidance: Record<Channel, string> = {
+  email: "Use a clear subject, one message, and one primary call to action.",
+  whatsapp: "Keep it conversational, short, and easy to reply to.",
+  facebook: "Frame it as a community update with a shareable hook.",
+  instagram: "Use a visual-first caption with one crisp takeaway.",
+  linkedin: "Make the professional value and outcome explicit.",
+  tiktok: "Write a short creator-style prompt with a strong opening line.",
+};
+
+const campaignStudioPlays: CampaignStudioPlay[] = [
+  {
+    id: "caregiver-onboarding",
+    label: "Caregiver onboarding",
+    brief: "Welcome a caregiver and move them into their first useful action.",
+    audienceType: "b2c",
+    defaultChannel: "email",
+    targetListHints: ["caregiver", "family", "b2c", "users"],
+    scheduleDaysFromNow: 1,
+    campaignName: "Caregiver onboarding welcome",
+    contentTitle: "Caregiver onboarding welcome",
+    objective: "Help new caregivers understand why VYVA matters, what they can do first, and how to support the elder without friction.",
+    subject: "Your VYVA care-team space is ready",
+    body: "Hi {{first_name}},\n\nYour VYVA care-team space is ready. You can now see the key updates, alerts, and support details that help everyone stay aligned around daily care.\n\nStart by opening the dashboard, checking the elder profile, and confirming the contact details we should use for important updates.",
+    ctaLabel: "Open care team dashboard",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "family-confidence",
+    label: "Family confidence",
+    brief: "Reassure families that care updates are organized and visible.",
+    audienceType: "b2c",
+    defaultChannel: "whatsapp",
+    targetListHints: ["family", "caregiver", "elder", "b2c"],
+    scheduleDaysFromNow: 2,
+    campaignName: "Family confidence check-in",
+    contentTitle: "Family confidence check-in",
+    objective: "Build trust by showing families how VYVA keeps practical care information in one place.",
+    subject: "A calmer way to stay close to care",
+    body: "Hi {{first_name}},\n\nCare is easier when everyone knows what changed, what matters, and what needs attention. VYVA brings those updates together so family and caregivers can stay close without constant back-and-forth.\n\nTake a minute to review the latest profile and contact details today.",
+    ctaLabel: "Review details",
+    ctaUrl: "https://v2.vyva.life/profile",
+  },
+  {
+    id: "b2b-partner-outreach",
+    label: "Partner outreach",
+    brief: "Introduce VYVA to a partner, venue, or professional contact.",
+    audienceType: "b2b",
+    defaultChannel: "linkedin",
+    targetListHints: ["partner", "b2b", "provider", "organization", "linkedin"],
+    scheduleDaysFromNow: 3,
+    campaignName: "B2B partner introduction",
+    contentTitle: "B2B partner introduction",
+    objective: "Start a partner conversation with a clear explanation of VYVA's value for families, care teams, and local support providers.",
+    subject: "A practical care-team layer for families and providers",
+    body: "Hi {{first_name}},\n\nVYVA helps families and care teams coordinate support, alerts, routines, and everyday updates around older adults. We are building practical partner pathways for organizations that already support families locally.\n\nWould it be useful to explore where VYVA could fit with your audience or services?",
+    ctaLabel: "Book a short intro",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "local-event",
+    label: "Local event invite",
+    brief: "Invite a local audience to a helpful activity or community moment.",
+    audienceType: "both",
+    defaultChannel: "facebook",
+    targetListHints: ["event", "local", "community", "spain", "madrid"],
+    scheduleDaysFromNow: 5,
+    campaignName: "Local activity invitation",
+    contentTitle: "Local activity invitation",
+    objective: "Promote a local activity that feels relevant, accessible, and worth attending.",
+    subject: "A local activity worth adding to the week",
+    body: "Looking for a simple, social way to make the week feel more connected?\n\nWe found a local activity that may suit older adults, family members, and caregivers who want something nearby, practical, and enjoyable.\n\nSave the details and share them with someone who may benefit.",
+    ctaLabel: "See activity details",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "reactivation",
+    label: "Reactivation",
+    brief: "Bring quiet contacts back with one simple reason to return.",
+    audienceType: "both",
+    defaultChannel: "email",
+    targetListHints: ["inactive", "quiet", "reactivation", "all"],
+    scheduleDaysFromNow: 1,
+    campaignName: "Audience reactivation",
+    contentTitle: "Audience reactivation",
+    objective: "Prompt inactive contacts to return with a low-friction action and a clear reason to care now.",
+    subject: "A quick VYVA check-in",
+    body: "Hi {{first_name}},\n\nA lot can change in a week. If you have not checked VYVA recently, now is a good moment to review the profile, contact routes, and updates that help the care team stay aligned.\n\nIt only takes a minute.",
+    ctaLabel: "Check VYVA",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "health-insight",
+    label: "Health insight",
+    brief: "Share one useful, non-clinical care insight.",
+    audienceType: "b2c",
+    defaultChannel: "email",
+    targetListHints: ["health", "caregiver", "family", "b2c"],
+    scheduleDaysFromNow: 4,
+    campaignName: "Weekly care insight",
+    contentTitle: "Weekly care insight",
+    objective: "Give families one practical care-team insight without making clinical claims.",
+    subject: "One small care habit that helps everyone",
+    body: "Hi {{first_name}},\n\nSmall routines make care easier to understand. One useful habit is to keep contact details, preferences, and support notes current before something urgent happens.\n\nThis week, take a quick look at the profile and update anything the care team should know.",
+    ctaLabel: "Update profile",
+    ctaUrl: "https://v2.vyva.life/profile",
+  },
+  {
+    id: "product-education",
+    label: "Product education",
+    brief: "Explain one VYVA feature in plain language.",
+    audienceType: "both",
+    defaultChannel: "email",
+    targetListHints: ["education", "feature", "users", "partners"],
+    scheduleDaysFromNow: 2,
+    campaignName: "VYVA feature spotlight",
+    contentTitle: "VYVA feature spotlight",
+    objective: "Teach one VYVA feature clearly enough that the recipient knows when and why to use it.",
+    subject: "Feature spotlight: care-team updates",
+    body: "Hi {{first_name}},\n\nVYVA is built to make care-team updates easier to follow. Instead of chasing scattered messages, the team can keep important details, alerts, and next steps together.\n\nOpen VYVA and review the latest care-team view.",
+    ctaLabel: "Open feature",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "seasonal-check-in",
+    label: "Seasonal check-in",
+    brief: "Use a timely moment to prompt profile and contact updates.",
+    audienceType: "b2c",
+    defaultChannel: "whatsapp",
+    targetListHints: ["seasonal", "family", "caregiver", "b2c"],
+    scheduleDaysFromNow: 7,
+    campaignName: "Seasonal care check-in",
+    contentTitle: "Seasonal care check-in",
+    objective: "Use a seasonal moment to encourage families to refresh practical care details.",
+    subject: "A useful care check-in for the week ahead",
+    body: "Hi {{first_name}},\n\nBefore the week gets busy, it is worth checking that key care details are still right: phone numbers, preferences, language, support notes, and who should be contacted.\n\nA quick refresh now can save confusion later.",
+    ctaLabel: "Refresh details",
+    ctaUrl: "https://v2.vyva.life/profile",
+  },
+];
 
 const tabLabel: Record<Tab, string> = {
   dashboard: "Dashboard",
@@ -1663,6 +1855,48 @@ function audienceSnapshot(audience: MarketingAudience | null) {
     lovableExternalId: audience.lovableExternalId,
     memberCount: audience.memberCount,
     mappedMemberCount: audience.mappedMemberCount,
+  };
+}
+
+function campaignStudioDefaultSchedule(play: CampaignStudioPlay) {
+  const date = new Date();
+  date.setDate(date.getDate() + play.scheduleDaysFromNow);
+  date.setHours(10, 0, 0, 0);
+  return toDateTimeLocal(date.toISOString());
+}
+
+function bestCampaignStudioAudience(play: CampaignStudioPlay, audiences: MarketingAudience[]) {
+  const hints = play.targetListHints.map((hint) => lower(hint));
+  return audiences.find((audience) => {
+    const haystack = lower(`${audience.name} ${audience.description ?? ""} ${audience.listType} ${audience.source} ${audience.lovableExternalId ?? ""}`);
+    return hints.some((hint) => hint && haystack.includes(hint));
+  }) ?? audiences.find((audience) => audience.memberCount > 0) ?? null;
+}
+
+function campaignStudioBrief(play: CampaignStudioPlay, toneId: CampaignStudioToneId, channel: Channel, audience: MarketingAudience | null) {
+  const tone = campaignStudioToneLabel[toneId];
+  const target = audience ? audience.name : play.audienceType.toUpperCase();
+  const channelGuidance = campaignStudioChannelGuidance[channel];
+  const body = [
+    play.body,
+    "",
+    `Tone direction: ${campaignStudioToneGuidance[toneId]}`,
+    `Channel direction: ${channelGuidance}`,
+  ].join("\n");
+  return {
+    campaignName: play.campaignName,
+    contentTitle: `${play.contentTitle} - ${channelLabel[channel]}`,
+    subject: channel === "email" ? play.subject : `${play.label}: ${play.subject}`,
+    body,
+    ctaLabel: play.ctaLabel,
+    ctaUrl: play.ctaUrl,
+    objective: [
+      play.objective,
+      "",
+      `Audience: ${target}.`,
+      `Tone: ${tone}.`,
+      `Primary channel: ${channelLabel[channel]}. ${channelGuidance}`,
+    ].join("\n"),
   };
 }
 
@@ -2762,6 +2996,14 @@ export default function MarketingAdminPage() {
   const [contactMarketFilter, setContactMarketFilter] = useState("all");
   const [contactListFilter, setContactListFilter] = useState("all");
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>(() => emptyCampaignDraft());
+  const [campaignStudio, setCampaignStudio] = useState<CampaignStudioState>(() => ({
+    playId: "caregiver-onboarding",
+    toneId: "warm",
+    channel: "email",
+    scheduleStartsAt: "",
+    targetAudienceId: "",
+  }));
+  const [campaignStudioFeedback, setCampaignStudioFeedback] = useState("");
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
@@ -3302,6 +3544,24 @@ export default function MarketingAdminPage() {
     () => audiences.find((audience) => audience.id === campaignDraft.targetAudienceId) ?? null,
     [audiences, campaignDraft.targetAudienceId],
   );
+  const selectedCampaignStudioPlay = campaignStudioPlays.find((play) => play.id === campaignStudio.playId) ?? campaignStudioPlays[0];
+  const selectedCampaignStudioTargetAudience = useMemo(
+    () => audiences.find((audience) => audience.id === campaignStudio.targetAudienceId)
+      ?? bestCampaignStudioAudience(selectedCampaignStudioPlay, audiences),
+    [audiences, campaignStudio.targetAudienceId, selectedCampaignStudioPlay],
+  );
+  const campaignStudioSchedule = campaignStudio.scheduleStartsAt || campaignStudioDefaultSchedule(selectedCampaignStudioPlay);
+  const campaignStudioGenerated = campaignStudioBrief(
+    selectedCampaignStudioPlay,
+    campaignStudio.toneId,
+    campaignStudio.channel,
+    selectedCampaignStudioTargetAudience,
+  );
+  const campaignStudioRecipientPreview = useMemo(() => contacts.filter((contact) => {
+    if (!campaignAllowsContact(selectedCampaignStudioPlay.audienceType, contact.audienceType)) return false;
+    if (!contactMatchesAudienceList(contact, selectedCampaignStudioTargetAudience)) return false;
+    return Boolean(recipientForChannel(contact, campaignStudio.channel));
+  }), [campaignStudio.channel, contacts, selectedCampaignStudioPlay, selectedCampaignStudioTargetAudience]);
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
   const selectedCampaignTargetAudience = useMemo(
@@ -3334,6 +3594,46 @@ export default function MarketingAdminPage() {
       return !filter || contactSearchText(contact).includes(filter);
     });
   }, [campaignEditDraft, contacts, editingCampaignId, selectedCampaignTargetAudience]);
+
+  function applyCampaignStudioDraft() {
+    const targetAudienceId = selectedCampaignStudioTargetAudience?.id ?? campaignStudio.targetAudienceId;
+    const scheduleStartsAt = campaignStudioSchedule;
+    setCampaignDraft((draft) => ({
+      ...draft,
+      name: campaignStudioGenerated.campaignName,
+      audienceType: selectedCampaignStudioPlay.audienceType,
+      channel: campaignStudio.channel,
+      contentAssetId: "",
+      status: scheduleStartsAt ? "scheduled" : "draft",
+      scheduleStartsAt,
+      scheduleEndsAt: "",
+      objective: campaignStudioGenerated.objective,
+      targetAudienceId,
+      recipientFilter: "",
+      snapshotRecipients: campaignStudioRecipientPreview.length > 0,
+    }));
+    setContentDraft((draft) => ({
+      ...draft,
+      title: campaignStudioGenerated.contentTitle,
+      channel: campaignStudio.channel,
+      language: "en",
+      status: "draft",
+      subject: campaignStudioGenerated.subject,
+      body: campaignStudioGenerated.body,
+      htmlBody: "",
+      ctaLabel: campaignStudioGenerated.ctaLabel,
+      ctaUrl: campaignStudioGenerated.ctaUrl,
+      designJsonText: jsonText({
+        generator: "marketing_campaign_studio",
+        playId: selectedCampaignStudioPlay.id,
+        tone: campaignStudio.toneId,
+        audience: selectedCampaignStudioTargetAudience ? audienceSnapshot(selectedCampaignStudioTargetAudience) : null,
+      }),
+      mediaAssetsText: "[]",
+    }));
+    setCampaignStudioFeedback(`Draft applied: ${campaignStudioGenerated.campaignName}.`);
+    setMessage("Smart campaign draft applied. Save the content asset, then link it in the campaign planner when ready.");
+  }
 
   async function createCampaign(event: FormEvent) {
     event.preventDefault();
@@ -4559,6 +4859,141 @@ export default function MarketingAdminPage() {
                 )}
               </SectionCard>
 
+              <SectionCard
+                title="Smart campaign studio"
+                subtitle="Start from a proven play, tune the voice and channel, then apply a ready-to-edit brief to the campaign planner and content draft."
+                action={<Pill className="bg-purple-50 text-purple-800">{campaignStudioPlays.length} plays</Pill>}
+              >
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]" data-testid="marketing-campaign-studio">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Campaign plays</p>
+                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                      {campaignStudioPlays.map((play) => {
+                        const selected = play.id === selectedCampaignStudioPlay.id;
+                        return (
+                          <button
+                            key={play.id}
+                            type="button"
+                            onClick={() => {
+                              const suggestedAudience = bestCampaignStudioAudience(play, audiences);
+                              setCampaignStudio((current) => ({
+                                ...current,
+                                playId: play.id,
+                                channel: play.defaultChannel,
+                                scheduleStartsAt: campaignStudioDefaultSchedule(play),
+                                targetAudienceId: suggestedAudience?.id ?? "",
+                              }));
+                              setCampaignStudioFeedback("");
+                            }}
+                            className={`min-h-[92px] rounded-xl border px-4 py-3 text-left transition ${selected ? "border-purple-400 bg-purple-50 shadow-[0_10px_28px_rgba(126,34,206,0.14)]" : "border-[#eadfd5] bg-white hover:border-purple-200"}`}
+                            data-testid={`button-marketing-campaign-studio-play-${play.id}`}
+                          >
+                            <span className="flex items-start justify-between gap-2">
+                              <span className="font-black text-[#241133]">{play.label}</span>
+                              <Pill className={channelClass(play.defaultChannel)}>{channelLabel[play.defaultChannel]}</Pill>
+                            </span>
+                            <span className="mt-2 block text-xs font-bold leading-relaxed text-[#7d6b65]">{play.brief}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field label="Tone">
+                        <select
+                          className={inputClass}
+                          value={campaignStudio.toneId}
+                          onChange={(event) => setCampaignStudio((current) => ({ ...current, toneId: event.target.value as CampaignStudioToneId }))}
+                          data-testid="select-marketing-campaign-studio-tone"
+                        >
+                          {(Object.keys(campaignStudioToneLabel) as CampaignStudioToneId[]).map((tone) => (
+                            <option key={tone} value={tone}>{campaignStudioToneLabel[tone]}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Primary channel">
+                        <select
+                          className={inputClass}
+                          value={campaignStudio.channel}
+                          onChange={(event) => setCampaignStudio((current) => ({ ...current, channel: event.target.value as Channel }))}
+                          data-testid="select-marketing-campaign-studio-channel"
+                        >
+                          {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Target list">
+                        <select
+                          className={inputClass}
+                          value={campaignStudio.targetAudienceId || selectedCampaignStudioTargetAudience?.id || ""}
+                          onChange={(event) => setCampaignStudio((current) => ({ ...current, targetAudienceId: event.target.value }))}
+                          data-testid="select-marketing-campaign-studio-target-audience"
+                        >
+                          <option value="">Best matching list</option>
+                          {audiences.map((audience) => (
+                            <option key={audience.id} value={audience.id}>
+                              {audience.name} ({audience.mappedMemberCount}/{audience.memberCount} mapped)
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Suggested start">
+                        <input
+                          className={inputClass}
+                          type="datetime-local"
+                          value={campaignStudioSchedule}
+                          onChange={(event) => setCampaignStudio((current) => ({ ...current, scheduleStartsAt: event.target.value }))}
+                          data-testid="input-marketing-campaign-studio-schedule"
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4" data-testid="marketing-campaign-studio-preview">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Generated brief</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">{campaignStudioGenerated.campaignName}</h3>
+                        </div>
+                        <Pill className="bg-purple-50 text-purple-800">{campaignStudioToneLabel[campaignStudio.toneId]}</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-sm font-bold text-[#5b4a46]">
+                        <p><span className="font-black text-[#241133]">Subject:</span> {campaignStudioGenerated.subject}</p>
+                        <p className="line-clamp-4 whitespace-pre-line">{campaignStudioGenerated.body}</p>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Pill className={channelClass(campaignStudio.channel)}>{channelLabel[campaignStudio.channel]}</Pill>
+                        <Pill className="bg-white text-[#5b4a46]">{selectedCampaignStudioTargetAudience?.name ?? "Best matching list"}</Pill>
+                        <Pill className="bg-white text-[#5b4a46]">{campaignStudioRecipientPreview.length} eligible recipients</Pill>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={applyCampaignStudioDraft}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white hover:bg-purple-800"
+                        data-testid="button-marketing-apply-studio-draft"
+                      >
+                        <Sparkles size={16} /> Apply to planner
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          applyCampaignStudioDraft();
+                          setActiveTab("content");
+                        }}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 font-black text-purple-700 hover:bg-purple-50"
+                        data-testid="button-marketing-open-studio-content-draft"
+                      >
+                        <FileText size={16} /> Open content draft
+                      </button>
+                      {campaignStudioFeedback ? <p className="text-sm font-black text-emerald-700" data-testid="marketing-campaign-studio-feedback">{campaignStudioFeedback}</p> : null}
+                    </div>
+                  </div>
+                </div>
+              </SectionCard>
+
               <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaigns, choose imported content, and optionally snapshot eligible recipients. Email sending remains a separate explicit action.">
                 <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
@@ -4630,7 +5065,7 @@ export default function MarketingAdminPage() {
                       {selectedCampaignDraftTargetAudience.name}: {selectedCampaignDraftTargetAudience.mappedMemberCount} mapped / {selectedCampaignDraftTargetAudience.unmappedContactExternalIds.length} unmapped contacts.
                     </p>
                   ) : null}
-                  <textarea className={textareaClass} value={campaignDraft.objective} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))} placeholder="Objective or internal notes" />
+                  <textarea className={textareaClass} value={campaignDraft.objective} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))} placeholder="Objective or internal notes" data-testid="textarea-marketing-campaign-objective" />
                 </form>
               </SectionCard>
 
