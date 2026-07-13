@@ -140,6 +140,12 @@ describe("ProvidersSection trusted provider setup", () => {
         preferred_channel: "whatsapp",
         notes: "Nearby, Good reputation, Easy access",
       },
+      conciergeResume: {
+        kind: "provider_search",
+        mode: "personal-care",
+        query: "nearby care",
+        criteria: ["nearby", "reputation"],
+      },
     });
 
     expect(screen.getByTestId("filter-personal_care")).toHaveClass("bg-vyva-purple");
@@ -171,12 +177,18 @@ describe("ProvidersSection trusted provider setup", () => {
     });
     await waitFor(() => {
       expect(mocks.navigate).toHaveBeenCalledWith("/concierge", expect.objectContaining({
-        state: {
-          trustedProviderSaved: {
+        state: expect.objectContaining({
+          trustedProviderSaved: expect.objectContaining({
             name: "Marbella Care Clinic",
             category: "personal_care",
-          },
-        },
+            conciergeResume: {
+              kind: "provider_search",
+              mode: "personal-care",
+              query: "nearby care",
+              criteria: ["nearby", "reputation"],
+            },
+          }),
+        }),
       }));
     });
     expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({

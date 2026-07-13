@@ -125,9 +125,50 @@ type ConciergeProviderRouteAction = {
   mode: "follow_up" | "reply";
 };
 
+type ConciergeProviderResumeContext =
+  | {
+      kind: "transport";
+      message?: string;
+      pickup?: string;
+      destination?: string;
+      time?: string;
+      mobilityNeeds?: string[];
+    }
+  | {
+      kind: "otc_pharmacy";
+      itemText?: string;
+      fulfillmentPreference?: "delivery" | "pickup";
+      requestedTime?: string;
+      notes?: string;
+    }
+  | {
+      kind: "medical_appointment";
+      appointmentType?: AppointmentType;
+      note?: string;
+    }
+  | {
+      kind: "home_service";
+      serviceType?: HomeServiceType | null;
+      origin?: ServiceIntakeOrigin;
+      note?: string;
+      answers?: Record<string, string>;
+      textDrafts?: Record<string, string>;
+    }
+  | {
+      kind: "provider_search";
+      mode?: ProviderSearchMode | null;
+      query?: string;
+      criteria?: ProviderSearchCriterionKey[];
+    }
+  | {
+      kind: "generic";
+      message?: string;
+    };
+
 type TrustedProviderSavedRoute = {
   name: string;
   category: ConciergeProviderCategoryId;
+  conciergeResume: ConciergeProviderResumeContext | null;
 };
 
 type RoutePrefillHighlight = {
@@ -238,6 +279,103 @@ function coerceConciergeProviderRouteAction(value: unknown): ConciergeProviderRo
   return { pendingId, mode: value.mode };
 }
 
+function routeText(record: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function routeStringRecord(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  return Object.entries(value).reduce<Record<string, string>>((acc, [key, entry]) => {
+    if (typeof entry === "string" && entry.trim()) acc[key] = entry.trim();
+    return acc;
+  }, {});
+}
+
+function routeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.trim()).map((item) => item.trim());
+  }
+  return typeof value === "string" && value.trim() ? splitRoutePayloadList(value) : [];
+}
+
+function isAppointmentType(value: unknown): value is AppointmentType {
+  return typeof value === "string" && APPOINTMENT_TYPE_CHIPS.some((chip) => chip.key === value);
+}
+
+function isProviderSearchMode(value: unknown): value is ProviderSearchMode {
+  return typeof value === "string" && ["personal-care", "specialist", "residence", "care"].includes(value);
+}
+
+function isProviderSearchCriterion(value: unknown): value is ProviderSearchCriterionKey {
+  return typeof value === "string" && ["nearby", "reputation", "accessible", "clear-price", "available-soon", "coverage"].includes(value);
+}
+
+function coerceConciergeResumeContext(value: unknown): ConciergeProviderResumeContext | null {
+  if (!isRecord(value)) return null;
+  const kind = routeText(value, ["kind", "flow"]);
+  if (kind === "transport") {
+    return {
+      kind,
+      message: routeText(value, ["message"]),
+      pickup: routeText(value, ["pickup", "pickupAddress"]),
+      destination: routeText(value, ["destination", "destinationAddress"]),
+      time: routeText(value, ["time", "requestedTime"]),
+      mobilityNeeds: routeStringList(value.mobilityNeeds ?? value.mobility_needs),
+    };
+  }
+  if (kind === "otc_pharmacy") {
+    const fulfillment = routeText(value, ["fulfillmentPreference", "fulfillment_preference"]);
+    return {
+      kind,
+      itemText: routeText(value, ["itemText", "item_text"]),
+      fulfillmentPreference: fulfillment === "pickup" ? "pickup" : "delivery",
+      requestedTime: routeText(value, ["requestedTime", "requested_time"]),
+      notes: routeText(value, ["notes"]),
+    };
+  }
+  if (kind === "medical_appointment") {
+    return {
+      kind,
+      appointmentType: isAppointmentType(value.appointmentType ?? value.appointment_type) ? (value.appointmentType ?? value.appointment_type) as AppointmentType : "medical",
+      note: routeText(value, ["note", "message", "appointmentNote"]),
+    };
+  }
+  if (kind === "home_service") {
+    const serviceType = routeText(value, ["serviceType", "service_type"]);
+    const origin = routeText(value, ["origin"]);
+    return {
+      kind,
+      serviceType: serviceType ? normalizeHomeServiceType(serviceType) : null,
+      origin: origin === "voice" ? "voice" : "app",
+      note: routeText(value, ["note", "message", "appointmentNote"]),
+      answers: routeStringRecord(value.answers),
+      textDrafts: routeStringRecord(value.textDrafts ?? value.text_drafts),
+    };
+  }
+  if (kind === "provider_search") {
+    const criteria = Array.isArray(value.criteria)
+      ? value.criteria.filter(isProviderSearchCriterion)
+      : [];
+    return {
+      kind,
+      mode: isProviderSearchMode(value.mode) ? value.mode : null,
+      query: routeText(value, ["query"]),
+      criteria,
+    };
+  }
+  if (kind === "generic") {
+    return {
+      kind,
+      message: routeText(value, ["message"]),
+    };
+  }
+  return null;
+}
+
 function coerceTrustedProviderSavedRoute(value: unknown): TrustedProviderSavedRoute | null {
   if (!isRecord(value)) return null;
   const name = typeof value.name === "string" ? value.name.trim() : "";
@@ -245,6 +383,7 @@ function coerceTrustedProviderSavedRoute(value: unknown): TrustedProviderSavedRo
   return {
     name,
     category: normalizeConciergeProviderCategory(typeof value.category === "string" ? value.category : null),
+    conciergeResume: coerceConciergeResumeContext(value.conciergeResume ?? value.resume),
   };
 }
 
@@ -4667,32 +4806,60 @@ const ConciergeScreen = () => {
   const hasTransportDestination = transportDestination.trim().length > 0;
   const canFindTransportOptions = hasSavedTransportProvider && hasTransportDestination;
   const openTransportProviderSetup = useCallback(() => {
+    const message = routePrefill?.kind === "ride" && routePrefill.message.trim()
+      ? routePrefill.message
+      : (isSpanish
+        ? "Ayudame a preparar transporte seguro. Preguntame destino, recogida y hora antes de reservar."
+        : "Help me prepare safe transport. Ask for destination, pickup, and time before booking.");
     navigate("/onboarding/profile/providers", {
       state: {
         returnTo: "/concierge",
         setupFocus: TRANSPORT_SETUP_FOCUS,
         setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
         setupReason: "Add a saved transport provider",
+        conciergeResume: {
+          kind: "transport",
+          message,
+          pickup: transportPickup.trim() || savedTransportPickupLabel,
+          destination: transportDestination.trim(),
+          time: transportTime.trim() || "now",
+          mobilityNeeds: transportMobilityNeeds,
+        },
         notice: isSpanish
           ? "Guarda un taxi o transporte preferido para usarlo primero."
           : "Save a preferred taxi or transport provider to check first.",
       },
     });
-  }, [isSpanish, navigate]);
+  }, [
+    isSpanish,
+    navigate,
+    routePrefill,
+    savedTransportPickupLabel,
+    transportDestination,
+    transportMobilityNeeds,
+    transportPickup,
+    transportTime,
+  ]);
   const canPrepareOtcPharmacy = hasSavedPharmacy && otcItemText.trim().length > 0;
   const openMedicalProviderSetup = useCallback(() => {
+    const appointmentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? "medical";
     navigate("/onboarding/profile/providers", {
       state: {
         returnTo: "/concierge",
         setupFocus: MEDICAL_APPOINTMENT_SETUP_FOCUS,
         setupFlow: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
         setupReason: "Add a saved doctor or clinic",
+        conciergeResume: {
+          kind: "medical_appointment",
+          appointmentType,
+          note: appointmentNote.trim(),
+        },
         notice: isSpanish
           ? "Guarda un medico o clinica de confianza para usarlo primero."
           : "Save a trusted doctor or clinic so VYVA can use it first.",
       },
     });
-  }, [isSpanish, navigate]);
+  }, [appointmentNote, appointmentRequest?.appointment_type, isSpanish, navigate, selectedAppointmentChip?.key]);
   const canSaveOtcOutcome = Boolean(otcPreparedResult?.pendingId)
     && (
       otcOutcomeForm.availability.trim().length > 0
@@ -6684,6 +6851,12 @@ const ConciergeScreen = () => {
         setupFocus: details.category,
         setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
         setupReason: "Save provider from Concierge",
+        conciergeResume: {
+          kind: "generic",
+          message: isSpanish
+            ? `Continua preparando el contacto con ${details.providerName}. Criterios: ${details.criteria || "seguridad y ajuste"}.`
+            : `Continue preparing contact with ${details.providerName}. Criteria: ${details.criteria || "safety and fit"}.`,
+        },
         providerPrefill: {
           name: details.providerName,
           category: details.category,
@@ -7056,6 +7229,12 @@ const ConciergeScreen = () => {
         setupFocus: providerSearchSetupFocus(providerSearchMode),
         setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
         setupReason: "Add a trusted provider",
+        conciergeResume: {
+          kind: "provider_search",
+          mode: providerSearchMode,
+          query: offersQuery.trim(),
+          criteria: providerSearchCriteria,
+        },
         notice: isSpanish
           ? "Guarda un proveedor de confianza para que VYVA pueda usarlo primero."
           : "Save a trusted provider so VYVA can use it first.",
@@ -7089,8 +7268,82 @@ const ConciergeScreen = () => {
 
   function continueTrustedProviderResume() {
     if (!trustedProviderResume) return;
-    const { name, category } = trustedProviderResume;
+    const { name, category, conciergeResume } = trustedProviderResume;
     setTrustedProviderResume(null);
+
+    if (conciergeResume?.kind === "transport") {
+      const message = conciergeResume.message?.trim()
+        || (isSpanish
+          ? `Usa ${name} como proveedor de transporte de confianza. Confirma destino, recogida y hora antes de reservar.`
+          : `Use ${name} as my trusted transport provider. Confirm destination, pickup, and time before booking.`);
+      setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
+      setInput((current) => current.trim() ? current : message);
+      clearAppointmentAssistantState();
+      setInsuranceAdminOpen(false);
+      setScamCheckOpen(false);
+      setOtcPharmacyOpen(false);
+      setTransportPickup(conciergeResume.pickup?.trim() || savedTransportPickupLabel);
+      setTransportDestination(conciergeResume.destination?.trim() || "");
+      setTransportTime(conciergeResume.time?.trim() || "now");
+      setTransportMobilityNeeds(conciergeResume.mobilityNeeds ?? []);
+      setTransportResult(null);
+      setTransportError(null);
+      setTransportNotice(null);
+      resetTransportFinalReview();
+      setTransportDetailsOpen(true);
+      setOffersOpen(false);
+      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      return;
+    }
+
+    if (conciergeResume?.kind === "otc_pharmacy") {
+      openOtcPharmacyAssistant();
+      setOtcItemText(conciergeResume.itemText?.trim() || "");
+      setOtcFulfillmentPreference(conciergeResume.fulfillmentPreference ?? "delivery");
+      setOtcRequestedTime(conciergeResume.requestedTime?.trim() || "today");
+      setOtcNotes(conciergeResume.notes?.trim() || "");
+      setOtcNotice(isSpanish
+        ? `${name} guardado. Continua con el producto sin receta.`
+        : `${name} saved. Continue with the non-prescription item.`);
+      return;
+    }
+
+    if (conciergeResume?.kind === "medical_appointment") {
+      openScheduleAssistant(conciergeResume.appointmentType ?? "medical");
+      setAppointmentNote(conciergeResume.note?.trim() || (isSpanish
+        ? `Usa ${name} como proveedor medico de confianza. Preguntame motivo y horario preferido antes de preparar la solicitud.`
+        : `Use ${name} as my trusted medical provider. Ask me for reason and preferred time before preparing the request.`));
+      return;
+    }
+
+    if (conciergeResume?.kind === "home_service") {
+      openHomeServiceAssistant();
+      setHomeServiceIntakeOrigin(conciergeResume.origin ?? "app");
+      setHomeServiceType(conciergeResume.serviceType ?? null);
+      setHomeServiceIntakeAnswers(conciergeResume.answers ?? {});
+      setHomeServiceTextDrafts(conciergeResume.textDrafts ?? conciergeResume.answers ?? {});
+      setAppointmentNote(conciergeResume.note?.trim() || (isSpanish
+        ? `Usa ${name} como proveedor de servicio en casa de confianza. Preguntame el problema, urgencia y horario preferido.`
+        : `Use ${name} as my trusted home-service provider. Ask me for the problem, urgency, and preferred time.`));
+      return;
+    }
+
+    if (conciergeResume?.kind === "provider_search") {
+      const mode = conciergeResume.mode
+        ?? (category === "doctor_clinic" ? "specialist" : category === "personal_care" ? "personal-care" : null);
+      if (mode) {
+        openProviderSearchPanel(mode, conciergeResume.query?.trim() || (isSpanish ? `usar ${name}` : `use ${name}`));
+        if (conciergeResume.criteria?.length) {
+          setProviderSearchCriteria(conciergeResume.criteria);
+        }
+        return;
+      }
+    }
+
+    if (conciergeResume?.kind === "generic" && conciergeResume.message?.trim()) {
+      prepareConciergeRequest(conciergeResume.message);
+      return;
+    }
 
     if (category === "transport") {
       prepareRideRequest(isSpanish
@@ -7411,6 +7664,27 @@ const ConciergeScreen = () => {
       setOtcItemText("");
     }
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  function openOtcPharmacyProviderSetup() {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: OTC_PHARMACY_SETUP_FOCUS,
+        setupFlow: OTC_PHARMACY_FLOW_REFERENCE,
+        setupReason: "Add a saved pharmacy",
+        conciergeResume: {
+          kind: "otc_pharmacy",
+          itemText: otcItemText.trim(),
+          fulfillmentPreference: otcFulfillmentPreference,
+          requestedTime: otcRequestedTime.trim() || "today",
+          notes: otcNotes.trim(),
+        },
+        notice: isSpanish
+          ? "Anade una farmacia guardada antes de pedir ayuda con productos sin receta."
+          : "Add a saved pharmacy before asking for help with over-the-counter items.",
+      },
+    });
   }
 
   const conciergeMasterCards: MasterDashboardCard[] = [
@@ -7878,17 +8152,7 @@ const ConciergeScreen = () => {
               </div>
               <button
                 type="button"
-                onClick={() => navigate("/onboarding/profile/providers", {
-                  state: {
-                    returnTo: "/concierge",
-                    setupFocus: OTC_PHARMACY_SETUP_FOCUS,
-                    setupFlow: OTC_PHARMACY_FLOW_REFERENCE,
-                    setupReason: "Add a saved pharmacy",
-                    notice: isSpanish
-                      ? "Anade una farmacia guardada antes de pedir ayuda con productos sin receta."
-                      : "Add a saved pharmacy before asking for help with over-the-counter items.",
-                  },
-                })}
+                onClick={openOtcPharmacyProviderSetup}
                 className="vyva-tap inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-full bg-[#B45309] px-5 font-body text-[16px] font-black text-white"
                 data-testid="button-otc-pharmacy-setup"
               >
