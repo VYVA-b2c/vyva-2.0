@@ -4092,8 +4092,8 @@ function buildPendingActionReviewSummary(params: {
   }
 
   return {
-    eyebrow: isSpanish ? "Revisar antes de actuar" : "Review before action",
-    title: isSpanish ? "Revisar y confirmar" : "Review & confirm",
+    eyebrow: isSpanish ? "Tu OK primero" : "Your OK first",
+    title: isSpanish ? "Listo para revisar" : "Ready to review",
     summary: nextStepHelper,
     details: details.slice(0, 8),
     missingDetails,
@@ -4250,10 +4250,10 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
   });
 
   return {
-    title: isSpanish ? "Que falta" : "What is missing",
+    title: isSpanish ? "Revision rapida" : "Ready check",
     helper: isSpanish
-      ? "VYVA no envia, llama ni reserva sin tu OK."
-      : "VYVA asks before anything is sent, called, or booked.",
+      ? "Nada se envia, llama o reserva sin tu OK."
+      : "Nothing is sent, called, or booked without your OK.",
     items,
   };
 }
@@ -4272,6 +4272,22 @@ function activeTaskChecklistStateClasses(state: ActiveTaskChecklistItemState): s
     default:
       return "border-[#DDD6FE] bg-white text-vyva-purple";
   }
+}
+
+function ConciergeApprovalPromise({ isSpanish, tone = "teal" }: { isSpanish: boolean; tone?: "teal" | "purple" }) {
+  const classes = tone === "purple"
+    ? "border-[#E9D5FF] bg-white text-vyva-purple"
+    : "border-[#CCFBF1] bg-white text-[#0F766E]";
+  return (
+    <div className={`mt-3 flex items-center gap-2 rounded-[15px] border px-3 py-2 font-body text-[12px] font-black leading-snug ${classes}`}>
+      <ShieldCheck size={14} className="flex-shrink-0" aria-hidden="true" />
+      <span>
+        {isSpanish
+          ? "Tu confirmas antes de enviar, llamar o reservar."
+          : "You approve before anything is sent, called, or booked."}
+      </span>
+    </div>
+  );
 }
 
 function ActiveTaskChecklistPanel({
@@ -4428,6 +4444,8 @@ function PendingActionReviewCard({
           {review.missingDetails.join(", ")}
         </p>
       ) : null}
+
+      <ConciergeApprovalPromise isSpanish={isSpanish} />
 
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
         <Button
@@ -4651,15 +4669,15 @@ function PhoneCallOutcomePanel({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
-            {isSpanish ? "Llamada guiada" : "Guided call"}
+            {isSpanish ? "Paso de llamada" : "Call step"}
           </span>
           <span className="mt-1 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1">
             {provider}
           </span>
           <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
             {isSpanish
-              ? "Usa el guion. Luego guarda lo que paso."
-              : "Use the script. Then save what happened."}
+              ? "Llama ahora y guarda lo que paso."
+              : "Call now, then save what happened."}
           </span>
         </span>
         {href ? (
@@ -4683,6 +4701,8 @@ function PhoneCallOutcomePanel({
           {script}
         </p>
       </div>
+
+      <ConciergeApprovalPromise isSpanish={isSpanish} tone="purple" />
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {statusOptions.map((status) => {
@@ -4734,7 +4754,7 @@ function PhoneCallOutcomePanel({
         className="vyva-primary-action mt-3 h-auto w-full"
       >
         {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-        {isSpanish ? "Guardar resultado" : "Save outcome"}
+        {isSpanish ? "Guardar resultado" : "Save result"}
       </Button>
 
       {notice ? (
@@ -4792,8 +4812,8 @@ function EmailDraftOutcomePanel({
           </span>
           <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
             {isSpanish
-              ? "Abre el borrador, envialo desde tu correo y guarda el resultado."
-              : "Open the draft, send it from your email, then save the result."}
+              ? "Abre el borrador, envialo desde tu correo y guarda que ya salio."
+              : "Open the draft, send it from your email, then save that it went out."}
           </span>
         </span>
         <a
@@ -4818,6 +4838,8 @@ function EmailDraftOutcomePanel({
           {draft.body}
         </p>
       </div>
+
+      <ConciergeApprovalPromise isSpanish={isSpanish} tone="purple" />
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <Input
@@ -4902,8 +4924,8 @@ function WhatsAppDraftOutcomePanel({
           </span>
           <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
             {isSpanish
-              ? "Abre el borrador, envialo en WhatsApp y guarda el resultado."
-              : "Open the draft, send it in WhatsApp, then save the result."}
+              ? "Abre el borrador, envialo en WhatsApp y guarda que ya salio."
+              : "Open the draft, send it in WhatsApp, then save that it went out."}
           </span>
         </span>
         <a
@@ -4927,6 +4949,8 @@ function WhatsAppDraftOutcomePanel({
           {draft.message}
         </p>
       </div>
+
+      <ConciergeApprovalPromise isSpanish={isSpanish} />
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <Input
@@ -5444,7 +5468,7 @@ function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
     return isSpanish ? "Esperar respuesta del proveedor" : "Wait for provider reply";
   }
   if (item.status === "failed") return isSpanish ? "Revisar y elegir siguiente paso" : "Review and choose next step";
-  if (needsPhoneOutcome) return isSpanish ? "Llamar y guardar resultado" : "Call and record outcome";
+  if (needsPhoneOutcome) return isSpanish ? "Llamar y guardar resultado" : "Call and save result";
   if (needsWhatsAppOutcome) return isSpanish ? "Enviar WhatsApp y guardar" : "Send WhatsApp and save";
   if (needsEmailOutcome) return isSpanish ? "Enviar email y guardar" : "Send email and save";
   if (missionStatus.includes("awaiting_user_save") || missionStatus.includes("booked")) {
@@ -5468,17 +5492,17 @@ function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
   if (needsPhoneOutcome) {
     return isSpanish
       ? "Llama desde aqui y guarda el resultado para cerrar la tarea."
-      : "Call from here and save the result to close the task.";
+      : "Call from here, then save what happened to close the task.";
   }
   if (needsWhatsAppOutcome) {
     return isSpanish
       ? "VYVA no lo envia por ti. Abre WhatsApp y guarda el resultado."
-      : "VYVA does not send it for you. Open WhatsApp and save the result.";
+      : "VYVA does not send it for you. Open WhatsApp and save that it went out.";
   }
   if (needsEmailOutcome) {
     return isSpanish
       ? "VYVA no lo envia por ti. Abre el borrador y guarda el resultado."
-      : "VYVA does not send it for you. Open the draft and save the result.";
+      : "VYVA does not send it for you. Open the draft and save that it went out.";
   }
   if (isVyvaTask) {
     return isSpanish ? "VYVA lo mantiene aqui hasta que este listo para confirmar." : "VYVA keeps it here until it is ready to confirm.";
@@ -5958,22 +5982,22 @@ function phoneCallOutcomeSummary(item: ConciergePendingItem, form: PhoneCallOutc
   const reference = form.reference.trim();
   if (time && reference) {
     return isSpanish
-      ? `Llamada guardada: ${provider}. Resultado: ${statusLabel}. Hora: ${time}. Referencia: ${reference}.`
-      : `Call saved: ${provider}. Outcome: ${statusLabel}. Time: ${time}. Reference: ${reference}.`;
+      ? `Llamada guardada con ${provider}. Resultado: ${statusLabel}. Hora: ${time}. Referencia: ${reference}.`
+      : `Call saved with ${provider}. Result: ${statusLabel}. Time: ${time}. Reference: ${reference}.`;
   }
   if (time) {
     return isSpanish
-      ? `Llamada guardada: ${provider}. Resultado: ${statusLabel}. Hora: ${time}.`
-      : `Call saved: ${provider}. Outcome: ${statusLabel}. Time: ${time}.`;
+      ? `Llamada guardada con ${provider}. Resultado: ${statusLabel}. Hora: ${time}.`
+      : `Call saved with ${provider}. Result: ${statusLabel}. Time: ${time}.`;
   }
   if (reference) {
     return isSpanish
-      ? `Llamada guardada: ${provider}. Resultado: ${statusLabel}. Referencia: ${reference}.`
-      : `Call saved: ${provider}. Outcome: ${statusLabel}. Reference: ${reference}.`;
+      ? `Llamada guardada con ${provider}. Resultado: ${statusLabel}. Referencia: ${reference}.`
+      : `Call saved with ${provider}. Result: ${statusLabel}. Reference: ${reference}.`;
   }
   return isSpanish
-    ? `Llamada guardada: ${provider}. Resultado: ${statusLabel}.`
-    : `Call saved: ${provider}. Outcome: ${statusLabel}.`;
+    ? `Llamada guardada con ${provider}. Resultado: ${statusLabel}.`
+    : `Call saved with ${provider}. Result: ${statusLabel}.`;
 }
 
 function phoneCallOutcomePayload(item: ConciergePendingItem, form: PhoneCallOutcomeForm, isSpanish: boolean): Record<string, unknown> {
