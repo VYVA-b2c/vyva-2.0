@@ -1325,6 +1325,14 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
 
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver welcome email");
+    fireEvent.change(screen.getByTestId("input-marketing-template-search"), { target: { value: "profile" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-channel"), { target: { value: "whatsapp" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-audience"), { target: { value: "b2c" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-category"), { target: { value: "Onboarding" } });
+
+    const filteredGallery = within(screen.getByTestId("marketing-content-template-gallery"));
+    expect(filteredGallery.getByText("Profile completion WhatsApp nudge")).toBeInTheDocument();
+    expect(filteredGallery.queryByText("Caregiver welcome email")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-marketing-use-content-template-whatsapp-profile-nudge"));
 
     expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Profile completion WhatsApp nudge");

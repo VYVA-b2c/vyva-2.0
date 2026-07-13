@@ -1852,6 +1852,8 @@ const contentTemplateGallery: ContentTemplate[] = [
   },
 ];
 
+const contentTemplateCategories = Array.from(new Set(contentTemplateGallery.map((template) => template.category))).sort();
+
 function newCampaignChannelDraft(channel: Channel = "email", status: CampaignStatus = "draft", scheduledAt = ""): CampaignChannelDraft {
   return {
     id: newDraftId(),
@@ -3622,6 +3624,10 @@ export default function MarketingAdminPage() {
   const [journeyFeedback, setJourneyFeedback] = useState("");
   const [confirmingJourneyDeleteId, setConfirmingJourneyDeleteId] = useState<string | null>(null);
   const [contentDraft, setContentDraft] = useState<ContentDraft>(() => emptyContentDraft());
+  const [contentTemplateSearch, setContentTemplateSearch] = useState("");
+  const [contentTemplateChannelFilter, setContentTemplateChannelFilter] = useState<Channel | "all">("all");
+  const [contentTemplateAudienceFilter, setContentTemplateAudienceFilter] = useState<Audience | "all">("all");
+  const [contentTemplateCategoryFilter, setContentTemplateCategoryFilter] = useState("all");
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [editingContentId, setEditingContentId] = useState<string | null>(null);
   const [contentEditDraft, setContentEditDraft] = useState<ContentEditDraft | null>(null);
@@ -3829,6 +3835,34 @@ export default function MarketingAdminPage() {
     const matchesSource = contentSourceFilter === "all" || contentOriginKey(item) === contentSourceFilter;
     return contentMatchesSearch && matchesChannel && matchesSource;
   }), [content, search, channelFilter, contentSourceFilter]);
+
+  const visibleContentTemplates = useMemo(() => contentTemplateGallery.filter((template) => {
+    const matchesText = matchesSearch(contentTemplateSearch, [
+      template.id,
+      template.title,
+      template.category,
+      template.audienceType,
+      template.channel,
+      template.description,
+      template.subject,
+      template.body,
+      template.ctaLabel,
+      template.ctaUrl,
+      template.designJson,
+      template.mediaAssets,
+    ]);
+    const matchesChannel = contentTemplateChannelFilter === "all" || template.channel === contentTemplateChannelFilter;
+    const matchesAudience = contentTemplateAudienceFilter === "all" || template.audienceType === contentTemplateAudienceFilter;
+    const matchesCategory = contentTemplateCategoryFilter === "all" || template.category === contentTemplateCategoryFilter;
+    return matchesText && matchesChannel && matchesAudience && matchesCategory;
+  }), [contentTemplateSearch, contentTemplateChannelFilter, contentTemplateAudienceFilter, contentTemplateCategoryFilter]);
+
+  const contentTemplateFiltersActive = Boolean(
+    contentTemplateSearch.trim()
+    || contentTemplateChannelFilter !== "all"
+    || contentTemplateAudienceFilter !== "all"
+    || contentTemplateCategoryFilter !== "all",
+  );
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
   const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
@@ -6829,40 +6863,89 @@ export default function MarketingAdminPage() {
               <SectionCard
                 title="Template gallery"
                 subtitle={`${contentTemplateGallery.length} ready-to-adapt VYVA templates for email, WhatsApp, and social channels.`}
-                action={<Pill className="bg-purple-50 text-purple-800">{contentTemplateGallery.length} templates</Pill>}
+                action={<Pill className="bg-purple-50 text-purple-800">{visibleContentTemplates.length} of {contentTemplateGallery.length} templates</Pill>}
               >
-                <div className="grid gap-3 xl:grid-cols-3" data-testid="marketing-content-template-gallery">
-                  {contentTemplateGallery.map((template) => (
-                    <article key={template.id} className="flex min-h-[230px] flex-col justify-between rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Pill className={channelClass(template.channel)}>{channelLabel[template.channel]}</Pill>
-                          <Pill className="bg-[#f5eee8] text-[#5b4a46]">{template.audienceType.toUpperCase()}</Pill>
-                          <Pill className="bg-amber-50 text-amber-800">{template.category}</Pill>
+                <div className="grid gap-3 xl:grid-cols-[1fr_170px_170px_190px_auto]" data-testid="marketing-content-template-filters">
+                  <Field label="Find a template">
+                    <input
+                      className={inputClass}
+                      value={contentTemplateSearch}
+                      onChange={(event) => setContentTemplateSearch(event.target.value)}
+                      placeholder="Search by use case, copy, CTA, or channel"
+                      data-testid="input-marketing-template-search"
+                    />
+                  </Field>
+                  <Field label="Channel">
+                    <select className={inputClass} value={contentTemplateChannelFilter} onChange={(event) => setContentTemplateChannelFilter(event.target.value as Channel | "all")} data-testid="select-marketing-template-channel">
+                      <option value="all">All channels</option>
+                      {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Audience">
+                    <select className={inputClass} value={contentTemplateAudienceFilter} onChange={(event) => setContentTemplateAudienceFilter(event.target.value as Audience | "all")} data-testid="select-marketing-template-audience">
+                      <option value="all">All audiences</option>
+                      {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Category">
+                    <select className={inputClass} value={contentTemplateCategoryFilter} onChange={(event) => setContentTemplateCategoryFilter(event.target.value)} data-testid="select-marketing-template-category">
+                      <option value="all">All categories</option>
+                      {contentTemplateCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                    </select>
+                  </Field>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                      disabled={!contentTemplateFiltersActive}
+                      onClick={() => {
+                        setContentTemplateSearch("");
+                        setContentTemplateChannelFilter("all");
+                        setContentTemplateAudienceFilter("all");
+                        setContentTemplateCategoryFilter("all");
+                      }}
+                      data-testid="button-marketing-clear-template-filters"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 xl:grid-cols-3" data-testid="marketing-content-template-gallery">
+                  {visibleContentTemplates.length ? visibleContentTemplates.map((template) => (
+                      <article key={template.id} className="flex min-h-[230px] flex-col justify-between rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill className={channelClass(template.channel)}>{channelLabel[template.channel]}</Pill>
+                            <Pill className="bg-[#f5eee8] text-[#5b4a46]">{template.audienceType.toUpperCase()}</Pill>
+                            <Pill className="bg-amber-50 text-amber-800">{template.category}</Pill>
+                          </div>
+                          <h3 className="mt-3 font-serif text-xl text-[#241133]">{template.title}</h3>
+                          <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{template.description}</p>
+                          {template.subject ? (
+                            <p className="mt-3 line-clamp-2 rounded-xl bg-[#fbf7f2] px-3 py-2 text-xs font-bold text-[#6f5f59]">
+                              Subject: {template.subject}
+                            </p>
+                          ) : (
+                            <p className="mt-3 line-clamp-2 rounded-xl bg-[#fbf7f2] px-3 py-2 text-xs font-bold text-[#6f5f59]">
+                              {template.body}
+                            </p>
+                          )}
                         </div>
-                        <h3 className="mt-3 font-serif text-xl text-[#241133]">{template.title}</h3>
-                        <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{template.description}</p>
-                        {template.subject ? (
-                          <p className="mt-3 line-clamp-2 rounded-xl bg-[#fbf7f2] px-3 py-2 text-xs font-bold text-[#6f5f59]">
-                            Subject: {template.subject}
-                          </p>
-                        ) : (
-                          <p className="mt-3 line-clamp-2 rounded-xl bg-[#fbf7f2] px-3 py-2 text-xs font-bold text-[#6f5f59]">
-                            {template.body}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => applyContentTemplate(template)}
-                        className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                        disabled={contentSaving}
-                        data-testid={`button-marketing-use-content-template-${template.id}`}
-                      >
-                        <Sparkles size={14} /> Use template
-                      </button>
-                    </article>
-                  ))}
+                        <button
+                          type="button"
+                          onClick={() => applyContentTemplate(template)}
+                          className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          disabled={contentSaving}
+                          data-testid={`button-marketing-use-content-template-${template.id}`}
+                        >
+                          <Sparkles size={14} /> Use template
+                        </button>
+                      </article>
+                    )) : (
+                    <div className="rounded-2xl border border-dashed border-[#d9c9bd] bg-[#fffaf4] p-5 text-sm font-bold text-[#6f5f59] xl:col-span-3" data-testid="marketing-content-template-empty">
+                      No templates match these filters. Clear the filters or broaden the search to see more campaign starters.
+                    </div>
+                  )}
                 </div>
               </SectionCard>
 
