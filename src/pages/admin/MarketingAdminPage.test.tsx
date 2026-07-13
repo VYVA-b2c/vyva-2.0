@@ -438,20 +438,20 @@ const sync = {
       },
       fieldCoverage: {
         content: {
-          exportedFieldCount: 7,
-          firstClassFieldCount: 6,
+          exportedFieldCount: 9,
+          firstClassFieldCount: 8,
           metadataOnlyFieldCount: 1,
-          exportedFields: ["body", "channel", "extraLovableOnlyField", "id", "status", "subject", "title"],
-          firstClassFields: ["body", "channel", "id", "status", "subject", "title"],
+          exportedFields: ["body", "channel", "emailTemplate.previewText", "extraLovableOnlyField", "id", "status", "subject", "template.html_content", "title"],
+          firstClassFields: ["body", "channel", "emailTemplate.previewText", "id", "status", "subject", "template.html_content", "title"],
           metadataOnlyFields: ["extraLovableOnlyField"],
         },
         contacts: {
-          exportedFieldCount: 8,
-          firstClassFieldCount: 8,
-          metadataOnlyFieldCount: 0,
-          exportedFields: ["audienceType", "email", "id", "name", "phoneNumber", "tags", "updatedAt", "vertical"],
-          firstClassFields: ["audienceType", "email", "id", "name", "phoneNumber", "tags", "updatedAt", "vertical"],
-          metadataOnlyFields: [],
+          exportedFieldCount: 11,
+          firstClassFieldCount: 10,
+          metadataOnlyFieldCount: 1,
+          exportedFields: ["audienceType", "email", "id", "name", "phoneNumber", "profile.emailAddress", "profile.firstName", "profile.crmScore", "tags", "updatedAt", "vertical"],
+          firstClassFields: ["audienceType", "email", "id", "name", "phoneNumber", "profile.emailAddress", "profile.firstName", "tags", "updatedAt", "vertical"],
+          metadataOnlyFields: ["profile.crmScore"],
         },
       },
     },
@@ -473,11 +473,11 @@ const exportPreview = {
     contentSourceCounts: { saved_email_template: 1, social_post: 1 },
     fieldCoverage: {
       content: {
-        exportedFieldCount: 7,
-        firstClassFieldCount: 6,
+        exportedFieldCount: 9,
+        firstClassFieldCount: 8,
         metadataOnlyFieldCount: 1,
-        exportedFields: ["body", "channel", "extraLovableOnlyField", "id", "status", "subject", "title"],
-        firstClassFields: ["body", "channel", "id", "status", "subject", "title"],
+        exportedFields: ["body", "channel", "emailTemplate.previewText", "extraLovableOnlyField", "id", "status", "subject", "template.html_content", "title"],
+        firstClassFields: ["body", "channel", "emailTemplate.previewText", "id", "status", "subject", "template.html_content", "title"],
         metadataOnlyFields: ["extraLovableOnlyField"],
       },
     },
@@ -763,6 +763,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Saved email template: 1");
     expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Social post: 1");
     expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Missing Lovable reference: 1");
+    expect(screen.getByTestId("marketing-lovable-field-coverage")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
+    expect(screen.getByTestId("marketing-lovable-field-coverage")).toHaveTextContent("Mapped: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
     expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("Lovable referenced content that was not exported.");
     expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("1 campaign or journey content reference");
     fireEvent.click(screen.getByTestId("button-marketing-show-missing-content"));
@@ -859,12 +861,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("Lovable 2 / VYVA 2");
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("Mapped members");
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("derived");
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 6 of 7 fields mapped first-class");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("contacts: 10 of 11 fields mapped first-class");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Mapped first-class: audienceType, email, id, name, phoneNumber, profile.emailAddress, profile.firstName, tags, updatedAt, vertical");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: profile.crmScore");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
     const contentCoverage = openMetadataPanel("marketing-sync-field-coverage-sync-1-content");
     expect(contentCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
-    expect(contentCoverage).toHaveTextContent("Mapped first-class: body, channel, id, status, subject, title");
-    expect(contentCoverage).toHaveTextContent("All exported: body, channel, extraLovableOnlyField, id, status, subject, title");
+    expect(contentCoverage).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(contentCoverage).toHaveTextContent("All exported: body, channel, emailTemplate.previewText, extraLovableOnlyField, id, status, subject, template.html_content, title");
     const syncDestinationMap = screen.getAllByTestId("marketing-lovable-destination-map")[0];
     expect(syncDestinationMap).toHaveTextContent("Where Lovable data appears");
     expect(syncDestinationMap).toHaveTextContent("Saved email templates");
@@ -1182,6 +1188,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("saved_email_template: 1");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("social_post: 1");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Top-level export keys");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Mapped: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
     const previewDestinationMap = screen.getAllByTestId("marketing-lovable-destination-map").at(-1);
     expect(previewDestinationMap).toHaveTextContent("Where Lovable data appears");
     expect(previewDestinationMap).toHaveTextContent("Social posts");

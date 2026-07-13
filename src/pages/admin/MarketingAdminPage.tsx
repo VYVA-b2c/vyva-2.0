@@ -2238,6 +2238,7 @@ function LovableImportCoveragePanel({
     ? focusKeys.flatMap((key) => parity.find((item) => item.key === key) ?? [])
     : parity;
   const contentSources = run ? syncContentSourceItems(run.summary) : [];
+  const fieldCoverage = run ? syncFieldCoverageItems(run.summary) : [];
   const unmappedCount = run ? syncUnmappedCount(run.summary) : 0;
   const unmappedCampaignRecipientCount = run ? syncUnmappedCampaignRecipientCount(run.summary) : 0;
   const isFailed = run?.status === "failed";
@@ -2301,6 +2302,28 @@ function LovableImportCoveragePanel({
             <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable content buckets</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {contentSources.map((item) => <Pill key={item.key} className="bg-purple-50 text-purple-800">{item.label}: {item.value}</Pill>)}
+            </div>
+          </div>
+        ) : null}
+        {fieldCoverage.length ? (
+          <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-field-coverage">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped Lovable fields</p>
+            <div className="mt-2 grid gap-2">
+              {fieldCoverage.map((item) => (
+                <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
+                  <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
+                  {item.firstClassFields.length ? (
+                    <p className="mt-1 text-xs font-semibold text-emerald-800">
+                      Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
+                    </p>
+                  ) : null}
+                  {item.metadataOnlyFields.length ? (
+                    <p className="mt-1 text-xs font-semibold text-amber-800">
+                      Metadata-only: {item.metadataOnlyFields.slice(0, 8).join(", ")}{item.metadataOnlyFields.length > 8 ? ` +${item.metadataOnlyFields.length - 8}` : ""}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
             </div>
           </div>
         ) : null}
@@ -6338,6 +6361,11 @@ function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPr
             {fieldCoverage.map((item) => (
               <div key={item.entity} className="rounded-lg bg-white px-3 py-2">
                 <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
+                {item.firstClassFields.length ? (
+                  <p className="mt-1 font-semibold text-emerald-800">
+                    Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
+                  </p>
+                ) : null}
                 {item.metadataOnly ? (
                   <p className="mt-1 font-semibold">Metadata-only: {item.metadataOnlyFields.slice(0, 6).join(", ")}{item.metadataOnlyFields.length > 6 ? ` +${item.metadataOnlyFields.length - 6}` : ""}</p>
                 ) : <p className="mt-1 font-semibold text-emerald-800">All exported fields are mapped first-class.</p>}
