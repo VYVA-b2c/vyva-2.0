@@ -83,6 +83,7 @@ import {
 import {
   CONCIERGE_FLOW_REFERENCES,
   providerSetupFocusForFlow,
+  type ConciergeProviderCategoryId,
   type ConciergeFlowReference,
   type ConciergeToolRequirement,
 } from "../../shared/conciergeFlowRegistry";
@@ -3654,6 +3655,96 @@ function ProviderReplyPanel({
   );
 }
 
+function ProviderSearchFollowThroughPanel({
+  item,
+  details,
+  isSpanish,
+  onReply,
+  onSaveProvider,
+  onTryAnother,
+}: {
+  item: ConciergePendingItem;
+  details: ReturnType<typeof providerSearchActionDetails>;
+  isSpanish: boolean;
+  onReply: () => void;
+  onSaveProvider: () => void;
+  onTryAnother: () => void;
+}) {
+  const chips = [
+    details.categoryLabel,
+    details.criteria,
+    details.contact ? (isSpanish ? "Contacto disponible" : "Contact ready") : "",
+  ].filter(Boolean);
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4"
+      data-testid="panel-provider-search-follow-through"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#0F766E] shadow-sm">
+          <ShieldCheck size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+            {isSpanish ? "Proveedor encontrado" : "Provider shortlisted"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {details.providerName}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "Guarda, registra la respuesta o busca otra opcion. Nada se contacta sin tu OK."
+              : "Save it, record the reply, or find another option. Nothing is contacted without your OK."}
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {chips.map((chip) => (
+          <span
+            key={chip}
+            className="rounded-full bg-white px-3 py-1 font-body text-[11px] font-black text-[#0F766E] shadow-sm"
+          >
+            {chip}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <Button
+          type="button"
+          data-testid={`button-provider-search-reply-${item.id}`}
+          onClick={onReply}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#99F6E4] text-[#0F766E]"
+        >
+          <MessageCircle size={15} className="mr-2" />
+          {isSpanish ? "Tengo respuesta" : "I got a reply"}
+        </Button>
+        <Button
+          type="button"
+          data-testid={`button-provider-search-save-provider-${item.id}`}
+          onClick={onSaveProvider}
+          className="vyva-primary-action h-auto bg-[#0F766E] hover:bg-[#115E59]"
+        >
+          <CircleCheck size={15} className="mr-2" />
+          {isSpanish ? "Guardar proveedor" : "Save provider"}
+        </Button>
+        <Button
+          type="button"
+          data-testid={`button-provider-search-try-another-${item.id}`}
+          onClick={onTryAnother}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#FED7AA] text-[#9A3412]"
+        >
+          <Search size={15} className="mr-2" />
+          {isSpanish ? "Buscar otro" : "Find another"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "item" | "isSpanish" | "formMissingFields">): string {
   const { item, isSpanish, formMissingFields } = params;
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
@@ -3960,7 +4051,9 @@ function providerReplyInitialForm(item: ConciergePendingItem, isSpanish: boolean
 
 function providerReplyOutcomePayload(item: ConciergePendingItem, form: ProviderReplyForm): Record<string, unknown> {
   const payload = item.action_payload ?? {};
-  const providerName = item.provider_name ?? (payloadString(payload, ["provider_name", "pharmacy_name"]) || null);
+  const providerName = isProviderSearchPendingAction(item)
+    ? providerSearchProviderName(item)
+    : item.provider_name ?? (payloadString(payload, ["provider_name", "pharmacy_name"]) || null);
   const providerPhone = item.provider_phone ?? (payloadString(payload, ["provider_phone", "phone"]) || null);
   return {
     ...payload,
@@ -3977,7 +4070,9 @@ function providerReplyOutcomePayload(item: ConciergePendingItem, form: ProviderR
 }
 
 function providerReplyOutcomeSummary(item: ConciergePendingItem, form: ProviderReplyForm, isSpanish: boolean): string {
-  const provider = item.provider_name?.trim() || (isSpanish ? "proveedor" : "provider");
+  const provider = isProviderSearchPendingAction(item)
+    ? providerSearchProviderName(item, isSpanish)
+    : item.provider_name?.trim() || (isSpanish ? "proveedor" : "provider");
   const time = form.scheduledFor.trim();
   const reference = form.reference.trim();
   if (time && reference) {
@@ -4035,11 +4130,122 @@ function formatProviderWaitingSince(item: ConciergePendingItem, locale: string, 
 }
 
 function providerFollowUpPrompt(item: ConciergePendingItem, isSpanish: boolean, locale: string): string {
-  const provider = item.provider_name?.trim() || (isSpanish ? "el proveedor" : "the provider");
+  const provider = providerSearchProviderName(item, isSpanish) || item.provider_name?.trim() || (isSpanish ? "el proveedor" : "the provider");
   const actionLabel = getPendingActionUseCaseLabel(item, locale).toLowerCase();
   return isSpanish
     ? `Prepara un seguimiento breve para ${actionLabel} con ${provider}. Pregunta si pueden confirmar esta solicitud. Mantenlo claro y breve, y no envies nada hasta que yo confirme.`
     : `Prepare a short follow-up for ${actionLabel} with ${provider}. Ask whether they can confirm this request. Keep it polite and concise, and do not send anything until I confirm.`;
+}
+
+function isProviderSearchPendingAction(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
+  return item?.use_case === "find_provider";
+}
+
+function cleanProviderSearchValue(value: string): string {
+  return value.trim().replace(/[.\s]+$/g, "").trim();
+}
+
+function lineValueFromText(text: string, labels: string[]): string {
+  const loweredLabels = labels.map((label) => label.toLowerCase());
+  for (const line of text.split(/\r?\n/)) {
+    const normalized = line.trim();
+    const lower = normalized.toLowerCase();
+    const label = loweredLabels.find((entry) => lower.startsWith(`${entry}:`));
+    if (label) return cleanProviderSearchValue(normalized.slice(label.length + 1));
+  }
+  return "";
+}
+
+function providerSearchProviderName(item: ConciergePendingItem, isSpanish = false): string {
+  const payload = item.action_payload;
+  const payloadName = payloadString(payload, ["provider_name", "selected_provider_name", "name"]);
+  if (payloadName) return cleanProviderSearchValue(payloadName);
+
+  const providerName = item.provider_name?.trim() ?? "";
+  const genericProvider = providerName && !/^(vyva review|selected provider|proveedor seleccionado)$/i.test(providerName)
+    ? providerName
+    : "";
+  if (genericProvider) return cleanProviderSearchValue(genericProvider);
+
+  const summaryMatch = item.action_summary.match(/(?:Provider search prepared|Busqueda de proveedor preparada):\s*(.+)$/i);
+  if (summaryMatch?.[1]) return cleanProviderSearchValue(summaryMatch[1]);
+
+  const draft = payloadString(payload, ["draft_message", "message", "body", "reason", "detail"]);
+  const draftMatch = draft.match(/(?:prepare contact with|preparar el contacto con)\s+([^\n.]+)/i);
+  if (draftMatch?.[1]) return cleanProviderSearchValue(draftMatch[1]);
+
+  return isSpanish ? "Proveedor" : "Provider";
+}
+
+function providerSearchCategoryFromAction(item: ConciergePendingItem): ConciergeProviderCategoryId {
+  const payload = item.action_payload;
+  const explicit = payloadString(payload, ["provider_category", "category", "setup_focus", "provider_type"]);
+  const typeLabel = lineValueFromText(payloadString(payload, ["draft_message", "message", "body"]), ["Type", "Tipo"]);
+  const priority = [explicit, typeLabel].join(" ").toLowerCase();
+  if (/personal care|care home|residence|care|cuidado personal|residencia|centro de cuidado/.test(priority)) return "personal_care";
+  if (/doctor|clinic|specialist|medical|medic|clinica|especialista|salud/.test(priority)) return "doctor_clinic";
+  if (/pharmacy|farmacia/.test(priority)) return "pharmacy";
+  if (/taxi|transport|ride|driver|transporte|conductor/.test(priority)) return "transport";
+  if (/home service|plumber|electrician|repair|cleaner|servicio en casa|fontaner|electricista|reparacion|limpieza/.test(priority)) return "home_service";
+  if (/restaurant|food|meal|comida|restaurante/.test(priority)) return "food";
+
+  const haystack = [
+    explicit,
+    typeLabel,
+    item.action_summary,
+    payloadString(payload, ["draft_message", "message", "body"]),
+  ].join(" ").toLowerCase();
+
+  if (/pharmacy|farmacia/.test(haystack)) return "pharmacy";
+  if (/taxi|transport|ride|driver|transporte|conductor/.test(haystack)) return "transport";
+  if (/home service|plumber|electrician|repair|cleaner|servicio en casa|fontaner|electricista|reparacion|limpieza/.test(haystack)) return "home_service";
+  if (/restaurant|food|meal|comida|restaurante/.test(haystack)) return "food";
+  if (/personal care|care home|residence|care|cuidado personal|residencia|centro de cuidado/.test(haystack)) return "personal_care";
+  if (/doctor|clinic|specialist|medical|medic|clinica|especialista|salud/.test(haystack)) return "doctor_clinic";
+  return "other";
+}
+
+function providerSearchCategoryLabel(category: ConciergeProviderCategoryId, isSpanish: boolean): string {
+  const labels: Record<ConciergeProviderCategoryId, { en: string; es: string }> = {
+    pharmacy: { en: "Pharmacy", es: "Farmacia" },
+    doctor_clinic: { en: "Doctor / Clinic", es: "Doctor / clinica" },
+    transport: { en: "Transport / Taxi", es: "Transporte / taxi" },
+    home_service: { en: "Home service", es: "Servicio en casa" },
+    personal_care: { en: "Personal care", es: "Cuidado personal" },
+    food: { en: "Restaurant / Food", es: "Restaurante / comida" },
+    other: { en: "Other", es: "Otro" },
+  };
+  return isSpanish ? labels[category].es : labels[category].en;
+}
+
+function providerSearchActionDetails(item: ConciergePendingItem, isSpanish: boolean): {
+  providerName: string;
+  category: ConciergeProviderCategoryId;
+  categoryLabel: string;
+  criteria: string;
+  contact: string;
+} {
+  const payload = item.action_payload;
+  const draft = payloadString(payload, ["draft_message", "message", "body"]);
+  const category = providerSearchCategoryFromAction(item);
+  const criteria = payloadString(payload, ["criteria", "chosen_criteria"]) ||
+    lineValueFromText(draft, ["Chosen criteria", "Criterios elegidos", "Criterios"]);
+  const contact = payloadString(payload, [
+    "provider_phone",
+    "phone",
+    "provider_email",
+    "email",
+    "provider_whatsapp",
+    "whatsapp",
+    "booking_url",
+  ]) || lineValueFromText(draft, ["Available contact", "Contacto disponible"]);
+  return {
+    providerName: providerSearchProviderName(item, isSpanish),
+    category,
+    categoryLabel: providerSearchCategoryLabel(category, isSpanish),
+    criteria: cleanProviderSearchValue(criteria),
+    contact: cleanProviderSearchValue(contact),
+  };
 }
 
 function ConciergeActionTimeline({ status }: { status: ConciergeFollowThroughStatus }) {
@@ -6423,13 +6629,64 @@ const ConciergeScreen = () => {
   function handleProviderNeedMoreInfo(item: ConciergePendingItem) {
     const question = providerReplyForm.followUpQuestion.trim();
     if (!question) return;
-    const provider = item.provider_name?.trim() || (isSpanish ? "el proveedor" : "the provider");
+    const provider = providerSearchProviderName(item, isSpanish) || item.provider_name?.trim() || (isSpanish ? "el proveedor" : "the provider");
     const actionLabel = getPendingActionUseCaseLabel(item, locale).toLowerCase();
     setInput(isSpanish
       ? `El proveedor necesita mas informacion para ${actionLabel} con ${provider}: ${question}. Ayudame a responder de forma breve.`
       : `The provider needs more information for ${actionLabel} with ${provider}: ${question}. Help me answer briefly.`);
     setProviderReplyNotice(isSpanish ? "Pregunta anadida al chat." : "Question added to chat.");
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  function handleSaveProviderSearchProvider(item: ConciergePendingItem) {
+    const details = providerSearchActionDetails(item, isSpanish);
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: details.category,
+        setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+        setupReason: "Save provider from Concierge",
+        providerPrefill: {
+          name: details.providerName,
+          category: details.category,
+          phone: item.provider_phone || payloadString(item.action_payload, ["provider_phone", "phone"]) || undefined,
+          email: payloadString(item.action_payload, ["provider_email", "email"]) || undefined,
+          whatsapp: payloadString(item.action_payload, ["provider_whatsapp", "whatsapp"]) || undefined,
+          booking_url: payloadString(item.action_payload, ["booking_url", "provider_booking_url"]) || undefined,
+          notes: details.criteria || undefined,
+        },
+        notice: isSpanish
+          ? "Guarda este proveedor como proveedor de confianza. VYVA seguira pidiendo tu OK antes de contactar."
+          : "Save this as a trusted provider. VYVA will still ask for your OK before contacting them.",
+      },
+    });
+  }
+
+  function handleProviderSearchTryAnother(item: ConciergePendingItem) {
+    const details = providerSearchActionDetails(item, isSpanish);
+    const message = isSpanish
+      ? [
+        `Busca otra opcion parecida a ${details.providerName}.`,
+        `Categoria: ${details.categoryLabel}.`,
+        details.criteria ? `Mantener criterios: ${details.criteria}.` : "Prioriza cercania, reputacion, acceso y precio claro.",
+        "Prepara opciones verificables y explica por que encajan. No contactes ni compartas datos sin mi confirmacion.",
+      ].join("\n")
+      : [
+        `Find another option similar to ${details.providerName}.`,
+        `Category: ${details.categoryLabel}.`,
+        details.criteria ? `Keep criteria: ${details.criteria}.` : "Prioritize proximity, reputation, access, and clear price.",
+        "Prepare verifiable options and explain why they fit. Do not contact or share details without my confirmation.",
+      ].join("\n");
+    prepareConciergeRequest(message, {
+      flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+      requestedTool: "operator_review",
+      actionLabel: isSpanish ? "Buscar otro proveedor" : "Find another provider",
+      summary: isSpanish
+        ? "Busqueda alternativa de proveedor preparada."
+        : "Alternative provider search prepared.",
+      useCase: "find_provider",
+    });
+    setProviderReplyNotice(isSpanish ? "Busqueda alternativa preparada en el chat." : "Alternative search prepared in chat.");
   }
 
   function handleCompletedSessionFollowUp(session: ConciergeCompletedSession, mode: "question" | "repeat") {
@@ -6804,6 +7061,9 @@ const ConciergeScreen = () => {
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
   const activeActionTimeline = activeAction ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
   const activeActionCanRecordProviderReply = canRecordProviderReply(activeActionTimeline);
+  const activeActionProviderSearchDetails = isProviderSearchPendingAction(activeAction)
+    ? providerSearchActionDetails(activeAction, isSpanish)
+    : null;
   useEffect(() => {
     setProviderReplyMode(null);
     setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
@@ -8507,7 +8767,18 @@ const ConciergeScreen = () => {
               </div>
             )}
 
-            {activeActionCanRecordProviderReply ? (
+            {activeActionProviderSearchDetails ? (
+              <ProviderSearchFollowThroughPanel
+                item={activeAction}
+                details={activeActionProviderSearchDetails}
+                isSpanish={isSpanish}
+                onReply={() => openProviderReplyMode(activeAction, "confirmed")}
+                onSaveProvider={() => handleSaveProviderSearchProvider(activeAction)}
+                onTryAnother={() => handleProviderSearchTryAnother(activeAction)}
+              />
+            ) : null}
+
+            {activeActionCanRecordProviderReply || providerReplyMode ? (
               <ProviderReplyPanel
                 item={activeAction}
                 mode={providerReplyMode}
