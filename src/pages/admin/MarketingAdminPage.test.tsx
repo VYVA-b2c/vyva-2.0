@@ -767,6 +767,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Missing Lovable reference: 1");
     expect(screen.getByTestId("marketing-lovable-field-coverage")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
     expect(screen.getByTestId("marketing-lovable-field-coverage")).toHaveTextContent("Mapped: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    const contentImportCoverage = openMetadataPanel("marketing-lovable-field-map-content");
+    expect(contentImportCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
+    expect(contentImportCoverage).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(contentImportCoverage).toHaveTextContent("All exported: body, channel, emailTemplate.previewText, extraLovableOnlyField, id, status, subject, template.html_content, title");
     expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("Lovable referenced content that was not exported.");
     expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("1 campaign or journey content reference");
     fireEvent.click(screen.getByTestId("button-marketing-show-missing-content"));

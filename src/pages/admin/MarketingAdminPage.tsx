@@ -2322,6 +2322,22 @@ function LovableImportCoveragePanel({
                       Metadata-only: {item.metadataOnlyFields.slice(0, 8).join(", ")}{item.metadataOnlyFields.length > 8 ? ` +${item.metadataOnlyFields.length - 8}` : ""}
                     </p>
                   ) : null}
+                  {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
+                    <details className="mt-2 rounded-lg border border-[#eadfd5] bg-white p-2 text-xs font-bold text-[#5b4a46]" data-testid={`marketing-lovable-field-map-${item.entity}`}>
+                      <summary className="cursor-pointer font-black text-[#241133]">View full field map</summary>
+                      <div className="mt-2 grid gap-2">
+                        {item.metadataOnlyFields.length ? (
+                          <p><span className="text-amber-800">Metadata-only:</span> {item.metadataOnlyFields.join(", ")}</p>
+                        ) : null}
+                        {item.firstClassFields.length ? (
+                          <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
+                        ) : null}
+                        {item.exportedFields.length ? (
+                          <p><span className="text-blue-800">All exported:</span> {item.exportedFields.join(", ")}</p>
+                        ) : null}
+                      </div>
+                    </details>
+                  ) : null}
                 </div>
               ))}
             </div>
