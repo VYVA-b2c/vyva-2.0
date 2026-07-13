@@ -4330,6 +4330,158 @@ function PendingActionReviewCard({
   );
 }
 
+function BookingFormSupportPanel({
+  item,
+  plan,
+  bookingUrl,
+  canOpenForm,
+  form,
+  notice,
+  error,
+  isSaving,
+  isSpanish,
+  onFormChange,
+  onSubmitted,
+  onAddDetails,
+  onNeedHelp,
+}: {
+  item: ConciergePendingItem;
+  plan: ReturnType<typeof getFormAutomationPlan>;
+  bookingUrl: string;
+  canOpenForm: boolean;
+  form: BookingFormOutcomeForm;
+  notice: string | null;
+  error: string | null;
+  isSaving: boolean;
+  isSpanish: boolean;
+  onFormChange: (field: keyof BookingFormOutcomeForm, value: string) => void;
+  onSubmitted: () => void;
+  onAddDetails: () => void;
+  onNeedHelp: () => void;
+}) {
+  const adapterLabel = plan?.adapterLabel;
+  const missingFields = plan?.missingFields ?? [];
+  const nextStep = plan?.nextStep;
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-3"
+      data-testid="panel-concierge-form-plan"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-white text-[#047857] shadow-sm">
+          <Calendar size={16} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#047857]">
+            {adapterLabel
+              ? (isSpanish ? `Sistema: ${adapterLabel}` : `System: ${adapterLabel}`)
+              : (isSpanish ? "Formulario VYVA" : "VYVA form task")}
+          </span>
+          {missingFields.length > 0 ? (
+            <span className="mt-1 block font-body text-[13px] font-bold text-vyva-text-2">
+              {isSpanish ? "Falta primero: " : "Needs first: "}{missingFields.join(", ")}
+            </span>
+          ) : canOpenForm ? (
+            <span className="mt-1 block font-body text-[13px] font-bold text-vyva-text-2">
+              {isSpanish ? "Listo para abrir con los datos reunidos." : "Ready to open with the gathered details."}
+            </span>
+          ) : nextStep ? (
+            <span className="mt-1 block font-body text-[13px] font-bold text-vyva-text-2">
+              {nextStep}
+            </span>
+          ) : null}
+        </span>
+      </div>
+
+      {canOpenForm && bookingUrl ? (
+        <div className="mt-3 rounded-[16px] border border-[#BBF7D0] bg-white p-3" data-testid={`panel-booking-form-ready-${item.id}`}>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid={`link-booking-form-open-${item.id}`}
+              className="vyva-tap inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[13px] font-black text-white shadow-sm"
+            >
+              <ExternalLink size={14} />
+              {isSpanish ? "Abrir formulario" : "Open form"}
+            </a>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid={`button-booking-form-help-${item.id}`}
+              onClick={onNeedHelp}
+              className="vyva-secondary-action h-auto border-[#BBF7D0] text-[#047857]"
+            >
+              <MessageCircle size={14} className="mr-2" />
+              {isSpanish ? "Necesito ayuda" : "Need help"}
+            </Button>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Input
+              value={form.reference}
+              onChange={(event) => onFormChange("reference", event.target.value)}
+              placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
+              data-testid={`input-booking-form-reference-${item.id}`}
+              className="h-[44px] rounded-[14px] border-[#BBF7D0] bg-white font-body text-[14px]"
+            />
+            <Input
+              value={form.notes}
+              onChange={(event) => onFormChange("notes", event.target.value)}
+              placeholder={isSpanish ? "Nota opcional" : "Optional note"}
+              data-testid={`input-booking-form-notes-${item.id}`}
+              className="h-[44px] rounded-[14px] border-[#BBF7D0] bg-white font-body text-[14px]"
+            />
+          </div>
+          <Button
+            type="button"
+            data-testid={`button-booking-form-submitted-${item.id}`}
+            onClick={onSubmitted}
+            disabled={isSaving}
+            className="vyva-primary-action mt-3 h-auto w-full bg-[#047857] hover:bg-[#065F46]"
+          >
+            {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+            {isSpanish ? "Ya lo envie" : "I submitted it"}
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <Button
+            type="button"
+            data-testid={`button-booking-form-add-details-${item.id}`}
+            onClick={onAddDetails}
+            className="vyva-primary-action h-auto bg-[#047857] hover:bg-[#065F46]"
+          >
+            <PencilLine size={15} className="mr-2" />
+            {isSpanish ? "Anadir datos" : "Add details"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid={`button-booking-form-help-${item.id}`}
+            onClick={onNeedHelp}
+            className="vyva-secondary-action h-auto border-[#BBF7D0] text-[#047857]"
+          >
+            <MessageCircle size={15} className="mr-2" />
+            {isSpanish ? "Pedir ayuda" : "Ask VYVA"}
+          </Button>
+        </div>
+      )}
+
+      {notice ? (
+        <p data-testid="booking-form-notice" className="mt-3 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="booking-form-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ProviderReplyPanel({
   item,
   mode,
@@ -4853,6 +5005,11 @@ type ProviderReplyForm = {
   followUpQuestion: string;
 };
 
+type BookingFormOutcomeForm = {
+  reference: string;
+  notes: string;
+};
+
 function missionStatusForPendingAction(item: ConciergePendingItem): AppointmentMissionState["status"] | null {
   return isAppointmentMissionStatus(item.action_payload?.mission_status)
     ? item.action_payload.mission_status
@@ -5025,6 +5182,11 @@ const EMPTY_PROVIDER_REPLY_FORM: ProviderReplyForm = {
   followUpQuestion: "",
 };
 
+const EMPTY_BOOKING_FORM_OUTCOME_FORM: BookingFormOutcomeForm = {
+  reference: "",
+  notes: "",
+};
+
 function providerReplyFormHasDetails(form: ProviderReplyForm): boolean {
   return Boolean(
     form.scheduledFor.trim() ||
@@ -5106,6 +5268,55 @@ function providerReplyOutcomeSummary(item: ConciergePendingItem, form: ProviderR
   return isSpanish
     ? `Proveedor confirmado: ${provider}.`
     : `Provider confirmed: ${provider}.`;
+}
+
+function bookingFormFlowReference(item: ConciergePendingItem): string {
+  const explicit = payloadString(item.action_payload, ["flow_reference"]);
+  if (explicit) return explicit;
+  if (isHomeServicePendingAction(item)) return CONCIERGE_FLOW_REFERENCES.homeService;
+  if (item.use_case === "book_appointment") return MEDICAL_APPOINTMENT_FLOW_REFERENCE;
+  if (item.use_case === "book_ride") return TRANSPORT_BOOKING_FLOW_REFERENCE;
+  if (item.use_case === "order_medicine") return OTC_PHARMACY_FLOW_REFERENCE;
+  return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
+}
+
+function bookingFormProviderName(item: ConciergePendingItem, isSpanish: boolean): string {
+  return item.provider_name?.trim()
+    || payloadString(item.action_payload, ["provider_name", "pharmacy_name", "selected_provider_name"])
+    || (isSpanish ? "proveedor" : "provider");
+}
+
+function bookingFormOutcomeSummary(item: ConciergePendingItem, form: BookingFormOutcomeForm, isSpanish: boolean): string {
+  const provider = bookingFormProviderName(item, isSpanish);
+  const reference = form.reference.trim();
+  if (reference) {
+    return isSpanish
+      ? `Formulario enviado: ${provider}. Referencia: ${reference}.`
+      : `Form submitted: ${provider}. Reference: ${reference}.`;
+  }
+  return isSpanish ? `Formulario enviado: ${provider}.` : `Form submitted: ${provider}.`;
+}
+
+function bookingFormOutcomePayload(item: ConciergePendingItem, form: BookingFormOutcomeForm): Record<string, unknown> {
+  const payload = item.action_payload ?? {};
+  const plan = getFormAutomationPlan(item);
+  const bookingUrl = getBookingUrl(item);
+  return {
+    ...payload,
+    flow_reference: bookingFormFlowReference(item),
+    execution_type: "form_booking_link_outcome_capture",
+    execution_channel: "booking_url",
+    form_outcome: "submitted",
+    provider_name: item.provider_name ?? (payloadString(payload, ["provider_name", "pharmacy_name", "selected_provider_name"]) || null),
+    booking_url: payloadString(payload, ["booking_url"]) || bookingUrl || null,
+    prefilled_url: plan?.prefilledUrl || payloadString(payload, ["form_automation_prefilled_url", "prefilled_url"]) || null,
+    adapter_label: plan?.adapterLabel ?? null,
+    missing_fields: plan?.missingFields ?? [],
+    reference: form.reference.trim() || payloadString(payload, ["booking_reference", "reference"]) || null,
+    notes: form.notes.trim() || null,
+    completed_from: "booking_form_support_panel",
+    no_external_action_without_confirmation: true,
+  };
 }
 
 function providerWaitingDate(item: ConciergePendingItem): Date | null {
@@ -5590,6 +5801,9 @@ const ConciergeScreen = () => {
   const [providerReplyForm, setProviderReplyForm] = useState<ProviderReplyForm>(EMPTY_PROVIDER_REPLY_FORM);
   const [providerReplyNotice, setProviderReplyNotice] = useState<string | null>(null);
   const [providerReplyError, setProviderReplyError] = useState<string | null>(null);
+  const [bookingFormOutcomeForm, setBookingFormOutcomeForm] = useState<BookingFormOutcomeForm>(EMPTY_BOOKING_FORM_OUTCOME_FORM);
+  const [bookingFormNotice, setBookingFormNotice] = useState<string | null>(null);
+  const [bookingFormError, setBookingFormError] = useState<string | null>(null);
   const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -6521,6 +6735,31 @@ const ConciergeScreen = () => {
     },
     onError: (error) => {
       setProviderReplyError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la respuesta." : "I could not save the reply."));
+    },
+  });
+
+  const bookingFormOutcomeMutation = useMutation({
+    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: BookingFormOutcomeForm }) => (
+      completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: bookingFormOutcomeSummary(item, form, isSpanish),
+        outcomePayload: bookingFormOutcomePayload(item, form),
+      })
+    ),
+    onMutate: () => {
+      setBookingFormError(null);
+      setBookingFormNotice(null);
+    },
+    onSuccess: async () => {
+      setBookingFormOutcomeForm(EMPTY_BOOKING_FORM_OUTCOME_FORM);
+      setBookingFormNotice(isSpanish ? "Formulario guardado. La tarea queda cerrada." : "Form saved. The task is closed.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setBookingFormError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el formulario." : "I could not save the form."));
     },
   });
 
@@ -8151,6 +8390,39 @@ const ConciergeScreen = () => {
     setProviderReplyForm((current) => ({ ...current, [field]: value }));
   }
 
+  function updateBookingFormOutcome(field: keyof BookingFormOutcomeForm, value: string) {
+    setBookingFormOutcomeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function handleBookingFormSubmitted(item: ConciergePendingItem) {
+    bookingFormOutcomeMutation.mutate({ item, form: bookingFormOutcomeForm });
+  }
+
+  function handleBookingFormAddDetails(item: ConciergePendingItem) {
+    const plan = getFormAutomationPlan(item);
+    const missing = plan?.missingFields.join(", ") || (isSpanish ? "datos del formulario" : "form details");
+    setBookingFormError(null);
+    setBookingFormNotice(isSpanish ? "VYVA puede ayudarte a completar esos datos." : "VYVA can help collect those details.");
+    setInput(isSpanish
+      ? `El formulario necesita estos datos: ${missing}. Ayudame a completarlos antes de abrir el enlace.`
+      : `The form needs these details: ${missing}. Help me collect them before opening the link.`);
+    setIsRightNowHidden(false);
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  function handleBookingFormNeedHelp(item: ConciergePendingItem) {
+    const provider = bookingFormProviderName(item, isSpanish);
+    const plan = getFormAutomationPlan(item);
+    const missing = plan?.missingFields.length ? ` ${isSpanish ? "Falta: " : "Missing: "}${plan.missingFields.join(", ")}.` : "";
+    setBookingFormError(null);
+    setBookingFormNotice(isSpanish ? "Ayuda preparada en el chat." : "Help prepared in chat.");
+    setInput(isSpanish
+      ? `Necesito ayuda con el formulario de ${provider}.${missing} Revisa el siguiente paso y no envies nada sin mi confirmacion.`
+      : `I need help with the form for ${provider}.${missing} Review the next step and do not submit anything without my confirmation.`);
+    setIsRightNowHidden(false);
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
   function openProviderReplyMode(item: ConciergePendingItem, mode: ProviderReplyMode) {
     setProviderReplyMode(mode);
     setProviderReplyError(null);
@@ -8834,6 +9106,9 @@ const ConciergeScreen = () => {
     setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
     setProviderReplyNotice(null);
     setProviderReplyError(null);
+    setBookingFormOutcomeForm(EMPTY_BOOKING_FORM_OUTCOME_FORM);
+    setBookingFormNotice(null);
+    setBookingFormError(null);
   }, [activeAction?.id]);
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -8888,6 +9163,10 @@ const ConciergeScreen = () => {
     activeActionExecutionChannel === "booking_url" &&
     activeActionBookingUrl &&
     activeActionFormMissingFields.length === 0,
+  );
+  const activeActionHasBookingFormSupport = Boolean(
+    activeActionExecutionChannel === "booking_url" &&
+    activeActionBookingUrl,
   );
   const activeActionIsVyvaTask = activeActionExecutionChannel === "manual" || (
     activeActionExecutionChannel === "booking_url" &&
@@ -10839,30 +11118,22 @@ const ConciergeScreen = () => {
               </div>
             )}
 
-            {activeActionFormPlan && (
-              <div
-                className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
-                data-testid="panel-concierge-form-plan"
-              >
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#047857]">
-                  {activeActionFormPlan.adapterLabel
-                    ? (isSpanish ? `Sistema: ${activeActionFormPlan.adapterLabel}` : `System: ${activeActionFormPlan.adapterLabel}`)
-                    : (isSpanish ? "Formulario VYVA" : "VYVA form task")}
-                </p>
-                {activeActionFormPlan.missingFields.length > 0 ? (
-                  <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
-                    {isSpanish ? "Falta primero: " : "Needs first: "}{activeActionFormPlan.missingFields.join(", ")}
-                  </p>
-                ) : activeActionCanOpenForm ? (
-                  <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
-                    {isSpanish ? "Listo para abrir con los datos reunidos." : "Ready to open with the gathered details."}
-                  </p>
-                ) : activeActionFormPlan.nextStep ? (
-                  <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
-                    {activeActionFormPlan.nextStep}
-                  </p>
-                ) : null}
-              </div>
+            {activeActionHasBookingFormSupport && (
+              <BookingFormSupportPanel
+                item={activeAction}
+                plan={activeActionFormPlan}
+                bookingUrl={activeActionBookingUrl}
+                canOpenForm={activeActionCanOpenForm}
+                form={bookingFormOutcomeForm}
+                notice={bookingFormNotice}
+                error={bookingFormError}
+                isSaving={bookingFormOutcomeMutation.isPending}
+                isSpanish={isSpanish}
+                onFormChange={updateBookingFormOutcome}
+                onSubmitted={() => handleBookingFormSubmitted(activeAction)}
+                onAddDetails={() => handleBookingFormAddDetails(activeAction)}
+                onNeedHelp={() => handleBookingFormNeedHelp(activeAction)}
+              />
             )}
 
             <div className="mt-4 flex flex-wrap gap-2">
