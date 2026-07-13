@@ -2476,6 +2476,9 @@ export default function MarketingAdminPage() {
   }, []);
 
   const contentTitleById = useMemo(() => new Map(content.map((item) => [item.id, item.title])), [content]);
+  const campaignById = useMemo(() => new Map(campaigns.map((campaign) => [campaign.id, campaign])), [campaigns]);
+  const journeyById = useMemo(() => new Map(journeys.map((journey) => [journey.id, journey])), [journeys]);
+  const contactById = useMemo(() => new Map(contacts.map((contact) => [contact.id, contact])), [contacts]);
   const contentSourceOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of content) {
@@ -2521,6 +2524,27 @@ export default function MarketingAdminPage() {
     const matchesChannel = channelFilter === "all" || campaign.channels.some((item) => item.channel === channelFilter);
     return campaignMatchesSearch && matchesAudience && matchesChannel;
   }), [campaigns, search, audienceFilter, channelFilter, audiences, contentTitleById]);
+
+  const visibleCampaignMetrics = useMemo(() => campaignMetrics.filter((metric) => {
+    const campaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
+    const metricMatchesSearch = matchesSearch(search, [
+      metric.id,
+      metric.campaignId,
+      metric.campaignName,
+      metric.channel,
+      metric.metricDate,
+      metric.source,
+      metric.lovableExternalId,
+      metric.metadata,
+      campaign?.name,
+      campaign?.objective,
+      campaign?.source,
+      campaign?.lovableExternalId,
+    ]);
+    const matchesAudience = audienceFilter === "all" || !campaign || campaign.audienceType === audienceFilter;
+    const matchesChannel = channelFilter === "all" || metric.channel === channelFilter || metric.channel === "all";
+    return metricMatchesSearch && matchesAudience && matchesChannel;
+  }), [campaignMetrics, search, audienceFilter, channelFilter, campaignById]);
 
   const visibleContent = useMemo(() => content.filter((item) => {
     const contentMatchesSearch = matchesSearch(search, [
@@ -2671,6 +2695,49 @@ export default function MarketingAdminPage() {
     const matchesChannel = channelFilter === "all" || journey.steps.some((step) => step.channel === channelFilter);
     return journeyMatchesSearch && matchesAudience && matchesChannel;
   }), [journeys, search, audienceFilter, channelFilter, audiences, contentTitleById]);
+
+  const visibleJourneyEnrollments = useMemo(() => journeyEnrollments.filter((enrollment) => {
+    const journey = journeyById.get(enrollment.journeyId) ?? null;
+    const contact = enrollment.contactId ? contactById.get(enrollment.contactId) ?? null : null;
+    const enrollmentMatchesSearch = matchesSearch(search, [
+      enrollment.id,
+      enrollment.journeyId,
+      enrollment.journeyName,
+      enrollment.contactId,
+      enrollment.contactExternalId,
+      enrollment.status,
+      enrollment.currentStepOrder,
+      enrollment.enteredAt,
+      enrollment.exitedAt,
+      enrollment.lastActivityAt,
+      enrollment.source,
+      enrollment.lovableExternalId,
+      enrollment.metadata,
+      journey?.name,
+      journey?.objective,
+      journey?.source,
+      journey?.lovableExternalId,
+      contact?.fullName,
+      contact?.email,
+      contact?.phoneNumber,
+      contact?.whatsappNumber,
+      contact?.companyName,
+      contact?.roleLabel,
+      ...(enrollment.events ?? []).flatMap((event) => [
+        event.id,
+        event.eventType,
+        event.stepOrder,
+        event.eventAt,
+        event.channel,
+        event.metadata,
+      ]),
+    ]);
+    const matchesAudience = audienceFilter === "all" || !journey || journey.audienceType === audienceFilter;
+    const matchesChannel = channelFilter === "all"
+      || (journey?.steps ?? []).some((step) => step.channel === channelFilter)
+      || (enrollment.events ?? []).some((event) => event.channel === channelFilter);
+    return enrollmentMatchesSearch && matchesAudience && matchesChannel;
+  }), [journeyEnrollments, search, audienceFilter, channelFilter, journeyById, contactById]);
 
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
@@ -3941,9 +4008,9 @@ export default function MarketingAdminPage() {
                 </SectionCard>
               </div>
 
-              <SectionCard title="Analytics snapshots" subtitle={`${campaignMetrics.length} imported performance rows from Lovable or future providers.`}>
-                {campaignMetrics.length === 0 ? (
-                  <EmptyState text="No campaign analytics imported yet." />
+              <SectionCard title="Analytics snapshots" subtitle={`${visibleCampaignMetrics.length} visible of ${campaignMetrics.length} imported performance rows from Lovable or future providers.`}>
+                {visibleCampaignMetrics.length === 0 ? (
+                  <EmptyState text={campaignMetrics.length ? "No imported analytics match the current filters." : "No campaign analytics imported yet."} />
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
                     <table className="w-full border-collapse text-left text-sm">
@@ -3960,8 +4027,8 @@ export default function MarketingAdminPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {campaignMetrics.slice(0, 8).map((metric) => {
-                          const linkedCampaign = metric.campaignId ? campaigns.find((campaign) => campaign.id === metric.campaignId) ?? null : null;
+                        {visibleCampaignMetrics.map((metric) => {
+                          const linkedCampaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
                           return (
                             <tr key={metric.id} className="border-t border-[#f0e7df]">
                               <td className="px-4 py-3 font-black">
@@ -4784,12 +4851,12 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               </SectionCard>
-              <SectionCard title="Journey progress" subtitle={`${journeyEnrollments.length} imported enrollment records and event history rows.`}>
-                {journeyEnrollments.length === 0 ? (
-                  <EmptyState text="No journey enrollments imported yet." />
+              <SectionCard title="Journey progress" subtitle={`${visibleJourneyEnrollments.length} visible of ${journeyEnrollments.length} imported enrollment records and event history rows.`}>
+                {visibleJourneyEnrollments.length === 0 ? (
+                  <EmptyState text={journeyEnrollments.length ? "No journey enrollments match the current filters." : "No journey enrollments imported yet."} />
                 ) : (
                   <div className="grid gap-3" data-testid="marketing-journey-enrollments">
-                    {journeyEnrollments.slice(0, 10).map((enrollment) => (
+                    {visibleJourneyEnrollments.map((enrollment) => (
                       <article key={enrollment.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
@@ -4812,7 +4879,7 @@ export default function MarketingAdminPage() {
                         <MetadataPanel title="Imported enrollment metadata" value={enrollment.metadata} testId={`marketing-journey-enrollment-metadata-${enrollment.id}`} />
                         {enrollment.events.length ? (
                           <div className="mt-3 grid gap-2">
-                            {enrollment.events.slice(0, 8).map((event) => (
+                            {enrollment.events.map((event) => (
                               <div key={event.id} className="rounded-lg border border-[#eadfd5] bg-white p-2" data-testid={`marketing-journey-event-${event.id}`}>
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <Pill className="bg-white text-[#5b4a46]">{event.eventType}</Pill>
@@ -4823,7 +4890,6 @@ export default function MarketingAdminPage() {
                                 <MetadataPanel title="Imported event metadata" value={event.metadata} testId={`marketing-journey-event-metadata-${event.id}`} />
                               </div>
                             ))}
-                            {enrollment.events.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{enrollment.events.length - 8}</Pill> : null}
                           </div>
                         ) : (
                           <p className="mt-3 text-xs font-bold text-[#8b7a73]">No event history for this enrollment.</p>

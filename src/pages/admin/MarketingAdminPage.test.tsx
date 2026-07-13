@@ -226,7 +226,28 @@ const analytics = {
     source: "lovable",
     lovableExternalId: "metric-1",
     metadata: { lovable: { providerMetricId: "metric-provider-1" } },
-  }],
+  },
+  ...Array.from({ length: 9 }, (_, index) => {
+    const metricNumber = index + 2;
+    return {
+      id: `metric-${metricNumber}`,
+      campaignId: "campaign-1",
+      campaignName: `Overflow metric ${metricNumber}`,
+      channel: "email",
+      metricDate: "2026-07-06T09:00:00.000Z",
+      sent: metricNumber,
+      delivered: metricNumber,
+      opened: index,
+      clicked: 0,
+      bounced: 0,
+      unsubscribed: 0,
+      replied: 0,
+      socialEngagement: 0,
+      source: "lovable",
+      lovableExternalId: `metric-${metricNumber}`,
+      metadata: { lovable: { providerMetricId: `metric-provider-${metricNumber}` } },
+    };
+  })],
 };
 
 const journeyEnrollments = [
@@ -251,8 +272,38 @@ const journeyEnrollments = [
       eventAt: "2026-07-05T09:00:00.000Z",
       channel: "email",
       metadata: { lovable: { eventSource: "automation-log" } },
-    }],
+    },
+    ...Array.from({ length: 9 }, (_, index) => {
+      const eventNumber = index + 2;
+      return {
+        id: `event-${eventNumber}`,
+        eventType: `event-${eventNumber}`,
+        stepOrder: eventNumber,
+        eventAt: "2026-07-05T09:30:00.000Z",
+        channel: "email",
+        metadata: { lovable: { eventSource: `automation-log-${eventNumber}` } },
+      };
+    })],
   },
+  ...Array.from({ length: 10 }, (_, index) => {
+    const enrollmentNumber = index + 2;
+    return {
+      id: `enrollment-${enrollmentNumber}`,
+      journeyId: "journey-1",
+      journeyName: "B2B nurture",
+      contactId: "contact-2",
+      contactExternalId: `lovable-contact-overflow-${enrollmentNumber}`,
+      status: "active",
+      currentStepOrder: 0,
+      enteredAt: "2026-07-05T09:00:00.000Z",
+      exitedAt: null,
+      lastActivityAt: "2026-07-05T09:30:00.000Z",
+      source: "lovable",
+      lovableExternalId: `enrollment-${enrollmentNumber}`,
+      metadata: { lovable: { cohort: "partners-july" } },
+      events: [],
+    };
+  }),
 ];
 
 const contacts = [
@@ -652,6 +703,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics snapshots");
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Overflow metric 10");
     expect(openMetadataPanel("marketing-analytics-metadata-metric-1")).toHaveTextContent("metric-provider-1");
     fireEvent.click(screen.getByTestId("button-marketing-open-metric-campaign-metric-1"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
@@ -673,12 +725,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Goal: activation");
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / content-1");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-2");
+    expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-overflow-11");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Lovable enrollment ID: enrollment-1");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Entered");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Last activity");
     expect(openMetadataPanel("marketing-journey-enrollment-metadata-enrollment-1")).toHaveTextContent("partners-july");
     expect(screen.getByTestId("marketing-journey-event-event-1")).toHaveTextContent("entered");
     expect(screen.getByTestId("marketing-journey-event-event-1")).toHaveTextContent("email");
+    expect(screen.getByTestId("marketing-journey-event-event-10")).toHaveTextContent("event-10");
     expect(openMetadataPanel("marketing-journey-event-metadata-event-1")).toHaveTextContent("automation-log");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
@@ -1663,9 +1717,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-campaign-schedule-end")).toHaveValue(toLocalInput("2026-07-06T11:00:00.000Z"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Ends");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
-    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("12 sent");
+    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("66 sent");
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
-    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("8");
+    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("44");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
     expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
