@@ -456,6 +456,20 @@ type CampaignStudioPlay = {
   ctaUrl: string;
 };
 
+type CampaignStudioGeneratedDraft = {
+  campaignName: string;
+  contentTitle: string;
+  objective: string;
+  subject: string;
+  body: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  language?: string;
+  designJson?: Record<string, unknown>;
+  source?: "template" | "openai" | "fallback";
+  note?: string | null;
+};
+
 type CampaignEditDraft = {
   name: string;
   audienceType: Audience;
@@ -1873,7 +1887,7 @@ function bestCampaignStudioAudience(play: CampaignStudioPlay, audiences: Marketi
   }) ?? audiences.find((audience) => audience.memberCount > 0) ?? null;
 }
 
-function campaignStudioBrief(play: CampaignStudioPlay, toneId: CampaignStudioToneId, channel: Channel, audience: MarketingAudience | null) {
+function campaignStudioBrief(play: CampaignStudioPlay, toneId: CampaignStudioToneId, channel: Channel, audience: MarketingAudience | null): CampaignStudioGeneratedDraft {
   const tone = campaignStudioToneLabel[toneId];
   const target = audience ? audience.name : play.audienceType.toUpperCase();
   const channelGuidance = campaignStudioChannelGuidance[channel];
@@ -1890,6 +1904,15 @@ function campaignStudioBrief(play: CampaignStudioPlay, toneId: CampaignStudioTon
     body,
     ctaLabel: play.ctaLabel,
     ctaUrl: play.ctaUrl,
+    language: "en",
+    source: "template",
+    designJson: {
+      generator: "marketing_campaign_studio_template",
+      playId: play.id,
+      tone: toneId,
+      channel,
+      audience: audience ? audienceSnapshot(audience) : null,
+    },
     objective: [
       play.objective,
       "",
@@ -3003,6 +3026,8 @@ export default function MarketingAdminPage() {
     scheduleStartsAt: "",
     targetAudienceId: "",
   }));
+  const [campaignStudioAiDraft, setCampaignStudioAiDraft] = useState<CampaignStudioGeneratedDraft | null>(null);
+  const [campaignStudioAiRunning, setCampaignStudioAiRunning] = useState(false);
   const [campaignStudioFeedback, setCampaignStudioFeedback] = useState("");
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
@@ -3551,12 +3576,13 @@ export default function MarketingAdminPage() {
     [audiences, campaignStudio.targetAudienceId, selectedCampaignStudioPlay],
   );
   const campaignStudioSchedule = campaignStudio.scheduleStartsAt || campaignStudioDefaultSchedule(selectedCampaignStudioPlay);
-  const campaignStudioGenerated = campaignStudioBrief(
+  const campaignStudioTemplateDraft = campaignStudioBrief(
     selectedCampaignStudioPlay,
     campaignStudio.toneId,
     campaignStudio.channel,
     selectedCampaignStudioTargetAudience,
   );
+  const campaignStudioGenerated = campaignStudioAiDraft ?? campaignStudioTemplateDraft;
   const campaignStudioRecipientPreview = useMemo(() => contacts.filter((contact) => {
     if (!campaignAllowsContact(selectedCampaignStudioPlay.audienceType, contact.audienceType)) return false;
     if (!contactMatchesAudienceList(contact, selectedCampaignStudioTargetAudience)) return false;
@@ -3595,6 +3621,53 @@ export default function MarketingAdminPage() {
     });
   }, [campaignEditDraft, contacts, editingCampaignId, selectedCampaignTargetAudience]);
 
+  function updateCampaignStudio(patch: Partial<CampaignStudioState>) {
+    setCampaignStudio((current) => ({ ...current, ...patch }));
+    setCampaignStudioAiDraft(null);
+    setCampaignStudioFeedback("");
+  }
+
+  async function generateCampaignStudioAiDraft() {
+    setCampaignStudioAiRunning(true);
+    setCampaignStudioFeedback("Generating AI campaign draft...");
+    try {
+      const result = await api<{
+        configured: boolean;
+        source: "openai" | "fallback";
+        draft: CampaignStudioGeneratedDraft;
+        note?: string | null;
+      }>("/api/admin/marketing/ai/campaign-draft", {
+        method: "POST",
+        body: JSON.stringify({
+          playLabel: selectedCampaignStudioPlay.label,
+          audienceType: selectedCampaignStudioPlay.audienceType,
+          channel: campaignStudio.channel,
+          tone: campaignStudio.toneId,
+          targetAudienceName: selectedCampaignStudioTargetAudience?.name ?? "",
+          targetAudienceSize: selectedCampaignStudioTargetAudience?.mappedMemberCount ?? campaignStudioRecipientPreview.length,
+          campaignName: campaignStudioTemplateDraft.campaignName,
+          contentTitle: campaignStudioTemplateDraft.contentTitle,
+          objective: campaignStudioTemplateDraft.objective,
+          subjectSeed: campaignStudioTemplateDraft.subject,
+          bodySeed: campaignStudioTemplateDraft.body,
+          ctaLabel: campaignStudioTemplateDraft.ctaLabel,
+          ctaUrl: campaignStudioTemplateDraft.ctaUrl,
+          language: "en",
+        }),
+      });
+      setCampaignStudioAiDraft({
+        ...result.draft,
+        source: result.source,
+        note: result.note ?? null,
+      });
+      setCampaignStudioFeedback(result.source === "openai" ? "AI draft generated." : result.note || "Fallback draft generated.");
+    } catch (error) {
+      setCampaignStudioFeedback(error instanceof Error ? error.message : "AI draft could not be generated.");
+    } finally {
+      setCampaignStudioAiRunning(false);
+    }
+  }
+
   function applyCampaignStudioDraft() {
     const targetAudienceId = selectedCampaignStudioTargetAudience?.id ?? campaignStudio.targetAudienceId;
     const scheduleStartsAt = campaignStudioSchedule;
@@ -3616,7 +3689,7 @@ export default function MarketingAdminPage() {
       ...draft,
       title: campaignStudioGenerated.contentTitle,
       channel: campaignStudio.channel,
-      language: "en",
+      language: campaignStudioGenerated.language || "en",
       status: "draft",
       subject: campaignStudioGenerated.subject,
       body: campaignStudioGenerated.body,
@@ -3624,9 +3697,11 @@ export default function MarketingAdminPage() {
       ctaLabel: campaignStudioGenerated.ctaLabel,
       ctaUrl: campaignStudioGenerated.ctaUrl,
       designJsonText: jsonText({
+        ...campaignStudioGenerated.designJson,
         generator: "marketing_campaign_studio",
         playId: selectedCampaignStudioPlay.id,
         tone: campaignStudio.toneId,
+        source: campaignStudioGenerated.source ?? "template",
         audience: selectedCampaignStudioTargetAudience ? audienceSnapshot(selectedCampaignStudioTargetAudience) : null,
       }),
       mediaAssetsText: "[]",
@@ -4876,14 +4951,12 @@ export default function MarketingAdminPage() {
                             type="button"
                             onClick={() => {
                               const suggestedAudience = bestCampaignStudioAudience(play, audiences);
-                              setCampaignStudio((current) => ({
-                                ...current,
+                              updateCampaignStudio({
                                 playId: play.id,
                                 channel: play.defaultChannel,
                                 scheduleStartsAt: campaignStudioDefaultSchedule(play),
                                 targetAudienceId: suggestedAudience?.id ?? "",
-                              }));
-                              setCampaignStudioFeedback("");
+                              });
                             }}
                             className={`min-h-[92px] rounded-xl border px-4 py-3 text-left transition ${selected ? "border-purple-400 bg-purple-50 shadow-[0_10px_28px_rgba(126,34,206,0.14)]" : "border-[#eadfd5] bg-white hover:border-purple-200"}`}
                             data-testid={`button-marketing-campaign-studio-play-${play.id}`}
@@ -4905,7 +4978,7 @@ export default function MarketingAdminPage() {
                         <select
                           className={inputClass}
                           value={campaignStudio.toneId}
-                          onChange={(event) => setCampaignStudio((current) => ({ ...current, toneId: event.target.value as CampaignStudioToneId }))}
+                          onChange={(event) => updateCampaignStudio({ toneId: event.target.value as CampaignStudioToneId })}
                           data-testid="select-marketing-campaign-studio-tone"
                         >
                           {(Object.keys(campaignStudioToneLabel) as CampaignStudioToneId[]).map((tone) => (
@@ -4917,7 +4990,7 @@ export default function MarketingAdminPage() {
                         <select
                           className={inputClass}
                           value={campaignStudio.channel}
-                          onChange={(event) => setCampaignStudio((current) => ({ ...current, channel: event.target.value as Channel }))}
+                          onChange={(event) => updateCampaignStudio({ channel: event.target.value as Channel })}
                           data-testid="select-marketing-campaign-studio-channel"
                         >
                           {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
@@ -4927,7 +5000,7 @@ export default function MarketingAdminPage() {
                         <select
                           className={inputClass}
                           value={campaignStudio.targetAudienceId || selectedCampaignStudioTargetAudience?.id || ""}
-                          onChange={(event) => setCampaignStudio((current) => ({ ...current, targetAudienceId: event.target.value }))}
+                          onChange={(event) => updateCampaignStudio({ targetAudienceId: event.target.value })}
                           data-testid="select-marketing-campaign-studio-target-audience"
                         >
                           <option value="">Best matching list</option>
@@ -4943,7 +5016,7 @@ export default function MarketingAdminPage() {
                           className={inputClass}
                           type="datetime-local"
                           value={campaignStudioSchedule}
-                          onChange={(event) => setCampaignStudio((current) => ({ ...current, scheduleStartsAt: event.target.value }))}
+                          onChange={(event) => updateCampaignStudio({ scheduleStartsAt: event.target.value })}
                           data-testid="input-marketing-campaign-studio-schedule"
                         />
                       </Field>
@@ -4962,13 +5035,26 @@ export default function MarketingAdminPage() {
                         <p className="line-clamp-4 whitespace-pre-line">{campaignStudioGenerated.body}</p>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
+                        <Pill className={campaignStudioGenerated.source === "openai" ? "bg-emerald-50 text-emerald-800" : campaignStudioGenerated.source === "fallback" ? "bg-amber-50 text-amber-800" : "bg-white text-[#5b4a46]"}>
+                          {campaignStudioGenerated.source === "openai" ? "AI draft" : campaignStudioGenerated.source === "fallback" ? "Fallback draft" : "Template draft"}
+                        </Pill>
                         <Pill className={channelClass(campaignStudio.channel)}>{channelLabel[campaignStudio.channel]}</Pill>
                         <Pill className="bg-white text-[#5b4a46]">{selectedCampaignStudioTargetAudience?.name ?? "Best matching list"}</Pill>
                         <Pill className="bg-white text-[#5b4a46]">{campaignStudioRecipientPreview.length} eligible recipients</Pill>
                       </div>
+                      {campaignStudioGenerated.note ? <p className="mt-2 text-xs font-bold text-amber-800">{campaignStudioGenerated.note}</p> : null}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => generateCampaignStudioAiDraft().catch((error) => setCampaignStudioFeedback(error.message))}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                        disabled={campaignStudioAiRunning}
+                        data-testid="button-marketing-generate-ai-campaign-draft"
+                      >
+                        <Sparkles size={16} /> {campaignStudioAiRunning ? "Generating..." : "Improve with AI"}
+                      </button>
                       <button
                         type="button"
                         onClick={applyCampaignStudioDraft}

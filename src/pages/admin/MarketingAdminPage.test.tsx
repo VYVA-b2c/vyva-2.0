@@ -697,6 +697,26 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
     if (path === "/api/admin/marketing/sync/lovable/preview" && method === "GET") return jsonResponse(exportPreview);
     if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
+    if (path === "/api/admin/marketing/ai/campaign-draft" && method === "POST") {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      return jsonResponse({
+        ok: true,
+        configured: true,
+        source: "openai",
+        note: null,
+        draft: {
+          campaignName: `${body.playLabel} AI campaign`,
+          contentTitle: `${body.playLabel} AI content`,
+          objective: `AI objective for ${body.targetAudienceName}`,
+          subject: "AI subject line",
+          body: "AI body copy with stronger channel direction.",
+          ctaLabel: "AI CTA",
+          ctaUrl: "https://v2.vyva.life/ai",
+          language: "en",
+          designJson: { generator: "test-ai" },
+        },
+      });
+    }
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
     if (path === "/api/admin/marketing/campaigns/campaign-2" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[1] });
@@ -1903,20 +1923,29 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partners");
+    fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI draft generated");
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach AI campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("AI draft");
     fireEvent.click(screen.getByTestId("button-marketing-apply-studio-draft"));
 
-    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("B2B partner introduction");
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner outreach AI campaign");
     expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
     expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
     expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
-    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Tone: Direct.");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("AI objective for Partners");
     expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Draft applied");
 
     fireEvent.click(screen.getByTestId("button-marketing-open-studio-content-draft"));
-    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("B2B partner introduction - LinkedIn");
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Partner outreach AI content");
     expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
-    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Channel direction");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI body copy");
   });
 
   it("creates campaign metadata without auto-dispatching", async () => {
