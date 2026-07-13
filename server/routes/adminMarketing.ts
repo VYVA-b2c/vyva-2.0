@@ -221,6 +221,7 @@ const marketingAiToneSchema = z.enum(["warm", "expert", "direct", "uplifting"]);
 
 const marketingAiCampaignDraftSchema = z.object({
   playLabel: z.string().trim().max(140).optional().default("Campaign"),
+  playCategory: z.string().trim().max(80).optional().default(""),
   audienceType: audienceTypeSchema.optional().default("b2c"),
   channel: channelSchema.optional().default("email"),
   tone: marketingAiToneSchema.optional().default("warm"),
@@ -400,6 +401,7 @@ function fallbackMarketingAiCampaignDraft(input: MarketingAiCampaignDraftInput):
     designJson: {
       generator: "marketing_ai_assist_fallback",
       playLabel,
+      playCategory: input.playCategory,
       tone: input.tone,
       channel: input.channel,
       audience,
@@ -460,6 +462,7 @@ async function generateMarketingAiCampaignDraft(input: MarketingAiCampaignDraftI
           role: "user",
           content: JSON.stringify({
             play: input.playLabel,
+            playCategory: input.playCategory,
             audienceType: input.audienceType,
             targetAudienceName: input.targetAudienceName,
             targetAudienceSize: input.targetAudienceSize ?? null,

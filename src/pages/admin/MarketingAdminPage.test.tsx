@@ -1918,6 +1918,13 @@ describe("MarketingAdminPage", () => {
     renderPage();
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("All plays");
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("22");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-category-social"));
+    expect(screen.getByTestId("marketing-campaign-studio-category-hint")).toHaveTextContent("Facebook, Instagram, LinkedIn, and TikTok");
+    expect(screen.getByTestId("button-marketing-campaign-studio-play-instagram-proof-point")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-category-all"));
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
     fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
 

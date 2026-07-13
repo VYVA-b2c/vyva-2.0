@@ -419,17 +419,11 @@ type CampaignDraft = {
   snapshotRecipients: boolean;
 };
 
-type CampaignStudioPlayId =
-  | "caregiver-onboarding"
-  | "family-confidence"
-  | "b2b-partner-outreach"
-  | "local-event"
-  | "reactivation"
-  | "health-insight"
-  | "product-education"
-  | "seasonal-check-in";
+type CampaignStudioPlayId = string;
 
 type CampaignStudioToneId = "warm" | "expert" | "direct" | "uplifting";
+
+type CampaignStudioCategoryId = "all" | "onboarding" | "engagement" | "education" | "partner" | "community" | "social" | "retention";
 
 type CampaignStudioState = {
   playId: CampaignStudioPlayId;
@@ -441,6 +435,7 @@ type CampaignStudioState = {
 
 type CampaignStudioPlay = {
   id: CampaignStudioPlayId;
+  categoryId: Exclude<CampaignStudioCategoryId, "all">;
   label: string;
   brief: string;
   audienceType: Audience;
@@ -684,9 +679,21 @@ const campaignStudioChannelGuidance: Record<Channel, string> = {
   tiktok: "Write a short creator-style prompt with a strong opening line.",
 };
 
+const campaignStudioCategories: Array<{ id: CampaignStudioCategoryId; label: string; hint: string }> = [
+  { id: "all", label: "All plays", hint: "Every ready-to-adapt campaign pattern." },
+  { id: "onboarding", label: "Onboarding", hint: "Get people to their first useful action." },
+  { id: "engagement", label: "Engagement", hint: "Keep families and contacts active." },
+  { id: "education", label: "Education", hint: "Explain VYVA and practical care habits." },
+  { id: "partner", label: "Partners", hint: "B2B outreach, referral, and co-marketing." },
+  { id: "community", label: "Community", hint: "Local events, venues, and activities." },
+  { id: "social", label: "Social", hint: "Facebook, Instagram, LinkedIn, and TikTok planning." },
+  { id: "retention", label: "Retention", hint: "Win-back, surveys, and lifecycle nudges." },
+];
+
 const campaignStudioPlays: CampaignStudioPlay[] = [
   {
     id: "caregiver-onboarding",
+    categoryId: "onboarding",
     label: "Caregiver onboarding",
     brief: "Welcome a caregiver and move them into their first useful action.",
     audienceType: "b2c",
@@ -703,6 +710,7 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
   },
   {
     id: "family-confidence",
+    categoryId: "engagement",
     label: "Family confidence",
     brief: "Reassure families that care updates are organized and visible.",
     audienceType: "b2c",
@@ -719,6 +727,7 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
   },
   {
     id: "b2b-partner-outreach",
+    categoryId: "partner",
     label: "Partner outreach",
     brief: "Introduce VYVA to a partner, venue, or professional contact.",
     audienceType: "b2b",
@@ -735,6 +744,7 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
   },
   {
     id: "local-event",
+    categoryId: "community",
     label: "Local event invite",
     brief: "Invite a local audience to a helpful activity or community moment.",
     audienceType: "both",
@@ -751,6 +761,7 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
   },
   {
     id: "reactivation",
+    categoryId: "retention",
     label: "Reactivation",
     brief: "Bring quiet contacts back with one simple reason to return.",
     audienceType: "both",
@@ -767,6 +778,7 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
   },
   {
     id: "health-insight",
+    categoryId: "education",
     label: "Health insight",
     brief: "Share one useful, non-clinical care insight.",
     audienceType: "b2c",
@@ -783,6 +795,7 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
   },
   {
     id: "product-education",
+    categoryId: "education",
     label: "Product education",
     brief: "Explain one VYVA feature in plain language.",
     audienceType: "both",
@@ -799,6 +812,7 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
   },
   {
     id: "seasonal-check-in",
+    categoryId: "engagement",
     label: "Seasonal check-in",
     brief: "Use a timely moment to prompt profile and contact updates.",
     audienceType: "b2c",
@@ -812,6 +826,244 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     body: "Hi {{first_name}},\n\nBefore the week gets busy, it is worth checking that key care details are still right: phone numbers, preferences, language, support notes, and who should be contacted.\n\nA quick refresh now can save confusion later.",
     ctaLabel: "Refresh details",
     ctaUrl: "https://v2.vyva.life/profile",
+  },
+  {
+    id: "elder-first-action",
+    categoryId: "onboarding",
+    label: "Elder first action",
+    brief: "Help a new user complete the first profile step without overwhelm.",
+    audienceType: "b2c",
+    defaultChannel: "whatsapp",
+    targetListHints: ["elder", "new", "signup", "onboarding", "b2c"],
+    scheduleDaysFromNow: 1,
+    campaignName: "First VYVA profile action",
+    contentTitle: "First VYVA profile action",
+    objective: "Move new users to one simple first action: confirm contact details and complete the required profile fields.",
+    subject: "Your first VYVA step",
+    body: "Hi {{first_name}},\n\nYour VYVA account is ready. The best first step is simple: confirm your name, phone number, language, and contact details so support can reach the right person when it matters.\n\nOpen My account and complete the required details.",
+    ctaLabel: "Complete my details",
+    ctaUrl: "https://v2.vyva.life/profile",
+  },
+  {
+    id: "profile-completion",
+    categoryId: "onboarding",
+    label: "Profile completion",
+    brief: "Prompt missing profile details before care-team workflows start.",
+    audienceType: "b2c",
+    defaultChannel: "email",
+    targetListHints: ["profile", "incomplete", "required", "b2c"],
+    scheduleDaysFromNow: 2,
+    campaignName: "Profile completion reminder",
+    contentTitle: "Profile completion reminder",
+    objective: "Reduce incomplete user records by explaining why name, phone, language, and support details matter.",
+    subject: "Finish your VYVA profile",
+    body: "Hi {{first_name}},\n\nA complete profile helps VYVA keep the right people informed. Please check that your phone number, language, timezone, and care-team contact details are correct.\n\nThis keeps future reminders and support smoother.",
+    ctaLabel: "Finish profile",
+    ctaUrl: "https://v2.vyva.life/profile",
+  },
+  {
+    id: "daily-summary-education",
+    categoryId: "education",
+    label: "Daily summary explainer",
+    brief: "Explain daily summaries in plain language for families and caregivers.",
+    audienceType: "b2c",
+    defaultChannel: "email",
+    targetListHints: ["summary", "caregiver", "family", "daily"],
+    scheduleDaysFromNow: 3,
+    campaignName: "Daily summary feature explainer",
+    contentTitle: "Daily summary feature explainer",
+    objective: "Teach caregivers why daily summaries are useful and how they reduce repeated check-ins.",
+    subject: "How daily summaries help the care team",
+    body: "Hi {{first_name}},\n\nDaily summaries help care teams spot what changed, what stayed steady, and what may need a follow-up. They are designed to reduce scattered messages and make each update easier to understand.\n\nOpen VYVA to review the latest care-team view.",
+    ctaLabel: "Review care updates",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "alert-preference-refresh",
+    categoryId: "engagement",
+    label: "Alert preference refresh",
+    brief: "Ask contacts to confirm the notifications they actually want.",
+    audienceType: "both",
+    defaultChannel: "email",
+    targetListHints: ["notifications", "alerts", "preferences", "consent"],
+    scheduleDaysFromNow: 5,
+    campaignName: "Alert preferences refresh",
+    contentTitle: "Alert preferences refresh",
+    objective: "Improve relevance by prompting contacts to review channel and alert preferences.",
+    subject: "Choose the updates that matter most",
+    body: "Hi {{first_name}},\n\nThe best updates are the ones you actually need. Please take a moment to confirm which VYVA alerts should reach you and which channel works best.\n\nThis helps keep messages useful, timely, and respectful.",
+    ctaLabel: "Review preferences",
+    ctaUrl: "https://v2.vyva.life/profile",
+  },
+  {
+    id: "medication-routine-education",
+    categoryId: "education",
+    label: "Medication routine education",
+    brief: "Explain medication reminders without making clinical claims.",
+    audienceType: "b2c",
+    defaultChannel: "email",
+    targetListHints: ["medication", "reminder", "routine", "caregiver"],
+    scheduleDaysFromNow: 4,
+    campaignName: "Medication routine reminder explainer",
+    contentTitle: "Medication routine reminder explainer",
+    objective: "Help families understand how medication reminders support routine visibility while staying non-clinical.",
+    subject: "A simpler way to follow medication routines",
+    body: "Hi {{first_name}},\n\nMedication routines are easier to follow when reminders, notes, and care-team visibility are in one place. VYVA can help organize those practical details so everyone knows what to check next.\n\nOpen the medication area and review the current setup.",
+    ctaLabel: "Review medication setup",
+    ctaUrl: "https://v2.vyva.life/meds",
+  },
+  {
+    id: "partner-webinar",
+    categoryId: "partner",
+    label: "Partner webinar",
+    brief: "Invite professional contacts to a short educational session.",
+    audienceType: "b2b",
+    defaultChannel: "linkedin",
+    targetListHints: ["partner", "webinar", "b2b", "professional"],
+    scheduleDaysFromNow: 10,
+    campaignName: "Partner webinar invitation",
+    contentTitle: "Partner webinar invitation",
+    objective: "Invite partners to a practical session about care-team coordination and local support pathways.",
+    subject: "Join a short VYVA partner session",
+    body: "Hi {{first_name}},\n\nWe are hosting a short session on how VYVA helps families, caregivers, and local providers coordinate practical support around older adults.\n\nIt would be useful to have your perspective in the room.",
+    ctaLabel: "Reserve a place",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "referral-partner-nurture",
+    categoryId: "partner",
+    label: "Referral partner nurture",
+    brief: "Follow up with partners who may refer families or caregivers.",
+    audienceType: "b2b",
+    defaultChannel: "email",
+    targetListHints: ["referral", "provider", "partner", "b2b"],
+    scheduleDaysFromNow: 6,
+    campaignName: "Referral partner follow-up",
+    contentTitle: "Referral partner follow-up",
+    objective: "Move partner contacts from awareness to a clear referral or introduction conversation.",
+    subject: "A useful next step for family support referrals",
+    body: "Hi {{first_name}},\n\nFollowing up on VYVA: we are building simple ways for families and care teams to stay aligned around daily support, alerts, and practical updates.\n\nIf families in your network need this kind of support layer, we can set up a short intro.",
+    ctaLabel: "Discuss referrals",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "community-cohost",
+    categoryId: "community",
+    label: "Community co-host",
+    brief: "Pitch a local venue or organization on a co-hosted activity.",
+    audienceType: "b2b",
+    defaultChannel: "email",
+    targetListHints: ["venue", "community", "event", "local", "b2b"],
+    scheduleDaysFromNow: 8,
+    campaignName: "Community co-host proposal",
+    contentTitle: "Community co-host proposal",
+    objective: "Invite a local organization to co-host an accessible activity for older adults, families, or caregivers.",
+    subject: "Could we co-host a useful local activity?",
+    body: "Hi {{first_name}},\n\nVYVA is looking for local partners who want to make helpful, accessible activities easier for older adults and families to discover.\n\nWould you be open to exploring a simple co-hosted activity or resource session?",
+    ctaLabel: "Explore co-hosting",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "event-reminder",
+    categoryId: "community",
+    label: "Event reminder",
+    brief: "Remind interested contacts about an upcoming local activity.",
+    audienceType: "both",
+    defaultChannel: "whatsapp",
+    targetListHints: ["event", "local", "reminder", "community"],
+    scheduleDaysFromNow: 1,
+    campaignName: "Local activity reminder",
+    contentTitle: "Local activity reminder",
+    objective: "Send a short reminder that makes attendance feel easy and low-friction.",
+    subject: "Reminder: local activity coming up",
+    body: "Hi {{first_name}},\n\nQuick reminder: the local activity we shared is coming up soon. If it still feels useful, save the details, check the time, and share it with someone who may enjoy it.\n\nA small plan can make the day easier.",
+    ctaLabel: "See event details",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "instagram-proof-point",
+    categoryId: "social",
+    label: "Instagram proof point",
+    brief: "Turn one product value into a short visual-first social post.",
+    audienceType: "both",
+    defaultChannel: "instagram",
+    targetListHints: ["instagram", "social", "proof", "awareness"],
+    scheduleDaysFromNow: 3,
+    campaignName: "Instagram VYVA proof point",
+    contentTitle: "Instagram VYVA proof point",
+    objective: "Create a concise social post that makes one VYVA benefit visible and memorable.",
+    subject: "Care updates should not be scattered",
+    body: "Care updates should not live in five different chats.\n\nVYVA helps families and care teams keep practical details, alerts, and next steps together, so support feels easier to follow.\n\nSave this for the next time care coordination feels messy.",
+    ctaLabel: "Learn more",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "tiktok-myth-buster",
+    categoryId: "social",
+    label: "TikTok myth buster",
+    brief: "Create a short creator prompt around a common care-team misconception.",
+    audienceType: "both",
+    defaultChannel: "tiktok",
+    targetListHints: ["tiktok", "creator", "social", "awareness"],
+    scheduleDaysFromNow: 4,
+    campaignName: "TikTok care coordination myth",
+    contentTitle: "TikTok care coordination myth",
+    objective: "Draft a short social concept that challenges the idea that care coordination has to be chaotic.",
+    subject: "Myth: family care has to be chaotic",
+    body: "Hook: Family care does not have to mean endless group chats.\n\nShow: scattered messages, missed details, then one clear VYVA care-team view.\n\nPoint: when practical updates live together, everyone has a calmer next step.",
+    ctaLabel: "See VYVA",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "newsletter-digest",
+    categoryId: "engagement",
+    label: "Newsletter digest",
+    brief: "Package several updates into one clean audience digest.",
+    audienceType: "both",
+    defaultChannel: "email",
+    targetListHints: ["newsletter", "digest", "all", "updates"],
+    scheduleDaysFromNow: 7,
+    campaignName: "VYVA audience digest",
+    contentTitle: "VYVA audience digest",
+    objective: "Create a scannable digest with one product update, one useful habit, and one local/community prompt.",
+    subject: "This week from VYVA",
+    body: "Hi {{first_name}},\n\nThis week from VYVA:\n\n1. A practical care-team feature to try.\n2. One small habit that makes support easier.\n3. A local or community idea worth sharing.\n\nPick one useful next step and keep moving.",
+    ctaLabel: "Read the update",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "feedback-survey",
+    categoryId: "retention",
+    label: "Feedback survey",
+    brief: "Ask active contacts what should improve next.",
+    audienceType: "both",
+    defaultChannel: "whatsapp",
+    targetListHints: ["feedback", "survey", "active", "retention"],
+    scheduleDaysFromNow: 5,
+    campaignName: "VYVA feedback request",
+    contentTitle: "VYVA feedback request",
+    objective: "Collect lightweight feedback from contacts who have recently engaged with VYVA.",
+    subject: "What should VYVA improve next?",
+    body: "Hi {{first_name}},\n\nQuick question: what would make VYVA more useful for you or your care team?\n\nA short reply is enough. We are using feedback to make the product clearer, calmer, and easier to act on.",
+    ctaLabel: "Share feedback",
+    ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "final-winback",
+    categoryId: "retention",
+    label: "Final win-back",
+    brief: "Give quiet contacts one final clear reason to return.",
+    audienceType: "both",
+    defaultChannel: "email",
+    targetListHints: ["inactive", "winback", "retention", "quiet"],
+    scheduleDaysFromNow: 14,
+    campaignName: "Final VYVA win-back",
+    contentTitle: "Final VYVA win-back",
+    objective: "Send a respectful final nudge that invites inactive contacts back without pressure.",
+    subject: "Still want VYVA updates?",
+    body: "Hi {{first_name}},\n\nWe have not heard from you in a while, so we will keep this simple. If VYVA is still useful, open your account and check the latest profile, care-team, or update settings.\n\nIf not, no problem. We want messages to stay useful.",
+    ctaLabel: "Open VYVA",
+    ctaUrl: "https://v2.vyva.life",
   },
 ];
 
@@ -1909,6 +2161,7 @@ function campaignStudioBrief(play: CampaignStudioPlay, toneId: CampaignStudioTon
     designJson: {
       generator: "marketing_campaign_studio_template",
       playId: play.id,
+      playCategory: play.categoryId,
       tone: toneId,
       channel,
       audience: audience ? audienceSnapshot(audience) : null,
@@ -3026,6 +3279,7 @@ export default function MarketingAdminPage() {
     scheduleStartsAt: "",
     targetAudienceId: "",
   }));
+  const [campaignStudioCategory, setCampaignStudioCategory] = useState<CampaignStudioCategoryId>("all");
   const [campaignStudioAiDraft, setCampaignStudioAiDraft] = useState<CampaignStudioGeneratedDraft | null>(null);
   const [campaignStudioAiRunning, setCampaignStudioAiRunning] = useState(false);
   const [campaignStudioFeedback, setCampaignStudioFeedback] = useState("");
@@ -3569,7 +3823,14 @@ export default function MarketingAdminPage() {
     () => audiences.find((audience) => audience.id === campaignDraft.targetAudienceId) ?? null,
     [audiences, campaignDraft.targetAudienceId],
   );
-  const selectedCampaignStudioPlay = campaignStudioPlays.find((play) => play.id === campaignStudio.playId) ?? campaignStudioPlays[0];
+  const visibleCampaignStudioPlays = useMemo(
+    () => campaignStudioCategory === "all"
+      ? campaignStudioPlays
+      : campaignStudioPlays.filter((play) => play.categoryId === campaignStudioCategory),
+    [campaignStudioCategory],
+  );
+  const selectedCampaignStudioCategory = campaignStudioCategories.find((category) => category.id === campaignStudioCategory) ?? campaignStudioCategories[0];
+  const selectedCampaignStudioPlay = campaignStudioPlays.find((play) => play.id === campaignStudio.playId) ?? visibleCampaignStudioPlays[0] ?? campaignStudioPlays[0];
   const selectedCampaignStudioTargetAudience = useMemo(
     () => audiences.find((audience) => audience.id === campaignStudio.targetAudienceId)
       ?? bestCampaignStudioAudience(selectedCampaignStudioPlay, audiences),
@@ -3627,6 +3888,27 @@ export default function MarketingAdminPage() {
     setCampaignStudioFeedback("");
   }
 
+  function selectCampaignStudioCategory(categoryId: CampaignStudioCategoryId) {
+    setCampaignStudioCategory(categoryId);
+    const categoryPlays = categoryId === "all"
+      ? campaignStudioPlays
+      : campaignStudioPlays.filter((play) => play.categoryId === categoryId);
+    if (categoryPlays.some((play) => play.id === selectedCampaignStudioPlay.id)) {
+      setCampaignStudioAiDraft(null);
+      setCampaignStudioFeedback("");
+      return;
+    }
+
+    const nextPlay = categoryPlays[0] ?? campaignStudioPlays[0];
+    const suggestedAudience = bestCampaignStudioAudience(nextPlay, audiences);
+    updateCampaignStudio({
+      playId: nextPlay.id,
+      channel: nextPlay.defaultChannel,
+      scheduleStartsAt: campaignStudioDefaultSchedule(nextPlay),
+      targetAudienceId: suggestedAudience?.id ?? "",
+    });
+  }
+
   async function generateCampaignStudioAiDraft() {
     setCampaignStudioAiRunning(true);
     setCampaignStudioFeedback("Generating AI campaign draft...");
@@ -3640,6 +3922,7 @@ export default function MarketingAdminPage() {
         method: "POST",
         body: JSON.stringify({
           playLabel: selectedCampaignStudioPlay.label,
+          playCategory: selectedCampaignStudioPlay.categoryId,
           audienceType: selectedCampaignStudioPlay.audienceType,
           channel: campaignStudio.channel,
           tone: campaignStudio.toneId,
@@ -3700,6 +3983,7 @@ export default function MarketingAdminPage() {
         ...campaignStudioGenerated.designJson,
         generator: "marketing_campaign_studio",
         playId: selectedCampaignStudioPlay.id,
+        playCategory: selectedCampaignStudioPlay.categoryId,
         tone: campaignStudio.toneId,
         source: campaignStudioGenerated.source ?? "template",
         audience: selectedCampaignStudioTargetAudience ? audienceSnapshot(selectedCampaignStudioTargetAudience) : null,
@@ -4941,10 +5225,40 @@ export default function MarketingAdminPage() {
               >
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]" data-testid="marketing-campaign-studio">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Campaign plays</p>
+                    <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-studio-categories">
+                      <div className="flex flex-wrap gap-2">
+                        {campaignStudioCategories.map((category) => {
+                          const count = category.id === "all"
+                            ? campaignStudioPlays.length
+                            : campaignStudioPlays.filter((play) => play.categoryId === category.id).length;
+                          const selected = category.id === campaignStudioCategory;
+                          return (
+                            <button
+                              key={category.id}
+                              type="button"
+                              onClick={() => selectCampaignStudioCategory(category.id)}
+                              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black transition ${selected ? "border-purple-500 bg-purple-700 text-white shadow-[0_8px_18px_rgba(126,34,206,0.18)]" : "border-[#eadfd5] bg-white text-[#241133] hover:border-purple-200"}`}
+                              data-testid={`button-marketing-campaign-studio-category-${category.id}`}
+                            >
+                              {category.label}
+                              <span className={`rounded-full px-2 py-0.5 text-xs ${selected ? "bg-white/20 text-white" : "bg-purple-50 text-purple-700"}`}>{count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-category-hint">{selectedCampaignStudioCategory.hint}</p>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Campaign plays</p>
+                        <p className="text-sm font-bold text-[#7d6b65]">{visibleCampaignStudioPlays.length} ready-to-adapt templates in this view.</p>
+                      </div>
+                      <Pill className="bg-white text-[#5b4a46]">{selectedCampaignStudioCategory.label}</Pill>
+                    </div>
                     <div className="mt-2 grid gap-2 md:grid-cols-2">
-                      {campaignStudioPlays.map((play) => {
+                      {visibleCampaignStudioPlays.map((play) => {
                         const selected = play.id === selectedCampaignStudioPlay.id;
+                        const category = campaignStudioCategories.find((item) => item.id === play.categoryId);
                         return (
                           <button
                             key={play.id}
@@ -4966,6 +5280,10 @@ export default function MarketingAdminPage() {
                               <Pill className={channelClass(play.defaultChannel)}>{channelLabel[play.defaultChannel]}</Pill>
                             </span>
                             <span className="mt-2 block text-xs font-bold leading-relaxed text-[#7d6b65]">{play.brief}</span>
+                            <span className="mt-3 flex flex-wrap gap-1.5">
+                              <Pill className="bg-white text-[#5b4a46]">{category?.label ?? play.categoryId}</Pill>
+                              <Pill className="bg-white text-[#5b4a46]">{play.audienceType.toUpperCase()}</Pill>
+                            </span>
                           </button>
                         );
                       })}
