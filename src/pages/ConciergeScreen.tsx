@@ -82,6 +82,7 @@ import {
 } from "../../shared/serviceIntake";
 import {
   CONCIERGE_FLOW_REFERENCES,
+  normalizeConciergeProviderCategory,
   providerSetupFocusForFlow,
   type ConciergeProviderCategoryId,
   type ConciergeFlowReference,
@@ -114,6 +115,7 @@ type ConciergeLocationState = {
   conciergePrefill?: unknown;
   conciergeCompletedTemplate?: unknown;
   conciergeProviderAction?: unknown;
+  trustedProviderSaved?: unknown;
   voiceActionPayload?: Record<string, unknown>;
   focusRightNow?: boolean;
 } | null;
@@ -121,6 +123,11 @@ type ConciergeLocationState = {
 type ConciergeProviderRouteAction = {
   pendingId: string;
   mode: "follow_up" | "reply";
+};
+
+type TrustedProviderSavedRoute = {
+  name: string;
+  category: ConciergeProviderCategoryId;
 };
 
 type RoutePrefillHighlight = {
@@ -229,6 +236,16 @@ function coerceConciergeProviderRouteAction(value: unknown): ConciergeProviderRo
   const pendingId = value.pendingId.trim();
   if (!pendingId) return null;
   return { pendingId, mode: value.mode };
+}
+
+function coerceTrustedProviderSavedRoute(value: unknown): TrustedProviderSavedRoute | null {
+  if (!isRecord(value)) return null;
+  const name = typeof value.name === "string" ? value.name.trim() : "";
+  if (!name) return null;
+  return {
+    name,
+    category: normalizeConciergeProviderCategory(typeof value.category === "string" ? value.category : null),
+  };
 }
 
 function routePayloadString(state: ConciergeLocationState, key: string) {
@@ -4402,6 +4419,7 @@ const ConciergeScreen = () => {
   const lastRoutePrefillKeyRef = useRef<string | null>(null);
   const lastCompletedTemplateKeyRef = useRef<string | null>(null);
   const lastProviderRouteActionKeyRef = useRef<string | null>(null);
+  const lastTrustedProviderSavedKeyRef = useRef<string | null>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
@@ -4444,6 +4462,7 @@ const ConciergeScreen = () => {
   });
   const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
   const [routePrefillError, setRoutePrefillError] = useState<string | null>(null);
+  const [trustedProviderResume, setTrustedProviderResume] = useState<TrustedProviderSavedRoute | null>(null);
   const [transportPickup, setTransportPickup] = useState("");
   const [transportDestination, setTransportDestination] = useState("");
   const [transportTime, setTransportTime] = useState("now");
@@ -5616,6 +5635,25 @@ const ConciergeScreen = () => {
     }, 80);
     return () => window.clearTimeout(timer);
   }, [location.state]);
+
+  useEffect(() => {
+    const routeState = location.state as ConciergeLocationState;
+    const savedProvider = coerceTrustedProviderSavedRoute(routeState?.trustedProviderSaved);
+    if (!savedProvider) {
+      if (routeState?.trustedProviderSaved) {
+        navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      }
+      return;
+    }
+
+    const resumeKey = `${savedProvider.category}:${savedProvider.name}`;
+    if (lastTrustedProviderSavedKeyRef.current === resumeKey) return;
+    lastTrustedProviderSavedKeyRef.current = resumeKey;
+    setTrustedProviderResume(savedProvider);
+    void queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    setIsRightNowHidden(false);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate, queryClient]);
 
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -7025,6 +7063,78 @@ const ConciergeScreen = () => {
     });
   }
 
+  const trustedProviderResumeMeta = trustedProviderResume
+    ? {
+        categoryLabel: providerSearchCategoryLabel(trustedProviderResume.category, isSpanish),
+        primaryLabel: trustedProviderResume.category === "transport"
+          ? (isSpanish ? "Continuar viaje" : "Continue ride")
+          : trustedProviderResume.category === "pharmacy"
+            ? (isSpanish ? "Continuar farmacia" : "Continue pharmacy")
+            : trustedProviderResume.category === "doctor_clinic"
+              ? (isSpanish ? "Continuar cita" : "Continue appointment")
+              : trustedProviderResume.category === "home_service"
+                ? (isSpanish ? "Continuar servicio" : "Continue service")
+                : (isSpanish ? "Continuar" : "Continue"),
+        detail: trustedProviderResume.category === "transport"
+          ? (isSpanish ? "Ahora VYVA puede preguntar destino y hora." : "VYVA can now ask for destination and time.")
+          : trustedProviderResume.category === "pharmacy"
+            ? (isSpanish ? "Ahora VYVA puede preparar productos sin receta." : "VYVA can now prepare non-prescription items.")
+            : trustedProviderResume.category === "doctor_clinic"
+              ? (isSpanish ? "Ahora VYVA puede preparar la solicitud de cita." : "VYVA can now prepare the appointment request.")
+              : trustedProviderResume.category === "home_service"
+                ? (isSpanish ? "Ahora VYVA puede preparar el servicio en casa." : "VYVA can now prepare the home service.")
+                : (isSpanish ? "VYVA lo usara primero si encaja." : "VYVA will use this first when it fits."),
+      }
+    : null;
+
+  function continueTrustedProviderResume() {
+    if (!trustedProviderResume) return;
+    const { name, category } = trustedProviderResume;
+    setTrustedProviderResume(null);
+
+    if (category === "transport") {
+      prepareRideRequest(isSpanish
+        ? `Usa ${name} como proveedor de transporte de confianza. Preguntame destino, recogida y hora. No reserves sin mi confirmacion.`
+        : `Use ${name} as my trusted transport provider. Ask me for destination, pickup, and time. Do not book without my confirmation.`);
+      return;
+    }
+
+    if (category === "pharmacy") {
+      openOtcPharmacyAssistant();
+      setOtcNotice(isSpanish
+        ? `${name} guardado. Dime que producto sin receta necesitas.`
+        : `${name} saved. Tell me which non-prescription item you need.`);
+      return;
+    }
+
+    if (category === "doctor_clinic") {
+      openScheduleAssistant("medical");
+      setAppointmentNote(isSpanish
+        ? `Usa ${name} como proveedor medico de confianza. Preguntame motivo y horario preferido antes de preparar la solicitud.`
+        : `Use ${name} as my trusted medical provider. Ask me for reason and preferred time before preparing the request.`);
+      return;
+    }
+
+    if (category === "home_service") {
+      openHomeServiceAssistant();
+      setAppointmentNote(isSpanish
+        ? `Usa ${name} como proveedor de servicio en casa de confianza. Preguntame el problema, urgencia y horario preferido.`
+        : `Use ${name} as my trusted home-service provider. Ask me for the problem, urgency, and preferred time.`);
+      return;
+    }
+
+    if (category === "personal_care") {
+      openProviderSearchPanel("personal-care", isSpanish
+        ? `usar proveedor guardado ${name}`
+        : `use saved provider ${name}`);
+      return;
+    }
+
+    prepareConciergeRequest(isSpanish
+      ? `He guardado ${name} como proveedor de confianza (${providerSearchCategoryLabel(category, true)}). Ayudame a usarlo para la solicitud correcta y pideme confirmacion antes de contactar.`
+      : `I saved ${name} as a trusted provider (${providerSearchCategoryLabel(category, false)}). Help me use it for the right request and ask me to confirm before contacting.`);
+  }
+
   function handleOfferWatch(option: OfferOption) {
     const message = isSpanish
       ? [
@@ -7504,6 +7614,50 @@ const ConciergeScreen = () => {
       cards={conciergeMasterCards}
       fastHelpActions={conciergeMasterFastHelpActions}
     >
+      {trustedProviderResume && trustedProviderResumeMeta && (
+        <section
+          className="order-[12] mt-4 rounded-[26px] border border-[#BBF7D0] bg-[#F0FDF4] p-4 shadow-[0_16px_36px_rgba(4,120,87,0.10)]"
+          data-testid="panel-concierge-provider-resume"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#047857] shadow-sm">
+                <CircleCheck size={23} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#047857]">
+                  {isSpanish ? "Proveedor guardado" : "Provider saved"}
+                </p>
+                <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
+                  {trustedProviderResume.name}
+                </h2>
+                <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                  {trustedProviderResumeMeta.categoryLabel} - {trustedProviderResumeMeta.detail}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:min-w-[260px] sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={continueTrustedProviderResume}
+                className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[14px] font-black text-white"
+                data-testid="button-provider-resume-continue"
+              >
+                <Sparkles size={16} aria-hidden="true" />
+                {trustedProviderResumeMeta.primaryLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrustedProviderResume(null)}
+                className="vyva-tap inline-flex min-h-[46px] items-center justify-center rounded-full border border-[#BBF7D0] bg-white px-4 font-body text-[14px] font-black text-[#047857]"
+                data-testid="button-provider-resume-dismiss"
+              >
+                {isSpanish ? "Ahora no" : "Not now"}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {insuranceAdminOpen && (
         <section

@@ -2262,6 +2262,52 @@ describe("ConciergeScreen action hub", () => {
 });
 
 describe("ConciergeScreen route prefill", () => {
+  it("resumes a ride flow after trusted provider setup returns", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{
+            name: "Trusted Taxi",
+            role: "taxi",
+            phone: "+34 600 111 222",
+            preferredChannel: "phone",
+          }],
+          serviceReadiness: {
+            hasSavedTransportProvider: true,
+            hasMobilityInfo: true,
+          },
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        trustedProviderSaved: {
+          name: "Trusted Taxi",
+          category: "transport",
+        },
+      },
+    }]);
+
+    const resume = await screen.findByTestId("panel-concierge-provider-resume");
+    expect(resume).toHaveTextContent("Provider saved");
+    expect(resume).toHaveTextContent("Trusted Taxi");
+    expect(resume).toHaveTextContent("Continue ride");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("route-state")).toHaveTextContent("null");
+    });
+
+    fireEvent.click(screen.getByTestId("button-provider-resume-continue"));
+
+    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Transport options");
+    expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("Saved provider first: Trusted Taxi");
+    expect(screen.getByTestId("note-transport-mobility-readiness")).toHaveTextContent("Mobility preferences saved");
+    expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
+  });
+
   it("turns a symptom appointment handoff into a one-tap concierge request", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url).includes("/api/appointments/requests")) {
