@@ -2509,7 +2509,11 @@ describe("ConciergeScreen route prefill", () => {
         provider_name: "Radio Taxi",
         provider_phone: "+34 612 345 678",
         action_summary: "Taxi option prepared for the health appointment.",
-        action_payload: null,
+        action_payload: {
+          pickup_address: "Saved home",
+          destination_address: "City Clinic",
+          requested_time: "tomorrow 09:00",
+        },
         status: "pending",
         language: "en",
       }],
@@ -2553,6 +2557,39 @@ describe("ConciergeScreen route prefill", () => {
 
     fireEvent.click(screen.getByTestId("button-concierge-checklist-details"));
     expect(await screen.findByTestId("input-transport-destination")).toBeVisible();
+  });
+
+  it("shows the exact missing ride detail before allowing checklist confirmation", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "ride-missing-destination",
+        use_case: "book_ride",
+        provider_name: "Radio Taxi",
+        provider_phone: "+34 612 345 678",
+        action_summary: "Taxi option prepared, but the destination still needs to be confirmed.",
+        action_payload: {
+          pickup_address: "Saved home",
+          requested_time: "now",
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    const checklist = await screen.findByTestId("panel-concierge-flow-checklist");
+    expect(checklist).toHaveTextContent("Destination needed");
+    expect(checklist).toHaveTextContent("Complete details");
+    expect(screen.getByTestId("button-concierge-checklist-confirm")).toHaveTextContent("Add");
+
+    fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
+
+    expect(await screen.findByTestId("input-transport-destination")).toBeVisible();
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/concierge/actions/ride-missing-destination/confirm",
+      { method: "POST" },
+    );
   });
 
   it("routes a missing provider checklist item to focused trusted-provider setup", async () => {

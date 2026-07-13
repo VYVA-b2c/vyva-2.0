@@ -9,6 +9,10 @@ import {
   providerSetupFocusForFlow,
 } from "../shared/conciergeFlowRegistry";
 import {
+  conciergeFlowReferenceForPendingAction,
+  evaluateConciergeFlowRequirements,
+} from "../shared/conciergeFlowRequirements";
+import {
   CONCIERGE_FLOW_COVERAGE,
   CONCIERGE_FLOW_COVERAGE_STAGE_LABELS,
   missingConciergeFlowCoverage,
@@ -62,6 +66,54 @@ describe("concierge flow registry", () => {
     });
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.transportBooking)).toBe(true);
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.scamCheck)).toBe(false);
+  });
+
+  it("evaluates exact active-task requirements for tracked flows", () => {
+    const ride = evaluateConciergeFlowRequirements({
+      useCase: "book_ride",
+      payload: { pickup_address: "Home", requested_time: "now" },
+      providerName: "Radio Taxi",
+    });
+    expect(ride.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.transportBooking);
+    expect(ride.needsProvider).toBe(true);
+    expect(ride.providerReady).toBe(true);
+    expect(ride.firstMissingRequirement?.labelEn).toBe("Destination");
+
+    const otc = evaluateConciergeFlowRequirements({
+      useCase: "order_medicine",
+      payload: { fulfillment_preference: "pickup", requested_time: "today" },
+    });
+    expect(otc.firstMissingRequirement?.labelEn).toBe("Item");
+
+    const home = evaluateConciergeFlowRequirements({
+      useCase: "book_appointment",
+      payload: {
+        appointment_type: "home-service",
+        service_type: "plumber",
+        home_address: "Home",
+      },
+    });
+    expect(home.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.homeService);
+    expect(home.firstMissingRequirement?.labelEn).toBe("Urgency");
+
+    const admin = evaluateConciergeFlowRequirements({
+      useCase: "admin_task",
+      payload: { recipient_email: "insurer@example.com" },
+      summary: "Help me send an insurance claim",
+    });
+    expect(admin.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.insuranceAdmin);
+    expect(admin.firstMissingRequirement?.labelEn).toBe("Deadline");
+  });
+
+  it("maps pending actions to their reusable flow references", () => {
+    expect(conciergeFlowReferenceForPendingAction({
+      useCase: "book_appointment",
+      payload: { appointment_type: "home-service" },
+    })).toBe(CONCIERGE_FLOW_REFERENCES.homeService);
+    expect(conciergeFlowReferenceForPendingAction({
+      useCase: "anything_else",
+      payload: { flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck },
+    })).toBe(CONCIERGE_FLOW_REFERENCES.scamCheck);
   });
 
   it("keeps a complete lifecycle coverage map for tracked flows", () => {

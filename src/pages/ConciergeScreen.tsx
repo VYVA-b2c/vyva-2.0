@@ -88,6 +88,7 @@ import {
   type ConciergeFlowReference,
   type ConciergeToolRequirement,
 } from "../../shared/conciergeFlowRegistry";
+import { evaluateConciergeFlowRequirements } from "../../shared/conciergeFlowRequirements";
 import {
   evaluateConciergeToolReadiness,
   preferredToolFromTransportActions,
@@ -3520,26 +3521,11 @@ function buildPendingActionReviewSummary(params: {
   };
 }
 
-function actionHasPreparedDetails(item: ConciergePendingItem): boolean {
-  if (item.action_summary.trim()) return true;
-  const payload = item.action_payload;
-  if (!payload) return false;
-  return Object.values(payload).some((value) => {
-    if (typeof value === "string") return Boolean(value.trim());
-    if (Array.isArray(value)) return value.length > 0;
-    return value !== null && value !== undefined;
-  });
-}
-
 function activeTaskProviderLabel(item: ConciergePendingItem, isSpanish: boolean): string {
   if (isProviderSearchPendingAction(item)) return providerSearchProviderName(item, isSpanish);
   return item.provider_name?.trim()
     || payloadString(item.action_payload, ["provider_name", "pharmacy_name", "selected_provider_name"])
     || "";
-}
-
-function flowDoesNotNeedSavedProvider(item: ConciergePendingItem): boolean {
-  return ["admin_task", "scam_check", "paperwork", "send_message", "find_offers"].includes(item.use_case);
 }
 
 function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
@@ -3555,22 +3541,33 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
     timeline,
   } = params;
   const provider = activeTaskProviderLabel(item, isSpanish);
-  const providerNotRequired = flowDoesNotNeedSavedProvider(item);
+  const requirementStatus = evaluateConciergeFlowRequirements({
+    useCase: item.use_case,
+    payload: item.action_payload,
+    providerName: provider,
+    summary: item.action_summary,
+  });
+  const providerNotRequired = !requirementStatus.needsProvider && !isProviderSearchPendingAction(item);
   const channel = handoffChannelLabel(item, isSpanish);
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
   const isWaitingForProvider = item.status === "calling" || missionStatus.includes("awaiting_provider");
   const hasMissingFormFields = formMissingFields.length > 0;
-  const detailsReady = actionHasPreparedDetails(item) && !hasMissingFormFields;
+  const firstMissingRequirement = requirementStatus.firstMissingRequirement;
+  const missingRequirementLabel = firstMissingRequirement
+    ? (isSpanish ? firstMissingRequirement.labelEs : firstMissingRequirement.labelEn)
+    : "";
+  const detailsReady = requirementStatus.missingRequirements.length === 0 && !hasMissingFormFields;
+  const detailsValue = hasMissingFormFields
+    ? (isSpanish ? "Formulario incompleto" : "Form details needed")
+    : firstMissingRequirement
+      ? (isSpanish ? `Falta ${missingRequirementLabel}` : `${missingRequirementLabel} needed`)
+      : (isSpanish ? "Listos" : "Ready");
 
   const items: ActiveTaskChecklistItem[] = [
     {
       key: "details",
       label: isSpanish ? "Detalles" : "Details",
-      value: hasMissingFormFields
-        ? (isSpanish ? "Faltan datos" : "Needs details")
-        : detailsReady
-          ? (isSpanish ? "Listos" : "Ready")
-          : (isSpanish ? "Por confirmar" : "Needs check"),
+      value: detailsValue,
       state: hasMissingFormFields ? "needed" : detailsReady ? "done" : "active",
       action: "details",
       actionLabel: hasMissingFormFields || !detailsReady
@@ -3623,6 +3620,8 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
       ? (isSpanish ? "Revisar" : "Review needed")
       : isWaitingForProvider
         ? (isSpanish ? "Tras respuesta" : "After reply")
+        : !detailsReady
+          ? (isSpanish ? "Completar detalles" : "Complete details")
         : isVyvaTask
           ? (isSpanish ? "Cuando este listo" : "When ready")
           : nextStepLabel || (isSpanish ? "Tu OK primero" : "Your OK first"),
@@ -3630,19 +3629,21 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
       ? "warning"
       : isWaitingForProvider
         ? "waiting"
+        : !detailsReady
+          ? "needed"
       : isVyvaTask
         ? "waiting"
         : "active",
-    action: item.status === "pending"
-      ? (isVyvaTask ? "details" : "confirm")
-      : isWaitingForProvider
-        ? "reply"
-        : undefined,
-    actionLabel: item.status === "pending"
-      ? (isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
-      : isWaitingForProvider
-        ? (isSpanish ? "Registrar" : "Record")
-        : undefined,
+    action: isWaitingForProvider
+      ? "reply"
+      : item.status === "pending"
+      ? (!detailsReady || isVyvaTask ? "details" : "confirm")
+      : undefined,
+    actionLabel: isWaitingForProvider
+      ? (isSpanish ? "Registrar" : "Record")
+      : item.status === "pending"
+      ? (!detailsReady || isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
+      : undefined,
   });
 
   return {
