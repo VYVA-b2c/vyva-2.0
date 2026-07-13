@@ -1358,6 +1358,12 @@ describe("admin marketing router", () => {
         channel: "email",
         email_design: JSON.stringify({ sections: longDesignBlocks }),
         mediaAssets: JSON.stringify(manyMediaAssets),
+      }, {
+        id: "content:bare-url-image",
+        title: "Bare URL image content",
+        channel: "instagram",
+        body: "Builder exports sometimes put the hero image in a generic url field.",
+        url: "https://cdn.example.test/bare-url-hero.webp",
       }],
       saved_email_templates: [{
         id: "template-1",
@@ -1531,7 +1537,7 @@ describe("admin marketing router", () => {
         Authorization: "Bearer secret",
       }),
     }));
-    expect(table("marketing_content_assets")).toHaveLength(7);
+    expect(table("marketing_content_assets")).toHaveLength(8);
     expect(table("marketing_content_assets").find((row) => row.title === "Welcome email")).toMatchObject({
       html_body: "<h1>Hello</h1>",
       design_json: { blocks: [{ type: "hero" }] },
@@ -1584,6 +1590,13 @@ describe("admin marketing router", () => {
       lovable_external_id: "content_brief:brief-1",
       metadata: { lovable_source_type: "content_brief" },
     });
+    expect(table("marketing_content_assets").find((row) => row.title === "Bare URL image content")).toMatchObject({
+      channel: "instagram",
+      body: "Builder exports sometimes put the hero image in a generic url field.",
+      cta_url: null,
+      media_assets: [{ url: "https://cdn.example.test/bare-url-hero.webp", sourceField: "url" }],
+      lovable_external_id: "content:bare-url-image",
+    });
     const journeyPresetContent = table("marketing_content_assets").find((row) => row.lovable_external_id === "journey_step_preset:onboarding_step_1");
     expect(journeyPresetContent).toMatchObject({
       title: "Welcome to VYVA",
@@ -1607,7 +1620,7 @@ describe("admin marketing router", () => {
         template_ref: "onboarding_step_1",
       }),
     });
-    expect(table("marketing_media_assets")).toHaveLength(17);
+    expect(table("marketing_media_assets")).toHaveLength(18);
     expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/hero.png")).toMatchObject({
       original_url: "https://cdn.example.test/hero.png",
       asset_type: "image",
@@ -1836,11 +1849,11 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 6, journeyStepPresetContent: 1, mediaAssets: 17, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 2 },
+      exported: { content: 7, journeyStepPresetContent: 1, mediaAssets: 18, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 2 },
       imported: {
-        content: 6,
+        content: 7,
         journeyStepPresetContent: 1,
-        mediaAssets: 17,
+        mediaAssets: 18,
         contacts: 1,
         audiences: 1,
         audienceMembers: 2,

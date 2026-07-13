@@ -562,6 +562,10 @@ const contentMediaUrlKeys = [
   "image_url",
   "assetUrl",
   "asset_url",
+  "fileUrl",
+  "file_url",
+  "downloadUrl",
+  "download_url",
   "thumbnailUrl",
   "thumbnail_url",
   "coverImageUrl",
@@ -573,6 +577,15 @@ const contentMediaUrlKeys = [
   "videoUrl",
   "video_url",
 ] as const;
+const contentGenericUrlMediaKeys = ["url", "src", "href"] as const;
+
+function looksLikeMediaUrl(value: string) {
+  const trimmed = value.trim();
+  if (!/^https?:\/\//i.test(trimmed) && !trimmed.startsWith("/")) return false;
+  const path = trimmed.split(/[?#]/, 1)[0]?.toLowerCase() ?? "";
+  return /\.(avif|bmp|gif|heic|jpe?g|mov|mp3|mp4|mpeg|ogg|pdf|png|svg|webm|webp|wav)$/i.test(path);
+}
+
 const mediaContentRefKeys = [
   "contentAssetId",
   "content_asset_id",
@@ -627,13 +640,28 @@ function contentMediaAssetsFrom(row: Record<string, unknown>) {
     const url = emptyToNull(contentText(row, [key]));
     return url ? { url, sourceField: key } : null;
   }).filter((item): item is { url: string; sourceField: string } => Boolean(item));
+  const genericUrlAssets = contentGenericUrlMediaKeys.flatMap((key) => {
+    const url = emptyToNull(contentText(row, [key]));
+    return url && looksLikeMediaUrl(url) ? { url, sourceField: key } : null;
+  }).filter((item): item is { url: string; sourceField: string } => Boolean(item));
   const seen = new Set<string>();
-  return [...nestedAssets, ...urlAssets].filter((asset) => {
+  return [...nestedAssets, ...urlAssets, ...genericUrlAssets].filter((asset) => {
     const key = JSON.stringify(asset);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+function contentCtaUrlFromRow(row: Record<string, unknown>) {
+  for (const [value, key] of contentValues(row, contentCtaUrlKeys)) {
+    if (typeof value !== "string") continue;
+    const url = emptyToNull(value);
+    if (!url) continue;
+    if ((contentGenericUrlMediaKeys as readonly string[]).includes(key) && looksLikeMediaUrl(url)) continue;
+    return url;
+  }
+  return null;
 }
 
 function lovableAudiencePayload(payload: Record<string, unknown>) {
@@ -3144,7 +3172,7 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
     body: explicitBody || designBody || htmlText,
     html_body: htmlBody,
     cta_label: emptyToNull(contentText(row, [...contentCtaLabelKeys])),
-    cta_url: emptyToNull(contentText(row, [...contentCtaUrlKeys])),
+    cta_url: contentCtaUrlFromRow(row),
     design_json: designJson,
     media_assets: mediaAssets,
     source: "lovable",
