@@ -2523,6 +2523,17 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Ready for your OK");
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "upcoming");
+    const checklist = screen.getByTestId("panel-concierge-flow-checklist");
+    expect(checklist).toHaveTextContent("What is missing");
+    expect(checklist).toHaveTextContent("VYVA asks before anything is sent, called, or booked.");
+    expect(checklist).toHaveTextContent("Details");
+    expect(checklist).toHaveTextContent("Ready");
+    expect(checklist).toHaveTextContent("Provider");
+    expect(checklist).toHaveTextContent("Radio Taxi");
+    expect(checklist).toHaveTextContent("Contact");
+    expect(checklist).toHaveTextContent("Phone call");
+    expect(checklist).toHaveTextContent("Confirm");
+    expect(checklist).toHaveTextContent("Confirm ride call");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Next step");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Review & confirm");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Provider");
@@ -2786,6 +2797,10 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "done");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-waiting")).toHaveAttribute("data-state", "upcoming");
+    const checklist = screen.getByTestId("panel-concierge-flow-checklist");
+    expect(checklist).toHaveTextContent("Provider reply");
+    expect(checklist).toHaveTextContent("Waiting");
+    expect(checklist).toHaveTextContent("After reply");
   });
 
   it("records a confirmed provider reply through the existing completion endpoint", async () => {
