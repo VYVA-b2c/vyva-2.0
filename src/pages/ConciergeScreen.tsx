@@ -940,6 +940,22 @@ type BillDocumentAnalysis = {
   fallback_reason?: "missing_api_key" | "invalid_model_json" | "openai_error" | "unreadable";
 };
 
+type DocumentIntakeResult = {
+  file_name: string;
+  file_type: string;
+  file_size_bytes: number;
+  user_note: string;
+  document_type: BillDocumentAnalysis["document_type"] | "unreadable";
+  confidence: BillDocumentAnalysis["confidence"] | "unknown";
+  missing_fields: string[];
+  user_summary: string;
+  suggested_query: string;
+  analysis_status: "analyzed" | "fallback" | "metadata_only";
+  raw_file_stored: false;
+  captured_at: string;
+  extracted_data?: Record<string, unknown>;
+};
+
 type UtilityInputMethod = "upload" | "photo" | "voice" | "manual";
 type UtilityType = "electricity" | "gas" | "dual";
 type SavingsPanelView = "overview" | "utilities";
@@ -3434,6 +3450,106 @@ function payloadString(payload: Record<string, unknown> | null | undefined, keys
   return "";
 }
 
+function isDocumentIntakePendingAction(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
+  if (!item || item.status !== "pending") return false;
+  const toolText = [
+    payloadString(item.action_payload, ["requested_tool"]),
+    payloadString(item.action_payload, ["active_tool"]),
+    payloadString(item.action_payload, ["tool"]),
+    getExecutionChannel(item),
+  ].join(" ").toLowerCase();
+  return /\bcamera_or_upload\b/.test(toolText);
+}
+
+function documentIntakeFlowReference(item: ConciergePendingItem): ConciergeFlowReference {
+  const payloadReference = payloadString(item.action_payload, ["flow_reference"]);
+  if (isConciergeFlowReference(payloadReference)) return payloadReference;
+  if (item.use_case === "scam_check") return SCAM_CHECK_FLOW_REFERENCE;
+  if (item.use_case === "admin_task") return INSURANCE_ADMIN_FLOW_REFERENCE;
+  return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
+}
+
+function formatDocumentFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+async function analyzeDocumentIntakeFile(file: File, note: string, locale: string): Promise<DocumentIntakeResult> {
+  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  if (!file.type.startsWith("image/") && !isPdf) {
+    throw new Error(billClientMessage(locale, "unsupported"));
+  }
+
+  const base = {
+    file_name: file.name || (isPdf ? "document.pdf" : "photo"),
+    file_type: file.type || (isPdf ? "application/pdf" : "image"),
+    file_size_bytes: file.size,
+    user_note: note.trim(),
+    raw_file_stored: false as const,
+    captured_at: new Date().toISOString(),
+  };
+
+  try {
+    const documentDataUrl = isPdf ? await readFileAsDataUrl(file) : await compressBillImage(file);
+    const analysis = await analyzeBillDocument(documentDataUrl, locale);
+    return {
+      ...base,
+      document_type: analysis.document_type,
+      confidence: analysis.confidence,
+      missing_fields: analysis.missing_fields,
+      user_summary: analysis.user_summary,
+      suggested_query: analysis.suggested_query,
+      analysis_status: analysis.isFallback ? "fallback" : "analyzed",
+      extracted_data: billAnalysisToUtilityExtracted(analysis),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    return {
+      ...base,
+      document_type: "unreadable",
+      confidence: "unknown",
+      missing_fields: [],
+      user_summary: message || (locale.startsWith("es")
+        ? "Documento recibido para revision de VYVA."
+        : "Document received for VYVA review."),
+      suggested_query: "",
+      analysis_status: "metadata_only",
+    };
+  }
+}
+
+function documentIntakeOutcomeSummary(result: DocumentIntakeResult, isSpanish: boolean): string {
+  const label = result.document_type === "unreadable"
+    ? (isSpanish ? "documento" : "document")
+    : billDocumentLabel(result.document_type, isSpanish);
+  return isSpanish
+    ? `${label} recibido. VYVA no guarda el archivo original.`
+    : `${label} received. VYVA does not store the original file.`;
+}
+
+function documentIntakeOutcomePayload(item: ConciergePendingItem, result: DocumentIntakeResult): Record<string, unknown> {
+  return {
+    flow_reference: documentIntakeFlowReference(item),
+    execution_type: "document_photo_intake",
+    file_name: result.file_name,
+    file_type: result.file_type,
+    file_size_bytes: result.file_size_bytes,
+    file_size_label: formatDocumentFileSize(result.file_size_bytes),
+    user_note: result.user_note || null,
+    document_type: result.document_type,
+    confidence: result.confidence,
+    missing_fields: result.missing_fields,
+    user_summary: result.user_summary,
+    suggested_query: result.suggested_query || null,
+    analysis_status: result.analysis_status,
+    extracted_data: result.extracted_data ?? null,
+    raw_file_stored: false,
+    no_external_action_without_confirmation: true,
+    captured_at: result.captured_at,
+  };
+}
+
 function getActionEmailDraft(item: ConciergePendingItem): ConciergeEmailDraft | null {
   const payload = item.action_payload;
   const address = payloadString(payload, [
@@ -4533,6 +4649,141 @@ function ProviderSearchFollowThroughPanel({
   );
 }
 
+function DocumentPhotoIntakePanel({
+  item,
+  note,
+  result,
+  error,
+  isReading,
+  isSaving,
+  isSpanish,
+  onNoteChange,
+  onFile,
+  onSave,
+}: {
+  item: ConciergePendingItem;
+  note: string;
+  result: DocumentIntakeResult | null;
+  error: string | null;
+  isReading: boolean;
+  isSaving: boolean;
+  isSpanish: boolean;
+  onNoteChange: (value: string) => void;
+  onFile: (file: File) => void;
+  onSave: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] p-4"
+      data-testid={`panel-document-intake-${item.id}`}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        capture="environment"
+        className="hidden"
+        data-testid={`input-document-intake-file-${item.id}`}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) onFile(file);
+        }}
+      />
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-vyva-purple shadow-sm">
+          <FileUp size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+            {isSpanish ? "Documento o foto" : "Document or photo"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {isSpanish ? "Adjuntar para revisar" : "Attach for review"}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "VYVA lee lo posible y guarda solo el resumen. El archivo original no se guarda."
+              : "VYVA reads what it can and saves only the summary. The original file is not stored."}
+          </span>
+        </span>
+      </div>
+
+      <textarea
+        value={note}
+        onChange={(event) => onNoteChange(event.target.value)}
+        placeholder={isSpanish ? "Nota breve: que le preocupa?" : "Short note: what worries you?"}
+        data-testid={`input-document-intake-note-${item.id}`}
+        className="mt-3 min-h-[72px] w-full rounded-[16px] border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-vyva-purple focus:ring-2 focus:ring-[#EDE9FE]"
+      />
+
+      {isReading ? (
+        <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-3 py-3 font-body text-[13px] font-bold text-vyva-text-2">
+          <Loader2 size={16} className="animate-spin text-vyva-purple" />
+          {isSpanish ? "Leyendo documento..." : "Reading document..."}
+        </div>
+      ) : null}
+
+      {result ? (
+        <div className="mt-3 space-y-2" data-testid={`document-intake-result-${item.id}`}>
+          <div className="rounded-[16px] bg-white p-3 shadow-sm">
+            <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+              {billDocumentLabel(result.document_type === "unreadable" ? "unknown" : result.document_type, isSpanish)}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-1">
+              {result.user_summary}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full bg-white px-3 py-1 font-body text-[11px] font-black text-vyva-purple shadow-sm">
+              {result.file_name}
+            </span>
+            <span className="rounded-full bg-white px-3 py-1 font-body text-[11px] font-black text-vyva-purple shadow-sm">
+              {formatDocumentFileSize(result.file_size_bytes)}
+            </span>
+            <span className="rounded-full bg-white px-3 py-1 font-body text-[11px] font-black text-[#047857] shadow-sm">
+              {isSpanish ? "Archivo no guardado" : "File not stored"}
+            </span>
+          </div>
+        </div>
+      ) : null}
+
+      {error ? (
+        <p data-testid={`document-intake-error-${item.id}`} className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Button
+          type="button"
+          data-testid={`button-document-intake-upload-${item.id}`}
+          onClick={() => inputRef.current?.click()}
+          disabled={isReading || isSaving}
+          className="vyva-primary-action h-auto"
+        >
+          {isReading ? <Loader2 size={15} className="mr-2 animate-spin" /> : <Camera size={15} className="mr-2" />}
+          {result
+            ? (isSpanish ? "Cambiar archivo" : "Change file")
+            : (isSpanish ? "Adjuntar" : "Attach file")}
+        </Button>
+        <Button
+          type="button"
+          data-testid={`button-document-intake-save-${item.id}`}
+          onClick={onSave}
+          disabled={!result || isReading || isSaving}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#DDD6FE] text-vyva-purple"
+        >
+          {isSaving ? <Loader2 size={15} className="mr-2 animate-spin" /> : <CircleCheck size={15} className="mr-2" />}
+          {isSpanish ? "Guardar y cerrar" : "Save and close"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "item" | "isSpanish" | "formMissingFields">): string {
   const { item, isSpanish, formMissingFields } = params;
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
@@ -5542,6 +5793,9 @@ const ConciergeScreen = () => {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersResult, setOffersResult] = useState<OffersSearchResponse | null>(null);
   const [offersError, setOffersError] = useState<string | null>(null);
+  const [documentIntakeResultsByActionId, setDocumentIntakeResultsByActionId] = useState<Record<string, DocumentIntakeResult>>({});
+  const [documentIntakeErrorsByActionId, setDocumentIntakeErrorsByActionId] = useState<Record<string, string>>({});
+  const [documentIntakeNotesByActionId, setDocumentIntakeNotesByActionId] = useState<Record<string, string>>({});
   const [objectiveProofOpen, setObjectiveProofOpen] = useState(false);
   const [expandedOfferScoreKey, setExpandedOfferScoreKey] = useState<string | null>(null);
   const [billAnalysis, setBillAnalysis] = useState<BillDocumentAnalysis | null>(null);
@@ -6181,6 +6435,72 @@ const ConciergeScreen = () => {
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
       ]);
+    },
+  });
+
+  const readDocumentIntakeMutation = useMutation({
+    mutationFn: ({ item, file, note }: { item: ConciergePendingItem; file: File; note: string }) => (
+      analyzeDocumentIntakeFile(file, note, language)
+    ),
+    onMutate: ({ item }) => {
+      setDocumentIntakeErrorsByActionId((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+    },
+    onSuccess: (result, { item }) => {
+      setDocumentIntakeResultsByActionId((current) => ({
+        ...current,
+        [item.id]: result,
+      }));
+    },
+    onError: (error, { item }) => {
+      setDocumentIntakeErrorsByActionId((current) => ({
+        ...current,
+        [item.id]: error instanceof Error
+          ? error.message
+          : (isSpanish ? "No he podido leer el documento." : "I could not read the document."),
+      }));
+    },
+  });
+
+  const completeDocumentIntakeMutation = useMutation({
+    mutationFn: ({ item, result }: { item: ConciergePendingItem; result: DocumentIntakeResult }) => (
+      completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: documentIntakeOutcomeSummary(result, isSpanish),
+        outcomePayload: documentIntakeOutcomePayload(item, result),
+      })
+    ),
+    onSuccess: async (_result, { item }) => {
+      setDocumentIntakeResultsByActionId((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      setDocumentIntakeErrorsByActionId((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      setDocumentIntakeNotesByActionId((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error, { item }) => {
+      setDocumentIntakeErrorsByActionId((current) => ({
+        ...current,
+        [item.id]: error instanceof Error
+          ? error.message
+          : (isSpanish ? "No he podido guardar el documento." : "I could not save the document."),
+      }));
     },
   });
 
@@ -8535,6 +8855,16 @@ const ConciergeScreen = () => {
   const activeActionProviderSearchDetails = isProviderSearchPendingAction(activeAction)
     ? providerSearchActionDetails(activeAction, isSpanish)
     : null;
+  const activeActionDocumentIntake = isDocumentIntakePendingAction(activeAction) ? activeAction : null;
+  const activeActionDocumentIntakeResult = activeActionDocumentIntake
+    ? documentIntakeResultsByActionId[activeActionDocumentIntake.id] ?? null
+    : null;
+  const activeActionDocumentIntakeError = activeActionDocumentIntake
+    ? documentIntakeErrorsByActionId[activeActionDocumentIntake.id] ?? null
+    : null;
+  const activeActionDocumentIntakeNote = activeActionDocumentIntake
+    ? documentIntakeNotesByActionId[activeActionDocumentIntake.id] ?? ""
+    : "";
   const selectedScamCheckOption = SCAM_CHECK_OPTIONS.find((option) => option.key === selectedScamCheckKind) ?? null;
   const selectedScamCheckCopy = selectedScamCheckOption
     ? scamCheckDetailCopy(selectedScamCheckOption.key, isSpanish)
@@ -10454,6 +10784,39 @@ const ConciergeScreen = () => {
                 onReply={() => openProviderReplyMode(activeAction, "confirmed")}
                 onSaveProvider={() => handleSaveProviderSearchProvider(activeAction)}
                 onTryAnother={() => handleProviderSearchTryAnother(activeAction)}
+              />
+            ) : null}
+
+            {activeActionDocumentIntake ? (
+              <DocumentPhotoIntakePanel
+                item={activeActionDocumentIntake}
+                note={activeActionDocumentIntakeNote}
+                result={activeActionDocumentIntakeResult}
+                error={activeActionDocumentIntakeError}
+                isReading={readDocumentIntakeMutation.isPending}
+                isSaving={completeDocumentIntakeMutation.isPending}
+                isSpanish={isSpanish}
+                onNoteChange={(value) => {
+                  setDocumentIntakeNotesByActionId((current) => ({
+                    ...current,
+                    [activeActionDocumentIntake.id]: value,
+                  }));
+                }}
+                onFile={(file) => readDocumentIntakeMutation.mutate({
+                  item: activeActionDocumentIntake,
+                  file,
+                  note: activeActionDocumentIntakeNote,
+                })}
+                onSave={() => {
+                  if (!activeActionDocumentIntakeResult) return;
+                  completeDocumentIntakeMutation.mutate({
+                    item: activeActionDocumentIntake,
+                    result: {
+                      ...activeActionDocumentIntakeResult,
+                      user_note: activeActionDocumentIntakeNote.trim(),
+                    },
+                  });
+                }}
               />
             ) : null}
 

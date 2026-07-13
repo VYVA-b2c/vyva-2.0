@@ -2593,6 +2593,116 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
   });
 
+  it("intakes a document/photo task without storing the raw file", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "doc-intake-1",
+            use_case: "admin_task",
+            provider_name: "VYVA review",
+            provider_phone: null,
+            action_summary: "Paperwork task prepared: Insurance letter or bill.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+              requested_tool: "camera_or_upload",
+              active_tool: "camera_or_upload",
+              readiness_status: "ready",
+              execution_channel: "manual",
+              draft_message: "Help me understand an insurance letter or bill.",
+              no_external_action_without_confirmation: true,
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      if (target.endsWith("/api/bill-reader/analyze")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.locale).toBe("en");
+        expect(String(body.image)).toContain("data:application/pdf");
+        return jsonResponse({
+          document_type: "insurance_policy",
+          category: "insurance",
+          provider_name: "Seguro Vida",
+          service_address: null,
+          postcode: null,
+          cups: null,
+          billing_period: "2026",
+          billing_period_days: null,
+          total_amount: 120,
+          power_kw: null,
+          currency: "EUR",
+          usage: { kwh: null, gas_kwh: null, data_or_phone_plan: null },
+          tariff_or_plan: "Senior cover",
+          unit_prices: { electricity_price_per_kwh: null, gas_price_per_kwh: null, standing_charge: null },
+          confidence: "medium",
+          missing_fields: ["policy number"],
+          suggested_query: "review insurance policy next steps",
+          user_summary: "This looks like an insurance policy renewal. Check the policy number before sending anything.",
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/doc-intake-1/complete")) {
+        expect(init?.method).toBe("POST");
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-doc-1" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-document-intake-doc-intake-1");
+    expect(panel).toHaveTextContent("Document or photo");
+    expect(panel).toHaveTextContent("The original file is not stored.");
+    expect(screen.getByTestId("button-concierge-confirm-doc-intake-1")).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("input-document-intake-note-doc-intake-1"), {
+      target: { value: "It asks for bank details." },
+    });
+    const file = new File(["fake pdf content"], "insurance-letter.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByTestId("input-document-intake-file-doc-intake-1"), {
+      target: { files: [file] },
+    });
+
+    const result = await screen.findByTestId("document-intake-result-doc-intake-1");
+    expect(result).toHaveTextContent("Insurance");
+    expect(result).toHaveTextContent("insurance policy renewal");
+    expect(result).toHaveTextContent("insurance-letter.pdf");
+    expect(result).toHaveTextContent("File not stored");
+
+    fireEvent.change(screen.getByTestId("input-document-intake-note-doc-intake-1"), {
+      target: { value: "Updated concern: asks for bank details." },
+    });
+    fireEvent.click(screen.getByTestId("button-document-intake-save-doc-intake-1"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/concierge/actions/doc-intake-1/complete",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    const completionCall = apiFetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/concierge/actions/doc-intake-1/complete"));
+    const completionBody = JSON.parse(String(completionCall?.[1]?.body));
+    expect(completionBody.outcome_summary).toContain("Insurance");
+    expect(completionBody.outcome_payload).toMatchObject({
+      flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+      execution_type: "document_photo_intake",
+      file_name: "insurance-letter.pdf",
+      document_type: "insurance_policy",
+      confidence: "medium",
+      raw_file_stored: false,
+      no_external_action_without_confirmation: true,
+      user_note: "Updated concern: asks for bank details.",
+    });
+    expect(completionBody.outcome_payload.extracted_data).toMatchObject({
+      provider_name: "Seguro Vida",
+      document_type: "insurance_policy",
+    });
+    expect(JSON.stringify(completionBody.outcome_payload)).not.toContain("fake pdf content");
+  });
+
   it("renders prepared provider phone actions as direct call links", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
