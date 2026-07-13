@@ -2025,6 +2025,20 @@ function syncUnmappedSample(summary: Record<string, unknown>) {
   return ids.map((id) => String(id)).filter(Boolean).slice(0, 5);
 }
 
+function syncExportMetadata(summary: Record<string, unknown>) {
+  const metadata = recordValue(summary.exportMetadata);
+  const topLevelKeys = Array.isArray(metadata.topLevelKeys)
+    ? metadata.topLevelKeys.map((key) => String(key)).filter(Boolean)
+    : [];
+  return {
+    dataset: typeof metadata.dataset === "string" && metadata.dataset.trim() ? metadata.dataset.trim() : "",
+    exportedAt: typeof metadata.exportedAt === "string" && metadata.exportedAt.trim() ? metadata.exportedAt.trim() : "",
+    cursor: typeof metadata.cursor === "string" && metadata.cursor.trim() ? metadata.cursor.trim() : "",
+    apiUrl: typeof metadata.apiUrl === "string" && metadata.apiUrl.trim() ? metadata.apiUrl.trim() : "",
+    topLevelKeys,
+  };
+}
+
 function syncContentSourceItems(summary: Record<string, unknown>) {
   return Object.entries(recordValue(summary.contentSourceCounts))
     .map(([key, value]) => ({ key, label: contentSourceLabel(key), value: numberValue(value) }))
@@ -2418,9 +2432,30 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
   const unmappedCampaignRecipientCount = syncUnmappedCampaignRecipientCount(run.summary);
   const unmappedSample = syncUnmappedSample(run.summary);
   const fieldCoverage = syncFieldCoverageItems(run.summary);
-  if (!exported.length && !imported.length && !skipped.length && !parity.length && !unmappedCount && !unmappedCampaignRecipientCount && !fieldCoverage.length) return null;
+  const exportMetadata = syncExportMetadata(run.summary);
+  const hasExportMetadata = Boolean(exportMetadata.dataset || exportMetadata.exportedAt || exportMetadata.cursor || exportMetadata.apiUrl || exportMetadata.topLevelKeys.length);
+  if (!exported.length && !imported.length && !skipped.length && !parity.length && !unmappedCount && !unmappedCampaignRecipientCount && !fieldCoverage.length && !hasExportMetadata) return null;
   return (
     <div className="mt-3 grid gap-2 rounded-xl bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-sync-diagnostics-${run.id}`}>
+      {hasExportMetadata ? (
+        <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-950" data-testid={`marketing-sync-export-metadata-${run.id}`}>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="uppercase tracking-[0.12em] text-blue-800">Lovable export snapshot</p>
+              <p className="mt-1 font-black">Dataset: {exportMetadata.dataset || "unknown"}</p>
+              {exportMetadata.exportedAt ? <p className="mt-1 font-semibold">Exported at {formatDate(exportMetadata.exportedAt)}</p> : null}
+              {exportMetadata.apiUrl ? <p className="mt-1 font-semibold">Endpoint: {exportMetadata.apiUrl}</p> : null}
+              {exportMetadata.cursor ? <p className="mt-1 font-semibold">Cursor: {exportMetadata.cursor}</p> : null}
+            </div>
+            <Pill className="bg-white text-blue-800">imported snapshot</Pill>
+          </div>
+          {exportMetadata.topLevelKeys.length ? (
+            <p className="mt-2 rounded-lg bg-white p-2 font-semibold text-[#5b4a46]">
+              Top-level export keys: {exportMetadata.topLevelKeys.slice(0, 18).join(", ")}{exportMetadata.topLevelKeys.length > 18 ? `, +${exportMetadata.topLevelKeys.length - 18} more` : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {parity.length ? (
         <div data-testid={`marketing-sync-parity-${run.id}`}>
           <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Parity checklist</p>

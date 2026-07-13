@@ -445,6 +445,13 @@ const sync = {
       exported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, audiences: 1 },
       imported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1, campaignRecipients: 1, missingContentReferences: 1 },
       skipped: {},
+      exportMetadata: {
+        dataset: "live",
+        exportedAt: "2026-07-05T09:01:30.000Z",
+        cursor: "cursor-1",
+        apiUrl: "https://lovable.example.test",
+        topLevelKeys: ["campaigns", "contacts", "exportedAt", "journey_step_events", "saved_email_templates", "social_posts"],
+      },
       contentSourceCounts: { saved_email_template: 1, social_post: 1, missing_lovable_reference: 1 },
       unmapped: {
         audienceContactExternalIdCount: 1,
@@ -904,6 +911,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Disabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Manual Run due emails button only");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Dataset: live");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Exported at");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Endpoint: https://lovable.example.test");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Cursor: cursor-1");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("saved_email_templates");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Exported by Lovable");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Audiences: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Media assets: 1");

@@ -277,6 +277,16 @@ function lovableMarketingSyncDiagnostics(apiUrl: string, apiKey: string) {
   };
 }
 
+function lovableExportMetadata(payload: Record<string, unknown>, apiUrl: string) {
+  return {
+    dataset: textFrom(payload, ["dataset", "environment", "source"], "unknown"),
+    exportedAt: textFrom(payload, ["exportedAt", "exported_at", "updatedAt", "updated_at"]) || null,
+    cursor: typeof payload.cursor === "string" && payload.cursor.trim() ? payload.cursor.trim() : null,
+    apiUrl: safeUrlOrigin(apiUrl),
+    topLevelKeys: Object.keys(payload).sort(),
+  };
+}
+
 function marketingEmailSchedulerStatus() {
   const enabled = process.env.MARKETING_EMAIL_SCHEDULER_ENABLED === "true";
   const intervalMinutes = Math.max(1, Number(process.env.MARKETING_EMAIL_SCHEDULER_INTERVAL_MINUTES ?? 5));
@@ -3160,13 +3170,14 @@ adminMarketingRouter.get("/sync/lovable/preview", async (req, res) => {
     if (!response.ok) throw new Error(String(payload.error ?? payload.message ?? `Lovable export preview failed with ${response.status}`));
 
     const summary = lovableExportSummary(payload);
+    const exportMetadata = lovableExportMetadata(payload, apiUrl);
     return res.json({
       ok: true,
       checkedAt: new Date().toISOString(),
-      apiUrl: safeUrlOrigin(apiUrl),
-      dataset: textFrom(payload, ["dataset", "environment", "source"], "unknown"),
-      exportedAt: textFrom(payload, ["exportedAt", "exported_at", "updatedAt", "updated_at"]),
-      topLevelKeys: Object.keys(payload).sort(),
+      apiUrl: exportMetadata.apiUrl,
+      dataset: exportMetadata.dataset,
+      exportedAt: exportMetadata.exportedAt,
+      topLevelKeys: exportMetadata.topLevelKeys,
       summary,
       samples: lovableExportSamples(payload),
       rawArraySamples: topLevelArraySamples(payload),
@@ -4298,6 +4309,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     };
     const uniqueUnmappedAudienceContactExternalIds = Array.from(new Set(unmappedAudienceContactExternalIds));
     const uniqueUnmappedCampaignRecipientExternalIds = Array.from(new Set(unmappedCampaignRecipientExternalIds));
+    const exportMetadata = lovableExportMetadata(payload, apiUrl);
     const summary = {
       ...imported,
       exported,
@@ -4324,13 +4336,14 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       },
       contentSourceCounts,
       fieldCoverage,
+      exportMetadata,
       mode: "one_way_into_vyva",
       dispatch_locked: true,
     };
     const [completed] = await db.update(marketingSyncRuns).set({
       status: "succeeded",
       completed_at: new Date(),
-      cursor: typeof payload.cursor === "string" ? payload.cursor : null,
+      cursor: exportMetadata.cursor,
       summary,
     }).where(eq(marketingSyncRuns.id, run.id)).returning();
     return res.json({ ok: true, run: serializeSyncRun(completed), summary });

@@ -1332,6 +1332,8 @@ describe("admin marketing router", () => {
       type: "image",
     }));
     const lovablePayload = {
+      dataset: "live",
+      exportedAt: "2026-07-05T12:00:00.000Z",
       content: [{
         id: "content:content-1",
         title: "Welcome email",
@@ -1872,6 +1874,13 @@ describe("admin marketing router", () => {
       },
       contentSourceCounts: {
         journey_step_preset: 1,
+      },
+      exportMetadata: {
+        dataset: "live",
+        exportedAt: "2026-07-05T12:00:00.000Z",
+        cursor: "cursor-1",
+        apiUrl: "https://lovable.example.test",
+        topLevelKeys: expect.arrayContaining(["campaigns", "content", "contacts", "cursor", "dataset", "exportedAt"]),
       },
       unmapped: {
         audienceContactExternalIdCount: 1,
