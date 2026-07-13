@@ -209,6 +209,12 @@ type MarketingCampaignMetric = MarketingAnalyticsTotals & {
   metadata?: Record<string, unknown>;
 };
 
+type CampaignMetricSummary = MarketingAnalyticsTotals & {
+  metricCount: number;
+  latestMetricDate: string | null;
+  channels: string[];
+};
+
 type JourneyEnrollment = {
   id: string;
   journeyId: string;
@@ -1580,6 +1586,20 @@ function sumMarketingMetrics(metrics: MarketingCampaignMetric[]): MarketingAnaly
   }), { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, replied: 0, socialEngagement: 0 });
 }
 
+function summarizeCampaignMetrics(metrics: MarketingCampaignMetric[]): CampaignMetricSummary {
+  const totals = sumMarketingMetrics(metrics);
+  const latestMetricDate = metrics
+    .map((metric) => metric.metricDate)
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+  return {
+    ...totals,
+    metricCount: metrics.length,
+    latestMetricDate,
+    channels: Array.from(new Set(metrics.map((metric) => metric.channel).filter(Boolean))).sort(),
+  };
+}
+
 function contactSearchText(contact: MarketingContact) {
   return [
     contact.id,
@@ -2592,6 +2612,15 @@ export default function MarketingAdminPage() {
     const matchesChannel = channelFilter === "all" || metric.channel === channelFilter || metric.channel === "all";
     return metricMatchesSearch && matchesAudience && matchesChannel;
   }), [campaignMetrics, search, audienceFilter, channelFilter, campaignById]);
+
+  const campaignMetricSummaryByCampaignId = useMemo(() => {
+    const grouped = new Map<string, MarketingCampaignMetric[]>();
+    for (const metric of campaignMetrics) {
+      if (!metric.campaignId) continue;
+      grouped.set(metric.campaignId, [...(grouped.get(metric.campaignId) ?? []), metric]);
+    }
+    return new Map(Array.from(grouped.entries()).map(([campaignId, metrics]) => [campaignId, summarizeCampaignMetrics(metrics)]));
+  }, [campaignMetrics]);
 
   const visibleContent = useMemo(() => content.filter((item) => {
     const contentMatchesSearch = matchesSearch(search, [
@@ -4209,6 +4238,7 @@ export default function MarketingAdminPage() {
                     campaigns={visibleCampaigns}
                     contentById={contentById}
                     contentTitleById={contentTitleById}
+                    metricsByCampaignId={campaignMetricSummaryByCampaignId}
                     audiences={audiences}
                     activeCampaignId={editingCampaignId}
                     onEdit={startCampaignEdit}
@@ -5706,6 +5736,7 @@ export default function MarketingAdminPage() {
                   campaigns={visibleCampaigns}
                   contentById={contentById}
                   contentTitleById={contentTitleById}
+                  metricsByCampaignId={campaignMetricSummaryByCampaignId}
                   audiences={audiences}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
@@ -5719,6 +5750,7 @@ export default function MarketingAdminPage() {
                   campaigns={visibleCampaigns.filter((campaign) => campaign.scheduleStartsAt || campaign.status === "scheduled")}
                   contentById={contentById}
                   contentTitleById={contentTitleById}
+                  metricsByCampaignId={campaignMetricSummaryByCampaignId}
                   audiences={audiences}
                   activeCampaignId={editingCampaignId}
                   onEdit={openCampaignFromCalendar}
@@ -6570,10 +6602,74 @@ function EmptyState({ text }: { text: string }) {
   return <p className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4 text-center text-sm font-bold text-[#8b7a73]">{text}</p>;
 }
 
+function CampaignPerformanceSummary({
+  summary,
+  testId,
+}: {
+  summary?: CampaignMetricSummary | null;
+  testId: string;
+}) {
+  if (!summary || summary.metricCount === 0) {
+    return (
+      <div className="grid gap-1" data-testid={testId}>
+        <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">No imported metrics</Pill>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid min-w-[170px] gap-1.5" data-testid={testId}>
+      <div className="flex flex-wrap gap-1.5">
+        <Pill className="bg-blue-50 text-blue-800">{summary.sent} sent</Pill>
+        <Pill className="bg-emerald-50 text-emerald-800">{summary.delivered} delivered</Pill>
+        <Pill className="bg-purple-50 text-purple-800">{summary.opened} opened</Pill>
+        <Pill className="bg-amber-50 text-amber-800">{summary.clicked} clicked</Pill>
+      </div>
+      <p className="text-xs font-bold text-[#8b7a73]">
+        {summary.metricCount} snapshot{summary.metricCount === 1 ? "" : "s"}
+        {summary.channels.length ? ` / ${summary.channels.join(", ")}` : ""}
+      </p>
+      {summary.latestMetricDate ? (
+        <p className="text-xs font-bold text-[#8b7a73]">Latest {formatDate(summary.latestMetricDate)}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function CampaignPerformanceInlineSummary({
+  summary,
+  testId,
+}: {
+  summary?: CampaignMetricSummary | null;
+  testId: string;
+}) {
+  if (!summary || summary.metricCount === 0) {
+    return (
+      <span className="block" data-testid={testId}>
+        <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">No imported metrics</Pill>
+      </span>
+    );
+  }
+
+  return (
+    <span className="block" data-testid={testId}>
+      <span className="flex flex-wrap gap-1.5">
+        <Pill className="bg-blue-50 text-blue-800">{summary.sent} sent</Pill>
+        <Pill className="bg-purple-50 text-purple-800">{summary.opened} opened</Pill>
+        <Pill className="bg-amber-50 text-amber-800">{summary.clicked} clicked</Pill>
+      </span>
+      <span className="mt-1 block text-xs font-bold text-[#8b7a73]">
+        {summary.metricCount} snapshot{summary.metricCount === 1 ? "" : "s"}
+      </span>
+    </span>
+  );
+}
+
 function CampaignTable({
   campaigns,
   contentById = new Map<string, ContentAsset>(),
   contentTitleById = new Map<string, string>(),
+  metricsByCampaignId = new Map<string, CampaignMetricSummary>(),
   audiences = [],
   activeCampaignId,
   onEdit,
@@ -6586,6 +6682,7 @@ function CampaignTable({
   campaigns: Campaign[];
   contentById?: ReadonlyMap<string, ContentAsset>;
   contentTitleById?: ReadonlyMap<string, string>;
+  metricsByCampaignId?: ReadonlyMap<string, CampaignMetricSummary>;
   audiences?: MarketingAudience[];
   activeCampaignId?: string | null;
   onEdit?: (campaign: Campaign) => void;
@@ -6605,18 +6702,20 @@ function CampaignTable({
             <th className="px-4 py-3">Audience</th>
             <th className="px-4 py-3">Channels</th>
             <th className="px-4 py-3">Schedule</th>
+            <th className="px-4 py-3">Performance</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Recipients</th>
-            {showActions ? <th className="px-4 py-3">Actions</th> : null}
+            {showActions ? <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
           {campaigns.length === 0 ? (
-            <tr><td colSpan={showActions ? 7 : 6} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
+            <tr><td colSpan={showActions ? 8 : 7} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
           ) : campaigns.map((campaign) => {
             const isActive = activeCampaignId === campaign.id;
             const deleteIsArmed = confirmingDeleteId === campaign.id;
             const targetAudience = campaignTargetAudience(campaign, audiences);
+            const metricSummary = metricsByCampaignId.get(campaign.id);
             return (
             <tr
               key={campaign.id}
@@ -6695,11 +6794,14 @@ function CampaignTable({
                 <p>{formatDate(campaign.scheduleStartsAt)}</p>
                 {campaign.scheduleEndsAt ? <p className="text-xs">Ends {formatDate(campaign.scheduleEndsAt)}</p> : null}
               </td>
+              <td className="px-4 py-3">
+                <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-campaign-performance-${campaign.id}`} />
+              </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
               <td className="px-4 py-3 font-black">{campaign.recipientCount}</td>
               {showActions ? (
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
+                <td className={`sticky right-0 z-10 w-[230px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${isActive || deleteIsArmed ? "bg-purple-50" : "bg-white"}`}>
+                  <div className="flex w-[190px] flex-wrap gap-2">
                     {onEdit ? (
                       <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
                         <Pencil size={14} /> Edit
@@ -6731,6 +6833,7 @@ function MarketingCalendarView({
   campaigns,
   contentById = new Map<string, ContentAsset>(),
   contentTitleById = new Map<string, string>(),
+  metricsByCampaignId = new Map<string, CampaignMetricSummary>(),
   audiences = [],
   onEdit,
   onDelete,
@@ -6741,6 +6844,7 @@ function MarketingCalendarView({
   campaigns: Campaign[];
   contentById?: ReadonlyMap<string, ContentAsset>;
   contentTitleById?: ReadonlyMap<string, string>;
+  metricsByCampaignId?: ReadonlyMap<string, CampaignMetricSummary>;
   audiences?: MarketingAudience[];
   onEdit: (campaign: Campaign) => void;
   onDelete: (campaign: Campaign) => void;
@@ -6776,6 +6880,7 @@ function MarketingCalendarView({
             <div className="grid gap-2">
               {day.campaigns.map((campaign) => {
                 const targetAudience = campaignTargetAudience(campaign, audiences);
+                const metricSummary = metricsByCampaignId.get(campaign.id);
                 return (
                 <article key={campaign.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -6797,6 +6902,9 @@ function MarketingCalendarView({
                       ) : null}
                       <Pill className="bg-[#f5eee8] text-[#7d6b65]">{campaign.recipientCount} recipients</Pill>
                     </div>
+                  </div>
+                  <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                    <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-calendar-performance-${campaign.id}`} />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="grid gap-1.5">
@@ -6867,6 +6975,7 @@ function MarketingCalendarView({
           <EmptyState text="No unscheduled campaigns." />
         ) : unscheduledCampaigns.map((campaign) => {
           const targetAudience = campaignTargetAudience(campaign, audiences);
+          const metricSummary = metricsByCampaignId.get(campaign.id);
           return (
           <button
             key={campaign.id}
@@ -6900,6 +7009,9 @@ function MarketingCalendarView({
                 })}
               </span>
             ) : null}
+            <span className="mt-3 block rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-2">
+              <CampaignPerformanceInlineSummary summary={metricSummary} testId={`marketing-calendar-unscheduled-performance-${campaign.id}`} />
+            </span>
           </button>
           );
         })}

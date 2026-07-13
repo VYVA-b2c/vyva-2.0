@@ -734,6 +734,9 @@ describe("MarketingAdminPage", () => {
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("1/2 mapped");
+    expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("66 sent");
+    expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("44 opened");
+    expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("4 clicked");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1-linkedin")).toHaveTextContent("Partner post");
 
@@ -1118,8 +1121,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-calendar-timeline")).toHaveTextContent("1 scheduled");
     expect(screen.getByTestId("marketing-calendar-channel-link-channel-1")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-calendar-performance-campaign-1")).toHaveTextContent("66 sent");
+    expect(screen.getByTestId("marketing-calendar-performance-campaign-1")).toHaveTextContent("44 opened");
     expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-calendar-unscheduled-channel-link-channel-2")).toHaveTextContent("No content linked");
+    expect(screen.getByTestId("marketing-calendar-unscheduled-performance-campaign-2")).toHaveTextContent("No imported metrics");
 
     fireEvent.click(screen.getByTestId("button-marketing-calendar-edit-campaign-1"));
 
