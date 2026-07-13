@@ -255,7 +255,7 @@ const journeyEnrollments = [
     id: "enrollment-1",
     journeyId: "journey-1",
     journeyName: "B2B nurture",
-    contactId: "contact-2",
+    contactId: null,
     contactExternalId: "lovable-contact-2",
     status: "active",
     currentStepOrder: 0,
@@ -753,6 +753,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Goal: activation");
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / Welcome email");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-2");
+    expect(screen.getByTestId("marketing-journey-enrollment-contact-enrollment-1")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-journey-enrollment-contact-enrollment-1")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-journey-enrollment-contact-enrollment-1")).toHaveTextContent("Moka Digital");
+    expect(screen.getByTestId("marketing-journey-enrollment-contact-enrollment-1")).toHaveTextContent("Linked from lovable-contact-2");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-overflow-11");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Lovable enrollment ID: enrollment-1");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Entered");

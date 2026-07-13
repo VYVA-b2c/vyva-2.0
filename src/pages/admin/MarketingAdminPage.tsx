@@ -640,7 +640,20 @@ function channelClass(channel: Channel) {
 }
 
 function lower(value: string | null | undefined) {
-  return value?.toLowerCase() ?? "";
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function lookupKeysForExternalId(value: string | null | undefined, prefixes: string[] = []) {
+  const normalized = lower(value);
+  if (!normalized) return [];
+  const keys = new Set([normalized]);
+  const [, suffix] = normalized.includes(":") ? normalized.split(/:(.+)/) : ["", ""];
+  if (suffix) keys.add(suffix);
+  const base = suffix || normalized;
+  for (const prefix of prefixes) {
+    keys.add(`${prefix}:${base}`);
+  }
+  return Array.from(keys);
 }
 
 function splitTags(value: string) {
@@ -2557,6 +2570,15 @@ export default function MarketingAdminPage() {
   const campaignById = useMemo(() => new Map(campaigns.map((campaign) => [campaign.id, campaign])), [campaigns]);
   const journeyById = useMemo(() => new Map(journeys.map((journey) => [journey.id, journey])), [journeys]);
   const contactById = useMemo(() => new Map(contacts.map((contact) => [contact.id, contact])), [contacts]);
+  const contactByImportId = useMemo(() => {
+    const map = new Map<string, MarketingContact>();
+    for (const contact of contacts) {
+      for (const key of [...lookupKeysForExternalId(contact.id, ["contact"]), ...lookupKeysForExternalId(contact.lovableExternalId, ["contact"])]) {
+        map.set(key, contact);
+      }
+    }
+    return map;
+  }, [contacts]);
   const contentSourceOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of content) {
@@ -2783,9 +2805,24 @@ export default function MarketingAdminPage() {
     return journeyMatchesSearch && matchesAudience && matchesChannel;
   }), [journeys, search, audienceFilter, channelFilter, audiences, contentTitleById]);
 
+  const contactByJourneyEnrollmentId = useMemo(() => {
+    const map = new Map<string, MarketingContact>();
+    for (const enrollment of journeyEnrollments) {
+      const directContact = enrollment.contactId ? contactById.get(enrollment.contactId) ?? null : null;
+      const importedContact = enrollment.contactExternalId
+        ? lookupKeysForExternalId(enrollment.contactExternalId, ["contact"])
+          .map((key) => contactByImportId.get(key) ?? null)
+          .find((contact): contact is MarketingContact => Boolean(contact)) ?? null
+        : null;
+      const contact = directContact ?? importedContact;
+      if (contact) map.set(enrollment.id, contact);
+    }
+    return map;
+  }, [journeyEnrollments, contactById, contactByImportId]);
+
   const visibleJourneyEnrollments = useMemo(() => journeyEnrollments.filter((enrollment) => {
     const journey = journeyById.get(enrollment.journeyId) ?? null;
-    const contact = enrollment.contactId ? contactById.get(enrollment.contactId) ?? null : null;
+    const contact = contactByJourneyEnrollmentId.get(enrollment.id) ?? null;
     const enrollmentMatchesSearch = matchesSearch(search, [
       enrollment.id,
       enrollment.journeyId,
@@ -2824,7 +2861,7 @@ export default function MarketingAdminPage() {
       || (journey?.steps ?? []).some((step) => step.channel === channelFilter)
       || (enrollment.events ?? []).some((event) => event.channel === channelFilter);
     return enrollmentMatchesSearch && matchesAudience && matchesChannel;
-  }), [journeyEnrollments, search, audienceFilter, channelFilter, journeyById, contactById]);
+  }), [journeyEnrollments, search, audienceFilter, channelFilter, journeyById, contactByJourneyEnrollmentId]);
 
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
@@ -4987,12 +5024,25 @@ export default function MarketingAdminPage() {
                   <EmptyState text={journeyEnrollments.length ? "No journey enrollments match the current filters." : "No journey enrollments imported yet."} />
                 ) : (
                   <div className="grid gap-3" data-testid="marketing-journey-enrollments">
-                    {visibleJourneyEnrollments.map((enrollment) => (
-                      <article key={enrollment.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                    {visibleJourneyEnrollments.map((enrollment) => {
+                      const contact = contactByJourneyEnrollmentId.get(enrollment.id) ?? null;
+                      const contactSummary = contact
+                        ? [contact.email, contact.phoneNumber, contact.whatsappNumber, contact.companyName].filter(Boolean).join(" - ")
+                        : "";
+                      return (
+                        <article key={enrollment.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="font-black">{enrollment.journeyName || enrollment.journeyId}</p>
-                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">{enrollment.contactExternalId || enrollment.contactId || "No contact linked"}</p>
+                            {contact ? (
+                              <div className="mt-1 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900" data-testid={`marketing-journey-enrollment-contact-${enrollment.id}`}>
+                                <p className="text-sm font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
+                                {contactSummary ? <p className="mt-0.5 text-emerald-800">{contactSummary}</p> : null}
+                                <p className="mt-0.5 break-all text-emerald-700">Linked from {enrollment.contactExternalId || enrollment.contactId}</p>
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-xs font-bold text-[#7d6b65]">{enrollment.contactExternalId || enrollment.contactId || "No contact linked"}</p>
+                            )}
                             <p className="mt-1 text-xs font-bold text-[#8b7a73]">
                               Entered {formatDate(enrollment.enteredAt)} · Last activity {formatDate(enrollment.lastActivityAt)}
                               {enrollment.exitedAt ? ` · Exited ${formatDate(enrollment.exitedAt)}` : ""}
@@ -5025,8 +5075,9 @@ export default function MarketingAdminPage() {
                         ) : (
                           <p className="mt-3 text-xs font-bold text-[#8b7a73]">No event history for this enrollment.</p>
                         )}
-                      </article>
-                    ))}
+                        </article>
+                      );
+                    })}
                   </div>
                 )}
               </SectionCard>
