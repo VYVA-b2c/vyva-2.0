@@ -130,6 +130,20 @@ export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
     },
   },
   {
+    reference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+    requiredStages: REVIEW_FLOW_STAGES,
+    coveredStages: [
+      "start_action",
+      "detail_collection",
+      "final_user_confirmation",
+    ],
+    evidence: {
+      start_action: "opens Safe Home from Concierge fast help and voice safety handoffs",
+      detail_collection: "Safe Home and safety specialist flows collect immediate risk context before next steps",
+      final_user_confirmation: "safety routes keep alerting, calling, uploading, or contacting behind explicit confirmation",
+    },
+  },
+  {
     reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
     requiredStages: REVIEW_FLOW_STAGES,
     coveredStages: REVIEW_FLOW_STAGES,

@@ -46,7 +46,7 @@ describe("concierge flow registry", () => {
   });
 
   it("documents current implementation state for each tracked flow", () => {
-    expect(CONCIERGE_FLOW_REGISTRY).toHaveLength(7);
+    expect(CONCIERGE_FLOW_REGISTRY).toHaveLength(8);
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.transportBooking)).toMatchObject({
       status: "ready",
       actionName: "Book ride / transport",
@@ -71,6 +71,11 @@ describe("concierge flow registry", () => {
       status: "ready",
       tools: expect.arrayContaining(["camera_or_upload", "web_search"]),
     });
+    expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.safeHomeSupport)).toMatchObject({
+      status: "partial",
+      actionName: "Safe home / safety support",
+      tools: expect.arrayContaining(["phone_call", "camera_or_upload", "operator_review"]),
+    });
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.insuranceAdmin)).toMatchObject({
       status: "ready",
       tools: expect.arrayContaining(["email", "phone_call", "camera_or_upload"]),
@@ -81,6 +86,7 @@ describe("concierge flow registry", () => {
     });
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.transportBooking)).toBe(true);
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.scamCheck)).toBe(false);
+    expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.safeHomeSupport)).toBe(false);
   });
 
   it("evaluates exact active-task requirements for tracked flows", () => {
@@ -118,6 +124,14 @@ describe("concierge flow registry", () => {
     });
     expect(admin.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.insuranceAdmin);
     expect(admin.firstMissingRequirement?.labelEn).toBe("Deadline");
+
+    const safeHome = evaluateConciergeFlowRequirements({
+      useCase: "safe_home",
+      payload: { risk_type: "fall risk" },
+      summary: "The hallway feels unsafe.",
+    });
+    expect(safeHome.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
+    expect(safeHome.firstMissingRequirement?.labelEn).toBe("Location");
   });
 
   it("maps pending actions to their reusable flow references", () => {
@@ -129,6 +143,10 @@ describe("concierge flow registry", () => {
       useCase: "anything_else",
       payload: { flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck },
     })).toBe(CONCIERGE_FLOW_REFERENCES.scamCheck);
+    expect(conciergeFlowReferenceForPendingAction({
+      useCase: "safety_support",
+      payload: {},
+    })).toBe(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
   });
 
   it("keeps a complete lifecycle coverage map for tracked flows", () => {
@@ -149,11 +167,19 @@ describe("concierge flow registry", () => {
     ]);
 
     for (const coverage of CONCIERGE_FLOW_COVERAGE) {
-      expect(missingConciergeFlowCoverage(coverage.reference)).toEqual([]);
-      for (const stage of coverage.requiredStages) {
+      if (getConciergeFlowDefinition(coverage.reference).status === "ready") {
+        expect(missingConciergeFlowCoverage(coverage.reference)).toEqual([]);
+      }
+      for (const stage of coverage.coveredStages) {
         expect(coverage.evidence[stage]).toBeTruthy();
       }
     }
+
+    expect(missingConciergeFlowCoverage(CONCIERGE_FLOW_REFERENCES.safeHomeSupport)).toEqual([
+      "action_handoff",
+      "outcome_capture",
+      "completed_history",
+    ]);
 
     for (const reference of [
       CONCIERGE_FLOW_REFERENCES.transportBooking,

@@ -10318,7 +10318,12 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.safeHome", "Safe Home"),
       detail: t("concierge.master.fastHelp.safeHomeDetail", "Safety check"),
       tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => navigate("/safe-home"),
+      onClick: () => navigate("/safe-home", {
+        state: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+          source: "concierge_fast_help",
+        },
+      }),
       testId: "button-concierge-fast-safe-home",
     },
     {

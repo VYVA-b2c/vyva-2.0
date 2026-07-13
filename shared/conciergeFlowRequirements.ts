@@ -16,6 +16,8 @@ export type ConciergeFlowRequirementKey =
   | "home_access"
   | "source"
   | "concern"
+  | "risk_type"
+  | "location"
   | "document_or_task"
   | "recipient"
   | "deadline"
@@ -75,6 +77,11 @@ const REQUIREMENTS_BY_FLOW: Record<ConciergeFlowReference, ConciergeRequirementD
     { key: "source", labelEn: "Source", labelEs: "Fuente", payloadKeys: ["scam_type", "source_type", "document_url", "uploaded_file", "phone_number", "company_name", "email_body", "message"], summaryFallback: true },
     { key: "concern", labelEn: "Concern", labelEs: "Riesgo", payloadKeys: ["concern", "what_worries_you", "reason", "detail"], summaryFallback: true },
   ],
+  [CONCIERGE_FLOW_REFERENCES.safeHomeSupport]: [
+    { key: "risk_type", labelEn: "Risk type", labelEs: "Tipo de riesgo", payloadKeys: ["risk_type", "safety_risk", "hazard_type", "issue_type"], summaryFallback: true },
+    { key: "location", labelEn: "Location", labelEs: "Lugar", payloadKeys: ["location", "room", "home_address", "address"] },
+    { key: "concern", labelEn: "Concern", labelEs: "Riesgo", payloadKeys: ["concern", "what_worries_you", "reason", "detail"], summaryFallback: true },
+  ],
   [CONCIERGE_FLOW_REFERENCES.insuranceAdmin]: [
     { key: "document_or_task", labelEn: "Task", labelEs: "Gestion", payloadKeys: ["document_type", "task_type", "admin_task", "reason", "detail"], summaryFallback: true },
     { key: "recipient", labelEn: "Recipient", labelEs: "Destinatario", payloadKeys: ["recipient", "recipient_name", "recipient_email", "provider_email", "email", "phone"] },
@@ -112,6 +119,7 @@ export function conciergeFlowReferenceForPendingAction(input: ConciergeFlowRequi
   if (input.useCase === "home_service" || appointmentType === "home-service") return CONCIERGE_FLOW_REFERENCES.homeService;
   if (input.useCase === "book_appointment") return CONCIERGE_FLOW_REFERENCES.medicalAppointment;
   if (input.useCase === "scam_check") return CONCIERGE_FLOW_REFERENCES.scamCheck;
+  if (input.useCase === "safe_home" || input.useCase === "safety_support") return CONCIERGE_FLOW_REFERENCES.safeHomeSupport;
   if (input.useCase === "admin_task" || input.useCase === "paperwork") return CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
   return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
 }

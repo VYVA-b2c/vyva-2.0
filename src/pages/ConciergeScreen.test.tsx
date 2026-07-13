@@ -219,6 +219,19 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
+  it("routes Safe Home fast help with the tracked safety flow reference", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-fast-safe-home"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/safe-home");
+      expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
+      expect(screen.getByTestId("route-state")).toHaveTextContent("concierge_fast_help");
+    });
+  });
+
   it("opens appointment, service, savings, trip, and research flows in place", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
