@@ -373,7 +373,21 @@ const audiences = [
       roleLabel: "Partner",
       lovableExternalId: "lovable-contact-2",
       contactExternalId: "lovable-contact-2",
-    }],
+    },
+    ...Array.from({ length: 6 }, (_, index) => {
+      const memberNumber = index + 2;
+      return {
+        id: `preview-contact-${memberNumber}`,
+        fullName: `Lovable list member ${memberNumber}`,
+        email: `list-member-${memberNumber}@example.com`,
+        phoneNumber: null,
+        whatsappNumber: null,
+        companyName: "Imported List Co",
+        roleLabel: "Lead",
+        lovableExternalId: `lovable-list-member-${memberNumber}`,
+        contactExternalId: `lovable-list-member-${memberNumber}`,
+      };
+    })],
     unmappedContactExternalIds: ["missing-contact"],
     lastSyncedAt: "2026-07-05T09:00:00.000Z",
     metadata: { lovable: { sourceList: "Partners" } },
@@ -806,6 +820,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Partner at Moka Digital");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Lovable list member 5");
+    expect(within(screen.getByTestId("marketing-audience-member-preview-audience-1")).queryByText("Lovable list member 7")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-toggle-audience-members-audience-1"));
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Lovable list member 7");
+    expect(screen.getByTestId("button-marketing-toggle-audience-members-audience-1")).toHaveTextContent("Collapse members");
 
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");

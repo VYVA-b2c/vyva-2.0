@@ -663,6 +663,11 @@ function audienceContactLabel(contact: MarketingContact) {
   return details ? `${name} (${details})` : name;
 }
 
+function audienceContactExternalId(contact: MarketingContact, memberIds: string[]) {
+  const candidates = [contact.lovableExternalId, contact.id].map((id) => lower(id)).filter(Boolean);
+  return memberIds.find((id) => candidates.includes(lower(id))) ?? contact.lovableExternalId ?? contact.id;
+}
+
 function contactMatchesMemberIds(contact: MarketingContact, memberIds: string[]) {
   const contactIds = [contact.id, contact.lovableExternalId].map((id) => lower(id)).filter(Boolean);
   return memberIds.some((id) => contactIds.includes(lower(id)));
@@ -2435,6 +2440,7 @@ export default function MarketingAdminPage() {
   const [audienceSaving, setAudienceSaving] = useState(false);
   const [audienceFeedback, setAudienceFeedback] = useState("");
   const [confirmingAudienceDeleteId, setConfirmingAudienceDeleteId] = useState<string | null>(null);
+  const [expandedAudienceMemberIds, setExpandedAudienceMemberIds] = useState<Set<string>>(() => new Set());
 
   async function refreshAll() {
     const marketingDataRequest = Promise.all([
@@ -6053,6 +6059,33 @@ export default function MarketingAdminPage() {
                         <EmptyState text="No imported lists match the filters." />
                       ) : visibleAudiences.map((audience) => {
                         const unmappedCount = audience.unmappedContactExternalIds.length;
+                        const mappedContacts = contacts
+                          .filter((contact) => contactMatchesMemberIds(contact, audience.contactExternalIds))
+                          .map((contact) => ({
+                            id: contact.id,
+                            fullName: contact.fullName,
+                            email: contact.email,
+                            phoneNumber: contact.phoneNumber,
+                            whatsappNumber: contact.whatsappNumber,
+                            companyName: contact.companyName,
+                            roleLabel: contact.roleLabel,
+                            lovableExternalId: contact.lovableExternalId,
+                            contactExternalId: audienceContactExternalId(contact, audience.contactExternalIds),
+                          }));
+                        const mappedMemberById = new Map<string, typeof mappedContacts[number]>();
+                        for (const member of audience.memberPreview) {
+                          mappedMemberById.set(member.contactExternalId ?? member.lovableExternalId ?? member.id, member);
+                        }
+                        for (const member of mappedContacts) {
+                          mappedMemberById.set(member.contactExternalId ?? member.lovableExternalId ?? member.id, member);
+                        }
+                        const mappedMembers = Array.from(mappedMemberById.values());
+                        const audienceExpanded = expandedAudienceMemberIds.has(audience.id);
+                        const visibleMappedMembers = audienceExpanded ? mappedMembers : mappedMembers.slice(0, 5);
+                        const visibleUnmappedIds = audienceExpanded ? audience.unmappedContactExternalIds : audience.unmappedContactExternalIds.slice(0, 3);
+                        const hiddenMappedCount = Math.max(mappedMembers.length - visibleMappedMembers.length, 0);
+                        const hiddenUnmappedCount = Math.max(unmappedCount - visibleUnmappedIds.length, 0);
+                        const canExpandMembers = hiddenMappedCount > 0 || hiddenUnmappedCount > 0 || audienceExpanded;
                         return (
                           <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -6068,12 +6101,15 @@ export default function MarketingAdminPage() {
                               {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">{unmappedCount} unmapped</Pill> : null}
                             </div>
                             {unmappedCount ? (
-                              <p className="mt-2 text-xs font-semibold text-[#8b5d13]">Unmapped examples: {audience.unmappedContactExternalIds.slice(0, 3).join(", ")}</p>
+                              <p className="mt-2 break-all text-xs font-semibold text-[#8b5d13]">
+                                Unmapped {audienceExpanded ? "IDs" : "examples"}: {visibleUnmappedIds.join(", ")}
+                                {hiddenUnmappedCount ? `, +${hiddenUnmappedCount} more` : ""}
+                              </p>
                             ) : null}
-                            {audience.memberPreview?.length ? (
+                            {mappedMembers.length ? (
                               <div className="mt-3 grid gap-2" data-testid={`marketing-audience-member-preview-${audience.id}`}>
                                 <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped contacts</p>
-                                {audience.memberPreview.slice(0, 5).map((member) => {
+                                {visibleMappedMembers.map((member) => {
                                   const contactLine = member.email || member.whatsappNumber || member.phoneNumber || member.contactExternalId || "No channel";
                                   const roleLine = [member.roleLabel, member.companyName].filter(Boolean).join(" at ");
                                   return (
@@ -6084,15 +6120,26 @@ export default function MarketingAdminPage() {
                                     </div>
                                   );
                                 })}
-                                {audience.mappedMemberCount > audience.memberPreview.slice(0, 5).length ? (
-                                  <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">
-                                    +{audience.mappedMemberCount - audience.memberPreview.slice(0, 5).length} more mapped contacts
-                                  </Pill>
-                                ) : null}
+                                {hiddenMappedCount ? <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">+{hiddenMappedCount} more mapped contacts</Pill> : null}
                               </div>
                             ) : (
                               <p className="mt-3 rounded-lg bg-[#f5eee8] px-3 py-2 text-xs font-bold text-[#8b7a73]">No mapped contacts to preview yet.</p>
                             )}
+                            {canExpandMembers ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedAudienceMemberIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(audience.id)) next.delete(audience.id);
+                                  else next.add(audience.id);
+                                  return next;
+                                })}
+                                className="mt-3 inline-flex min-h-8 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
+                                data-testid={`button-marketing-toggle-audience-members-${audience.id}`}
+                              >
+                                {audienceExpanded ? "Collapse members" : "Show all members"}
+                              </button>
+                            ) : null}
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button type="button" onClick={() => startAudienceEdit(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid={`button-marketing-edit-audience-${audience.id}`}>
                                 <Pencil size={13} /> Edit
