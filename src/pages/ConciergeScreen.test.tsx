@@ -2711,6 +2711,61 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-home-service-type-plumber")).toBeInTheDocument();
   });
 
+  it("shows completed appointment history as a reusable appointment template", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({ items: [] });
+      }
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({
+          items: [{
+            id: "session-appointment",
+            pending_id: "old-appointment",
+            use_case: "book_appointment",
+            provider_name: "Clinica Lopez",
+            outcome: "completed",
+            outcome_summary: "Medical appointment confirmed with Clinica Lopez.",
+            completed_at: "2026-08-05T11:30:00.000Z",
+            outcome_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+              appointment_type: "medical",
+              appointment_reason: "dermatology follow-up",
+              scheduled_for: "2026-08-12T09:30",
+              location: "Calle Mayor 1",
+              provider_phone: "+34 600 111 222",
+              reference: "CL-44",
+            },
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("section-concierge-completed-history")).toHaveTextContent("Done recently");
+    });
+    expect(screen.getByTestId("card-concierge-completed-session-appointment")).toHaveTextContent("Appointment");
+    expect(screen.getByTestId("card-concierge-completed-session-appointment")).toHaveTextContent("Clinica Lopez");
+
+    fireEvent.click(screen.getByTestId("card-concierge-completed-session-appointment"));
+    const receipt = await screen.findByTestId("panel-concierge-completed-receipt");
+    expect(receipt).toHaveTextContent("Medical appointment confirmed with Clinica Lopez.");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Reference");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("CL-44");
+    expect(within(receipt).getByTestId("link-concierge-receipt-contact")).toHaveAttribute("href", "tel:+34600111222");
+
+    fireEvent.click(within(receipt).getByTestId("button-concierge-receipt-template"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal-concierge-completed-receipt")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Appointment");
+    expect(screen.getByDisplayValue("dermatology follow-up")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Medical" })).toBeVisible();
+  });
+
   it("shows requested as the active follow-through step for started actions", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
@@ -3020,6 +3075,47 @@ describe("ConciergeScreen route prefill", () => {
     expect(homeServiceQuery).toContain("Problem: Leak under the kitchen sink");
     expect(homeServiceQuery).toContain("Avoid this provider: Saved Plumber");
     expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Home-service search prepared with the original problem.");
+  });
+
+  it("opens a replacement appointment search when a provider is unavailable", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-unavailable-appointment",
+            use_case: "book_appointment",
+            provider_name: "Clinica Lopez",
+            provider_phone: "+34 600 111 222",
+            action_summary: "Clinic cannot offer the requested slot.",
+            action_payload: {
+              appointment_type: "medical",
+              appointment_reason: "dermatology follow-up",
+              requested_time: "next Tuesday morning",
+              location: "Marbella",
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-reply-unavailable-reply-unavailable-appointment"));
+
+    expect(await screen.findByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    const appointmentQuery = (screen.getByTestId("input-offers-query") as HTMLInputElement).value;
+    expect(appointmentQuery).toContain("Find another doctor or clinic");
+    expect(appointmentQuery).toContain("Type: medical");
+    expect(appointmentQuery).toContain("Reason: dermatology follow-up");
+    expect(appointmentQuery).toContain("Preferred time: next Tuesday morning");
+    expect(appointmentQuery).toContain("Area: Marbella");
+    expect(appointmentQuery).toContain("Avoid this provider: Clinica Lopez");
+    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("Coverage");
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Alternative appointment search prepared.");
   });
 
   it("keeps provider questions inside VYVA when more information is needed", async () => {
