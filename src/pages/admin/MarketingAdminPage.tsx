@@ -2002,7 +2002,19 @@ function LovableDesignPreview({ contentAsset }: { contentAsset: ContentAsset }) 
   );
 }
 
-function LinkedContentPreview({ contentAsset, linkedMediaAssets, testId }: { contentAsset: ContentAsset | null; linkedMediaAssets: MarketingMediaAsset[]; testId: string }) {
+function LinkedContentPreview({
+  contentAsset,
+  linkedMediaAssets,
+  testId,
+  onPreview,
+  onEdit,
+}: {
+  contentAsset: ContentAsset | null;
+  linkedMediaAssets: MarketingMediaAsset[];
+  testId: string;
+  onPreview?: (contentAsset: ContentAsset) => void;
+  onEdit?: (contentAsset: ContentAsset) => void;
+}) {
   if (!contentAsset) {
     return (
       <div className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-3 text-sm font-bold text-[#8b7a73]" data-testid={testId}>
@@ -2020,13 +2032,23 @@ function LinkedContentPreview({ contentAsset, linkedMediaAssets, testId }: { con
           <h4 className="mt-1 font-black text-[#241133]">{contentAsset.title}</h4>
           <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{contentAsset.subject || contentAsset.body || "No copy yet."}</p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap justify-end gap-1.5">
           <Pill className={channelClass(contentAsset.channel)}>{channelLabel[contentAsset.channel]}</Pill>
           <Pill className={statusClass(contentAsset.status)}>{contentAsset.status}</Pill>
           {contentAsset.source === "lovable" ? <Pill className="bg-violet-50 text-violet-700">{contentOriginLabel(contentAsset)}</Pill> : null}
           {contentAsset.hasHtml ? <Pill className="bg-blue-50 text-blue-800">HTML</Pill> : null}
           {contentAsset.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Design data</Pill> : null}
           {previewUrls.length ? <Pill className="bg-emerald-50 text-emerald-800">{previewUrls.length} media</Pill> : null}
+          {onPreview ? (
+            <button type="button" onClick={() => onPreview(contentAsset)} className="inline-flex min-h-7 items-center justify-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700" data-testid={`${testId}-preview`}>
+              <Eye size={12} /> Preview
+            </button>
+          ) : null}
+          {onEdit ? (
+            <button type="button" onClick={() => onEdit(contentAsset)} className="inline-flex min-h-7 items-center justify-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700" data-testid={`${testId}-edit`}>
+              <Pencil size={12} /> Edit
+            </button>
+          ) : null}
         </div>
       </div>
       {contentAsset.ctaLabel || contentAsset.ctaUrl ? (
@@ -2523,6 +2545,7 @@ export default function MarketingAdminPage() {
   }), [content, search, channelFilter, contentSourceFilter]);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
+  const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
 
   const visibleMediaAssets = useMemo(() => mediaAssets.filter((item) => {
     const matchesText = matchesSearch(search, [
@@ -2652,7 +2675,7 @@ export default function MarketingAdminPage() {
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
-  const selectedContent = useMemo(() => selectedContentId ? visibleContent.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, visibleContent]);
+  const selectedContent = useMemo(() => selectedContentId ? content.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, content]);
   const selectedContentMediaAssets = useMemo(() => {
     if (!selectedContent) return [];
     return mediaAssets.filter((item) => item.contentAssetId === selectedContent.id);
@@ -2674,7 +2697,7 @@ export default function MarketingAdminPage() {
   }, [latestSyncRun, missingLovableReferenceContent.length]);
 
   useEffect(() => {
-    if (!selectedContentId || visibleContentIdSet.has(selectedContentId)) return;
+    if (!selectedContentId || contentIdSet.has(selectedContentId)) return;
     if (editingContentId === selectedContentId && contentEditDraft) return;
     setSelectedContentId(null);
     setContentDrawerMode(null);
@@ -2684,7 +2707,7 @@ export default function MarketingAdminPage() {
       setContentEditDraft(null);
       setContentFeedback("");
     }
-  }, [selectedContentId, visibleContentIdSet, editingContentId, contentEditDraft]);
+  }, [selectedContentId, contentIdSet, editingContentId, contentEditDraft]);
 
   useEffect(() => {
     if (activeTab !== "content") return;
@@ -3249,6 +3272,7 @@ export default function MarketingAdminPage() {
   }
 
   function previewContent(contentAsset: ContentAsset) {
+    setActiveTab("content");
     setSelectedContentId(contentAsset.id);
     setEditingContentId(null);
     setContentEditDraft(null);
@@ -3259,6 +3283,7 @@ export default function MarketingAdminPage() {
   }
 
   function startContentEdit(contentAsset: ContentAsset) {
+    setActiveTab("content");
     setSelectedContentId(contentAsset.id);
     setEditingContentId(contentAsset.id);
     setContentEditDraft(contentEditDraftFromContent(contentAsset));
@@ -4311,7 +4336,13 @@ export default function MarketingAdminPage() {
                                     </button>
                                   </div>
                                 </div>
-                                <LinkedContentPreview contentAsset={selectedChannelContent ?? null} linkedMediaAssets={selectedChannelMediaAssets} testId={`marketing-campaign-channel-content-preview-${index}`} />
+                                <LinkedContentPreview
+                                  contentAsset={selectedChannelContent ?? null}
+                                  linkedMediaAssets={selectedChannelMediaAssets}
+                                  testId={`marketing-campaign-channel-content-preview-${index}`}
+                                  onPreview={previewContent}
+                                  onEdit={startContentEdit}
+                                />
                               </div>
                             );
                           })}
@@ -4671,7 +4702,13 @@ export default function MarketingAdminPage() {
                                       <input className={inputClass} value={step.templateRef} onChange={(event) => updateJourneyStep(step.id, { templateRef: event.target.value })} placeholder="Lovable or VYVA template ID" disabled={journeySaving} data-testid={`input-marketing-journey-step-template-ref-${index}`} />
                                     </Field>
                                   </div>
-                                  <LinkedContentPreview contentAsset={selectedContentOption} linkedMediaAssets={selectedStepMediaAssets} testId={`marketing-journey-step-content-preview-${index}`} />
+                                  <LinkedContentPreview
+                                    contentAsset={selectedContentOption}
+                                    linkedMediaAssets={selectedStepMediaAssets}
+                                    testId={`marketing-journey-step-content-preview-${index}`}
+                                    onPreview={previewContent}
+                                    onEdit={startContentEdit}
+                                  />
                                   <div className="grid gap-3 xl:grid-cols-2">
                                     <Field label="Internal notes">
                                       <textarea className={`${textareaClass} min-h-[72px]`} value={step.notes} onChange={(event) => updateJourneyStep(step.id, { notes: event.target.value })} disabled={journeySaving} data-testid={`textarea-marketing-journey-step-notes-${index}`} />

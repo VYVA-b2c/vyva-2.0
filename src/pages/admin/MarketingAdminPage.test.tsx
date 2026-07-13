@@ -871,9 +871,9 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "vyva" } });
 
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 visible of 2 assets");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Welcome email");
-    expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Partner post");
-    expect(screen.queryByTestId("marketing-content-origin-summary")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-content-library-table")).not.toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
   });
 
   it("explains empty content when Lovable sync has not imported anything yet", async () => {
@@ -922,6 +922,30 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Caregiver welcome");
+  });
+
+  it("opens linked content records from campaign and journey previews even when content filters hide them", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "vyva" } });
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+    fireEvent.click(screen.getByTestId("marketing-campaign-channel-content-preview-1-preview"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Lovable ID: lovable-content-2");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
+    fireEvent.click(screen.getByTestId("marketing-journey-step-content-preview-0-edit"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Welcome email".');
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Welcome email");
   });
 
   it("explains when the current admin cannot run Lovable sync", async () => {
@@ -1461,6 +1485,8 @@ describe("MarketingAdminPage", () => {
     expect(journeyStepPreview).toHaveTextContent("Welcome email");
     expect(journeyStepPreview).toHaveTextContent("Welcome to VYVA");
     expect(journeyStepPreview).toHaveTextContent("Hello");
+    expect(screen.getByTestId("marketing-journey-step-content-preview-0-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-journey-step-content-preview-0-edit")).toBeInTheDocument();
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "Updated nurture" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience"), { target: { value: "both" } });
@@ -1644,6 +1670,8 @@ describe("MarketingAdminPage", () => {
     expect(socialContentPreview).toHaveTextContent("Social post");
     expect(socialContentPreview).toHaveTextContent("Lovable ID: lovable-content-2");
     expect(within(socialContentPreview).getByAltText("Partner post")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
+    expect(screen.getByTestId("marketing-campaign-channel-content-preview-1-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-channel-content-preview-0-edit")).toBeInTheDocument();
     expect(screen.getByTestId("select-marketing-edit-campaign-target-audience")).toHaveValue("audience-1");
     expect(screen.getByTestId("marketing-campaign-target-audience-summary")).toHaveTextContent("Partners");
     expect(screen.getByText("Karim Assad")).toBeInTheDocument();
