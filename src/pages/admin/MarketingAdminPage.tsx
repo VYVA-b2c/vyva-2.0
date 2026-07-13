@@ -545,6 +545,22 @@ type ContentDraft = {
   mediaAssetsText: string;
 };
 
+type ContentTemplate = {
+  id: string;
+  title: string;
+  category: string;
+  audienceType: Audience;
+  channel: Channel;
+  description: string;
+  subject: string;
+  body: string;
+  htmlBody?: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  designJson: Record<string, unknown>;
+  mediaAssets?: unknown[];
+};
+
 type ContentEditDraft = {
   title: string;
   channel: Channel;
@@ -1571,6 +1587,271 @@ function newDraftId() {
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const contentTemplateGallery: ContentTemplate[] = [
+  {
+    id: "caregiver-email-welcome",
+    title: "Caregiver welcome email",
+    category: "Onboarding",
+    audienceType: "b2c",
+    channel: "email",
+    description: "A warm first email for a family caregiver after they join VYVA.",
+    subject: "Welcome to VYVA, {{first_name}}",
+    body: "Hi {{first_name}},\n\nYou are now connected to {{elder_name}}'s care circle in VYVA. Start by checking the profile, confirming alerts, and choosing the updates that matter most to you.\n\nWe will keep the next steps simple and practical.",
+    htmlBody: "<h1>Welcome to VYVA</h1><p>You are now connected to {{elder_name}}'s care circle. Start by checking the profile and choosing the updates that matter most.</p>",
+    ctaLabel: "Open care dashboard",
+    ctaUrl: "https://v2.vyva.life/caregiver/dashboard",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "caregiver-email-welcome",
+      category: "Onboarding",
+      layout: "email-card",
+      palette: ["#6d28d9", "#fff7ed", "#10b981"],
+      blocks: [
+        { type: "eyebrow", text: "Care team access" },
+        { type: "headline", text: "Welcome to VYVA" },
+        { type: "body", text: "A simple first step for family caregivers." },
+        { type: "cta", label: "Open care dashboard" },
+      ],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "family-confidence-email",
+    title: "Family confidence update",
+    category: "Engagement",
+    audienceType: "b2c",
+    channel: "email",
+    description: "Reassures families with a clear summary of VYVA's daily support.",
+    subject: "A calmer way to stay close to {{elder_name}}",
+    body: "Hi {{first_name}},\n\nVYVA helps turn small daily signals into useful updates: check-ins, medication reminders, social activity, and support moments.\n\nThe goal is not more noise. It is a calmer view of what changed, what is fine, and what may need attention.",
+    htmlBody: "<h1>A calmer way to stay close</h1><p>Daily signals become useful updates without creating more noise.</p>",
+    ctaLabel: "Review updates",
+    ctaUrl: "https://v2.vyva.life/caregiver/dashboard",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "family-confidence-email",
+      category: "Engagement",
+      layout: "email-summary",
+      blocks: [
+        { type: "headline", text: "Care signals, made readable" },
+        { type: "bullets", items: ["Daily check-ins", "Medication awareness", "Care-team updates"] },
+      ],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "email-winback",
+    title: "Gentle win-back email",
+    category: "Retention",
+    audienceType: "both",
+    channel: "email",
+    description: "A soft reactivation message for contacts who have gone quiet.",
+    subject: "Want to restart with one small VYVA step?",
+    body: "Hi {{first_name}},\n\nIf VYVA has slipped off your list, you can restart with one small step: open the dashboard, check today's status, or book a short walkthrough.\n\nNo big setup required.",
+    htmlBody: "<h1>Restart with one small step</h1><p>Open VYVA, check today's status, or book a short walkthrough.</p>",
+    ctaLabel: "Restart in VYVA",
+    ctaUrl: "https://v2.vyva.life/admin/marketing",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "email-winback",
+      category: "Retention",
+      layout: "short-email",
+      blocks: [
+        { type: "headline", text: "Restart with one small step" },
+        { type: "cta", label: "Restart in VYVA" },
+      ],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "whatsapp-profile-nudge",
+    title: "Profile completion WhatsApp nudge",
+    category: "Onboarding",
+    audienceType: "b2c",
+    channel: "whatsapp",
+    description: "Short, friendly WhatsApp copy to finish required profile details.",
+    subject: "",
+    body: "Hi {{first_name}}, quick VYVA step: please complete {{elder_name}}'s profile so reminders and support can work properly. It takes about 2 minutes.",
+    ctaLabel: "Complete profile",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "whatsapp-profile-nudge",
+      category: "Onboarding",
+      layout: "whatsapp-plain",
+      tone: "warm-direct",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "whatsapp-event-reminder",
+    title: "Local event reminder WhatsApp",
+    category: "Community",
+    audienceType: "both",
+    channel: "whatsapp",
+    description: "A concise reminder for local activities discovered or planned in VYVA.",
+    subject: "",
+    body: "Reminder: {{event_name}} is coming up on {{event_date}} near {{area_name}}. Reply if you want VYVA to help plan transport, a reminder, or a family update.",
+    ctaLabel: "View event",
+    ctaUrl: "https://v2.vyva.life/social",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "whatsapp-event-reminder",
+      category: "Community",
+      layout: "whatsapp-event",
+      mergeFields: ["event_name", "event_date", "area_name"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "linkedin-partner-demo",
+    title: "Partner demo LinkedIn post",
+    category: "B2B partner",
+    audienceType: "b2b",
+    channel: "linkedin",
+    description: "Positions VYVA as an operational layer for senior-care teams.",
+    subject: "",
+    body: "Care teams do not need another dashboard full of noise. They need signals they can trust.\n\nVYVA turns daily check-ins, reminders, family context, and support moments into clearer action for older adults and the people around them.",
+    ctaLabel: "Book a demo",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "linkedin-partner-demo",
+      category: "B2B partner",
+      layout: "linkedin-thought-leadership",
+      visualPrompt: "senior care team reviewing calm operational insights",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "linkedin-webinar-invite",
+    title: "Webinar invite LinkedIn post",
+    category: "Education",
+    audienceType: "b2b",
+    channel: "linkedin",
+    description: "A practical invite for providers exploring AI-supported ageing-in-place.",
+    subject: "",
+    body: "Join us for a practical session on using AI to support ageing-in-place without overwhelming families or care teams.\n\nWe will cover daily signals, consent, escalation, and what good operational UX looks like.",
+    ctaLabel: "Reserve a seat",
+    ctaUrl: "https://v2.vyva.life/events",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "linkedin-webinar-invite",
+      category: "Education",
+      layout: "linkedin-event",
+      blocks: [
+        { type: "headline", text: "AI for ageing-in-place, without the noise" },
+        { type: "cta", label: "Reserve a seat" },
+      ],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "instagram-proof-point",
+    title: "Instagram proof point",
+    category: "Social proof",
+    audienceType: "both",
+    channel: "instagram",
+    description: "A simple carousel-style proof point for family and partner audiences.",
+    subject: "",
+    body: "A better care update is not louder. It is clearer.\n\nVYVA helps families see what changed, what is stable, and where support may be needed.",
+    ctaLabel: "Learn more",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "instagram-proof-point",
+      category: "Social proof",
+      layout: "instagram-carousel",
+      slides: [
+        "Not louder. Clearer.",
+        "Daily check-ins become signals.",
+        "Families know what needs attention.",
+      ],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "instagram-community-moment",
+    title: "Instagram community moment",
+    category: "Community",
+    audienceType: "both",
+    channel: "instagram",
+    description: "A softer local/community post that makes VYVA feel human.",
+    subject: "",
+    body: "Small routines matter: a walk, a call, a reminder, a familiar song.\n\nVYVA helps make those moments easier to notice and easier to support.",
+    ctaLabel: "Explore VYVA",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "instagram-community-moment",
+      category: "Community",
+      layout: "instagram-single",
+      visualPrompt: "warm everyday senior routine with family connection",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "facebook-local-event",
+    title: "Facebook local event post",
+    category: "Community",
+    audienceType: "both",
+    channel: "facebook",
+    description: "Promotes local activities and makes them easy for families to act on.",
+    subject: "",
+    body: "Looking for something gentle and local this week? VYVA can help families discover nearby activities, save reminders, and plan support around the day.",
+    ctaLabel: "Find local activities",
+    ctaUrl: "https://v2.vyva.life/social",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "facebook-local-event",
+      category: "Community",
+      layout: "facebook-link-post",
+      visualPrompt: "accessible local community activity for older adults",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "facebook-family-story",
+    title: "Facebook family story post",
+    category: "Engagement",
+    audienceType: "b2c",
+    channel: "facebook",
+    description: "A story-led post about families staying close without constant check-ins.",
+    subject: "",
+    body: "Staying close should not require constant worrying.\n\nVYVA gives families calmer daily context, so support can happen earlier and with more confidence.",
+    ctaLabel: "See how it works",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "facebook-family-story",
+      category: "Engagement",
+      layout: "facebook-story-post",
+      proofPoint: "calmer family updates",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "tiktok-care-myth",
+    title: "TikTok care myth script",
+    category: "Education",
+    audienceType: "both",
+    channel: "tiktok",
+    description: "A short script format for explaining VYVA in a social-friendly way.",
+    subject: "",
+    body: "Hook: Care support is not only for emergencies.\n\nBeat 1: The useful signals are often small.\nBeat 2: A missed routine can matter before it becomes urgent.\nBeat 3: VYVA helps families and care teams notice patterns earlier.\n\nClose: Support can be calmer when the signal is clearer.",
+    ctaLabel: "Learn more",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "tiktok-care-myth",
+      category: "Education",
+      layout: "short-video-script",
+      beats: ["hook", "signal", "pattern", "clearer support"],
+    },
+    mediaAssets: [],
+  },
+];
+
 function newCampaignChannelDraft(channel: Channel = "email", status: CampaignStatus = "draft", scheduledAt = ""): CampaignChannelDraft {
   return {
     id: newDraftId(),
@@ -1610,6 +1891,22 @@ function emptyContentDraft(): ContentDraft {
     ctaUrl: "",
     designJsonText: "{}",
     mediaAssetsText: "[]",
+  };
+}
+
+function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
+  return {
+    title: template.title,
+    channel: template.channel,
+    language: "en",
+    status: "draft",
+    subject: template.subject,
+    body: template.body,
+    htmlBody: template.htmlBody ?? "",
+    ctaLabel: template.ctaLabel,
+    ctaUrl: template.ctaUrl,
+    designJsonText: JSON.stringify(template.designJson, null, 2),
+    mediaAssetsText: JSON.stringify(template.mediaAssets ?? [], null, 2),
   };
 }
 
@@ -4468,6 +4765,17 @@ export default function MarketingAdminPage() {
     }
   }
 
+  function applyContentTemplate(template: ContentTemplate) {
+    setContentDraft(contentDraftFromTemplate(template));
+    setSelectedContentId(null);
+    setEditingContentId(null);
+    setContentEditDraft(null);
+    setContentDrawerMode(null);
+    setContentFeedback(`Template applied: ${template.title}. Edit it, then add content.`);
+    setContentActionFeedback(`Template applied: ${template.title}.`);
+    setMessage(`Template applied: ${template.title}.`);
+  }
+
   function scrollToContentPanel(ref: RefObject<HTMLDivElement | null>) {
     window.setTimeout(() => {
       const node = ref.current;
@@ -6517,6 +6825,46 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               ) : null}
+
+              <SectionCard
+                title="Template gallery"
+                subtitle={`${contentTemplateGallery.length} ready-to-adapt VYVA templates for email, WhatsApp, and social channels.`}
+                action={<Pill className="bg-purple-50 text-purple-800">{contentTemplateGallery.length} templates</Pill>}
+              >
+                <div className="grid gap-3 xl:grid-cols-3" data-testid="marketing-content-template-gallery">
+                  {contentTemplateGallery.map((template) => (
+                    <article key={template.id} className="flex min-h-[230px] flex-col justify-between rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className={channelClass(template.channel)}>{channelLabel[template.channel]}</Pill>
+                          <Pill className="bg-[#f5eee8] text-[#5b4a46]">{template.audienceType.toUpperCase()}</Pill>
+                          <Pill className="bg-amber-50 text-amber-800">{template.category}</Pill>
+                        </div>
+                        <h3 className="mt-3 font-serif text-xl text-[#241133]">{template.title}</h3>
+                        <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{template.description}</p>
+                        {template.subject ? (
+                          <p className="mt-3 line-clamp-2 rounded-xl bg-[#fbf7f2] px-3 py-2 text-xs font-bold text-[#6f5f59]">
+                            Subject: {template.subject}
+                          </p>
+                        ) : (
+                          <p className="mt-3 line-clamp-2 rounded-xl bg-[#fbf7f2] px-3 py-2 text-xs font-bold text-[#6f5f59]">
+                            {template.body}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => applyContentTemplate(template)}
+                        className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        disabled={contentSaving}
+                        data-testid={`button-marketing-use-content-template-${template.id}`}
+                      >
+                        <Sparkles size={14} /> Use template
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </SectionCard>
 
               <SectionCard title="Content draft" subtitle="Create reusable campaign copy, templates, social posts, CTAs, HTML, and media references.">
                 <form className="grid gap-3" onSubmit={(event) => createContent(event).catch((error) => setMessage(error.message))} data-testid="marketing-content-draft-form">

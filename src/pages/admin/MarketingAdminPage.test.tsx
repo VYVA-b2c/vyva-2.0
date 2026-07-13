@@ -1318,6 +1318,24 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-export-preview-raw-samples")).toHaveTextContent("social_posts");
   });
 
+  it("applies content templates into the draft form", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver welcome email");
+    fireEvent.click(screen.getByTestId("button-marketing-use-content-template-whatsapp-profile-nudge"));
+
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Profile completion WhatsApp nudge");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("whatsapp");
+    expect(screen.getByTestId("input-marketing-content-cta-label")).toHaveValue("Complete profile");
+    expect(screen.getByTestId("input-marketing-content-cta-url")).toHaveValue("https://v2.vyva.life/profile");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Hi {{first_name}}");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_content_template_gallery");
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: Profile completion WhatsApp nudge");
+  });
+
   it("creates rich marketing content drafts", async () => {
     renderPage();
 
