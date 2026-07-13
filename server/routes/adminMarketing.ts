@@ -1293,11 +1293,46 @@ const fieldCoverageAliases = {
   ],
 } as const;
 
+type FieldCoverageEntry = { display: string; matchKey: string };
+
+function fieldCoverageEntriesFromValue(value: unknown, path: string, depth = 0): FieldCoverageEntry[] {
+  if (depth > 2) return [];
+  const parsed = parseJsonLike(value);
+  if (Array.isArray(parsed)) {
+    return parsed.slice(0, 5).flatMap((item) => fieldCoverageEntriesFromValue(item, path, depth));
+  }
+  if (!parsed || typeof parsed !== "object") return [];
+  return Object.entries(parsed as Record<string, unknown>).flatMap(([key, nested]) => {
+    if (key.startsWith("__vyva")) return [];
+    const display = `${path}.${key}`;
+    return [
+      { display, matchKey: key },
+      ...fieldCoverageEntriesFromValue(nested, display, depth + 1),
+    ];
+  });
+}
+
+function fieldCoverageEntriesForRow(row: Record<string, unknown>) {
+  return Object.entries(row)
+    .filter(([key]) => !key.startsWith("__vyva"))
+    .flatMap(([key, value]) => [
+      { display: key, matchKey: key },
+      ...fieldCoverageEntriesFromValue(value, key),
+    ]);
+}
+
 function fieldCoverageForPayload(payload: unknown[], aliasGroups: readonly (readonly string[])[]) {
-  const exportedFields = Array.from(new Set(
-    payload.flatMap((item) => Object.keys(asRecord(item)).filter((key) => !key.startsWith("__vyva"))),
-  )).sort();
-  const firstClassFields = exportedFields.filter((field) => aliasGroups.some((aliases) => (aliases as readonly string[]).includes(field)));
+  const exportedEntries = new Map<string, string>();
+  for (const item of payload) {
+    for (const entry of fieldCoverageEntriesForRow(asRecord(item))) {
+      exportedEntries.set(entry.display, entry.matchKey);
+    }
+  }
+  const exportedFields = Array.from(exportedEntries.keys()).sort();
+  const firstClassFields = exportedFields.filter((field) => {
+    const matchKey = exportedEntries.get(field) ?? field;
+    return aliasGroups.some((aliases) => (aliases as readonly string[]).includes(matchKey));
+  });
   const metadataOnlyFields = exportedFields.filter((field) => !firstClassFields.includes(field));
   return {
     exportedFieldCount: exportedFields.length,

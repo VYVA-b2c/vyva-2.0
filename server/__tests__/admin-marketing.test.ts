@@ -303,9 +303,9 @@ describe("admin marketing router", () => {
       new Response(JSON.stringify({
         exportedAt: "2026-07-05T12:00:00.000Z",
         dataset: "live",
-        saved_email_templates: [{ id: "template-1", template_name: "Welcome", html_content: "<p>Hello</p>" }],
+        saved_email_templates: [{ id: "template-1", template_name: "Welcome", html_content: "<p>Hello</p>", emailTemplate: { previewText: "Nested preview" } }],
         social_posts: [{ id: "post-1", platform: "linkedin", caption: "Partner update", image_url: "https://cdn.example.test/post.png" }],
-        contacts: [{ id: "contact-1", name: "Hassan", email: "hassan@example.com" }],
+        contacts: [{ id: "contact-1", profile: { firstName: "Hassan", emailAddress: "hassan@example.com", crmScore: 87 } }],
         campaigns: [{ id: "campaign-1", name: "Launch", channels: [{ channel: "email", template_id: "template-1" }] }],
         journeys: [{ id: "journey-1", name: "Nurture" }],
         journey_step_events: [{ id: "event-1", enrollmentExternalId: "enrollment-1", eventType: "entered", channel: "email" }],
@@ -336,7 +336,10 @@ describe("admin marketing router", () => {
             },
           },
         });
-        expect(response.body.summary.fieldCoverage.content.firstClassFields).toEqual(expect.arrayContaining(["id", "template_name", "html_content"]));
+        expect(response.body.summary.fieldCoverage.content.firstClassFields).toEqual(expect.arrayContaining(["id", "template_name", "html_content", "emailTemplate.previewText"]));
+        expect(response.body.summary.fieldCoverage.contacts.firstClassFields).toEqual(expect.arrayContaining(["profile.firstName", "profile.emailAddress"]));
+        expect(response.body.summary.fieldCoverage.contacts.metadataOnlyFields).toEqual(expect.arrayContaining(["profile.crmScore"]));
+        expect(response.body.summary.fieldCoverage.campaigns.firstClassFields).toEqual(expect.arrayContaining(["channels.channel", "channels.template_id"]));
         expect(response.body.samples.content[0]).toMatchObject({
           id: "template-1",
           template_name: "Welcome",
@@ -1400,6 +1403,7 @@ describe("admin marketing router", () => {
           emailAddress: "hassan@example.com",
           phoneNumber: "+34 600 000 001",
           whatsappNumber: "+34 600 000 002",
+          crmScore: 91,
         },
         audienceType: "b2b",
         roleLabel: "Partner",
@@ -1888,7 +1892,11 @@ describe("admin marketing router", () => {
           firstClassFields: expect.arrayContaining(["sent", "opened", "clicked"]),
         }),
         contacts: expect.objectContaining({
-          firstClassFields: expect.arrayContaining(["language", "category", "vertical", "market", "lists"]),
+          firstClassFields: expect.arrayContaining(["profile.firstName", "profile.emailAddress", "profile.phoneNumber", "profile.whatsappNumber", "language", "category", "vertical", "market", "lists"]),
+          metadataOnlyFields: expect.arrayContaining(["profile.crmScore"]),
+        }),
+        campaigns: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["channels.channel", "channels.contentExternalId"]),
         }),
         journeyEnrollments: expect.objectContaining({
           firstClassFields: expect.arrayContaining(["journeyExternalId", "contactExternalId", "status"]),
