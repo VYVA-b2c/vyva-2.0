@@ -2349,6 +2349,7 @@ function LovableDestinationMap({ summary }: { summary: Record<string, unknown> }
 
 const inputClass = "h-11 w-full rounded-xl border border-[#E5D8CA] bg-white px-3 text-sm font-semibold text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
+const floatingContentPanelClass = "fixed bottom-6 left-1/2 top-20 z-[9999] w-[min(980px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-300 bg-white p-4 shadow-[0_24px_80px_rgba(36,17,51,0.35)]";
 
 export default function MarketingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
@@ -5133,21 +5134,36 @@ export default function MarketingAdminPage() {
                                     <Trash2 size={13} /> {confirmingContentDeleteId === item.id ? "Confirm delete" : "Delete"}
                                   </button>
                                   {confirmingContentDeleteId === item.id ? (
-                                    <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-content-delete-confirmation-${item.id}`}>
-                                      Click Confirm delete to remove this content.
-                                    </p>
+                                    <div className="basis-full rounded-lg border border-red-200 bg-red-50 px-2 py-2 text-xs font-black text-red-800" data-testid={`marketing-content-delete-confirmation-${item.id}`}>
+                                      <p>Click Confirm delete to remove this content.</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setConfirmingContentDeleteId(null);
+                                          setContentActionFeedback("");
+                                        }}
+                                        className="mt-1 text-red-700 underline"
+                                        disabled={contentSaving}
+                                        data-testid={`button-marketing-cancel-delete-content-${item.id}`}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
                                   ) : null}
                                   {item.id === selectedContentId && contentDrawerMode === "preview" ? (
-                                    <div className="basis-full rounded-lg bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
-                                      <p>Preview opened in the right-side panel.</p>
+                                    <div className="basis-full rounded-lg border border-purple-200 bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
+                                      <p>Preview panel opened.</p>
+                                      <p className="mt-1 text-[#241133]">{item.subject || item.title}</p>
+                                      <p className="mt-1 line-clamp-2 font-semibold text-[#6f5f59]">{item.body || "No body copy yet."}</p>
                                       <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
                                         <ArrowDown size={12} /> Focus preview
                                       </button>
                                     </div>
                                   ) : null}
                                   {item.id === editingContentId && contentDrawerMode === "edit" ? (
-                                    <div className="basis-full rounded-lg bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-editor-open-${item.id}`}>
-                                      <p>Editor opened in the right-side panel.</p>
+                                    <div className="basis-full rounded-lg border border-purple-200 bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-editor-open-${item.id}`}>
+                                      <p>Editor panel opened.</p>
+                                      <p className="mt-1 font-semibold text-[#6f5f59]">You can edit this content in the focused panel now.</p>
                                       <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
                                         <ArrowDown size={12} /> Focus editor
                                       </button>
@@ -5169,7 +5185,7 @@ export default function MarketingAdminPage() {
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
                 tabIndex={contentDrawerMode === "edit" ? -1 : undefined}
-                className={contentDrawerMode === "edit" ? "fixed bottom-6 right-6 top-24 z-50 w-[min(820px,calc(100vw-3rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
+                className={contentDrawerMode === "edit" ? floatingContentPanelClass : "hidden"}
               >
                 <SectionCard
                   title="Content editor"
@@ -5267,7 +5283,7 @@ export default function MarketingAdminPage() {
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
                   tabIndex={contentDrawerMode === "preview" ? -1 : undefined}
-                  className={contentDrawerMode === "preview" ? "fixed bottom-6 right-6 top-24 z-50 w-[min(820px,calc(100vw-3rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
+                  className={contentDrawerMode === "preview" ? floatingContentPanelClass : "hidden"}
                 >
                   <SectionCard
                     title="Content preview"
