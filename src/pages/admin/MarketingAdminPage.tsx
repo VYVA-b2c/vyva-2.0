@@ -5139,7 +5139,7 @@ export default function MarketingAdminPage() {
                                   ) : null}
                                   {item.id === selectedContentId && contentDrawerMode === "preview" ? (
                                     <div className="basis-full rounded-lg bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
-                                      <p>Preview opened in the right drawer.</p>
+                                      <p>Preview opened below the content library.</p>
                                       <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
                                         <ArrowDown size={12} /> Focus preview
                                       </button>
@@ -5147,7 +5147,7 @@ export default function MarketingAdminPage() {
                                   ) : null}
                                   {item.id === editingContentId && contentDrawerMode === "edit" ? (
                                     <div className="basis-full rounded-lg bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-editor-open-${item.id}`}>
-                                      <p>Editor opened in the right drawer.</p>
+                                      <p>Editor opened below the content library.</p>
                                       <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
                                         <ArrowDown size={12} /> Focus editor
                                       </button>
@@ -5163,22 +5163,13 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               </SectionCard>
-              {contentDrawerMode ? (
-                <button
-                  type="button"
-                  aria-label="Close content drawer"
-                  onClick={closeContentDrawer}
-                  className="fixed inset-0 z-[70] cursor-default bg-[#241133]/20"
-                  data-testid="marketing-content-drawer-backdrop"
-                />
-              ) : null}
               <div
                 ref={contentEditorPanelRef}
                 data-testid="marketing-content-editor-panel"
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
                 tabIndex={contentDrawerMode === "edit" ? -1 : undefined}
-                className={contentDrawerMode === "edit" ? "fixed inset-y-6 right-6 z-[80] w-[min(860px,calc(100vw-3rem))] overflow-y-auto scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-xl" : "hidden"}
+                className={contentDrawerMode === "edit" ? "scroll-mt-24 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-sm" : "hidden"}
               >
                 <SectionCard
                   title="Content editor"
@@ -5276,7 +5267,7 @@ export default function MarketingAdminPage() {
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
                   tabIndex={contentDrawerMode === "preview" ? -1 : undefined}
-                  className={contentDrawerMode === "preview" ? "fixed inset-y-6 right-6 z-[80] w-[min(820px,calc(100vw-3rem))] overflow-y-auto scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-xl" : "hidden"}
+                  className={contentDrawerMode === "preview" ? "scroll-mt-24 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-sm" : "hidden"}
                 >
                   <SectionCard
                     title="Content preview"
