@@ -116,6 +116,17 @@ type CampaignRecipient = {
   communicationLogId: string | null;
 };
 
+type ContentUsage = {
+  key: string;
+  kind: "campaign" | "journey";
+  label: string;
+  detail: string;
+  channel: Channel;
+  status: string;
+  campaignId?: string;
+  journeyId?: string;
+};
+
 type Campaign = {
   id: string;
   name: string;
@@ -1008,6 +1019,64 @@ function contentAssetByReference(content: ContentAsset[], reference?: string | n
     `template:${item.lovableExternalId ?? ""}`,
     `content_brief:${item.lovableExternalId ?? ""}`,
   ].some((candidate) => lower(candidate) === normalized)) ?? null;
+}
+
+function contentReferenceKeys(content: ContentAsset) {
+  const keys = new Set<string>();
+  const prefixes = ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"];
+  for (const value of [content.id, content.lovableExternalId]) {
+    for (const key of lookupKeysForExternalId(value, prefixes)) keys.add(key);
+  }
+  return keys;
+}
+
+function contentReferenceMatches(content: ContentAsset, reference?: string | null) {
+  const normalized = lower(reference);
+  if (!normalized) return false;
+  const keys = contentReferenceKeys(content);
+  if (keys.has(normalized)) return true;
+  const [, suffix] = normalized.includes(":") ? normalized.split(/:(.+)/) : ["", ""];
+  return Boolean(suffix && keys.has(suffix));
+}
+
+function contentUsageFor(content: ContentAsset, campaigns: Campaign[], journeys: Journey[]): ContentUsage[] {
+  const usages: ContentUsage[] = [];
+  const seen = new Set<string>();
+  for (const campaign of campaigns) {
+    for (const channel of campaign.channels ?? []) {
+      if (!contentReferenceMatches(content, channel.contentAssetId)) continue;
+      const key = `campaign:${campaign.id}:${channel.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      usages.push({
+        key,
+        kind: "campaign",
+        campaignId: campaign.id,
+        label: campaign.name,
+        detail: `${channelLabel[channel.channel]} campaign channel${channel.scheduledAt ? ` / ${formatDate(channel.scheduledAt)}` : ""}`,
+        channel: channel.channel,
+        status: channel.status || campaign.status,
+      });
+    }
+  }
+  for (const journey of journeys) {
+    for (const step of journey.steps ?? []) {
+      if (!contentReferenceMatches(content, step.contentAssetId) && !contentReferenceMatches(content, step.templateRef)) continue;
+      const key = `journey:${journey.id}:${step.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      usages.push({
+        key,
+        kind: "journey",
+        journeyId: journey.id,
+        label: journey.name,
+        detail: `Step ${step.stepOrder + 1}: ${step.kind || "message"} / ${channelLabel[step.channel]} / day ${step.dayOffset}`,
+        channel: step.channel,
+        status: step.status || journey.status,
+      });
+    }
+  }
+  return usages;
 }
 
 function newDraftId() {
@@ -2227,6 +2296,80 @@ function LinkedContentPreview({
   );
 }
 
+function ContentUsageList({
+  usages,
+  testId,
+  onOpenCampaign,
+  onOpenJourney,
+  compact = false,
+}: {
+  usages: ContentUsage[];
+  testId: string;
+  onOpenCampaign?: (campaignId: string) => void;
+  onOpenJourney?: (journeyId: string) => void;
+  compact?: boolean;
+}) {
+  if (!usages.length) {
+    return (
+      <div className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-3 text-sm font-bold text-[#8b7a73]" data-testid={testId}>
+        Not linked to a campaign or journey yet.
+      </div>
+    );
+  }
+  return (
+    <div className={compact ? "grid gap-2" : "rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3"} data-testid={testId}>
+      {!compact ? <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Used in campaigns and journeys</p> : null}
+      <div className={`grid gap-2 ${compact ? "" : "mt-3"}`}>
+        {usages.map((usage) => {
+          const canOpenCampaign = usage.kind === "campaign" && Boolean(usage.campaignId) && Boolean(onOpenCampaign);
+          const canOpenJourney = usage.kind === "journey" && Boolean(usage.journeyId) && Boolean(onOpenJourney);
+          return (
+            <article key={usage.key} className="rounded-lg border border-[#eadfd5] bg-white px-3 py-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Pill className={usage.kind === "campaign" ? "bg-blue-50 text-blue-800" : "bg-purple-50 text-purple-800"}>
+                      {usage.kind === "campaign" ? "Campaign" : "Journey"}
+                    </Pill>
+                    <Pill className={channelClass(usage.channel)}>{channelLabel[usage.channel]}</Pill>
+                    <Pill className={statusClass(usage.status)}>{usage.status}</Pill>
+                  </div>
+                  <p className="mt-1 text-sm font-black text-[#241133]">{usage.label}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-[#7d6b65]">{usage.detail}</p>
+                </div>
+                {canOpenCampaign ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (usage.campaignId) onOpenCampaign?.(usage.campaignId);
+                    }}
+                    className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700"
+                    data-testid={`button-marketing-open-content-usage-${usage.key}`}
+                  >
+                    <ExternalLink size={12} /> Open
+                  </button>
+                ) : null}
+                {canOpenJourney ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (usage.journeyId) onOpenJourney?.(usage.journeyId);
+                    }}
+                    className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700"
+                    data-testid={`button-marketing-open-content-usage-${usage.key}`}
+                  >
+                    <ExternalLink size={12} /> Open
+                  </button>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function LockedSendPanel() {
   return (
     <div className="rounded-[14px] border border-emerald-200 bg-emerald-50 p-4 text-emerald-950" data-testid="marketing-send-readiness-panel">
@@ -2684,6 +2827,10 @@ export default function MarketingAdminPage() {
   const campaignById = useMemo(() => new Map(campaigns.map((campaign) => [campaign.id, campaign])), [campaigns]);
   const journeyById = useMemo(() => new Map(journeys.map((journey) => [journey.id, journey])), [journeys]);
   const contactById = useMemo(() => new Map(contacts.map((contact) => [contact.id, contact])), [contacts]);
+  const contentUsageById = useMemo(
+    () => new Map(content.map((item) => [item.id, contentUsageFor(item, campaigns, journeys)])),
+    [campaigns, content, journeys],
+  );
   const contactByImportId = useMemo(() => {
     const map = new Map<string, MarketingContact>();
     for (const contact of contacts) {
@@ -3006,6 +3153,10 @@ export default function MarketingAdminPage() {
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
   const selectedContent = useMemo(() => selectedContentId ? content.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, content]);
+  const selectedContentUsage = useMemo(
+    () => selectedContent ? contentUsageById.get(selectedContent.id) ?? [] : [],
+    [contentUsageById, selectedContent],
+  );
   const selectedContentMediaAssets = useMemo(() => {
     if (!selectedContent) return [];
     return mediaAssets.filter((item) => item.contentAssetId === selectedContent.id);
@@ -3655,6 +3806,28 @@ export default function MarketingAdminPage() {
     }
     setContentDrawerMode(null);
     setContentActionFeedback("");
+  }
+
+  function openContentUsageCampaign(campaignId: string) {
+    const campaign = campaignById.get(campaignId);
+    if (!campaign) {
+      setMessage("Campaign reference could not be opened.");
+      return;
+    }
+    closeContentDrawer();
+    startCampaignEdit(campaign);
+    setActiveTab("dashboard");
+  }
+
+  function openContentUsageJourney(journeyId: string) {
+    const journey = journeyById.get(journeyId);
+    if (!journey) {
+      setMessage("Journey reference could not be opened.");
+      return;
+    }
+    closeContentDrawer();
+    startJourneyEdit(journey);
+    setActiveTab("journeys");
   }
 
   async function saveContentEdit(event: FormEvent) {
@@ -5445,6 +5618,7 @@ export default function MarketingAdminPage() {
                             const rowMediaAssets = mediaAssets.filter((asset) => asset.contentAssetId === item.id);
                             const rowMediaPreviewUrls = contentMediaPreviewUrls(item, rowMediaAssets);
                             const timelineParts = recordTimelineParts(item);
+                            const usageItems = contentUsageById.get(item.id) ?? [];
                             return (
                             <Fragment key={item.id}>
                             <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
@@ -5482,6 +5656,17 @@ export default function MarketingAdminPage() {
                                     {timelineParts.map((part) => (
                                       <p key={part} className="text-xs font-semibold text-[#8b7a73]">{part}</p>
                                     ))}
+                                  </div>
+                                ) : null}
+                                {usageItems.length ? (
+                                  <div className="mt-2">
+                                    <ContentUsageList
+                                      usages={usageItems}
+                                      testId={`marketing-content-usage-${item.id}`}
+                                      compact
+                                      onOpenCampaign={openContentUsageCampaign}
+                                      onOpenJourney={openContentUsageJourney}
+                                    />
                                   </div>
                                 ) : null}
                               </td>
@@ -5869,6 +6054,12 @@ export default function MarketingAdminPage() {
                         </div>
                       ) : null}
                       <LovableContentSourceDetails content={selectedContent} />
+                      <ContentUsageList
+                        usages={selectedContentUsage}
+                        testId="marketing-selected-content-usage"
+                        onOpenCampaign={openContentUsageCampaign}
+                        onOpenJourney={openContentUsageJourney}
+                      />
                       {selectedContent.htmlBody ? (
                         <iframe
                           title={`Preview ${selectedContent.title}`}

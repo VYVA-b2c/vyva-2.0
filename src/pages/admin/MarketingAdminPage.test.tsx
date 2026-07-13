@@ -811,6 +811,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Social post");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable ID: lovable-content-2");
     expect(screen.getByTestId("marketing-content-timeline-content-2")).toHaveTextContent("Updated");
+    expect(screen.getByTestId("marketing-content-usage-content-2")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-content-usage-content-2")).toHaveTextContent("LinkedIn campaign channel");
+    expect(screen.getByTestId("marketing-content-usage-content-1")).toHaveTextContent("B2B nurture");
+    expect(screen.getByTestId("marketing-content-usage-content-1")).toHaveTextContent("Step 1: message / Email / day 3");
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
 
@@ -822,6 +826,8 @@ describe("MarketingAdminPage", () => {
     expect(within(screen.getByTestId("marketing-content-design-preview")).getByAltText("Partner hero")).toHaveAttribute("src", "https://cdn.example.test/partner-design.png");
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("VYVA updated");
+    expect(screen.getByTestId("marketing-selected-content-usage")).toHaveTextContent("Used in campaigns and journeys");
+    expect(screen.getByTestId("marketing-selected-content-usage")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design blocks: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Media refs: 1");
@@ -832,6 +838,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Lovable ID: media-1");
     expect(screen.getByTestId("marketing-media-timeline-media-1")).toHaveTextContent("Synced");
     expect(screen.getByAltText("Partner post")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
+
+    fireEvent.click(within(screen.getByTestId("marketing-selected-content-usage")).getByTestId("button-marketing-open-content-usage-campaign:campaign-1:channel-1-linkedin"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Partner outreach");
