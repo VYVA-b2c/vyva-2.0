@@ -2593,6 +2593,111 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
   });
 
+  it("runs a safe web search from a pending Concierge task before closing it", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "scam-web-1",
+            use_case: "scam_check",
+            provider_name: "VYVA review",
+            provider_phone: null,
+            action_summary: "Safe check prepared: Company or offer.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+              requested_tool: "web_search",
+              active_tool: "web_search",
+              readiness_status: "ready",
+              execution_channel: "manual",
+              draft_message: [
+                "Help me check a company, offer, seller, or service reputation online.",
+                "User detail: Acme Deals https://example.test/offer.",
+                "Do not click, reply, pay, or share personal details.",
+              ].join("\n"),
+              no_external_action_without_confirmation: true,
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      if (target.endsWith("/api/offers/search")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.query).toContain("Acme Deals");
+        expect(body.locale).toBe("en");
+        return jsonResponse({
+          category: "safety",
+          options: [{
+            label: "Opcion recomendada",
+            name: "Acme Deals public warning signs",
+            category: "reputation",
+            what_it_offers: "Public safety signal review",
+            price_or_advantage: "No payment needed",
+            why_good_option: "Mentions mismatched domains and pressure tactics.",
+            distance_or_availability: "Online",
+            contact_method: "Do not contact yet",
+            trust_note: "Several public signals need caution.",
+            score: 82,
+          }],
+          decision_explanation: "Caution is advised before clicking or paying.",
+          neutrality_note: "This is a neutral check, not a guarantee.",
+          source_guidance: ["Prefer official company sites.", "Do not enter personal details."],
+          protection_summary: {
+            title: "Stay safe",
+            checkpoints: ["Do not click payment links", "Verify the company independently"],
+            notification_triggers: ["payment pressure"],
+            action_guardrail: "Ask before contacting anyone.",
+          },
+          next_step: "Keep the message and avoid replying until reviewed.",
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/scam-web-1/complete")) {
+        expect(init?.method).toBe("POST");
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-safe-web-1" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-safe-web-search-scam-web-1");
+    expect(panel).toHaveTextContent("Safe search");
+    expect(panel).toHaveTextContent("Nothing is contacted, sent, or opened for you.");
+    expect(screen.getByTestId("button-concierge-confirm-scam-web-1")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-safe-web-search-run-scam-web-1"));
+
+    const result = await screen.findByTestId("safe-web-search-result-scam-web-1");
+    expect(result).toHaveTextContent("Caution is advised");
+    expect(result).toHaveTextContent("Acme Deals public warning signs");
+    expect(screen.getByTestId("button-safe-web-search-save-scam-web-1")).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-safe-web-search-save-scam-web-1"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/concierge/actions/scam-web-1/complete",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    const completionCall = apiFetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/concierge/actions/scam-web-1/complete"));
+    const completionBody = JSON.parse(String(completionCall?.[1]?.body));
+    expect(completionBody.outcome_summary).toContain("Safe search completed");
+    expect(completionBody.outcome_payload).toMatchObject({
+      flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+      execution_type: "safe_web_search",
+      category: "safety",
+      no_external_action_without_confirmation: true,
+    });
+    expect(completionBody.outcome_payload.query).toContain("Acme Deals");
+    expect(completionBody.outcome_payload.options[0]).toMatchObject({
+      name: "Acme Deals public warning signs",
+      score: 82,
+    });
+  });
+
   it("renders prepared provider phone actions as direct call links", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{

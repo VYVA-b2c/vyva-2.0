@@ -909,6 +909,11 @@ interface OffersSearchResponse {
   no_results_message?: string;
 }
 
+type WebSearchActionResult = {
+  query: string;
+  result: OffersSearchResponse;
+};
+
 type BillDocumentAnalysis = {
   document_type: "electricity_bill" | "gas_bill" | "internet_phone_bill" | "insurance_policy" | "home_service_invoice" | "unknown";
   category: string;
@@ -3434,6 +3439,101 @@ function payloadString(payload: Record<string, unknown> | null | undefined, keys
   return "";
 }
 
+function isWebSearchPendingAction(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
+  if (!item || item.status !== "pending") return false;
+  const toolText = [
+    payloadString(item.action_payload, ["requested_tool"]),
+    payloadString(item.action_payload, ["active_tool"]),
+    payloadString(item.action_payload, ["tool"]),
+    getExecutionChannel(item),
+  ].join(" ").toLowerCase();
+  return /\bweb_search\b/.test(toolText);
+}
+
+function webSearchFlowReference(item: ConciergePendingItem): ConciergeFlowReference {
+  const payloadReference = payloadString(item.action_payload, ["flow_reference"]);
+  if (isConciergeFlowReference(payloadReference)) return payloadReference;
+  if (item.use_case === "scam_check") return SCAM_CHECK_FLOW_REFERENCE;
+  return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
+}
+
+function webSearchActionQuery(item: ConciergePendingItem, isSpanish: boolean): string {
+  const payload = item.action_payload;
+  const explicit = payloadString(payload, [
+    "search_query",
+    "query",
+    "company_name",
+    "provider_name",
+    "phone_number",
+    "url",
+    "user_detail",
+  ]);
+  if (explicit) return explicit;
+
+  const draft = payloadString(payload, ["draft_message", "message", "body", "detail"]);
+  const userDetail = lineValueFromText(draft, [
+    "User detail",
+    "Detalle del usuario",
+    "Company",
+    "Empresa",
+    "Phone",
+    "Telefono",
+    "Teléfono",
+  ]);
+  if (userDetail) return userDetail;
+
+  const pieces = [
+    item.provider_name && !/^(vyva review|selected provider|proveedor seleccionado)$/i.test(item.provider_name)
+      ? item.provider_name
+      : "",
+    item.action_summary,
+    draft,
+  ].filter(Boolean);
+  const query = pieces.join(" ").replace(/\s+/g, " ").trim();
+  return query || (isSpanish ? "busqueda segura" : "safe search");
+}
+
+function webSearchOutcomeSummary(item: ConciergePendingItem, search: WebSearchActionResult, isSpanish: boolean): string {
+  const topOption = search.result.options[0]?.name;
+  if (topOption) {
+    return isSpanish
+      ? `Busqueda segura completada. Resultado principal: ${topOption}.`
+      : `Safe search completed. Top result: ${topOption}.`;
+  }
+  return isSpanish
+    ? "Busqueda segura completada. Revisa las notas antes de actuar."
+    : "Safe search completed. Review the notes before acting.";
+}
+
+function webSearchOutcomePayload(item: ConciergePendingItem, search: WebSearchActionResult): Record<string, unknown> {
+  return {
+    flow_reference: webSearchFlowReference(item),
+    execution_type: "safe_web_search",
+    query: search.query,
+    category: search.result.category,
+    decision_explanation: search.result.decision_explanation,
+    neutrality_note: search.result.neutrality_note,
+    source_guidance: search.result.source_guidance,
+    protection_summary: search.result.protection_summary ?? null,
+    next_step: search.result.next_step,
+    no_results_message: search.result.no_results_message ?? null,
+    options: search.result.options.slice(0, 3).map((option) => ({
+      name: option.name,
+      category: option.category,
+      label: option.label,
+      why_good_option: option.why_good_option,
+      distance_or_availability: option.distance_or_availability,
+      contact_method: option.contact_method,
+      trust_note: option.trust_note,
+      score: option.score,
+      website: option.website ?? null,
+      maps_url: option.maps_url ?? null,
+    })),
+    no_external_action_without_confirmation: true,
+    searched_at: new Date().toISOString(),
+  };
+}
+
 function getActionEmailDraft(item: ConciergePendingItem): ConciergeEmailDraft | null {
   const payload = item.action_payload;
   const address = payloadString(payload, [
@@ -4533,6 +4633,118 @@ function ProviderSearchFollowThroughPanel({
   );
 }
 
+function SafeWebSearchExecutionPanel({
+  item,
+  search,
+  error,
+  isRunning,
+  isSaving,
+  isSpanish,
+  onRun,
+  onSave,
+}: {
+  item: ConciergePendingItem;
+  search: WebSearchActionResult | null;
+  error: string | null;
+  isRunning: boolean;
+  isSaving: boolean;
+  isSpanish: boolean;
+  onRun: () => void;
+  onSave: () => void;
+}) {
+  const topOptions = search?.result.options.slice(0, 2) ?? [];
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4"
+      data-testid={`panel-safe-web-search-${item.id}`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#0F766E] shadow-sm">
+          <Search size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+            {isSpanish ? "Busqueda segura" : "Safe search"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {isSpanish ? "Revisar senales publicas" : "Check public signals"}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "VYVA busca senales neutrales. No contacta, envia ni abre nada por ti."
+              : "VYVA checks neutral signals. Nothing is contacted, sent, or opened for you."}
+          </span>
+        </span>
+      </div>
+
+      {search ? (
+        <div className="mt-3 space-y-2" data-testid={`safe-web-search-result-${item.id}`}>
+          <div className="rounded-[16px] bg-white p-3 shadow-sm">
+            <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+              {isSpanish ? "Resultado" : "Result"}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-1">
+              {search.result.decision_explanation || search.result.no_results_message || search.result.next_step}
+            </p>
+          </div>
+          {topOptions.map((option) => (
+            <div key={offerCardKey(option)} className="rounded-[16px] bg-white p-3 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block font-body text-[13px] font-black text-vyva-text-1">
+                    {option.name}
+                  </span>
+                  <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+                    {option.trust_note || option.why_good_option}
+                  </span>
+                </span>
+                <span className="rounded-full bg-[#ECFDF5] px-2 py-1 font-body text-[11px] font-black text-[#047857]">
+                  {clampScore(option.score)}
+                </span>
+              </div>
+            </div>
+          ))}
+          <p className="rounded-[14px] bg-white px-3 py-2 font-body text-[12px] font-bold leading-snug text-vyva-text-2 shadow-sm">
+            {search.result.next_step}
+          </p>
+        </div>
+      ) : null}
+
+      {error ? (
+        <p data-testid={`safe-web-search-error-${item.id}`} className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Button
+          type="button"
+          data-testid={`button-safe-web-search-run-${item.id}`}
+          onClick={onRun}
+          disabled={isRunning || isSaving}
+          className="vyva-primary-action h-auto bg-[#0F766E] hover:bg-[#115E59]"
+        >
+          {isRunning ? <Loader2 size={15} className="mr-2 animate-spin" /> : <Search size={15} className="mr-2" />}
+          {search
+            ? (isSpanish ? "Buscar de nuevo" : "Search again")
+            : (isSpanish ? "Ejecutar busqueda" : "Run safe search")}
+        </Button>
+        <Button
+          type="button"
+          data-testid={`button-safe-web-search-save-${item.id}`}
+          onClick={onSave}
+          disabled={!search || isRunning || isSaving}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#99F6E4] text-[#0F766E]"
+        >
+          {isSaving ? <Loader2 size={15} className="mr-2 animate-spin" /> : <CircleCheck size={15} className="mr-2" />}
+          {isSpanish ? "Guardar y cerrar" : "Save and close"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "item" | "isSpanish" | "formMissingFields">): string {
   const { item, isSpanish, formMissingFields } = params;
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
@@ -5542,6 +5754,8 @@ const ConciergeScreen = () => {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersResult, setOffersResult] = useState<OffersSearchResponse | null>(null);
   const [offersError, setOffersError] = useState<string | null>(null);
+  const [webSearchResultsByActionId, setWebSearchResultsByActionId] = useState<Record<string, WebSearchActionResult>>({});
+  const [webSearchErrorsByActionId, setWebSearchErrorsByActionId] = useState<Record<string, string>>({});
   const [objectiveProofOpen, setObjectiveProofOpen] = useState(false);
   const [expandedOfferScoreKey, setExpandedOfferScoreKey] = useState<string | null>(null);
   const [billAnalysis, setBillAnalysis] = useState<BillDocumentAnalysis | null>(null);
@@ -6181,6 +6395,69 @@ const ConciergeScreen = () => {
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
       ]);
+    },
+  });
+
+  const executeWebSearchActionMutation = useMutation({
+    mutationFn: async ({ item }: { item: ConciergePendingItem }) => {
+      const query = webSearchActionQuery(item, isSpanish);
+      const result = await searchOffers(query, language);
+      return { item, query, result };
+    },
+    onMutate: ({ item }) => {
+      setWebSearchErrorsByActionId((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+    },
+    onSuccess: ({ item, query, result }) => {
+      setWebSearchResultsByActionId((current) => ({
+        ...current,
+        [item.id]: { query, result },
+      }));
+    },
+    onError: (error, { item }) => {
+      setWebSearchErrorsByActionId((current) => ({
+        ...current,
+        [item.id]: error instanceof Error
+          ? error.message
+          : (isSpanish ? "No he podido completar la busqueda." : "I could not complete the search."),
+      }));
+    },
+  });
+
+  const completeWebSearchActionMutation = useMutation({
+    mutationFn: ({ item, search }: { item: ConciergePendingItem; search: WebSearchActionResult }) => (
+      completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: webSearchOutcomeSummary(item, search, isSpanish),
+        outcomePayload: webSearchOutcomePayload(item, search),
+      })
+    ),
+    onSuccess: async (_result, { item }) => {
+      setWebSearchResultsByActionId((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      setWebSearchErrorsByActionId((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error, { item }) => {
+      setWebSearchErrorsByActionId((current) => ({
+        ...current,
+        [item.id]: error instanceof Error
+          ? error.message
+          : (isSpanish ? "No he podido guardar la busqueda." : "I could not save the search."),
+      }));
     },
   });
 
@@ -8535,6 +8812,13 @@ const ConciergeScreen = () => {
   const activeActionProviderSearchDetails = isProviderSearchPendingAction(activeAction)
     ? providerSearchActionDetails(activeAction, isSpanish)
     : null;
+  const activeActionWebSearch = isWebSearchPendingAction(activeAction) ? activeAction : null;
+  const activeActionWebSearchResult = activeActionWebSearch
+    ? webSearchResultsByActionId[activeActionWebSearch.id] ?? null
+    : null;
+  const activeActionWebSearchError = activeActionWebSearch
+    ? webSearchErrorsByActionId[activeActionWebSearch.id] ?? null
+    : null;
   const selectedScamCheckOption = SCAM_CHECK_OPTIONS.find((option) => option.key === selectedScamCheckKind) ?? null;
   const selectedScamCheckCopy = selectedScamCheckOption
     ? scamCheckDetailCopy(selectedScamCheckOption.key, isSpanish)
@@ -10454,6 +10738,25 @@ const ConciergeScreen = () => {
                 onReply={() => openProviderReplyMode(activeAction, "confirmed")}
                 onSaveProvider={() => handleSaveProviderSearchProvider(activeAction)}
                 onTryAnother={() => handleProviderSearchTryAnother(activeAction)}
+              />
+            ) : null}
+
+            {activeActionWebSearch ? (
+              <SafeWebSearchExecutionPanel
+                item={activeActionWebSearch}
+                search={activeActionWebSearchResult}
+                error={activeActionWebSearchError}
+                isRunning={executeWebSearchActionMutation.isPending}
+                isSaving={completeWebSearchActionMutation.isPending}
+                isSpanish={isSpanish}
+                onRun={() => executeWebSearchActionMutation.mutate({ item: activeActionWebSearch })}
+                onSave={() => {
+                  if (!activeActionWebSearchResult) return;
+                  completeWebSearchActionMutation.mutate({
+                    item: activeActionWebSearch,
+                    search: activeActionWebSearchResult,
+                  });
+                }}
               />
             ) : null}
 
