@@ -1107,6 +1107,8 @@ const OFFER_IDEA_CHIPS = [
 ] as const;
 
 const DEFAULT_PROVIDER_SEARCH_CRITERIA: ProviderSearchCriterionKey[] = ["nearby", "reputation", "accessible"];
+const TRANSPORT_PROVIDER_QUALITY_CRITERIA: ProviderSearchCriterionKey[] = ["nearby", "available-soon", "accessible", "clear-price", "reputation"];
+const OTC_PHARMACY_QUALITY_CRITERIA: ProviderSearchCriterionKey[] = ["nearby", "available-soon", "clear-price", "reputation"];
 
 const PROVIDER_SEARCH_CRITERIA: Array<{
   key: ProviderSearchCriterionKey;
@@ -1347,6 +1349,92 @@ const INSURANCE_ADMIN_OPTIONS: Array<{
     Icon: PhoneCall,
   },
 ];
+
+function scamCheckDetailCopy(kind: ScamCheckKind, isSpanish: boolean): { label: string; placeholder: string; helper: string } {
+  const copy: Record<ScamCheckKind, { en: string; es: string; placeholderEn: string; placeholderEs: string; helperEn: string; helperEs: string }> = {
+    email: {
+      en: "Paste the message or say how you can share it",
+      es: "Pega el mensaje o di como puedes compartirlo",
+      placeholderEn: "Paste text, sender, or subject...",
+      placeholderEs: "Pega texto, remitente o asunto...",
+      helperEn: "Do not click links or reply.",
+      helperEs: "No pulses enlaces ni respondas.",
+    },
+    document: {
+      en: "What document should VYVA review?",
+      es: "Que documento debe revisar VYVA?",
+      placeholderEn: "Letter, bill, invoice, photo...",
+      placeholderEs: "Carta, factura, recibo, foto...",
+      helperEn: "Use photo/upload only when you confirm.",
+      helperEs: "Usa foto/subida solo cuando confirmes.",
+    },
+    phone: {
+      en: "Phone number or caller name",
+      es: "Numero de telefono o nombre",
+      placeholderEn: "+34..., unknown caller, bank claim...",
+      placeholderEs: "+34..., llamada desconocida, banco...",
+      helperEn: "VYVA checks safely before calling back.",
+      helperEs: "VYVA revisa antes de devolver llamada.",
+    },
+    company: {
+      en: "Company, seller, offer, or link",
+      es: "Empresa, vendedor, oferta o enlace",
+      placeholderEn: "Name, website, marketplace link...",
+      placeholderEs: "Nombre, web, enlace de marketplace...",
+      helperEn: "VYVA looks for reliable reputation signals.",
+      helperEs: "VYVA busca senales fiables de reputacion.",
+    },
+  };
+  const item = copy[kind];
+  return {
+    label: isSpanish ? item.es : item.en,
+    placeholder: isSpanish ? item.placeholderEs : item.placeholderEn,
+    helper: isSpanish ? item.helperEs : item.helperEn,
+  };
+}
+
+function insuranceAdminDetailCopy(kind: InsuranceAdminKind, isSpanish: boolean): {
+  subjectLabel: string;
+  subjectPlaceholder: string;
+  recipientLabel: string;
+  deadlineLabel: string;
+  notesLabel: string;
+} {
+  if (kind === "call-email") {
+    return {
+      subjectLabel: isSpanish ? "Motivo" : "Reason",
+      subjectPlaceholder: isSpanish ? "Ej. pedir cita, aclarar factura..." : "E.g. request appointment, clarify bill...",
+      recipientLabel: isSpanish ? "A quien contactar" : "Who to contact",
+      deadlineLabel: isSpanish ? "Para cuando" : "By when",
+      notesLabel: isSpanish ? "Resultado deseado" : "Desired outcome",
+    };
+  }
+  if (kind === "government-form") {
+    return {
+      subjectLabel: isSpanish ? "Formulario" : "Form",
+      subjectPlaceholder: isSpanish ? "Nombre del formulario o tramite..." : "Form or application name...",
+      recipientLabel: isSpanish ? "Organismo" : "Office / agency",
+      deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
+      notesLabel: isSpanish ? "Datos que ya tienes" : "Details you already have",
+    };
+  }
+  if (kind === "claim") {
+    return {
+      subjectLabel: isSpanish ? "Que reclamar" : "What to claim",
+      subjectPlaceholder: isSpanish ? "Reembolso, pago, factura..." : "Reimbursement, payment, bill...",
+      recipientLabel: isSpanish ? "Aseguradora o destinatario" : "Insurer or recipient",
+      deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
+      notesLabel: isSpanish ? "Documentos o importes" : "Documents or amounts",
+    };
+  }
+  return {
+    subjectLabel: isSpanish ? "Carta o factura" : "Letter or bill",
+    subjectPlaceholder: isSpanish ? "Que quieres entender..." : "What you want to understand...",
+    recipientLabel: isSpanish ? "Aseguradora" : "Insurer",
+    deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
+    notesLabel: isSpanish ? "Preguntas o preocupaciones" : "Questions or worries",
+  };
+}
 
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
 const CHAT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -1655,6 +1743,206 @@ async function markAppointmentBooked(params: {
   return await res.json() as { scheduled_event?: unknown; mission?: AppointmentMissionState };
 }
 
+async function saveConfirmedAppointmentFromProviderReply(params: {
+  item: ConciergePendingItem;
+  form: ProviderReplyForm;
+  timezone: string;
+  isSpanish: boolean;
+}): Promise<{
+  event?: unknown;
+  completion?: unknown;
+  completionStatus: "closed" | "review_pending";
+  completionError?: string | null;
+  savedFlow: "appointment";
+}> {
+  const { item, form } = params;
+  const scheduledDate = new Date(form.scheduledFor);
+  if (Number.isNaN(scheduledDate.getTime())) {
+    throw new Error(params.isSpanish ? "Usa una fecha y hora validas." : "Use a valid date and time.");
+  }
+
+  const payload = providerReplyOutcomePayload(item, form);
+  const providerName = String(payload.provider_name || item.provider_name || (params.isSpanish ? "clinica" : "clinic"));
+  const providerReply = form.providerReply.trim();
+  const reference = form.reference.trim();
+  const notes = form.notes.trim();
+  const appointmentType = payloadString(item.action_payload, ["appointment_type", "type"]) || "medical";
+  const reason = payloadString(item.action_payload, ["appointment_reason", "reason", "detail", "notes"]) || item.action_summary;
+  const location = form.location.trim() || payloadString(item.action_payload, ["location", "address", "home_address"]) || null;
+  const description = [
+    reason ? `Reason: ${reason}` : "",
+    providerReply ? `Provider reply: ${providerReply}` : "",
+    reference ? `Reference: ${reference}` : "",
+    notes ? `Notes: ${notes}` : "",
+  ].filter(Boolean).join("\n").slice(0, 1000);
+
+  const res = await apiFetch("/api/profile/scheduled-events", {
+    method: "POST",
+    body: JSON.stringify({
+      event_type: "appointment",
+      title: `Appointment with ${providerName}`,
+      description: description || null,
+      channel: "app",
+      scheduled_for: scheduledDate.toISOString(),
+      timezone: params.timezone,
+      recurrence: "none",
+      status: "upcoming",
+      source: "concierge",
+      metadata: {
+        ...payload,
+        flow_reference: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
+        pending_id: item.id,
+        appointment_type: appointmentType,
+        provider_name: providerName,
+        provider_phone: payload.provider_phone ?? item.provider_phone ?? null,
+        provider_reply: providerReply || null,
+        reference: reference || null,
+        location,
+        notes: notes || null,
+        scheduled_for: scheduledDate.toISOString(),
+      },
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not save appointment");
+  }
+
+  const saved = await res.json() as { event?: unknown };
+  const scheduledEventId = isRecord(saved.event) && typeof saved.event.id === "string" ? saved.event.id : null;
+  try {
+    const completion = await completePendingConciergeAction({
+      pendingId: item.id,
+      outcomeSummary: providerReplyOutcomeSummary(item, form, params.isSpanish),
+      outcomePayload: {
+        ...payload,
+        flow_reference: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
+        appointment_type: appointmentType,
+        scheduled_for: scheduledDate.toISOString(),
+        scheduled_event_id: scheduledEventId,
+      },
+    });
+    return { ...saved, completion, completionStatus: "closed", savedFlow: "appointment" };
+  } catch (error) {
+    return {
+      ...saved,
+      completionStatus: "review_pending",
+      completionError: error instanceof Error ? error.message : "Could not close pending task",
+      savedFlow: "appointment",
+    };
+  }
+}
+
+async function saveConfirmedHomeServiceFromProviderReply(params: {
+  item: ConciergePendingItem;
+  form: ProviderReplyForm;
+  timezone: string;
+  locale: string;
+  isSpanish: boolean;
+}): Promise<{
+  event?: unknown;
+  completion?: unknown;
+  completionStatus: "closed" | "review_pending";
+  completionError?: string | null;
+  savedFlow: "home_service";
+}> {
+  const { item, form } = params;
+  const scheduledDate = new Date(form.scheduledFor);
+  if (Number.isNaN(scheduledDate.getTime())) {
+    throw new Error(params.isSpanish ? "Usa una fecha y hora validas." : "Use a valid date and time.");
+  }
+
+  const payload = providerReplyOutcomePayload(item, form);
+  const providerName = String(payload.provider_name || item.provider_name || (params.isSpanish ? "proveedor" : "provider"));
+  const serviceType = normalizeHomeServiceType(payloadString(item.action_payload, ["service_type", "service_label", "service_needed"]) || item.action_summary);
+  const serviceLabel = payloadString(item.action_payload, ["service_label", "service_needed"]) || homeServiceTypeLabel(serviceType, params.locale);
+  const problem = payloadString(item.action_payload, ["problem_summary", "reason", "detail", "service_needed"]) || item.action_summary;
+  const urgency = payloadString(item.action_payload, ["urgency", "priority", "requested_time"]);
+  const accessNotes = payloadString(item.action_payload, ["home_access_or_safety_notes", "access_notes", "safety_notes"]);
+  const providerReply = form.providerReply.trim();
+  const reference = form.reference.trim();
+  const notes = form.notes.trim();
+  const location = form.location.trim() || payloadString(item.action_payload, ["location", "address", "home_address"]) || null;
+  const estimatedCost = estimateFromHomeServiceReply(providerReply, notes);
+  const description = [
+    problem ? `Problem: ${problem}` : "",
+    urgency ? `Urgency: ${urgency}` : "",
+    accessNotes ? `Access/safety: ${accessNotes}` : "",
+    providerReply ? `Provider reply: ${providerReply}` : "",
+    estimatedCost ? `Estimate: ${estimatedCost}` : "",
+    reference ? `Reference: ${reference}` : "",
+    notes ? `Notes: ${notes}` : "",
+  ].filter(Boolean).join("\n").slice(0, 1000);
+
+  const res = await apiFetch("/api/profile/scheduled-events", {
+    method: "POST",
+    body: JSON.stringify({
+      event_type: "home_service",
+      title: `${serviceLabel} with ${providerName}`,
+      description: description || null,
+      channel: "app",
+      scheduled_for: scheduledDate.toISOString(),
+      timezone: params.timezone,
+      recurrence: "none",
+      status: "upcoming",
+      source: "concierge",
+      metadata: {
+        ...payload,
+        flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+        pending_id: item.id,
+        appointment_type: "home-service",
+        provider_name: providerName,
+        provider_phone: payload.provider_phone ?? item.provider_phone ?? null,
+        service_type: serviceType,
+        service_label: serviceLabel,
+        problem_summary: problem || null,
+        urgency: urgency || null,
+        estimated_cost: estimatedCost,
+        provider_reply: providerReply || null,
+        reference: reference || null,
+        location,
+        notes: notes || null,
+        home_access_or_safety_notes: accessNotes || null,
+        scheduled_for: scheduledDate.toISOString(),
+      },
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not save home service visit");
+  }
+
+  const saved = await res.json() as { event?: unknown };
+  const scheduledEventId = isRecord(saved.event) && typeof saved.event.id === "string" ? saved.event.id : null;
+  try {
+    const completion = await completePendingConciergeAction({
+      pendingId: item.id,
+      outcomeSummary: `Home service visit confirmed with ${providerName}.`,
+      outcomePayload: {
+        ...payload,
+        flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+        appointment_type: "home-service",
+        provider_name: providerName,
+        service_type: serviceType,
+        service_label: serviceLabel,
+        problem_summary: problem || null,
+        urgency: urgency || null,
+        estimated_cost: estimatedCost,
+        scheduled_for: scheduledDate.toISOString(),
+        scheduled_event_id: scheduledEventId,
+      },
+    });
+    return { ...saved, completion, completionStatus: "closed", savedFlow: "home_service" };
+  } catch (error) {
+    return {
+      ...saved,
+      completionStatus: "review_pending",
+      completionError: error instanceof Error ? error.message : "Could not close pending task",
+      savedFlow: "home_service",
+    };
+  }
+}
+
 async function fetchTransportOptions(params: {
   pickupAddress: string;
   destinationAddress: string;
@@ -1739,13 +2027,16 @@ function transportDraftMessage(params: {
   destinationAddress: string;
   requestedTime: string;
   mobilityNeeds: string[];
+  qualityCriteria: ProviderSearchCriterionKey[];
 }): string {
+  const criteria = providerCriterionLabels(params.qualityCriteria, false).join(", ");
   const parts = [
     "Hello, I would like to arrange a ride.",
     params.pickupAddress.trim() ? `Pickup: ${params.pickupAddress.trim()}.` : "",
     params.destinationAddress.trim() ? `Destination: ${params.destinationAddress.trim()}.` : "",
     params.requestedTime.trim() ? `Time: ${params.requestedTime.trim()}.` : "",
     params.mobilityNeeds.length ? `Mobility needs: ${params.mobilityNeeds.join(", ")}.` : "",
+    criteria ? `Priorities: ${criteria}.` : "",
     "Please confirm availability and the next step before anything is booked.",
   ].filter(Boolean);
   return parts.join(" ");
@@ -1756,12 +2047,15 @@ function otcPharmacyDraftMessage(params: {
   fulfillmentPreference: string;
   requestedTime: string;
   notes: string;
+  qualityCriteria: ProviderSearchCriterionKey[];
 }): string {
+  const criteria = providerCriterionLabels(params.qualityCriteria, false).join(", ");
   const parts = [
     `Hello, I would like help with over-the-counter pharmacy items: ${params.itemText.trim() || "items to confirm"}.`,
     `Preference: ${params.fulfillmentPreference}.`,
     params.requestedTime.trim() ? `Timing: ${params.requestedTime.trim()}.` : "",
     params.notes.trim() ? `Notes: ${params.notes.trim()}.` : "",
+    criteria ? `Priorities: ${criteria}.` : "",
     "Please confirm availability and cost before preparing anything.",
   ].filter(Boolean);
   return parts.join(" ");
@@ -1792,6 +2086,7 @@ async function prepareTransportConciergeAction(params: {
     destinationAddress: params.destinationAddress,
     requestedTime: params.requestedTime,
     mobilityNeeds: params.mobilityNeeds,
+    qualityCriteria: TRANSPORT_PROVIDER_QUALITY_CRITERIA,
   });
   const summaryParts = [
     params.option.providerName || params.option.label,
@@ -1824,6 +2119,9 @@ async function prepareTransportConciergeAction(params: {
         email_body: messageBody,
         whatsapp_message: messageBody,
         draft_message: messageBody,
+        criteria: TRANSPORT_PROVIDER_QUALITY_CRITERIA,
+        criteria_labels: providerCriterionLabels(TRANSPORT_PROVIDER_QUALITY_CRITERIA, false),
+        criteria_summary: providerCriterionLabels(TRANSPORT_PROVIDER_QUALITY_CRITERIA, params.locale.startsWith("es")).join(", "),
         saved_transport_provider_first: params.hasSavedTransportProvider,
         saved_transport_provider_name: params.savedTransportProviderName,
       },
@@ -1892,6 +2190,8 @@ async function saveConfirmedRide(params: {
         provider_whatsapp: params.option.whatsapp ?? null,
         booking_url: params.option.bookingUrl || (params.option.kind === "ride_app" ? params.option.url : null) || null,
         option_kind: params.option.kind,
+        criteria: TRANSPORT_PROVIDER_QUALITY_CRITERIA,
+        criteria_labels: providerCriterionLabels(TRANSPORT_PROVIDER_QUALITY_CRITERIA, false),
         pickup_address: params.pickupAddress.trim(),
         destination_address: params.destinationAddress.trim(),
         requested_time: params.requestedTime.trim() || "now",
@@ -1921,6 +2221,8 @@ async function saveConfirmedRide(params: {
         provider_reply: params.providerReply.trim(),
         price_estimate: params.priceEstimate.trim(),
         booking_reference: params.bookingReference.trim(),
+        criteria: TRANSPORT_PROVIDER_QUALITY_CRITERIA,
+        criteria_labels: providerCriterionLabels(TRANSPORT_PROVIDER_QUALITY_CRITERIA, false),
         pickup_address: params.pickupAddress.trim(),
         destination_address: params.destinationAddress.trim(),
         requested_time: params.requestedTime.trim() || "now",
@@ -1963,6 +2265,7 @@ async function prepareOtcPharmacyConciergeAction(params: {
     fulfillmentPreference: params.fulfillmentPreference,
     requestedTime: params.requestedTime,
     notes: params.notes,
+    qualityCriteria: OTC_PHARMACY_QUALITY_CRITERIA,
   });
   const res = await apiFetch("/api/concierge/actions/trigger", {
     method: "POST",
@@ -1983,6 +2286,9 @@ async function prepareOtcPharmacyConciergeAction(params: {
         email_body: messageBody,
         whatsapp_message: messageBody,
         draft_message: messageBody,
+        criteria: OTC_PHARMACY_QUALITY_CRITERIA,
+        criteria_labels: providerCriterionLabels(OTC_PHARMACY_QUALITY_CRITERIA, false),
+        criteria_summary: providerCriterionLabels(OTC_PHARMACY_QUALITY_CRITERIA, params.locale.startsWith("es")).join(", "),
         item_text: itemText,
         item_scope: "over_the_counter_only",
         prescription_items_allowed: false,
@@ -2067,6 +2373,8 @@ async function saveCompletedOtcPharmacyRequest(params: {
       item_text: params.itemText.trim(),
       item_scope: "over_the_counter_only",
       prescription_items_allowed: false,
+      criteria: OTC_PHARMACY_QUALITY_CRITERIA,
+      criteria_labels: providerCriterionLabels(OTC_PHARMACY_QUALITY_CRITERIA, false),
       fulfillment_preference: params.fulfillmentPreference,
       requested_time: params.requestedTime.trim() || "today",
       availability: params.availability.trim(),
@@ -2803,6 +3111,7 @@ function transportConfirmationItems(params: {
       ? (params.isSpanish ? `Proveedor guardado: ${params.savedProviderName}` : `Saved provider: ${params.savedProviderName}`)
       : (params.isSpanish ? "Se revisa primero el proveedor guardado" : "Saved provider is checked first")
     : (params.isSpanish ? "VYVA compara opciones seguras disponibles" : "VYVA compares safe available options");
+  const criteria = providerCriterionLabels(TRANSPORT_PROVIDER_QUALITY_CRITERIA, params.isSpanish).join(", ");
 
   const items = [
     {
@@ -2816,6 +3125,12 @@ function transportConfirmationItems(params: {
     {
       label: params.isSpanish ? `Opcion: ${params.option.label}` : `Option: ${params.option.label}`,
       helper: providerHelper,
+    },
+    {
+      label: params.isSpanish ? `Criterios: ${criteria}` : `Criteria: ${criteria}`,
+      helper: params.isSpanish
+        ? "VYVA compara cercania, disponibilidad, acceso, precio y reputacion."
+        : "VYVA checks proximity, availability, access, price, and reputation.",
     },
   ];
   const readinessItem = toolReadinessConfirmationItem(params.toolReadiness, params.isSpanish);
@@ -2965,6 +3280,7 @@ function otcPharmacyConfirmationItems(params: {
   const preference = params.fulfillmentPreference === "pickup"
     ? (params.isSpanish ? "Recoger" : "Pickup")
     : (params.isSpanish ? "Entrega" : "Delivery");
+  const criteria = providerCriterionLabels(OTC_PHARMACY_QUALITY_CRITERIA, params.isSpanish).join(", ");
   const items = [
     {
       label: params.isSpanish ? `Farmacia: ${params.pharmacyName}` : `Pharmacy: ${params.pharmacyName}`,
@@ -2977,6 +3293,12 @@ function otcPharmacyConfirmationItems(params: {
     {
       label: params.isSpanish ? `${preference}: ${params.requestedTime.trim() || "hoy"}` : `${preference}: ${params.requestedTime.trim() || "today"}`,
       helper: params.notes.trim() || (params.isSpanish ? "Sin notas extra" : "No extra notes"),
+    },
+    {
+      label: params.isSpanish ? `Criterios: ${criteria}` : `Criteria: ${criteria}`,
+      helper: params.isSpanish
+        ? "VYVA revisa stock, cercania, precio claro y reputacion."
+        : "VYVA checks stock, proximity, clear price, and reputation.",
     },
   ];
   const readinessItem = toolReadinessConfirmationItem(params.toolReadiness, params.isSpanish);
@@ -3209,6 +3531,10 @@ function statusLabel(status: ConciergePendingItem["status"], locale = "es"): str
 
 function isHomeServicePendingAction(item: ConciergePendingItem): boolean {
   return item.use_case === "home_service" || item.action_payload?.appointment_type === "home-service";
+}
+
+function isMedicalAppointmentPendingAction(item: ConciergePendingItem): boolean {
+  return item.use_case === "book_appointment" && !isHomeServicePendingAction(item);
 }
 
 function isHomeServiceCompletedSession(session: ConciergeCompletedSession): boolean {
@@ -3939,7 +4265,11 @@ function ProviderReplyPanel({
   onNeedMoreInfo: () => void;
   onCancel: () => void;
 }) {
-  const canSave = providerReplyFormHasDetails(form) && !isSaving && !isCancelling;
+  const needsScheduledTime = isMedicalAppointmentPendingAction(item) || isHomeServicePendingAction(item);
+  const scheduledTimeLabel = isHomeServicePendingAction(item)
+    ? (isSpanish ? "visita" : "visit")
+    : (isSpanish ? "cita" : "appointment");
+  const canSave = (needsScheduledTime ? providerReplyHasValidScheduledTime(form) : providerReplyFormHasDetails(form)) && !isSaving && !isCancelling;
   return (
     <div
       className="mt-3 rounded-[22px] border border-[#BFDBFE] bg-[#F8FBFF] p-4"
@@ -4021,6 +4351,7 @@ function ProviderReplyPanel({
         <div className="mt-3 rounded-[18px] border border-[#BFDBFE] bg-white p-3" data-testid={`panel-provider-reply-confirmed-${item.id}`}>
           <div className="grid gap-2 sm:grid-cols-2">
             <Input
+              type={needsScheduledTime ? "datetime-local" : "text"}
               value={form.scheduledFor}
               onChange={(event) => onFormChange("scheduledFor", event.target.value)}
               placeholder={isSpanish ? "Hora o fecha confirmada" : "Confirmed time or date"}
@@ -4066,6 +4397,13 @@ function ProviderReplyPanel({
             {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
             {isSpanish ? "Guardar como hecho" : "Save as done"}
           </Button>
+          {needsScheduledTime ? (
+            <p className="mt-2 font-body text-[12px] font-bold text-vyva-text-2">
+              {isSpanish
+                ? `Se necesita fecha y hora para guardar la ${scheduledTimeLabel} en Scheduled Support.`
+                : `A date and time are needed to save the ${scheduledTimeLabel} in Scheduled Support.`}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -4485,10 +4823,23 @@ function providerReplyFormHasDetails(form: ProviderReplyForm): boolean {
   );
 }
 
+function providerReplyHasValidScheduledTime(form: ProviderReplyForm): boolean {
+  const value = form.scheduledFor.trim();
+  if (!value) return false;
+  return !Number.isNaN(new Date(value).getTime());
+}
+
 function providerReplyInitialForm(item: ConciergePendingItem, isSpanish: boolean): ProviderReplyForm {
   const payload = item.action_payload;
+  const needsScheduledEvent = isMedicalAppointmentPendingAction(item) || isHomeServicePendingAction(item);
+  const rawScheduledFor = payloadString(payload, needsScheduledEvent
+    ? ["scheduled_for", "time"]
+    : ["scheduled_for", "requested_time", "time"]);
+  const scheduledFor = needsScheduledEvent && rawScheduledFor && Number.isNaN(new Date(rawScheduledFor).getTime())
+    ? ""
+    : rawScheduledFor;
   return {
-    scheduledFor: payloadString(payload, ["scheduled_for", "requested_time", "time"]),
+    scheduledFor,
     reference: payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]),
     location: payloadString(payload, ["location", "address", "destination_address", "home_address"]),
     providerReply: payloadString(payload, ["provider_reply", "fulfillment_note"]),
@@ -5117,6 +5468,15 @@ const ConciergeScreen = () => {
   const [transportNotice, setTransportNotice] = useState<string | null>(null);
   const [insuranceAdminOpen, setInsuranceAdminOpen] = useState(false);
   const [scamCheckOpen, setScamCheckOpen] = useState(false);
+  const [selectedScamCheckKind, setSelectedScamCheckKind] = useState<ScamCheckKind | null>(null);
+  const [scamCheckDetail, setScamCheckDetail] = useState("");
+  const [selectedInsuranceAdminKind, setSelectedInsuranceAdminKind] = useState<InsuranceAdminKind | null>(null);
+  const [insuranceAdminDetails, setInsuranceAdminDetails] = useState({
+    subject: "",
+    recipient: "",
+    deadline: "",
+    notes: "",
+  });
   const [otcPharmacyOpen, setOtcPharmacyOpen] = useState(false);
   const [otcItemText, setOtcItemText] = useState("");
   const [otcFulfillmentPreference, setOtcFulfillmentPreference] = useState<"delivery" | "pickup">("delivery");
@@ -5825,22 +6185,61 @@ const ConciergeScreen = () => {
   });
 
   const providerReplyCompletionMutation = useMutation({
-    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: ProviderReplyForm }) => completePendingConciergeAction({
-      pendingId: item.id,
-      outcomeSummary: providerReplyOutcomeSummary(item, form, isSpanish),
-      outcomePayload: providerReplyOutcomePayload(item, form),
-    }),
+    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: ProviderReplyForm }) => {
+      if (isHomeServicePendingAction(item)) {
+        return saveConfirmedHomeServiceFromProviderReply({
+          item,
+          form,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid",
+          locale,
+          isSpanish,
+        });
+      }
+      if (isMedicalAppointmentPendingAction(item)) {
+        return saveConfirmedAppointmentFromProviderReply({
+          item,
+          form,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid",
+          isSpanish,
+        });
+      }
+      return completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: providerReplyOutcomeSummary(item, form, isSpanish),
+        outcomePayload: providerReplyOutcomePayload(item, form),
+      });
+    },
     onMutate: () => {
       setProviderReplyError(null);
       setProviderReplyNotice(null);
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setProviderReplyMode(null);
       setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
-      setProviderReplyNotice(isSpanish ? "Respuesta guardada. La tarea queda cerrada." : "Reply saved. The task is closed.");
+      const completionStatus = isRecord(result) && typeof result.completionStatus === "string" ? result.completionStatus : "";
+      const savedFlow = isRecord(result) && typeof result.savedFlow === "string" ? result.savedFlow : "";
+      setProviderReplyNotice(completionStatus === "review_pending"
+        ? savedFlow === "home_service"
+          ? (isSpanish
+            ? "Visita guardada en Scheduled Support. Revisa la tarea pendiente."
+            : "Visit saved in Scheduled Support. Please review the pending task.")
+          : (isSpanish
+            ? "Cita guardada en Scheduled Support. Revisa la tarea pendiente."
+            : "Appointment saved in Scheduled Support. Please review the pending task.")
+        : completionStatus === "closed"
+          ? savedFlow === "home_service"
+            ? (isSpanish
+              ? "Visita guardada en Scheduled Support. La tarea queda cerrada."
+              : "Visit saved in Scheduled Support. The task is closed.")
+            : (isSpanish
+              ? "Cita guardada en Scheduled Support. La tarea queda cerrada."
+              : "Appointment saved in Scheduled Support. The task is closed.")
+          : (isSpanish ? "Respuesta guardada. La tarea queda cerrada." : "Reply saved. The task is closed."));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/profile/scheduled-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/scheduled-events"] }),
       ]);
     },
     onError: (error) => {
@@ -6472,7 +6871,7 @@ const ConciergeScreen = () => {
   function sendPrefillToConcierge() {
     const text = routePrefill?.message.trim() || input.trim();
     if (!text || chatLoading) return;
-    if (routePrefill?.kind === "task" && routePrefill.useCase) {
+    if (routePrefill?.kind === "task") {
       prepareToolGatedTaskMutation.mutate(routePrefill);
       return;
     }
@@ -7696,6 +8095,8 @@ const ConciergeScreen = () => {
     setScamCheckOpen(true);
     setInsuranceAdminOpen(false);
     setOtcPharmacyOpen(false);
+    setSelectedScamCheckKind(null);
+    setScamCheckDetail("");
     setRoutePrefill(null);
     closeOffersPanel();
     window.setTimeout(() => {
@@ -7720,32 +8121,42 @@ const ConciergeScreen = () => {
     });
   }
 
-  function scamCheckPrompt(option: typeof SCAM_CHECK_OPTIONS[number]) {
+  function scamCheckPrompt(option: typeof SCAM_CHECK_OPTIONS[number], detail: string) {
     const common = isSpanish
       ? "No hagas clic, no respondas, no pagues ni compartas datos. Pideme confirmacion antes de reenviar, subir, buscar o contactar."
       : "Do not click, reply, pay, or share personal details. Ask me to confirm before forwarding, uploading, searching, or contacting anyone.";
+    const detailLine = detail.trim()
+      ? (isSpanish ? `Detalle del usuario: ${detail.trim()}.` : `User detail: ${detail.trim()}.`)
+      : (isSpanish ? "Pregunta primero por el dato que falta." : "Ask first for the missing detail.");
     if (option.key === "email") {
       return isSpanish
-        ? `Ayudame a revisar un email o mensaje sospechoso. Pideme reenviarlo o pegar el texto, resume el riesgo y dime el siguiente paso mas seguro. ${common}`
-        : `Help me check a suspicious email or message. Ask me to forward it or paste the text, summarize the risk, and tell me the safest next step. ${common}`;
+        ? `Ayudame a revisar un email o mensaje sospechoso. ${detailLine} Resume el riesgo y dime el siguiente paso mas seguro. ${common}`
+        : `Help me check a suspicious email or message. ${detailLine} Summarize the risk and tell me the safest next step. ${common}`;
     }
     if (option.key === "document") {
       return isSpanish
-        ? `Ayudame a revisar un documento, carta, factura o foto sospechosa. Pideme mostrarlo a la camara o subirlo, explica que parece arriesgado y dime el siguiente paso mas seguro. ${common}`
-        : `Help me check a suspicious document, letter, invoice, or photo. Ask me to show it to the camera or upload it, explain what looks risky, and tell me the safest next step. ${common}`;
+        ? `Ayudame a revisar un documento, carta, factura o foto sospechosa. ${detailLine} Si hace falta, pideme mostrarlo a la camara o subirlo. Dime el siguiente paso mas seguro. ${common}`
+        : `Help me check a suspicious document, letter, invoice, or photo. ${detailLine} If needed, ask me to show it to the camera or upload it. Tell me the safest next step. ${common}`;
     }
     if (option.key === "phone") {
       return isSpanish
-        ? `Ayudame a revisar un numero de telefono sospechoso. Pideme el numero, comprueba lo que se pueda revisar de forma segura y dime si devolver la llamada es arriesgado. ${common}`
-        : `Help me check a suspicious phone number. Ask me for the number, verify what can be checked safely, and tell me whether calling back is risky. ${common}`;
+        ? `Ayudame a revisar un numero de telefono sospechoso. ${detailLine} Comprueba lo que se pueda revisar de forma segura y dime si devolver la llamada es arriesgado. ${common}`
+        : `Help me check a suspicious phone number. ${detailLine} Verify what can be checked safely and tell me whether calling back is risky. ${common}`;
     }
     return isSpanish
-      ? `Ayudame a revisar la reputacion online de una empresa, oferta, vendedor o servicio. Pideme el nombre o enlace, compara senales fiables y dime el siguiente paso mas seguro. ${common}`
-      : `Help me check a company, offer, seller, or service reputation online. Ask me for the name or link, compare reliable signals, and tell me the safest next step. ${common}`;
+      ? `Ayudame a revisar la reputacion online de una empresa, oferta, vendedor o servicio. ${detailLine} Compara senales fiables y dime el siguiente paso mas seguro. ${common}`
+      : `Help me check a company, offer, seller, or service reputation online. ${detailLine} Compare reliable signals and tell me the safest next step. ${common}`;
   }
 
   function handleScamCheckChoice(option: typeof SCAM_CHECK_OPTIONS[number]) {
-    prepareConciergeRequest(scamCheckPrompt(option), {
+    setSelectedScamCheckKind(option.key);
+    setScamCheckDetail("");
+  }
+
+  function prepareSelectedScamCheck() {
+    const option = SCAM_CHECK_OPTIONS.find((item) => item.key === selectedScamCheckKind);
+    if (!option) return;
+    prepareConciergeRequest(scamCheckPrompt(option, scamCheckDetail), {
       flowReference: SCAM_CHECK_FLOW_REFERENCE,
       requestedTool: option.requestedTool,
       actionLabel: isSpanish ? option.es : option.en,
@@ -7755,12 +8166,16 @@ const ConciergeScreen = () => {
       useCase: "scam_check",
     });
     setScamCheckOpen(false);
+    setSelectedScamCheckKind(null);
+    setScamCheckDetail("");
   }
 
   function openInsuranceAdminAssistant() {
     setInsuranceAdminOpen(true);
     setScamCheckOpen(false);
     setOtcPharmacyOpen(false);
+    setSelectedInsuranceAdminKind(null);
+    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
     setRoutePrefill(null);
     closeOffersPanel();
     window.setTimeout(() => {
@@ -7783,32 +8198,46 @@ const ConciergeScreen = () => {
     });
   }
 
-  function insuranceAdminPrompt(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
+  function insuranceAdminPrompt(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: typeof insuranceAdminDetails) {
     const common = isSpanish
       ? "Pide primero el documento, destinatario, fecha limite y para quien es. No envies, llames, subas ni compartas datos sin mi confirmacion."
       : "Ask first for the document, recipient, deadline, and who this is for. Do not send, call, upload, or share details without my confirmation.";
+    const detailLines = [
+      details.subject.trim() ? (isSpanish ? `Tema: ${details.subject.trim()}.` : `Subject: ${details.subject.trim()}.`) : "",
+      details.recipient.trim() ? (isSpanish ? `Destinatario: ${details.recipient.trim()}.` : `Recipient: ${details.recipient.trim()}.`) : "",
+      details.deadline.trim() ? (isSpanish ? `Fecha limite: ${details.deadline.trim()}.` : `Deadline: ${details.deadline.trim()}.`) : "",
+      details.notes.trim() ? (isSpanish ? `Notas: ${details.notes.trim()}.` : `Notes: ${details.notes.trim()}.`) : "",
+    ].filter(Boolean).join(" ");
+    const detailText = detailLines || (isSpanish ? "Pregunta por los datos que falten." : "Ask for any missing details.");
     if (option.key === "insurance-letter") {
       return isSpanish
-        ? `Ayudame a entender una carta o factura de seguro. Resume lo importante, marca lo que falte, y dime el siguiente paso mas seguro. ${common}`
-        : `Help me understand an insurance letter or bill. Summarize what matters, flag anything missing, and tell me the safest next step. ${common}`;
+        ? `Ayudame a entender una carta o factura de seguro. ${detailText} Resume lo importante, marca lo que falte, y dime el siguiente paso mas seguro. ${common}`
+        : `Help me understand an insurance letter or bill. ${detailText} Summarize what matters, flag anything missing, and tell me the safest next step. ${common}`;
     }
     if (option.key === "claim") {
       return isSpanish
-        ? `Ayudame a preparar un reclamo o reembolso. Pregunta que paso, que documentos tengo, importe, fecha limite y destinatario. Prepara un borrador para revisar. ${common}`
-        : `Help me prepare a claim or reimbursement. Ask what happened, what documents I have, amount, deadline, and recipient. Prepare a draft for review. ${common}`;
+        ? `Ayudame a preparar un reclamo o reembolso. ${detailText} Prepara un borrador para revisar. ${common}`
+        : `Help me prepare a claim or reimbursement. ${detailText} Prepare a draft for review. ${common}`;
     }
     if (option.key === "government-form") {
       return isSpanish
-        ? `Ayudame a rellenar un formulario oficial o administrativo. Guiame campo por campo, marca lo que falte y prepara un resumen antes de enviar. ${common}`
-        : `Help me fill a government or admin form. Guide me field by field, flag missing items, and prepare a summary before submission. ${common}`;
+        ? `Ayudame a rellenar un formulario oficial o administrativo. ${detailText} Guiame campo por campo, marca lo que falte y prepara un resumen antes de enviar. ${common}`
+        : `Help me fill a government or admin form. ${detailText} Guide me field by field, flag missing items, and prepare a summary before submission. ${common}`;
     }
     return isSpanish
-      ? `Ayudame a preparar una llamada o email administrativo. Pregunta a quien contactar, motivo, datos necesarios y resultado deseado. Prepara guion o borrador y espera mi confirmacion. ${common}`
-      : `Help me prepare an admin call or email. Ask who to contact, the reason, needed details, and desired outcome. Prepare a script or draft and wait for my confirmation. ${common}`;
+      ? `Ayudame a preparar una llamada o email administrativo. ${detailText} Prepara guion o borrador y espera mi confirmacion. ${common}`
+      : `Help me prepare an admin call or email. ${detailText} Prepare a script or draft and wait for my confirmation. ${common}`;
   }
 
   function handleInsuranceAdminChoice(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
-    prepareConciergeRequest(insuranceAdminPrompt(option), {
+    setSelectedInsuranceAdminKind(option.key);
+    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
+  }
+
+  function prepareSelectedInsuranceAdminTask() {
+    const option = INSURANCE_ADMIN_OPTIONS.find((item) => item.key === selectedInsuranceAdminKind);
+    if (!option) return;
+    prepareConciergeRequest(insuranceAdminPrompt(option, insuranceAdminDetails), {
       flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
       requestedTool: option.requestedTool,
       actionLabel: isSpanish ? option.es : option.en,
@@ -7818,6 +8247,8 @@ const ConciergeScreen = () => {
       useCase: "admin_task",
     });
     setInsuranceAdminOpen(false);
+    setSelectedInsuranceAdminKind(null);
+    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
   }
 
   function handleOfferAssistance(option: OfferOption) {
@@ -8104,6 +8535,16 @@ const ConciergeScreen = () => {
   const activeActionProviderSearchDetails = isProviderSearchPendingAction(activeAction)
     ? providerSearchActionDetails(activeAction, isSpanish)
     : null;
+  const selectedScamCheckOption = SCAM_CHECK_OPTIONS.find((option) => option.key === selectedScamCheckKind) ?? null;
+  const selectedScamCheckCopy = selectedScamCheckOption
+    ? scamCheckDetailCopy(selectedScamCheckOption.key, isSpanish)
+    : null;
+  const SelectedScamCheckIcon = selectedScamCheckOption?.Icon ?? AlertTriangle;
+  const selectedInsuranceAdminOption = INSURANCE_ADMIN_OPTIONS.find((option) => option.key === selectedInsuranceAdminKind) ?? null;
+  const selectedInsuranceAdminCopy = selectedInsuranceAdminOption
+    ? insuranceAdminDetailCopy(selectedInsuranceAdminOption.key, isSpanish)
+    : null;
+  const SelectedInsuranceAdminIcon = selectedInsuranceAdminOption?.Icon ?? FileText;
   useEffect(() => {
     setProviderReplyMode(null);
     setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
@@ -8255,9 +8696,7 @@ const ConciergeScreen = () => {
             ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Pedir presupuesto" : "Request quote")
-              : routePrefill.useCase
-                ? (isSpanish ? "Anadir a Ahora mismo" : "Add to Right now")
-              : (isSpanish ? "Enviar a Concierge" : "Send to Concierge"),
+              : (isSpanish ? "Anadir a Ahora mismo" : "Add to Right now"),
         secondaryLabel: routePrefill.kind === "appointment"
           ? (isSpanish ? "Anadir detalles" : "Add details")
           : (isSpanish ? "Editar solicitud" : "Edit request"),
@@ -8643,7 +9082,11 @@ const ConciergeScreen = () => {
               </div>
               <button
                 type="button"
-                onClick={() => setInsuranceAdminOpen(false)}
+                onClick={() => {
+                  setInsuranceAdminOpen(false);
+                  setSelectedInsuranceAdminKind(null);
+                  setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
+                }}
                 className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#6B21A8]"
                 aria-label={isSpanish ? "Cerrar" : "Close"}
                 data-testid="button-insurance-admin-close"
@@ -8688,6 +9131,88 @@ const ConciergeScreen = () => {
                 );
               })}
             </div>
+            {selectedInsuranceAdminOption && selectedInsuranceAdminCopy ? (
+              <div
+                className="rounded-[24px] border border-[#DDD6FE] bg-[#FBF8FF] p-4"
+                data-testid="panel-insurance-admin-guided-fields"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#6B21A8] shadow-sm">
+                    <SelectedInsuranceAdminIcon size={20} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                      {isSpanish ? selectedInsuranceAdminOption.es : selectedInsuranceAdminOption.en}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                      {isSpanish
+                        ? "Completa solo lo que sepas. VYVA preguntara lo que falte."
+                        : "Fill only what you know. VYVA will ask for what is missing."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                      {selectedInsuranceAdminCopy.subjectLabel}
+                    </span>
+                    <Input
+                      value={insuranceAdminDetails.subject}
+                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, subject: event.target.value }))}
+                      placeholder={selectedInsuranceAdminCopy.subjectPlaceholder}
+                      data-testid="input-insurance-admin-subject"
+                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                      {selectedInsuranceAdminCopy.recipientLabel}
+                    </span>
+                    <Input
+                      value={insuranceAdminDetails.recipient}
+                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, recipient: event.target.value }))}
+                      placeholder={isSpanish ? "Opcional" : "Optional"}
+                      data-testid="input-insurance-admin-recipient"
+                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                      {selectedInsuranceAdminCopy.deadlineLabel}
+                    </span>
+                    <Input
+                      value={insuranceAdminDetails.deadline}
+                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, deadline: event.target.value }))}
+                      placeholder={isSpanish ? "Opcional" : "Optional"}
+                      data-testid="input-insurance-admin-deadline"
+                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                      {selectedInsuranceAdminCopy.notesLabel}
+                    </span>
+                    <Input
+                      value={insuranceAdminDetails.notes}
+                      onChange={(event) => setInsuranceAdminDetails((current) => ({ ...current, notes: event.target.value }))}
+                      placeholder={isSpanish ? "Opcional" : "Optional"}
+                      data-testid="input-insurance-admin-notes"
+                      className="min-h-[48px] rounded-[16px] border-[#DDD6FE] bg-white font-body text-[15px] font-semibold"
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={prepareSelectedInsuranceAdminTask}
+                  className="vyva-tap mt-4 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-5 font-body text-[16px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.18)]"
+                  data-testid="button-insurance-admin-prepare"
+                >
+                  <Send size={17} />
+                  {isSpanish ? "Preparar para revisar" : "Prepare for review"}
+                </button>
+              </div>
+            ) : null}
             <p className="rounded-[20px] bg-[#F8FAFC] px-4 py-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
               {isSpanish
                 ? "Si falta una herramienta, VYVA prepara un resumen para revision en lugar de dejarte bloqueado."
@@ -8723,7 +9248,11 @@ const ConciergeScreen = () => {
               </div>
               <button
                 type="button"
-                onClick={() => setScamCheckOpen(false)}
+                onClick={() => {
+                  setScamCheckOpen(false);
+                  setSelectedScamCheckKind(null);
+                  setScamCheckDetail("");
+                }}
                 className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#BE123C]"
                 aria-label={isSpanish ? "Cerrar" : "Close"}
                 data-testid="button-scam-check-close"
@@ -8768,6 +9297,47 @@ const ConciergeScreen = () => {
                 );
               })}
             </div>
+            {selectedScamCheckOption && selectedScamCheckCopy ? (
+              <div
+                className="rounded-[24px] border border-[#FECACA] bg-[#FFF7F8] p-4"
+                data-testid="panel-scam-check-guided-fields"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#BE123C] shadow-sm">
+                    <SelectedScamCheckIcon size={20} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                      {isSpanish ? selectedScamCheckOption.es : selectedScamCheckOption.en}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                      {selectedScamCheckCopy.helper}
+                    </p>
+                  </div>
+                </div>
+                <label className="mt-4 block">
+                  <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                    {selectedScamCheckCopy.label}
+                  </span>
+                  <textarea
+                    value={scamCheckDetail}
+                    onChange={(event) => setScamCheckDetail(event.target.value)}
+                    placeholder={selectedScamCheckCopy.placeholder}
+                    data-testid="input-scam-check-detail"
+                    className="min-h-[82px] w-full rounded-[18px] border border-[#FECACA] bg-white px-4 py-3 font-body text-[15px] font-semibold text-vyva-text-1 shadow-sm outline-none focus:border-[#BE123C]"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={prepareSelectedScamCheck}
+                  className="vyva-tap mt-4 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#BE123C] px-5 font-body text-[16px] font-black text-white shadow-[0_12px_26px_rgba(190,18,60,0.16)]"
+                  data-testid="button-scam-check-prepare"
+                >
+                  <ShieldCheck size={17} />
+                  {isSpanish ? "Preparar revision segura" : "Prepare safe check"}
+                </button>
+              </div>
+            ) : null}
             <p className="rounded-[20px] bg-[#F8FAFC] px-4 py-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
               {isSpanish
                 ? "VYVA no hara clic, no enviara dinero y no compartira datos sin tu confirmacion."

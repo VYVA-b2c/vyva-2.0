@@ -47,21 +47,36 @@ describe("concierge flow registry", () => {
 
   it("documents current implementation state for each tracked flow", () => {
     expect(CONCIERGE_FLOW_REGISTRY).toHaveLength(7);
+    expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.transportBooking)).toMatchObject({
+      status: "ready",
+      actionName: "Book ride / transport",
+      providerCategory: "transport",
+    });
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.otcPharmacy)).toMatchObject({
-      status: "partial",
+      status: "ready",
       actionName: "OTC pharmacy help",
       providerCategory: "pharmacy",
     });
+    expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.medicalAppointment)).toMatchObject({
+      status: "ready",
+      actionName: "Medical appointment",
+      providerCategory: "doctor_clinic",
+    });
+    expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.homeService)).toMatchObject({
+      status: "ready",
+      actionName: "Home service",
+      providerCategory: "home_service",
+    });
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.scamCheck)).toMatchObject({
-      status: "partial",
+      status: "ready",
       tools: expect.arrayContaining(["camera_or_upload", "web_search"]),
     });
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.insuranceAdmin)).toMatchObject({
-      status: "partial",
+      status: "ready",
       tools: expect.arrayContaining(["email", "phone_call", "camera_or_upload"]),
     });
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.toolGatedTask)).toMatchObject({
-      status: "partial",
+      status: "ready",
       tools: expect.arrayContaining(["phone_call", "email", "camera_or_upload"]),
     });
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.transportBooking)).toBe(true);
