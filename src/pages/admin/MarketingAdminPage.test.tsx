@@ -748,7 +748,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Trigger: signup");
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Goal: activation");
-    expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / content-1");
+    expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / Welcome email");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-2");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-overflow-11");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Lovable enrollment ID: enrollment-1");
@@ -1150,6 +1150,28 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Welcome email".');
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Welcome email");
+  });
+
+  it("opens Lovable content from campaign, calendar, and journey overview references", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("button-marketing-preview-campaign-content-channel-1-linkedin"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-calendar-content-channel-1"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Welcome email".');
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Welcome email");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-preview-journey-step-content-step-1"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Welcome email".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Welcome email");
   });
 
   it("explains when the current admin cannot run Lovable sync", async () => {

@@ -2521,6 +2521,7 @@ export default function MarketingAdminPage() {
     refreshAll().catch((error) => setMessage(error.message));
   }, []);
 
+  const contentById = useMemo(() => new Map(content.map((item) => [item.id, item])), [content]);
   const contentTitleById = useMemo(() => new Map(content.map((item) => [item.id, item.title])), [content]);
   const campaignById = useMemo(() => new Map(campaigns.map((campaign) => [campaign.id, campaign])), [campaigns]);
   const journeyById = useMemo(() => new Map(journeys.map((journey) => [journey.id, journey])), [journeys]);
@@ -4206,11 +4207,14 @@ export default function MarketingAdminPage() {
                 <SectionCard title="Campaign list" subtitle={`${visibleCampaigns.length} visible of ${campaigns.length} campaigns. Click a campaign to open full details.`}>
                   <CampaignTable
                     campaigns={visibleCampaigns}
+                    contentById={contentById}
                     contentTitleById={contentTitleById}
                     audiences={audiences}
                     activeCampaignId={editingCampaignId}
                     onEdit={startCampaignEdit}
                     onDelete={(campaign) => deleteCampaign(campaign).catch((error) => setMessage(error.message))}
+                    onPreviewContent={previewContent}
+                    onEditContent={startContentEdit}
                     actionsDisabled={campaignSaving}
                     confirmingDeleteId={confirmingCampaignDeleteId}
                   />
@@ -4676,12 +4680,37 @@ export default function MarketingAdminPage() {
                             </div>
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {journey.steps.length === 0 ? <span className="text-sm font-bold text-[#8b7a73]">No steps yet.</span> : journey.steps.map((step) => (
-                              <span key={step.id} className={`rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>
-                                {step.stepOrder + 1}. {step.kind || "message"} / {channelLabel[step.channel]} / day {step.dayOffset ?? Math.floor(step.delayHours / 24)}
-                                {step.templateRef ? ` / ${step.templateRef}` : ""}
-                              </span>
-                            ))}
+                            {journey.steps.length === 0 ? <span className="text-sm font-bold text-[#8b7a73]">No steps yet.</span> : journey.steps.map((step) => {
+                              const stepContent = contentAssetByReference(content, step.contentAssetId) ?? contentAssetByReference(content, step.templateRef);
+                              return (
+                                <span key={step.id} className={`inline-flex flex-wrap items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>
+                                  <span>
+                                    {step.stepOrder + 1}. {step.kind || "message"} / {channelLabel[step.channel]} / day {step.dayOffset ?? Math.floor(step.delayHours / 24)}
+                                    {stepContent ? ` / ${stepContent.title}` : step.templateRef ? ` / ${step.templateRef}` : ""}
+                                  </span>
+                                  {stepContent ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => previewContent(stepContent)}
+                                        className="inline-flex min-h-6 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                                        data-testid={`button-marketing-preview-journey-step-content-${step.id}`}
+                                      >
+                                        <Eye size={11} /> Preview
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => startContentEdit(stepContent)}
+                                        className="inline-flex min-h-6 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                                        data-testid={`button-marketing-edit-journey-step-content-${step.id}`}
+                                      >
+                                        <Pencil size={11} /> Edit
+                                      </button>
+                                    </>
+                                  ) : null}
+                                </span>
+                              );
+                            })}
                           </div>
                         </article>
                       );
@@ -5675,21 +5704,27 @@ export default function MarketingAdminPage() {
                 ) : null}
                 <MarketingCalendarView
                   campaigns={visibleCampaigns}
+                  contentById={contentById}
                   contentTitleById={contentTitleById}
                   audiences={audiences}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
+                  onPreviewContent={previewContent}
+                  onEditContent={startContentEdit}
                   confirmingDeleteId={confirmingCampaignDeleteId}
                 />
               </SectionCard>
               <SectionCard title="Scheduled campaign details" subtitle="Table view for scheduled records.">
                 <CampaignTable
                   campaigns={visibleCampaigns.filter((campaign) => campaign.scheduleStartsAt || campaign.status === "scheduled")}
+                  contentById={contentById}
                   contentTitleById={contentTitleById}
                   audiences={audiences}
                   activeCampaignId={editingCampaignId}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
+                  onPreviewContent={previewContent}
+                  onEditContent={startContentEdit}
                   confirmingDeleteId={confirmingCampaignDeleteId}
                 />
               </SectionCard>
@@ -6537,20 +6572,26 @@ function EmptyState({ text }: { text: string }) {
 
 function CampaignTable({
   campaigns,
+  contentById = new Map<string, ContentAsset>(),
   contentTitleById = new Map<string, string>(),
   audiences = [],
   activeCampaignId,
   onEdit,
   onDelete,
+  onPreviewContent,
+  onEditContent,
   actionsDisabled = false,
   confirmingDeleteId = null,
 }: {
   campaigns: Campaign[];
+  contentById?: ReadonlyMap<string, ContentAsset>;
   contentTitleById?: ReadonlyMap<string, string>;
   audiences?: MarketingAudience[];
   activeCampaignId?: string | null;
   onEdit?: (campaign: Campaign) => void;
   onDelete?: (campaign: Campaign) => void;
+  onPreviewContent?: (contentAsset: ContentAsset) => void;
+  onEditContent?: (contentAsset: ContentAsset) => void;
   actionsDisabled?: boolean;
   confirmingDeleteId?: string | null;
 }) {
@@ -6610,7 +6651,8 @@ function CampaignTable({
               <td className="px-4 py-3">
                 <div className="grid gap-1.5">
                   {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => {
-                    const contentTitle = item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "";
+                    const contentAsset = item.contentAssetId ? contentById.get(item.contentAssetId) : null;
+                    const contentTitle = contentAsset?.title || (item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "");
                     const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
                     return (
                       <div key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-campaign-channel-link-${item.id}`}>
@@ -6618,6 +6660,32 @@ function CampaignTable({
                         <span className={`max-w-[260px] truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
                           {contentLabel}
                         </span>
+                        {contentAsset && onPreviewContent ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onPreviewContent(contentAsset);
+                            }}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                            data-testid={`button-marketing-preview-campaign-content-${item.id}`}
+                          >
+                            <Eye size={11} /> Preview
+                          </button>
+                        ) : null}
+                        {contentAsset && onEditContent ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onEditContent(contentAsset);
+                            }}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                            data-testid={`button-marketing-edit-campaign-content-${item.id}`}
+                          >
+                            <Pencil size={11} /> Edit
+                          </button>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -6661,17 +6729,23 @@ function CampaignTable({
 
 function MarketingCalendarView({
   campaigns,
+  contentById = new Map<string, ContentAsset>(),
   contentTitleById = new Map<string, string>(),
   audiences = [],
   onEdit,
   onDelete,
+  onPreviewContent,
+  onEditContent,
   confirmingDeleteId = null,
 }: {
   campaigns: Campaign[];
+  contentById?: ReadonlyMap<string, ContentAsset>;
   contentTitleById?: ReadonlyMap<string, string>;
   audiences?: MarketingAudience[];
   onEdit: (campaign: Campaign) => void;
   onDelete: (campaign: Campaign) => void;
+  onPreviewContent?: (contentAsset: ContentAsset) => void;
+  onEditContent?: (contentAsset: ContentAsset) => void;
   confirmingDeleteId?: string | null;
 }) {
   const scheduledCampaigns = [...campaigns]
@@ -6729,7 +6803,8 @@ function MarketingCalendarView({
                       {campaign.channels.length === 0 ? (
                         <span className="text-xs font-bold text-[#8b7a73]">No channels</span>
                       ) : campaign.channels.map((item) => {
-                        const contentTitle = item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "";
+                        const contentAsset = item.contentAssetId ? contentById.get(item.contentAssetId) : null;
+                        const contentTitle = contentAsset?.title || (item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "");
                         const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
                         return (
                           <div key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-calendar-channel-link-${item.id}`}>
@@ -6737,6 +6812,26 @@ function MarketingCalendarView({
                             <span className={`max-w-[260px] truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
                               {contentLabel}
                             </span>
+                            {contentAsset && onPreviewContent ? (
+                              <button
+                                type="button"
+                                onClick={() => onPreviewContent(contentAsset)}
+                                className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                                data-testid={`button-marketing-preview-calendar-content-${item.id}`}
+                              >
+                                <Eye size={11} /> Preview
+                              </button>
+                            ) : null}
+                            {contentAsset && onEditContent ? (
+                              <button
+                                type="button"
+                                onClick={() => onEditContent(contentAsset)}
+                                className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                                data-testid={`button-marketing-edit-calendar-content-${item.id}`}
+                              >
+                                <Pencil size={11} /> Edit
+                              </button>
+                            ) : null}
                           </div>
                         );
                       })}
