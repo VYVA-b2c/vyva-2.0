@@ -88,7 +88,10 @@ import {
   type ConciergeFlowReference,
   type ConciergeToolRequirement,
 } from "../../shared/conciergeFlowRegistry";
-import { evaluateConciergeFlowRequirements } from "../../shared/conciergeFlowRequirements";
+import {
+  evaluateConciergeFlowRequirements,
+  type ConciergeFlowRequirementKey,
+} from "../../shared/conciergeFlowRequirements";
 import {
   evaluateConciergeToolReadiness,
   preferredToolFromTransportActions,
@@ -3407,6 +3410,23 @@ type ActiveTaskChecklist = {
   items: ActiveTaskChecklistItem[];
 };
 
+type ConciergeFocusedDetailTarget =
+  | "appointment-note"
+  | "otc-item"
+  | "otc-time"
+  | "transport-destination"
+  | "transport-pickup"
+  | "transport-time";
+
+const CONCIERGE_DETAIL_FOCUS_TEST_IDS: Record<ConciergeFocusedDetailTarget, string> = {
+  "appointment-note": "input-appointment-note",
+  "otc-item": "input-otc-pharmacy-item",
+  "otc-time": "input-otc-pharmacy-time",
+  "transport-destination": "input-transport-destination",
+  "transport-pickup": "input-transport-pickup",
+  "transport-time": "input-transport-time",
+};
+
 function humanizeValue(value: string): string {
   return value.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -3526,6 +3546,30 @@ function activeTaskProviderLabel(item: ConciergePendingItem, isSpanish: boolean)
   return item.provider_name?.trim()
     || payloadString(item.action_payload, ["provider_name", "pharmacy_name", "selected_provider_name"])
     || "";
+}
+
+function focusedDetailTargetForRequirement(
+  item: ConciergePendingItem,
+  requirementKey: ConciergeFlowRequirementKey | null | undefined,
+): ConciergeFocusedDetailTarget | null {
+  if (!requirementKey) return null;
+
+  if (item.use_case === "book_ride") {
+    if (requirementKey === "destination") return "transport-destination";
+    if (requirementKey === "pickup") return "transport-pickup";
+    if (requirementKey === "time") return "transport-time";
+  }
+
+  if (item.use_case === "order_medicine") {
+    if (requirementKey === "otc_item") return "otc-item";
+    if (requirementKey === "time") return "otc-time";
+  }
+
+  if (item.use_case === "book_appointment" && !isHomeServicePendingAction(item)) {
+    if (requirementKey === "reason" || requirementKey === "time") return "appointment-note";
+  }
+
+  return null;
 }
 
 function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
@@ -4983,6 +5027,7 @@ const ConciergeScreen = () => {
   const [providerReplyForm, setProviderReplyForm] = useState<ProviderReplyForm>(EMPTY_PROVIDER_REPLY_FORM);
   const [providerReplyNotice, setProviderReplyNotice] = useState<string | null>(null);
   const [providerReplyError, setProviderReplyError] = useState<string | null>(null);
+  const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
@@ -5097,6 +5142,38 @@ const ConciergeScreen = () => {
   }
   const [otcNotice, setOtcNotice] = useState<string | null>(null);
   const [otcError, setOtcError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusedDetailTarget) return;
+
+    const targetTestId = CONCIERGE_DETAIL_FOCUS_TEST_IDS[focusedDetailTarget];
+    let attempts = 0;
+    let timeoutId: number | null = null;
+
+    const focusTarget = () => {
+      const target = document.querySelector<HTMLElement>(`[data-testid="${targetTestId}"]`);
+      if (target) {
+        target.focus();
+        target.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        setFocusedDetailTarget(null);
+        return;
+      }
+
+      attempts += 1;
+      if (attempts >= 8) {
+        setFocusedDetailTarget(null);
+        return;
+      }
+      timeoutId = window.setTimeout(focusTarget, 80);
+    };
+
+    timeoutId = window.setTimeout(focusTarget, 80);
+
+    return () => {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
+  }, [focusedDetailTarget]);
+
   const [offersOpen, setOffersOpen] = useState(false);
   const [savingsPanelView, setSavingsPanelView] = useState<SavingsPanelView>("overview");
   const [offersQuery, setOffersQuery] = useState("");
@@ -7170,11 +7247,12 @@ const ConciergeScreen = () => {
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function handleChangePendingAction(item: ConciergePendingItem) {
+  function handleChangePendingAction(item: ConciergePendingItem, focusTarget?: ConciergeFocusedDetailTarget | null) {
     const payload = item.action_payload;
     const message = payloadString(payload, ["draft_message", "message", "reason", "detail"]) || item.action_summary;
 
     setIsRightNowHidden(false);
+    setFocusedDetailTarget(focusTarget ?? null);
     setInput((current) => current.trim() ? current : message);
     setInsuranceAdminOpen(false);
     setScamCheckOpen(false);
@@ -7192,7 +7270,7 @@ const ConciergeScreen = () => {
       setTransportError(null);
       setTransportNotice(null);
       resetTransportFinalReview();
-      setTransportDetailsOpen(true);
+      setTransportDetailsOpen(focusTarget ? focusTarget === "transport-pickup" || focusTarget === "transport-time" : true);
     } else if (item.use_case === "order_medicine") {
       const fulfillment = payloadString(payload, ["fulfillment_preference"]).toLowerCase();
       setRoutePrefill(null);
@@ -7355,7 +7433,18 @@ const ConciergeScreen = () => {
     setIsRightNowHidden(false);
 
     if (action === "details" || action === "contact") {
-      handleChangePendingAction(activeAction);
+      const missingRequirement = action === "details"
+        ? evaluateConciergeFlowRequirements({
+          useCase: activeAction.use_case,
+          payload: activeAction.action_payload,
+          providerName: activeTaskProviderLabel(activeAction, isSpanish),
+          summary: activeAction.action_summary,
+        }).firstMissingRequirement
+        : null;
+      handleChangePendingAction(
+        activeAction,
+        focusedDetailTargetForRequirement(activeAction, missingRequirement?.key),
+      );
       return;
     }
 
@@ -10525,6 +10614,7 @@ const ConciergeScreen = () => {
                   value={appointmentNote}
                   onChange={(e) => setAppointmentNote(e.target.value)}
                   placeholder={appointmentDetailPlaceholder}
+                  data-testid="input-appointment-note"
                   className="mt-2 min-h-[50px] rounded-[18px] border-[#D8B4FE] bg-white font-body text-[15px] focus-visible:ring-[#7C3AED]/20"
                 />
               </div>

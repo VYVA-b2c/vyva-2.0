@@ -2585,11 +2585,94 @@ describe("ConciergeScreen route prefill", () => {
 
     fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
 
-    expect(await screen.findByTestId("input-transport-destination")).toBeVisible();
+    const destinationInput = await screen.findByTestId("input-transport-destination");
+    expect(destinationInput).toBeVisible();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(destinationInput);
+    });
     expect(apiFetchMock).not.toHaveBeenCalledWith(
       "/api/concierge/actions/ride-missing-destination/confirm",
       { method: "POST" },
     );
+  });
+
+  it("expands ride details and focuses pickup when pickup is missing", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "ride-missing-pickup",
+        use_case: "book_ride",
+        provider_name: "Radio Taxi",
+        provider_phone: "+34 612 345 678",
+        action_summary: "Taxi option prepared, but pickup still needs to be confirmed.",
+        action_payload: {
+          destination_address: "City Clinic",
+          requested_time: "now",
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    const checklist = await screen.findByTestId("panel-concierge-flow-checklist");
+    expect(checklist).toHaveTextContent("Pickup needed");
+
+    fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
+
+    const pickupInput = await screen.findByTestId("input-transport-pickup");
+    expect(pickupInput).toBeVisible();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(pickupInput);
+    });
+  });
+
+  it("opens OTC pharmacy details and focuses the missing item field", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{
+            name: "Neighborhood Pharmacy",
+            role: "pharmacy",
+            phone: "+34 600 333 444",
+            preferredChannel: "phone",
+          }],
+          serviceReadiness: { hasSavedPharmacy: true },
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "otc-missing-item",
+            use_case: "order_medicine",
+            provider_name: "Neighborhood Pharmacy",
+            provider_phone: "+34 600 333 444",
+            action_summary: "OTC pharmacy request prepared, but item is missing.",
+            action_payload: {
+              fulfillment_preference: "pickup",
+              requested_time: "today",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const checklist = await screen.findByTestId("panel-concierge-flow-checklist");
+    expect(checklist).toHaveTextContent("Item needed");
+
+    fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
+
+    expect(await screen.findByTestId("panel-otc-pharmacy")).toHaveTextContent("Saved pharmacy: Neighborhood Pharmacy");
+    const itemInput = await screen.findByTestId("input-otc-pharmacy-item");
+    await waitFor(() => {
+      expect(document.activeElement).toBe(itemInput);
+    });
   });
 
   it("routes a missing provider checklist item to focused trusted-provider setup", async () => {
