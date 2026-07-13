@@ -4180,6 +4180,7 @@ export default function MarketingAdminPage() {
                   <CampaignTable
                     campaigns={visibleCampaigns}
                     contentTitleById={contentTitleById}
+                    audiences={audiences}
                     activeCampaignId={editingCampaignId}
                     onEdit={startCampaignEdit}
                     onDelete={(campaign) => deleteCampaign(campaign).catch((error) => setMessage(error.message))}
@@ -5590,6 +5591,7 @@ export default function MarketingAdminPage() {
                 <MarketingCalendarView
                   campaigns={visibleCampaigns}
                   contentTitleById={contentTitleById}
+                  audiences={audiences}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
                   confirmingDeleteId={confirmingCampaignDeleteId}
@@ -5599,6 +5601,7 @@ export default function MarketingAdminPage() {
                 <CampaignTable
                   campaigns={visibleCampaigns.filter((campaign) => campaign.scheduleStartsAt || campaign.status === "scheduled")}
                   contentTitleById={contentTitleById}
+                  audiences={audiences}
                   activeCampaignId={editingCampaignId}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
@@ -6434,6 +6437,7 @@ function EmptyState({ text }: { text: string }) {
 function CampaignTable({
   campaigns,
   contentTitleById = new Map<string, string>(),
+  audiences = [],
   activeCampaignId,
   onEdit,
   onDelete,
@@ -6442,6 +6446,7 @@ function CampaignTable({
 }: {
   campaigns: Campaign[];
   contentTitleById?: ReadonlyMap<string, string>;
+  audiences?: MarketingAudience[];
   activeCampaignId?: string | null;
   onEdit?: (campaign: Campaign) => void;
   onDelete?: (campaign: Campaign) => void;
@@ -6469,6 +6474,7 @@ function CampaignTable({
           ) : campaigns.map((campaign) => {
             const isActive = activeCampaignId === campaign.id;
             const deleteIsArmed = confirmingDeleteId === campaign.id;
+            const targetAudience = campaignTargetAudience(campaign, audiences);
             return (
             <tr
               key={campaign.id}
@@ -6489,7 +6495,17 @@ function CampaignTable({
                 <p className="font-black">{campaign.name}</p>
                 <p className="text-xs font-semibold text-[#7d6b65]">{campaign.objective || campaign.source}</p>
               </td>
-              <td className="px-4 py-3 font-black">{campaign.audienceType.toUpperCase()}</td>
+              <td className="px-4 py-3">
+                <p className="font-black">{campaign.audienceType.toUpperCase()}</p>
+                {targetAudience ? (
+                  <div className="mt-1 grid gap-1 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-campaign-target-list-${campaign.id}`}>
+                    <span className="text-purple-800">List: {targetAudience.name}</span>
+                    <span>{targetAudience.mappedMemberCount}/{targetAudience.memberCount} mapped</span>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs font-bold text-[#8b7a73]">All eligible contacts</p>
+                )}
+              </td>
               <td className="px-4 py-3">
                 <div className="grid gap-1.5">
                   {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => {
@@ -6545,12 +6561,14 @@ function CampaignTable({
 function MarketingCalendarView({
   campaigns,
   contentTitleById = new Map<string, string>(),
+  audiences = [],
   onEdit,
   onDelete,
   confirmingDeleteId = null,
 }: {
   campaigns: Campaign[];
   contentTitleById?: ReadonlyMap<string, string>;
+  audiences?: MarketingAudience[];
   onEdit: (campaign: Campaign) => void;
   onDelete: (campaign: Campaign) => void;
   confirmingDeleteId?: string | null;
@@ -6581,7 +6599,9 @@ function MarketingCalendarView({
               <Pill className="bg-sky-50 text-sky-700">{day.campaigns.length} scheduled</Pill>
             </div>
             <div className="grid gap-2">
-              {day.campaigns.map((campaign) => (
+              {day.campaigns.map((campaign) => {
+                const targetAudience = campaignTargetAudience(campaign, audiences);
+                return (
                 <article key={campaign.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -6597,6 +6617,9 @@ function MarketingCalendarView({
                     <div className="flex flex-wrap justify-end gap-1.5">
                       <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
                       <Pill className="bg-purple-50 text-purple-700">{campaign.audienceType.toUpperCase()}</Pill>
+                      {targetAudience ? (
+                        <Pill className="bg-violet-50 text-violet-800">List: {targetAudience.name}</Pill>
+                      ) : null}
                       <Pill className="bg-[#f5eee8] text-[#7d6b65]">{campaign.recipientCount} recipients</Pill>
                     </div>
                   </div>
@@ -6632,7 +6655,8 @@ function MarketingCalendarView({
                     </div>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           </section>
         ))}
@@ -6645,7 +6669,9 @@ function MarketingCalendarView({
         </div>
         {unscheduledCampaigns.length === 0 ? (
           <EmptyState text="No unscheduled campaigns." />
-        ) : unscheduledCampaigns.map((campaign) => (
+        ) : unscheduledCampaigns.map((campaign) => {
+          const targetAudience = campaignTargetAudience(campaign, audiences);
+          return (
           <button
             key={campaign.id}
             type="button"
@@ -6658,6 +6684,9 @@ function MarketingCalendarView({
             <span className="mt-2 flex flex-wrap gap-1.5">
               <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
               <Pill className="bg-purple-50 text-purple-700">{campaign.audienceType.toUpperCase()}</Pill>
+              {targetAudience ? (
+                <Pill className="bg-violet-50 text-violet-800">List: {targetAudience.name}</Pill>
+              ) : null}
             </span>
             {campaign.channels.length ? (
               <span className="mt-2 grid gap-1">
@@ -6676,7 +6705,8 @@ function MarketingCalendarView({
               </span>
             ) : null}
           </button>
-        ))}
+          );
+        })}
       </aside>
     </div>
   );

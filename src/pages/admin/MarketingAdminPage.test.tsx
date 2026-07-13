@@ -732,6 +732,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByText('Opened campaign "Caregiver welcome" from imported analytics.')).toBeInTheDocument();
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("List: Partners");
+    expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("1/2 mapped");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1-linkedin")).toHaveTextContent("Partner post");
 
@@ -803,6 +805,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
