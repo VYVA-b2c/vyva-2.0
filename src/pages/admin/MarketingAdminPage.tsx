@@ -184,6 +184,8 @@ type ContentAsset = {
   source: string;
   lovableExternalId: string | null;
   metadata?: Record<string, unknown>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type MarketingMediaAsset = {
@@ -197,6 +199,9 @@ type MarketingMediaAsset = {
   status: string;
   lovableExternalId: string | null;
   metadata?: Record<string, unknown>;
+  lastSyncedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type MarketingCampaignMetric = MarketingAnalyticsTotals & {
@@ -308,6 +313,9 @@ type MarketingContact = {
   market: string | null;
   lists: string[];
   lovableExternalId: string | null;
+  lastSyncedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type MarketingAudience = {
@@ -335,6 +343,8 @@ type MarketingAudience = {
   unmappedContactExternalIds: string[];
   lastSyncedAt: string | null;
   metadata?: Record<string, unknown>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type SyncRun = {
@@ -615,6 +625,14 @@ function formatCalendarTime(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown";
   return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function recordTimelineParts(record: { createdAt?: string | null; updatedAt?: string | null; lastSyncedAt?: string | null }) {
+  const parts: string[] = [];
+  if (record.updatedAt) parts.push(`Updated ${formatDate(record.updatedAt)}`);
+  if (record.lastSyncedAt) parts.push(`Synced ${formatDate(record.lastSyncedAt)}`);
+  if (!record.updatedAt && !record.lastSyncedAt && record.createdAt) parts.push(`Created ${formatDate(record.createdAt)}`);
+  return parts;
 }
 
 function calendarDayKey(value: string | null) {
@@ -968,6 +986,8 @@ function lovableContentSourceDetails(content: ContentAsset) {
   const rows = new Map<string, string>();
   if (content.lovableExternalId) rows.set("Lovable ID", content.lovableExternalId);
   rows.set("Source type", contentOriginLabel(content));
+  if (content.updatedAt) rows.set("VYVA updated", formatDate(content.updatedAt));
+  if (content.createdAt) rows.set("VYVA created", formatDate(content.createdAt));
   for (const key of lovableContentSourceDetailKeys) {
     const value = sourceDetailDisplayValue(key, lovable[key]);
     if (value) rows.set(humanizeMetadataKey(key), value);
@@ -5424,6 +5444,7 @@ export default function MarketingAdminPage() {
                             const isConfirmingDelete = confirmingContentDeleteId === item.id;
                             const rowMediaAssets = mediaAssets.filter((asset) => asset.contentAssetId === item.id);
                             const rowMediaPreviewUrls = contentMediaPreviewUrls(item, rowMediaAssets);
+                            const timelineParts = recordTimelineParts(item);
                             return (
                             <Fragment key={item.id}>
                             <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
@@ -5456,6 +5477,13 @@ export default function MarketingAdminPage() {
                               <td className="max-w-[240px] px-4 py-3">
                                 <p className="text-xs font-black text-[#241133]">{item.source}</p>
                                 {item.lovableExternalId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {item.lovableExternalId}</p> : null}
+                                {timelineParts.length ? (
+                                  <div className="mt-2 grid gap-1" data-testid={`marketing-content-timeline-${item.id}`}>
+                                    {timelineParts.map((part) => (
+                                      <p key={part} className="text-xs font-semibold text-[#8b7a73]">{part}</p>
+                                    ))}
+                                  </div>
+                                ) : null}
                               </td>
                               <td className={`sticky right-0 z-10 w-[260px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.08)] ${item.id === selectedContent?.id || isConfirmingDelete ? "bg-purple-50" : "bg-white"}`}>
                                 <div className="flex w-[230px] flex-wrap gap-2">
@@ -5973,6 +6001,7 @@ export default function MarketingAdminPage() {
                       <EmptyState text="No media references imported yet." />
                     ) : visibleMediaAssets.map((asset) => {
                       const linkedContent = asset.contentAssetId ? content.find((item) => item.id === asset.contentAssetId) ?? null : null;
+                      const timelineParts = recordTimelineParts(asset);
                       return (
                         <article key={asset.id} className={`rounded-xl border p-3 ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -5984,6 +6013,11 @@ export default function MarketingAdminPage() {
                           </div>
                           <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
                           {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable ID: {asset.lovableExternalId}</p> : null}
+                          {timelineParts.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5" data-testid={`marketing-media-timeline-${asset.id}`}>
+                              {timelineParts.map((part) => <Pill key={part} className="bg-white text-[#7d6b65]">{part}</Pill>)}
+                            </div>
+                          ) : null}
                           <div className="mt-3" data-testid={`marketing-media-preview-${asset.id}`}>
                             <MediaPreviewTile url={asset.localUrl || asset.originalUrl} label={asset.contentTitle || mediaPreviewLabel(asset.originalUrl)} />
                           </div>
@@ -6372,6 +6406,7 @@ export default function MarketingAdminPage() {
                               ...(contact.lists ?? []).map((list) => `List: ${list}`),
                             ];
                             const profileSignals = contactProfileSignals(contact);
+                            const timelineParts = recordTimelineParts(contact);
                             return (
                               <tr key={contact.id} className={`border-t border-[#f0e7df] align-top ${editingContactId === contact.id ? "bg-purple-50" : ""}`}>
                                 <td className="px-4 py-3">
@@ -6422,6 +6457,13 @@ export default function MarketingAdminPage() {
                                     ) : null}
                                     {contact.organizationId ? (
                                       <p className="break-all text-xs font-semibold text-[#7d6b65]">Org: {contact.organizationId}</p>
+                                    ) : null}
+                                    {timelineParts.length ? (
+                                      <div className="grid gap-1" data-testid={`marketing-contact-timeline-${contact.id}`}>
+                                        {timelineParts.map((part) => (
+                                          <p key={part} className="text-xs font-semibold text-[#8b7a73]">{part}</p>
+                                        ))}
+                                      </div>
                                     ) : null}
                                     <MetadataPanel title="Imported contact data" value={contact.metadata} testId={`marketing-contact-metadata-${contact.id}`} />
                                   </div>
@@ -6656,6 +6698,7 @@ export default function MarketingAdminPage() {
                         const hiddenListMemberCount = Math.max(listMembers.length - visibleListMembers.length, 0);
                         const hiddenUnmappedCount = Math.max(unmappedCount - visibleUnmappedIds.length, 0);
                         const canExpandMembers = hiddenListMemberCount > 0 || hiddenUnmappedCount > 0 || audienceExpanded;
+                        const timelineParts = recordTimelineParts(audience);
                         return (
                           <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -6669,6 +6712,7 @@ export default function MarketingAdminPage() {
                               <Pill className="bg-blue-50 text-blue-800">{audience.memberCount} members</Pill>
                               <Pill className="bg-emerald-50 text-emerald-800">{audience.mappedMemberCount} mapped</Pill>
                               {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">{unmappedCount} unmapped</Pill> : null}
+                              {timelineParts.map((part) => <Pill key={part} className="bg-white text-[#7d6b65]">{part}</Pill>)}
                             </div>
                             {unmappedCount ? (
                               <p className="mt-2 break-all text-xs font-semibold text-[#8b5d13]">

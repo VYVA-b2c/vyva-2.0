@@ -179,6 +179,8 @@ const content = [
     mediaAssetCount: 1,
     source: "lovable",
     lovableExternalId: "lovable-content-2",
+    createdAt: "2026-07-05T08:55:00.000Z",
+    updatedAt: "2026-07-05T09:00:00.000Z",
     metadata: {
       extraLovableOnlyField: "kept",
       lovable_source_type: "social_post",
@@ -203,6 +205,8 @@ const mediaAssets = [
     localUrl: null,
     status: "referenced",
     lovableExternalId: "media-1",
+    lastSyncedAt: "2026-07-05T09:01:00.000Z",
+    updatedAt: "2026-07-05T09:01:00.000Z",
     metadata: { lovable: { altText: "Partner hero image" } },
   },
 ];
@@ -346,6 +350,8 @@ const contacts = [
     market: "Spain",
     lists: ["Partners"],
     lovableExternalId: "lovable-contact-2",
+    lastSyncedAt: "2026-07-05T09:02:00.000Z",
+    updatedAt: "2026-07-05T09:02:00.000Z",
     channelAvailability: { email: true, linkedin: true, whatsapp: false, source: "lovable" },
     metadata: {
       lovable: {
@@ -399,6 +405,7 @@ const audiences = [
     })],
     unmappedContactExternalIds: ["missing-contact"],
     lastSyncedAt: "2026-07-05T09:00:00.000Z",
+    updatedAt: "2026-07-05T09:00:00.000Z",
     metadata: { lovable: { sourceList: "Partners" } },
   },
 ];
@@ -803,6 +810,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Read more -> https://v2.vyva.life/partners");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Social post");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable ID: lovable-content-2");
+    expect(screen.getByTestId("marketing-content-timeline-content-2")).toHaveTextContent("Updated");
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
 
@@ -813,6 +821,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("CTA: Book a demo -> https://v2.vyva.life/demo");
     expect(within(screen.getByTestId("marketing-content-design-preview")).getByAltText("Partner hero")).toHaveAttribute("src", "https://cdn.example.test/partner-design.png");
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("VYVA updated");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design blocks: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Media refs: 1");
@@ -821,6 +830,7 @@ describe("MarketingAdminPage", () => {
     expect(openMetadataPanel("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Lovable ID: media-1");
+    expect(screen.getByTestId("marketing-media-timeline-media-1")).toHaveTextContent("Synced");
     expect(screen.getByAltText("Partner post")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
@@ -848,6 +858,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Lovable ID: lovable-contact-2");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Profile: profile-2");
+    expect(screen.getByTestId("marketing-contact-timeline-contact-2")).toHaveTextContent("Synced");
     expect(openMetadataPanel("marketing-contact-metadata-contact-2")).toHaveTextContent("partner-lead");
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Contacts (2)");
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Lists (1)");
@@ -855,6 +866,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("1 unmapped");
+    expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Synced");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("List member preview");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Partner at Moka Digital");
