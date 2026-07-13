@@ -3894,7 +3894,6 @@ export default function MarketingAdminPage() {
   const campaignEmailPromptIsBlocked = Boolean(!campaignEmailFeedback && campaignEmailBlockedReason);
   const journeyFeedbackIsError = Boolean(journeyFeedback && /fail|error|could not|required|valid json/i.test(journeyFeedback));
   const savedCampaignRecipients = editingCampaign?.recipients ?? [];
-  const visibleSavedCampaignRecipients = savedCampaignRecipients.slice(0, 8);
   const selectedCampaignMetrics = editingCampaign
     ? campaignMetrics.filter((metric) => metric.campaignId === editingCampaign.id)
     : [];
@@ -4252,7 +4251,7 @@ export default function MarketingAdminPage() {
                               </div>
                             </div>
                             <div className="grid gap-2">
-                              {selectedCampaignMetrics.slice(0, 4).map((metric) => (
+                              {selectedCampaignMetrics.map((metric) => (
                                 <div key={metric.id} className="grid gap-2 rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span>{formatDate(metric.metricDate)} / {metric.channel} / {metric.source}</span>
@@ -4464,11 +4463,11 @@ export default function MarketingAdminPage() {
                           </div>
                           <Pill className="bg-purple-50 text-purple-800">{savedCampaignRecipients.length > 0 ? `${savedCampaignRecipients.length} shown` : "None saved"}</Pill>
                         </div>
-                        {visibleSavedCampaignRecipients.length === 0 ? (
+                        {savedCampaignRecipients.length === 0 ? (
                           <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-[#8b7a73]">No recipient snapshot saved yet.</p>
                         ) : (
-                          <div className="mt-3 grid gap-2">
-                            {visibleSavedCampaignRecipients.map((recipient) => (
+                          <div className="mt-3 grid max-h-[420px] gap-2 overflow-y-auto pr-1">
+                            {savedCampaignRecipients.map((recipient) => (
                               <div key={recipient.id} className="grid gap-2 rounded-lg bg-white p-2 text-sm font-bold">
                                 <div className="flex items-center justify-between gap-3">
                                   <span className="truncate text-[#241133]">{recipientSnapshotLabel(recipient)}</span>
@@ -4477,9 +4476,6 @@ export default function MarketingAdminPage() {
                                 <MetadataPanel title="Saved recipient snapshot" value={recordValue(recipient.snapshot)} testId={`marketing-campaign-recipient-snapshot-${recipient.id}`} />
                               </div>
                             ))}
-                            {editingCampaign.recipientCount > visibleSavedCampaignRecipients.length ? (
-                              <p className="text-xs font-bold text-[#8b7a73]">+{editingCampaign.recipientCount - visibleSavedCampaignRecipients.length} more saved recipients.</p>
-                            ) : null}
                           </div>
                         )}
                       </div>
@@ -4510,11 +4506,10 @@ export default function MarketingAdminPage() {
                             {campaignRecipientPreview.length === 0 ? (
                               <EmptyState text="No eligible contacts match this audience, channel, and filter." />
                             ) : (
-                              <div className="flex flex-wrap gap-2">
-                                {campaignRecipientPreview.slice(0, 12).map((contact) => (
+                              <div className="flex max-h-[240px] flex-wrap gap-2 overflow-y-auto pr-1">
+                                {campaignRecipientPreview.map((contact) => (
                                   <Pill key={contact.id} className="bg-purple-50 text-purple-800">{contact.fullName || contact.email || contact.phoneNumber || contact.id}</Pill>
                                 ))}
-                                {campaignRecipientPreview.length > 12 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{campaignRecipientPreview.length - 12} more</Pill> : null}
                               </div>
                             )}
                           </div>
@@ -5434,7 +5429,7 @@ export default function MarketingAdminPage() {
                   <div className="grid gap-3" data-testid="marketing-media-assets-list">
                     {visibleMediaAssets.length === 0 ? (
                       <EmptyState text="No media references imported yet." />
-                    ) : visibleMediaAssets.slice(0, 12).map((asset) => {
+                    ) : visibleMediaAssets.map((asset) => {
                       const linkedContent = asset.contentAssetId ? content.find((item) => item.id === asset.contentAssetId) ?? null : null;
                       return (
                         <article key={asset.id} className={`rounded-xl border p-3 ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
@@ -5840,10 +5835,9 @@ export default function MarketingAdminPage() {
                                 <td className="max-w-[320px] px-4 py-3">
                                   {tagsAndLists.length ? (
                                     <div className="flex flex-wrap gap-1.5">
-                                      {tagsAndLists.slice(0, 8).map((segment, index) => (
+                                      {tagsAndLists.map((segment, index) => (
                                         <Pill key={`${segment}-${index}`} className="bg-purple-50 text-purple-800">{segment}</Pill>
                                       ))}
-                                      {tagsAndLists.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{tagsAndLists.length - 8}</Pill> : null}
                                     </div>
                                   ) : (
                                     <span className="text-xs font-bold text-[#8b7a73]">No tags or lists</span>
@@ -6580,7 +6574,7 @@ function MarketingCalendarView({
             </span>
             {campaign.channels.length ? (
               <span className="mt-2 grid gap-1">
-                {campaign.channels.slice(0, 3).map((item) => {
+                {campaign.channels.map((item) => {
                   const contentTitle = item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "";
                   const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
                   return (

@@ -646,21 +646,30 @@ function audienceFromRequestBody(id: string, init?: RequestInit) {
   };
 }
 
-function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: { content?: unknown[]; mediaAssets?: unknown[] } = {}) {
+function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
+  campaigns?: unknown[];
+  contacts?: unknown[];
+  content?: unknown[];
+  mediaAssets?: unknown[];
+  analytics?: typeof analytics;
+} = {}) {
   const syncResponse = { ...sync, ...syncOverride };
+  const campaignsResponse = dataOverride.campaigns ?? campaigns;
+  const contactsResponse = dataOverride.contacts ?? contacts;
   const contentResponse = dataOverride.content ?? content;
   const mediaAssetsResponse = dataOverride.mediaAssets ?? mediaAssets;
+  const analyticsResponse = dataOverride.analytics ?? analytics;
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     const method = init?.method ?? "GET";
     if (path === "/api/admin/marketing/summary") return jsonResponse(summary);
-    if (path === "/api/admin/marketing/campaigns" && method === "GET") return jsonResponse({ campaigns });
+    if (path === "/api/admin/marketing/campaigns" && method === "GET") return jsonResponse({ campaigns: campaignsResponse });
     if (path === "/api/admin/marketing/journeys" && method === "GET") return jsonResponse({ journeys });
     if (path === "/api/admin/marketing/journey-enrollments" && method === "GET") return jsonResponse({ enrollments: journeyEnrollments });
     if (path === "/api/admin/marketing/content" && method === "GET") return jsonResponse({ content: contentResponse });
     if (path === "/api/admin/marketing/media" && method === "GET") return jsonResponse({ mediaAssets: mediaAssetsResponse });
-    if (path === "/api/admin/marketing/analytics" && method === "GET") return jsonResponse(analytics);
-    if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts });
+    if (path === "/api/admin/marketing/analytics" && method === "GET") return jsonResponse(analyticsResponse);
+    if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts: contactsResponse });
     if (path === "/api/admin/marketing/audiences" && method === "GET") return jsonResponse({ audiences });
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
     if (path === "/api/admin/marketing/sync/lovable/preview" && method === "GET") return jsonResponse(exportPreview);
@@ -867,6 +876,90 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
+  });
+
+  it("shows all imported Lovable details instead of hiding rows behind preview caps", async () => {
+    const manyRecipients = Array.from({ length: 105 }, (_, index) => {
+      const recipientNumber = index + 1;
+      return {
+        id: `recipient-${recipientNumber}`,
+        campaignId: "campaign-1",
+        contactId: null,
+        profileId: null,
+        channel: "email",
+        recipient: `caregiver-${recipientNumber}@example.com`,
+        status: "planned",
+        scheduledAt: "2026-07-06T09:00:00.000Z",
+        snapshot: {
+          fullName: `Caregiver ${recipientNumber}`,
+          email: `caregiver-${recipientNumber}@example.com`,
+          lovableSource: `recipient-export-${recipientNumber}`,
+        },
+        communicationLogId: null,
+        createdAt: "2026-07-05T09:00:00.000Z",
+        updatedAt: "2026-07-05T09:00:00.000Z",
+      };
+    });
+    const manyMediaAssets = [
+      ...mediaAssets,
+      ...Array.from({ length: 12 }, (_, index) => {
+        const mediaNumber = index + 2;
+        return {
+          id: `media-${mediaNumber}`,
+          contentAssetId: null,
+          contentTitle: null,
+          source: "lovable",
+          assetType: "image",
+          originalUrl: `https://cdn.example.test/asset-${mediaNumber}.png`,
+          localUrl: null,
+          status: "referenced",
+          lovableExternalId: `media-${mediaNumber}`,
+          metadata: { lovable: { altText: `Imported media ${mediaNumber}` } },
+        };
+      }),
+    ];
+    const expandedContact = {
+      ...contacts[1],
+      tags: Array.from({ length: 10 }, (_, index) => `tag-${index + 1}`),
+      lists: ["Partners", "Priority", "Madrid", "Care homes"],
+    };
+    const expandedCampaigns = [
+      { ...campaigns[0], recipientCount: manyRecipients.length, recipients: manyRecipients },
+      {
+        ...campaigns[1],
+        channels: ["linkedin", "instagram", "facebook", "tiktok", "whatsapp"].map((channel) => ({
+          id: `channel-2-${channel}`,
+          channel,
+          contentAssetId: null,
+          scheduledAt: null,
+          status: "draft",
+          sendCapability: channel === "whatsapp" ? "future_send_capable" : "planning_only",
+        })),
+      },
+    ];
+
+    renderPage({}, {
+      campaigns: expandedCampaigns,
+      contacts: [contacts[0], expandedContact],
+      mediaAssets: manyMediaAssets,
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+
+    expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-10")).toHaveTextContent("metric-provider-10");
+    expect(screen.getByTestId("marketing-campaign-edit-form")).toHaveTextContent("Caregiver 105");
+    expect(openMetadataPanel("marketing-campaign-recipient-snapshot-recipient-105")).toHaveTextContent("recipient-export-105");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/asset-13.png");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("tag-10");
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("List: Care homes");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+    expect(screen.getByTestId("marketing-calendar-unscheduled-channel-link-channel-2-tiktok")).toHaveTextContent("TikTok");
   });
 
   it("searches imported Lovable IDs, metadata, media, lists, and journey steps", async () => {
