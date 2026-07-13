@@ -2718,8 +2718,10 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    const callLink = await screen.findByRole("link", { name: "Call +34 612 345 678" });
+    const callLink = await screen.findByTestId("link-concierge-phone-call-ride-1");
     expect(callLink).toHaveAttribute("href", "tel:+34612345678");
+    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Guided call");
+    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Use the script. Then save what happened.");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Follow-through");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Ready for your OK");
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "active");
@@ -2734,7 +2736,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(checklist).toHaveTextContent("Contact");
     expect(checklist).toHaveTextContent("Phone call");
     expect(checklist).toHaveTextContent("Confirm");
-    expect(checklist).toHaveTextContent("Confirm ride call");
+    expect(checklist).toHaveTextContent("Call and record outcome");
     expect(screen.getByTestId("button-concierge-checklist-details")).toHaveTextContent("Review");
     expect(screen.getByTestId("button-concierge-checklist-provider")).toHaveTextContent("Change");
     expect(screen.getByTestId("button-concierge-checklist-confirm")).toHaveTextContent("OK");
@@ -2742,18 +2744,86 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Review & confirm");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Provider");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Contact route");
-    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Confirm ride call");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Review call script");
     expect(screen.getByTestId("button-concierge-change-ride-1")).toHaveTextContent("Change");
     expect(screen.getByTestId("button-concierge-cancel-ride-1")).toHaveTextContent("Cancel");
-    expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm ride call");
+    expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Review call script");
 
     fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
-    await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/ride-1/confirm", { method: "POST" });
-    });
+    expect(screen.getByTestId("panel-concierge-phone-call")).toBeVisible();
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/ride-1/confirm", { method: "POST" });
 
     fireEvent.click(screen.getByTestId("button-concierge-checklist-details"));
     expect(await screen.findByTestId("input-transport-destination")).toBeVisible();
+  });
+
+  it("records a user phone call outcome through the existing completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/phone-task-1/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-phone-task-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "phone-task-1",
+            use_case: "insurance_admin",
+            provider_name: "Seguro Vida",
+            provider_phone: "+34 600 111 222",
+            action_summary: "Call insurance about claim CL-9.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+              execution_channel: "phone_call",
+              call_script: "Hello, I am calling about claim CL-9.",
+              requested_time: "today",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-phone-call")).toHaveTextContent("Hello, I am calling about claim CL-9.");
+    expect(screen.getByTestId("link-concierge-phone-call-phone-task-1")).toHaveAttribute("href", "tel:+34600111222");
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-phone-task-1"));
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/phone-task-1/confirm", { method: "POST" });
+
+    fireEvent.change(screen.getByTestId("input-phone-outcome-time-phone-task-1"), {
+      target: { value: "tomorrow 10:30" },
+    });
+    fireEvent.change(screen.getByTestId("input-phone-outcome-reference-phone-task-1"), {
+      target: { value: "CL-9" },
+    });
+    fireEvent.change(screen.getByTestId("input-phone-outcome-notes-phone-task-1"), {
+      target: { value: "They asked for the invoice number." },
+    });
+    fireEvent.click(screen.getByTestId("button-phone-outcome-save-phone-task-1"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Call saved: Seguro Vida. Outcome: confirmed. Time: tomorrow 10:30. Reference: CL-9.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+          execution_type: "phone_call_outcome_capture",
+          execution_channel: "phone_call",
+          call_outcome: "confirmed",
+          provider_name: "Seguro Vida",
+          provider_phone: "+34 600 111 222",
+          call_script: "Hello, I am calling about claim CL-9.",
+          scheduled_for: "tomorrow 10:30",
+          reference: "CL-9",
+          notes: "They asked for the invoice number.",
+          completed_from: "phone_call_outcome_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
   });
 
   it("shows the exact missing ride detail before allowing checklist confirmation", async () => {

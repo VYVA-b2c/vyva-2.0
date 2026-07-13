@@ -619,6 +619,8 @@ interface ConciergePendingItem {
   use_case: string;
   provider_name: string | null;
   provider_phone: string | null;
+  requested_tool?: string | null;
+  active_tool?: string | null;
   action_summary: string;
   action_payload: Record<string, unknown> | null;
   status: "pending" | "calling" | "completed" | "failed" | "cancelled";
@@ -3799,6 +3801,7 @@ type RightNowActionLabelsParams = {
   opensWhatsApp: boolean;
   opensEmail: boolean;
   opensBooking: boolean;
+  needsPhoneOutcome: boolean;
   canOpenForm: boolean;
   isVyvaTask: boolean;
   formMissingFields: string[];
@@ -4482,6 +4485,142 @@ function BookingFormSupportPanel({
   );
 }
 
+function PhoneCallOutcomePanel({
+  item,
+  form,
+  notice,
+  error,
+  isSaving,
+  isSpanish,
+  onFormChange,
+  onSave,
+}: {
+  item: ConciergePendingItem;
+  form: PhoneCallOutcomeForm;
+  notice: string | null;
+  error: string | null;
+  isSaving: boolean;
+  isSpanish: boolean;
+  onFormChange: (field: keyof PhoneCallOutcomeForm, value: string) => void;
+  onSave: () => void;
+}) {
+  const provider = phoneCallProviderName(item, isSpanish);
+  const phone = phoneCallProviderPhone(item);
+  const href = phoneHref(phone);
+  const script = phoneCallScript(item, isSpanish);
+  const statusOptions: PhoneCallOutcomeStatus[] = ["confirmed", "no_answer", "needs_info", "cancelled"];
+
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#DDD6FE] bg-[#FBFAFF] p-4"
+      data-testid="panel-concierge-phone-call"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-vyva-purple shadow-sm">
+          <PhoneCall size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+            {isSpanish ? "Llamada guiada" : "Guided call"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {provider}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "Usa el guion. Despues guarda lo que paso."
+              : "Use the script. Then save what happened."}
+          </span>
+        </span>
+        {href ? (
+          <a
+            href={href}
+            data-testid={`link-concierge-phone-call-${item.id}`}
+            className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
+            aria-label={`${isSpanish ? "Llamar" : "Call"} ${phone}`}
+          >
+            <PhoneCall size={14} />
+            {isSpanish ? "Llamar" : "Call now"}
+          </a>
+        ) : null}
+      </div>
+
+      <div className="mt-3 rounded-[18px] border border-[#E9D5FF] bg-white p-3">
+        <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+          {isSpanish ? "Guion" : "Script"}
+        </p>
+        <p className="mt-1 whitespace-pre-wrap font-body text-[13px] font-bold leading-relaxed text-vyva-text-1">
+          {script}
+        </p>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {statusOptions.map((status) => {
+          const selected = form.status === status;
+          return (
+            <Button
+              key={status}
+              type="button"
+              data-testid={`button-phone-outcome-status-${status}-${item.id}`}
+              onClick={() => onFormChange("status", status)}
+              variant={selected ? "default" : "outline"}
+              className={selected ? "vyva-primary-action h-auto" : "vyva-secondary-action h-auto border-[#DDD6FE] text-vyva-purple"}
+            >
+              {phoneCallOutcomeStatusLabel(status, isSpanish)}
+            </Button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Input
+          value={form.scheduledFor}
+          onChange={(event) => onFormChange("scheduledFor", event.target.value)}
+          placeholder={isSpanish ? "Hora confirmada opcional" : "Confirmed time optional"}
+          data-testid={`input-phone-outcome-time-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DDD6FE] bg-white font-body text-[14px]"
+        />
+        <Input
+          value={form.reference}
+          onChange={(event) => onFormChange("reference", event.target.value)}
+          placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
+          data-testid={`input-phone-outcome-reference-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DDD6FE] bg-white font-body text-[14px]"
+        />
+        <textarea
+          value={form.notes}
+          onChange={(event) => onFormChange("notes", event.target.value)}
+          placeholder={isSpanish ? "Nota breve opcional" : "Optional short note"}
+          data-testid={`input-phone-outcome-notes-${item.id}`}
+          className="min-h-[70px] rounded-[14px] border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-vyva-purple focus:ring-2 focus:ring-[#EDE9FE] sm:col-span-2"
+        />
+      </div>
+
+      <Button
+        type="button"
+        data-testid={`button-phone-outcome-save-${item.id}`}
+        onClick={onSave}
+        disabled={isSaving}
+        className="vyva-primary-action mt-3 h-auto w-full"
+      >
+        {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+        {isSpanish ? "Guardar resultado" : "Save outcome"}
+      </Button>
+
+      {notice ? (
+        <p data-testid="phone-outcome-notice" className="mt-3 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="phone-outcome-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ProviderReplyPanel({
   item,
   mode,
@@ -4908,7 +5047,8 @@ function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "it
 }
 
 function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string {
-  const { item, isSpanish, opensWhatsApp, opensEmail, opensBooking, canOpenForm, isVyvaTask, formMissingFields } = params;
+  const { item, isSpanish, opensWhatsApp, opensEmail, opensBooking, needsPhoneOutcome, canOpenForm, isVyvaTask, formMissingFields } = params;
+  if (needsPhoneOutcome) return isSpanish ? "Revisar guion de llamada" : "Review call script";
   if (isVyvaTask) return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
 
   if (isHomeServicePendingAction(item)) {
@@ -4946,7 +5086,7 @@ function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string 
 }
 
 function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
-  const { item, isSpanish } = params;
+  const { item, isSpanish, needsPhoneOutcome } = params;
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
   if (item.status === "calling") {
     if (item.use_case === "book_appointment") return isSpanish ? "Escuchar, silenciar o detener" : "Listen, mute, or stop";
@@ -4960,11 +5100,12 @@ function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
     return isSpanish ? "Guardar confirmacion" : "Save confirmation";
   }
   if (missionStatus.includes("awaiting_provider")) return isSpanish ? "Esperar respuesta del proveedor" : "Wait for provider reply";
+  if (needsPhoneOutcome) return isSpanish ? "Llamar y guardar resultado" : "Call and record outcome";
   return rightNowPrimaryActionLabel(params);
 }
 
 function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
-  const { item, isSpanish, isVyvaTask } = params;
+  const { item, isSpanish, isVyvaTask, needsPhoneOutcome } = params;
   if (item.status === "calling") {
     return isSpanish ? "Puedes volver mas tarde; la tarea seguira aqui." : "You can come back later; this task stays here.";
   }
@@ -4973,6 +5114,11 @@ function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
   }
   if (isVyvaTask) {
     return isSpanish ? "VYVA lo mantiene aqui hasta que este listo para confirmar." : "VYVA keeps it here until it is ready to confirm.";
+  }
+  if (needsPhoneOutcome) {
+    return isSpanish
+      ? "Llama desde aqui y guarda el resultado para cerrar la tarea."
+      : "Call from here and save the result to close the task.";
   }
   return isSpanish ? "Tu confirmas antes de enviar, llamar o reservar." : "You confirm before anything is sent, called, or booked.";
 }
@@ -5006,6 +5152,15 @@ type ProviderReplyForm = {
 };
 
 type BookingFormOutcomeForm = {
+  reference: string;
+  notes: string;
+};
+
+type PhoneCallOutcomeStatus = "confirmed" | "no_answer" | "needs_info" | "cancelled";
+
+type PhoneCallOutcomeForm = {
+  status: PhoneCallOutcomeStatus;
+  scheduledFor: string;
   reference: string;
   notes: string;
 };
@@ -5187,6 +5342,13 @@ const EMPTY_BOOKING_FORM_OUTCOME_FORM: BookingFormOutcomeForm = {
   notes: "",
 };
 
+const EMPTY_PHONE_CALL_OUTCOME_FORM: PhoneCallOutcomeForm = {
+  status: "confirmed",
+  scheduledFor: "",
+  reference: "",
+  notes: "",
+};
+
 function providerReplyFormHasDetails(form: ProviderReplyForm): boolean {
   return Boolean(
     form.scheduledFor.trim() ||
@@ -5315,6 +5477,135 @@ function bookingFormOutcomePayload(item: ConciergePendingItem, form: BookingForm
     reference: form.reference.trim() || payloadString(payload, ["booking_reference", "reference"]) || null,
     notes: form.notes.trim() || null,
     completed_from: "booking_form_support_panel",
+    no_external_action_without_confirmation: true,
+  };
+}
+
+function phoneCallProviderPhone(item: ConciergePendingItem): string {
+  return item.provider_phone?.trim() || payloadString(item.action_payload, ["provider_phone", "phone", "contact_phone"]);
+}
+
+function phoneCallProviderName(item: ConciergePendingItem, isSpanish: boolean): string {
+  return item.provider_name?.trim()
+    || payloadString(item.action_payload, ["provider_name", "pharmacy_name", "selected_provider_name"])
+    || (isSpanish ? "proveedor" : "provider");
+}
+
+function phoneCallScript(item: ConciergePendingItem, isSpanish: boolean): string {
+  const script = payloadString(item.action_payload, [
+    "call_script",
+    "phone_script",
+    "script",
+    "draft_body",
+    "draft_message",
+    "message_body",
+    "message",
+    "body",
+  ]);
+  if (script) return script;
+  const provider = phoneCallProviderName(item, isSpanish);
+  return isSpanish
+    ? `Hola, llamo por esta solicitud con ${provider}: ${item.action_summary}`
+    : `Hello, I am calling about this request with ${provider}: ${item.action_summary}`;
+}
+
+function phoneCallFlowReference(item: ConciergePendingItem): string {
+  const explicit = payloadString(item.action_payload, ["flow_reference"]);
+  if (explicit) return explicit;
+  if (item.use_case === "book_ride") return TRANSPORT_BOOKING_FLOW_REFERENCE;
+  if (item.use_case === "order_medicine") return OTC_PHARMACY_FLOW_REFERENCE;
+  if (isHomeServicePendingAction(item)) return CONCIERGE_FLOW_REFERENCES.homeService;
+  if (item.use_case === "book_appointment") return MEDICAL_APPOINTMENT_FLOW_REFERENCE;
+  if (item.use_case === "insurance_admin") return INSURANCE_ADMIN_FLOW_REFERENCE;
+  return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
+}
+
+function phoneCallToolHint(item: ConciergePendingItem): string {
+  return [
+    item.requested_tool ?? "",
+    item.active_tool ?? "",
+    payloadString(item.action_payload, [
+      "requested_tool",
+      "active_tool",
+      "tool",
+      "tool_name",
+      "execution_tool",
+      "handoff_tool",
+      "channel",
+    ]),
+  ].join(" ").toLowerCase();
+}
+
+function isPhoneCallPendingAction(item: ConciergePendingItem): boolean {
+  if (item.status !== "pending") return false;
+  const channel = getPreferredHandoffChannel(item).toLowerCase();
+  const toolHint = phoneCallToolHint(item);
+  const hasPhone = Boolean(phoneCallProviderPhone(item));
+  if (!hasPhone) return false;
+  if (channel === "whatsapp" || toolHint.includes("whatsapp")) return false;
+  if (channel === "email" || toolHint.includes("email")) return false;
+  if (channel === "booking_url" || channel === "manual") return false;
+  if (toolHint.includes("form") || toolHint.includes("booking")) return false;
+  if (channel.includes("phone") || channel.includes("call")) return true;
+  if (toolHint.includes("phone") || toolHint.includes("call")) return true;
+  return !getActionEmailDraft(item) && !getActionWhatsAppDraft(item) && !getBookingUrl(item);
+}
+
+function phoneCallOutcomeStatusLabel(status: PhoneCallOutcomeStatus, isSpanish: boolean): string {
+  switch (status) {
+    case "confirmed":
+      return isSpanish ? "Confirmado" : "Confirmed";
+    case "no_answer":
+      return isSpanish ? "No contestan" : "No answer";
+    case "needs_info":
+      return isSpanish ? "Piden datos" : "Need info";
+    case "cancelled":
+      return isSpanish ? "Cancelado" : "Cancelled";
+    default:
+      return status;
+  }
+}
+
+function phoneCallOutcomeSummary(item: ConciergePendingItem, form: PhoneCallOutcomeForm, isSpanish: boolean): string {
+  const provider = phoneCallProviderName(item, isSpanish);
+  const statusLabel = phoneCallOutcomeStatusLabel(form.status, isSpanish).toLowerCase();
+  const time = form.scheduledFor.trim();
+  const reference = form.reference.trim();
+  if (time && reference) {
+    return isSpanish
+      ? `Llamada guardada: ${provider}. Resultado: ${statusLabel}. Hora: ${time}. Referencia: ${reference}.`
+      : `Call saved: ${provider}. Outcome: ${statusLabel}. Time: ${time}. Reference: ${reference}.`;
+  }
+  if (time) {
+    return isSpanish
+      ? `Llamada guardada: ${provider}. Resultado: ${statusLabel}. Hora: ${time}.`
+      : `Call saved: ${provider}. Outcome: ${statusLabel}. Time: ${time}.`;
+  }
+  if (reference) {
+    return isSpanish
+      ? `Llamada guardada: ${provider}. Resultado: ${statusLabel}. Referencia: ${reference}.`
+      : `Call saved: ${provider}. Outcome: ${statusLabel}. Reference: ${reference}.`;
+  }
+  return isSpanish
+    ? `Llamada guardada: ${provider}. Resultado: ${statusLabel}.`
+    : `Call saved: ${provider}. Outcome: ${statusLabel}.`;
+}
+
+function phoneCallOutcomePayload(item: ConciergePendingItem, form: PhoneCallOutcomeForm, isSpanish: boolean): Record<string, unknown> {
+  const payload = item.action_payload ?? {};
+  return {
+    ...payload,
+    flow_reference: phoneCallFlowReference(item),
+    execution_type: "phone_call_outcome_capture",
+    execution_channel: "phone_call",
+    call_outcome: form.status,
+    provider_name: phoneCallProviderName(item, isSpanish),
+    provider_phone: phoneCallProviderPhone(item),
+    call_script: phoneCallScript(item, isSpanish),
+    scheduled_for: form.scheduledFor.trim() || payloadString(payload, ["scheduled_for", "requested_time", "time"]) || null,
+    reference: form.reference.trim() || payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]) || null,
+    notes: form.notes.trim() || null,
+    completed_from: "phone_call_outcome_panel",
     no_external_action_without_confirmation: true,
   };
 }
@@ -5804,6 +6095,9 @@ const ConciergeScreen = () => {
   const [bookingFormOutcomeForm, setBookingFormOutcomeForm] = useState<BookingFormOutcomeForm>(EMPTY_BOOKING_FORM_OUTCOME_FORM);
   const [bookingFormNotice, setBookingFormNotice] = useState<string | null>(null);
   const [bookingFormError, setBookingFormError] = useState<string | null>(null);
+  const [phoneCallOutcomeForm, setPhoneCallOutcomeForm] = useState<PhoneCallOutcomeForm>(EMPTY_PHONE_CALL_OUTCOME_FORM);
+  const [phoneCallOutcomeNotice, setPhoneCallOutcomeNotice] = useState<string | null>(null);
+  const [phoneCallOutcomeError, setPhoneCallOutcomeError] = useState<string | null>(null);
   const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -6760,6 +7054,31 @@ const ConciergeScreen = () => {
     },
     onError: (error) => {
       setBookingFormError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el formulario." : "I could not save the form."));
+    },
+  });
+
+  const phoneCallOutcomeMutation = useMutation({
+    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: PhoneCallOutcomeForm }) => (
+      completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: phoneCallOutcomeSummary(item, form, isSpanish),
+        outcomePayload: phoneCallOutcomePayload(item, form, isSpanish),
+      })
+    ),
+    onMutate: () => {
+      setPhoneCallOutcomeError(null);
+      setPhoneCallOutcomeNotice(null);
+    },
+    onSuccess: async () => {
+      setPhoneCallOutcomeForm(EMPTY_PHONE_CALL_OUTCOME_FORM);
+      setPhoneCallOutcomeNotice(isSpanish ? "Llamada guardada. La tarea queda cerrada." : "Call saved. The task is closed.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setPhoneCallOutcomeError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la llamada." : "I could not save the call."));
     },
   });
 
@@ -8379,7 +8698,11 @@ const ConciergeScreen = () => {
 
     if (action === "confirm") {
       if (activeAction.status === "pending" && !activeActionIsVyvaTask) {
-        confirmMutation.mutate(activeAction);
+        if (isPhoneCallPendingAction(activeAction)) {
+          handlePhoneCallReview(activeAction);
+        } else {
+          confirmMutation.mutate(activeAction);
+        }
       } else {
         handleChangePendingAction(activeAction);
       }
@@ -8392,6 +8715,22 @@ const ConciergeScreen = () => {
 
   function updateBookingFormOutcome(field: keyof BookingFormOutcomeForm, value: string) {
     setBookingFormOutcomeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updatePhoneCallOutcomeForm(field: keyof PhoneCallOutcomeForm, value: string) {
+    setPhoneCallOutcomeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function handlePhoneCallReview(item: ConciergePendingItem) {
+    setPhoneCallOutcomeError(null);
+    setPhoneCallOutcomeNotice(isSpanish ? "Guion listo. Llama y guarda lo que paso." : "Script ready. Call and save what happened.");
+    setVisibleActionId(item.id);
+    setIsRightNowHidden(false);
+    window.setTimeout(() => rightNowSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  function handleSavePhoneCallOutcome(item: ConciergePendingItem) {
+    phoneCallOutcomeMutation.mutate({ item, form: phoneCallOutcomeForm });
   }
 
   function handleBookingFormSubmitted(item: ConciergePendingItem) {
@@ -9109,6 +9448,9 @@ const ConciergeScreen = () => {
     setBookingFormOutcomeForm(EMPTY_BOOKING_FORM_OUTCOME_FORM);
     setBookingFormNotice(null);
     setBookingFormError(null);
+    setPhoneCallOutcomeForm(EMPTY_PHONE_CALL_OUTCOME_FORM);
+    setPhoneCallOutcomeNotice(null);
+    setPhoneCallOutcomeError(null);
   }, [activeAction?.id]);
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -9178,6 +9520,7 @@ const ConciergeScreen = () => {
     !activeActionOpensEmail &&
     (activeActionCanOpenForm || (!activeAction?.provider_phone && activeActionExecutionChannel !== "booking_url"))
   );
+  const activeActionNeedsPhoneOutcome = activeAction ? isPhoneCallPendingAction(activeAction) : false;
   const activeActionIsAppointment = activeAction?.use_case === "book_appointment";
   const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
     ? activeAction.action_payload.mission_status
@@ -9191,6 +9534,7 @@ const ConciergeScreen = () => {
     opensWhatsApp: activeActionOpensWhatsApp,
     opensEmail: activeActionOpensEmail,
     opensBooking: activeActionOpensBooking,
+    needsPhoneOutcome: activeActionNeedsPhoneOutcome,
     canOpenForm: activeActionCanOpenForm,
     isVyvaTask: activeActionIsVyvaTask,
     formMissingFields: activeActionFormMissingFields,
@@ -10981,10 +11325,10 @@ const ConciergeScreen = () => {
                 review={activeActionReviewSummary}
                 primaryLabel={activeActionPrimaryLabel}
                 primaryIcon={activeActionPrimaryIcon}
-                onConfirm={() => confirmMutation.mutate(activeAction)}
+                onConfirm={() => activeActionNeedsPhoneOutcome ? handlePhoneCallReview(activeAction) : confirmMutation.mutate(activeAction)}
                 onChange={() => handleChangePendingAction(activeAction)}
                 onCancel={() => cancelMutation.mutate(activeAction.id)}
-                confirmPending={confirmMutation.isPending}
+                confirmPending={confirmMutation.isPending || phoneCallOutcomeMutation.isPending}
                 cancelPending={cancelMutation.isPending}
                 primaryDisabled={activeActionIsVyvaTask}
                 confirmTestId={`button-concierge-confirm-${activeAction.id}`}
@@ -11036,6 +11380,19 @@ const ConciergeScreen = () => {
                     search: activeActionWebSearchResult,
                   });
                 }}
+              />
+            ) : null}
+
+            {activeActionNeedsPhoneOutcome ? (
+              <PhoneCallOutcomePanel
+                item={activeAction}
+                form={phoneCallOutcomeForm}
+                notice={phoneCallOutcomeNotice}
+                error={phoneCallOutcomeError}
+                isSaving={phoneCallOutcomeMutation.isPending}
+                isSpanish={isSpanish}
+                onFormChange={updatePhoneCallOutcomeForm}
+                onSave={() => handleSavePhoneCallOutcome(activeAction)}
               />
             ) : null}
 
