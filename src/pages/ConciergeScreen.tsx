@@ -3388,6 +3388,21 @@ type PendingActionReviewSummary = {
   missingDetails: string[];
 };
 
+type ActiveTaskChecklistItemState = "done" | "active" | "needed" | "waiting" | "warning";
+
+type ActiveTaskChecklistItem = {
+  key: string;
+  label: string;
+  value: string;
+  state: ActiveTaskChecklistItemState;
+};
+
+type ActiveTaskChecklist = {
+  title: string;
+  helper: string;
+  items: ActiveTaskChecklistItem[];
+};
+
 function humanizeValue(value: string): string {
   return value.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -3500,6 +3515,172 @@ function buildPendingActionReviewSummary(params: {
     details: details.slice(0, 8),
     missingDetails,
   };
+}
+
+function actionHasPreparedDetails(item: ConciergePendingItem): boolean {
+  if (item.action_summary.trim()) return true;
+  const payload = item.action_payload;
+  if (!payload) return false;
+  return Object.values(payload).some((value) => {
+    if (typeof value === "string") return Boolean(value.trim());
+    if (Array.isArray(value)) return value.length > 0;
+    return value !== null && value !== undefined;
+  });
+}
+
+function activeTaskProviderLabel(item: ConciergePendingItem, isSpanish: boolean): string {
+  if (isProviderSearchPendingAction(item)) return providerSearchProviderName(item, isSpanish);
+  return item.provider_name?.trim()
+    || payloadString(item.action_payload, ["provider_name", "pharmacy_name", "selected_provider_name"])
+    || "";
+}
+
+function flowDoesNotNeedSavedProvider(item: ConciergePendingItem): boolean {
+  return ["admin_task", "scam_check", "paperwork", "send_message", "find_offers"].includes(item.use_case);
+}
+
+function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
+  nextStepLabel: string;
+  timeline: ConciergeFollowThroughStatus | null;
+}): ActiveTaskChecklist {
+  const {
+    item,
+    isSpanish,
+    formMissingFields,
+    isVyvaTask,
+    nextStepLabel,
+    timeline,
+  } = params;
+  const provider = activeTaskProviderLabel(item, isSpanish);
+  const providerNotRequired = flowDoesNotNeedSavedProvider(item);
+  const channel = handoffChannelLabel(item, isSpanish);
+  const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
+  const isWaitingForProvider = item.status === "calling" || missionStatus.includes("awaiting_provider");
+  const hasMissingFormFields = formMissingFields.length > 0;
+  const detailsReady = actionHasPreparedDetails(item) && !hasMissingFormFields;
+
+  const items: ActiveTaskChecklistItem[] = [
+    {
+      key: "details",
+      label: isSpanish ? "Detalles" : "Details",
+      value: hasMissingFormFields
+        ? (isSpanish ? "Faltan datos" : "Needs details")
+        : detailsReady
+          ? (isSpanish ? "Listos" : "Ready")
+          : (isSpanish ? "Por confirmar" : "Needs check"),
+      state: hasMissingFormFields ? "needed" : detailsReady ? "done" : "active",
+    },
+    {
+      key: "provider",
+      label: isSpanish ? "Proveedor" : "Provider",
+      value: provider || (providerNotRequired
+        ? (isSpanish ? "No necesario" : "Not needed")
+        : (isSpanish ? "Por elegir" : "Choose first")),
+      state: provider ? "done" : providerNotRequired ? "done" : "needed",
+    },
+    {
+      key: "contact",
+      label: isSpanish ? "Contacto" : "Contact",
+      value: channel,
+      state: channel.toLowerCase().includes("review") || channel.toLowerCase().includes("revision")
+        ? "active"
+        : "done",
+    },
+  ];
+
+  if (isWaitingForProvider) {
+    items.push({
+      key: "reply",
+      label: isSpanish ? "Respuesta" : "Provider reply",
+      value: timeline?.activeStepId === "confirmed"
+        ? (isSpanish ? "Recibida" : "Received")
+        : (isSpanish ? "Esperando" : "Waiting"),
+      state: timeline?.activeStepId === "confirmed" ? "done" : "waiting",
+    });
+  }
+
+  items.push({
+    key: "confirm",
+    label: isSpanish ? "Confirmar" : "Confirm",
+    value: item.status === "failed"
+      ? (isSpanish ? "Revisar" : "Review needed")
+      : isWaitingForProvider
+        ? (isSpanish ? "Tras respuesta" : "After reply")
+        : isVyvaTask
+          ? (isSpanish ? "Cuando este listo" : "When ready")
+          : nextStepLabel || (isSpanish ? "Tu OK primero" : "Your OK first"),
+    state: item.status === "failed"
+      ? "warning"
+      : isWaitingForProvider
+        ? "waiting"
+        : isVyvaTask
+          ? "waiting"
+          : "active",
+  });
+
+  return {
+    title: isSpanish ? "Que falta" : "What is missing",
+    helper: isSpanish
+      ? "VYVA no envia, llama ni reserva sin tu OK."
+      : "VYVA asks before anything is sent, called, or booked.",
+    items,
+  };
+}
+
+function activeTaskChecklistStateClasses(state: ActiveTaskChecklistItemState): string {
+  switch (state) {
+    case "done":
+      return "border-[#BBF7D0] bg-[#F8FFFC] text-[#047857]";
+    case "needed":
+      return "border-[#FED7AA] bg-[#FFF7ED] text-[#9A3412]";
+    case "waiting":
+      return "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]";
+    case "warning":
+      return "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]";
+    case "active":
+    default:
+      return "border-[#DDD6FE] bg-white text-vyva-purple";
+  }
+}
+
+function ActiveTaskChecklistPanel({ checklist }: { checklist: ActiveTaskChecklist }) {
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-vyva-border bg-white p-3"
+      data-testid="panel-concierge-flow-checklist"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-text-2">
+            {checklist.title}
+          </p>
+          <p className="mt-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {checklist.helper}
+          </p>
+        </div>
+        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#047857]">
+          <ShieldCheck size={15} aria-hidden="true" />
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {checklist.items.map((item) => (
+          <div
+            key={item.key}
+            data-state={item.state}
+            className={`min-h-[58px] rounded-[14px] border px-3 py-2 ${activeTaskChecklistStateClasses(item.state)}`}
+          >
+            <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] opacity-80">
+              {item.label}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-black leading-tight text-vyva-text-1">
+              {item.value}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function PendingActionReviewCard({
@@ -7722,6 +7903,13 @@ const ConciergeScreen = () => {
       nextStepHelper: activeActionNextStepHelper,
     })
     : null;
+  const activeActionChecklist = activeAction && activeActionLabelParams
+    ? buildActiveTaskChecklist({
+      ...activeActionLabelParams,
+      nextStepLabel: activeActionNextStepLabel,
+      timeline: activeActionTimeline,
+    })
+    : null;
   const activeActionPrimaryIcon: LucideIcon = activeActionOpensWhatsApp
     ? Send
     : activeActionOpensEmail
@@ -9348,6 +9536,8 @@ const ConciergeScreen = () => {
             </p>
 
             {activeActionTimeline ? <ConciergeActionTimeline status={activeActionTimeline} /> : null}
+
+            {activeActionChecklist ? <ActiveTaskChecklistPanel checklist={activeActionChecklist} /> : null}
 
             {activeAction.status === "pending" && activeActionReviewSummary ? (
               <PendingActionReviewCard
