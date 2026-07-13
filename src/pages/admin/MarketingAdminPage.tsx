@@ -5174,8 +5174,22 @@ export default function MarketingAdminPage() {
                                         <div>
                                           <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Preview panel opened.</p>
                                           <p className="mt-1 text-base font-black text-[#241133]">{item.title}</p>
+                                          <div className="mt-2 flex flex-wrap gap-1.5">
+                                            <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                            <Pill className={statusClass(item.status)}>{item.status}</Pill>
+                                            <Pill className={item.source === "lovable" ? "bg-violet-50 text-violet-800" : "bg-[#f5eee8] text-[#5b4a46]"}>
+                                              {contentOriginLabel(item)}
+                                            </Pill>
+                                            {item.hasHtml ? <Pill className="bg-blue-50 text-blue-800">Rendered HTML available</Pill> : null}
+                                            {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Lovable design data</Pill> : null}
+                                            {item.mediaAssetCount ? <Pill className="bg-emerald-50 text-emerald-800">{item.mediaAssetCount} media refs</Pill> : null}
+                                          </div>
                                           <p className="mt-1 text-[#5b4a46]">{item.subject || "No subject yet."}</p>
+                                          {item.ctaLabel || item.ctaUrl ? (
+                                            <p className="mt-2 text-xs font-black text-purple-700">CTA: {[item.ctaLabel, item.ctaUrl].filter(Boolean).join(" -> ")}</p>
+                                          ) : null}
                                           <p className="mt-2 max-w-4xl whitespace-pre-wrap text-xs font-semibold leading-relaxed text-[#6f5f59]">{item.body || "No body copy yet."}</p>
+                                          {item.lovableExternalId ? <p className="mt-2 break-all text-xs font-semibold text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</p> : null}
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                           <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700">

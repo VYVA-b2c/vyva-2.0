@@ -1265,6 +1265,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Preview panel opened.");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Partner update");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Social post");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Rendered HTML available");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Lovable design data");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("1 media refs");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Lovable ID: lovable-content-2");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Focus preview");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
