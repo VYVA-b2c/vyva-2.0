@@ -804,7 +804,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Media refs: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("https://cdn.example.test/partner.png");
-    expect(screen.getByAltText("partner.png")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
+    expect(within(screen.getByTestId("marketing-content-preview-panel")).getByAltText("partner.png")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Lovable ID: media-1");
@@ -838,9 +838,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("1 unmapped");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("List member preview");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Partner at Moka Digital");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Mapped");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Imported only");
+    fireEvent.click(screen.getByTestId("button-marketing-open-audience-member-contact-audience-1-contact-2"));
+    expect(screen.getByTestId("button-marketing-contacts-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-contact-editor-feedback")).toHaveTextContent('Editing "Hassan Partner".');
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Lovable list member 5");
     expect(within(screen.getByTestId("marketing-audience-member-preview-audience-1")).queryByText("Lovable list member 7")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-marketing-toggle-audience-members-audience-1"));
@@ -1312,6 +1320,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Lovable ID: lovable-content-2");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Focus preview");
+    expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Partner update");
+    expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Lovable design preview");
+    expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Media references");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");
@@ -1333,8 +1344,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Editor opened.");
     expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Changes save to this VYVA content record.");
     expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Editor panel opened.");
-    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("You can edit this content");
-    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Focus editor");
+    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Edit and save this content directly here.");
+    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Full editor");
+    expect(screen.getByTestId("marketing-content-inline-editor-content-2")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-inline-edit-content-title-content-2")).toHaveValue("Partner post");
+    expect(screen.getByTestId("textarea-marketing-inline-edit-content-body-content-2")).toHaveValue("Partner update");
 
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("fixed");

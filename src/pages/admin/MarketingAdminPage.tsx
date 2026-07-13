@@ -1987,12 +1987,20 @@ function MediaPreviewTile({ url, label, testId }: { url: string; label?: string;
   );
 }
 
-function LovableDesignPreview({ contentAsset }: { contentAsset: ContentAsset }) {
+function LovableDesignPreview({
+  contentAsset,
+  testId = "marketing-content-design-preview",
+  mediaTestIdPrefix = "marketing-content-design-media",
+}: {
+  contentAsset: ContentAsset;
+  testId?: string;
+  mediaTestIdPrefix?: string;
+}) {
   const blocks = collectDesignPreviewBlocks(contentAsset.designJson);
   if (!blocks.length) return null;
 
   return (
-    <div className="rounded-xl border border-purple-100 bg-[#fbf7ff] p-3" data-testid="marketing-content-design-preview">
+    <div className="rounded-xl border border-purple-100 bg-[#fbf7ff] p-3" data-testid={testId}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Lovable design preview</p>
@@ -2004,7 +2012,7 @@ function LovableDesignPreview({ contentAsset }: { contentAsset: ContentAsset }) 
         {blocks.map((block, index) => (
           <article key={`${block.key}-${index}`} className="overflow-hidden rounded-xl border border-[#eadfd5] bg-white">
             {block.mediaUrl ? (
-              <MediaPreviewTile url={block.mediaUrl} label={block.title || contentAsset.title} testId={`marketing-content-design-media-${index}`} />
+              <MediaPreviewTile url={block.mediaUrl} label={block.title || contentAsset.title} testId={`${mediaTestIdPrefix}-${index}`} />
             ) : null}
             <div className="p-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -5215,6 +5223,8 @@ export default function MarketingAdminPage() {
                             const isPreviewingContent = item.id === selectedContentId && contentDrawerMode === "preview";
                             const isEditingContent = item.id === editingContentId && contentDrawerMode === "edit";
                             const isConfirmingDelete = confirmingContentDeleteId === item.id;
+                            const rowMediaAssets = mediaAssets.filter((asset) => asset.contentAssetId === item.id);
+                            const rowMediaPreviewUrls = contentMediaPreviewUrls(item, rowMediaAssets);
                             return (
                             <Fragment key={item.id}>
                             <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
@@ -5344,6 +5354,36 @@ export default function MarketingAdminPage() {
                                           </button>
                                         </div>
                                       </div>
+                                      <div className="mt-4 grid gap-3" data-testid={`marketing-content-inline-preview-${item.id}`}>
+                                        <div className="whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
+                                          {item.body || item.subject || "No body copy yet."}
+                                        </div>
+                                        {item.htmlBody ? (
+                                          <iframe
+                                            title={`Inline preview ${item.title}`}
+                                            sandbox=""
+                                            srcDoc={item.htmlBody}
+                                            className="h-[320px] w-full rounded-xl border border-[#eadfd5] bg-white"
+                                          />
+                                        ) : null}
+                                        <LovableDesignPreview
+                                          contentAsset={item}
+                                          testId={`marketing-content-inline-design-preview-${item.id}`}
+                                          mediaTestIdPrefix={`marketing-content-inline-design-media-${item.id}`}
+                                        />
+                                        <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Media references</p>
+                                          {rowMediaPreviewUrls.length ? (
+                                            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                              {rowMediaPreviewUrls.map((url, index) => (
+                                                <MediaPreviewTile key={url} url={url} label={`${item.title} inline media ${index + 1}`} testId={`marketing-content-inline-media-preview-${item.id}-${index}`} />
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <p className="mt-2 text-xs font-semibold text-[#8b7a73]">No imported media URLs attached to this content.</p>
+                                          )}
+                                        </div>
+                                      </div>
                                     </div>
                                   ) : null}
                                   {isEditingContent ? (
@@ -5352,17 +5392,72 @@ export default function MarketingAdminPage() {
                                         <div>
                                           <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Editor panel opened.</p>
                                           <p className="mt-1 text-base font-black text-[#241133]">{item.title}</p>
-                                          <p className="mt-1 font-semibold text-[#6f5f59]">You can edit this content in the focused panel now.</p>
+                                          <p className="mt-1 font-semibold text-[#6f5f59]">Edit and save this content directly here.</p>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                           <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700">
-                                            <ArrowDown size={12} /> Focus editor
+                                            <ArrowDown size={12} /> Full editor
                                           </button>
                                           <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]">
                                             <X size={12} /> Close
                                           </button>
                                         </div>
                                       </div>
+                                      {contentEditDraft ? (
+                                        <form className="mt-4 grid gap-3 rounded-xl border border-purple-100 bg-purple-50 p-3" onSubmit={(event) => void saveContentEdit(event)} data-testid={`marketing-content-inline-editor-${item.id}`}>
+                                          <div className="grid gap-3 xl:grid-cols-[1.4fr_160px_160px_120px]">
+                                            <Field label="Title">
+                                              <input className={inputClass} value={contentEditDraft.title} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, title: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-title-${item.id}`} />
+                                            </Field>
+                                            <Field label="Channel">
+                                              <select className={inputClass} value={contentEditDraft.channel} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, channel: event.target.value as Channel }) : draft)} disabled={contentSaving} data-testid={`select-marketing-inline-edit-content-channel-${item.id}`}>
+                                                {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
+                                              </select>
+                                            </Field>
+                                            <Field label="Status">
+                                              <select className={inputClass} value={contentEditDraft.status} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, status: event.target.value as ContentStatus }) : draft)} disabled={contentSaving} data-testid={`select-marketing-inline-edit-content-status-${item.id}`}>
+                                                {CONTENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                                              </select>
+                                            </Field>
+                                            <Field label="Language">
+                                              <input className={inputClass} value={contentEditDraft.language} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, language: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-language-${item.id}`} />
+                                            </Field>
+                                          </div>
+                                          <div className="grid gap-3 xl:grid-cols-[1fr_220px_1fr]">
+                                            <Field label="Subject">
+                                              <input className={inputClass} value={contentEditDraft.subject} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, subject: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-subject-${item.id}`} />
+                                            </Field>
+                                            <Field label="CTA label">
+                                              <input className={inputClass} value={contentEditDraft.ctaLabel} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, ctaLabel: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-cta-label-${item.id}`} />
+                                            </Field>
+                                            <Field label="CTA URL">
+                                              <input className={inputClass} value={contentEditDraft.ctaUrl} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, ctaUrl: event.target.value }) : draft)} disabled={contentSaving} data-testid={`input-marketing-inline-edit-content-cta-url-${item.id}`} />
+                                            </Field>
+                                          </div>
+                                          <Field label="Plain copy">
+                                            <textarea className={textareaClass} value={contentEditDraft.body} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, body: event.target.value }) : draft)} disabled={contentSaving} data-testid={`textarea-marketing-inline-edit-content-body-${item.id}`} />
+                                          </Field>
+                                          <Field label="HTML body">
+                                            <textarea className={`${textareaClass} min-h-[120px] font-mono text-xs`} value={contentEditDraft.htmlBody} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, htmlBody: event.target.value }) : draft)} disabled={contentSaving} data-testid={`textarea-marketing-inline-edit-content-html-${item.id}`} />
+                                          </Field>
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contentSaving} data-testid={`button-marketing-save-inline-content-${item.id}`}>
+                                              <Save size={15} /> {contentSaving ? "Saving..." : "Save content"}
+                                            </button>
+                                            <button type="button" onClick={() => void deleteContent(item)} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === item.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-inline-content-${item.id}`}>
+                                              <Trash2 size={15} /> {confirmingContentDeleteId === item.id ? "Confirm delete" : "Delete"}
+                                            </button>
+                                            <button type="button" onClick={cancelContentEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133]" disabled={contentSaving} data-testid={`button-marketing-close-inline-content-${item.id}`}>
+                                              <X size={15} /> Close
+                                            </button>
+                                            {contentFeedback ? (
+                                              <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contentFeedback.includes("failed") || contentFeedback.includes("required") || contentFeedback.includes("valid JSON") || contentFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} data-testid={`marketing-content-inline-editor-feedback-${item.id}`}>
+                                                {contentFeedback}
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                        </form>
+                                      ) : null}
                                     </div>
                                   ) : null}
                                   {isConfirmingDelete ? (
@@ -6327,13 +6422,20 @@ export default function MarketingAdminPage() {
                         for (const member of mappedContacts) {
                           mappedMemberById.set(member.contactExternalId ?? member.lovableExternalId ?? member.id, member);
                         }
-                        const mappedMembers = Array.from(mappedMemberById.values());
+                        const listMembers = Array.from(mappedMemberById.values()).map((member) => ({
+                          member,
+                          contact: contacts.find((contact) => contactMatchesMemberIds(contact, [
+                            member.contactExternalId,
+                            member.lovableExternalId,
+                            member.id,
+                          ].filter((value): value is string => Boolean(value)))) ?? null,
+                        }));
                         const audienceExpanded = expandedAudienceMemberIds.has(audience.id);
-                        const visibleMappedMembers = audienceExpanded ? mappedMembers : mappedMembers.slice(0, 5);
+                        const visibleListMembers = audienceExpanded ? listMembers : listMembers.slice(0, 5);
                         const visibleUnmappedIds = audienceExpanded ? audience.unmappedContactExternalIds : audience.unmappedContactExternalIds.slice(0, 3);
-                        const hiddenMappedCount = Math.max(mappedMembers.length - visibleMappedMembers.length, 0);
+                        const hiddenListMemberCount = Math.max(listMembers.length - visibleListMembers.length, 0);
                         const hiddenUnmappedCount = Math.max(unmappedCount - visibleUnmappedIds.length, 0);
-                        const canExpandMembers = hiddenMappedCount > 0 || hiddenUnmappedCount > 0 || audienceExpanded;
+                        const canExpandMembers = hiddenListMemberCount > 0 || hiddenUnmappedCount > 0 || audienceExpanded;
                         return (
                           <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -6354,24 +6456,43 @@ export default function MarketingAdminPage() {
                                 {hiddenUnmappedCount ? `, +${hiddenUnmappedCount} more` : ""}
                               </p>
                             ) : null}
-                            {mappedMembers.length ? (
+                            {listMembers.length ? (
                               <div className="mt-3 grid gap-2" data-testid={`marketing-audience-member-preview-${audience.id}`}>
-                                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped contacts</p>
-                                {visibleMappedMembers.map((member) => {
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">List member preview</p>
+                                {visibleListMembers.map(({ member, contact }) => {
                                   const contactLine = member.email || member.whatsappNumber || member.phoneNumber || member.contactExternalId || "No channel";
                                   const roleLine = [member.roleLabel, member.companyName].filter(Boolean).join(" at ");
                                   return (
                                     <div key={`${member.id}-${member.contactExternalId ?? ""}`} className="rounded-lg border border-[#eadfd5] bg-white px-3 py-2">
-                                      <p className="font-black text-[#241133]">{member.fullName || contactLine}</p>
-                                      {roleLine ? <p className="mt-0.5 text-xs font-bold text-[#7d6b65]">{roleLine}</p> : null}
-                                      <p className="mt-0.5 break-all text-xs font-semibold text-[#8b7a73]">{contactLine}</p>
+                                      <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div>
+                                          <p className="font-black text-[#241133]">{member.fullName || contactLine}</p>
+                                          {roleLine ? <p className="mt-0.5 text-xs font-bold text-[#7d6b65]">{roleLine}</p> : null}
+                                          <p className="mt-0.5 break-all text-xs font-semibold text-[#8b7a73]">{contactLine}</p>
+                                        </div>
+                                        <div className="flex flex-wrap justify-end gap-1.5">
+                                          <Pill className={contact ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                                            {contact ? "Mapped" : "Imported only"}
+                                          </Pill>
+                                          {contact ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => startContactEdit(contact)}
+                                              className="inline-flex min-h-7 items-center justify-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-xs font-black text-purple-700"
+                                              data-testid={`button-marketing-open-audience-member-contact-${audience.id}-${contact.id}`}
+                                            >
+                                              <ExternalLink size={12} /> Open contact
+                                            </button>
+                                          ) : null}
+                                        </div>
+                                      </div>
                                     </div>
                                   );
                                 })}
-                                {hiddenMappedCount ? <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">+{hiddenMappedCount} more mapped contacts</Pill> : null}
+                                {hiddenListMemberCount ? <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">+{hiddenListMemberCount} more list members</Pill> : null}
                               </div>
                             ) : (
-                              <p className="mt-3 rounded-lg bg-[#f5eee8] px-3 py-2 text-xs font-bold text-[#8b7a73]">No mapped contacts to preview yet.</p>
+                              <p className="mt-3 rounded-lg bg-[#f5eee8] px-3 py-2 text-xs font-bold text-[#8b7a73]">No imported list members to preview yet.</p>
                             )}
                             {canExpandMembers ? (
                               <button
