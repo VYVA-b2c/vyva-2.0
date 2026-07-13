@@ -2287,6 +2287,14 @@ describe("ConciergeScreen route prefill", () => {
         trustedProviderSaved: {
           name: "Trusted Taxi",
           category: "transport",
+          conciergeResume: {
+            kind: "transport",
+            message: "Please help me book a ride to City Clinic tomorrow morning.",
+            pickup: "Saved home",
+            destination: "City Clinic",
+            time: "tomorrow morning",
+            mobilityNeeds: ["Help to the door"],
+          },
         },
       },
     }]);
@@ -2305,6 +2313,58 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Transport options");
     expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("Saved provider first: Trusted Taxi");
     expect(screen.getByTestId("note-transport-mobility-readiness")).toHaveTextContent("Mobility preferences saved");
+    expect(screen.getByTestId("input-transport-pickup")).toHaveValue("Saved home");
+    expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
+    expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow morning");
+    expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
+  });
+
+  it("resumes an OTC pharmacy flow with the original item details after provider setup returns", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{
+            name: "Neighborhood Pharmacy",
+            role: "pharmacy",
+            phone: "+34 600 333 444",
+            preferredChannel: "phone",
+          }],
+          serviceReadiness: {
+            hasSavedPharmacy: true,
+          },
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        trustedProviderSaved: {
+          name: "Neighborhood Pharmacy",
+          category: "pharmacy",
+          conciergeResume: {
+            kind: "otc_pharmacy",
+            itemText: "Vitamin D",
+            fulfillmentPreference: "pickup",
+            requestedTime: "tomorrow",
+            notes: "Same brand",
+          },
+        },
+      },
+    }]);
+
+    const resume = await screen.findByTestId("panel-concierge-provider-resume");
+    expect(resume).toHaveTextContent("Provider saved");
+    expect(resume).toHaveTextContent("Neighborhood Pharmacy");
+    expect(resume).toHaveTextContent("Continue pharmacy");
+
+    fireEvent.click(screen.getByTestId("button-provider-resume-continue"));
+
+    expect(await screen.findByTestId("panel-otc-pharmacy")).toHaveTextContent("Saved pharmacy: Neighborhood Pharmacy");
+    expect(screen.getByTestId("input-otc-pharmacy-item")).toHaveValue("Vitamin D");
+    expect(screen.getByTestId("input-otc-pharmacy-time")).toHaveValue("tomorrow");
+    expect(screen.getByTestId("input-otc-pharmacy-notes")).toHaveValue("Same brand");
     expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
   });
 

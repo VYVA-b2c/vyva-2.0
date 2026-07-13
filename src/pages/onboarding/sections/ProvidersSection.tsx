@@ -280,6 +280,11 @@ function noticeFromState(state: unknown): string {
   return typeof notice === "string" ? notice.trim() : "";
 }
 
+function conciergeResumeFromState(state: unknown): unknown {
+  if (!state || typeof state !== "object") return null;
+  return (state as Record<string, unknown>).conciergeResume ?? null;
+}
+
 interface ProviderEntry {
   id: string;
   category: string;
@@ -393,6 +398,7 @@ const ProvidersSection = () => {
   const providerPrefill = providerPrefillFromState(location.state);
   const setupReturnTo = returnToFromState(location.state);
   const setupNotice = noticeFromState(location.state);
+  const conciergeResume = conciergeResumeFromState(location.state);
   const initialCategory = providerPrefill?.category ?? setupFocusFromState(location.state) ?? PROVIDER_CATEGORIES[0].id;
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
@@ -477,6 +483,7 @@ const ProvidersSection = () => {
         trustedProviderSaved: {
           name: entry.name,
           category: entry.category,
+          conciergeResume,
         },
       },
     });
