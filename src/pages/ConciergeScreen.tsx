@@ -623,6 +623,8 @@ interface ConciergePendingItem {
   action_payload: Record<string, unknown> | null;
   status: "pending" | "calling" | "completed" | "failed" | "cancelled";
   language: string;
+  requested_tool?: string | null;
+  active_tool?: string | null;
   confirmed_at?: string | null;
   expires_at?: string | null;
 }
@@ -3460,6 +3462,51 @@ function emailDraftHref(draft: ConciergeEmailDraft): string {
   return `mailto:${draft.address}${params.length ? `?${params.join("&")}` : ""}`;
 }
 
+function isEmailDraftPendingAction(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
+  if (!item || !getActionEmailDraft(item)) return false;
+  const channelCandidates = [
+    getPreferredHandoffChannel(item),
+    payloadString(item.action_payload, ["requested_tool", "active_tool", "tool", "channel"]),
+    typeof item.requested_tool === "string" ? item.requested_tool : "",
+    typeof item.active_tool === "string" ? item.active_tool : "",
+  ].map((value) => value.trim().toLowerCase()).filter(Boolean);
+  return channelCandidates.includes("email") || (!item.provider_phone && !getBookingUrl(item));
+}
+
+function emailDraftFlowReference(item: ConciergePendingItem): ConciergeFlowReference {
+  const flowReference = payloadString(item.action_payload, ["flow_reference"]);
+  if (Object.values(CONCIERGE_FLOW_REFERENCES).includes(flowReference as ConciergeFlowReference)) {
+    return flowReference as ConciergeFlowReference;
+  }
+  if (item.use_case === "scam_check") return CONCIERGE_FLOW_REFERENCES.scamCheck;
+  if (item.use_case === "admin_task" || item.use_case === "paperwork") return CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
+  return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
+}
+
+function emailDraftOutcomeSummary(draft: ConciergeEmailDraft, isSpanish: boolean): string {
+  return isSpanish
+    ? `Email confirmado para ${draft.address}.`
+    : `Email confirmed for ${draft.address}.`;
+}
+
+function emailDraftOutcomePayload(item: ConciergePendingItem, draft: ConciergeEmailDraft) {
+  return {
+    flow_reference: emailDraftFlowReference(item),
+    execution_type: "email_draft_confirmation",
+    execution_channel: "email",
+    delivery_status: "user_confirmed_sent",
+    completed_from: "email_draft_confirmation_panel",
+    user_confirmed_send: true,
+    no_external_action_without_confirmation: true,
+    recipient_email: draft.address,
+    email_subject: draft.subject,
+    email_body: draft.body,
+    provider_name: item.provider_name,
+    provider_phone: item.provider_phone,
+    original_action_summary: item.action_summary,
+  };
+}
+
 function normalizeWhatsAppNumber(value: string): string {
   return value.replace(/[^\d]/g, "");
 }
@@ -4230,6 +4277,125 @@ function PendingActionReviewCard({
   );
 }
 
+function EmailDraftConfirmationPanel({
+  item,
+  draft,
+  notice,
+  error,
+  isSaving,
+  isSpanish,
+  attention,
+  onDraftChange,
+  onOpenEmail,
+  onConfirmSent,
+}: {
+  item: ConciergePendingItem;
+  draft: ConciergeEmailDraft;
+  notice: string | null;
+  error: string | null;
+  isSaving: boolean;
+  isSpanish: boolean;
+  attention: boolean;
+  onDraftChange: (draft: ConciergeEmailDraft) => void;
+  onOpenEmail: () => void;
+  onConfirmSent: () => void;
+}) {
+  const canConfirm = draft.address.includes("@") && draft.body.trim().length > 0 && !isSaving;
+  return (
+    <div
+      id={`email-draft-panel-${item.id}`}
+      className={`mt-3 rounded-[22px] border bg-[#F8FBFF] p-4 transition ${
+        attention ? "border-vyva-purple shadow-[0_0_0_3px_rgba(107,33,168,0.12)]" : "border-[#BFDBFE]"
+      }`}
+      data-testid="panel-concierge-email-draft"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#2563EB] shadow-sm">
+          <Mail size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#2563EB]">
+            {isSpanish ? "Revisar email" : "Review email"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {isSpanish ? "Edita antes de enviar" : "Edit before sending"}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "Abre tu app de email y confirma cuando lo hayas enviado."
+              : "Open your email app, then confirm once you have sent it."}
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        <Input
+          type="email"
+          value={draft.address}
+          onChange={(event) => onDraftChange({ ...draft, address: event.target.value })}
+          placeholder={isSpanish ? "Destinatario" : "Recipient"}
+          data-testid={`input-email-draft-address-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DBEAFE] bg-white font-body text-[14px]"
+        />
+        <Input
+          value={draft.subject}
+          onChange={(event) => onDraftChange({ ...draft, subject: event.target.value })}
+          placeholder={isSpanish ? "Asunto" : "Subject"}
+          data-testid={`input-email-draft-subject-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DBEAFE] bg-white font-body text-[14px]"
+        />
+        <textarea
+          value={draft.body}
+          onChange={(event) => onDraftChange({ ...draft, body: event.target.value })}
+          placeholder={isSpanish ? "Mensaje" : "Message"}
+          data-testid={`input-email-draft-body-${item.id}`}
+          className="min-h-[112px] rounded-[14px] border border-[#DBEAFE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-[#60A5FA] focus:ring-2 focus:ring-[#DBEAFE]"
+        />
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Button
+          type="button"
+          data-testid={`button-email-draft-open-${item.id}`}
+          onClick={onOpenEmail}
+          disabled={!draft.address.includes("@")}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#BFDBFE] text-[#1D4ED8]"
+        >
+          <ExternalLink size={15} className="mr-2" />
+          {isSpanish ? "Abrir email" : "Open email app"}
+        </Button>
+        <Button
+          type="button"
+          data-testid={`button-email-draft-confirm-${item.id}`}
+          onClick={onConfirmSent}
+          disabled={!canConfirm}
+          className="vyva-primary-action h-auto"
+        >
+          {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+          {isSpanish ? "Lo he enviado" : "I sent it"}
+        </Button>
+      </div>
+
+      <p className="mt-2 rounded-[14px] bg-white px-3 py-2 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+        {isSpanish
+          ? "VYVA no enviara ni guardara como hecho hasta que confirmes."
+          : "VYVA will not mark this done until you confirm."}
+      </p>
+      {notice ? (
+        <p data-testid="email-draft-notice" className="mt-2 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="email-draft-error" className="mt-2 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ProviderReplyPanel({
   item,
   mode,
@@ -4548,19 +4714,22 @@ function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string 
   if (isVyvaTask) return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
 
   if (isHomeServicePendingAction(item)) {
-    if (opensWhatsApp || opensEmail) return isSpanish ? "Revisar solicitud de servicio" : "Review service request";
+    if (opensEmail) return isSpanish ? "Revisar email de servicio" : "Review service email";
+    if (opensWhatsApp) return isSpanish ? "Revisar solicitud de servicio" : "Review service request";
     if (opensBooking) return isSpanish ? "Abrir solicitud de servicio" : "Open service request";
     return isSpanish ? "Confirmar llamada de servicio" : "Confirm service call";
   }
 
   if (item.use_case === "book_ride") {
-    if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar mensaje del viaje" : "Confirm ride message";
+    if (opensEmail) return isSpanish ? "Revisar email del viaje" : "Review ride email";
+    if (opensWhatsApp) return isSpanish ? "Confirmar mensaje del viaje" : "Confirm ride message";
     if (opensBooking) return isSpanish ? "Abrir reserva del viaje" : "Open ride booking";
     return isSpanish ? "Confirmar llamada del viaje" : "Confirm ride call";
   }
 
   if (item.use_case === "book_appointment") {
-    if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar mensaje de cita" : "Confirm appointment message";
+    if (opensEmail) return isSpanish ? "Revisar email de cita" : "Review appointment email";
+    if (opensWhatsApp) return isSpanish ? "Confirmar mensaje de cita" : "Confirm appointment message";
     if (opensBooking) return canOpenForm
       ? (isSpanish ? "Abrir formulario de cita" : "Open appointment form")
       : (isSpanish ? "Abrir reserva de cita" : "Open appointment booking");
@@ -4568,13 +4737,14 @@ function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string 
   }
 
   if (item.use_case === "order_medicine") {
-    if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar pedido OTC" : "Confirm OTC request";
+    if (opensEmail) return isSpanish ? "Revisar email OTC" : "Review OTC email";
+    if (opensWhatsApp) return isSpanish ? "Confirmar pedido OTC" : "Confirm OTC request";
     if (opensBooking) return isSpanish ? "Abrir pedido de farmacia" : "Open pharmacy request";
     return isSpanish ? "Confirmar llamada a farmacia" : "Confirm pharmacy call";
   }
 
   if (opensWhatsApp) return isSpanish ? "Abrir WhatsApp" : "Open WhatsApp draft";
-  if (opensEmail) return isSpanish ? "Abrir email" : "Open email draft";
+  if (opensEmail) return isSpanish ? "Revisar email" : "Review email";
   if (opensBooking) return canOpenForm
     ? (isSpanish ? "Abrir formulario" : "Open form")
     : (isSpanish ? "Abrir reserva" : "Open booking");
@@ -5378,6 +5548,10 @@ const ConciergeScreen = () => {
   const [providerReplyForm, setProviderReplyForm] = useState<ProviderReplyForm>(EMPTY_PROVIDER_REPLY_FORM);
   const [providerReplyNotice, setProviderReplyNotice] = useState<string | null>(null);
   const [providerReplyError, setProviderReplyError] = useState<string | null>(null);
+  const [emailDraftsByActionId, setEmailDraftsByActionId] = useState<Record<string, ConciergeEmailDraft>>({});
+  const [emailDraftNotice, setEmailDraftNotice] = useState<string | null>(null);
+  const [emailDraftError, setEmailDraftError] = useState<string | null>(null);
+  const [emailDraftAttentionActionId, setEmailDraftAttentionActionId] = useState<string | null>(null);
   const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -6181,6 +6355,35 @@ const ConciergeScreen = () => {
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
       ]);
+    },
+  });
+
+  const emailDraftCompletionMutation = useMutation({
+    mutationFn: ({ item, draft }: { item: ConciergePendingItem; draft: ConciergeEmailDraft }) => {
+      return completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: emailDraftOutcomeSummary(draft, isSpanish),
+        outcomePayload: emailDraftOutcomePayload(item, draft),
+      });
+    },
+    onMutate: () => {
+      setEmailDraftNotice(null);
+      setEmailDraftError(null);
+    },
+    onSuccess: async (_result, variables) => {
+      setEmailDraftNotice(isSpanish ? "Email guardado como enviado." : "Email marked as sent.");
+      setEmailDraftsByActionId((current) => {
+        const next = { ...current };
+        delete next[variables.item.id];
+        return next;
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setEmailDraftError(error instanceof Error ? error.message : (isSpanish ? "No he podido cerrar el email." : "I could not close the email task."));
     },
   });
 
@@ -7862,6 +8065,11 @@ const ConciergeScreen = () => {
     }
 
     if (action === "confirm") {
+      if (isEmailDraftPendingAction(activeAction)) {
+        setEmailDraftAttentionActionId(activeAction.id);
+        window.setTimeout(() => document.getElementById(`email-draft-panel-${activeAction.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+        return;
+      }
       if (activeAction.status === "pending" && !activeActionIsVyvaTask) {
         confirmMutation.mutate(activeAction);
       } else {
@@ -7892,6 +8100,22 @@ const ConciergeScreen = () => {
 
   function handleSaveProviderReply(item: ConciergePendingItem) {
     providerReplyCompletionMutation.mutate({ item, form: providerReplyForm });
+  }
+
+  function updateEmailDraft(item: ConciergePendingItem, draft: ConciergeEmailDraft) {
+    setEmailDraftAttentionActionId(null);
+    setEmailDraftError(null);
+    setEmailDraftNotice(null);
+    setEmailDraftsByActionId((current) => ({ ...current, [item.id]: draft }));
+  }
+
+  function handleEmailDraftOpen(item: ConciergePendingItem, draft: ConciergeEmailDraft) {
+    updateEmailDraft(item, draft);
+    window.open(emailDraftHref(draft), "_blank", "noopener,noreferrer");
+  }
+
+  function handleEmailDraftConfirmSent(item: ConciergePendingItem, draft: ConciergeEmailDraft) {
+    emailDraftCompletionMutation.mutate({ item, draft });
   }
 
   function handleProviderUnavailable(item: ConciergePendingItem) {
@@ -8527,6 +8751,10 @@ const ConciergeScreen = () => {
   const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
   const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
   const activeActionEmailDraft = activeAction ? getActionEmailDraft(activeAction) : null;
+  const activeActionNeedsEmailConfirmation = isEmailDraftPendingAction(activeAction);
+  const activeActionEmailDraftForm = activeAction && activeActionEmailDraft
+    ? emailDraftsByActionId[activeAction.id] ?? activeActionEmailDraft
+    : null;
   const activeActionEmailHref = activeActionEmailDraft ? emailDraftHref(activeActionEmailDraft) : "";
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
@@ -8550,7 +8778,14 @@ const ConciergeScreen = () => {
     setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
     setProviderReplyNotice(null);
     setProviderReplyError(null);
+    setEmailDraftNotice(null);
+    setEmailDraftError(null);
+    setEmailDraftAttentionActionId(null);
   }, [activeAction?.id]);
+  useEffect(() => {
+    if (!activeAction || !activeActionEmailDraft || emailDraftsByActionId[activeAction.id]) return;
+    setEmailDraftsByActionId((current) => ({ ...current, [activeAction.id]: activeActionEmailDraft }));
+  }, [activeAction, activeActionEmailDraft, emailDraftsByActionId]);
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
     const routeAction = coerceConciergeProviderRouteAction(routeState?.conciergeProviderAction);
@@ -10418,7 +10653,14 @@ const ConciergeScreen = () => {
                 review={activeActionReviewSummary}
                 primaryLabel={activeActionPrimaryLabel}
                 primaryIcon={activeActionPrimaryIcon}
-                onConfirm={() => confirmMutation.mutate(activeAction)}
+                onConfirm={() => {
+                  if (activeActionNeedsEmailConfirmation) {
+                    setEmailDraftAttentionActionId(activeAction.id);
+                    window.setTimeout(() => document.getElementById(`email-draft-panel-${activeAction.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+                    return;
+                  }
+                  confirmMutation.mutate(activeAction);
+                }}
                 onChange={() => handleChangePendingAction(activeAction)}
                 onCancel={() => cancelMutation.mutate(activeAction.id)}
                 confirmPending={confirmMutation.isPending}
@@ -10454,6 +10696,21 @@ const ConciergeScreen = () => {
                 onReply={() => openProviderReplyMode(activeAction, "confirmed")}
                 onSaveProvider={() => handleSaveProviderSearchProvider(activeAction)}
                 onTryAnother={() => handleProviderSearchTryAnother(activeAction)}
+              />
+            ) : null}
+
+            {activeActionNeedsEmailConfirmation && activeActionEmailDraftForm ? (
+              <EmailDraftConfirmationPanel
+                item={activeAction}
+                draft={activeActionEmailDraftForm}
+                notice={emailDraftNotice}
+                error={emailDraftError}
+                isSaving={emailDraftCompletionMutation.isPending}
+                isSpanish={isSpanish}
+                attention={emailDraftAttentionActionId === activeAction.id}
+                onDraftChange={(draft) => updateEmailDraft(activeAction, draft)}
+                onOpenEmail={() => handleEmailDraftOpen(activeAction, activeActionEmailDraftForm)}
+                onConfirmSent={() => handleEmailDraftConfirmSent(activeAction, activeActionEmailDraftForm)}
               />
             ) : null}
 
@@ -10574,15 +10831,31 @@ const ConciergeScreen = () => {
                 </a>
               )}
               {activeActionEmailDraft && (
-                <a
-                  href={activeActionEmailHref}
-                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#EEF2FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
-                  aria-label={`Email ${activeActionEmailDraft.address}`}
-                  data-testid={`link-concierge-email-${activeAction.id}`}
-                >
-                  <Mail size={13} style={{ color: "#6B21A8" }} />
-                  {activeActionEmailDraft.address}
-                </a>
+                activeActionNeedsEmailConfirmation ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailDraftAttentionActionId(activeAction.id);
+                      window.setTimeout(() => document.getElementById(`email-draft-panel-${activeAction.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+                    }}
+                    className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#EEF2FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
+                    aria-label={`Review email ${activeActionEmailDraft.address}`}
+                    data-testid={`button-concierge-email-review-${activeAction.id}`}
+                  >
+                    <Mail size={13} style={{ color: "#6B21A8" }} />
+                    {activeActionEmailDraft.address}
+                  </button>
+                ) : (
+                  <a
+                    href={activeActionEmailHref}
+                    className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#EEF2FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
+                    aria-label={`Email ${activeActionEmailDraft.address}`}
+                    data-testid={`link-concierge-email-${activeAction.id}`}
+                  >
+                    <Mail size={13} style={{ color: "#6B21A8" }} />
+                    {activeActionEmailDraft.address}
+                  </a>
+                )
               )}
               {activeActionWhatsAppDraft && (
                 <a

@@ -3067,6 +3067,85 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-provider-reply")).toHaveTextContent("Provider reply");
   });
 
+  it("reviews and confirms an email draft before closing the task", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/email-task-1/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-email-task-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "email-task-1",
+            use_case: "admin_task",
+            provider_name: "Seguro Vida",
+            provider_phone: null,
+            action_summary: "Prepare an insurance claim email.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+              execution_channel: "email",
+              provider_email: "claims@example.com",
+              email_subject: "Insurance reimbursement claim",
+              email_body: "Hello, please review my reimbursement claim.",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Review email");
+    expect(screen.getByTestId("button-concierge-confirm-email-task-1")).toHaveTextContent("Review email");
+    expect(screen.queryByTestId("link-concierge-email-email-task-1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-email-task-1"));
+    expect(openSpy).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("input-email-draft-address-email-task-1"), {
+      target: { value: "updated-claims@example.com" },
+    });
+    fireEvent.change(screen.getByTestId("input-email-draft-subject-email-task-1"), {
+      target: { value: "Updated reimbursement claim" },
+    });
+    fireEvent.change(screen.getByTestId("input-email-draft-body-email-task-1"), {
+      target: { value: "Hello, here is the updated claim text. Please confirm receipt." },
+    });
+
+    fireEvent.click(screen.getByTestId("button-email-draft-open-email-task-1"));
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining("mailto:updated-claims@example.com"),
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(openSpy.mock.calls[0]?.[0]).toContain("Updated%20reimbursement%20claim");
+
+    fireEvent.click(screen.getByTestId("button-email-draft-confirm-email-task-1"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Email confirmed for updated-claims@example.com.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+          execution_type: "email_draft_confirmation",
+          execution_channel: "email",
+          delivery_status: "user_confirmed_sent",
+          recipient_email: "updated-claims@example.com",
+          email_subject: "Updated reimbursement claim",
+          email_body: "Hello, here is the updated claim text. Please confirm receipt.",
+          user_confirmed_send: true,
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
+  });
+
   it("records a confirmed provider reply through the existing completion endpoint", async () => {
     let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
@@ -3624,7 +3703,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Question added to chat.");
   });
 
-  it("renders prepared email actions as draft mail links", async () => {
+  it("renders prepared email actions through the review panel", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
         id: "email-1",
@@ -3645,12 +3724,13 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    const emailLink = await screen.findByTestId("link-concierge-email-email-1");
-    expect(emailLink).toHaveAttribute(
-      "href",
-      "mailto:clinic@example.com?subject=Question%20about%20my%20appointment&body=Hello%2C%20I%20would%20like%20to%20confirm%20my%20appointment%20details.",
-    );
-    expect(screen.getByTestId("button-concierge-confirm-email-1")).toHaveTextContent("Open email draft");
+    expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Review email");
+    expect(screen.queryByTestId("link-concierge-email-email-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-concierge-email-review-email-1")).toHaveTextContent("clinic@example.com");
+    expect(screen.getByTestId("button-concierge-confirm-email-1")).toHaveTextContent("Review email");
+    expect(screen.getByTestId("input-email-draft-address-email-1")).toHaveValue("clinic@example.com");
+    expect(screen.getByTestId("input-email-draft-subject-email-1")).toHaveValue("Question about my appointment");
+    expect(screen.getByTestId("input-email-draft-body-email-1")).toHaveValue("Hello, I would like to confirm my appointment details.");
   });
 
   it("renders prepared WhatsApp actions as draft message links", async () => {
