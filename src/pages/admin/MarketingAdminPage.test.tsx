@@ -1295,7 +1295,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
-    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Preview opened here.");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Preview opened.");
     expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Partner update");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Preview panel opened.");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Partner update");
@@ -1324,7 +1324,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
-    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Editor opened here.");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Editor opened.");
     expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Changes save to this VYVA content record.");
     expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Editor panel opened.");
     expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("You can edit this content");

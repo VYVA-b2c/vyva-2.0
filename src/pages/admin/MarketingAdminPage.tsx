@@ -5166,7 +5166,7 @@ export default function MarketingAdminPage() {
                             <th className="px-4 py-3">Design/media</th>
                             <th className="px-4 py-3">CTA</th>
                             <th className="px-4 py-3">Source</th>
-                            <th className="px-4 py-3">Actions</th>
+                            <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -5207,8 +5207,8 @@ export default function MarketingAdminPage() {
                                 <p className="text-xs font-black text-[#241133]">{item.source}</p>
                                 {item.lovableExternalId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {item.lovableExternalId}</p> : null}
                               </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-2">
+                              <td className={`sticky right-0 z-10 w-[260px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.08)] ${item.id === selectedContent?.id || isConfirmingDelete ? "bg-purple-50" : "bg-white"}`}>
+                                <div className="flex w-[230px] flex-wrap gap-2">
                                   <button type="button" onClick={() => previewContent(item)} aria-expanded={isPreviewingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d] ${isPreviewingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-preview-content-${item.id}`}>
                                     <Eye size={13} /> {isPreviewingContent ? "Previewing" : "Preview"}
                                   </button>
@@ -5220,10 +5220,10 @@ export default function MarketingAdminPage() {
                                   </button>
                                 </div>
                                 {isPreviewingContent || isEditingContent || isConfirmingDelete ? (
-                                  <div className={`mt-2 w-[210px] rounded-xl border px-3 py-2 text-xs font-bold shadow-sm ${isConfirmingDelete ? "border-red-200 bg-red-50 text-red-800" : "border-purple-200 bg-purple-50 text-purple-950"}`} role="status" data-testid={`marketing-content-action-card-${item.id}`}>
+                                  <div className={`mt-3 w-[230px] rounded-xl border px-3 py-2 text-xs font-bold shadow-sm ${isConfirmingDelete ? "border-red-200 bg-red-50 text-red-800" : "border-purple-200 bg-white text-purple-950"}`} role="status" aria-live="polite" data-testid={`marketing-content-action-card-${item.id}`}>
                                     {isPreviewingContent ? (
                                       <>
-                                        <p className="font-black">Preview opened here.</p>
+                                        <p className="font-black">Preview opened.</p>
                                         <p className="mt-1 line-clamp-3 text-[#6f5f59]">{item.body || item.subject || item.title}</p>
                                         <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="mt-2 inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 font-black text-purple-700">
                                           <ArrowDown size={12} /> Full preview
@@ -5232,7 +5232,7 @@ export default function MarketingAdminPage() {
                                     ) : null}
                                     {isEditingContent ? (
                                       <>
-                                        <p className="font-black">Editor opened here.</p>
+                                        <p className="font-black">Editor opened.</p>
                                         <p className="mt-1 text-[#6f5f59]">Changes save to this VYVA content record.</p>
                                         <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="mt-2 inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 font-black text-purple-700">
                                           <ArrowDown size={12} /> Full editor
