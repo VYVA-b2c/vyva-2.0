@@ -1614,7 +1614,7 @@ function serializeCampaign(row: MarketingCampaignRow, channels: MarketingCampaig
     updatedAt: iso(row.updated_at),
     channels: channels.map(serializeCampaignChannel),
     recipientCount: recipients.length,
-    recipients: recipients.slice(0, 100).map(serializeRecipient),
+    recipients: recipients.map(serializeRecipient),
   };
 }
 

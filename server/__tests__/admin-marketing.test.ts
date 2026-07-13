@@ -482,6 +482,41 @@ describe("admin marketing router", () => {
     expect(table("communications_log")).toHaveLength(0);
   });
 
+  it("returns all campaign recipient snapshots beyond the old preview cap", async () => {
+    const recipients = Array.from({ length: 105 }, (_, index) => ({
+      channel: "email",
+      recipient: `caregiver-${index + 1}@example.com`,
+      snapshot: { lovableRecipientId: `recipient:${index + 1}` },
+    }));
+
+    const response = await request(buildApp())
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Large Lovable campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        channels: [{ channel: "email", status: "scheduled" }],
+        recipients,
+      })
+      .expect(201);
+
+    expect(response.body.campaign.recipientCount).toBe(105);
+    expect(response.body.campaign.recipients).toHaveLength(105);
+    expect(response.body.campaign.recipients[104]).toMatchObject({
+      recipient: "caregiver-105@example.com",
+      snapshot: { lovableRecipientId: "recipient:105" },
+    });
+
+    const listResponse = await request(buildApp())
+      .get("/api/admin/marketing/campaigns")
+      .expect(200);
+
+    const campaign = listResponse.body.campaigns.find((item: { name: string }) => item.name === "Large Lovable campaign");
+    expect(campaign.recipientCount).toBe(105);
+    expect(campaign.recipients).toHaveLength(105);
+    expect(campaign.recipients[104]).toMatchObject({ recipient: "caregiver-105@example.com" });
+  });
+
   it("sends only a super-admin test email through the existing dispatcher", async () => {
     const app = buildApp("karim.assad@mokadigital.net");
     const contentResponse = await request(app)
