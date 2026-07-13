@@ -1083,6 +1083,20 @@ describe("admin marketing router", () => {
       })
       .expect(201);
     const contactId = contactResponse.body.contact.id;
+    const additionalContactExternalIds: string[] = [];
+    for (let index = 2; index <= 15; index += 1) {
+      await request(app)
+        .post("/api/admin/marketing/contacts")
+        .send({
+          fullName: `Partner Lead ${index}`,
+          audienceType: "b2b",
+          email: `lead-${index}@example.com`,
+          lovableExternalId: `lovable-contact-${index}`,
+        })
+        .expect(201);
+      additionalContactExternalIds.push(`lovable-contact-${index}`);
+    }
+    const fullAudienceContactExternalIds = ["lovable-contact-1", ...additionalContactExternalIds, "missing-contact"];
 
     const createResponse = await request(app)
       .post("/api/admin/marketing/audiences")
@@ -1091,7 +1105,7 @@ describe("admin marketing router", () => {
         listType: "static",
         description: "Imported partner list",
         rules: { market: "Spain" },
-        contactExternalIds: ["lovable-contact-1", "missing-contact"],
+        contactExternalIds: fullAudienceContactExternalIds,
       })
       .expect(201);
 
@@ -1099,17 +1113,26 @@ describe("admin marketing router", () => {
     expect(createResponse.body.audience).toMatchObject({
       id: audienceId,
       name: "Partners",
-      memberCount: 2,
-      mappedMemberCount: 1,
-      contactExternalIds: ["lovable-contact-1", "missing-contact"],
-      memberPreview: [expect.objectContaining({
+      memberCount: 16,
+      mappedMemberCount: 15,
+      contactExternalIds: fullAudienceContactExternalIds,
+      unmappedContactExternalIds: ["missing-contact"],
+    });
+    expect(createResponse.body.audience.memberPreview).toHaveLength(15);
+    expect(createResponse.body.audience.memberPreview).toEqual(expect.arrayContaining([
+      expect.objectContaining({
         fullName: "Partner Lead",
         email: "lead@example.com",
         lovableExternalId: "lovable-contact-1",
         contactExternalId: "lovable-contact-1",
-      })],
-      unmappedContactExternalIds: ["missing-contact"],
-    });
+      }),
+      expect.objectContaining({
+        fullName: "Partner Lead 15",
+        email: "lead-15@example.com",
+        lovableExternalId: "lovable-contact-15",
+        contactExternalId: "lovable-contact-15",
+      }),
+    ]));
 
     await request(app)
       .patch(`/api/admin/marketing/audiences/${audienceId}`)
@@ -1296,6 +1319,15 @@ describe("admin marketing router", () => {
   it("imports Lovable data one-way and upserts by external id", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    const longDesignBlocks = Array.from({ length: 14 }, (_, index) => ({
+      type: "section",
+      headline: `Long design section ${index + 1}`,
+      body: `Imported Lovable body ${index + 1}`,
+    }));
+    const manyMediaAssets = Array.from({ length: 13 }, (_, index) => ({
+      url: `https://cdn.example.test/gallery-${index + 1}.png`,
+      type: "image",
+    }));
     const lovablePayload = {
       content: [{
         id: "content:content-1",
@@ -1320,6 +1352,12 @@ describe("admin marketing router", () => {
         button_url: "https://v2.vyva.life/book",
         email_design: JSON.stringify({ sections: [{ kind: "hero" }] }),
         cover_image_url: "https://cdn.example.test/alias-cover.png",
+      }, {
+        id: "content:long-design",
+        title: "Long Lovable builder page",
+        channel: "email",
+        email_design: JSON.stringify({ sections: longDesignBlocks }),
+        mediaAssets: JSON.stringify(manyMediaAssets),
       }],
       saved_email_templates: [{
         id: "template-1",
@@ -1493,7 +1531,7 @@ describe("admin marketing router", () => {
         Authorization: "Bearer secret",
       }),
     }));
-    expect(table("marketing_content_assets")).toHaveLength(6);
+    expect(table("marketing_content_assets")).toHaveLength(7);
     expect(table("marketing_content_assets").find((row) => row.title === "Welcome email")).toMatchObject({
       html_body: "<h1>Hello</h1>",
       design_json: { blocks: [{ type: "hero" }] },
@@ -1514,6 +1552,13 @@ describe("admin marketing router", () => {
       media_assets: [{ url: "https://cdn.example.test/alias-cover.png", sourceField: "cover_image_url" }],
       cta_label: "Book now",
       cta_url: "https://v2.vyva.life/book",
+    });
+    const longDesignContent = table("marketing_content_assets").find((row) => row.title === "Long Lovable builder page");
+    expect(longDesignContent).toMatchObject({
+      body: expect.stringContaining("Imported Lovable body 14"),
+      media_assets: expect.arrayContaining([
+        expect.objectContaining({ url: "https://cdn.example.test/gallery-13.png" }),
+      ]),
     });
     expect(table("marketing_content_assets").find((row) => row.title === "Template welcome")).toMatchObject({
       channel: "email",
@@ -1562,7 +1607,7 @@ describe("admin marketing router", () => {
         template_ref: "onboarding_step_1",
       }),
     });
-    expect(table("marketing_media_assets")).toHaveLength(4);
+    expect(table("marketing_media_assets")).toHaveLength(17);
     expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/hero.png")).toMatchObject({
       original_url: "https://cdn.example.test/hero.png",
       asset_type: "image",
@@ -1580,6 +1625,11 @@ describe("admin marketing router", () => {
     });
     expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/alias-cover.png")).toMatchObject({
       asset_type: "unknown",
+      status: "referenced",
+    });
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/gallery-13.png")).toMatchObject({
+      content_asset_id: longDesignContent?.id,
+      asset_type: "image",
       status: "referenced",
     });
     expect(table("marketing_contacts")).toHaveLength(1);
@@ -1786,11 +1836,11 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 5, journeyStepPresetContent: 1, mediaAssets: 4, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 2 },
+      exported: { content: 6, journeyStepPresetContent: 1, mediaAssets: 17, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 2 },
       imported: {
-        content: 5,
+        content: 6,
         journeyStepPresetContent: 1,
-        mediaAssets: 4,
+        mediaAssets: 17,
         contacts: 1,
         audiences: 1,
         audienceMembers: 2,

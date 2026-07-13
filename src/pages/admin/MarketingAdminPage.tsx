@@ -733,7 +733,7 @@ function mediaUrlFrom(value: unknown) {
 function contentMediaPreviewUrls(content: ContentAsset, linkedAssets: MarketingMediaAsset[]) {
   const embedded = Array.isArray(content.mediaAssets) ? content.mediaAssets.map(mediaUrlFrom) : [];
   const linked = linkedAssets.flatMap((asset) => [asset.originalUrl, asset.localUrl ?? ""]);
-  return Array.from(new Set([...embedded, ...linked].map((url) => url.trim()).filter(Boolean))).slice(0, 6);
+  return Array.from(new Set([...embedded, ...linked].map((url) => url.trim()).filter(Boolean)));
 }
 
 function isPreviewableImageUrl(url: string) {
@@ -827,7 +827,7 @@ function collectDesignPreviewBlocks(value: unknown, path = "design", seen = new 
     ...designPreviewArrayKeys.flatMap((key) => collectDesignPreviewBlocks(record[key], `${path}.${key}`, seen)),
     ...designPreviewObjectKeys.flatMap((key) => collectDesignPreviewBlocks(record[key], `${path}.${key}`, seen)),
   ];
-  return [...current, ...children].slice(0, 8);
+  return [...current, ...children];
 }
 
 const lovableContentSourceLabels: Record<string, string> = {
@@ -1980,7 +1980,7 @@ function LovableDesignPreview({ contentAsset }: { contentAsset: ContentAsset }) 
         </div>
         <Pill className="bg-purple-50 text-purple-800">Design rendered</Pill>
       </div>
-      <div className="mt-3 grid gap-3">
+      <div className="mt-3 grid max-h-[560px] gap-3 overflow-y-auto pr-1">
         {blocks.map((block, index) => (
           <article key={`${block.key}-${index}`} className="overflow-hidden rounded-xl border border-[#eadfd5] bg-white">
             {block.mediaUrl ? (
@@ -2064,8 +2064,8 @@ function LinkedContentPreview({
         <p className="mt-2 rounded-lg bg-white p-3 text-sm font-semibold text-[#5b4a46]">{contentAsset.body}</p>
       ) : null}
       {previewUrls.length ? (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {previewUrls.slice(0, 3).map((url) => (
+        <div className="mt-3 grid max-h-[420px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+          {previewUrls.map((url) => (
             <MediaPreviewTile key={url} url={url} label={contentAsset.title} />
           ))}
         </div>
@@ -4938,15 +4938,12 @@ export default function MarketingAdminPage() {
                   </div>
                   {missingLovableReferenceContent.length ? (
                     <div className="mt-4 grid gap-2">
-                      {missingLovableReferenceContent.slice(0, 5).map((item) => (
+                      {missingLovableReferenceContent.map((item) => (
                         <div key={item.id} className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#5b4a46]">
                           <span className="font-black text-[#241133]">{item.title}</span>
                           {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</span> : null}
                         </div>
                       ))}
-                      {missingLovableReferenceContent.length > 5 ? (
-                        <p className="text-xs font-black text-amber-900">+{missingLovableReferenceContent.length - 5} more placeholder{missingLovableReferenceContent.length - 5 === 1 ? "" : "s"} in the content library.</p>
-                      ) : null}
                     </div>
                   ) : (
                     <p className="mt-4 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#6f5f59]">
@@ -5142,17 +5139,17 @@ export default function MarketingAdminPage() {
                                   ) : null}
                                   {item.id === selectedContentId && contentDrawerMode === "preview" ? (
                                     <div className="basis-full rounded-lg bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
-                                      <p>Preview opened below.</p>
+                                      <p>Preview opened in the right drawer.</p>
                                       <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
-                                        <ArrowDown size={12} /> Go to preview
+                                        <ArrowDown size={12} /> Focus preview
                                       </button>
                                     </div>
                                   ) : null}
                                   {item.id === editingContentId && contentDrawerMode === "edit" ? (
                                     <div className="basis-full rounded-lg bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-editor-open-${item.id}`}>
-                                      <p>Editor opened below.</p>
+                                      <p>Editor opened in the right drawer.</p>
                                       <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
-                                        <ArrowDown size={12} /> Go to editor
+                                        <ArrowDown size={12} /> Focus editor
                                       </button>
                                     </div>
                                   ) : null}
@@ -5166,13 +5163,22 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               </SectionCard>
+              {contentDrawerMode ? (
+                <button
+                  type="button"
+                  aria-label="Close content drawer"
+                  onClick={closeContentDrawer}
+                  className="fixed inset-0 z-[70] cursor-default bg-[#241133]/20"
+                  data-testid="marketing-content-drawer-backdrop"
+                />
+              ) : null}
               <div
                 ref={contentEditorPanelRef}
                 data-testid="marketing-content-editor-panel"
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
                 tabIndex={contentDrawerMode === "edit" ? -1 : undefined}
-                className={contentDrawerMode === "edit" ? "scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-xl" : "hidden"}
+                className={contentDrawerMode === "edit" ? "fixed inset-y-6 right-6 z-[80] w-[min(860px,calc(100vw-3rem))] overflow-y-auto scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-xl" : "hidden"}
               >
                 <SectionCard
                   title="Content editor"
@@ -5270,7 +5276,7 @@ export default function MarketingAdminPage() {
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
                   tabIndex={contentDrawerMode === "preview" ? -1 : undefined}
-                  className={contentDrawerMode === "preview" ? "scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-xl" : "hidden"}
+                  className={contentDrawerMode === "preview" ? "fixed inset-y-6 right-6 z-[80] w-[min(820px,calc(100vw-3rem))] overflow-y-auto scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-xl" : "hidden"}
                 >
                   <SectionCard
                     title="Content preview"
@@ -5330,7 +5336,7 @@ export default function MarketingAdminPage() {
                             <Pill className="bg-[#f5eee8] text-[#7d6b65]">No builder arrays found</Pill>
                           )}
                           {selectedContentDesignSummary?.topLevelKeys.length ? (
-                            <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.slice(0, 5).join(", ")}</Pill>
+                            <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.join(", ")}</Pill>
                           ) : null}
                           <Pill className={selectedContentMediaPreviewUrls.length ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
                             Media refs: {selectedContentMediaPreviewUrls.length}

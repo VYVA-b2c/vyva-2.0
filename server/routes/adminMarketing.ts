@@ -1445,7 +1445,7 @@ function collectDesignText(value: unknown, parentKey = "", seen = new Set<unknow
 }
 
 function contentBodyFromDesign(designJson: Record<string, unknown>) {
-  return uniqueTextArray(collectDesignText(designJson)).slice(0, 12).join("\n\n");
+  return uniqueTextArray(collectDesignText(designJson)).join("\n\n");
 }
 
 function contentBodyFromRow(row: Record<string, unknown>) {
@@ -1454,11 +1454,11 @@ function contentBodyFromRow(row: Record<string, unknown>) {
     if (typeof value === "string" && value.trim()) {
       const parsed = parseJsonLike(value);
       if (typeof parsed === "string") return parsed.trim();
-      const extracted = uniqueTextArray(collectDesignText(parsed, key)).slice(0, 12).join("\n\n");
+      const extracted = uniqueTextArray(collectDesignText(parsed, key)).join("\n\n");
       if (extracted) return extracted;
       continue;
     }
-    const extracted = uniqueTextArray(collectDesignText(value, key)).slice(0, 12).join("\n\n");
+    const extracted = uniqueTextArray(collectDesignText(value, key)).join("\n\n");
     if (extracted) return extracted;
   }
   return "";
@@ -1724,7 +1724,7 @@ function serializeAudience(
       lovableExternalId: contact.lovable_external_id,
       contactExternalId: member.contact_external_id,
     }];
-  }).slice(0, 12);
+  });
   return {
     id: row.id,
     name: row.name,

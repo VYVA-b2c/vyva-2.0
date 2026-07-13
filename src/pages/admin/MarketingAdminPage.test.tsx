@@ -923,6 +923,23 @@ describe("MarketingAdminPage", () => {
       tags: Array.from({ length: 10 }, (_, index) => `tag-${index + 1}`),
       lists: ["Partners", "Priority", "Madrid", "Care homes"],
     };
+    const expandedContent = [
+      content[0],
+      {
+        ...content[1],
+        designJson: {
+          blocks: Array.from({ length: 9 }, (_, index) => ({
+            type: "section",
+            headline: `Design block ${index + 1}`,
+            body: `Lovable builder copy ${index + 1}`,
+            imageUrl: `https://cdn.example.test/design-${index + 1}.png`,
+          })),
+        },
+        mediaAssets: Array.from({ length: 7 }, (_, index) => ({
+          url: `https://cdn.example.test/embedded-${index + 1}.png`,
+        })),
+      },
+    ];
     const expandedCampaigns = [
       { ...campaigns[0], recipientCount: manyRecipients.length, recipients: manyRecipients },
       {
@@ -941,6 +958,7 @@ describe("MarketingAdminPage", () => {
     renderPage({}, {
       campaigns: expandedCampaigns,
       contacts: [contacts[0], expandedContact],
+      content: expandedContent,
       mediaAssets: manyMediaAssets,
     });
 
@@ -953,6 +971,9 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/asset-13.png");
+    fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("embedded-7.png");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Design block 9");
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("tag-10");
@@ -1230,10 +1251,11 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Preview opened below.");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Go to preview");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Preview opened in the right drawer.");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Focus preview");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("scroll-mt-4");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("shadow-xl");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
@@ -1250,10 +1272,11 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
-    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Editor opened below.");
-    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Go to editor");
+    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Editor opened in the right drawer.");
+    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Focus editor");
 
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("fixed");
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("scroll-mt-4");
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("shadow-xl");
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
