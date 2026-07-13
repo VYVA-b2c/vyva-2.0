@@ -1258,6 +1258,8 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Click Confirm delete to remove "Partner post".');
     expect(screen.getByTestId("button-marketing-delete-content-content-2")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Confirm delete?");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Lovable is not changed.");
     expect(screen.getByTestId("marketing-content-delete-confirmation-content-2")).toHaveTextContent("Click Confirm delete to remove this content.");
     fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
     await waitFor(() => {
@@ -1267,6 +1269,8 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Preview opened here.");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Partner update");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Preview panel opened.");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Partner update");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Social post");
@@ -1294,6 +1298,8 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Editor opened here.");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Changes save to this VYVA content record.");
     expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Editor panel opened.");
     expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("You can edit this content");
     expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Focus editor");

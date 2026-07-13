@@ -3374,6 +3374,16 @@ export default function MarketingAdminPage() {
     }, 0);
   }
 
+  function scrollToContentActionRow(contentId: string) {
+    window.setTimeout(() => {
+      const node = document.getElementById(`marketing-content-row-${contentId}`);
+      if (!node) return;
+      if (typeof node.scrollIntoView === "function") {
+        node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      }
+    }, 0);
+  }
+
   function previewContent(contentAsset: ContentAsset) {
     setActiveTab("content");
     setSelectedContentId(contentAsset.id);
@@ -3382,7 +3392,7 @@ export default function MarketingAdminPage() {
     setContentDrawerMode("preview");
     setConfirmingContentDeleteId(null);
     setContentActionFeedback(`Previewing "${contentAsset.title}".`);
-    scrollToContentPanel(contentPreviewPanelRef);
+    scrollToContentActionRow(contentAsset.id);
   }
 
   function startContentEdit(contentAsset: ContentAsset) {
@@ -3394,7 +3404,7 @@ export default function MarketingAdminPage() {
     setConfirmingContentDeleteId(null);
     setContentFeedback("");
     setContentActionFeedback(`Editing "${contentAsset.title}".`);
-    scrollToContentPanel(contentEditorPanelRef);
+    scrollToContentActionRow(contentAsset.id);
   }
 
   function cancelContentEdit() {
@@ -3451,6 +3461,7 @@ export default function MarketingAdminPage() {
     if (confirmingContentDeleteId !== contentAsset.id) {
       setConfirmingContentDeleteId(contentAsset.id);
       setContentActionFeedback(`Click Confirm delete to remove "${contentAsset.title}". Campaigns and journey steps will keep their records but lose this content link.`);
+      scrollToContentActionRow(contentAsset.id);
       return;
     }
     setContentSaving(true);
@@ -5120,7 +5131,7 @@ export default function MarketingAdminPage() {
                             const isConfirmingDelete = confirmingContentDeleteId === item.id;
                             return (
                             <Fragment key={item.id}>
-                            <tr className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
+                            <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
                               <td className="max-w-[360px] px-4 py-3">
                                 <p className="font-black text-[#241133]">{item.title}</p>
                                 <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
@@ -5163,6 +5174,50 @@ export default function MarketingAdminPage() {
                                     <Trash2 size={13} /> {isConfirmingDelete ? "Confirm delete" : "Delete"}
                                   </button>
                                 </div>
+                                {isPreviewingContent || isEditingContent || isConfirmingDelete ? (
+                                  <div className={`mt-2 w-[210px] rounded-xl border px-3 py-2 text-xs font-bold shadow-sm ${isConfirmingDelete ? "border-red-200 bg-red-50 text-red-800" : "border-purple-200 bg-purple-50 text-purple-950"}`} role="status" data-testid={`marketing-content-action-card-${item.id}`}>
+                                    {isPreviewingContent ? (
+                                      <>
+                                        <p className="font-black">Preview opened here.</p>
+                                        <p className="mt-1 line-clamp-3 text-[#6f5f59]">{item.body || item.subject || item.title}</p>
+                                        <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="mt-2 inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 font-black text-purple-700">
+                                          <ArrowDown size={12} /> Full preview
+                                        </button>
+                                      </>
+                                    ) : null}
+                                    {isEditingContent ? (
+                                      <>
+                                        <p className="font-black">Editor opened here.</p>
+                                        <p className="mt-1 text-[#6f5f59]">Changes save to this VYVA content record.</p>
+                                        <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="mt-2 inline-flex min-h-8 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 font-black text-purple-700">
+                                          <ArrowDown size={12} /> Full editor
+                                        </button>
+                                      </>
+                                    ) : null}
+                                    {isConfirmingDelete ? (
+                                      <>
+                                        <p className="font-black">Confirm delete?</p>
+                                        <p className="mt-1 text-red-700">Lovable is not changed.</p>
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                          <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-red-700 px-2 font-black text-white" disabled={contentSaving} data-testid={`button-marketing-confirm-delete-content-inline-${item.id}`}>
+                                            <Trash2 size={12} /> Confirm
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setConfirmingContentDeleteId(null);
+                                              setContentActionFeedback("");
+                                            }}
+                                            className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-red-200 bg-white px-2 font-black text-red-700"
+                                            disabled={contentSaving}
+                                          >
+                                            <X size={12} /> Cancel
+                                          </button>
+                                        </div>
+                                      </>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                               </td>
                             </tr>
                             {isPreviewingContent || isEditingContent || isConfirmingDelete ? (
