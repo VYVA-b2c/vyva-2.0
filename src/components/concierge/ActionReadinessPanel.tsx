@@ -33,6 +33,27 @@ function toolLabel(tool: ConciergeToolReadinessResult["activeTool"], isSpanish: 
   }
 }
 
+function missingDetailLabel(detail: string, isSpanish: boolean): string {
+  switch (detail) {
+    case "phone":
+    case "phone_call":
+      return isSpanish ? "telefono" : "phone number";
+    case "email":
+      return isSpanish ? "email" : "email";
+    case "whatsapp":
+      return "WhatsApp";
+    case "booking_url":
+    case "booking_link":
+      return isSpanish ? "enlace de reserva" : "booking link";
+    case "operator_review":
+      return isSpanish ? "revision VYVA" : "VYVA review";
+    case "tool_setup":
+      return isSpanish ? "configuracion de herramienta" : "tool setup";
+    default:
+      return detail.replace(/_/g, " ");
+  }
+}
+
 function readinessCopy(readiness: ConciergeToolReadinessResult, isSpanish: boolean) {
   if (readiness.status === "ready") {
     return {
@@ -76,6 +97,9 @@ export default function ActionReadinessPanel({
 }: ActionReadinessPanelProps) {
   const copy = readinessCopy(readiness, isSpanish);
   const Icon = copy.Icon;
+  const missingText = readiness.missing
+    .map((item) => missingDetailLabel(item, isSpanish))
+    .join(", ");
   const tone = copy.tone === "ready"
     ? { border: "#99F6E4", bg: "#F0FDFA", icon: "#0F766E", chip: "#CCFBF1" }
     : copy.tone === "review"
@@ -123,6 +147,11 @@ export default function ActionReadinessPanel({
         >
           {isSpanish ? "Ruta actual" : "Current path"}: {toolLabel(readiness.activeTool, isSpanish)}
         </span>
+        {missingText ? (
+          <span className="rounded-[13px] bg-white px-3 py-2 font-body text-[11px] font-black leading-snug text-vyva-text-1">
+            {isSpanish ? "Falta" : "Needs"}: {missingText}
+          </span>
+        ) : null}
       </span>
     </span>
   );

@@ -180,6 +180,12 @@ type RoutePrefillHighlight = {
   value: string;
 };
 
+function scrollIntoViewIfAvailable(element: Element | null | undefined, options?: ScrollIntoViewOptions) {
+  if (typeof element?.scrollIntoView === "function") {
+    element.scrollIntoView(options);
+  }
+}
+
 type ConciergeProfileSummary = {
   savedProviders?: Array<{
     name?: string | null;
@@ -4151,6 +4157,7 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
     summary: item.action_summary,
   });
   const providerNotRequired = !requirementStatus.needsProvider && !isProviderSearchPendingAction(item);
+  const providerReady = providerNotRequired || Boolean(provider);
   const channel = handoffChannelLabel(item, isSpanish);
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
   const isWaitingForProvider = item.status === "calling" || missionStatus.includes("awaiting_provider");
@@ -4223,6 +4230,8 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
       ? (isSpanish ? "Revisar" : "Review needed")
       : isWaitingForProvider
         ? (isSpanish ? "Tras respuesta" : "After reply")
+        : !providerReady
+          ? (isSpanish ? "Elegir proveedor" : "Choose provider")
         : !detailsReady
           ? (isSpanish ? "Completar detalles" : "Complete details")
         : isVyvaTask
@@ -4232,6 +4241,8 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
       ? "warning"
       : isWaitingForProvider
         ? "waiting"
+        : !providerReady
+          ? "needed"
         : !detailsReady
           ? "needed"
       : isVyvaTask
@@ -4240,12 +4251,12 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
     action: isWaitingForProvider
       ? "reply"
       : item.status === "pending"
-      ? (!detailsReady || isVyvaTask ? "details" : "confirm")
+      ? (!providerReady ? "provider" : !detailsReady || isVyvaTask ? "details" : "confirm")
       : undefined,
     actionLabel: isWaitingForProvider
       ? (isSpanish ? "Registrar" : "Record")
       : item.status === "pending"
-      ? (!detailsReady || isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
+      ? (!providerReady || !detailsReady || isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
       : undefined,
   });
 
@@ -7011,7 +7022,7 @@ const ConciergeScreen = () => {
       setAppointmentMission(null);
       setAppointmentAttemptResult(null);
       setAppointmentOpen(false);
-      chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" });
       return;
     }
 
@@ -7986,7 +7997,7 @@ const ConciergeScreen = () => {
     }
 
     setInput((current) => current.trim() ? current : conciergeVoiceDraft);
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }, [
     conciergePayloadValue,
     clearAppointmentAssistantState,
@@ -8010,7 +8021,7 @@ const ConciergeScreen = () => {
     if (!routeState?.focusRightNow) return undefined;
     setIsRightNowHidden(false);
     const timer = window.setTimeout(() => {
-      rightNowSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" });
     }, 80);
     return () => window.clearTimeout(timer);
   }, [location.state]);
@@ -8088,7 +8099,7 @@ const ConciergeScreen = () => {
       setTransportDetailsOpen(true);
     }
 
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
   }, [location.pathname, location.search, location.state, navigate, savedTransportPickupLabel]);
 
@@ -8329,7 +8340,7 @@ const ConciergeScreen = () => {
     setTransportTime(requestedTime);
     setTransportDetailsOpen(true);
     setOffersOpen(false);
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function openHomeServiceAssistant() {
@@ -8465,7 +8476,7 @@ const ConciergeScreen = () => {
     setAppointmentOptions([]);
     setAppointmentDiscovery(null);
     setAppointmentAttemptResult(null);
-    chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" });
     sendMessage(message, nextHistory);
   }
 
@@ -8932,7 +8943,7 @@ const ConciergeScreen = () => {
         : "Help me switch tariff step by step using this comparison. First prepare a summary and ask me to confirm.");
     setInput(prompt);
     closeOffersPanel();
-    chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" });
   }
 
   function prepareConciergeRequest(message: string, options: Omit<Partial<ConciergeRoutePrefill>, "kind" | "message"> = {}) {
@@ -8943,7 +8954,7 @@ const ConciergeScreen = () => {
     setScamCheckOpen(false);
     setOtcPharmacyOpen(false);
     closeOffersPanel();
-    chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" });
   }
 
   function handleChangePendingAction(item: ConciergePendingItem, focusTarget?: ConciergeFocusedDetailTarget | null) {
@@ -9009,7 +9020,7 @@ const ConciergeScreen = () => {
       setAppointmentOpen(false);
     }
 
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function openProviderSetupForPendingAction(item: ConciergePendingItem) {
@@ -9205,7 +9216,7 @@ const ConciergeScreen = () => {
     setPhoneCallOutcomeNotice(isSpanish ? "Guion listo. Llama y guarda lo que paso." : "Script ready. Call and save what happened.");
     setVisibleActionId(item.id);
     setIsRightNowHidden(false);
-    window.setTimeout(() => rightNowSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function handleSavePhoneCallOutcome(item: ConciergePendingItem) {
@@ -9217,7 +9228,7 @@ const ConciergeScreen = () => {
     setWhatsAppDraftNotice(isSpanish ? "Borrador listo. Abre WhatsApp y guarda el resultado." : "Draft ready. Open WhatsApp and save the result.");
     setVisibleActionId(item.id);
     setIsRightNowHidden(false);
-    window.setTimeout(() => rightNowSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function handleWhatsAppDraftSent(item: ConciergePendingItem, draft: ConciergeWhatsAppDraft) {
@@ -9229,7 +9240,7 @@ const ConciergeScreen = () => {
     setEmailDraftNotice(isSpanish ? "Borrador listo. Abre tu email y guarda el resultado." : "Draft ready. Open your email and save the result.");
     setVisibleActionId(item.id);
     setIsRightNowHidden(false);
-    window.setTimeout(() => rightNowSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function handleEmailDraftSent(item: ConciergePendingItem, draft: ConciergeEmailDraft) {
@@ -9245,7 +9256,7 @@ const ConciergeScreen = () => {
       ? `El formulario necesita estos datos: ${missing}. Ayudame a completarlos antes de abrir el enlace.`
       : `The form needs these details: ${missing}. Help me collect them before opening the link.`);
     setIsRightNowHidden(false);
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function handleBookingFormNeedHelp(item: ConciergePendingItem) {
@@ -9258,7 +9269,7 @@ const ConciergeScreen = () => {
       ? `Necesito ayuda con el formulario de ${provider}.${missing} Revisa el siguiente paso y no envies nada sin mi confirmacion.`
       : `I need help with the form for ${provider}.${missing} Review the next step and do not submit anything without my confirmation.`);
     setIsRightNowHidden(false);
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function openProviderReplyMode(item: ConciergePendingItem, mode: ProviderReplyMode) {
@@ -9274,7 +9285,7 @@ const ConciergeScreen = () => {
     setProviderReplyError(null);
     setProviderReplyNotice(isSpanish ? "Seguimiento preparado en el chat." : "Follow-up prepared in chat.");
     setInput(providerFollowUpPrompt(item, isSpanish, locale));
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function handleSaveProviderReply(item: ConciergePendingItem) {
@@ -9291,7 +9302,7 @@ const ConciergeScreen = () => {
     openProviderSearchPanel(recovery.mode, recovery.query);
     setProviderSearchCriteria(recovery.criteria);
     setInput(recovery.query);
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function handleProviderNeedMoreInfo(item: ConciergePendingItem) {
@@ -9303,7 +9314,7 @@ const ConciergeScreen = () => {
       ? `El proveedor necesita mas informacion para ${actionLabel} con ${provider}: ${question}. Ayudame a responder de forma breve.`
       : `The provider needs more information for ${actionLabel} with ${provider}: ${question}. Help me answer briefly.`);
     setProviderReplyNotice(isSpanish ? "Pregunta anadida al chat." : "Question added to chat.");
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function handleSaveProviderSearchProvider(item: ConciergePendingItem) {
@@ -9394,7 +9405,7 @@ const ConciergeScreen = () => {
       setTransportNotice(null);
       resetTransportFinalReview();
       setTransportDetailsOpen(true);
-      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
       return;
     }
 
@@ -9410,7 +9421,7 @@ const ConciergeScreen = () => {
       setOtcFulfillmentPreference(fulfillment.includes("pickup") || fulfillment.includes("collect") ? "pickup" : "delivery");
       setOtcRequestedTime(payloadString(payload, ["requested_time", "scheduled_for", "scheduled_time", "time"]) || "today");
       setOtcNotes(payloadString(payload, ["notes", "note", "brand", "quantity", "special_requests", "fulfillment_note"]));
-      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
       return;
     }
 
@@ -9445,7 +9456,7 @@ const ConciergeScreen = () => {
       setAppointmentNotice(null);
       setAppointmentError(null);
       setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", reference: "", notes: "" });
-      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
       return;
     }
 
@@ -9471,7 +9482,7 @@ const ConciergeScreen = () => {
       setAppointmentNotice(null);
       setAppointmentError(null);
       setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", reference: "", notes: "" });
-      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
       return;
     }
 
@@ -9487,7 +9498,7 @@ const ConciergeScreen = () => {
     setRoutePrefill(null);
     closeOffersPanel();
     window.setTimeout(() => {
-      chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" });
     }, 80);
   }
 
@@ -9566,7 +9577,7 @@ const ConciergeScreen = () => {
     setRoutePrefill(null);
     closeOffersPanel();
     window.setTimeout(() => {
-      chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" });
     }, 80);
   }
 
@@ -9787,7 +9798,7 @@ const ConciergeScreen = () => {
       resetTransportFinalReview();
       setTransportDetailsOpen(true);
       setOffersOpen(false);
-      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
       return;
     }
 
@@ -9903,6 +9914,11 @@ const ConciergeScreen = () => {
   const queuedActionCount = queuedActions.length;
   const recentCompletedSessions = completedSessions
     .filter((session) => session.outcome === "completed" || Boolean(session.completed_at))
+    .sort((a, b) => {
+      const aTime = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+      const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+      return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+    })
     .slice(0, 3);
   const selectedCompletedSession = selectedCompletedSessionId
     ? completedSessions.find((session) => session.id === selectedCompletedSessionId) ?? null
@@ -10212,7 +10228,7 @@ const ConciergeScreen = () => {
     if (!otcItemText.trim()) {
       setOtcItemText("");
     }
-    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
   function openOtcPharmacyProviderSetup() {
@@ -11715,7 +11731,7 @@ const ConciergeScreen = () => {
             type="button"
             onClick={() => {
               setInput(conciergeVoiceDraft);
-              chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" });
             }}
             className="mt-4 inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[15px] font-bold text-white transition active:scale-[0.98]"
           >
