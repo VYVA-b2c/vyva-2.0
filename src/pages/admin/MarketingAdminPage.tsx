@@ -2476,6 +2476,7 @@ export default function MarketingAdminPage() {
   const [mediaSaving, setMediaSaving] = useState(false);
   const [mediaFeedback, setMediaFeedback] = useState("");
   const [confirmingMediaDeleteId, setConfirmingMediaDeleteId] = useState<string | null>(null);
+  const mediaEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const [contactDraft, setContactDraft] = useState<ContactDraft>({
     fullName: "",
     audienceType: "b2b",
@@ -2494,12 +2495,14 @@ export default function MarketingAdminPage() {
   const [contactEditDraft, setContactEditDraft] = useState<ContactEditDraft | null>(null);
   const [contactSaving, setContactSaving] = useState(false);
   const [confirmingContactDeleteId, setConfirmingContactDeleteId] = useState<string | null>(null);
+  const contactEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const [audienceDraft, setAudienceDraft] = useState<AudienceDraft>({ name: "", listType: "dynamic", description: "", rulesText: "{\n  \"market\": \"Spain\"\n}", contactExternalIds: "" });
   const [editingAudienceId, setEditingAudienceId] = useState<string | null>(null);
   const [audienceEditDraft, setAudienceEditDraft] = useState<AudienceEditDraft | null>(null);
   const [audienceSaving, setAudienceSaving] = useState(false);
   const [audienceFeedback, setAudienceFeedback] = useState("");
   const [confirmingAudienceDeleteId, setConfirmingAudienceDeleteId] = useState<string | null>(null);
+  const audienceEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const [expandedAudienceMemberIds, setExpandedAudienceMemberIds] = useState<Set<string>>(() => new Set());
 
   async function refreshAll() {
@@ -3535,10 +3538,12 @@ export default function MarketingAdminPage() {
   }
 
   function startMediaEdit(asset: MarketingMediaAsset) {
+    setActiveTab("content");
     setEditingMediaAssetId(asset.id);
     setMediaEditDraft(mediaEditDraftFromAsset(asset));
     setConfirmingMediaDeleteId(null);
-    setMediaFeedback("");
+    setMediaFeedback(`Editing media reference "${mediaPreviewLabel(asset.originalUrl)}".`);
+    scrollToContentPanel(mediaEditorPanelRef);
   }
 
   function cancelMediaEdit() {
@@ -3670,10 +3675,13 @@ export default function MarketingAdminPage() {
   }
 
   function startContactEdit(contact: MarketingContact) {
+    setActiveTab("contacts");
+    setContactView("contacts");
     setEditingContactId(contact.id);
     setContactEditDraft(contactEditDraftFromContact(contact));
     setConfirmingContactDeleteId(null);
-    setContactFeedback("");
+    setContactFeedback(`Editing "${contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}".`);
+    scrollToContentPanel(contactEditorPanelRef);
   }
 
   function cancelContactEdit() {
@@ -3779,10 +3787,13 @@ export default function MarketingAdminPage() {
   }
 
   function startAudienceEdit(audience: MarketingAudience) {
+    setActiveTab("contacts");
+    setContactView("lists");
     setEditingAudienceId(audience.id);
     setAudienceEditDraft(audienceEditDraftFromAudience(audience));
     setConfirmingAudienceDeleteId(null);
-    setAudienceFeedback("");
+    setAudienceFeedback(`Editing list "${audience.name}".`);
+    scrollToContentPanel(audienceEditorPanelRef);
   }
 
   function cancelAudienceEdit() {
@@ -5595,6 +5606,7 @@ export default function MarketingAdminPage() {
                     </p>
                   ) : null}
                   {mediaEditDraft ? (
+                    <div ref={mediaEditorPanelRef} tabIndex={-1}>
                     <form className="mb-4 grid gap-3 rounded-xl border border-purple-100 bg-purple-50 p-3" onSubmit={(event) => void saveMediaEdit(event)} data-testid="marketing-media-editor-form">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -5652,6 +5664,7 @@ export default function MarketingAdminPage() {
                         ) : null}
                       </div>
                     </form>
+                    </div>
                   ) : null}
                   <div className="grid gap-3" data-testid="marketing-media-assets-list">
                     {visibleMediaAssets.length === 0 ? (
@@ -5846,6 +5859,7 @@ export default function MarketingAdminPage() {
                     </form>
                   </SectionCard>
                   {contactEditDraft ? (
+                    <div ref={contactEditorPanelRef} tabIndex={-1}>
                     <SectionCard
                       title="Contact editor"
                       subtitle={editingContact ? `Editing ${editingContact.fullName || editingContact.email || editingContact.phoneNumber || "Unnamed contact"}.` : "Edit imported or manually created marketing contact data."}
@@ -5945,6 +5959,7 @@ export default function MarketingAdminPage() {
                     </div>
                       </form>
                     </SectionCard>
+                    </div>
                   ) : null}
                   <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
                     <div className="mb-3 grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-contact-segmentation-filters">
@@ -6038,7 +6053,7 @@ export default function MarketingAdminPage() {
                             <th className="px-4 py-3">Tags / lists</th>
                             <th className="px-4 py-3">Consent</th>
                             <th className="px-4 py-3">Source</th>
-                            <th className="px-4 py-3">Actions</th>
+                            <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -6054,7 +6069,7 @@ export default function MarketingAdminPage() {
                               ...(contact.lists ?? []).map((list) => `List: ${list}`),
                             ];
                             return (
-                              <tr key={contact.id} className="border-t border-[#f0e7df] align-top">
+                              <tr key={contact.id} className={`border-t border-[#f0e7df] align-top ${editingContactId === contact.id ? "bg-purple-50" : ""}`}>
                                 <td className="px-4 py-3">
                                   <p className="font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
                                   {contact.profileId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p> : null}
@@ -6096,8 +6111,8 @@ export default function MarketingAdminPage() {
                                     <MetadataPanel title="Imported contact data" value={contact.metadata} testId={`marketing-contact-metadata-${contact.id}`} />
                                   </div>
                                 </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex flex-wrap gap-2">
+                                <td className={`sticky right-0 z-10 w-[210px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${editingContactId === contact.id || confirmingContactDeleteId === contact.id ? "bg-purple-50" : "bg-white"}`}>
+                                  <div className="flex w-[170px] flex-wrap gap-2">
                                     <button type="button" onClick={() => startContactEdit(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid={`button-marketing-edit-contact-${contact.id}`}>
                                       <Pencil size={13} /> Edit
                                     </button>
@@ -6190,6 +6205,7 @@ export default function MarketingAdminPage() {
                     </form>
                   </SectionCard>
                   {audienceEditDraft ? (
+                    <div ref={audienceEditorPanelRef} tabIndex={-1}>
                     <SectionCard
                       title="List editor"
                       subtitle={editingAudience ? `Editing ${editingAudience.name}. Members are stored as Lovable contact external IDs.` : "Edit imported or manually created marketing lists."}
@@ -6283,6 +6299,7 @@ export default function MarketingAdminPage() {
                     </div>
                       </form>
                     </SectionCard>
+                    </div>
                   ) : null}
                   <SectionCard title="Lists" subtitle={`${visibleAudiences.length} visible of ${audiences.length} imported lists.`}>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-audiences-list">
