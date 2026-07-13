@@ -1694,8 +1694,10 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-insurance-admin-readiness-government-form")).toHaveTextContent("Current path: camera or upload");
     expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Direct tool: email");
     expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Current path: VYVA review");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Needs: email");
     expect(screen.getByTestId("panel-insurance-admin-readiness-call-email")).toHaveTextContent("Direct tool: phone call");
     expect(screen.getByTestId("panel-insurance-admin-readiness-call-email")).toHaveTextContent("Review path ready");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-call-email")).toHaveTextContent("Needs: phone number");
 
     fireEvent.click(screen.getByTestId("button-insurance-admin-claim"));
     expect(await screen.findByTestId("panel-insurance-admin-guided-fields")).toHaveTextContent("Claim or reimbursement");
@@ -1832,6 +1834,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-scam-check-readiness-email")).toHaveTextContent("Review path ready");
     expect(screen.getByTestId("panel-scam-check-readiness-email")).toHaveTextContent("Direct tool: email");
     expect(screen.getByTestId("panel-scam-check-readiness-email")).toHaveTextContent("Current path: VYVA review");
+    expect(screen.getByTestId("panel-scam-check-readiness-email")).toHaveTextContent("Needs: email");
     expect(screen.getByTestId("panel-scam-check-readiness-document")).toHaveTextContent("Tool ready");
     expect(screen.getByTestId("panel-scam-check-readiness-document")).toHaveTextContent("Direct tool: camera or upload");
     expect(screen.getByTestId("panel-scam-check-readiness-phone")).toHaveTextContent("Direct tool: web search");
@@ -2581,6 +2584,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Review path ready");
     expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Direct tool: email");
     expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Current path: VYVA review");
+    expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Needs: email");
     expect(prefill).toHaveTextContent("Add to Right now");
 
     fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
@@ -2960,8 +2964,11 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("panel-concierge-flow-checklist")).toHaveTextContent("Choose first");
-    fireEvent.click(screen.getByTestId("button-concierge-checklist-provider"));
+    const checklist = await screen.findByTestId("panel-concierge-flow-checklist");
+    expect(checklist).toHaveTextContent("Choose first");
+    expect(checklist).toHaveTextContent("Choose provider");
+    expect(screen.getByTestId("button-concierge-checklist-confirm")).toHaveTextContent("Add");
+    fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
     const routeState = JSON.parse(screen.getByTestId("route-state").textContent || "{}");

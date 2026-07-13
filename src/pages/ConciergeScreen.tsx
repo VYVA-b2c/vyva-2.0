@@ -4151,6 +4151,7 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
     summary: item.action_summary,
   });
   const providerNotRequired = !requirementStatus.needsProvider && !isProviderSearchPendingAction(item);
+  const providerReady = providerNotRequired || Boolean(provider);
   const channel = handoffChannelLabel(item, isSpanish);
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
   const isWaitingForProvider = item.status === "calling" || missionStatus.includes("awaiting_provider");
@@ -4223,6 +4224,8 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
       ? (isSpanish ? "Revisar" : "Review needed")
       : isWaitingForProvider
         ? (isSpanish ? "Tras respuesta" : "After reply")
+        : !providerReady
+          ? (isSpanish ? "Elegir proveedor" : "Choose provider")
         : !detailsReady
           ? (isSpanish ? "Completar detalles" : "Complete details")
         : isVyvaTask
@@ -4232,6 +4235,8 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
       ? "warning"
       : isWaitingForProvider
         ? "waiting"
+        : !providerReady
+          ? "needed"
         : !detailsReady
           ? "needed"
       : isVyvaTask
@@ -4240,12 +4245,12 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
     action: isWaitingForProvider
       ? "reply"
       : item.status === "pending"
-      ? (!detailsReady || isVyvaTask ? "details" : "confirm")
+      ? (!providerReady ? "provider" : !detailsReady || isVyvaTask ? "details" : "confirm")
       : undefined,
     actionLabel: isWaitingForProvider
       ? (isSpanish ? "Registrar" : "Record")
       : item.status === "pending"
-      ? (!detailsReady || isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
+      ? (!providerReady || !detailsReady || isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
       : undefined,
   });
 
