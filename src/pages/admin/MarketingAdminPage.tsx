@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Eye,
+  ExternalLink,
   FileText,
   Image as ImageIcon,
   Megaphone,
@@ -3950,20 +3951,48 @@ export default function MarketingAdminPage() {
                           <th className="px-4 py-3">Opened</th>
                           <th className="px-4 py-3">Clicked</th>
                           <th className="px-4 py-3">Source</th>
+                          <th className="px-4 py-3">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {campaignMetrics.slice(0, 8).map((metric) => (
-                          <tr key={metric.id} className="border-t border-[#f0e7df]">
-                            <td className="px-4 py-3 font-black">{metric.campaignName || metric.lovableExternalId || "Unlinked campaign"}</td>
-                            <td className="px-4 py-3 font-bold">{metric.channel}</td>
-                            <td className="px-4 py-3 font-bold">{metric.sent}</td>
-                            <td className="px-4 py-3 font-bold">{metric.delivered}</td>
-                            <td className="px-4 py-3 font-bold">{metric.opened}</td>
-                            <td className="px-4 py-3 font-bold">{metric.clicked}</td>
-                            <td className="px-4 py-3 font-bold">{metric.source}</td>
-                          </tr>
-                        ))}
+                        {campaignMetrics.slice(0, 8).map((metric) => {
+                          const linkedCampaign = metric.campaignId ? campaigns.find((campaign) => campaign.id === metric.campaignId) ?? null : null;
+                          return (
+                            <tr key={metric.id} className="border-t border-[#f0e7df]">
+                              <td className="px-4 py-3 font-black">
+                                <p>{metric.campaignName || metric.lovableExternalId || "Unlinked campaign"}</p>
+                                {metric.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable metric ID: {metric.lovableExternalId}</p> : null}
+                              </td>
+                              <td className="px-4 py-3 font-bold">{metric.channel}</td>
+                              <td className="px-4 py-3 font-bold">{metric.sent}</td>
+                              <td className="px-4 py-3 font-bold">{metric.delivered}</td>
+                              <td className="px-4 py-3 font-bold">{metric.opened}</td>
+                              <td className="px-4 py-3 font-bold">{metric.clicked}</td>
+                              <td className="px-4 py-3 font-bold">{metric.source}</td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-2">
+                                  {linkedCampaign ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        startCampaignEdit(linkedCampaign);
+                                        setMessage(`Opened campaign "${linkedCampaign.name}" from imported analytics.`);
+                                      }}
+                                      className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                      disabled={campaignSaving}
+                                      data-testid={`button-marketing-open-metric-campaign-${metric.id}`}
+                                    >
+                                      <ExternalLink size={13} /> Open campaign
+                                    </button>
+                                  ) : (
+                                    <Pill className="bg-amber-50 text-amber-800">Unlinked</Pill>
+                                  )}
+                                  <MetadataPanel title="Imported metric metadata" value={metric.metadata} testId={`marketing-analytics-metadata-${metric.id}`} />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

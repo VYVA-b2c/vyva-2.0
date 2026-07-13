@@ -652,6 +652,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics snapshots");
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
+    expect(openMetadataPanel("marketing-analytics-metadata-metric-1")).toHaveTextContent("metric-provider-1");
+    fireEvent.click(screen.getByTestId("button-marketing-open-metric-campaign-metric-1"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByText('Opened campaign "Caregiver welcome" from imported analytics.')).toBeInTheDocument();
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1-linkedin")).toHaveTextContent("Partner post");
