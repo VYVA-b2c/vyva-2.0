@@ -137,10 +137,12 @@ describe("concierge flow registry", () => {
 
     expect(coverageReferences).toEqual(registryReferences);
     expect(Object.keys(CONCIERGE_FLOW_COVERAGE_STAGE_LABELS).sort()).toEqual([
+      "action_handoff",
       "completed_history",
       "detail_collection",
       "final_user_confirmation",
       "missing_provider_setup",
+      "outcome_capture",
       "provider_unavailable_recovery",
       "saved_provider_path",
       "start_action",
@@ -167,8 +169,21 @@ describe("concierge flow registry", () => {
         "saved_provider_path",
         "provider_unavailable_recovery",
         "final_user_confirmation",
+        "action_handoff",
+        "outcome_capture",
         "completed_history",
       ]);
+    }
+
+    for (const coverage of CONCIERGE_FLOW_COVERAGE) {
+      expect(coverage.requiredStages).toEqual(expect.arrayContaining([
+        "start_action",
+        "detail_collection",
+        "final_user_confirmation",
+        "action_handoff",
+        "outcome_capture",
+        "completed_history",
+      ]));
     }
   });
 });

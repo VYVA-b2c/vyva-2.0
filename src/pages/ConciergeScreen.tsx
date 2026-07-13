@@ -3562,6 +3562,118 @@ function emailDraftHref(draft: ConciergeEmailDraft): string {
   return `mailto:${draft.address}${params.length ? `?${params.join("&")}` : ""}`;
 }
 
+function emailDraftFlowReference(item: ConciergePendingItem): string {
+  const explicit = payloadString(item.action_payload, ["flow_reference"]);
+  if (explicit) return explicit;
+  if (item.use_case === "book_ride") return TRANSPORT_BOOKING_FLOW_REFERENCE;
+  if (item.use_case === "order_medicine") return OTC_PHARMACY_FLOW_REFERENCE;
+  if (isHomeServicePendingAction(item)) return CONCIERGE_FLOW_REFERENCES.homeService;
+  if (item.use_case === "book_appointment") return MEDICAL_APPOINTMENT_FLOW_REFERENCE;
+  if (item.use_case === "insurance_admin") return INSURANCE_ADMIN_FLOW_REFERENCE;
+  if (item.use_case === "scam_check") return SCAM_CHECK_FLOW_REFERENCE;
+  return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
+}
+
+function emailDraftProviderName(item: ConciergePendingItem, draft: ConciergeEmailDraft, isSpanish: boolean): string {
+  return item.provider_name?.trim()
+    || payloadString(item.action_payload, ["recipient_name", "provider_name", "pharmacy_name", "selected_provider_name"])
+    || draft.address
+    || (isSpanish ? "destinatario" : "recipient");
+}
+
+function emailDraftOutcomeSummary(
+  item: ConciergePendingItem,
+  draft: ConciergeEmailDraft,
+  form: EmailDraftOutcomeForm,
+  isSpanish: boolean,
+): string {
+  const recipient = emailDraftProviderName(item, draft, isSpanish);
+  const reference = form.reference.trim();
+  if (reference) {
+    return isSpanish
+      ? `Email enviado a ${recipient}. Referencia: ${reference}.`
+      : `Email sent to ${recipient}. Reference: ${reference}.`;
+  }
+  return isSpanish ? `Email enviado a ${recipient}.` : `Email sent to ${recipient}.`;
+}
+
+function emailDraftOutcomePayload(
+  item: ConciergePendingItem,
+  draft: ConciergeEmailDraft,
+  form: EmailDraftOutcomeForm,
+): Record<string, unknown> {
+  const payload = item.action_payload ?? {};
+  return {
+    ...payload,
+    flow_reference: emailDraftFlowReference(item),
+    execution_type: "email_draft_outcome_capture",
+    execution_channel: "email",
+    email_outcome: "sent",
+    provider_name: item.provider_name ?? (payloadString(payload, ["recipient_name", "provider_name", "pharmacy_name", "selected_provider_name"]) || null),
+    provider_email: payloadString(payload, ["provider_email", "recipient_email", "to_email", "email_to", "email"]) || draft.address,
+    recipient_email: draft.address,
+    email_subject: draft.subject,
+    email_body: draft.body,
+    reference: form.reference.trim() || payloadString(payload, ["email_reference", "reference"]) || null,
+    notes: form.notes.trim() || null,
+    completed_from: "email_draft_outcome_panel",
+    no_external_action_without_confirmation: true,
+    sent_at: new Date().toISOString(),
+  };
+}
+
+function whatsAppDraftFlowReference(item: ConciergePendingItem): string {
+  return emailDraftFlowReference(item);
+}
+
+function whatsAppDraftProviderName(item: ConciergePendingItem, draft: ConciergeWhatsAppDraft, isSpanish: boolean): string {
+  return item.provider_name?.trim()
+    || payloadString(item.action_payload, ["recipient_name", "provider_name", "pharmacy_name", "selected_provider_name"])
+    || draft.number
+    || (isSpanish ? "destinatario" : "recipient");
+}
+
+function whatsAppDraftOutcomeSummary(
+  item: ConciergePendingItem,
+  draft: ConciergeWhatsAppDraft,
+  form: WhatsAppDraftOutcomeForm,
+  isSpanish: boolean,
+): string {
+  const recipient = whatsAppDraftProviderName(item, draft, isSpanish);
+  const reference = form.reference.trim();
+  if (reference) {
+    return isSpanish
+      ? `WhatsApp enviado a ${recipient}. Referencia: ${reference}.`
+      : `WhatsApp sent to ${recipient}. Reference: ${reference}.`;
+  }
+  return isSpanish ? `WhatsApp enviado a ${recipient}.` : `WhatsApp sent to ${recipient}.`;
+}
+
+function whatsAppDraftOutcomePayload(
+  item: ConciergePendingItem,
+  draft: ConciergeWhatsAppDraft,
+  form: WhatsAppDraftOutcomeForm,
+): Record<string, unknown> {
+  const payload = item.action_payload ?? {};
+  return {
+    ...payload,
+    flow_reference: whatsAppDraftFlowReference(item),
+    execution_type: "whatsapp_draft_outcome_capture",
+    execution_channel: "whatsapp",
+    whatsapp_outcome: "sent",
+    provider_name: item.provider_name ?? (payloadString(payload, ["recipient_name", "provider_name", "pharmacy_name", "selected_provider_name"]) || null),
+    provider_phone: item.provider_phone ?? (payloadString(payload, ["provider_phone", "phone"]) || null),
+    provider_whatsapp: payloadString(payload, ["provider_whatsapp", "recipient_whatsapp", "to_whatsapp", "whatsapp_to", "whatsapp_number", "whatsapp"]) || draft.number,
+    recipient_whatsapp: draft.number,
+    whatsapp_message: draft.message,
+    reference: form.reference.trim() || payloadString(payload, ["whatsapp_reference", "reference"]) || null,
+    notes: form.notes.trim() || null,
+    completed_from: "whatsapp_draft_outcome_panel",
+    no_external_action_without_confirmation: true,
+    sent_at: new Date().toISOString(),
+  };
+}
+
 function normalizeWhatsAppNumber(value: string): string {
   return value.replace(/[^\d]/g, "");
 }
@@ -3688,6 +3800,22 @@ function completedSessionDetails(session: ConciergeCompletedSession, isSpanish: 
       value: payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]),
     },
     {
+      label: isSpanish ? "Telefono" : "Phone",
+      value: payloadString(payload, ["provider_phone", "phone", "contact_phone"]),
+    },
+    {
+      label: "Email",
+      value: payloadString(payload, ["recipient_email", "provider_email", "email"]),
+    },
+    {
+      label: isSpanish ? "Asunto" : "Subject",
+      value: payloadString(payload, ["email_subject", "subject"]),
+    },
+    {
+      label: "WhatsApp",
+      value: payloadString(payload, ["recipient_whatsapp", "provider_whatsapp", "whatsapp"]),
+    },
+    {
       label: isSpanish ? "Estado" : "Status",
       value: payloadString(payload, ["availability", "fulfillment_note"]),
     },
@@ -3802,6 +3930,8 @@ type RightNowActionLabelsParams = {
   opensEmail: boolean;
   opensBooking: boolean;
   needsPhoneOutcome: boolean;
+  needsWhatsAppOutcome: boolean;
+  needsEmailOutcome: boolean;
   canOpenForm: boolean;
   isVyvaTask: boolean;
   formMissingFields: string[];
@@ -4523,12 +4653,12 @@ function PhoneCallOutcomePanel({
           <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
             {isSpanish ? "Llamada guiada" : "Guided call"}
           </span>
-          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+          <span className="mt-1 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1">
             {provider}
           </span>
           <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
             {isSpanish
-              ? "Usa el guion. Despues guarda lo que paso."
+              ? "Usa el guion. Luego guarda lo que paso."
               : "Use the script. Then save what happened."}
           </span>
         </span>
@@ -4545,11 +4675,11 @@ function PhoneCallOutcomePanel({
         ) : null}
       </div>
 
-      <div className="mt-3 rounded-[18px] border border-[#E9D5FF] bg-white p-3">
+      <div className="mt-3 rounded-[18px] border border-[#EDE9FE] bg-white p-3">
         <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
           {isSpanish ? "Guion" : "Script"}
         </p>
-        <p className="mt-1 whitespace-pre-wrap font-body text-[13px] font-bold leading-relaxed text-vyva-text-1">
+        <p className="mt-1 line-clamp-4 whitespace-pre-wrap font-body text-[12px] font-semibold leading-relaxed text-vyva-text-2">
           {script}
         </p>
       </div>
@@ -4614,6 +4744,225 @@ function PhoneCallOutcomePanel({
       ) : null}
       {error ? (
         <p data-testid="phone-outcome-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function EmailDraftOutcomePanel({
+  item,
+  draft,
+  href,
+  form,
+  notice,
+  error,
+  isSaving,
+  isSpanish,
+  onFormChange,
+  onSent,
+}: {
+  item: ConciergePendingItem;
+  draft: ConciergeEmailDraft;
+  href: string;
+  form: EmailDraftOutcomeForm;
+  notice: string | null;
+  error: string | null;
+  isSaving: boolean;
+  isSpanish: boolean;
+  onFormChange: (field: keyof EmailDraftOutcomeForm, value: string) => void;
+  onSent: () => void;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#C7D2FE] bg-[#F8FAFF] p-4"
+      data-testid="panel-concierge-email-draft"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-vyva-purple shadow-sm">
+          <Mail size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+            {isSpanish ? "Email preparado" : "Email ready"}
+          </span>
+          <span className="mt-1 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {draft.address}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "Abre el borrador, envialo desde tu correo y guarda el resultado."
+              : "Open the draft, send it from your email, then save the result."}
+          </span>
+        </span>
+        <a
+          href={href}
+          data-testid={`link-concierge-email-draft-open-${item.id}`}
+          className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
+          aria-label={`${isSpanish ? "Abrir email" : "Open email"} ${draft.address}`}
+        >
+          <ExternalLink size={14} />
+          {isSpanish ? "Abrir" : "Open"}
+        </a>
+      </div>
+
+      <div className="mt-3 rounded-[18px] border border-[#E0E7FF] bg-white p-3">
+        <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+          {isSpanish ? "Asunto" : "Subject"}
+        </p>
+        <p className="mt-1 font-body text-[13px] font-black leading-snug text-vyva-text-1">
+          {draft.subject}
+        </p>
+        <p className="mt-2 line-clamp-3 whitespace-pre-wrap font-body text-[12px] font-semibold leading-relaxed text-vyva-text-2">
+          {draft.body}
+        </p>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Input
+          value={form.reference}
+          onChange={(event) => onFormChange("reference", event.target.value)}
+          placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
+          data-testid={`input-email-draft-reference-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#C7D2FE] bg-white font-body text-[14px]"
+        />
+        <Input
+          value={form.notes}
+          onChange={(event) => onFormChange("notes", event.target.value)}
+          placeholder={isSpanish ? "Nota opcional" : "Optional note"}
+          data-testid={`input-email-draft-notes-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#C7D2FE] bg-white font-body text-[14px]"
+        />
+      </div>
+
+      <Button
+        type="button"
+        data-testid={`button-email-draft-sent-${item.id}`}
+        onClick={onSent}
+        disabled={isSaving}
+        className="vyva-primary-action mt-3 h-auto w-full"
+      >
+        {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+        {isSpanish ? "Ya lo envie" : "I sent it"}
+      </Button>
+
+      {notice ? (
+        <p data-testid="email-draft-notice" className="mt-3 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="email-draft-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function WhatsAppDraftOutcomePanel({
+  item,
+  draft,
+  href,
+  form,
+  notice,
+  error,
+  isSaving,
+  isSpanish,
+  onFormChange,
+  onSent,
+}: {
+  item: ConciergePendingItem;
+  draft: ConciergeWhatsAppDraft;
+  href: string;
+  form: WhatsAppDraftOutcomeForm;
+  notice: string | null;
+  error: string | null;
+  isSaving: boolean;
+  isSpanish: boolean;
+  onFormChange: (field: keyof WhatsAppDraftOutcomeForm, value: string) => void;
+  onSent: () => void;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4"
+      data-testid="panel-concierge-whatsapp-draft"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#0F766E] shadow-sm">
+          <Send size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+            {isSpanish ? "WhatsApp preparado" : "WhatsApp ready"}
+          </span>
+          <span className="mt-1 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {draft.number}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "Abre el borrador, envialo en WhatsApp y guarda el resultado."
+              : "Open the draft, send it in WhatsApp, then save the result."}
+          </span>
+        </span>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid={`link-concierge-whatsapp-draft-open-${item.id}`}
+          className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[13px] font-black text-white shadow-sm"
+          aria-label={`${isSpanish ? "Abrir WhatsApp" : "Open WhatsApp"} ${draft.number}`}
+        >
+          <ExternalLink size={14} />
+          {isSpanish ? "Abrir" : "Open"}
+        </a>
+      </div>
+
+      <div className="mt-3 rounded-[18px] border border-[#CCFBF1] bg-white p-3">
+        <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+          {isSpanish ? "Mensaje" : "Message"}
+        </p>
+        <p className="mt-1 line-clamp-4 whitespace-pre-wrap font-body text-[12px] font-semibold leading-relaxed text-vyva-text-2">
+          {draft.message}
+        </p>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Input
+          value={form.reference}
+          onChange={(event) => onFormChange("reference", event.target.value)}
+          placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
+          data-testid={`input-whatsapp-draft-reference-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#99F6E4] bg-white font-body text-[14px]"
+        />
+        <Input
+          value={form.notes}
+          onChange={(event) => onFormChange("notes", event.target.value)}
+          placeholder={isSpanish ? "Nota opcional" : "Optional note"}
+          data-testid={`input-whatsapp-draft-notes-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#99F6E4] bg-white font-body text-[14px]"
+        />
+      </div>
+
+      <Button
+        type="button"
+        data-testid={`button-whatsapp-draft-sent-${item.id}`}
+        onClick={onSent}
+        disabled={isSaving}
+        className="vyva-primary-action mt-3 h-auto w-full"
+      >
+        {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+        {isSpanish ? "Ya lo envie" : "I sent it"}
+      </Button>
+
+      {notice ? (
+        <p data-testid="whatsapp-draft-notice" className="mt-3 rounded-[14px] bg-white px-3 py-2 font-body text-[12px] font-black text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="whatsapp-draft-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
           {error}
         </p>
       ) : null}
@@ -5047,9 +5396,11 @@ function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "it
 }
 
 function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string {
-  const { item, isSpanish, opensWhatsApp, opensEmail, opensBooking, needsPhoneOutcome, canOpenForm, isVyvaTask, formMissingFields } = params;
+  const { item, isSpanish, opensWhatsApp, opensEmail, opensBooking, needsPhoneOutcome, needsWhatsAppOutcome, needsEmailOutcome, canOpenForm, isVyvaTask, formMissingFields } = params;
   if (needsPhoneOutcome) return isSpanish ? "Revisar guion de llamada" : "Review call script";
   if (isVyvaTask) return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
+  if (needsWhatsAppOutcome) return isSpanish ? "Abrir borrador de WhatsApp" : "Open WhatsApp draft";
+  if (needsEmailOutcome) return isSpanish ? "Abrir borrador de email" : "Open email draft";
 
   if (isHomeServicePendingAction(item)) {
     if (opensWhatsApp || opensEmail) return isSpanish ? "Revisar solicitud de servicio" : "Review service request";
@@ -5086,13 +5437,16 @@ function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string 
 }
 
 function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
-  const { item, isSpanish, needsPhoneOutcome } = params;
+  const { item, isSpanish, needsPhoneOutcome, needsWhatsAppOutcome, needsEmailOutcome } = params;
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
   if (item.status === "calling") {
     if (item.use_case === "book_appointment") return isSpanish ? "Escuchar, silenciar o detener" : "Listen, mute, or stop";
     return isSpanish ? "Esperar respuesta del proveedor" : "Wait for provider reply";
   }
   if (item.status === "failed") return isSpanish ? "Revisar y elegir siguiente paso" : "Review and choose next step";
+  if (needsPhoneOutcome) return isSpanish ? "Llamar y guardar resultado" : "Call and record outcome";
+  if (needsWhatsAppOutcome) return isSpanish ? "Enviar WhatsApp y guardar" : "Send WhatsApp and save";
+  if (needsEmailOutcome) return isSpanish ? "Enviar email y guardar" : "Send email and save";
   if (missionStatus.includes("awaiting_user_save") || missionStatus.includes("booked")) {
     if (item.use_case === "book_ride") return isSpanish ? "Guardar viaje confirmado" : "Save confirmed ride";
     if (isHomeServicePendingAction(item)) return isSpanish ? "Guardar servicio confirmado" : "Save confirmed service";
@@ -5100,25 +5454,34 @@ function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
     return isSpanish ? "Guardar confirmacion" : "Save confirmation";
   }
   if (missionStatus.includes("awaiting_provider")) return isSpanish ? "Esperar respuesta del proveedor" : "Wait for provider reply";
-  if (needsPhoneOutcome) return isSpanish ? "Llamar y guardar resultado" : "Call and record outcome";
   return rightNowPrimaryActionLabel(params);
 }
 
 function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
-  const { item, isSpanish, isVyvaTask, needsPhoneOutcome } = params;
+  const { item, isSpanish, isVyvaTask, needsPhoneOutcome, needsWhatsAppOutcome, needsEmailOutcome } = params;
   if (item.status === "calling") {
     return isSpanish ? "Puedes volver mas tarde; la tarea seguira aqui." : "You can come back later; this task stays here.";
   }
   if (item.status === "failed") {
     return isSpanish ? "Nada se envia hasta que lo confirmes." : "Nothing is sent until you confirm.";
   }
-  if (isVyvaTask) {
-    return isSpanish ? "VYVA lo mantiene aqui hasta que este listo para confirmar." : "VYVA keeps it here until it is ready to confirm.";
-  }
   if (needsPhoneOutcome) {
     return isSpanish
       ? "Llama desde aqui y guarda el resultado para cerrar la tarea."
       : "Call from here and save the result to close the task.";
+  }
+  if (needsWhatsAppOutcome) {
+    return isSpanish
+      ? "VYVA no lo envia por ti. Abre WhatsApp y guarda el resultado."
+      : "VYVA does not send it for you. Open WhatsApp and save the result.";
+  }
+  if (needsEmailOutcome) {
+    return isSpanish
+      ? "VYVA no lo envia por ti. Abre el borrador y guarda el resultado."
+      : "VYVA does not send it for you. Open the draft and save the result.";
+  }
+  if (isVyvaTask) {
+    return isSpanish ? "VYVA lo mantiene aqui hasta que este listo para confirmar." : "VYVA keeps it here until it is ready to confirm.";
   }
   return isSpanish ? "Tu confirmas antes de enviar, llamar o reservar." : "You confirm before anything is sent, called, or booked.";
 }
@@ -5161,6 +5524,16 @@ type PhoneCallOutcomeStatus = "confirmed" | "no_answer" | "needs_info" | "cancel
 type PhoneCallOutcomeForm = {
   status: PhoneCallOutcomeStatus;
   scheduledFor: string;
+  reference: string;
+  notes: string;
+};
+
+type EmailDraftOutcomeForm = {
+  reference: string;
+  notes: string;
+};
+
+type WhatsAppDraftOutcomeForm = {
   reference: string;
   notes: string;
 };
@@ -5349,6 +5722,16 @@ const EMPTY_PHONE_CALL_OUTCOME_FORM: PhoneCallOutcomeForm = {
   notes: "",
 };
 
+const EMPTY_EMAIL_DRAFT_OUTCOME_FORM: EmailDraftOutcomeForm = {
+  reference: "",
+  notes: "",
+};
+
+const EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM: WhatsAppDraftOutcomeForm = {
+  reference: "",
+  notes: "",
+};
+
 function providerReplyFormHasDetails(form: ProviderReplyForm): boolean {
   return Boolean(
     form.scheduledFor.trim() ||
@@ -5517,6 +5900,7 @@ function phoneCallFlowReference(item: ConciergePendingItem): string {
   if (isHomeServicePendingAction(item)) return CONCIERGE_FLOW_REFERENCES.homeService;
   if (item.use_case === "book_appointment") return MEDICAL_APPOINTMENT_FLOW_REFERENCE;
   if (item.use_case === "insurance_admin") return INSURANCE_ADMIN_FLOW_REFERENCE;
+  if (item.use_case === "scam_check") return SCAM_CHECK_FLOW_REFERENCE;
   return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
 }
 
@@ -5528,10 +5912,11 @@ function phoneCallToolHint(item: ConciergePendingItem): string {
       "requested_tool",
       "active_tool",
       "tool",
-      "tool_name",
-      "execution_tool",
-      "handoff_tool",
-      "channel",
+      "tool_required",
+      "preferred_tool",
+      "execution_channel",
+      "preferred_channel",
+      "handoff_channel",
     ]),
   ].join(" ").toLowerCase();
 }
@@ -5556,9 +5941,9 @@ function phoneCallOutcomeStatusLabel(status: PhoneCallOutcomeStatus, isSpanish: 
     case "confirmed":
       return isSpanish ? "Confirmado" : "Confirmed";
     case "no_answer":
-      return isSpanish ? "No contestan" : "No answer";
+      return isSpanish ? "Sin respuesta" : "No answer";
     case "needs_info":
-      return isSpanish ? "Piden datos" : "Need info";
+      return isSpanish ? "Piden datos" : "Needs info";
     case "cancelled":
       return isSpanish ? "Cancelado" : "Cancelled";
     default:
@@ -6098,6 +6483,12 @@ const ConciergeScreen = () => {
   const [phoneCallOutcomeForm, setPhoneCallOutcomeForm] = useState<PhoneCallOutcomeForm>(EMPTY_PHONE_CALL_OUTCOME_FORM);
   const [phoneCallOutcomeNotice, setPhoneCallOutcomeNotice] = useState<string | null>(null);
   const [phoneCallOutcomeError, setPhoneCallOutcomeError] = useState<string | null>(null);
+  const [emailDraftOutcomeForm, setEmailDraftOutcomeForm] = useState<EmailDraftOutcomeForm>(EMPTY_EMAIL_DRAFT_OUTCOME_FORM);
+  const [emailDraftNotice, setEmailDraftNotice] = useState<string | null>(null);
+  const [emailDraftError, setEmailDraftError] = useState<string | null>(null);
+  const [whatsAppDraftOutcomeForm, setWhatsAppDraftOutcomeForm] = useState<WhatsAppDraftOutcomeForm>(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
+  const [whatsAppDraftNotice, setWhatsAppDraftNotice] = useState<string | null>(null);
+  const [whatsAppDraftError, setWhatsAppDraftError] = useState<string | null>(null);
   const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -7079,6 +7470,56 @@ const ConciergeScreen = () => {
     },
     onError: (error) => {
       setPhoneCallOutcomeError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la llamada." : "I could not save the call."));
+    },
+  });
+
+  const emailDraftOutcomeMutation = useMutation({
+    mutationFn: ({ item, draft, form }: { item: ConciergePendingItem; draft: ConciergeEmailDraft; form: EmailDraftOutcomeForm }) => (
+      completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: emailDraftOutcomeSummary(item, draft, form, isSpanish),
+        outcomePayload: emailDraftOutcomePayload(item, draft, form),
+      })
+    ),
+    onMutate: () => {
+      setEmailDraftError(null);
+      setEmailDraftNotice(null);
+    },
+    onSuccess: async () => {
+      setEmailDraftOutcomeForm(EMPTY_EMAIL_DRAFT_OUTCOME_FORM);
+      setEmailDraftNotice(isSpanish ? "Email guardado. La tarea queda cerrada." : "Email saved. The task is closed.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setEmailDraftError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el email." : "I could not save the email."));
+    },
+  });
+
+  const whatsAppDraftOutcomeMutation = useMutation({
+    mutationFn: ({ item, draft, form }: { item: ConciergePendingItem; draft: ConciergeWhatsAppDraft; form: WhatsAppDraftOutcomeForm }) => (
+      completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: whatsAppDraftOutcomeSummary(item, draft, form, isSpanish),
+        outcomePayload: whatsAppDraftOutcomePayload(item, draft, form),
+      })
+    ),
+    onMutate: () => {
+      setWhatsAppDraftError(null);
+      setWhatsAppDraftNotice(null);
+    },
+    onSuccess: async () => {
+      setWhatsAppDraftOutcomeForm(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
+      setWhatsAppDraftNotice(isSpanish ? "WhatsApp guardado. La tarea queda cerrada." : "WhatsApp saved. The task is closed.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setWhatsAppDraftError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el WhatsApp." : "I could not save the WhatsApp."));
     },
   });
 
@@ -8697,12 +9138,14 @@ const ConciergeScreen = () => {
     }
 
     if (action === "confirm") {
-      if (activeAction.status === "pending" && !activeActionIsVyvaTask) {
-        if (isPhoneCallPendingAction(activeAction)) {
-          handlePhoneCallReview(activeAction);
-        } else {
-          confirmMutation.mutate(activeAction);
-        }
+      if (activeActionNeedsPhoneOutcome) {
+        handlePhoneCallReview(activeAction);
+      } else if (activeActionNeedsWhatsAppOutcome) {
+        handleWhatsAppDraftReview(activeAction);
+      } else if (activeActionNeedsEmailOutcome) {
+        handleEmailDraftReview(activeAction);
+      } else if (activeAction.status === "pending" && !activeActionIsVyvaTask) {
+        confirmMutation.mutate(activeAction);
       } else {
         handleChangePendingAction(activeAction);
       }
@@ -8721,6 +9164,18 @@ const ConciergeScreen = () => {
     setPhoneCallOutcomeForm((current) => ({ ...current, [field]: value }));
   }
 
+  function updateEmailDraftOutcome(field: keyof EmailDraftOutcomeForm, value: string) {
+    setEmailDraftOutcomeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateWhatsAppDraftOutcome(field: keyof WhatsAppDraftOutcomeForm, value: string) {
+    setWhatsAppDraftOutcomeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function handleBookingFormSubmitted(item: ConciergePendingItem) {
+    bookingFormOutcomeMutation.mutate({ item, form: bookingFormOutcomeForm });
+  }
+
   function handlePhoneCallReview(item: ConciergePendingItem) {
     setPhoneCallOutcomeError(null);
     setPhoneCallOutcomeNotice(isSpanish ? "Guion listo. Llama y guarda lo que paso." : "Script ready. Call and save what happened.");
@@ -8733,8 +9188,28 @@ const ConciergeScreen = () => {
     phoneCallOutcomeMutation.mutate({ item, form: phoneCallOutcomeForm });
   }
 
-  function handleBookingFormSubmitted(item: ConciergePendingItem) {
-    bookingFormOutcomeMutation.mutate({ item, form: bookingFormOutcomeForm });
+  function handleWhatsAppDraftReview(item: ConciergePendingItem) {
+    setWhatsAppDraftError(null);
+    setWhatsAppDraftNotice(isSpanish ? "Borrador listo. Abre WhatsApp y guarda el resultado." : "Draft ready. Open WhatsApp and save the result.");
+    setVisibleActionId(item.id);
+    setIsRightNowHidden(false);
+    window.setTimeout(() => rightNowSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  function handleWhatsAppDraftSent(item: ConciergePendingItem, draft: ConciergeWhatsAppDraft) {
+    whatsAppDraftOutcomeMutation.mutate({ item, draft, form: whatsAppDraftOutcomeForm });
+  }
+
+  function handleEmailDraftReview(item: ConciergePendingItem) {
+    setEmailDraftError(null);
+    setEmailDraftNotice(isSpanish ? "Borrador listo. Abre tu email y guarda el resultado." : "Draft ready. Open your email and save the result.");
+    setVisibleActionId(item.id);
+    setIsRightNowHidden(false);
+    window.setTimeout(() => rightNowSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  function handleEmailDraftSent(item: ConciergePendingItem, draft: ConciergeEmailDraft) {
+    emailDraftOutcomeMutation.mutate({ item, draft, form: emailDraftOutcomeForm });
   }
 
   function handleBookingFormAddDetails(item: ConciergePendingItem) {
@@ -9451,6 +9926,12 @@ const ConciergeScreen = () => {
     setPhoneCallOutcomeForm(EMPTY_PHONE_CALL_OUTCOME_FORM);
     setPhoneCallOutcomeNotice(null);
     setPhoneCallOutcomeError(null);
+    setEmailDraftOutcomeForm(EMPTY_EMAIL_DRAFT_OUTCOME_FORM);
+    setEmailDraftNotice(null);
+    setEmailDraftError(null);
+    setWhatsAppDraftOutcomeForm(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
+    setWhatsAppDraftNotice(null);
+    setWhatsAppDraftError(null);
   }, [activeAction?.id]);
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -9510,6 +9991,18 @@ const ConciergeScreen = () => {
     activeActionExecutionChannel === "booking_url" &&
     activeActionBookingUrl,
   );
+  const activeActionNeedsWhatsAppOutcome = Boolean(
+    activeAction?.status === "pending" &&
+    activeActionWhatsAppDraft &&
+    activeActionOpensWhatsApp &&
+    !activeActionHasBookingFormSupport,
+  );
+  const activeActionNeedsEmailOutcome = Boolean(
+    activeAction?.status === "pending" &&
+    activeActionEmailDraft &&
+    activeActionOpensEmail &&
+    !activeActionHasBookingFormSupport,
+  );
   const activeActionIsVyvaTask = activeActionExecutionChannel === "manual" || (
     activeActionExecutionChannel === "booking_url" &&
     !activeActionCanOpenForm
@@ -9535,6 +10028,8 @@ const ConciergeScreen = () => {
     opensEmail: activeActionOpensEmail,
     opensBooking: activeActionOpensBooking,
     needsPhoneOutcome: activeActionNeedsPhoneOutcome,
+    needsWhatsAppOutcome: activeActionNeedsWhatsAppOutcome,
+    needsEmailOutcome: activeActionNeedsEmailOutcome,
     canOpenForm: activeActionCanOpenForm,
     isVyvaTask: activeActionIsVyvaTask,
     formMissingFields: activeActionFormMissingFields,
@@ -11325,10 +11820,25 @@ const ConciergeScreen = () => {
                 review={activeActionReviewSummary}
                 primaryLabel={activeActionPrimaryLabel}
                 primaryIcon={activeActionPrimaryIcon}
-                onConfirm={() => activeActionNeedsPhoneOutcome ? handlePhoneCallReview(activeAction) : confirmMutation.mutate(activeAction)}
+                onConfirm={() => {
+                  if (activeActionNeedsPhoneOutcome) {
+                    handlePhoneCallReview(activeAction);
+                  } else if (activeActionNeedsWhatsAppOutcome) {
+                    handleWhatsAppDraftReview(activeAction);
+                  } else if (activeActionNeedsEmailOutcome) {
+                    handleEmailDraftReview(activeAction);
+                  } else {
+                    confirmMutation.mutate(activeAction);
+                  }
+                }}
                 onChange={() => handleChangePendingAction(activeAction)}
                 onCancel={() => cancelMutation.mutate(activeAction.id)}
-                confirmPending={confirmMutation.isPending || phoneCallOutcomeMutation.isPending}
+                confirmPending={
+                  confirmMutation.isPending ||
+                  phoneCallOutcomeMutation.isPending ||
+                  emailDraftOutcomeMutation.isPending ||
+                  whatsAppDraftOutcomeMutation.isPending
+                }
                 cancelPending={cancelMutation.isPending}
                 primaryDisabled={activeActionIsVyvaTask}
                 confirmTestId={`button-concierge-confirm-${activeAction.id}`}
@@ -11393,6 +11903,36 @@ const ConciergeScreen = () => {
                 isSpanish={isSpanish}
                 onFormChange={updatePhoneCallOutcomeForm}
                 onSave={() => handleSavePhoneCallOutcome(activeAction)}
+              />
+            ) : null}
+
+            {activeActionNeedsWhatsAppOutcome && activeActionWhatsAppDraft ? (
+              <WhatsAppDraftOutcomePanel
+                item={activeAction}
+                draft={activeActionWhatsAppDraft}
+                href={activeActionWhatsAppHref}
+                form={whatsAppDraftOutcomeForm}
+                notice={whatsAppDraftNotice}
+                error={whatsAppDraftError}
+                isSaving={whatsAppDraftOutcomeMutation.isPending}
+                isSpanish={isSpanish}
+                onFormChange={updateWhatsAppDraftOutcome}
+                onSent={() => handleWhatsAppDraftSent(activeAction, activeActionWhatsAppDraft)}
+              />
+            ) : null}
+
+            {activeActionNeedsEmailOutcome && activeActionEmailDraft ? (
+              <EmailDraftOutcomePanel
+                item={activeAction}
+                draft={activeActionEmailDraft}
+                href={activeActionEmailHref}
+                form={emailDraftOutcomeForm}
+                notice={emailDraftNotice}
+                error={emailDraftError}
+                isSaving={emailDraftOutcomeMutation.isPending}
+                isSpanish={isSpanish}
+                onFormChange={updateEmailDraftOutcome}
+                onSent={() => handleEmailDraftSent(activeAction, activeActionEmailDraft)}
               />
             ) : null}
 
