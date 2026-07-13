@@ -100,6 +100,9 @@ describe("ProvidersSection trusted provider setup", () => {
     fireEvent.change(screen.getByTestId("input-manual-booking-url"), {
       target: { value: "https://trustedtaxi.example/book" },
     });
+    fireEvent.change(screen.getByTestId("input-manual-notes"), {
+      target: { value: "Use for morning rides." },
+    });
     fireEvent.click(screen.getByTestId("button-manual-channel-whatsapp"));
     fireEvent.click(screen.getByTestId("button-manual-add"));
 
@@ -116,6 +119,68 @@ describe("ProvidersSection trusted provider setup", () => {
       booking_url: "https://trustedtaxi.example/book",
       preferred_channel: "whatsapp",
       can_contact_after_confirmation: true,
+      notes: "Use for morning rides.",
     });
+  });
+
+  it("opens a Concierge provider prefill in the manual form and returns after saving", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ ok: true }));
+    renderProvidersSection({
+      returnTo: "/concierge",
+      setupFocus: "doctor_clinic",
+      setupReason: "Save provider from Concierge",
+      notice: "Save this as a trusted provider. VYVA will still ask before contacting them.",
+      providerPrefill: {
+        name: "Marbella Care Clinic",
+        category: "personal_care",
+        phone: "+34 600 111 222",
+        email: "hello@care.example",
+        whatsapp: "+34 600 333 444",
+        booking_url: "https://care.example/book",
+        preferred_channel: "whatsapp",
+        notes: "Nearby, Good reputation, Easy access",
+      },
+    });
+
+    expect(screen.getByTestId("filter-personal_care")).toHaveClass("bg-vyva-purple");
+    expect(screen.getByTestId("notice-provider-focused-setup")).toHaveTextContent("Save this as a trusted provider");
+    expect(await screen.findByTestId("form-provider-manual")).toBeInTheDocument();
+    expect(screen.getByTestId("input-manual-name")).toHaveValue("Marbella Care Clinic");
+    expect(screen.getByTestId("input-manual-phone")).toHaveValue("+34 600 111 222");
+    expect(screen.getByTestId("input-manual-email")).toHaveValue("hello@care.example");
+    expect(screen.getByTestId("input-manual-whatsapp")).toHaveValue("+34 600 333 444");
+    expect(screen.getByTestId("input-manual-booking-url")).toHaveValue("https://care.example/book");
+    expect(screen.getByTestId("input-manual-notes")).toHaveValue("Nearby, Good reputation, Easy access");
+    expect(screen.getByTestId("button-manual-channel-whatsapp")).toHaveClass("bg-vyva-purple");
+
+    fireEvent.click(screen.getByTestId("button-manual-add"));
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    const [, init] = apiFetchMock.mock.calls[0];
+    const body = JSON.parse(String(init?.body));
+
+    expect(body.providers[0]).toMatchObject({
+      name: "Marbella Care Clinic",
+      role: "personal_care",
+      phone: "+34 600 111 222",
+      email: "hello@care.example",
+      whatsapp: "+34 600 333 444",
+      booking_url: "https://care.example/book",
+      preferred_channel: "whatsapp",
+      notes: "Nearby, Good reputation, Easy access",
+    });
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith("/concierge", expect.objectContaining({
+        state: {
+          trustedProviderSaved: {
+            name: "Marbella Care Clinic",
+            category: "personal_care",
+          },
+        },
+      }));
+    });
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Provider saved",
+    }));
   });
 });
