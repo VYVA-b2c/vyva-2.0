@@ -1194,6 +1194,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Mapped: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
+    const previewContentCoverage = openMetadataPanel("marketing-export-field-coverage-content");
+    expect(previewContentCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
+    expect(previewContentCoverage).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(previewContentCoverage).toHaveTextContent("All exported: body, channel, emailTemplate.previewText, extraLovableOnlyField, id, status, subject, template.html_content, title");
     const previewDestinationMap = screen.getAllByTestId("marketing-lovable-destination-map").at(-1);
     expect(previewDestinationMap).toHaveTextContent("Where Lovable data appears");
     expect(previewDestinationMap).toHaveTextContent("Social posts");
