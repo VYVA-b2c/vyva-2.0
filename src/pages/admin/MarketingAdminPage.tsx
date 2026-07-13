@@ -492,6 +492,15 @@ type CampaignChannelDraft = {
   scheduledAt: string;
 };
 
+type CampaignReadinessState = "ready" | "needs_action" | "blocked" | "planning";
+
+type CampaignReadinessItem = {
+  key: string;
+  title: string;
+  detail: string;
+  state: CampaignReadinessState;
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -1125,6 +1134,27 @@ function channelClass(channel: Channel) {
   if (channel === "instagram" || channel === "tiktok") return "bg-pink-50 text-pink-700 border-pink-100";
   if (channel === "linkedin" || channel === "facebook") return "bg-sky-50 text-sky-700 border-sky-100";
   return "bg-purple-50 text-purple-700 border-purple-100";
+}
+
+function readinessClass(state: CampaignReadinessState) {
+  if (state === "ready") return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  if (state === "blocked") return "border-red-200 bg-red-50 text-red-900";
+  if (state === "planning") return "border-blue-200 bg-blue-50 text-blue-900";
+  return "border-amber-200 bg-amber-50 text-amber-900";
+}
+
+function readinessPillClass(state: CampaignReadinessState) {
+  if (state === "ready") return "bg-emerald-100 text-emerald-900";
+  if (state === "blocked") return "bg-red-100 text-red-900";
+  if (state === "planning") return "bg-blue-100 text-blue-900";
+  return "bg-amber-100 text-amber-900";
+}
+
+function readinessLabel(state: CampaignReadinessState) {
+  if (state === "ready") return "Ready";
+  if (state === "blocked") return "Blocked";
+  if (state === "planning") return "Planning";
+  return "Needs action";
 }
 
 function lower(value: string | null | undefined) {
@@ -5040,6 +5070,83 @@ export default function MarketingAdminPage() {
     ? campaignMetrics.filter((metric) => metric.campaignId === editingCampaign.id)
     : [];
   const selectedCampaignMetricTotals = sumMarketingMetrics(selectedCampaignMetrics);
+  const campaignReadinessChannels = campaignChannelsWithPrimary(campaignEditDraft);
+  const missingCampaignContentChannels = campaignReadinessChannels.filter((channel) => !channel.contentAssetId);
+  const planningOnlyCampaignChannels = campaignReadinessChannels.filter((channel) => channel.channel !== "email");
+  const savedCampaignRecipientCount = editingCampaign?.recipientCount ?? 0;
+  const pendingCampaignSnapshotCount = campaignEditDraft.snapshotRecipients ? campaignRecipientPreview.length : 0;
+  const campaignReadinessItems: CampaignReadinessItem[] = editingCampaign ? [
+    {
+      key: "content",
+      title: "Content",
+      state: missingCampaignContentChannels.length === 0 ? "ready" : "blocked",
+      detail: missingCampaignContentChannels.length === 0
+        ? `${campaignReadinessChannels.length} channel${campaignReadinessChannels.length === 1 ? "" : "s"} have linked content.`
+        : `Add content for ${missingCampaignContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")}.`,
+    },
+    {
+      key: "audience",
+      title: "Audience",
+      state: selectedCampaignTargetAudience && selectedCampaignTargetAudience.mappedMemberCount === 0 ? "needs_action" : "ready",
+      detail: selectedCampaignTargetAudience
+        ? `${selectedCampaignTargetAudience.name}: ${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} contacts mapped.`
+        : "Using all eligible contacts for this campaign audience.",
+    },
+    {
+      key: "schedule",
+      title: "Schedule",
+      state: campaignEditDraft.scheduleStartsAt ? "ready" : "needs_action",
+      detail: campaignEditDraft.scheduleStartsAt
+        ? `Starts ${formatDate(fromDateTimeLocal(campaignEditDraft.scheduleStartsAt))} in ${campaignEditDraft.timezone || "the campaign timezone"}.`
+        : "Add a start time before scheduling, or keep this as a draft.",
+    },
+    {
+      key: "recipients",
+      title: "Recipients",
+      state: savedCampaignRecipientCount > 0 ? "ready" : pendingCampaignSnapshotCount > 0 ? "needs_action" : "blocked",
+      detail: savedCampaignRecipientCount > 0
+        ? `${savedCampaignRecipientCount} saved recipient${savedCampaignRecipientCount === 1 ? "" : "s"} ready for explicit send.`
+        : pendingCampaignSnapshotCount > 0
+          ? `Save campaign to snapshot ${pendingCampaignSnapshotCount} planned recipient${pendingCampaignSnapshotCount === 1 ? "" : "s"}.`
+          : "Create a recipient snapshot before sending.",
+    },
+    {
+      key: "email",
+      title: "Email send",
+      state: !draftEmailChannel
+        ? "planning"
+        : !draftEmailChannel.contentAssetId
+          ? "blocked"
+          : hasUnsavedCampaignSendChanges
+            ? "needs_action"
+            : savedCampaignRecipientCount > 0
+              ? "ready"
+              : "needs_action",
+      detail: !draftEmailChannel
+        ? "No email channel is attached; this campaign is planning/tracking only."
+        : !draftEmailChannel.contentAssetId
+          ? "Attach email content before a test or live email send."
+          : hasUnsavedCampaignSendChanges
+            ? "Save campaign changes before test/live email send."
+            : savedCampaignRecipientCount > 0
+              ? "Email can use the existing VYVA dispatcher and Resend provider."
+              : "Save recipients before a live email send; test email can run now.",
+    },
+    ...(planningOnlyCampaignChannels.length ? [{
+      key: "other-channels",
+      title: "Other channels",
+      state: "planning" as CampaignReadinessState,
+      detail: `${planningOnlyCampaignChannels.map((channel) => channelLabel[channel.channel]).join(", ")} are tracked here; provider sending stays locked until integrations are enabled.`,
+    }] : []),
+  ] : [];
+  const campaignReadyCount = campaignReadinessItems.filter((item) => item.state === "ready").length;
+  const campaignBlockedCount = campaignReadinessItems.filter((item) => item.state === "blocked").length;
+  const campaignNeedsActionCount = campaignReadinessItems.filter((item) => item.state === "needs_action").length;
+  const campaignReadinessSummary = campaignBlockedCount > 0
+    ? `${campaignBlockedCount} blocked item${campaignBlockedCount === 1 ? "" : "s"}`
+    : campaignNeedsActionCount > 0
+      ? `${campaignNeedsActionCount} item${campaignNeedsActionCount === 1 ? "" : "s"} need action`
+      : "Ready";
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
@@ -5532,6 +5639,68 @@ export default function MarketingAdminPage() {
                         </div>
                         {editingCampaign.lovableExternalId ? (
                           <p className="mt-3 break-all rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">Lovable ID: {editingCampaign.lovableExternalId}</p>
+                        ) : null}
+                      </div>
+
+                      <div className="rounded-2xl border border-purple-200 bg-white p-4 shadow-sm" data-testid="marketing-campaign-readiness-panel">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Launch checklist</p>
+                            <h3 className="mt-1 font-serif text-2xl text-[#241133]">Campaign readiness</h3>
+                            <p className="mt-1 text-sm font-bold text-[#7d6b65]">See what is ready, what must be saved, and which channels are planning-only.</p>
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Pill className={campaignBlockedCount > 0 ? "bg-red-50 text-red-800" : campaignNeedsActionCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                              {campaignReadinessSummary}
+                            </Pill>
+                            <Pill className="bg-purple-50 text-purple-800">{campaignReadyCount}/{campaignReadinessItems.length} ready</Pill>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid gap-2 xl:grid-cols-3" data-testid="marketing-campaign-readiness-items">
+                          {campaignReadinessItems.map((item) => (
+                            <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-readiness-${item.key}`}>
+                              <div className="flex items-start gap-2">
+                                <span className="mt-0.5 shrink-0">
+                                  {item.state === "ready" ? <CheckCircle2 size={17} /> : item.state === "blocked" ? <X size={17} /> : <Clock size={17} />}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="flex flex-wrap items-center gap-2">
+                                    <span className="font-black">{item.title}</span>
+                                    <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                  </span>
+                                  <span className="mt-1 block text-xs font-bold leading-relaxed">{item.detail}</span>
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 grid gap-2 xl:grid-cols-3">
+                          <button type="submit" disabled={campaignSaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-readiness-save-campaign">
+                            <Save size={15} /> {campaignSaving ? "Saving..." : campaignEditDraft.snapshotRecipients ? "Save + snapshot recipients" : "Save campaign"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={testEmailDisabled}
+                            onClick={() => editingCampaign ? void sendTestCampaignEmail(editingCampaign.id) : undefined}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid="button-marketing-readiness-send-test-email"
+                          >
+                            <Send size={15} /> {testEmailSending ? "Sending test..." : "Send test email"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={campaignEmailDisabled}
+                            onClick={() => editingCampaign ? void sendCampaignEmails(editingCampaign) : undefined}
+                            className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8] ${confirmingCampaignSendId === editingCampaign.id ? "bg-red-700" : "bg-purple-700"}`}
+                            data-testid="button-marketing-readiness-send-campaign-email"
+                          >
+                            <Send size={15} /> {campaignEmailSending ? "Sending..." : confirmingCampaignSendId === editingCampaign.id ? "Confirm send" : "Send campaign emails"}
+                          </button>
+                        </div>
+                        {(campaignEmailBlockedReason || testEmailBlockedReason) ? (
+                          <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-readiness-next-step">
+                            Next step: {campaignEmailBlockedReason || testEmailBlockedReason}
+                          </p>
                         ) : null}
                       </div>
 

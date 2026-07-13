@@ -2051,6 +2051,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-campaign-schedule-end")).toHaveValue(toLocalInput("2026-07-06T11:00:00.000Z"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Ends");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Campaign readiness");
+    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("5/6 ready");
+    expect(screen.getByTestId("marketing-campaign-readiness-content")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("marketing-campaign-readiness-recipients")).toHaveTextContent("1 saved recipient");
+    expect(screen.getByTestId("marketing-campaign-readiness-email")).toHaveTextContent("Email can use the existing VYVA dispatcher");
+    expect(screen.getByTestId("marketing-campaign-readiness-other-channels")).toHaveTextContent("Planning");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("66 sent");
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("44");
@@ -2095,7 +2101,9 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-recipient-filter"), { target: { value: "Hassan" } });
 
     expect(screen.getByTestId("marketing-campaign-recipient-preview")).toHaveTextContent("1");
-    fireEvent.click(screen.getByTestId("button-marketing-save-campaign"));
+    expect(screen.getByTestId("button-marketing-readiness-save-campaign")).toHaveTextContent("Save + snapshot recipients");
+    expect(screen.getByTestId("marketing-campaign-readiness-email")).toHaveTextContent("Save campaign changes before test/live email send.");
+    fireEvent.click(screen.getByTestId("button-marketing-readiness-save-campaign"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "PATCH" }));
