@@ -205,6 +205,86 @@ const CONTACT_CHANNELS: { value: ProviderContactChannel; label: string }[] = [
   { value: "manual", label: "Ask me" },
 ];
 
+function isProviderContactChannel(value: unknown): value is ProviderContactChannel {
+  return typeof value === "string" && CONTACT_CHANNELS.some((channel) => channel.value === value);
+}
+
+interface RouteProviderPrefill {
+  name: string;
+  category: ConciergeProviderCategoryId;
+  address: string;
+  phone: string;
+  email: string;
+  whatsapp: string;
+  booking_url: string;
+  preferred_channel: ProviderContactChannel | null;
+  can_contact_after_confirmation: boolean;
+  notes: string;
+}
+
+function routeString(record: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function providerPrefillFromState(state: unknown): RouteProviderPrefill | null {
+  if (!state || typeof state !== "object") return null;
+  const raw = (state as Record<string, unknown>).providerPrefill;
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const name = routeString(record, ["name", "provider_name"]);
+  if (!name) return null;
+  const preferredChannel = isProviderContactChannel(record.preferred_channel)
+    ? record.preferred_channel
+    : isProviderContactChannel(record.preferredChannel)
+      ? record.preferredChannel
+      : null;
+  return {
+    name,
+    category: normalizeProviderCategory(routeString(record, ["category", "role", "setupFocus"])),
+    address: routeString(record, ["address", "location"]),
+    phone: routeString(record, ["phone", "provider_phone"]),
+    email: routeString(record, ["email", "provider_email"]),
+    whatsapp: routeString(record, ["whatsapp", "provider_whatsapp"]),
+    booking_url: routeString(record, ["booking_url", "bookingUrl", "provider_booking_url"]),
+    preferred_channel: preferredChannel,
+    can_contact_after_confirmation: typeof record.can_contact_after_confirmation === "boolean"
+      ? record.can_contact_after_confirmation
+      : true,
+    notes: routeString(record, ["notes", "note"]),
+  };
+}
+
+function inferPreferredChannel(prefill: RouteProviderPrefill | null): ProviderContactChannel {
+  if (!prefill) return "phone";
+  if (prefill.preferred_channel) return prefill.preferred_channel;
+  if (prefill.booking_url) return "booking_url";
+  if (prefill.whatsapp) return "whatsapp";
+  if (prefill.email) return "email";
+  if (prefill.phone) return "phone";
+  return "manual";
+}
+
+function returnToFromState(state: unknown): string | null {
+  if (!state || typeof state !== "object") return null;
+  const returnTo = (state as Record<string, unknown>).returnTo;
+  return typeof returnTo === "string" && returnTo.startsWith("/") ? returnTo : null;
+}
+
+function noticeFromState(state: unknown): string {
+  if (!state || typeof state !== "object") return "";
+  const notice = (state as Record<string, unknown>).notice;
+  return typeof notice === "string" ? notice.trim() : "";
+}
+
+function conciergeResumeFromState(state: unknown): unknown {
+  if (!state || typeof state !== "object") return null;
+  return (state as Record<string, unknown>).conciergeResume ?? null;
+}
+
 interface ProviderEntry {
   id: string;
   category: string;
@@ -315,20 +395,25 @@ const ProvidersSection = () => {
   const { toast } = useToast();
   const { t } = useTranslation();
 
-  const initialCategory = setupFocusFromState(location.state) ?? PROVIDER_CATEGORIES[0].id;
+  const providerPrefill = providerPrefillFromState(location.state);
+  const setupReturnTo = returnToFromState(location.state);
+  const setupNotice = noticeFromState(location.state);
+  const conciergeResume = conciergeResumeFromState(location.state);
+  const initialCategory = providerPrefill?.category ?? setupFocusFromState(location.state) ?? PROVIDER_CATEGORIES[0].id;
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
 
   const [pending, setPending] = useState<PendingProvider | null>(null);
-  const [showManualForm, setShowManualForm] = useState(false);
-  const [manualName, setManualName] = useState("");
-  const [manualAddress, setManualAddress] = useState("");
-  const [manualPhone, setManualPhone] = useState("");
-  const [manualEmail, setManualEmail] = useState("");
-  const [manualWhatsapp, setManualWhatsapp] = useState("");
-  const [manualBookingUrl, setManualBookingUrl] = useState("");
-  const [manualPreferredChannel, setManualPreferredChannel] = useState<ProviderContactChannel>("phone");
-  const [manualCanContactAfterConfirmation, setManualCanContactAfterConfirmation] = useState(true);
+  const [showManualForm, setShowManualForm] = useState(Boolean(providerPrefill));
+  const [manualName, setManualName] = useState(providerPrefill?.name ?? "");
+  const [manualAddress, setManualAddress] = useState(providerPrefill?.address ?? "");
+  const [manualPhone, setManualPhone] = useState(providerPrefill?.phone ?? "");
+  const [manualEmail, setManualEmail] = useState(providerPrefill?.email ?? "");
+  const [manualWhatsapp, setManualWhatsapp] = useState(providerPrefill?.whatsapp ?? "");
+  const [manualBookingUrl, setManualBookingUrl] = useState(providerPrefill?.booking_url ?? "");
+  const [manualNotes, setManualNotes] = useState(providerPrefill?.notes ?? "");
+  const [manualPreferredChannel, setManualPreferredChannel] = useState<ProviderContactChannel>(inferPreferredChannel(providerPrefill));
+  const [manualCanContactAfterConfirmation, setManualCanContactAfterConfirmation] = useState(providerPrefill?.can_contact_after_confirmation ?? true);
 
   const [searchKey, setSearchKey] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -386,6 +471,24 @@ const ProvidersSection = () => {
 
   const activeCategoryDef = PROVIDER_CATEGORIES.find((c) => c.id === activeCategory)!;
 
+  const finishFocusedSetup = async (entry: ProviderEntry) => {
+    if (!setupReturnTo) return;
+    await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
+    toast({
+      title: "Provider saved",
+      description: `${entry.name} was added to your trusted providers.`,
+    });
+    navigate(setupReturnTo, {
+      state: {
+        trustedProviderSaved: {
+          name: entry.name,
+          category: entry.category,
+          conciergeResume,
+        },
+      },
+    });
+  };
+
   const handleSearchSelect = (p: PlaceResult | null) => {
     if (!p) {
       setPending(null);
@@ -437,6 +540,7 @@ const ProvidersSection = () => {
     try {
       res = await saveProvidersToServer(updated);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await finishFocusedSetup(entry);
     } catch (err) {
       setProviders(providers);
       setPending(snapshot);
@@ -466,6 +570,7 @@ const ProvidersSection = () => {
       preferred_channel: manualPreferredChannel,
       can_contact_after_confirmation: manualCanContactAfterConfirmation,
       google_maps_url: resolvedMapsUrl,
+      notes: manualNotes,
     };
     const updated = [...providers, entry];
     setProviders(updated);
@@ -475,6 +580,7 @@ const ProvidersSection = () => {
     const snapshotEmail = manualEmail;
     const snapshotWhatsapp = manualWhatsapp;
     const snapshotBookingUrl = manualBookingUrl;
+    const snapshotNotes = manualNotes;
     const snapshotPreferredChannel = manualPreferredChannel;
     const snapshotCanContact = manualCanContactAfterConfirmation;
     setManualName("");
@@ -483,6 +589,7 @@ const ProvidersSection = () => {
     setManualEmail("");
     setManualWhatsapp("");
     setManualBookingUrl("");
+    setManualNotes("");
     setManualPreferredChannel("phone");
     setManualCanContactAfterConfirmation(true);
     setShowManualForm(false);
@@ -490,6 +597,7 @@ const ProvidersSection = () => {
     try {
       res = await saveProvidersToServer(updated);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await finishFocusedSetup(entry);
     } catch (err) {
       setProviders(providers);
       setManualName(snapshotName);
@@ -498,6 +606,7 @@ const ProvidersSection = () => {
       setManualEmail(snapshotEmail);
       setManualWhatsapp(snapshotWhatsapp);
       setManualBookingUrl(snapshotBookingUrl);
+      setManualNotes(snapshotNotes);
       setManualPreferredChannel(snapshotPreferredChannel);
       setManualCanContactAfterConfirmation(snapshotCanContact);
       setShowManualForm(true);
@@ -638,6 +747,15 @@ const ProvidersSection = () => {
             setSearchKey((k) => k + 1);
           }}
         />
+
+        {setupNotice ? (
+          <div
+            className="rounded-[18px] border border-[#BBF7D0] bg-[#ECFDF5] px-4 py-3 font-body text-[13px] font-black text-[#047857]"
+            data-testid="notice-provider-focused-setup"
+          >
+            {setupNotice}
+          </div>
+        ) : null}
 
         <div data-testid="search-providers-places">
           <label className="mb-2 block font-body text-[15px] font-extrabold text-vyva-text-2">
@@ -855,6 +973,18 @@ const ProvidersSection = () => {
                 onChange={(e) => setManualBookingUrl(e.target.value)}
                 placeholder="https://booking.example.com"
                 className={seniorInputClassName}
+              />
+            </div>
+            <div>
+              <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 block">
+                Notes <span className="text-vyva-text-3 font-normal">(optional)</span>
+              </label>
+              <textarea
+                data-testid="input-manual-notes"
+                value={manualNotes}
+                onChange={(e) => setManualNotes(e.target.value)}
+                placeholder="Anything VYVA should remember"
+                className={`${seniorInputClassName} min-h-[82px] resize-none py-3`}
               />
             </div>
             <div>

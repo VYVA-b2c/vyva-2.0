@@ -2262,6 +2262,112 @@ describe("ConciergeScreen action hub", () => {
 });
 
 describe("ConciergeScreen route prefill", () => {
+  it("resumes a ride flow after trusted provider setup returns", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{
+            name: "Trusted Taxi",
+            role: "taxi",
+            phone: "+34 600 111 222",
+            preferredChannel: "phone",
+          }],
+          serviceReadiness: {
+            hasSavedTransportProvider: true,
+            hasMobilityInfo: true,
+          },
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        trustedProviderSaved: {
+          name: "Trusted Taxi",
+          category: "transport",
+          conciergeResume: {
+            kind: "transport",
+            message: "Please help me book a ride to City Clinic tomorrow morning.",
+            pickup: "Saved home",
+            destination: "City Clinic",
+            time: "tomorrow morning",
+            mobilityNeeds: ["Help to the door"],
+          },
+        },
+      },
+    }]);
+
+    const resume = await screen.findByTestId("panel-concierge-provider-resume");
+    expect(resume).toHaveTextContent("Provider saved");
+    expect(resume).toHaveTextContent("Trusted Taxi");
+    expect(resume).toHaveTextContent("Continue ride");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("route-state")).toHaveTextContent("null");
+    });
+
+    fireEvent.click(screen.getByTestId("button-provider-resume-continue"));
+
+    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Transport options");
+    expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("Saved provider first: Trusted Taxi");
+    expect(screen.getByTestId("note-transport-mobility-readiness")).toHaveTextContent("Mobility preferences saved");
+    expect(screen.getByTestId("input-transport-pickup")).toHaveValue("Saved home");
+    expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
+    expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow morning");
+    expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
+  });
+
+  it("resumes an OTC pharmacy flow with the original item details after provider setup returns", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{
+            name: "Neighborhood Pharmacy",
+            role: "pharmacy",
+            phone: "+34 600 333 444",
+            preferredChannel: "phone",
+          }],
+          serviceReadiness: {
+            hasSavedPharmacy: true,
+          },
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        trustedProviderSaved: {
+          name: "Neighborhood Pharmacy",
+          category: "pharmacy",
+          conciergeResume: {
+            kind: "otc_pharmacy",
+            itemText: "Vitamin D",
+            fulfillmentPreference: "pickup",
+            requestedTime: "tomorrow",
+            notes: "Same brand",
+          },
+        },
+      },
+    }]);
+
+    const resume = await screen.findByTestId("panel-concierge-provider-resume");
+    expect(resume).toHaveTextContent("Provider saved");
+    expect(resume).toHaveTextContent("Neighborhood Pharmacy");
+    expect(resume).toHaveTextContent("Continue pharmacy");
+
+    fireEvent.click(screen.getByTestId("button-provider-resume-continue"));
+
+    expect(await screen.findByTestId("panel-otc-pharmacy")).toHaveTextContent("Saved pharmacy: Neighborhood Pharmacy");
+    expect(screen.getByTestId("input-otc-pharmacy-item")).toHaveValue("Vitamin D");
+    expect(screen.getByTestId("input-otc-pharmacy-time")).toHaveValue("tomorrow");
+    expect(screen.getByTestId("input-otc-pharmacy-notes")).toHaveValue("Same brand");
+    expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
+  });
+
   it("turns a symptom appointment handoff into a one-tap concierge request", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url).includes("/api/appointments/requests")) {
@@ -2403,7 +2509,11 @@ describe("ConciergeScreen route prefill", () => {
         provider_name: "Radio Taxi",
         provider_phone: "+34 612 345 678",
         action_summary: "Taxi option prepared for the health appointment.",
-        action_payload: null,
+        action_payload: {
+          pickup_address: "Saved home",
+          destination_address: "City Clinic",
+          requested_time: "tomorrow 09:00",
+        },
         status: "pending",
         language: "en",
       }],
@@ -2417,6 +2527,20 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Ready for your OK");
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "upcoming");
+    const checklist = screen.getByTestId("panel-concierge-flow-checklist");
+    expect(checklist).toHaveTextContent("What is missing");
+    expect(checklist).toHaveTextContent("VYVA asks before anything is sent, called, or booked.");
+    expect(checklist).toHaveTextContent("Details");
+    expect(checklist).toHaveTextContent("Ready");
+    expect(checklist).toHaveTextContent("Provider");
+    expect(checklist).toHaveTextContent("Radio Taxi");
+    expect(checklist).toHaveTextContent("Contact");
+    expect(checklist).toHaveTextContent("Phone call");
+    expect(checklist).toHaveTextContent("Confirm");
+    expect(checklist).toHaveTextContent("Confirm ride call");
+    expect(screen.getByTestId("button-concierge-checklist-details")).toHaveTextContent("Review");
+    expect(screen.getByTestId("button-concierge-checklist-provider")).toHaveTextContent("Change");
+    expect(screen.getByTestId("button-concierge-checklist-confirm")).toHaveTextContent("OK");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Next step");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Review & confirm");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Provider");
@@ -2425,6 +2549,85 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-concierge-change-ride-1")).toHaveTextContent("Change");
     expect(screen.getByTestId("button-concierge-cancel-ride-1")).toHaveTextContent("Cancel");
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm ride call");
+
+    fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/ride-1/confirm", { method: "POST" });
+    });
+
+    fireEvent.click(screen.getByTestId("button-concierge-checklist-details"));
+    expect(await screen.findByTestId("input-transport-destination")).toBeVisible();
+  });
+
+  it("shows the exact missing ride detail before allowing checklist confirmation", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "ride-missing-destination",
+        use_case: "book_ride",
+        provider_name: "Radio Taxi",
+        provider_phone: "+34 612 345 678",
+        action_summary: "Taxi option prepared, but the destination still needs to be confirmed.",
+        action_payload: {
+          pickup_address: "Saved home",
+          requested_time: "now",
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    const checklist = await screen.findByTestId("panel-concierge-flow-checklist");
+    expect(checklist).toHaveTextContent("Destination needed");
+    expect(checklist).toHaveTextContent("Complete details");
+    expect(screen.getByTestId("button-concierge-checklist-confirm")).toHaveTextContent("Add");
+
+    fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
+
+    expect(await screen.findByTestId("input-transport-destination")).toBeVisible();
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/concierge/actions/ride-missing-destination/confirm",
+      { method: "POST" },
+    );
+  });
+
+  it("routes a missing provider checklist item to focused trusted-provider setup", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "ride-provider-missing",
+        use_case: "book_ride",
+        provider_name: null,
+        provider_phone: null,
+        action_summary: "Ride details are ready, but no transport provider is saved yet.",
+        action_payload: {
+          pickup_address: "Saved home",
+          destination_address: "City Clinic",
+          requested_time: "tomorrow 09:00",
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-flow-checklist")).toHaveTextContent("Choose first");
+    fireEvent.click(screen.getByTestId("button-concierge-checklist-provider"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+    const routeState = JSON.parse(screen.getByTestId("route-state").textContent || "{}");
+    expect(routeState).toMatchObject({
+      returnTo: "/concierge",
+      setupFocus: "transport",
+      setupFlow: CONCIERGE_FLOW_REFERENCES.transportBooking,
+    });
+    expect(routeState.conciergeResume).toMatchObject({
+      kind: "transport",
+      pickup: "Saved home",
+      destination: "City Clinic",
+      time: "tomorrow 09:00",
+    });
   });
 
   it("labels home-service appointment tasks by their service flow", async () => {
@@ -2605,6 +2808,61 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-home-service-type-plumber")).toBeInTheDocument();
   });
 
+  it("shows completed appointment history as a reusable appointment template", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({ items: [] });
+      }
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({
+          items: [{
+            id: "session-appointment",
+            pending_id: "old-appointment",
+            use_case: "book_appointment",
+            provider_name: "Clinica Lopez",
+            outcome: "completed",
+            outcome_summary: "Medical appointment confirmed with Clinica Lopez.",
+            completed_at: "2026-08-05T11:30:00.000Z",
+            outcome_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+              appointment_type: "medical",
+              appointment_reason: "dermatology follow-up",
+              scheduled_for: "2026-08-12T09:30",
+              location: "Calle Mayor 1",
+              provider_phone: "+34 600 111 222",
+              reference: "CL-44",
+            },
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("section-concierge-completed-history")).toHaveTextContent("Done recently");
+    });
+    expect(screen.getByTestId("card-concierge-completed-session-appointment")).toHaveTextContent("Appointment");
+    expect(screen.getByTestId("card-concierge-completed-session-appointment")).toHaveTextContent("Clinica Lopez");
+
+    fireEvent.click(screen.getByTestId("card-concierge-completed-session-appointment"));
+    const receipt = await screen.findByTestId("panel-concierge-completed-receipt");
+    expect(receipt).toHaveTextContent("Medical appointment confirmed with Clinica Lopez.");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Reference");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("CL-44");
+    expect(within(receipt).getByTestId("link-concierge-receipt-contact")).toHaveAttribute("href", "tel:+34600111222");
+
+    fireEvent.click(within(receipt).getByTestId("button-concierge-receipt-template"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal-concierge-completed-receipt")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Appointment");
+    expect(screen.getByDisplayValue("dermatology follow-up")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Medical" })).toBeVisible();
+  });
+
   it("shows requested as the active follow-through step for started actions", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
@@ -2625,6 +2883,13 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "done");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-waiting")).toHaveAttribute("data-state", "upcoming");
+    const checklist = screen.getByTestId("panel-concierge-flow-checklist");
+    expect(checklist).toHaveTextContent("Provider reply");
+    expect(checklist).toHaveTextContent("Waiting");
+    expect(checklist).toHaveTextContent("After reply");
+    expect(screen.getByTestId("button-concierge-checklist-reply")).toHaveTextContent("Record");
+    fireEvent.click(screen.getByTestId("button-concierge-checklist-reply"));
+    expect(screen.getByTestId("panel-concierge-provider-reply")).toHaveTextContent("Provider reply");
   });
 
   it("records a confirmed provider reply through the existing completion endpoint", async () => {
@@ -2800,7 +3065,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("panel-provider-reply-confirmed-reply-route-confirmed")).toBeInTheDocument();
   });
 
-  it("reopens the original ride flow when a provider is unavailable", async () => {
+  it("opens a replacement transport search when a provider is unavailable", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url).endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
@@ -2828,11 +3093,133 @@ describe("ConciergeScreen route prefill", () => {
 
     fireEvent.click(await screen.findByTestId("button-provider-reply-unavailable-reply-unavailable-ride"));
 
-    expect(await screen.findByTestId("panel-transport-readiness")).toHaveTextContent("Tool ready");
-    expect(screen.getByTestId("input-transport-pickup")).toHaveValue("Saved home");
-    expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
-    expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow 09:00");
-    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("You can change the provider or details.");
+    expect(await screen.findByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    const transportQuery = (screen.getByTestId("input-offers-query") as HTMLInputElement).value;
+    expect(transportQuery).toContain("Find another transport option");
+    expect(transportQuery).toContain("Destination: City Clinic");
+    expect(transportQuery).toContain("Pickup: Saved home");
+    expect(transportQuery).toContain("Time: tomorrow 09:00");
+    expect(transportQuery).toContain("Avoid this provider: Radio Taxi");
+    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("Soon");
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Transport search prepared with the same details.");
+  });
+
+  it("opens a replacement pharmacy search when an OTC provider is unavailable", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-unavailable-otc",
+            use_case: "order_medicine",
+            provider_name: "Neighborhood Pharmacy",
+            provider_phone: "+34 600 333 444",
+            action_summary: "Pharmacy cannot supply the requested OTC item.",
+            action_payload: {
+              item_text: "Vitamin D",
+              fulfillment_preference: "pickup",
+              requested_time: "tomorrow",
+              notes: "Same brand",
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-reply-unavailable-reply-unavailable-otc"));
+
+    expect(await screen.findByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    const pharmacyQuery = (screen.getByTestId("input-offers-query") as HTMLInputElement).value;
+    expect(pharmacyQuery).toContain("Find another pharmacy");
+    expect(pharmacyQuery).toContain("Item: Vitamin D");
+    expect(pharmacyQuery).toContain("Preference: pickup");
+    expect(pharmacyQuery).toContain("Avoid this provider: Neighborhood Pharmacy");
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Pharmacy search prepared with the original item.");
+  });
+
+  it("opens a replacement home-service search when a provider is unavailable", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-unavailable-home-service",
+            use_case: "book_appointment",
+            provider_name: "Saved Plumber",
+            provider_phone: "+34 600 222 333",
+            action_summary: "Plumber is not available tomorrow.",
+            action_payload: {
+              appointment_type: "home-service",
+              service_type: "plumber",
+              problem_summary: "Leak under the kitchen sink",
+              urgency: "tomorrow",
+              location: "Home kitchen",
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-reply-unavailable-reply-unavailable-home-service"));
+
+    expect(await screen.findByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    const homeServiceQuery = (screen.getByTestId("input-offers-query") as HTMLInputElement).value;
+    expect(homeServiceQuery).toContain("Find another home-service provider");
+    expect(homeServiceQuery).toContain("Type: plumber");
+    expect(homeServiceQuery).toContain("Problem: Leak under the kitchen sink");
+    expect(homeServiceQuery).toContain("Avoid this provider: Saved Plumber");
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Home-service search prepared with the original problem.");
+  });
+
+  it("opens a replacement appointment search when a provider is unavailable", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-unavailable-appointment",
+            use_case: "book_appointment",
+            provider_name: "Clinica Lopez",
+            provider_phone: "+34 600 111 222",
+            action_summary: "Clinic cannot offer the requested slot.",
+            action_payload: {
+              appointment_type: "medical",
+              appointment_reason: "dermatology follow-up",
+              requested_time: "next Tuesday morning",
+              location: "Marbella",
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-reply-unavailable-reply-unavailable-appointment"));
+
+    expect(await screen.findByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    const appointmentQuery = (screen.getByTestId("input-offers-query") as HTMLInputElement).value;
+    expect(appointmentQuery).toContain("Find another doctor or clinic");
+    expect(appointmentQuery).toContain("Type: medical");
+    expect(appointmentQuery).toContain("Reason: dermatology follow-up");
+    expect(appointmentQuery).toContain("Preferred time: next Tuesday morning");
+    expect(appointmentQuery).toContain("Area: Marbella");
+    expect(appointmentQuery).toContain("Avoid this provider: Clinica Lopez");
+    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("Coverage");
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Alternative appointment search prepared.");
   });
 
   it("keeps provider questions inside VYVA when more information is needed", async () => {

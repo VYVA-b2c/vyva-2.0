@@ -82,11 +82,13 @@ import {
 } from "../../shared/serviceIntake";
 import {
   CONCIERGE_FLOW_REFERENCES,
+  normalizeConciergeProviderCategory,
   providerSetupFocusForFlow,
   type ConciergeProviderCategoryId,
   type ConciergeFlowReference,
   type ConciergeToolRequirement,
 } from "../../shared/conciergeFlowRegistry";
+import { evaluateConciergeFlowRequirements } from "../../shared/conciergeFlowRequirements";
 import {
   evaluateConciergeToolReadiness,
   preferredToolFromTransportActions,
@@ -114,6 +116,7 @@ type ConciergeLocationState = {
   conciergePrefill?: unknown;
   conciergeCompletedTemplate?: unknown;
   conciergeProviderAction?: unknown;
+  trustedProviderSaved?: unknown;
   voiceActionPayload?: Record<string, unknown>;
   focusRightNow?: boolean;
 } | null;
@@ -121,6 +124,52 @@ type ConciergeLocationState = {
 type ConciergeProviderRouteAction = {
   pendingId: string;
   mode: "follow_up" | "reply";
+};
+
+type ConciergeProviderResumeContext =
+  | {
+      kind: "transport";
+      message?: string;
+      pickup?: string;
+      destination?: string;
+      time?: string;
+      mobilityNeeds?: string[];
+    }
+  | {
+      kind: "otc_pharmacy";
+      itemText?: string;
+      fulfillmentPreference?: "delivery" | "pickup";
+      requestedTime?: string;
+      notes?: string;
+    }
+  | {
+      kind: "medical_appointment";
+      appointmentType?: AppointmentType;
+      note?: string;
+    }
+  | {
+      kind: "home_service";
+      serviceType?: HomeServiceType | null;
+      origin?: ServiceIntakeOrigin;
+      note?: string;
+      answers?: Record<string, string>;
+      textDrafts?: Record<string, string>;
+    }
+  | {
+      kind: "provider_search";
+      mode?: ProviderSearchMode | null;
+      query?: string;
+      criteria?: ProviderSearchCriterionKey[];
+    }
+  | {
+      kind: "generic";
+      message?: string;
+    };
+
+type TrustedProviderSavedRoute = {
+  name: string;
+  category: ConciergeProviderCategoryId;
+  conciergeResume: ConciergeProviderResumeContext | null;
 };
 
 type RoutePrefillHighlight = {
@@ -229,6 +278,114 @@ function coerceConciergeProviderRouteAction(value: unknown): ConciergeProviderRo
   const pendingId = value.pendingId.trim();
   if (!pendingId) return null;
   return { pendingId, mode: value.mode };
+}
+
+function routeText(record: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function routeStringRecord(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  return Object.entries(value).reduce<Record<string, string>>((acc, [key, entry]) => {
+    if (typeof entry === "string" && entry.trim()) acc[key] = entry.trim();
+    return acc;
+  }, {});
+}
+
+function routeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.trim()).map((item) => item.trim());
+  }
+  return typeof value === "string" && value.trim() ? splitRoutePayloadList(value) : [];
+}
+
+function isAppointmentType(value: unknown): value is AppointmentType {
+  return typeof value === "string" && APPOINTMENT_TYPE_CHIPS.some((chip) => chip.key === value);
+}
+
+function isProviderSearchMode(value: unknown): value is ProviderSearchMode {
+  return typeof value === "string" && ["personal-care", "specialist", "residence", "care"].includes(value);
+}
+
+function isProviderSearchCriterion(value: unknown): value is ProviderSearchCriterionKey {
+  return typeof value === "string" && ["nearby", "reputation", "accessible", "clear-price", "available-soon", "coverage"].includes(value);
+}
+
+function coerceConciergeResumeContext(value: unknown): ConciergeProviderResumeContext | null {
+  if (!isRecord(value)) return null;
+  const kind = routeText(value, ["kind", "flow"]);
+  if (kind === "transport") {
+    return {
+      kind,
+      message: routeText(value, ["message"]),
+      pickup: routeText(value, ["pickup", "pickupAddress"]),
+      destination: routeText(value, ["destination", "destinationAddress"]),
+      time: routeText(value, ["time", "requestedTime"]),
+      mobilityNeeds: routeStringList(value.mobilityNeeds ?? value.mobility_needs),
+    };
+  }
+  if (kind === "otc_pharmacy") {
+    const fulfillment = routeText(value, ["fulfillmentPreference", "fulfillment_preference"]);
+    return {
+      kind,
+      itemText: routeText(value, ["itemText", "item_text"]),
+      fulfillmentPreference: fulfillment === "pickup" ? "pickup" : "delivery",
+      requestedTime: routeText(value, ["requestedTime", "requested_time"]),
+      notes: routeText(value, ["notes"]),
+    };
+  }
+  if (kind === "medical_appointment") {
+    return {
+      kind,
+      appointmentType: isAppointmentType(value.appointmentType ?? value.appointment_type) ? (value.appointmentType ?? value.appointment_type) as AppointmentType : "medical",
+      note: routeText(value, ["note", "message", "appointmentNote"]),
+    };
+  }
+  if (kind === "home_service") {
+    const serviceType = routeText(value, ["serviceType", "service_type"]);
+    const origin = routeText(value, ["origin"]);
+    return {
+      kind,
+      serviceType: serviceType ? normalizeHomeServiceType(serviceType) : null,
+      origin: origin === "voice" ? "voice" : "app",
+      note: routeText(value, ["note", "message", "appointmentNote"]),
+      answers: routeStringRecord(value.answers),
+      textDrafts: routeStringRecord(value.textDrafts ?? value.text_drafts),
+    };
+  }
+  if (kind === "provider_search") {
+    const criteria = Array.isArray(value.criteria)
+      ? value.criteria.filter(isProviderSearchCriterion)
+      : [];
+    return {
+      kind,
+      mode: isProviderSearchMode(value.mode) ? value.mode : null,
+      query: routeText(value, ["query"]),
+      criteria,
+    };
+  }
+  if (kind === "generic") {
+    return {
+      kind,
+      message: routeText(value, ["message"]),
+    };
+  }
+  return null;
+}
+
+function coerceTrustedProviderSavedRoute(value: unknown): TrustedProviderSavedRoute | null {
+  if (!isRecord(value)) return null;
+  const name = typeof value.name === "string" ? value.name.trim() : "";
+  if (!name) return null;
+  return {
+    name,
+    category: normalizeConciergeProviderCategory(typeof value.category === "string" ? value.category : null),
+    conciergeResume: coerceConciergeResumeContext(value.conciergeResume ?? value.resume),
+  };
 }
 
 function routePayloadString(state: ConciergeLocationState, key: string) {
@@ -783,7 +940,7 @@ type BillDocumentAnalysis = {
 type UtilityInputMethod = "upload" | "photo" | "voice" | "manual";
 type UtilityType = "electricity" | "gas" | "dual";
 type SavingsPanelView = "overview" | "utilities";
-type ProviderSearchMode = "personal-care" | "specialist" | "residence" | "care";
+type ProviderSearchMode = "personal-care" | "specialist" | "residence" | "care" | "transport" | "pharmacy" | "home-service";
 type ProviderSearchCriterionKey = "nearby" | "reputation" | "accessible" | "clear-price" | "available-soon" | "coverage";
 
 interface NormalizedUtilityInput {
@@ -2147,11 +2304,17 @@ function providerSearchModeLabel(mode: ProviderSearchMode | null, es: boolean): 
   if (mode === "specialist") return es ? "especialista" : "specialist";
   if (mode === "residence") return es ? "residencia o centro de cuidado" : "residence or care home";
   if (mode === "care") return es ? "opciones de cuidado" : "care options";
+  if (mode === "transport") return es ? "transporte" : "transport";
+  if (mode === "pharmacy") return es ? "farmacia" : "pharmacy";
+  if (mode === "home-service") return es ? "servicio en casa" : "home service";
   return es ? "proveedor" : "provider";
 }
 
 function providerSearchSetupFocus(mode: ProviderSearchMode | null): string {
   if (mode === "specialist") return "doctor_clinic";
+  if (mode === "transport") return "transport";
+  if (mode === "pharmacy") return "pharmacy";
+  if (mode === "home-service") return "home_service";
   if (mode === "residence" || mode === "personal-care" || mode === "care") return "personal_care";
   return "other";
 }
@@ -3226,6 +3389,24 @@ type PendingActionReviewSummary = {
   missingDetails: string[];
 };
 
+type ActiveTaskChecklistItemState = "done" | "active" | "needed" | "waiting" | "warning";
+type ActiveTaskChecklistAction = "details" | "provider" | "contact" | "reply" | "confirm";
+
+type ActiveTaskChecklistItem = {
+  key: string;
+  label: string;
+  value: string;
+  state: ActiveTaskChecklistItemState;
+  action?: ActiveTaskChecklistAction;
+  actionLabel?: string;
+};
+
+type ActiveTaskChecklist = {
+  title: string;
+  helper: string;
+  items: ActiveTaskChecklistItem[];
+};
+
 function humanizeValue(value: string): string {
   return value.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -3338,6 +3519,231 @@ function buildPendingActionReviewSummary(params: {
     details: details.slice(0, 8),
     missingDetails,
   };
+}
+
+function activeTaskProviderLabel(item: ConciergePendingItem, isSpanish: boolean): string {
+  if (isProviderSearchPendingAction(item)) return providerSearchProviderName(item, isSpanish);
+  return item.provider_name?.trim()
+    || payloadString(item.action_payload, ["provider_name", "pharmacy_name", "selected_provider_name"])
+    || "";
+}
+
+function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
+  nextStepLabel: string;
+  timeline: ConciergeFollowThroughStatus | null;
+}): ActiveTaskChecklist {
+  const {
+    item,
+    isSpanish,
+    formMissingFields,
+    isVyvaTask,
+    nextStepLabel,
+    timeline,
+  } = params;
+  const provider = activeTaskProviderLabel(item, isSpanish);
+  const requirementStatus = evaluateConciergeFlowRequirements({
+    useCase: item.use_case,
+    payload: item.action_payload,
+    providerName: provider,
+    summary: item.action_summary,
+  });
+  const providerNotRequired = !requirementStatus.needsProvider && !isProviderSearchPendingAction(item);
+  const channel = handoffChannelLabel(item, isSpanish);
+  const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
+  const isWaitingForProvider = item.status === "calling" || missionStatus.includes("awaiting_provider");
+  const hasMissingFormFields = formMissingFields.length > 0;
+  const firstMissingRequirement = requirementStatus.firstMissingRequirement;
+  const missingRequirementLabel = firstMissingRequirement
+    ? (isSpanish ? firstMissingRequirement.labelEs : firstMissingRequirement.labelEn)
+    : "";
+  const detailsReady = requirementStatus.missingRequirements.length === 0 && !hasMissingFormFields;
+  const detailsValue = hasMissingFormFields
+    ? (isSpanish ? "Formulario incompleto" : "Form details needed")
+    : firstMissingRequirement
+      ? (isSpanish ? `Falta ${missingRequirementLabel}` : `${missingRequirementLabel} needed`)
+      : (isSpanish ? "Listos" : "Ready");
+
+  const items: ActiveTaskChecklistItem[] = [
+    {
+      key: "details",
+      label: isSpanish ? "Detalles" : "Details",
+      value: detailsValue,
+      state: hasMissingFormFields ? "needed" : detailsReady ? "done" : "active",
+      action: "details",
+      actionLabel: hasMissingFormFields || !detailsReady
+        ? (isSpanish ? "Anadir" : "Add")
+        : (isSpanish ? "Revisar" : "Review"),
+    },
+    {
+      key: "provider",
+      label: isSpanish ? "Proveedor" : "Provider",
+      value: provider || (providerNotRequired
+        ? (isSpanish ? "No necesario" : "Not needed")
+        : (isSpanish ? "Por elegir" : "Choose first")),
+      state: provider ? "done" : providerNotRequired ? "done" : "needed",
+      action: providerNotRequired ? undefined : "provider",
+      actionLabel: providerNotRequired
+        ? undefined
+        : provider
+          ? (isSpanish ? "Cambiar" : "Change")
+          : (isSpanish ? "Anadir" : "Add"),
+    },
+    {
+      key: "contact",
+      label: isSpanish ? "Contacto" : "Contact",
+      value: channel,
+      state: channel.toLowerCase().includes("review") || channel.toLowerCase().includes("revision")
+        ? "active"
+        : "done",
+      action: item.status === "pending" ? "contact" : undefined,
+      actionLabel: item.status === "pending" ? (isSpanish ? "Cambiar" : "Change") : undefined,
+    },
+  ];
+
+  if (isWaitingForProvider) {
+    items.push({
+      key: "reply",
+      label: isSpanish ? "Respuesta" : "Provider reply",
+      value: timeline?.activeStepId === "confirmed"
+        ? (isSpanish ? "Recibida" : "Received")
+        : (isSpanish ? "Esperando" : "Waiting"),
+      state: timeline?.activeStepId === "confirmed" ? "done" : "waiting",
+      action: "reply",
+      actionLabel: isSpanish ? "Registrar" : "Record",
+    });
+  }
+
+  items.push({
+    key: "confirm",
+    label: isSpanish ? "Confirmar" : "Confirm",
+    value: item.status === "failed"
+      ? (isSpanish ? "Revisar" : "Review needed")
+      : isWaitingForProvider
+        ? (isSpanish ? "Tras respuesta" : "After reply")
+        : !detailsReady
+          ? (isSpanish ? "Completar detalles" : "Complete details")
+        : isVyvaTask
+          ? (isSpanish ? "Cuando este listo" : "When ready")
+          : nextStepLabel || (isSpanish ? "Tu OK primero" : "Your OK first"),
+    state: item.status === "failed"
+      ? "warning"
+      : isWaitingForProvider
+        ? "waiting"
+        : !detailsReady
+          ? "needed"
+      : isVyvaTask
+        ? "waiting"
+        : "active",
+    action: isWaitingForProvider
+      ? "reply"
+      : item.status === "pending"
+      ? (!detailsReady || isVyvaTask ? "details" : "confirm")
+      : undefined,
+    actionLabel: isWaitingForProvider
+      ? (isSpanish ? "Registrar" : "Record")
+      : item.status === "pending"
+      ? (!detailsReady || isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
+      : undefined,
+  });
+
+  return {
+    title: isSpanish ? "Que falta" : "What is missing",
+    helper: isSpanish
+      ? "VYVA no envia, llama ni reserva sin tu OK."
+      : "VYVA asks before anything is sent, called, or booked.",
+    items,
+  };
+}
+
+function activeTaskChecklistStateClasses(state: ActiveTaskChecklistItemState): string {
+  switch (state) {
+    case "done":
+      return "border-[#BBF7D0] bg-[#F8FFFC] text-[#047857]";
+    case "needed":
+      return "border-[#FED7AA] bg-[#FFF7ED] text-[#9A3412]";
+    case "waiting":
+      return "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]";
+    case "warning":
+      return "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]";
+    case "active":
+    default:
+      return "border-[#DDD6FE] bg-white text-vyva-purple";
+  }
+}
+
+function ActiveTaskChecklistPanel({
+  checklist,
+  onAction,
+}: {
+  checklist: ActiveTaskChecklist;
+  onAction: (action: ActiveTaskChecklistAction) => void;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[18px] border border-vyva-border bg-white p-3"
+      data-testid="panel-concierge-flow-checklist"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-text-2">
+            {checklist.title}
+          </p>
+          <p className="mt-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {checklist.helper}
+          </p>
+        </div>
+        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#047857]">
+          <ShieldCheck size={15} aria-hidden="true" />
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {checklist.items.map((item) => {
+          const contents = (
+            <>
+            <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] opacity-80">
+              {item.label}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-black leading-tight text-vyva-text-1">
+              {item.value}
+            </p>
+            {item.action && item.actionLabel ? (
+              <span className="mt-2 inline-flex rounded-full bg-white/80 px-2.5 py-1 font-body text-[11px] font-black text-current shadow-sm">
+                {item.actionLabel}
+              </span>
+            ) : null}
+            </>
+          );
+          const className = `min-h-[58px] rounded-[14px] border px-3 py-2 text-left transition ${
+            activeTaskChecklistStateClasses(item.state)
+          }`;
+          if (item.action) {
+            return (
+              <button
+                key={item.key}
+                type="button"
+                data-state={item.state}
+                data-testid={`button-concierge-checklist-${item.key}`}
+                onClick={() => onAction(item.action as ActiveTaskChecklistAction)}
+                className={`${className} vyva-tap`}
+              >
+                {contents}
+              </button>
+            );
+          }
+          return (
+            <div
+              key={item.key}
+              data-state={item.state}
+              className={className}
+            >
+              {contents}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function PendingActionReviewCard({
@@ -4248,6 +4654,192 @@ function providerSearchActionDetails(item: ConciergePendingItem, isSpanish: bool
   };
 }
 
+type ProviderRecoverySearchPlan = {
+  mode: ProviderSearchMode;
+  query: string;
+  criteria: ProviderSearchCriterionKey[];
+  notice: string;
+};
+
+function providerRecoveryModeFromCategory(category: ConciergeProviderCategoryId): ProviderSearchMode {
+  if (category === "transport") return "transport";
+  if (category === "pharmacy") return "pharmacy";
+  if (category === "home_service") return "home-service";
+  if (category === "doctor_clinic") return "specialist";
+  if (category === "personal_care") return "personal-care";
+  return "care";
+}
+
+function providerUnavailableRecoveryPlan(item: ConciergePendingItem, isSpanish: boolean): ProviderRecoverySearchPlan {
+  const payload = item.action_payload;
+  const failedProvider = providerSearchProviderName(item, isSpanish) || item.provider_name?.trim() || "";
+  const avoidLine = failedProvider
+    ? (isSpanish ? `Evita este proveedor: ${failedProvider}.` : `Avoid this provider: ${failedProvider}.`)
+    : "";
+  const safeEnd = isSpanish
+    ? "Prepara opciones verificables. No contactes, reserves ni compartas datos sin mi confirmacion."
+    : "Prepare verifiable options. Do not contact, book, or share details without my confirmation.";
+
+  if (item.use_case === "book_ride") {
+    const destination = payloadString(payload, ["destination_address", "destination", "dropoff_address", "to"]);
+    const pickup = payloadString(payload, ["pickup_address", "pickup", "start_location", "origin_address", "from"]);
+    const requestedTime = payloadString(payload, ["requested_time", "scheduled_for", "scheduled_time", "time"]);
+    const mobilityNeeds = stringList(payload?.mobility_needs).join(", ");
+    const query = isSpanish
+      ? [
+        "Busca otro transporte para este viaje.",
+        destination ? `Destino: ${destination}.` : "",
+        pickup ? `Recogida: ${pickup}.` : "",
+        requestedTime ? `Hora: ${requestedTime}.` : "",
+        mobilityNeeds ? `Ayuda necesaria: ${mobilityNeeds}.` : "",
+        avoidLine,
+        "Prioriza cercania, disponibilidad, precio claro y acceso facil.",
+        safeEnd,
+      ].filter(Boolean).join(" ")
+      : [
+        "Find another transport option for this ride.",
+        destination ? `Destination: ${destination}.` : "",
+        pickup ? `Pickup: ${pickup}.` : "",
+        requestedTime ? `Time: ${requestedTime}.` : "",
+        mobilityNeeds ? `Help needed: ${mobilityNeeds}.` : "",
+        avoidLine,
+        "Prioritize proximity, availability, clear price, and easy access.",
+        safeEnd,
+      ].filter(Boolean).join(" ");
+    return {
+      mode: "transport",
+      query,
+      criteria: ["nearby", "available-soon", "accessible", "clear-price", "reputation"],
+      notice: isSpanish ? "Busqueda de transporte preparada con los mismos detalles." : "Transport search prepared with the same details.",
+    };
+  }
+
+  if (item.use_case === "order_medicine") {
+    const itemText = payloadString(payload, ["item_text", "items", "item", "product_name", "medicine_name"]);
+    const fulfillment = payloadString(payload, ["fulfillment_preference", "fulfillment", "delivery_preference"]);
+    const requestedTime = payloadString(payload, ["requested_time", "scheduled_for", "scheduled_time", "time"]);
+    const notes = payloadString(payload, ["notes", "note", "brand", "quantity", "special_requests"]);
+    const query = isSpanish
+      ? [
+        "Busca otra farmacia para producto sin receta.",
+        itemText ? `Producto: ${itemText}.` : "",
+        fulfillment ? `Preferencia: ${fulfillment}.` : "",
+        requestedTime ? `Cuando: ${requestedTime}.` : "",
+        notes ? `Notas: ${notes}.` : "",
+        avoidLine,
+        "Prioriza stock, entrega o recogida clara, cercania y precio claro.",
+        safeEnd,
+      ].filter(Boolean).join(" ")
+      : [
+        "Find another pharmacy for an over-the-counter item.",
+        itemText ? `Item: ${itemText}.` : "",
+        fulfillment ? `Preference: ${fulfillment}.` : "",
+        requestedTime ? `When: ${requestedTime}.` : "",
+        notes ? `Notes: ${notes}.` : "",
+        avoidLine,
+        "Prioritize stock, clear delivery or pickup, proximity, and clear price.",
+        safeEnd,
+      ].filter(Boolean).join(" ");
+    return {
+      mode: "pharmacy",
+      query,
+      criteria: ["nearby", "available-soon", "clear-price", "reputation"],
+      notice: isSpanish ? "Busqueda de farmacia preparada con el producto original." : "Pharmacy search prepared with the original item.",
+    };
+  }
+
+  if (isHomeServicePendingAction(item)) {
+    const serviceType = payloadString(payload, ["service_type", "service_label", "provider_type", "issue_type", "service_needed"]);
+    const problem = payloadString(payload, ["problem_summary", "issue_summary", "service_needed", "reason", "detail"]);
+    const urgency = payloadString(payload, ["urgency", "priority", "requested_time"]);
+    const location = payloadString(payload, ["location", "address", "home_address"]);
+    const query = isSpanish
+      ? [
+        "Busca otro proveedor de servicio en casa.",
+        serviceType ? `Tipo: ${serviceType}.` : "",
+        problem ? `Problema: ${problem}.` : "",
+        urgency ? `Urgencia: ${urgency}.` : "",
+        location ? `Lugar: ${location}.` : "",
+        avoidLine,
+        "Prioriza disponibilidad, buenas opiniones, precio claro y facilidad para personas mayores.",
+        safeEnd,
+      ].filter(Boolean).join(" ")
+      : [
+        "Find another home-service provider.",
+        serviceType ? `Type: ${serviceType}.` : "",
+        problem ? `Problem: ${problem}.` : "",
+        urgency ? `Urgency: ${urgency}.` : "",
+        location ? `Location: ${location}.` : "",
+        avoidLine,
+        "Prioritize availability, good reputation, clear price, and senior-friendly service.",
+        safeEnd,
+      ].filter(Boolean).join(" ");
+    return {
+      mode: "home-service",
+      query,
+      criteria: ["available-soon", "reputation", "clear-price", "accessible"],
+      notice: isSpanish ? "Busqueda de servicio preparada con el problema original." : "Home-service search prepared with the original problem.",
+    };
+  }
+
+  if (item.use_case === "book_appointment") {
+    const reason = payloadString(payload, ["appointment_reason", "reason", "detail", "notes"]);
+    const appointmentType = payloadString(payload, ["appointment_type", "type"]);
+    const requestedTime = payloadString(payload, ["requested_time", "preferred_time", "scheduled_for", "time"]);
+    const location = payloadString(payload, ["location", "address", "area"]);
+    const query = isSpanish
+      ? [
+        "Busca otro medico o clinica para esta cita.",
+        appointmentType ? `Tipo: ${appointmentType}.` : "",
+        reason ? `Motivo: ${reason}.` : "",
+        requestedTime ? `Preferencia de hora: ${requestedTime}.` : "",
+        location ? `Zona: ${location}.` : "",
+        avoidLine,
+        "Prioriza cercania, reputacion, acceso, disponibilidad y cobertura si aplica.",
+        safeEnd,
+      ].filter(Boolean).join(" ")
+      : [
+        "Find another doctor or clinic for this appointment.",
+        appointmentType ? `Type: ${appointmentType}.` : "",
+        reason ? `Reason: ${reason}.` : "",
+        requestedTime ? `Preferred time: ${requestedTime}.` : "",
+        location ? `Area: ${location}.` : "",
+        avoidLine,
+        "Prioritize proximity, reputation, access, availability, and coverage if relevant.",
+        safeEnd,
+      ].filter(Boolean).join(" ");
+    return {
+      mode: "specialist",
+      query,
+      criteria: ["nearby", "reputation", "accessible", "available-soon", "coverage"],
+      notice: isSpanish ? "Busqueda de cita alternativa preparada." : "Alternative appointment search prepared.",
+    };
+  }
+
+  const details = providerSearchActionDetails(item, isSpanish);
+  const query = isSpanish
+    ? [
+      `Busca otra opcion parecida a ${details.providerName}.`,
+      `Categoria: ${details.categoryLabel}.`,
+      details.criteria ? `Mantener criterios: ${details.criteria}.` : "Prioriza cercania, reputacion, acceso y precio claro.",
+      avoidLine,
+      safeEnd,
+    ].filter(Boolean).join(" ")
+    : [
+      `Find another option similar to ${details.providerName}.`,
+      `Category: ${details.categoryLabel}.`,
+      details.criteria ? `Keep criteria: ${details.criteria}.` : "Prioritize proximity, reputation, access, and clear price.",
+      avoidLine,
+      safeEnd,
+    ].filter(Boolean).join(" ");
+  return {
+    mode: providerRecoveryModeFromCategory(details.category),
+    query,
+    criteria: DEFAULT_PROVIDER_SEARCH_CRITERIA,
+    notice: isSpanish ? "Busqueda alternativa preparada." : "Alternative search prepared.",
+  };
+}
+
 function ConciergeActionTimeline({ status }: { status: ConciergeFollowThroughStatus }) {
   return (
     <div
@@ -4402,6 +4994,7 @@ const ConciergeScreen = () => {
   const lastRoutePrefillKeyRef = useRef<string | null>(null);
   const lastCompletedTemplateKeyRef = useRef<string | null>(null);
   const lastProviderRouteActionKeyRef = useRef<string | null>(null);
+  const lastTrustedProviderSavedKeyRef = useRef<string | null>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
@@ -4444,6 +5037,7 @@ const ConciergeScreen = () => {
   });
   const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
   const [routePrefillError, setRoutePrefillError] = useState<string | null>(null);
+  const [trustedProviderResume, setTrustedProviderResume] = useState<TrustedProviderSavedRoute | null>(null);
   const [transportPickup, setTransportPickup] = useState("");
   const [transportDestination, setTransportDestination] = useState("");
   const [transportTime, setTransportTime] = useState("now");
@@ -4648,32 +5242,60 @@ const ConciergeScreen = () => {
   const hasTransportDestination = transportDestination.trim().length > 0;
   const canFindTransportOptions = hasSavedTransportProvider && hasTransportDestination;
   const openTransportProviderSetup = useCallback(() => {
+    const message = routePrefill?.kind === "ride" && routePrefill.message.trim()
+      ? routePrefill.message
+      : (isSpanish
+        ? "Ayudame a preparar transporte seguro. Preguntame destino, recogida y hora antes de reservar."
+        : "Help me prepare safe transport. Ask for destination, pickup, and time before booking.");
     navigate("/onboarding/profile/providers", {
       state: {
         returnTo: "/concierge",
         setupFocus: TRANSPORT_SETUP_FOCUS,
         setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
         setupReason: "Add a saved transport provider",
+        conciergeResume: {
+          kind: "transport",
+          message,
+          pickup: transportPickup.trim() || savedTransportPickupLabel,
+          destination: transportDestination.trim(),
+          time: transportTime.trim() || "now",
+          mobilityNeeds: transportMobilityNeeds,
+        },
         notice: isSpanish
           ? "Guarda un taxi o transporte preferido para usarlo primero."
           : "Save a preferred taxi or transport provider to check first.",
       },
     });
-  }, [isSpanish, navigate]);
+  }, [
+    isSpanish,
+    navigate,
+    routePrefill,
+    savedTransportPickupLabel,
+    transportDestination,
+    transportMobilityNeeds,
+    transportPickup,
+    transportTime,
+  ]);
   const canPrepareOtcPharmacy = hasSavedPharmacy && otcItemText.trim().length > 0;
   const openMedicalProviderSetup = useCallback(() => {
+    const appointmentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? "medical";
     navigate("/onboarding/profile/providers", {
       state: {
         returnTo: "/concierge",
         setupFocus: MEDICAL_APPOINTMENT_SETUP_FOCUS,
         setupFlow: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
         setupReason: "Add a saved doctor or clinic",
+        conciergeResume: {
+          kind: "medical_appointment",
+          appointmentType,
+          note: appointmentNote.trim(),
+        },
         notice: isSpanish
           ? "Guarda un medico o clinica de confianza para usarlo primero."
           : "Save a trusted doctor or clinic so VYVA can use it first.",
       },
     });
-  }, [isSpanish, navigate]);
+  }, [appointmentNote, appointmentRequest?.appointment_type, isSpanish, navigate, selectedAppointmentChip?.key]);
   const canSaveOtcOutcome = Boolean(otcPreparedResult?.pendingId)
     && (
       otcOutcomeForm.availability.trim().length > 0
@@ -5616,6 +6238,25 @@ const ConciergeScreen = () => {
     }, 80);
     return () => window.clearTimeout(timer);
   }, [location.state]);
+
+  useEffect(() => {
+    const routeState = location.state as ConciergeLocationState;
+    const savedProvider = coerceTrustedProviderSavedRoute(routeState?.trustedProviderSaved);
+    if (!savedProvider) {
+      if (routeState?.trustedProviderSaved) {
+        navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      }
+      return;
+    }
+
+    const resumeKey = `${savedProvider.category}:${savedProvider.name}`;
+    if (lastTrustedProviderSavedKeyRef.current === resumeKey) return;
+    lastTrustedProviderSavedKeyRef.current = resumeKey;
+    setTrustedProviderResume(savedProvider);
+    void queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    setIsRightNowHidden(false);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate, queryClient]);
 
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -6594,6 +7235,153 @@ const ConciergeScreen = () => {
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
+  function openProviderSetupForPendingAction(item: ConciergePendingItem) {
+    if (isProviderSearchPendingAction(item)) {
+      handleSaveProviderSearchProvider(item);
+      return;
+    }
+
+    const payload = item.action_payload;
+    const message = payloadString(payload, ["draft_message", "message", "reason", "detail"]) || item.action_summary;
+
+    if (item.use_case === "book_ride") {
+      navigate("/onboarding/profile/providers", {
+        state: {
+          returnTo: "/concierge",
+          setupFocus: TRANSPORT_SETUP_FOCUS,
+          setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
+          setupReason: "Add a saved transport provider",
+          conciergeResume: {
+            kind: "transport",
+            message,
+            pickup: payloadString(payload, ["pickup_address", "pickup"]) || savedTransportPickupLabel,
+            destination: payloadString(payload, ["destination_address", "destination"]),
+            time: payloadString(payload, ["requested_time", "time"]) || "now",
+            mobilityNeeds: stringList(payload?.mobility_needs),
+          },
+          notice: isSpanish
+            ? "Guarda un taxi o transporte preferido. VYVA seguira pidiendo tu OK antes de reservar."
+            : "Save a preferred taxi or transport provider. VYVA will still ask for your OK before booking.",
+        },
+      });
+      return;
+    }
+
+    if (item.use_case === "order_medicine") {
+      const fulfillment = payloadString(payload, ["fulfillment_preference"]).toLowerCase();
+      navigate("/onboarding/profile/providers", {
+        state: {
+          returnTo: "/concierge",
+          setupFocus: OTC_PHARMACY_SETUP_FOCUS,
+          setupFlow: OTC_PHARMACY_FLOW_REFERENCE,
+          setupReason: "Add a saved pharmacy",
+          conciergeResume: {
+            kind: "otc_pharmacy",
+            itemText: payloadString(payload, ["item_text", "items", "item"]),
+            fulfillmentPreference: fulfillment.includes("pickup") || fulfillment.includes("collect") ? "pickup" : "delivery",
+            requestedTime: payloadString(payload, ["requested_time", "time"]) || "today",
+            notes: payloadString(payload, ["notes", "note"]),
+          },
+          notice: isSpanish
+            ? "Guarda una farmacia para usarla primero con productos sin receta."
+            : "Save a pharmacy so VYVA can use it first for over-the-counter items.",
+        },
+      });
+      return;
+    }
+
+    if (item.use_case === "book_appointment" || isHomeServicePendingAction(item)) {
+      const isHomeService = isHomeServicePendingAction(item);
+      const serviceType = isHomeService
+        ? normalizeHomeServiceType(payloadString(payload, ["service_type", "service_label", "service_needed"]) || message)
+        : null;
+      const answers: Record<string, string> = {};
+      const urgency = payloadString(payload, ["urgency", "priority"]);
+      const problem = payloadString(payload, ["problem_summary", "service_needed", "reason"]);
+      if (urgency) answers.urgency = urgency;
+      if (problem) answers.problem_summary = problem;
+
+      navigate("/onboarding/profile/providers", {
+        state: {
+          returnTo: "/concierge",
+          setupFocus: isHomeService ? "home_service" : MEDICAL_APPOINTMENT_SETUP_FOCUS,
+          setupFlow: isHomeService ? CONCIERGE_FLOW_REFERENCES.homeService : MEDICAL_APPOINTMENT_FLOW_REFERENCE,
+          setupReason: isHomeService ? "Add a saved home service provider" : "Add a saved doctor or clinic",
+          conciergeResume: isHomeService
+            ? {
+              kind: "home_service",
+              serviceType,
+              origin: "app",
+              note: payloadString(payload, ["problem_summary", "service_needed", "reason"]) || message,
+              answers,
+              textDrafts: answers,
+            }
+            : {
+              kind: "medical_appointment",
+              appointmentType: "medical",
+              note: payloadString(payload, ["reason", "detail", "appointment_reason"]) || message,
+            },
+          notice: isHomeService
+            ? (isSpanish
+              ? "Guarda un proveedor de casa de confianza. VYVA pedira confirmacion antes de contactar."
+              : "Save a trusted home service provider. VYVA will ask before contacting.")
+            : (isSpanish
+              ? "Guarda un medico o clinica de confianza. VYVA pedira confirmacion antes de contactar."
+              : "Save a trusted doctor or clinic. VYVA will ask before contacting."),
+        },
+      });
+      return;
+    }
+
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: "other",
+        setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+        setupReason: "Add a trusted provider",
+        conciergeResume: {
+          kind: "generic",
+          message,
+        },
+        notice: isSpanish
+          ? "Guarda el proveedor de confianza. VYVA seguira pidiendo tu OK antes de contactar."
+          : "Save the trusted provider. VYVA will still ask for your OK before contacting.",
+      },
+    });
+  }
+
+  function handleActiveChecklistAction(action: ActiveTaskChecklistAction) {
+    if (!activeAction) return;
+    setIsRightNowHidden(false);
+
+    if (action === "details" || action === "contact") {
+      handleChangePendingAction(activeAction);
+      return;
+    }
+
+    if (action === "provider") {
+      openProviderSetupForPendingAction(activeAction);
+      return;
+    }
+
+    if (action === "reply") {
+      if (activeActionCanRecordProviderReply) {
+        openProviderReplyMode(activeAction, "confirmed");
+      } else {
+        handleProviderFollowUp(activeAction);
+      }
+      return;
+    }
+
+    if (action === "confirm") {
+      if (activeAction.status === "pending" && !activeActionIsVyvaTask) {
+        confirmMutation.mutate(activeAction);
+      } else {
+        handleChangePendingAction(activeAction);
+      }
+    }
+  }
+
   function updateProviderReplyForm(field: keyof ProviderReplyForm, value: string) {
     setProviderReplyForm((current) => ({ ...current, [field]: value }));
   }
@@ -6619,11 +7407,16 @@ const ConciergeScreen = () => {
   }
 
   function handleProviderUnavailable(item: ConciergePendingItem) {
+    const recovery = providerUnavailableRecoveryPlan(item, isSpanish);
     setProviderReplyMode(null);
     setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
     setProviderReplyError(null);
-    setProviderReplyNotice(isSpanish ? "Puedes cambiar el proveedor o los detalles." : "You can change the provider or details.");
-    handleChangePendingAction(item);
+    setProviderReplyNotice(recovery.notice);
+    setIsRightNowHidden(false);
+    openProviderSearchPanel(recovery.mode, recovery.query);
+    setProviderSearchCriteria(recovery.criteria);
+    setInput(recovery.query);
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
   function handleProviderNeedMoreInfo(item: ConciergePendingItem) {
@@ -6646,6 +7439,12 @@ const ConciergeScreen = () => {
         setupFocus: details.category,
         setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
         setupReason: "Save provider from Concierge",
+        conciergeResume: {
+          kind: "generic",
+          message: isSpanish
+            ? `Continua preparando el contacto con ${details.providerName}. Criterios: ${details.criteria || "seguridad y ajuste"}.`
+            : `Continue preparing contact with ${details.providerName}. Criteria: ${details.criteria || "safety and fit"}.`,
+        },
         providerPrefill: {
           name: details.providerName,
           category: details.category,
@@ -7018,11 +7817,163 @@ const ConciergeScreen = () => {
         setupFocus: providerSearchSetupFocus(providerSearchMode),
         setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
         setupReason: "Add a trusted provider",
+        conciergeResume: {
+          kind: "provider_search",
+          mode: providerSearchMode,
+          query: offersQuery.trim(),
+          criteria: providerSearchCriteria,
+        },
         notice: isSpanish
           ? "Guarda un proveedor de confianza para que VYVA pueda usarlo primero."
           : "Save a trusted provider so VYVA can use it first.",
       },
     });
+  }
+
+  const trustedProviderResumeMeta = trustedProviderResume
+    ? {
+        categoryLabel: providerSearchCategoryLabel(trustedProviderResume.category, isSpanish),
+        primaryLabel: trustedProviderResume.category === "transport"
+          ? (isSpanish ? "Continuar viaje" : "Continue ride")
+          : trustedProviderResume.category === "pharmacy"
+            ? (isSpanish ? "Continuar farmacia" : "Continue pharmacy")
+            : trustedProviderResume.category === "doctor_clinic"
+              ? (isSpanish ? "Continuar cita" : "Continue appointment")
+              : trustedProviderResume.category === "home_service"
+                ? (isSpanish ? "Continuar servicio" : "Continue service")
+                : (isSpanish ? "Continuar" : "Continue"),
+        detail: trustedProviderResume.category === "transport"
+          ? (isSpanish ? "Ahora VYVA puede preguntar destino y hora." : "VYVA can now ask for destination and time.")
+          : trustedProviderResume.category === "pharmacy"
+            ? (isSpanish ? "Ahora VYVA puede preparar productos sin receta." : "VYVA can now prepare non-prescription items.")
+            : trustedProviderResume.category === "doctor_clinic"
+              ? (isSpanish ? "Ahora VYVA puede preparar la solicitud de cita." : "VYVA can now prepare the appointment request.")
+              : trustedProviderResume.category === "home_service"
+                ? (isSpanish ? "Ahora VYVA puede preparar el servicio en casa." : "VYVA can now prepare the home service.")
+                : (isSpanish ? "VYVA lo usara primero si encaja." : "VYVA will use this first when it fits."),
+      }
+    : null;
+
+  function continueTrustedProviderResume() {
+    if (!trustedProviderResume) return;
+    const { name, category, conciergeResume } = trustedProviderResume;
+    setTrustedProviderResume(null);
+
+    if (conciergeResume?.kind === "transport") {
+      const message = conciergeResume.message?.trim()
+        || (isSpanish
+          ? `Usa ${name} como proveedor de transporte de confianza. Confirma destino, recogida y hora antes de reservar.`
+          : `Use ${name} as my trusted transport provider. Confirm destination, pickup, and time before booking.`);
+      setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
+      setInput((current) => current.trim() ? current : message);
+      clearAppointmentAssistantState();
+      setInsuranceAdminOpen(false);
+      setScamCheckOpen(false);
+      setOtcPharmacyOpen(false);
+      setTransportPickup(conciergeResume.pickup?.trim() || savedTransportPickupLabel);
+      setTransportDestination(conciergeResume.destination?.trim() || "");
+      setTransportTime(conciergeResume.time?.trim() || "now");
+      setTransportMobilityNeeds(conciergeResume.mobilityNeeds ?? []);
+      setTransportResult(null);
+      setTransportError(null);
+      setTransportNotice(null);
+      resetTransportFinalReview();
+      setTransportDetailsOpen(true);
+      setOffersOpen(false);
+      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      return;
+    }
+
+    if (conciergeResume?.kind === "otc_pharmacy") {
+      openOtcPharmacyAssistant();
+      setOtcItemText(conciergeResume.itemText?.trim() || "");
+      setOtcFulfillmentPreference(conciergeResume.fulfillmentPreference ?? "delivery");
+      setOtcRequestedTime(conciergeResume.requestedTime?.trim() || "today");
+      setOtcNotes(conciergeResume.notes?.trim() || "");
+      setOtcNotice(isSpanish
+        ? `${name} guardado. Continua con el producto sin receta.`
+        : `${name} saved. Continue with the non-prescription item.`);
+      return;
+    }
+
+    if (conciergeResume?.kind === "medical_appointment") {
+      openScheduleAssistant(conciergeResume.appointmentType ?? "medical");
+      setAppointmentNote(conciergeResume.note?.trim() || (isSpanish
+        ? `Usa ${name} como proveedor medico de confianza. Preguntame motivo y horario preferido antes de preparar la solicitud.`
+        : `Use ${name} as my trusted medical provider. Ask me for reason and preferred time before preparing the request.`));
+      return;
+    }
+
+    if (conciergeResume?.kind === "home_service") {
+      openHomeServiceAssistant();
+      setHomeServiceIntakeOrigin(conciergeResume.origin ?? "app");
+      setHomeServiceType(conciergeResume.serviceType ?? null);
+      setHomeServiceIntakeAnswers(conciergeResume.answers ?? {});
+      setHomeServiceTextDrafts(conciergeResume.textDrafts ?? conciergeResume.answers ?? {});
+      setAppointmentNote(conciergeResume.note?.trim() || (isSpanish
+        ? `Usa ${name} como proveedor de servicio en casa de confianza. Preguntame el problema, urgencia y horario preferido.`
+        : `Use ${name} as my trusted home-service provider. Ask me for the problem, urgency, and preferred time.`));
+      return;
+    }
+
+    if (conciergeResume?.kind === "provider_search") {
+      const mode = conciergeResume.mode
+        ?? (category === "doctor_clinic" ? "specialist" : category === "personal_care" ? "personal-care" : null);
+      if (mode) {
+        openProviderSearchPanel(mode, conciergeResume.query?.trim() || (isSpanish ? `usar ${name}` : `use ${name}`));
+        if (conciergeResume.criteria?.length) {
+          setProviderSearchCriteria(conciergeResume.criteria);
+        }
+        return;
+      }
+    }
+
+    if (conciergeResume?.kind === "generic" && conciergeResume.message?.trim()) {
+      prepareConciergeRequest(conciergeResume.message);
+      return;
+    }
+
+    if (category === "transport") {
+      prepareRideRequest(isSpanish
+        ? `Usa ${name} como proveedor de transporte de confianza. Preguntame destino, recogida y hora. No reserves sin mi confirmacion.`
+        : `Use ${name} as my trusted transport provider. Ask me for destination, pickup, and time. Do not book without my confirmation.`);
+      return;
+    }
+
+    if (category === "pharmacy") {
+      openOtcPharmacyAssistant();
+      setOtcNotice(isSpanish
+        ? `${name} guardado. Dime que producto sin receta necesitas.`
+        : `${name} saved. Tell me which non-prescription item you need.`);
+      return;
+    }
+
+    if (category === "doctor_clinic") {
+      openScheduleAssistant("medical");
+      setAppointmentNote(isSpanish
+        ? `Usa ${name} como proveedor medico de confianza. Preguntame motivo y horario preferido antes de preparar la solicitud.`
+        : `Use ${name} as my trusted medical provider. Ask me for reason and preferred time before preparing the request.`);
+      return;
+    }
+
+    if (category === "home_service") {
+      openHomeServiceAssistant();
+      setAppointmentNote(isSpanish
+        ? `Usa ${name} como proveedor de servicio en casa de confianza. Preguntame el problema, urgencia y horario preferido.`
+        : `Use ${name} as my trusted home-service provider. Ask me for the problem, urgency, and preferred time.`);
+      return;
+    }
+
+    if (category === "personal_care") {
+      openProviderSearchPanel("personal-care", isSpanish
+        ? `usar proveedor guardado ${name}`
+        : `use saved provider ${name}`);
+      return;
+    }
+
+    prepareConciergeRequest(isSpanish
+      ? `He guardado ${name} como proveedor de confianza (${providerSearchCategoryLabel(category, true)}). Ayudame a usarlo para la solicitud correcta y pideme confirmacion antes de contactar.`
+      : `I saved ${name} as a trusted provider (${providerSearchCategoryLabel(category, false)}). Help me use it for the right request and ask me to confirm before contacting.`);
   }
 
   function handleOfferWatch(option: OfferOption) {
@@ -7160,6 +8111,13 @@ const ConciergeScreen = () => {
       isSpanish,
       nextStepLabel: activeActionNextStepLabel,
       nextStepHelper: activeActionNextStepHelper,
+    })
+    : null;
+  const activeActionChecklist = activeAction && activeActionLabelParams
+    ? buildActiveTaskChecklist({
+      ...activeActionLabelParams,
+      nextStepLabel: activeActionNextStepLabel,
+      timeline: activeActionTimeline,
     })
     : null;
   const activeActionPrimaryIcon: LucideIcon = activeActionOpensWhatsApp
@@ -7301,6 +8259,27 @@ const ConciergeScreen = () => {
       setOtcItemText("");
     }
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  function openOtcPharmacyProviderSetup() {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: OTC_PHARMACY_SETUP_FOCUS,
+        setupFlow: OTC_PHARMACY_FLOW_REFERENCE,
+        setupReason: "Add a saved pharmacy",
+        conciergeResume: {
+          kind: "otc_pharmacy",
+          itemText: otcItemText.trim(),
+          fulfillmentPreference: otcFulfillmentPreference,
+          requestedTime: otcRequestedTime.trim() || "today",
+          notes: otcNotes.trim(),
+        },
+        notice: isSpanish
+          ? "Anade una farmacia guardada antes de pedir ayuda con productos sin receta."
+          : "Add a saved pharmacy before asking for help with over-the-counter items.",
+      },
+    });
   }
 
   const conciergeMasterCards: MasterDashboardCard[] = [
@@ -7504,6 +8483,50 @@ const ConciergeScreen = () => {
       cards={conciergeMasterCards}
       fastHelpActions={conciergeMasterFastHelpActions}
     >
+      {trustedProviderResume && trustedProviderResumeMeta && (
+        <section
+          className="order-[12] mt-4 rounded-[26px] border border-[#BBF7D0] bg-[#F0FDF4] p-4 shadow-[0_16px_36px_rgba(4,120,87,0.10)]"
+          data-testid="panel-concierge-provider-resume"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#047857] shadow-sm">
+                <CircleCheck size={23} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#047857]">
+                  {isSpanish ? "Proveedor guardado" : "Provider saved"}
+                </p>
+                <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
+                  {trustedProviderResume.name}
+                </h2>
+                <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                  {trustedProviderResumeMeta.categoryLabel} - {trustedProviderResumeMeta.detail}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:min-w-[260px] sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={continueTrustedProviderResume}
+                className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[14px] font-black text-white"
+                data-testid="button-provider-resume-continue"
+              >
+                <Sparkles size={16} aria-hidden="true" />
+                {trustedProviderResumeMeta.primaryLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrustedProviderResume(null)}
+                className="vyva-tap inline-flex min-h-[46px] items-center justify-center rounded-full border border-[#BBF7D0] bg-white px-4 font-body text-[14px] font-black text-[#047857]"
+                data-testid="button-provider-resume-dismiss"
+              >
+                {isSpanish ? "Ahora no" : "Not now"}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {insuranceAdminOpen && (
         <section
@@ -7724,17 +8747,7 @@ const ConciergeScreen = () => {
               </div>
               <button
                 type="button"
-                onClick={() => navigate("/onboarding/profile/providers", {
-                  state: {
-                    returnTo: "/concierge",
-                    setupFocus: OTC_PHARMACY_SETUP_FOCUS,
-                    setupFlow: OTC_PHARMACY_FLOW_REFERENCE,
-                    setupReason: "Add a saved pharmacy",
-                    notice: isSpanish
-                      ? "Anade una farmacia guardada antes de pedir ayuda con productos sin receta."
-                      : "Add a saved pharmacy before asking for help with over-the-counter items.",
-                  },
-                })}
+                onClick={openOtcPharmacyProviderSetup}
                 className="vyva-tap inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-full bg-[#B45309] px-5 font-body text-[16px] font-black text-white"
                 data-testid="button-otc-pharmacy-setup"
               >
@@ -8733,6 +9746,13 @@ const ConciergeScreen = () => {
             </p>
 
             {activeActionTimeline ? <ConciergeActionTimeline status={activeActionTimeline} /> : null}
+
+            {activeActionChecklist ? (
+              <ActiveTaskChecklistPanel
+                checklist={activeActionChecklist}
+                onAction={handleActiveChecklistAction}
+              />
+            ) : null}
 
             {activeAction.status === "pending" && activeActionReviewSummary ? (
               <PendingActionReviewCard
