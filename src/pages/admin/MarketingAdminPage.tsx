@@ -5356,6 +5356,7 @@ export default function MarketingAdminPage() {
                 ) : null}
                 <MarketingCalendarView
                   campaigns={visibleCampaigns}
+                  contentTitleById={contentTitleById}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
                   confirmingDeleteId={confirmingCampaignDeleteId}
@@ -6263,7 +6264,19 @@ function CampaignTable({
   );
 }
 
-function MarketingCalendarView({ campaigns, onEdit, onDelete, confirmingDeleteId = null }: { campaigns: Campaign[]; onEdit: (campaign: Campaign) => void; onDelete: (campaign: Campaign) => void; confirmingDeleteId?: string | null }) {
+function MarketingCalendarView({
+  campaigns,
+  contentTitleById = new Map<string, string>(),
+  onEdit,
+  onDelete,
+  confirmingDeleteId = null,
+}: {
+  campaigns: Campaign[];
+  contentTitleById?: ReadonlyMap<string, string>;
+  onEdit: (campaign: Campaign) => void;
+  onDelete: (campaign: Campaign) => void;
+  confirmingDeleteId?: string | null;
+}) {
   const scheduledCampaigns = [...campaigns]
     .filter((campaign) => campaign.scheduleStartsAt)
     .sort((a, b) => new Date(a.scheduleStartsAt ?? 0).getTime() - new Date(b.scheduleStartsAt ?? 0).getTime());
@@ -6310,12 +6323,21 @@ function MarketingCalendarView({ campaigns, onEdit, onDelete, confirmingDeleteId
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="grid gap-1.5">
                       {campaign.channels.length === 0 ? (
                         <span className="text-xs font-bold text-[#8b7a73]">No channels</span>
-                      ) : campaign.channels.map((item) => (
-                        <Pill key={item.id} className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                      ))}
+                      ) : campaign.channels.map((item) => {
+                        const contentTitle = item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "";
+                        const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
+                        return (
+                          <div key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-calendar-channel-link-${item.id}`}>
+                            <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                            <span className={`max-w-[260px] truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
+                              {contentLabel}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button type="button" onClick={() => onEdit(campaign)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-calendar-edit-${campaign.id}`}>
@@ -6359,6 +6381,22 @@ function MarketingCalendarView({ campaigns, onEdit, onDelete, confirmingDeleteId
               <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
               <Pill className="bg-purple-50 text-purple-700">{campaign.audienceType.toUpperCase()}</Pill>
             </span>
+            {campaign.channels.length ? (
+              <span className="mt-2 grid gap-1">
+                {campaign.channels.slice(0, 3).map((item) => {
+                  const contentTitle = item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "";
+                  const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
+                  return (
+                    <span key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-calendar-unscheduled-channel-link-${item.id}`}>
+                      <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                      <span className={`truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
+                        {contentLabel}
+                      </span>
+                    </span>
+                  );
+                })}
+              </span>
+            ) : null}
           </button>
         ))}
       </aside>

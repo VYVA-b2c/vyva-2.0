@@ -913,7 +913,9 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-calendar-timeline")).toHaveTextContent("1 scheduled");
+    expect(screen.getByTestId("marketing-calendar-channel-link-channel-1")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-calendar-unscheduled-channel-link-channel-2")).toHaveTextContent("No content linked");
 
     fireEvent.click(screen.getByTestId("button-marketing-calendar-edit-campaign-1"));
 
