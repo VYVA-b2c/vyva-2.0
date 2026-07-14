@@ -2486,6 +2486,11 @@ describe("MarketingAdminPage", () => {
   });
 
   it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -2524,6 +2529,12 @@ describe("MarketingAdminPage", () => {
     expect(linkedinHandoffBrief.value).toContain("CTA: Read more - https://v2.vyva.life/partners");
     expect(linkedinHandoffBrief.value).toContain("Media:\n- https://cdn.example.test/partner.png");
     expect(linkedinHandoffBrief.value).toContain("Lovable content ID: lovable-content-2");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-handoff-brief-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Channel: LinkedIn"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Copy:\nPartner update"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("LinkedIn handoff brief copied.");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin"));
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));

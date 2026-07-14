@@ -7,6 +7,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
+  Copy,
   Eye,
   ExternalLink,
   FileText,
@@ -4194,6 +4195,7 @@ export default function MarketingAdminPage() {
   const [testEmailFeedback, setTestEmailFeedback] = useState("");
   const [campaignEmailSending, setCampaignEmailSending] = useState(false);
   const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
+  const [campaignHandoffCopyFeedback, setCampaignHandoffCopyFeedback] = useState("");
   const [dueEmailSending, setDueEmailSending] = useState(false);
   const [dueEmailFeedback, setDueEmailFeedback] = useState("");
   const [message, setMessage] = useState("");
@@ -6325,6 +6327,41 @@ export default function MarketingAdminPage() {
       setMessage(error instanceof Error ? error.message : "Campaign could not be deleted.");
     } finally {
       setCampaignSaving(false);
+    }
+  }
+
+  async function copyCampaignHandoffBrief(channel: Channel, brief: string) {
+    const channelName = channelLabel[channel];
+    if (!brief.trim()) {
+      const feedback = `${channelName} handoff brief is empty.`;
+      setCampaignHandoffCopyFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(brief);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = brief;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${channelName} handoff brief copied.`;
+      setCampaignHandoffCopyFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${channelName} handoff brief. Select the text and copy it manually.`;
+      setCampaignHandoffCopyFeedback(feedback);
+      setMessage(feedback);
     }
   }
 
@@ -8874,6 +8911,11 @@ export default function MarketingAdminPage() {
                           </div>
                           <Pill className="bg-purple-50 text-purple-800">{campaignPublishKitItems.length} channel{campaignPublishKitItems.length === 1 ? "" : "s"}</Pill>
                         </div>
+                        {campaignHandoffCopyFeedback ? (
+                          <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800" data-testid="marketing-campaign-handoff-copy-feedback">
+                            {campaignHandoffCopyFeedback}
+                          </p>
+                        ) : null}
                         <div className="mt-4 grid gap-3 xl:grid-cols-3">
                           {campaignPublishKitItems.map((item) => {
                             const Icon = item.icon;
@@ -8908,7 +8950,14 @@ export default function MarketingAdminPage() {
                                       <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                                         {item.channel === "email" ? "VYVA send brief" : "Manual channel brief"}
                                       </p>
-                                      <Pill className="bg-purple-50 text-purple-800">Copy-ready</Pill>
+                                      <button
+                                        type="button"
+                                        onClick={() => void copyCampaignHandoffBrief(item.channel, handoffBrief)}
+                                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 hover:bg-purple-100"
+                                        data-testid={`button-marketing-copy-handoff-brief-${item.channel}`}
+                                      >
+                                        <Copy size={14} /> Copy brief
+                                      </button>
                                     </div>
                                     <textarea
                                       readOnly
