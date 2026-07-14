@@ -261,7 +261,7 @@ function communityCardAccent(pulse: ParticipationPulseHomeSignal | null | undefi
 }
 
 function conciergeCardAccent(pending: ConciergePendingHomeSignal | null | undefined, t: HomeTranslate) {
-  const count = pending?.items?.length ?? 0;
+  const count = conciergeHomeItems(pending).length;
   if (count > 0) {
     return homeCountBadge(
       count,
