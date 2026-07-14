@@ -10299,11 +10299,11 @@ const ConciergeScreen = () => {
       id: "book-now",
       icon: Calendar,
       title: t("concierge.master.cards.bookNow", "Book Now"),
-      detail: t("concierge.master.cards.bookNowDetail", "Medical, government, ride"),
+      detail: t("concierge.master.cards.bookNowDetail", "Medical, government, personal care"),
       chips: [
         t("concierge.master.cards.bookNowChipMedical", "Medical"),
         t("concierge.master.cards.bookNowChipGovernment", "Government"),
-        t("concierge.master.cards.bookNowChipRide", "Ride"),
+        t("concierge.master.cards.bookNowChipPersonalCare", "Personal care"),
       ],
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => openScheduleAssistant(),
