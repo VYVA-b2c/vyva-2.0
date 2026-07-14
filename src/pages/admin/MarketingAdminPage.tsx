@@ -4859,6 +4859,9 @@ export default function MarketingAdminPage() {
   const contactRelationshipTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
     if (!selectedRelationshipContact) return [];
     const isB2bContact = selectedRelationshipContact.audienceType === "b2b" || Boolean(selectedRelationshipContact.companyName || selectedRelationshipContact.roleLabel);
+    const relationshipAudience: Audience = selectedRelationshipContact.audienceType === "both"
+      ? (isB2bContact ? "b2b" : "b2c")
+      : selectedRelationshipContact.audienceType;
     const contactTerms = [
       selectedRelationshipContact.fullName,
       selectedRelationshipContact.email,
@@ -4891,33 +4894,44 @@ export default function MarketingAdminPage() {
           template.ctaLabel,
         ].join(" "));
 
-        if (template.audienceType === selectedRelationshipContact.audienceType) {
-          score += 30;
-          addReason(`${template.audienceType.toUpperCase()} relationship match`);
+        if (template.audienceType === relationshipAudience) {
+          score += 36;
+          addReason(`${relationshipAudience.toUpperCase()} relationship match`);
         } else if (template.audienceType === "both" || selectedRelationshipContact.audienceType === "both") {
-          score += 18;
+          score += template.audienceType === "both" ? 22 : 8;
           addReason("Flexible audience fit");
         }
+        if (isB2bContact && template.audienceType === "b2c") score -= 14;
+        if (!isB2bContact && template.audienceType === "b2b") score -= 14;
 
         const directChannelReach = template.channel === "email"
           ? Boolean(selectedRelationshipContact.email)
           : template.channel === "whatsapp"
             ? Boolean(selectedRelationshipContact.whatsappNumber || selectedRelationshipContact.phoneNumber)
             : false;
-        const planningChannelReach = !directChannelReach && isB2bContact && template.channel === "linkedin";
-        const reachable = directChannelReach || planningChannelReach || Boolean(recipientForChannel(selectedRelationshipContact, template.channel));
+        const declaredChannelAvailability = selectedRelationshipContact.channelAvailability?.[template.channel] === true;
+        const planningChannelReach = !directChannelReach && (
+          declaredChannelAvailability
+          || (isB2bContact && (template.channel === "linkedin" || template.channel === "facebook"))
+          || (!isB2bContact && (template.channel === "facebook" || template.channel === "instagram" || template.channel === "tiktok"))
+        );
+        const reachable = directChannelReach || planningChannelReach;
         if (reachable) {
-          score += directChannelReach ? 24 : 16;
+          score += directChannelReach ? 28 : 12;
           addReason(`${channelLabel[template.channel]} ${directChannelReach ? "ready" : "planning"}`);
         }
 
+        if (lower(template.category).includes("partner") && isB2bContact) {
+          score += 20;
+          addReason("Partner-ready");
+        }
         if (contactTerms.some((term) => term && templateText.includes(term))) {
           score += 18;
           addReason("Uses relationship signals");
         }
-        if (lower(template.category).includes("partner") && isB2bContact) {
-          score += 14;
-          addReason("Partner-ready");
+        if (lower(template.category).includes("care") && !isB2bContact) {
+          score += 8;
+          addReason("Care context");
         }
         if (selectedRelationshipContact.market && templateText.includes(lower(selectedRelationshipContact.market))) {
           score += 8;

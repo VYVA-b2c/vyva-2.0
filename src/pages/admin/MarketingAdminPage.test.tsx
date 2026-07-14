@@ -962,6 +962,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-template-recommendations")).toHaveTextContent("Suggested templates");
     expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp partner proof nudge");
     expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp ready");
+    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("B2B relationship match");
+    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("Partner-ready");
+    expect(screen.queryByTestId("marketing-contact-template-linkedin-family-proof-article")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-marketing-use-contact-template-whatsapp-partner-proof-nudge"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Template "WhatsApp partner proof nudge" applied for Hassan Partner.');
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("WhatsApp partner proof nudge campaign");
