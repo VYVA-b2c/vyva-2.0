@@ -14,11 +14,18 @@ export type ConciergeFlowRequirementKey =
   | "service_type"
   | "urgency"
   | "home_access"
+  | "care_need"
+  | "care_type"
+  | "location_or_preference"
   | "source"
   | "concern"
+  | "risk_type"
+  | "location"
   | "document_or_task"
   | "recipient"
   | "deadline"
+  | "shopping_need"
+  | "shopping_context"
   | "goal"
   | "website_or_contact";
 
@@ -71,9 +78,23 @@ const REQUIREMENTS_BY_FLOW: Record<ConciergeFlowReference, ConciergeRequirementD
     { key: "urgency", labelEn: "Urgency", labelEs: "Urgencia", payloadKeys: ["urgency", "priority", "requested_time"] },
     { key: "home_access", labelEn: "Address or access", labelEs: "Direccion o acceso", payloadKeys: ["home_access_or_safety_notes", "access_notes", "home_address", "address", "location"] },
   ],
+  [CONCIERGE_FLOW_REFERENCES.shoppingSupport]: [
+    { key: "shopping_need", labelEn: "Shopping need", labelEs: "Necesidad de compra", payloadKeys: ["shopping_need", "item_text", "items", "draft_message", "message"], summaryFallback: true },
+    { key: "shopping_context", labelEn: "Context", labelEs: "Contexto", payloadKeys: ["category", "seller", "seller_site", "priority", "concern", "comparison_summary", "detail"], summaryFallback: true },
+  ],
+  [CONCIERGE_FLOW_REFERENCES.careNavigation]: [
+    { key: "care_need", labelEn: "Care need", labelEs: "Necesidad de cuidado", payloadKeys: ["provider_search_query", "query", "task_goal", "goal", "reason", "detail", "message", "draft_message"], summaryFallback: true },
+    { key: "care_type", labelEn: "Care type", labelEs: "Tipo de cuidado", payloadKeys: ["provider_search_mode", "provider_type", "category", "care_type", "setup_focus"] },
+    { key: "location_or_preference", labelEn: "Location or preference", labelEs: "Zona o preferencia", payloadKeys: ["location", "area", "address", "postcode", "criteria", "chosen_criteria"] },
+  ],
   [CONCIERGE_FLOW_REFERENCES.scamCheck]: [
     { key: "source", labelEn: "Source", labelEs: "Fuente", payloadKeys: ["scam_type", "source_type", "document_url", "uploaded_file", "phone_number", "company_name", "email_body", "message"], summaryFallback: true },
     { key: "concern", labelEn: "Concern", labelEs: "Riesgo", payloadKeys: ["concern", "what_worries_you", "reason", "detail"], summaryFallback: true },
+  ],
+  [CONCIERGE_FLOW_REFERENCES.safeHomeSupport]: [
+    { key: "risk_type", labelEn: "Risk type", labelEs: "Tipo de riesgo", payloadKeys: ["risk_type", "safety_source", "safety_category", "service_type", "appointment_type"], summaryFallback: true },
+    { key: "location", labelEn: "Location", labelEs: "Lugar", payloadKeys: ["location", "home_address", "address", "room", "area"] },
+    { key: "urgency", labelEn: "Urgency", labelEs: "Urgencia", payloadKeys: ["urgency", "priority", "requested_time"] },
   ],
   [CONCIERGE_FLOW_REFERENCES.insuranceAdmin]: [
     { key: "document_or_task", labelEn: "Task", labelEs: "Gestion", payloadKeys: ["document_type", "task_type", "admin_task", "reason", "detail"], summaryFallback: true },
@@ -110,9 +131,13 @@ export function conciergeFlowReferenceForPendingAction(input: ConciergeFlowRequi
   if (input.useCase === "book_ride") return CONCIERGE_FLOW_REFERENCES.transportBooking;
   if (input.useCase === "order_medicine") return CONCIERGE_FLOW_REFERENCES.otcPharmacy;
   if (input.useCase === "home_service" || appointmentType === "home-service") return CONCIERGE_FLOW_REFERENCES.homeService;
+  if (input.useCase === "find_provider") return CONCIERGE_FLOW_REFERENCES.careNavigation;
+  if (input.useCase === "shopping_request") return CONCIERGE_FLOW_REFERENCES.shoppingSupport;
   if (input.useCase === "book_appointment") return CONCIERGE_FLOW_REFERENCES.medicalAppointment;
   if (input.useCase === "scam_check") return CONCIERGE_FLOW_REFERENCES.scamCheck;
-  if (input.useCase === "admin_task" || input.useCase === "paperwork") return CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
+  if (input.useCase === "insurance_admin" || input.useCase === "admin_task" || input.useCase === "paperwork") {
+    return CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
+  }
   return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
 }
 

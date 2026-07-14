@@ -1960,10 +1960,10 @@
         orderInChipGroceries: "Groceries",
         orderInChipHousehold: "Household",
         bookNow: "Book Now",
-        bookNowDetail: "Medical, government, ride",
+        bookNowDetail: "Medical, government, personal care",
         bookNowChipMedical: "Medical",
         bookNowChipGovernment: "Government",
-        bookNowChipRide: "Ride",
+        bookNowChipPersonalCare: "Personal care",
       },
       fastHelp: {
         safeHome: "Safe Home",
