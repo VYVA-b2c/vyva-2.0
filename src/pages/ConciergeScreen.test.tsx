@@ -919,7 +919,7 @@ describe("ConciergeScreen action hub", () => {
         expect(body.auto_start).toBe(false);
         expect(body.action_summary).toBe("Provider search prepared: Marbella Care Clinic.");
         expect(body.action_payload).toMatchObject({
-          flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+          flow_reference: CONCIERGE_FLOW_REFERENCES.careNavigation,
           requested_tool: "operator_review",
           action_label: "Prepare contact",
           confirmation_required_before_action: true,
@@ -953,7 +953,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-provider-prepare-contact-opcion-recomendada-marbella-care-clinic"));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
-    expect(prefill).toHaveTextContent("Provider search ready");
+    expect(prefill).toHaveTextContent("Care search ready");
     expect(prefill).toHaveTextContent("Provider search prepared: Marbella Care Clinic.");
     expect(prefill).toHaveTextContent("Prepare contact");
     expect(prefill).toHaveTextContent("Add to Right now");
@@ -1047,7 +1047,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
     expect(screen.getByTestId("route-state")).toHaveTextContent("personal_care");
     expect(screen.getByTestId("route-state")).toHaveTextContent("Add a trusted provider");
-    expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.toolGatedTask);
+    expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.careNavigation);
   });
 
   it("shows provider search follow-through and routes saving to trusted providers", async () => {
@@ -1061,7 +1061,7 @@ describe("ConciergeScreen action hub", () => {
             provider_phone: "+34 600 111 222",
             action_summary: "Provider search prepared: Marbella Care Clinic.",
             action_payload: {
-              flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+              flow_reference: CONCIERGE_FLOW_REFERENCES.careNavigation,
               action_label: "Prepare contact",
               execution_channel: "manual",
               draft_message: [
@@ -1110,7 +1110,7 @@ describe("ConciergeScreen action hub", () => {
             provider_phone: null,
             action_summary: "Provider search prepared: Marbella Care Clinic.",
             action_payload: {
-              flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+              flow_reference: CONCIERGE_FLOW_REFERENCES.careNavigation,
               action_label: "Prepare contact",
               execution_channel: "manual",
               draft_message: [
@@ -1141,7 +1141,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-provider-search-try-another-provider-search-active"));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
-    expect(prefill).toHaveTextContent("Provider search ready");
+    expect(prefill).toHaveTextContent("Care search ready");
     expect(prefill).toHaveTextContent("Alternative provider search prepared.");
     expect(prefill).toHaveTextContent("Find another provider");
 
@@ -1744,7 +1744,7 @@ describe("ConciergeScreen action hub", () => {
         expect(body.provider_name).toBe("VYVA review");
         expect(body.action_summary).toBe("VYVA prepares trusted options before contacting anyone.");
         expect(body.action_payload).toMatchObject({
-          flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+          flow_reference: CONCIERGE_FLOW_REFERENCES.careNavigation,
           requested_tool: "operator_review",
           active_tool: "operator_review",
           readiness_status: "ready",
@@ -1767,7 +1767,7 @@ describe("ConciergeScreen action hub", () => {
         conciergePrefill: {
           kind: "task",
           message: "Help me find care or support options. Ask what kind of care I need and do not contact anyone without my confirmation.",
-          flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+          flowReference: CONCIERGE_FLOW_REFERENCES.careNavigation,
           requestedTool: "operator_review",
           actionLabel: "Prepare care search",
           summary: "VYVA prepares trusted options before contacting anyone.",
@@ -1778,7 +1778,7 @@ describe("ConciergeScreen action hub", () => {
     }]);
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
-    expect(prefill).toHaveTextContent("Provider search ready");
+    expect(prefill).toHaveTextContent("Care search ready");
     expect(prefill).toHaveTextContent("VYVA prepares trusted options before contacting anyone.");
     expect(prefill).toHaveTextContent("Prepare care search");
     expect(prefill).toHaveTextContent("Add to Right now");

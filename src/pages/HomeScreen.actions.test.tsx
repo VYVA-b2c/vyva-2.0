@@ -570,7 +570,7 @@ describe("Home fast service actions", () => {
       state: {
         conciergePrefill: expect.objectContaining({
           kind: "task",
-          flowReference: "FLOW_TOOL_GATED_TASK",
+          flowReference: "FLOW_CARE_NAVIGATION",
           requestedTool: "operator_review",
           actionLabel: "Prepare care search",
           useCase: "find_provider",

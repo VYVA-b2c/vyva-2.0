@@ -14,6 +14,9 @@ export type ConciergeFlowRequirementKey =
   | "service_type"
   | "urgency"
   | "home_access"
+  | "care_need"
+  | "care_type"
+  | "location_or_preference"
   | "source"
   | "concern"
   | "document_or_task"
@@ -70,6 +73,11 @@ const REQUIREMENTS_BY_FLOW: Record<ConciergeFlowReference, ConciergeRequirementD
     { key: "service_type", labelEn: "Service type", labelEs: "Tipo de servicio", payloadKeys: ["service_type", "service_label"] },
     { key: "urgency", labelEn: "Urgency", labelEs: "Urgencia", payloadKeys: ["urgency", "priority", "requested_time"] },
     { key: "home_access", labelEn: "Address or access", labelEs: "Direccion o acceso", payloadKeys: ["home_access_or_safety_notes", "access_notes", "home_address", "address", "location"] },
+  ],
+  [CONCIERGE_FLOW_REFERENCES.careNavigation]: [
+    { key: "care_need", labelEn: "Care need", labelEs: "Necesidad de cuidado", payloadKeys: ["provider_search_query", "query", "task_goal", "goal", "reason", "detail", "message", "draft_message"], summaryFallback: true },
+    { key: "care_type", labelEn: "Care type", labelEs: "Tipo de cuidado", payloadKeys: ["provider_search_mode", "provider_type", "category", "care_type", "setup_focus"] },
+    { key: "location_or_preference", labelEn: "Location or preference", labelEs: "Zona o preferencia", payloadKeys: ["location", "area", "address", "postcode", "criteria", "chosen_criteria"] },
   ],
   [CONCIERGE_FLOW_REFERENCES.scamCheck]: [
     { key: "source", labelEn: "Source", labelEs: "Fuente", payloadKeys: ["scam_type", "source_type", "document_url", "uploaded_file", "phone_number", "company_name", "email_body", "message"], summaryFallback: true },
