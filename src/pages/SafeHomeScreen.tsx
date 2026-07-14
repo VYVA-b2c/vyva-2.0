@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Home,
-  Camera,
   ChevronLeft,
   X,
   Clock,
@@ -21,6 +20,7 @@ import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -28,6 +28,12 @@ import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import type { ShoppingPriority } from "../../shared/shopping";
 import { languageText } from "../../shared/language";
+import {
+  SHOW_VYVA_USE_CASE_IDS,
+  buildShowVyvaConciergePrefill,
+  type ShowVyvaCaptureSource,
+  type ShowVyvaPastePayload,
+} from "../../shared/showVyvaFlow";
 
 type HomeScan = {
   id: string;
@@ -291,6 +297,7 @@ const SafeHomeScreen = () => {
   }>(null);
   const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
   const [fullScreenScan, setFullScreenScan] = useState<HomeScan | null>(null);
+  const [homeScanCaptureSource, setHomeScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const {
     action: safetyVoiceAction,
@@ -400,6 +407,19 @@ const SafeHomeScreen = () => {
       .finally(() => {
         setAnalyzing(false);
       });
+  };
+
+  const openHomeScanFilePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+    setHomeScanCaptureSource(source);
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const openPastedHomeReview = (payload: ShowVyvaPastePayload) => {
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: buildShowVyvaConciergePrefill(payload, language),
+      },
+    });
   };
 
   const resultColors = result ? getRiskColors(result.riskLevel) : null;
@@ -642,11 +662,25 @@ const SafeHomeScreen = () => {
           </div>
 
           <div className="p-[18px]">
+            <ShowVyvaChooser
+              title={t("showVyva.healthTitle", "Show VYVA")}
+              subtitle={t("safeHome.showVyvaSubtitle", "Show a room photo, home-safety concern, quote, or document. VYVA keeps the next step safe.")}
+              defaultUseCaseId={SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto}
+              useCaseIds={[
+                SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+                SHOW_VYVA_USE_CASE_IDS.providerOrDeal,
+                SHOW_VYVA_USE_CASE_IDS.documentHelp,
+              ]}
+              busy={analyzing}
+              onChooseFileSource={(source) => openHomeScanFilePicker(source)}
+              onPaste={(payload) => openPastedHomeReview(payload)}
+            />
+
             {/* Analyzing state */}
             {analyzing && (
               <div
                 data-testid="section-home-scan-analyzing"
-                className="rounded-[14px] p-[20px] flex flex-col items-center gap-3 mb-[14px]"
+                className="mt-[14px] rounded-[14px] p-[20px] flex flex-col items-center gap-3 mb-[14px]"
                 style={{ background: "#F5F3FF" }}
               >
                 <div
@@ -665,7 +699,7 @@ const SafeHomeScreen = () => {
             {result && !analyzing && (
               <div
                 data-testid="section-home-scan-result"
-                className="rounded-[14px] p-[16px] mb-[14px]"
+                className="mt-[14px] rounded-[14px] p-[16px] mb-[14px]"
                 style={{ background: resultColors!.bg }}
               >
                 <div className="flex items-center gap-[8px] mb-[8px]">
@@ -730,27 +764,11 @@ const SafeHomeScreen = () => {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
+              capture={homeScanCaptureSource === "camera" ? "environment" : undefined}
               className="hidden"
               onChange={handlePhotoSelect}
               data-testid="input-home-scan-file"
             />
-            <button
-              data-testid="button-home-scan-take-photo"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={analyzing}
-              className="w-full flex items-center justify-center gap-2 rounded-[14px] py-[14px] font-body text-[15px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50"
-              style={{
-                background: "linear-gradient(135deg, #6B21A8 0%, #9333EA 100%)",
-                color: "#FFFFFF",
-                boxShadow: "0 4px 16px rgba(107,33,168,0.30)",
-              }}
-            >
-              <Camera size={18} />
-              {result
-                ? t("safeHome.scanAgain", "Scan Another Room")
-                : t("safeHome.takePhoto", "Take or Upload a Photo")}
-            </button>
           </div>
         </div>
 

@@ -182,4 +182,19 @@ describe("Safe-home scan service actions", () => {
     expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
     expect(screen.getByTestId("route-state")).toHaveTextContent("Request safety quote");
   });
+
+  it("routes pasted home-safety concerns through Show VYVA", async () => {
+    renderSafeHome();
+
+    fireEvent.click(screen.getByTestId("button-show-vyva-source-paste"));
+    fireEvent.change(screen.getByTestId("textarea-show-vyva-paste"), {
+      target: { value: "Loose rug near the stairs" },
+    });
+    fireEvent.click(screen.getByTestId("button-show-vyva-submit-paste"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"source\":\"safe_home_scan\"");
+    expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Loose rug near the stairs");
+  });
 });
