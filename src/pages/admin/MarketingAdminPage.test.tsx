@@ -2136,6 +2136,13 @@ describe("MarketingAdminPage", () => {
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("All plays");
     expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("22");
+    expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Best next campaigns from your data");
+    expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Event reminder");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-playbook-event-reminder"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Playbook loaded: Event reminder");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-category-social"));
     expect(screen.getByTestId("marketing-campaign-studio-category-hint")).toHaveTextContent("Facebook, Instagram, LinkedIn, and TikTok");
     expect(screen.getByTestId("button-marketing-campaign-studio-play-instagram-proof-point")).toBeInTheDocument();

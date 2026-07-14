@@ -455,6 +455,17 @@ type CampaignStudioPlay = {
   ctaUrl: string;
 };
 
+type CampaignStudioPlayRecommendation = {
+  play: CampaignStudioPlay;
+  targetAudience: MarketingAudience | null;
+  channels: Channel[];
+  reachableContacts: number;
+  templateMatches: number;
+  score: number;
+  state: CampaignReadinessState;
+  reasons: string[];
+};
+
 type CampaignStudioGeneratedDraft = {
   campaignName: string;
   contentTitle: string;
@@ -5013,6 +5024,45 @@ export default function MarketingAdminPage() {
     () => recommendedCampaignStudioChannels(selectedCampaignStudioPlay),
     [selectedCampaignStudioPlay],
   );
+  const campaignStudioPlayRecommendations = useMemo<CampaignStudioPlayRecommendation[]>(() => (
+    campaignStudioPlays.map((play) => {
+      const targetAudience = bestCampaignStudioAudience(play, audiences);
+      const channels = recommendedCampaignStudioChannels(play);
+      const matchingContacts = contacts.filter((contact) => (
+        campaignAllowsContact(play.audienceType, contact.audienceType)
+        && contactMatchesAudienceList(contact, targetAudience)
+      ));
+      const reachableContacts = matchingContacts.filter((contact) => (
+        channels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+      )).length;
+      const templateMatches = contentTemplateGallery.filter((template) => (
+        channels.includes(template.channel)
+        && (template.audienceType === play.audienceType || template.audienceType === "both" || play.audienceType === "both")
+      )).length;
+      const score = Math.min(99,
+        reachableContacts * 18
+        + Math.min(templateMatches, 8) * 6
+        + (targetAudience ? 14 : 0)
+        + Math.min(channels.length, 4) * 4
+      );
+      const state: CampaignReadinessState = reachableContacts > 0 && templateMatches > 0
+        ? "ready"
+        : reachableContacts > 0 || templateMatches > 0 ? "planning" : "needs_action";
+      const reasons = [
+        targetAudience ? `${targetAudience.name}: ${targetAudience.mappedMemberCount}/${targetAudience.memberCount} mapped` : "No matching list yet",
+        `${reachableContacts} reachable contact${reachableContacts === 1 ? "" : "s"}`,
+        `${templateMatches} matching starter template${templateMatches === 1 ? "" : "s"}`,
+        `${channels.map((channel) => channelLabel[channel]).join(" + ")} pack`,
+      ];
+      return { play, targetAudience, channels, reachableContacts, templateMatches, score, state, reasons };
+    })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
+        return a.play.label.localeCompare(b.play.label);
+      })
+      .slice(0, 4)
+  ), [audiences, contacts]);
   const campaignStudioPrimaryAiDraft = campaignStudioAiDrafts[campaignStudio.channel] ?? null;
   const campaignStudioGenerated = campaignStudioPrimaryAiDraft ?? campaignStudioTemplateDraft;
   const campaignStudioAudiencePool = useMemo(() => contacts.filter((contact) => {
@@ -5506,6 +5556,20 @@ export default function MarketingAdminPage() {
       channel: selectedCampaignStudioPlay.defaultChannel,
       selectedChannels: campaignStudioRecommendedChannels,
     });
+  }
+
+  function applyCampaignStudioPlayRecommendation(recommendation: CampaignStudioPlayRecommendation) {
+    setCampaignStudioCategory(recommendation.play.categoryId);
+    updateCampaignStudio({
+      playId: recommendation.play.id,
+      angleId: recommendation.state === "ready" ? "action" : "balanced",
+      channel: recommendation.play.defaultChannel,
+      selectedChannels: recommendation.channels,
+      scheduleStartsAt: campaignStudioDefaultSchedule(recommendation.play),
+      targetAudienceId: recommendation.targetAudience?.id ?? "",
+    });
+    setCampaignStudioFeedback(`Playbook loaded: ${recommendation.play.label}. ${recommendation.reachableContacts} reachable contact${recommendation.reachableContacts === 1 ? "" : "s"} and ${recommendation.templateMatches} starter template${recommendation.templateMatches === 1 ? "" : "s"} are ready.`);
+    setMessage(`Playbook loaded: ${recommendation.play.label}. Review the channel pack, then improve with AI or create the campaign.`);
   }
 
   function focusCampaignStudioChannel(channel: Channel) {
@@ -7520,6 +7584,51 @@ export default function MarketingAdminPage() {
                       </div>
                       <p className="mt-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-category-hint">{selectedCampaignStudioCategory.hint}</p>
                     </div>
+
+                    <div className="mt-4 rounded-xl border border-purple-200 bg-purple-50/60 p-4" data-testid="marketing-campaign-studio-playbook-recommendations">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Recommended playbooks</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Best next campaigns from your data</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Ranked by reachable contacts, matching lists, starter templates, and useful channel packs.</p>
+                        </div>
+                        <Pill className="bg-white text-purple-800">{campaignStudioPlayRecommendations.length} picks</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        {campaignStudioPlayRecommendations.map((recommendation) => (
+                          <article key={recommendation.play.id} className={`rounded-xl border bg-white p-3 ${readinessClass(recommendation.state)}`} data-testid={`marketing-campaign-studio-playbook-${recommendation.play.id}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Pill className={readinessPillClass(recommendation.state)}>{readinessLabel(recommendation.state)}</Pill>
+                                  <Pill className={channelClass(recommendation.play.defaultChannel)}>{channelLabel[recommendation.play.defaultChannel]}</Pill>
+                                  <Pill className="bg-[#f5eee8] text-[#5b4a46]">{recommendation.play.audienceType.toUpperCase()}</Pill>
+                                </div>
+                                <h4 className="mt-2 font-black text-[#241133]">{recommendation.play.label}</h4>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{recommendation.play.brief}</p>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {recommendation.reasons.map((reason) => (
+                                    <span key={reason} className="rounded-full bg-[#fffaf4] px-2 py-1 text-[11px] font-black text-[#6f5f59]">{reason}</span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="flex shrink-0 flex-col items-end gap-2">
+                                <span className="rounded-full bg-purple-700 px-3 py-1 text-xs font-black text-white">{recommendation.score} fit</span>
+                                <button
+                                  type="button"
+                                  onClick={() => applyCampaignStudioPlayRecommendation(recommendation)}
+                                  className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800"
+                                  data-testid={`button-marketing-campaign-studio-playbook-${recommendation.play.id}`}
+                                >
+                                  <Sparkles size={14} /> Use playbook
+                                </button>
+                              </div>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Campaign plays</p>
