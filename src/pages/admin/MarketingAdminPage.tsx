@@ -730,6 +730,16 @@ type ContentTemplatePack = {
   focus: string;
   templateIds: string[];
   heroTemplateId: string;
+  studioPlayId: CampaignStudioPlayId;
+  toneId: CampaignStudioToneId;
+  angleId: CampaignStudioAngleId;
+  sequence: Array<{
+    offset: string;
+    channel: Channel;
+    title: string;
+    detail: string;
+    templateId?: string;
+  }>;
   aiPrompt: string;
 };
 
@@ -2513,6 +2523,14 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "whatsapp-care-team-confirmation",
     ],
     heroTemplateId: "caregiver-email-welcome",
+    studioPlayId: "caregiver-onboarding",
+    toneId: "warm",
+    angleId: "action",
+    sequence: [
+      { offset: "Day 0", channel: "email", title: "Welcome and orient", detail: "Send the care-team welcome and explain the first useful action.", templateId: "caregiver-email-welcome" },
+      { offset: "Day 1", channel: "whatsapp", title: "Profile nudge", detail: "Prompt the elder or family member to complete required details.", templateId: "whatsapp-profile-nudge" },
+      { offset: "Day 3", channel: "email", title: "Caregiver education", detail: "Teach one dashboard or alert benefit so the caregiver returns.", templateId: "email-caregiver-education-mini" },
+    ],
     aiPrompt: "Adapt this family onboarding pack into a 7-day welcome sequence with one email, one WhatsApp reminder, and one caregiver education message.",
   },
   {
@@ -2530,6 +2548,14 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "email-referral-ask",
     ],
     heroTemplateId: "linkedin-partner-demo",
+    studioPlayId: "b2b-partner-outreach",
+    toneId: "expert",
+    angleId: "proof",
+    sequence: [
+      { offset: "Day 0", channel: "linkedin", title: "Partner proof post", detail: "Open with a credible provider-facing problem and demo invitation.", templateId: "linkedin-partner-demo" },
+      { offset: "Day 2", channel: "whatsapp", title: "Proof nudge", detail: "Follow up with a concise practical reason to speak.", templateId: "whatsapp-partner-proof-nudge" },
+      { offset: "Day 5", channel: "email", title: "Referral ask", detail: "Ask for the right intro or next decision-maker.", templateId: "email-referral-ask" },
+    ],
     aiPrompt: "Turn this partner growth pack into a multi-touch B2B campaign with a proof-led LinkedIn post, WhatsApp follow-up, and referral email.",
   },
   {
@@ -2544,6 +2570,14 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "facebook-webinar-reminder",
     ],
     heroTemplateId: "facebook-local-event",
+    studioPlayId: "local-event",
+    toneId: "uplifting",
+    angleId: "local",
+    sequence: [
+      { offset: "Week -2", channel: "facebook", title: "Local event post", detail: "Publish a clear local activity invite with accessible details.", templateId: "facebook-local-event" },
+      { offset: "Week -1", channel: "instagram", title: "Community moment", detail: "Show the human, visual reason the event is worth attending.", templateId: "instagram-community-moment" },
+      { offset: "Day -1", channel: "whatsapp", title: "Reminder", detail: "Send a practical reminder with time, place, and CTA.", templateId: "whatsapp-event-reminder" },
+    ],
     aiPrompt: "Localize this community pack for one city, one neighbourhood, and one practical event CTA.",
   },
   {
@@ -2558,6 +2592,14 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "email-referral-ask",
     ],
     heroTemplateId: "email-winback",
+    studioPlayId: "reactivation",
+    toneId: "warm",
+    angleId: "balanced",
+    sequence: [
+      { offset: "Day 0", channel: "email", title: "Soft win-back", detail: "Invite quiet contacts back with one low-friction reason.", templateId: "email-winback" },
+      { offset: "Day 4", channel: "email", title: "Feedback ask", detail: "Ask what would make VYVA more useful.", templateId: "email-feedback-survey" },
+      { offset: "Day 7", channel: "facebook", title: "Testimonial prompt", detail: "Convert positive users into social proof.", templateId: "facebook-testimonial-prompt" },
+    ],
     aiPrompt: "Convert this retention pack into a respectful reactivation campaign with one soft email, one feedback ask, and one referral prompt.",
   },
   {
@@ -2575,6 +2617,14 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "linkedin-family-proof-article",
     ],
     heroTemplateId: "instagram-launch-carousel",
+    studioPlayId: "product-education",
+    toneId: "direct",
+    angleId: "action",
+    sequence: [
+      { offset: "Day 0", channel: "instagram", title: "Launch carousel", detail: "Introduce the feature with a visual before/after story.", templateId: "instagram-launch-carousel" },
+      { offset: "Day 2", channel: "tiktok", title: "Short demo", detail: "Turn the same idea into a simple motion script.", templateId: "tiktok-feature-demo" },
+      { offset: "Day 4", channel: "linkedin", title: "Proof article", detail: "Translate the launch into a credibility post for partners and families.", templateId: "linkedin-family-proof-article" },
+    ],
     aiPrompt: "Transform this social launch pack into a coordinated 1-week content plan across Instagram, Facebook, TikTok, and LinkedIn.",
   },
 ];
@@ -7829,6 +7879,38 @@ export default function MarketingAdminPage() {
     setActiveTab("dashboard");
   }
 
+  function loadContentTemplatePackInStudio(pack: ContentTemplatePack, heroTemplate: ContentTemplate | null, packChannels: Channel[]) {
+    const play = campaignStudioPlays.find((item) => item.id === pack.studioPlayId) ?? campaignStudioPlays[0];
+    const primaryChannel = heroTemplate?.channel ?? play.defaultChannel;
+    const selectedChannels = uniqueChannels([
+      primaryChannel,
+      ...pack.sequence.map((step) => step.channel),
+      ...packChannels,
+    ]);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+
+    setCampaignStudioCategory(play.categoryId);
+    setCampaignStudio({
+      playId: play.id,
+      toneId: pack.toneId,
+      angleId: pack.angleId,
+      channel: primaryChannel,
+      selectedChannels,
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+      targetAudienceId: targetAudience?.id ?? "",
+    });
+    setCampaignStudioAiDrafts({});
+    setContentTemplatePackFilter(pack.id);
+    setContentTemplateSearch("");
+    setContentTemplateChannelFilter("all");
+    setContentTemplateAudienceFilter("all");
+    setContentTemplateCategoryFilter("all");
+    setContentActionFeedback(`Loaded ${pack.title} pack into the campaign studio.`);
+    setCampaignStudioFeedback(`Template pack loaded: ${pack.title}. Review ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")} and improve the sequence with AI.`);
+    setMessage(`Template pack loaded: ${pack.title}. Review the studio sequence, then create the campaign pack.`);
+    setActiveTab("dashboard");
+  }
+
   function scrollToContentPanel(ref: RefObject<HTMLDivElement | null>) {
     window.setTimeout(() => {
       const node = ref.current;
@@ -11328,6 +11410,21 @@ export default function MarketingAdminPage() {
                           <p className="mt-3 line-clamp-3 rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
                             <span className="font-black text-purple-700">AI pack prompt:</span> {pack.aiPrompt}
                           </p>
+                          <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-template-pack-sequence-${pack.id}`}>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Recommended sequence</p>
+                            <div className="mt-2 grid gap-2">
+                              {pack.sequence.map((step, index) => (
+                                <div key={`${pack.id}-${step.offset}-${step.title}`} className="rounded-lg border border-[#f0e7df] bg-white px-3 py-2">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <Pill className="bg-[#f5eee8] text-[#5b4a46]">{index + 1}. {step.offset}</Pill>
+                                    <Pill className={channelClass(step.channel)}>{channelLabel[step.channel]}</Pill>
+                                  </div>
+                                  <p className="mt-1 text-xs font-black text-[#241133]">{step.title}</p>
+                                  <p className="mt-0.5 text-xs font-semibold leading-relaxed text-[#7d6b65]">{step.detail}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                         <div className="mt-4 grid gap-2">
                           <button
@@ -11344,6 +11441,15 @@ export default function MarketingAdminPage() {
                             data-testid={`button-marketing-template-pack-${pack.id}`}
                           >
                             <Search size={14} /> Open pack
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => loadContentTemplatePackInStudio(pack, heroTemplate, channels)}
+                            disabled={contentSaving}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid={`button-marketing-template-pack-studio-${pack.id}`}
+                          >
+                            <Sparkles size={14} /> Load pack in studio
                           </button>
                           <button
                             type="button"

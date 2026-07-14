@@ -1461,7 +1461,20 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Partner demo LinkedIn post");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
     expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-partner-growth")).toHaveTextContent("Partner proof post");
+    expect(screen.getByTestId("marketing-template-pack-sequence-partner-growth")).toHaveTextContent("Proof nudge");
+    expect(screen.getByTestId("marketing-template-pack-sequence-partner-growth")).toHaveTextContent("Referral ask");
 
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-partner-growth"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Partner growth");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Partner growth pack into the campaign studio");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-start-partner-growth"));
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner demo LinkedIn post campaign");
     expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
