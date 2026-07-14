@@ -13,6 +13,7 @@ export const CONCIERGE_USE_CASES = [
   "paperwork",
   "admin_task",
   "scam_check",
+  "shopping_request",
   "travel",
   "send_message",
   "order_food",

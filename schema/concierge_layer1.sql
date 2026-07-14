@@ -4,12 +4,13 @@ CREATE TABLE user_providers (
 
   category         text NOT NULL
                    CHECK (category IN (
-                     'taxi', 'pharmacy', 'gp', 'hospital', 'dentist',
+                     'pharmacy', 'doctor_clinic', 'transport',
+                     'home_service', 'personal_care', 'food', 'other',
+                     'taxi', 'gp', 'hospital', 'dentist',
                      'physio', 'clinic', 'restaurant', 'cafe', 'takeaway',
                      'supermarket', 'convenience', 'shopping',
                      'beauty_salon', 'hair_care', 'spa', 'gym',
-                     'home_repair', 'electrician', 'plumber', 'cleaner',
-                     'other'
+                     'home_repair', 'electrician', 'plumber', 'cleaner'
                    )),
 
   name             text NOT NULL,
@@ -43,6 +44,10 @@ CREATE TABLE concierge_pending (
                      'find_provider',
                      'find_offers',
                      'paperwork',
+                     'admin_task',
+                     'scam_check',
+                     'shopping_request',
+                     'insurance_admin',
                      'travel',
                      'send_message',
                      'order_food'
@@ -88,6 +93,10 @@ CREATE TABLE concierge_sessions (
                      'find_provider',
                      'find_offers',
                      'paperwork',
+                     'admin_task',
+                     'scam_check',
+                     'shopping_request',
+                     'insurance_admin',
                      'travel',
                      'send_message',
                      'order_food'
