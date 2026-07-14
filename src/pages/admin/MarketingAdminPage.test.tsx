@@ -2021,6 +2021,10 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-readiness")).toHaveTextContent("Studio readiness");
+    expect(screen.getByTestId("marketing-campaign-studio-readiness-recipients")).toHaveTextContent("1 eligible recipient will be snapshotted.");
+    expect(screen.getByTestId("marketing-campaign-studio-readiness-channel")).toHaveTextContent("Planning");
+    expect(screen.getByTestId("marketing-campaign-studio-next-step")).toHaveTextContent("Improve with AI");
     fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
@@ -2030,6 +2034,8 @@ describe("MarketingAdminPage", () => {
     });
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach AI campaign");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("AI draft");
+    expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("marketing-campaign-studio-next-step")).toHaveTextContent("Create the LinkedIn planning campaign");
     fireEvent.click(screen.getByTestId("button-marketing-apply-studio-draft"));
 
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner outreach AI campaign");

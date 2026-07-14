@@ -4487,6 +4487,76 @@ export default function MarketingAdminPage() {
     if (!contactMatchesAudienceList(contact, selectedCampaignStudioTargetAudience)) return false;
     return Boolean(recipientForChannel(contact, campaignStudio.channel));
   }), [campaignStudio.channel, contacts, selectedCampaignStudioPlay, selectedCampaignStudioTargetAudience]);
+  const campaignStudioReadinessItems: CampaignReadinessItem[] = [
+    {
+      key: "content",
+      title: "Content",
+      state: campaignStudioGenerated.body.trim() ? "ready" : "blocked",
+      detail: campaignStudioGenerated.body.trim()
+        ? `${campaignStudioGenerated.source === "openai" ? "AI-polished" : "Template"} copy is ready to save as a content asset.`
+        : "Generate or write campaign copy before creating content.",
+    },
+    {
+      key: "audience",
+      title: "Target list",
+      state: selectedCampaignStudioTargetAudience
+        ? selectedCampaignStudioTargetAudience.mappedMemberCount > 0 ? "ready" : "needs_action"
+        : contacts.length > 0 ? "planning" : "blocked",
+      detail: selectedCampaignStudioTargetAudience
+        ? `${selectedCampaignStudioTargetAudience.name}: ${selectedCampaignStudioTargetAudience.mappedMemberCount}/${selectedCampaignStudioTargetAudience.memberCount} contacts mapped.`
+        : contacts.length > 0
+          ? "No imported list selected; VYVA will use all eligible contacts for this play."
+          : "Import or create contacts before snapshotting recipients.",
+    },
+    {
+      key: "recipients",
+      title: "Recipients",
+      state: campaignStudioRecipientPreview.length > 0 ? "ready" : "blocked",
+      detail: campaignStudioRecipientPreview.length > 0
+        ? `${campaignStudioRecipientPreview.length} eligible recipient${campaignStudioRecipientPreview.length === 1 ? "" : "s"} will be snapshotted.`
+        : "No eligible contacts match this audience, list, and channel.",
+    },
+    {
+      key: "schedule",
+      title: "Schedule",
+      state: campaignStudioSchedule ? "ready" : "needs_action",
+      detail: campaignStudioSchedule
+        ? `Planned for ${formatDate(fromDateTimeLocal(campaignStudioSchedule))}.`
+        : "Add a suggested start time, or apply this as a draft first.",
+    },
+    {
+      key: "channel",
+      title: "Channel",
+      state: campaignStudio.channel === "email" ? "ready" : "planning",
+      detail: campaignStudio.channel === "email"
+        ? "Email can send later through the existing VYVA dispatcher after review."
+        : `${channelLabel[campaignStudio.channel]} is saved for planning/tracking until provider sending is enabled.`,
+    },
+    {
+      key: "ai",
+      title: "AI polish",
+      state: campaignStudioGenerated.source === "openai" ? "ready" : "planning",
+      detail: campaignStudioGenerated.source === "openai"
+        ? "This draft was tailored by AI from the selected play, channel, and list."
+        : "Use Improve with AI for a tailored draft, or create now from the proven template.",
+    },
+  ];
+  const campaignStudioReadyCount = campaignStudioReadinessItems.filter((item) => item.state === "ready").length;
+  const campaignStudioBlockedCount = campaignStudioReadinessItems.filter((item) => item.state === "blocked").length;
+  const campaignStudioNeedsActionCount = campaignStudioReadinessItems.filter((item) => item.state === "needs_action").length;
+  const campaignStudioReadinessSummary = campaignStudioBlockedCount > 0
+    ? `${campaignStudioBlockedCount} blocked item${campaignStudioBlockedCount === 1 ? "" : "s"}`
+    : campaignStudioNeedsActionCount > 0
+      ? `${campaignStudioNeedsActionCount} item${campaignStudioNeedsActionCount === 1 ? "" : "s"} need action`
+      : "Ready to create";
+  const campaignStudioNextStep = campaignStudioBlockedCount > 0
+    ? "Add or sync eligible contacts, choose a different list, or change the channel before creating."
+    : campaignStudioGenerated.source !== "openai"
+      ? "Improve with AI if you want a more tailored draft, or create the campaign now."
+      : campaignStudio.channel === "email"
+        ? "Create the campaign and review it before sending email."
+        : `Create the ${channelLabel[campaignStudio.channel]} planning campaign, then track execution manually until sending is enabled.`;
+  const campaignStudioCreateDisabled = campaignStudioSaving || campaignStudioAiRunning || campaignStudioBlockedCount > 0;
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
   const selectedCampaignTargetAudience = useMemo(
@@ -6200,6 +6270,43 @@ export default function MarketingAdminPage() {
                       {campaignStudioGenerated.note ? <p className="mt-2 text-xs font-bold text-amber-800">{campaignStudioGenerated.note}</p> : null}
                     </div>
 
+                    <div className="rounded-xl border border-purple-200 bg-white p-4" data-testid="marketing-campaign-studio-readiness">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Pre-create checklist</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Studio readiness</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Know what will be saved before VYVA creates the campaign and content asset.</p>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Pill className={campaignStudioBlockedCount > 0 ? "bg-red-50 text-red-800" : campaignStudioNeedsActionCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                            {campaignStudioReadinessSummary}
+                          </Pill>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignStudioReadyCount}/{campaignStudioReadinessItems.length} ready</Pill>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2" data-testid="marketing-campaign-studio-readiness-items">
+                        {campaignStudioReadinessItems.map((item) => (
+                          <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-readiness-${item.key}`}>
+                            <div className="flex items-start gap-2">
+                              <span className="mt-0.5 shrink-0">
+                                {item.state === "ready" ? <CheckCircle2 size={16} /> : item.state === "blocked" ? <X size={16} /> : <Clock size={16} />}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span className="font-black">{item.title}</span>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </span>
+                                <span className="mt-1 block text-xs font-bold leading-relaxed">{item.detail}</span>
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-next-step">
+                        Next step: {campaignStudioNextStep}
+                      </p>
+                    </div>
+
                     <div className="flex flex-wrap items-center gap-3">
                       <button
                         type="button"
@@ -6214,7 +6321,7 @@ export default function MarketingAdminPage() {
                         type="button"
                         onClick={() => void createCampaignAndContentFromStudio()}
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                        disabled={campaignStudioSaving || campaignStudioAiRunning}
+                        disabled={campaignStudioCreateDisabled}
                         data-testid="button-marketing-create-studio-campaign"
                       >
                         <Plus size={16} /> {campaignStudioSaving ? "Creating..." : "Create campaign + content"}
