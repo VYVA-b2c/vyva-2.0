@@ -259,6 +259,25 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("button-appointment-open-mission-guide")).not.toBeInTheDocument();
   });
 
+  it("routes personal care appointment choices through provider search", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
+      target: { value: "Haircut next Friday, close to home" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Personal care" }));
+
+    expect(screen.queryByTestId("panel-appointment-assistant")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("panel-offers-search")).toBeVisible();
+    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    const query = (screen.getByTestId("input-offers-query") as HTMLInputElement).value;
+    expect(query).toContain("personal care appointment");
+    expect(query).toContain("Haircut next Friday, close to home");
+    expect(apiFetchMock.mock.calls.some(([url]) => String(url).endsWith("/api/appointments/requests"))).toBe(false);
+  });
+
   it("shows the home service guide as a one-time popup with a saved hide option", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 

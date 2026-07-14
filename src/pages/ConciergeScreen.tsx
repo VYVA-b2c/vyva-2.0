@@ -8439,6 +8439,16 @@ const ConciergeScreen = () => {
     const base = isSpanish ? chip.promptEs : chip.promptEn;
     const note = appointmentNote.trim();
     setSelectedAppointmentChip(chip);
+    if (chip.key === "personal-care") {
+      openProviderSearchPanel(
+        "personal-care",
+        note
+          ? `${base}\n\n${isSpanish ? "Detalle del usuario" : "User detail"}: ${note}`
+          : base,
+      );
+      setAppointmentNote("");
+      return;
+    }
     if (chip.key === "home-service") {
       const { intake, preferences } = buildCurrentHomeServiceIntake();
       createAppointmentMutation.mutate({
