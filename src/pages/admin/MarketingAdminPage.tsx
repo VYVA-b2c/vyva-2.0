@@ -3788,6 +3788,36 @@ function bestCampaignPlannerContent(play: CampaignStudioPlay, channel: Channel, 
   return activeChannelContent.find((item) => contentMatchesCampaignPlay(play, channel, item)) ?? null;
 }
 
+function campaignPlayForContentAsset(contentAsset: ContentAsset) {
+  return campaignStudioPlays.find((play) => contentMatchesCampaignPlay(play, contentAsset.channel, contentAsset))
+    ?? campaignStudioPlays.find((play) => play.defaultChannel === contentAsset.channel)
+    ?? campaignStudioPlays[0];
+}
+
+function campaignDraftFromContentAsset(contentAsset: ContentAsset, play: CampaignStudioPlay, targetAudience: MarketingAudience | null): CampaignDraft {
+  return {
+    name: `${contentAsset.title} campaign`,
+    audienceType: play.audienceType,
+    channel: contentAsset.channel,
+    contentAssetId: contentAsset.id,
+    status: "draft",
+    scheduleStartsAt: "",
+    scheduleEndsAt: "",
+    objective: [
+      `Campaign starter created from saved content asset "${contentAsset.title}".`,
+      contentAsset.subject ? `Hook: ${contentAsset.subject}` : "",
+      contentAsset.body ? `Copy: ${contentAsset.body}` : "",
+      `Audience: ${play.audienceType.toUpperCase()}${targetAudience ? ` via ${targetAudience.name}` : ""}.`,
+      `Primary channel: ${channelLabel[contentAsset.channel]}.`,
+      contentAsset.ctaLabel || contentAsset.ctaUrl ? `CTA: ${contentAsset.ctaLabel || "Open link"}${contentAsset.ctaUrl ? ` (${contentAsset.ctaUrl})` : ""}.` : "",
+      "Next step: review recipients, add timing if needed, then add the campaign.",
+    ].filter(Boolean).join("\n"),
+    targetAudienceId: targetAudience?.id ?? "",
+    recipientFilter: "",
+    snapshotRecipients: Boolean(targetAudience?.mappedMemberCount),
+  };
+}
+
 function campaignStudioSubject(play: CampaignStudioPlay, channel: Channel, angleId: CampaignStudioAngleId, target: string) {
   const base = channel === "email" ? play.subject : `${play.label}: ${play.subject}`;
   if (angleId === "proof") return channel === "email" ? `Proof point: ${play.subject}` : `${play.label}: proof point`;
@@ -8820,6 +8850,32 @@ export default function MarketingAdminPage() {
     setActiveTab("dashboard");
   }
 
+  function startCampaignFromContentAsset(contentAsset: ContentAsset) {
+    const play = campaignPlayForContentAsset(contentAsset);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    setCampaignDraft(campaignDraftFromContentAsset(contentAsset, play, targetAudience));
+    setCampaignStudioCategory(play.categoryId);
+    setCampaignStudioAiDrafts({});
+    setCampaignStudio({
+      playId: play.id,
+      toneId: "warm",
+      angleId: "balanced",
+      channel: contentAsset.channel,
+      selectedChannels: uniqueChannels([contentAsset.channel, ...recommendedCampaignStudioChannels(play)]),
+      scheduleStartsAt: "",
+      targetAudienceId: targetAudience?.id ?? "",
+    });
+    setSelectedContentId(contentAsset.id);
+    setEditingCampaignId(null);
+    setConfirmingCampaignDeleteId(null);
+    setConfirmingCampaignSendId(null);
+    setCampaignStudioFeedback(`Campaign starter loaded from "${contentAsset.title}".`);
+    setContentActionFeedback(`Campaign starter loaded from saved content: ${contentAsset.title}.`);
+    setContentFeedback(`Campaign starter loaded from ${contentAsset.title}.`);
+    setMessage(`Campaign starter loaded from ${contentAsset.title}. Review the planner, then add the campaign.`);
+    setActiveTab("dashboard");
+  }
+
   function loadContentTemplatePackInStudio(pack: ContentTemplatePack, heroTemplate: ContentTemplate | null, packChannels: Channel[]) {
     const play = campaignStudioPlays.find((item) => item.id === pack.studioPlayId) ?? campaignStudioPlays[0];
     const primaryChannel = heroTemplate?.channel ?? play.defaultChannel;
@@ -13784,6 +13840,9 @@ export default function MarketingAdminPage() {
                                   </button>
                                   <button type="button" onClick={() => startContentEdit(item)} aria-expanded={isEditingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isEditingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
                                     <Pencil size={13} /> {isEditingContent ? "Editing" : "Edit"}
+                                  </button>
+                                  <button type="button" onClick={() => startCampaignFromContentAsset(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentSaving} data-testid={`button-marketing-start-campaign-content-${item.id}`}>
+                                    <Megaphone size={13} /> Campaign
                                   </button>
                                   <button type="button" onClick={() => void deleteContent(item)} aria-expanded={isConfirmingDelete} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isConfirmingDelete ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
                                     <Trash2 size={13} /> {isConfirmingDelete ? "Confirm delete" : "Delete"}

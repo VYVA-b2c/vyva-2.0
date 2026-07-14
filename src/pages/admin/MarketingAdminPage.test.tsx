@@ -1776,6 +1776,25 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("You are now connected to {{elder_name}}'s care circle");
   });
 
+  it("starts a campaign planner draft from a saved content asset", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-start-campaign-content-content-2"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner post campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-2");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("checkbox-marketing-campaign-snapshot")).toBeChecked();
+    expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain('Campaign starter created from saved content asset "Partner post".');
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("CTA: Read more (https://v2.vyva.life/partners).");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Campaign starter loaded from "Partner post".');
+  });
+
   it("loads a smart campaign planner starter with audience, content, and recipients", async () => {
     renderPage();
 
