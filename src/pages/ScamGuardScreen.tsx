@@ -6,8 +6,6 @@ import {
   Headset,
   Camera,
   Phone,
-  ClipboardList,
-  Users,
   X,
   Clock,
   Trash2,
@@ -29,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
+import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -40,6 +39,7 @@ import {
   type ShowVyvaCaptureSource,
   type ShowVyvaPastePayload,
 } from "../../shared/showVyvaFlow";
+import { showVyvaFollowUpActionsFor } from "../../shared/showVyvaFollowUp";
 
 type ScamCheck = {
   id: string;
@@ -217,64 +217,45 @@ export function ScamGuardActionButtons({
 }: ScamGuardActionButtonsProps) {
   const { t } = useTranslation();
   const contactName = trustedContactName?.trim() || t("scamGuard.actions.trustedFallback", "trusted person");
-  const buttonClass = compact
-    ? "vyva-tap inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-[12px] px-3 py-2 font-body text-[12px] font-black leading-tight transition active:scale-[0.98]"
-    : "vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] px-4 py-3 font-body text-[15px] font-black leading-tight transition active:scale-[0.98]";
+  const actions = showVyvaFollowUpActionsFor("scam").map((action) => {
+    if (action.id !== "call_trusted_contact") return action;
+    if (trustedContactHref) {
+      return {
+        ...action,
+        label: t("scamGuard.actions.callTrusted", "Call {{name}}", { name: contactName }),
+        detail: t("scamGuard.actions.callTrustedSub", "Ask someone you trust."),
+      };
+    }
+    return {
+      ...action,
+      label: t("scamGuard.actions.addTrusted", "Add trusted person"),
+      detail: t("scamGuard.actions.addTrustedSub", "Save someone to call."),
+    };
+  });
 
   return (
     <div
       data-testid={`scam-service-actions-${testIdSuffix}`}
-      className={compact ? "mt-3 border-t border-[#EDE5DB] pt-3" : "mt-4 rounded-[18px] bg-white/75 p-3"}
+      className={compact ? "mt-3 border-t border-[#EDE5DB] pt-3" : "mt-4"}
     >
-      <p className="mb-2 font-body text-[11px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-        {t("scamGuard.actions.title", "Quick safe actions")}
-      </p>
-      <div className={compact ? "flex flex-wrap gap-2" : "grid grid-cols-1 gap-2 sm:grid-cols-3"}>
-        {trustedContactHref ? (
-          <a
-            href={trustedContactHref}
-            data-testid={`button-scam-call-trusted-${testIdSuffix}`}
-            aria-label={t("scamGuard.actions.callTrustedAria", "Call {{name}} about this scam check", { name: contactName })}
-            className={`${buttonClass} bg-[#F5F3FF] text-vyva-purple`}
-          >
-            <Phone size={compact ? 15 : 18} />
-            <span>{t("scamGuard.actions.callTrusted", "Call {{name}}", { name: contactName })}</span>
-          </a>
-        ) : (
-          <button
-            type="button"
-            onClick={onAddTrustedContact}
-            data-testid={`button-scam-add-trusted-${testIdSuffix}`}
-            className={`${buttonClass} bg-[#F5F3FF] text-vyva-purple`}
-          >
-            <Users size={compact ? 15 : 18} />
-            <span>{t("scamGuard.actions.addTrusted", "Add trusted person")}</span>
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onOpenConcierge(context)}
-          data-testid={`button-scam-safe-help-${testIdSuffix}`}
-          aria-label={t("scamGuard.actions.safeHelpAria", "Open VYVA concierge with this scam check")}
-          className={`${buttonClass} bg-vyva-purple text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)]`}
-        >
-          <ClipboardList size={compact ? 15 : 18} />
-          <span>{t("scamGuard.actions.safeHelp", "Get safe help")}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onStartGuidance}
-          data-testid={`button-scam-call-guidance-${testIdSuffix}`}
-          className={`${buttonClass} bg-[#ECFDF5] text-[#047857]`}
-        >
-          <Phone size={compact ? 15 : 18} />
-          <span>
-            {isCallActive
-              ? t("scamGuard.actions.pauseGuidance", "Pause guidance")
-              : t("scamGuard.actions.callGuidance", "Call guidance")}
-          </span>
-        </button>
-      </div>
+      <ShowVyvaFollowUpPanel
+        context="scam"
+        testIdSuffix={testIdSuffix}
+        title={t("showVyva.followUp.title.scam", "Next scam-safe step")}
+        subtitle={t("showVyva.followUp.subtitle.scam", "Check before you reply, pay, call back, or share anything.")}
+        actions={actions}
+        onSelect={(action) => {
+          if (action.id === "call_trusted_contact") {
+            if (trustedContactHref) {
+              window.location.href = trustedContactHref;
+              return;
+            }
+            onAddTrustedContact();
+            return;
+          }
+          onOpenConcierge(context);
+        }}
+      />
     </div>
   );
 }

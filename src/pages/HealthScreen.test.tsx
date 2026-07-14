@@ -160,11 +160,12 @@ describe("VisualScanResultPanel", () => {
       />,
     );
 
-    expect(screen.getByTestId("button-visual-scan-action-call_gp")).toHaveAttribute("href", "tel:+34612345678");
-    expect(screen.getByTestId("button-visual-scan-action-email_gp")).toHaveAttribute("href", "mailto:gp@example.com");
-    fireEvent.click(screen.getByTestId("button-visual-scan-action-doctor_help"));
-    fireEvent.click(screen.getByTestId("button-visual-scan-action-schedule_appointment"));
-    fireEvent.click(screen.getByTestId("button-visual-scan-action-book_ride"));
+    expect(screen.getByTestId("show-vyva-follow-up-health-current")).toBeInTheDocument();
+    expect(screen.getByText("Next health step")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-doctor_help-health-current"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-schedule_appointment-health-current"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-book_ride-health-current"));
 
     expect(doctorHelp).toHaveBeenCalledTimes(1);
     expect(appointment).toHaveBeenCalledTimes(1);
