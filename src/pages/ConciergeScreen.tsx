@@ -111,8 +111,11 @@ type ConciergeRoutePrefill = {
   requestedTool?: ConciergeToolRequirement;
   actionLabel?: string;
   summary?: string;
-  useCase?: "scam_check" | "admin_task" | "paperwork" | "send_message" | "find_offers" | "find_provider";
-  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
+  useCase?: "scam_check" | "admin_task" | "paperwork" | "send_message" | "find_offers" | "find_provider" | "shopping_request";
+  providerSearchMode?: string;
+  providerSearchCriteria?: string[];
+  providerSearchQuery?: string;
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "shopping_helper" | "shopping_recommendation" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
 };
 
 type ConciergeLocationState = {
@@ -226,6 +229,8 @@ const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote",
 const OTC_PHARMACY_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.otcPharmacy;
 const TRANSPORT_BOOKING_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.transportBooking;
 const MEDICAL_APPOINTMENT_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.medicalAppointment;
+const SHOPPING_SUPPORT_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.shoppingSupport;
+const CARE_NAVIGATION_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.careNavigation;
 const SCAM_CHECK_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.scamCheck;
 const INSURANCE_ADMIN_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
 const OTC_PHARMACY_SETUP_FOCUS = providerSetupFocusForFlow(OTC_PHARMACY_FLOW_REFERENCE) ?? "pharmacy";
@@ -240,7 +245,7 @@ const CONCIERGE_TOOL_REQUIREMENTS: ConciergeToolRequirement[] = [
   "web_search",
   "operator_review",
 ];
-const CONCIERGE_PREPARED_USE_CASES = ["scam_check", "admin_task", "paperwork", "send_message", "find_offers", "find_provider"] as const;
+const CONCIERGE_PREPARED_USE_CASES = ["scam_check", "admin_task", "paperwork", "send_message", "find_offers", "find_provider", "shopping_request"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -277,6 +282,9 @@ function coerceConciergeRoutePrefill(value: unknown): ConciergeRoutePrefill | nu
     actionLabel: typeof value.actionLabel === "string" && value.actionLabel.trim() ? value.actionLabel.trim() : undefined,
     summary: typeof value.summary === "string" && value.summary.trim() ? value.summary.trim() : undefined,
     useCase: isConciergePreparedUseCase(value.useCase) ? value.useCase : undefined,
+    providerSearchMode: typeof value.providerSearchMode === "string" && value.providerSearchMode.trim() ? value.providerSearchMode.trim() : undefined,
+    providerSearchCriteria: routeStringList(value.providerSearchCriteria),
+    providerSearchQuery: typeof value.providerSearchQuery === "string" && value.providerSearchQuery.trim() ? value.providerSearchQuery.trim() : undefined,
     source: typeof value.source === "string" ? value.source as ConciergeRoutePrefill["source"] : undefined,
   };
 }
@@ -317,7 +325,7 @@ function isAppointmentType(value: unknown): value is AppointmentType {
 }
 
 function isProviderSearchMode(value: unknown): value is ProviderSearchMode {
-  return typeof value === "string" && ["personal-care", "specialist", "residence", "care"].includes(value);
+  return typeof value === "string" && ["personal-care", "specialist", "residence", "care", "transport", "pharmacy", "home-service"].includes(value);
 }
 
 function isProviderSearchCriterion(value: unknown): value is ProviderSearchCriterionKey {
@@ -589,6 +597,12 @@ function routePrefillTaskTitle(prefill: ConciergeRoutePrefill, isSpanish: boolea
   if (prefill.flowReference === INSURANCE_ADMIN_FLOW_REFERENCE) {
     return isSpanish ? "Gestion preparada" : "Paperwork task ready";
   }
+  if (prefill.flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) {
+    return isSpanish ? "Compra preparada" : "Shopping request ready";
+  }
+  if (prefill.flowReference === CARE_NAVIGATION_FLOW_REFERENCE) {
+    return isSpanish ? "Busqueda de cuidado preparada" : "Care search ready";
+  }
   if (prefill.useCase === "find_provider") {
     return isSpanish ? "Busqueda preparada" : "Provider search ready";
   }
@@ -607,12 +621,30 @@ function routePrefillTaskDetail(prefill: ConciergeRoutePrefill, isSpanish: boole
       ? "VYVA organiza el documento, destinatario y proximo paso."
       : "VYVA organizes the document, recipient, and next step.";
   }
+  if (prefill.flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) {
+    return isSpanish
+      ? "VYVA prepara la solicitud de compra. No se pide, paga ni contacta a nadie sin confirmacion."
+      : "VYVA prepares the shopping request. Nothing is ordered, paid, or sent without confirmation.";
+  }
+  if (prefill.flowReference === CARE_NAVIGATION_FLOW_REFERENCE) {
+    return isSpanish
+      ? "VYVA prepara opciones de cuidado antes de contactar con nadie."
+      : "VYVA prepares care options before contacting anyone.";
+  }
   if (prefill.useCase === "find_provider") {
     return isSpanish
       ? "VYVA prepara opciones fiables antes de contactar con nadie."
       : "VYVA prepares trusted options before contacting anyone.";
   }
   return isSpanish ? "Comprueba los detalles antes de enviarlos." : "Check the details before sending.";
+}
+
+function appointmentFlowReferenceFromPreferences(
+  preferences: Record<string, unknown> | null | undefined,
+  fallback: ConciergeFlowReference,
+): ConciergeFlowReference {
+  const value = preferences?.flow_reference;
+  return isConciergeFlowReference(value) ? value : fallback;
 }
 
 interface StoredChatHistory {
@@ -1678,15 +1710,19 @@ async function createAppointmentRequest(params: {
   appointmentType: AppointmentType;
   detail: string;
   preferences?: Record<string, unknown>;
+  flowReference?: ConciergeFlowReference;
   routePrefillSource?: string;
   locale: string;
 }): Promise<AppointmentRequestResponse> {
+  const preferences = params.flowReference
+    ? { ...(params.preferences ?? {}), flow_reference: params.flowReference }
+    : params.preferences ?? {};
   const res = await apiFetch("/api/appointments/requests", {
     method: "POST",
     body: JSON.stringify({
       appointment_type: params.appointmentType,
       detail: params.detail,
-      preferences: params.preferences ?? {},
+      preferences,
       route_prefill_source: params.routePrefillSource,
       language: params.locale,
     }),
@@ -1866,6 +1902,9 @@ async function saveConfirmedHomeServiceFromProviderReply(params: {
   }
 
   const payload = providerReplyOutcomePayload(item, form);
+  const flowReference = isConciergeFlowReference(payload.flow_reference)
+    ? payload.flow_reference
+    : CONCIERGE_FLOW_REFERENCES.homeService;
   const providerName = String(payload.provider_name || item.provider_name || (params.isSpanish ? "proveedor" : "provider"));
   const serviceType = normalizeHomeServiceType(payloadString(item.action_payload, ["service_type", "service_label", "service_needed"]) || item.action_summary);
   const serviceLabel = payloadString(item.action_payload, ["service_label", "service_needed"]) || homeServiceTypeLabel(serviceType, params.locale);
@@ -1901,7 +1940,7 @@ async function saveConfirmedHomeServiceFromProviderReply(params: {
       source: "concierge",
       metadata: {
         ...payload,
-        flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+        flow_reference: flowReference,
         pending_id: item.id,
         appointment_type: "home-service",
         provider_name: providerName,
@@ -1933,7 +1972,7 @@ async function saveConfirmedHomeServiceFromProviderReply(params: {
       outcomeSummary: `Home service visit confirmed with ${providerName}.`,
       outcomePayload: {
         ...payload,
-        flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+        flow_reference: flowReference,
         appointment_type: "home-service",
         provider_name: providerName,
         service_type: serviceType,
@@ -2348,6 +2387,9 @@ async function prepareToolGatedConciergeTask(params: {
         execution_channel: "manual",
         action_label: actionLabel,
         draft_message: params.prefill.message,
+        provider_search_mode: params.prefill.providerSearchMode ?? null,
+        provider_search_query: params.prefill.providerSearchQuery ?? null,
+        criteria: params.prefill.providerSearchCriteria?.length ? params.prefill.providerSearchCriteria : null,
         source: params.prefill.source ?? "user_request",
         confirmation_required_before_action: true,
         review_fallback: params.readiness.activeTool === "operator_review",
@@ -2641,6 +2683,19 @@ function providerSearchSetupFocus(mode: ProviderSearchMode | null): string {
   if (mode === "home-service") return "home_service";
   if (mode === "residence" || mode === "personal-care" || mode === "care") return "personal_care";
   return "other";
+}
+
+function providerSearchFlowReference(mode: ProviderSearchMode | null): ConciergeFlowReference {
+  if (mode === "personal-care" || mode === "specialist" || mode === "residence" || mode === "care") {
+    return CARE_NAVIGATION_FLOW_REFERENCE;
+  }
+  return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
+}
+
+function providerSearchActionFlowReference(item: ConciergePendingItem): ConciergeFlowReference {
+  const explicit = payloadString(item.action_payload, ["flow_reference"]);
+  if (isConciergeFlowReference(explicit)) return explicit;
+  return providerSearchFlowReference(providerRecoveryModeFromCategory(providerSearchCategoryFromAction(item)));
 }
 
 function providerCriterionLabels(criteria: ProviderSearchCriterionKey[], es: boolean): string[] {
@@ -3764,10 +3819,13 @@ function isHomeServiceCompletedSession(session: ConciergeCompletedSession): bool
 function completedSessionFlowLabel(session: ConciergeCompletedSession, locale = "es"): string {
   const es = locale.startsWith("es");
   const flowReference = payloadString(session.outcome_payload, ["flow_reference"]);
+  if (flowReference === CONCIERGE_FLOW_REFERENCES.safeHomeSupport) return es ? "Casa segura" : "Safe home";
   if (isHomeServiceCompletedSession(session)) return es ? "Servicio en casa" : "Home service";
   if (session.use_case === "book_ride" || flowReference === TRANSPORT_BOOKING_FLOW_REFERENCE) return es ? "Viaje" : "Ride";
   if (session.use_case === "order_medicine" || flowReference === OTC_PHARMACY_FLOW_REFERENCE) return es ? "Farmacia OTC" : "OTC pharmacy";
+  if (session.use_case === "shopping_request" || flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) return es ? "Compra" : "Shopping";
   if (session.use_case === "book_appointment" || flowReference === MEDICAL_APPOINTMENT_FLOW_REFERENCE) return es ? "Cita" : "Appointment";
+  if (flowReference === CARE_NAVIGATION_FLOW_REFERENCE) return es ? "Opciones de cuidado" : "Care options";
   return getUseCaseLabel(session.use_case, locale);
 }
 
@@ -6459,6 +6517,8 @@ function getUseCaseLabel(useCase: string, locale = "es"): string {
       return es ? "Papeleo" : "Paperwork";
     case "send_message":
       return es ? "Mensaje" : "Message";
+    case "shopping_request":
+      return es ? "Compra" : "Shopping";
     default:
       return useCase.replace(/_/g, " ");
   }
@@ -6467,6 +6527,9 @@ function getUseCaseLabel(useCase: string, locale = "es"): string {
 function getPendingActionUseCaseLabel(item: ConciergePendingItem, locale = "es"): string {
   const es = locale.startsWith("es");
   if (isHomeServicePendingAction(item)) return es ? "Servicio en casa" : "Home service";
+  if (payloadString(item.action_payload, ["flow_reference"]) === CARE_NAVIGATION_FLOW_REFERENCE) {
+    return es ? "Opciones de cuidado" : "Care options";
+  }
   return getUseCaseLabel(item.use_case, locale);
 }
 
@@ -6891,7 +6954,7 @@ const ConciergeScreen = () => {
     );
   const appointmentIntentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? null;
   const appointmentFlowReference = appointmentIntentType === "home-service"
-    ? CONCIERGE_FLOW_REFERENCES.homeService
+    ? appointmentFlowReferenceFromPreferences(appointmentRequest?.preferences, CONCIERGE_FLOW_REFERENCES.homeService)
     : CONCIERGE_FLOW_REFERENCES.medicalAppointment;
   const otcToolReadiness = evaluateConciergeToolReadiness({
     flowReference: OTC_PHARMACY_FLOW_REFERENCE,
@@ -8201,6 +8264,28 @@ const ConciergeScreen = () => {
       });
       return;
     }
+    if (routePrefill?.kind === "home_care_quote") {
+      const chip = APPOINTMENT_TYPE_CHIPS.find((item) => item.key === "home-service") ?? APPOINTMENT_TYPE_CHIPS[0];
+      setSelectedAppointmentChip(chip);
+      setAppointmentOpen(true);
+      setAppointmentNote(text);
+      setInput((current) => current.trim() ? current : text);
+      setRoutePrefill(null);
+      createAppointmentMutation.mutate({
+        appointmentType: "home-service",
+        detail: text,
+        preferences: {
+          flow_reference: routePrefill.flowReference ?? CONCIERGE_FLOW_REFERENCES.homeService,
+          safety_source: routePrefill.source ?? "safe_home",
+          action_label: routePrefill.actionLabel ?? null,
+          summary: routePrefill.summary ?? null,
+        },
+        flowReference: routePrefill.flowReference ?? CONCIERGE_FLOW_REFERENCES.homeService,
+        routePrefillSource: routePrefill.source,
+        locale,
+      });
+      return;
+    }
     const userMsg: ChatMessage = { role: "user", content: text };
     const nextHistory = [...messages, userMsg];
     setMessages(nextHistory);
@@ -8439,12 +8524,45 @@ const ConciergeScreen = () => {
     const base = isSpanish ? chip.promptEs : chip.promptEn;
     const note = appointmentNote.trim();
     setSelectedAppointmentChip(chip);
+    if (chip.key === "government") {
+      setAppointmentOpen(false);
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+      setAppointmentRequest(null);
+      setAppointmentOptions([]);
+      setAppointmentDiscovery(null);
+      setAppointmentAttemptResult(null);
+      openInsuranceAdminAssistant("government-form", { subject: note });
+      return;
+    }
+    if (chip.key === "personal-care") {
+      setAppointmentOpen(false);
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+      setAppointmentRequest(null);
+      setAppointmentOptions([]);
+      setAppointmentDiscovery(null);
+      setAppointmentAttemptResult(null);
+      setAppointmentNote("");
+      openProviderSearchPanel(
+        "personal-care",
+        note
+          ? `${base}\n\n${isSpanish ? "Detalle del usuario" : "User detail"}: ${note}`
+          : base,
+      );
+      return;
+    }
     if (chip.key === "home-service") {
       const { intake, preferences } = buildCurrentHomeServiceIntake();
+      const flowReference = routePrefill?.flowReference ?? CONCIERGE_FLOW_REFERENCES.homeService;
       createAppointmentMutation.mutate({
         appointmentType: chip.key,
         detail: intake.research_brief || note || base,
-        preferences,
+        preferences: {
+          ...preferences,
+          flow_reference: flowReference,
+        },
+        flowReference,
         routePrefillSource: routePrefill?.source,
         locale,
       });
@@ -9319,14 +9437,16 @@ const ConciergeScreen = () => {
 
   function handleSaveProviderSearchProvider(item: ConciergePendingItem) {
     const details = providerSearchActionDetails(item, isSpanish);
+    const flowReference = providerSearchActionFlowReference(item);
     navigate("/onboarding/profile/providers", {
       state: {
         returnTo: "/concierge",
         setupFocus: details.category,
-        setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+        setupFlow: flowReference,
         setupReason: "Save provider from Concierge",
         conciergeResume: {
-          kind: "generic",
+          kind: flowReference === CARE_NAVIGATION_FLOW_REFERENCE ? "provider_search" : "generic",
+          mode: flowReference === CARE_NAVIGATION_FLOW_REFERENCE ? providerRecoveryModeFromCategory(details.category) : undefined,
           message: isSpanish
             ? `Continua preparando el contacto con ${details.providerName}. Criterios: ${details.criteria || "seguridad y ajuste"}.`
             : `Continue preparing contact with ${details.providerName}. Criteria: ${details.criteria || "safety and fit"}.`,
@@ -9363,13 +9483,16 @@ const ConciergeScreen = () => {
         "Prepare verifiable options and explain why they fit. Do not contact or share details without my confirmation.",
       ].join("\n");
     prepareConciergeRequest(message, {
-      flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+      flowReference: providerSearchActionFlowReference(item),
       requestedTool: "operator_review",
       actionLabel: isSpanish ? "Buscar otro proveedor" : "Find another provider",
       summary: isSpanish
         ? "Busqueda alternativa de proveedor preparada."
         : "Alternative provider search prepared.",
       useCase: "find_provider",
+      providerSearchMode: providerRecoveryModeFromCategory(details.category),
+      providerSearchCriteria: details.criteria ? details.criteria.split(",").map((item) => item.trim()).filter(Boolean) : DEFAULT_PROVIDER_SEARCH_CRITERIA,
+      providerSearchQuery: details.providerName,
     });
     setProviderReplyNotice(isSpanish ? "Busqueda alternativa preparada en el chat." : "Alternative search prepared in chat.");
   }
@@ -9568,12 +9691,15 @@ const ConciergeScreen = () => {
     setScamCheckDetail("");
   }
 
-  function openInsuranceAdminAssistant() {
+  function openInsuranceAdminAssistant(
+    initialKind: InsuranceAdminKind | null = null,
+    initialDetails: Partial<typeof insuranceAdminDetails> = {},
+  ) {
     setInsuranceAdminOpen(true);
     setScamCheckOpen(false);
     setOtcPharmacyOpen(false);
-    setSelectedInsuranceAdminKind(null);
-    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
+    setSelectedInsuranceAdminKind(initialKind);
+    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "", ...initialDetails });
     setRoutePrefill(null);
     closeOffersPanel();
     window.setTimeout(() => {
@@ -9692,13 +9818,16 @@ const ConciergeScreen = () => {
         "Prepare a clear summary and ask me to confirm. Do not call, book, message, or share details without my confirmation.",
       ].join("\n");
     prepareConciergeRequest(message, {
-      flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+      flowReference: providerSearchFlowReference(providerSearchMode),
       requestedTool: "operator_review",
       actionLabel: isSpanish ? "Preparar contacto" : "Prepare contact",
       summary: isSpanish
         ? `Busqueda de proveedor preparada: ${option.name}.`
         : `Provider search prepared: ${option.name}.`,
       useCase: "find_provider",
+      providerSearchMode: providerSearchMode ?? undefined,
+      providerSearchCriteria: providerSearchCriteria,
+      providerSearchQuery: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
     });
   }
 
@@ -9718,13 +9847,16 @@ const ConciergeScreen = () => {
         "Prepare verifiable options and explain them. Do not contact or share details without my confirmation.",
       ].join("\n");
     prepareConciergeRequest(message, {
-      flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+      flowReference: providerSearchFlowReference(providerSearchMode),
       requestedTool: "operator_review",
       actionLabel: isSpanish ? "Buscar manualmente" : "Manual search",
       summary: isSpanish
         ? "Busqueda de proveedor preparada para revision."
         : "Provider search prepared for review.",
       useCase: "find_provider",
+      providerSearchMode: providerSearchMode ?? undefined,
+      providerSearchCriteria: providerSearchCriteria,
+      providerSearchQuery: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
     });
   }
 
@@ -9733,7 +9865,7 @@ const ConciergeScreen = () => {
       state: {
         returnTo: "/concierge",
         setupFocus: providerSearchSetupFocus(providerSearchMode),
-        setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+        setupFlow: providerSearchFlowReference(providerSearchMode),
         setupReason: "Add a trusted provider",
         conciergeResume: {
           kind: "provider_search",
@@ -10299,11 +10431,11 @@ const ConciergeScreen = () => {
       id: "book-now",
       icon: Calendar,
       title: t("concierge.master.cards.bookNow", "Book Now"),
-      detail: t("concierge.master.cards.bookNowDetail", "Medical, government, ride"),
+      detail: t("concierge.master.cards.bookNowDetail", "Medical, government, personal care"),
       chips: [
         t("concierge.master.cards.bookNowChipMedical", "Medical"),
         t("concierge.master.cards.bookNowChipGovernment", "Government"),
-        t("concierge.master.cards.bookNowChipRide", "Ride"),
+        t("concierge.master.cards.bookNowChipPersonalCare", "Personal care"),
       ],
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => openScheduleAssistant(),
@@ -10318,7 +10450,13 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.safeHome", "Safe Home"),
       detail: t("concierge.master.fastHelp.safeHomeDetail", "Safety check"),
       tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => navigate("/safe-home"),
+      onClick: () =>
+        navigate("/safe-home", {
+          state: {
+            source: "concierge_fast_help",
+            flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+          },
+        }),
       testId: "button-concierge-fast-safe-home",
     },
     {
@@ -10408,7 +10546,7 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.governmentHelp", "Government Help"),
       detail: t("concierge.master.fastHelp.governmentHelpDetail", "Official tasks"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => openScheduleAssistant("government"),
+      onClick: () => openInsuranceAdminAssistant("government-form"),
       testId: "button-concierge-fast-government-help",
     },
     {

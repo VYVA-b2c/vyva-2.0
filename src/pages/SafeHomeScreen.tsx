@@ -25,6 +25,7 @@ import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import type { ShoppingPriority } from "../../shared/shopping";
 import { languageText } from "../../shared/language";
 
@@ -57,6 +58,9 @@ type SafeHomeQuoteState = {
   conciergePrefill: {
     kind: "home_care_quote";
     message: string;
+    flowReference: typeof CONCIERGE_FLOW_REFERENCES.safeHomeSupport;
+    actionLabel: string;
+    summary: string;
     source: "safe_home_scan";
   };
 };
@@ -111,6 +115,23 @@ export function safeHomeQuoteState(scan: SafeHomeActionScan, language = "en"): S
     conciergePrefill: {
       kind: "home_care_quote",
       source: "safe_home_scan",
+      flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+      actionLabel: languageText(language, {
+        es: "Pedir presupuesto de seguridad",
+        en: "Request safety quote",
+        fr: "Demander un devis securite",
+        de: "Sicherheitsangebot anfragen",
+        it: "Richiedere preventivo sicurezza",
+        pt: "Pedir orcamento de seguranca",
+      }),
+      summary: languageText(language, {
+        es: "VYVA prepara una ayuda de seguridad en casa y la deja pendiente de confirmacion.",
+        en: "VYVA prepares home-safety help and keeps it pending for confirmation.",
+        fr: "VYVA prepare une aide securite a domicile et attend votre confirmation.",
+        de: "VYVA bereitet Hilfe fuer Sicherheit zu Hause vor und wartet auf Bestaetigung.",
+        it: "VYVA prepara un aiuto per la sicurezza domestica e attende conferma.",
+        pt: "A VYVA prepara ajuda de seguranca em casa e aguarda confirmacao.",
+      }),
       message: languageText(language, {
         es: `Ayudame a pedir un presupuesto de seguridad en casa para revisar o arreglar estos riesgos: ${summary}. Pideme confirmacion antes de solicitar nada.`,
         en: `Help me request a home safety quote to review or fix these risks: ${summary}. Ask me to confirm before requesting anything.`,
