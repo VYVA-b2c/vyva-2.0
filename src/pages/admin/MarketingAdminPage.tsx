@@ -423,11 +423,14 @@ type CampaignStudioPlayId = string;
 
 type CampaignStudioToneId = "warm" | "expert" | "direct" | "uplifting";
 
+type CampaignStudioAngleId = "balanced" | "proof" | "action" | "local";
+
 type CampaignStudioCategoryId = "all" | "onboarding" | "engagement" | "education" | "partner" | "community" | "social" | "retention";
 
 type CampaignStudioState = {
   playId: CampaignStudioPlayId;
   toneId: CampaignStudioToneId;
+  angleId: CampaignStudioAngleId;
   channel: Channel;
   selectedChannels: Channel[];
   scheduleStartsAt: string;
@@ -719,6 +722,20 @@ const campaignStudioToneGuidance: Record<CampaignStudioToneId, string> = {
   expert: "Credible, precise, and useful. Lead with the practical value.",
   direct: "Short, action-oriented, and easy to scan. Lead with the next step.",
   uplifting: "Positive, energetic, and encouraging. Lead with momentum.",
+};
+
+const campaignStudioAngleOptions: Array<{ id: CampaignStudioAngleId; label: string; hint: string }> = [
+  { id: "balanced", label: "Balanced", hint: "Clear value, calm context, and one action." },
+  { id: "proof", label: "Proof-led", hint: "Lead with credibility, evidence, or a practical outcome." },
+  { id: "action", label: "Action-led", hint: "Make the next step unmistakable and urgent enough to act." },
+  { id: "local", label: "Local relevance", hint: "Anchor the message around market, list, or community context." },
+];
+
+const campaignStudioAngleGuidance: Record<CampaignStudioAngleId, string> = {
+  balanced: "Keep the message balanced: value, context, and one clear next step.",
+  proof: "Lead with proof, credibility, or a concrete outcome before the CTA.",
+  action: "Lead with the next action and keep every line pointed at conversion.",
+  local: "Make the message feel specific to the selected list, market, or community context.",
 };
 
 const campaignStudioChannelGuidance: Record<Channel, string> = {
@@ -2800,7 +2817,21 @@ function bestCampaignStudioAudience(play: CampaignStudioPlay, audiences: Marketi
   }) ?? audiences.find((audience) => audience.memberCount > 0) ?? null;
 }
 
-function campaignStudioBrief(play: CampaignStudioPlay, toneId: CampaignStudioToneId, channel: Channel, audience: MarketingAudience | null): CampaignStudioGeneratedDraft {
+function campaignStudioSubject(play: CampaignStudioPlay, channel: Channel, angleId: CampaignStudioAngleId, target: string) {
+  const base = channel === "email" ? play.subject : `${play.label}: ${play.subject}`;
+  if (angleId === "proof") return channel === "email" ? `Proof point: ${play.subject}` : `${play.label}: proof point`;
+  if (angleId === "action") return channel === "email" ? `Next step: ${play.subject}` : `${play.label}: next step`;
+  if (angleId === "local") return channel === "email" ? `${play.subject} for ${target}` : `${play.label} for ${target}`;
+  return base;
+}
+
+function campaignStudioBrief(
+  play: CampaignStudioPlay,
+  toneId: CampaignStudioToneId,
+  angleId: CampaignStudioAngleId,
+  channel: Channel,
+  audience: MarketingAudience | null,
+): CampaignStudioGeneratedDraft {
   const tone = campaignStudioToneLabel[toneId];
   const target = audience ? audience.name : play.audienceType.toUpperCase();
   const channelGuidance = campaignStudioChannelGuidance[channel];
@@ -2808,12 +2839,13 @@ function campaignStudioBrief(play: CampaignStudioPlay, toneId: CampaignStudioTon
     play.body,
     "",
     `Tone direction: ${campaignStudioToneGuidance[toneId]}`,
+    `Angle direction: ${campaignStudioAngleGuidance[angleId]}`,
     `Channel direction: ${channelGuidance}`,
   ].join("\n");
   return {
     campaignName: play.campaignName,
     contentTitle: `${play.contentTitle} - ${channelLabel[channel]}`,
-    subject: channel === "email" ? play.subject : `${play.label}: ${play.subject}`,
+    subject: campaignStudioSubject(play, channel, angleId, target),
     body,
     ctaLabel: play.ctaLabel,
     ctaUrl: play.ctaUrl,
@@ -2824,6 +2856,7 @@ function campaignStudioBrief(play: CampaignStudioPlay, toneId: CampaignStudioTon
       playId: play.id,
       playCategory: play.categoryId,
       tone: toneId,
+      angle: angleId,
       channel,
       audience: audience ? audienceSnapshot(audience) : null,
     },
@@ -2832,6 +2865,7 @@ function campaignStudioBrief(play: CampaignStudioPlay, toneId: CampaignStudioTon
       "",
       `Audience: ${target}.`,
       `Tone: ${tone}.`,
+      `Angle: ${campaignStudioAngleOptions.find((item) => item.id === angleId)?.label ?? angleId}. ${campaignStudioAngleGuidance[angleId]}`,
       `Primary channel: ${channelLabel[channel]}. ${channelGuidance}`,
     ].join("\n"),
   };
@@ -3943,6 +3977,7 @@ export default function MarketingAdminPage() {
   const [campaignStudio, setCampaignStudio] = useState<CampaignStudioState>(() => ({
     playId: "caregiver-onboarding",
     toneId: "warm",
+    angleId: "balanced",
     channel: "email",
     selectedChannels: ["email"],
     scheduleStartsAt: "",
@@ -4542,6 +4577,7 @@ export default function MarketingAdminPage() {
   const campaignStudioTemplateDraft = campaignStudioBrief(
     selectedCampaignStudioPlay,
     campaignStudio.toneId,
+    campaignStudio.angleId,
     campaignStudio.channel,
     selectedCampaignStudioTargetAudience,
   );
@@ -4577,7 +4613,7 @@ export default function MarketingAdminPage() {
     draft: campaignStudioAiDrafts[channel]
       ?? (channel === campaignStudio.channel
         ? campaignStudioGenerated
-      : campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, channel, selectedCampaignStudioTargetAudience)),
+      : campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, campaignStudio.angleId, channel, selectedCampaignStudioTargetAudience)),
     recipients: campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0,
   }));
   const sendCapabilityByChannel = useMemo(
@@ -4624,6 +4660,7 @@ export default function MarketingAdminPage() {
   };
   const campaignStudioAiDraftCount = campaignStudioSelectedChannels.filter((channel) => campaignStudioAiDrafts[channel]?.source === "openai").length;
   const campaignStudioHasFullAiPack = campaignStudioSelectedChannels.length > 0 && campaignStudioAiDraftCount === campaignStudioSelectedChannels.length;
+  const campaignStudioFirstSelectedChannel = campaignStudioSelectedChannels[0] ?? campaignStudio.channel;
   const campaignStudioSubjectLength = campaignStudioGenerated.subject.trim().length;
   const campaignStudioBodyWordCount = wordCount(campaignStudioGenerated.body);
   const campaignStudioHasEmailChannel = campaignStudioSelectedChannels.includes("email");
@@ -4681,7 +4718,7 @@ export default function MarketingAdminPage() {
       detail: campaignStudioHasFullAiPack
         ? `AI adapted all ${campaignStudioSelectedChannels.length} selected channel draft${campaignStudioSelectedChannels.length === 1 ? "" : "s"}.`
         : campaignStudioSelectedChannels.length === 1
-          ? `${channelLabel[campaignStudioSelectedChannels[0]]} has one focused draft ready for review.`
+          ? `${channelLabel[campaignStudioFirstSelectedChannel]} has one focused draft ready for review.`
           : `${campaignStudioAiDraftCount}/${campaignStudioSelectedChannels.length} selected channels have AI-polished copy. Improve the pack with AI for stronger channel fit.`,
     },
   ];
@@ -4891,6 +4928,7 @@ export default function MarketingAdminPage() {
     const suggestedAudience = bestCampaignStudioAudience(nextPlay, audiences);
     updateCampaignStudio({
       playId: nextPlay.id,
+      angleId: "balanced",
       channel: nextPlay.defaultChannel,
       selectedChannels: [nextPlay.defaultChannel],
       scheduleStartsAt: campaignStudioDefaultSchedule(nextPlay),
@@ -4903,7 +4941,7 @@ export default function MarketingAdminPage() {
     setCampaignStudioFeedback(campaignStudioSelectedChannels.length > 1 ? "Generating AI drafts for the selected channel pack..." : "Generating AI campaign draft...");
     try {
       const results = await Promise.all(campaignStudioSelectedChannels.map(async (channel) => {
-        const seed = campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, channel, selectedCampaignStudioTargetAudience);
+        const seed = campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, campaignStudio.angleId, channel, selectedCampaignStudioTargetAudience);
         const recipientsForChannel = campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0;
         const result = await api<{
           configured: boolean;
@@ -4918,6 +4956,8 @@ export default function MarketingAdminPage() {
             audienceType: selectedCampaignStudioPlay.audienceType,
             channel,
             tone: campaignStudio.toneId,
+            angle: campaignStudio.angleId,
+            angleGuidance: campaignStudioAngleGuidance[campaignStudio.angleId],
             targetAudienceName: selectedCampaignStudioTargetAudience?.name ?? "",
             targetAudienceSize: selectedCampaignStudioTargetAudience?.mappedMemberCount ?? recipientsForChannel,
             campaignName: seed.campaignName,
@@ -4988,6 +5028,7 @@ export default function MarketingAdminPage() {
         playId: selectedCampaignStudioPlay.id,
         playCategory: selectedCampaignStudioPlay.categoryId,
         tone: campaignStudio.toneId,
+        angle: campaignStudio.angleId,
         source: campaignStudioGenerated.source ?? "template",
         audience: selectedCampaignStudioTargetAudience ? audienceSnapshot(selectedCampaignStudioTargetAudience) : null,
       }),
@@ -5039,6 +5080,7 @@ export default function MarketingAdminPage() {
             playId: selectedCampaignStudioPlay.id,
             playCategory: selectedCampaignStudioPlay.categoryId,
             tone: campaignStudio.toneId,
+            angle: campaignStudio.angleId,
             source: draft.source ?? "template",
             channel,
             primaryChannel: campaignStudio.channel,
@@ -5064,6 +5106,7 @@ export default function MarketingAdminPage() {
               playId: selectedCampaignStudioPlay.id,
               playCategory: selectedCampaignStudioPlay.categoryId,
               tone: campaignStudio.toneId,
+              angle: campaignStudio.angleId,
               generatedSource: campaignStudioGenerated.source ?? "template",
               selectedChannels: campaignStudioSelectedChannels,
             },
@@ -6482,6 +6525,7 @@ export default function MarketingAdminPage() {
                               const suggestedAudience = bestCampaignStudioAudience(play, audiences);
                               updateCampaignStudio({
                                 playId: play.id,
+                                angleId: "balanced",
                                 channel: play.defaultChannel,
                                 selectedChannels: [play.defaultChannel],
                                 scheduleStartsAt: campaignStudioDefaultSchedule(play),
@@ -6557,6 +6601,39 @@ export default function MarketingAdminPage() {
                           data-testid="input-marketing-campaign-studio-schedule"
                         />
                       </Field>
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-angles">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Message angle</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Choose how the campaign leads</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Switch the starting copy before AI polish, channel adaptation, or campaign creation.</p>
+                        </div>
+                        <Pill className="bg-purple-50 text-purple-800">
+                          {campaignStudioAngleOptions.find((item) => item.id === campaignStudio.angleId)?.label ?? "Balanced"}
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {campaignStudioAngleOptions.map((angle) => {
+                          const selected = campaignStudio.angleId === angle.id;
+                          return (
+                            <button
+                              key={angle.id}
+                              type="button"
+                              onClick={() => updateCampaignStudio({ angleId: angle.id })}
+                              className={`min-h-[78px] rounded-xl border px-3 py-2 text-left transition ${selected ? "border-purple-400 bg-purple-50 shadow-[0_8px_18px_rgba(126,34,206,0.14)]" : "border-[#eadfd5] bg-[#fffaf4] hover:border-purple-200"}`}
+                              data-testid={`button-marketing-campaign-studio-angle-${angle.id}`}
+                            >
+                              <span className="flex items-center justify-between gap-2">
+                                <span className="font-black text-[#241133]">{angle.label}</span>
+                                {selected ? <Pill className="bg-purple-700 text-white">Selected</Pill> : null}
+                              </span>
+                              <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{angle.hint}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-4" data-testid="marketing-campaign-studio-channel-pack">
@@ -6685,7 +6762,10 @@ export default function MarketingAdminPage() {
                           <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Generated brief</p>
                           <h3 className="mt-1 text-lg font-black text-[#241133]">{campaignStudioGenerated.campaignName}</h3>
                         </div>
-                        <Pill className="bg-purple-50 text-purple-800">{campaignStudioToneLabel[campaignStudio.toneId]}</Pill>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Pill className="bg-purple-50 text-purple-800">{campaignStudioToneLabel[campaignStudio.toneId]}</Pill>
+                          <Pill className="bg-white text-[#5b4a46]">{campaignStudioAngleOptions.find((item) => item.id === campaignStudio.angleId)?.label ?? "Balanced"}</Pill>
+                        </div>
                       </div>
                       <div className="mt-3 grid gap-2 text-sm font-bold text-[#5b4a46]">
                         <p><span className="font-black text-[#241133]">Subject:</span> {campaignStudioGenerated.subject}</p>

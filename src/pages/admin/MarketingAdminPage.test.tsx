@@ -2021,6 +2021,12 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-angles")).toHaveTextContent("Choose how the campaign leads");
+    expect(screen.getByTestId("marketing-campaign-studio-angles")).toHaveTextContent("Proof-led");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-angle-proof"));
+    expect(screen.getByTestId("button-marketing-campaign-studio-angle-proof")).toHaveTextContent("Selected");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach: proof point");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Proof-led");
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel")).toHaveTextContent("Reach and fit");
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-reach")).toHaveTextContent("1/1");
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-best-channel")).toHaveTextContent("LinkedIn 1");
@@ -2038,6 +2044,11 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
+    });
+    const aiDraftCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiDraftCall?.[1]?.body ?? "{}"))).toMatchObject({
+      angle: "proof",
+      angleGuidance: expect.stringContaining("Lead with proof"),
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI draft generated");
@@ -2061,6 +2072,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Partner outreach AI content");
     expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI body copy");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("\"angle\": \"proof\"");
   });
 
   it("creates linked campaign and content directly from the smart studio", async () => {
@@ -2086,6 +2098,7 @@ describe("MarketingAdminPage", () => {
     });
     const aiDraftCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
     expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel)).toEqual(["linkedin", "email"]);
+    expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).angle)).toEqual(["balanced", "balanced"]);
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("AI adapted all 2 selected channel drafts.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
     fireEvent.click(screen.getByTestId("button-marketing-create-studio-campaign"));
@@ -2114,6 +2127,7 @@ describe("MarketingAdminPage", () => {
         generator: "marketing_campaign_studio",
         playId: "b2b-partner-outreach",
         source: "openai",
+        angle: "balanced",
       },
     });
     const emailContentBody = JSON.parse(String(contentPosts.find(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel === "email")?.[1]?.body));
@@ -2125,6 +2139,7 @@ describe("MarketingAdminPage", () => {
       designJson: {
         generator: "marketing_campaign_studio",
         source: "openai",
+        angle: "balanced",
         channel: "email",
         primaryChannel: "linkedin",
       },
@@ -2160,6 +2175,7 @@ describe("MarketingAdminPage", () => {
         },
         studio: {
           playId: "b2b-partner-outreach",
+          angle: "balanced",
           generatedSource: "openai",
           selectedChannels: ["linkedin", "email"],
         },
