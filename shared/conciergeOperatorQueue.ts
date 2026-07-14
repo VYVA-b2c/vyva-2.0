@@ -10,6 +10,14 @@ export const OPERATOR_CONCIERGE_QUEUE_STATUSES = [
 
 export type OperatorConciergeQueueStatus = typeof OPERATOR_CONCIERGE_QUEUE_STATUSES[number];
 
+export const OPERATOR_CONCIERGE_QUEUE_ACTIONS = [
+  "in_progress",
+  "done",
+  "failed",
+] as const;
+
+export type OperatorConciergeQueueAction = typeof OPERATOR_CONCIERGE_QUEUE_ACTIONS[number];
+
 export type OperatorConciergeQueueItem = {
   id: string;
   source: "pending" | "session";
@@ -43,6 +51,10 @@ export const OPERATOR_CONCIERGE_QUEUE_STATUS_LABELS: Record<OperatorConciergeQue
 
 export function isOperatorConciergeQueueStatus(value: unknown): value is OperatorConciergeQueueStatus {
   return typeof value === "string" && OPERATOR_CONCIERGE_QUEUE_STATUSES.includes(value as OperatorConciergeQueueStatus);
+}
+
+export function isOperatorConciergeQueueAction(value: unknown): value is OperatorConciergeQueueAction {
+  return typeof value === "string" && OPERATOR_CONCIERGE_QUEUE_ACTIONS.includes(value as OperatorConciergeQueueAction);
 }
 
 export function normalizeOperatorConciergeQueueStatus(

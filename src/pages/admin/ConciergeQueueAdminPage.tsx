@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, Clock3, Loader2, RefreshCw, ShieldCheck, Wrench } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, Loader2, RefreshCw, ShieldCheck, Wrench, X } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -15,6 +15,7 @@ import {
 } from "../../../shared/conciergeOperatorQueue";
 
 type QueueFilter = OperatorConciergeQueueStatus | "all";
+type QueueAction = "in_progress" | "done" | "failed";
 
 type QueueResponse = {
   items?: OperatorConciergeQueueItem[];
@@ -77,6 +78,9 @@ export default function ConciergeQueueAdminPage() {
   const [filter, setFilter] = useState<QueueFilter>("all");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [selectedItem, setSelectedItem] = useState<OperatorConciergeQueueItem | null>(null);
+  const [outcomeNote, setOutcomeNote] = useState("");
+  const [savingAction, setSavingAction] = useState<QueueAction | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -104,6 +108,37 @@ export default function ConciergeQueueAdminPage() {
 
   const visibleItems = useMemo(() => filterOperatorConciergeQueueItems(items, filter), [filter, items]);
   const allCount = useMemo(() => OPERATOR_CONCIERGE_QUEUE_STATUSES.reduce((sum, status) => sum + totals[status], 0), [totals]);
+  const selectedCanAct = Boolean(
+    selectedItem?.source === "pending"
+      && selectedItem.user_confirmed
+      && selectedItem.status !== "done"
+      && selectedItem.status !== "failed",
+  );
+
+  async function updateTask(action: QueueAction) {
+    if (!selectedItem) return;
+    setSavingAction(action);
+    setMessage("");
+    try {
+      const res = await apiFetch(`/api/admin/concierge/queue/${selectedItem.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action,
+          outcome_note: outcomeNote,
+        }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) throw new Error(data.error || "Task could not be updated.");
+      setSelectedItem(null);
+      setOutcomeNote("");
+      await refresh();
+      setMessage("Concierge task updated.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Task could not be updated.");
+    } finally {
+      setSavingAction(null);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
@@ -253,11 +288,126 @@ export default function ConciergeQueueAdminPage() {
                     </p>
                   </div>
                 </div>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-purple-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2"
+                    onClick={() => {
+                      setSelectedItem(item);
+                      setOutcomeNote("");
+                    }}
+                  >
+                    Open task
+                  </button>
+                </div>
               </article>
             ))}
           </div>
         </section>
       </section>
+
+      {selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1f1724]/55 px-4 py-4 sm:items-center" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="operator-task-title"
+            className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[24px] border border-[#eadfd5] bg-white p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${statusStyles[selectedItem.status]}`}>
+                  {OPERATOR_CONCIERGE_QUEUE_STATUS_LABELS[selectedItem.status]}
+                </span>
+                <h2 id="operator-task-title" className="mt-3 font-serif text-3xl leading-tight text-[#2f2135]">
+                  {selectedItem.action_summary}
+                </h2>
+                <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                  {selectedItem.user_label}
+                  {selectedItem.user_contact ? ` - ${selectedItem.user_contact}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close task detail"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
+                onClick={() => setSelectedItem(null)}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Provider</p>
+                <p className="mt-1 font-bold text-[#2f2135]">{selectedItem.provider_name || "No provider saved"}</p>
+                {selectedItem.provider_phone && <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{selectedItem.provider_phone}</p>}
+              </div>
+              <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Work mode</p>
+                <p className="mt-1 font-bold text-[#2f2135]">{cleanLabel(selectedItem.action_type) || "manual review"}</p>
+                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{cleanLabel(selectedItem.active_tool) || "operator review"}</p>
+              </div>
+              <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Missing info</p>
+                <p className="mt-1 font-bold text-[#2f2135]">
+                  {selectedItem.missing_labels.length > 0 ? selectedItem.missing_labels.join(", ") : "Nothing obvious"}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Safety</p>
+                <p className="mt-1 font-bold text-[#2f2135]">{selectedItem.user_confirmed ? "User confirmed" : "Awaiting user confirmation"}</p>
+                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Updated {formatDate(selectedItem.updated_at)}</p>
+              </div>
+            </div>
+
+            <label className="mt-5 block">
+              <span className="text-sm font-black text-[#4d4351]">Operator note</span>
+              <textarea
+                className="mt-2 min-h-28 w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                value={outcomeNote}
+                onChange={(event) => setOutcomeNote(event.target.value)}
+                placeholder="Example: Taxi confirmed for 10:30, or provider did not answer."
+              />
+            </label>
+
+            {selectedCanAct ? (
+              <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                {selectedItem.status !== "in_progress" && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 px-4 text-sm font-black text-blue-800 transition hover:border-blue-300"
+                    onClick={() => updateTask("in_progress")}
+                    disabled={Boolean(savingAction)}
+                  >
+                    {savingAction === "in_progress" ? "Saving..." : "Mark in progress"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-800 transition hover:border-emerald-300"
+                  onClick={() => updateTask("done")}
+                  disabled={Boolean(savingAction)}
+                >
+                  {savingAction === "done" ? "Saving..." : "Mark done"}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-red-200 bg-red-50 px-4 text-sm font-black text-red-700 transition hover:border-red-300"
+                  onClick={() => updateTask("failed")}
+                  disabled={Boolean(savingAction)}
+                >
+                  {savingAction === "failed" ? "Saving..." : "Mark failed"}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-2xl bg-[#fbf8f5] px-4 py-3 text-sm font-bold text-[#7d6b65]">
+                This task is read-only here. It is either already closed or still awaiting user confirmation.
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </main>
   );
 }
