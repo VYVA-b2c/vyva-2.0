@@ -4682,7 +4682,9 @@ export default function MarketingAdminPage() {
       template.mediaAssets,
     ]);
     const matchesChannel = contentTemplateChannelFilter === "all" || template.channel === contentTemplateChannelFilter;
-    const matchesAudience = contentTemplateAudienceFilter === "all" || template.audienceType === contentTemplateAudienceFilter;
+    const matchesAudience = contentTemplateAudienceFilter === "all"
+      || template.audienceType === contentTemplateAudienceFilter
+      || (contentTemplateAudienceFilter !== "both" && template.audienceType === "both");
     const matchesCategory = contentTemplateCategoryFilter === "all" || template.category === contentTemplateCategoryFilter;
     return matchesText && matchesChannel && matchesAudience && matchesCategory;
   }), [contentTemplateSearch, contentTemplateChannelFilter, contentTemplateAudienceFilter, contentTemplateCategoryFilter]);
@@ -4722,6 +4724,23 @@ export default function MarketingAdminPage() {
       state: channels.length >= 5 ? "ready" as CampaignReadinessState : channels.length >= 3 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
     };
   }), []);
+  const contentTemplateCoverageMatrix = useMemo(() => CHANNELS.map((channel) => ({
+    channel,
+    cells: AUDIENCES.map((audience) => {
+      const count = contentTemplateGallery.filter((template) => (
+        template.channel === channel
+        && (
+          template.audienceType === audience
+          || (audience !== "both" && template.audienceType === "both")
+        )
+      )).length;
+      return {
+        audience,
+        count,
+        state: count >= 3 ? "ready" as CampaignReadinessState : count >= 2 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      };
+    }),
+  })), []);
   const contentTemplateGapSuggestions = useMemo(() => templateGapSuggestionsFor(contentTemplateGallery), []);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
@@ -10369,6 +10388,62 @@ export default function MarketingAdminPage() {
                         </span>
                       </button>
                     ))}
+                  </div>
+                </div>
+                <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-template-coverage-matrix">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Channel x audience matrix</p>
+                      <p className="mt-1 text-sm font-bold text-[#7d6b65]">Click a cell to jump to the exact template pack. B2C and B2B counts include shared BOTH templates.</p>
+                    </div>
+                    <Pill className="bg-[#f5eee8] text-[#5b4a46]">Target: 3 per pack</Pill>
+                  </div>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="min-w-[760px] w-full border-collapse text-left text-sm">
+                      <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+                        <tr>
+                          <th className="px-3 py-2">Channel</th>
+                          {AUDIENCES.map((audience) => (
+                            <th key={audience} className="px-3 py-2">{audience.toUpperCase()}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {contentTemplateCoverageMatrix.map((row) => (
+                          <tr key={row.channel} className="border-t border-[#f0e7df]">
+                            <td className="px-3 py-2 font-black text-[#241133]">
+                              <span className={`inline-flex rounded-full px-3 py-1 text-xs ${channelClass(row.channel)}`}>{channelLabel[row.channel]}</span>
+                            </td>
+                            {row.cells.map((cell) => (
+                              <td key={cell.audience} className="px-3 py-2">
+                                <button
+                                  type="button"
+                                  className={`w-full rounded-xl border px-3 py-2 text-left transition hover:border-purple-300 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(cell.state)}`}
+                                  onClick={() => {
+                                    setContentTemplateSearch("");
+                                    setContentTemplateChannelFilter(row.channel);
+                                    setContentTemplateAudienceFilter(cell.audience);
+                                    setContentTemplateCategoryFilter("all");
+                                    setContentActionFeedback(`Showing ${channelLabel[row.channel]} ${cell.audience.toUpperCase()} template pack${cell.audience !== "both" ? " with shared BOTH templates included" : ""}.`);
+                                  }}
+                                  data-testid={`button-marketing-template-matrix-${row.channel}-${cell.audience}`}
+                                >
+                                  <span className="flex items-center justify-between gap-2">
+                                    <span className="font-black text-[#241133]">{cell.count}</span>
+                                    <Pill className={readinessPillClass(cell.state)}>
+                                      {cell.count >= 3 ? "Strong" : cell.count >= 2 ? "Usable" : "Gap"}
+                                    </Pill>
+                                  </span>
+                                  <span className="mt-1 block text-xs font-bold text-[#7d6b65]">
+                                    {cell.audience === "both" ? "Shared templates" : `${cell.audience.toUpperCase()} fit`}
+                                  </span>
+                                </button>
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </SectionCard>
