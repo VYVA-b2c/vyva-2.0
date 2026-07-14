@@ -1637,6 +1637,72 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: Profile completion WhatsApp nudge");
   });
 
+  it("loads template packs into editable journey drafts with visible sequence steps", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-journey-partner-growth"));
+
+    expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-journey-name")).toHaveValue("Partner growth journey");
+    expect(screen.getByTestId("select-marketing-edit-journey-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-edit-journey-status")).toHaveValue("draft");
+    expect(screen.getByTestId("select-marketing-edit-journey-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("input-marketing-edit-journey-trigger")).toHaveValue("list_joined");
+    expect(screen.getByTestId("input-marketing-edit-journey-goal")).toHaveValue("reply");
+    expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Loaded Partner growth journey");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Partner proof post");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Proof nudge");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Referral ask");
+    expect(screen.getByTestId("select-marketing-journey-step-channel-0")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-journey-step-channel-1")).toHaveValue("whatsapp");
+    expect(screen.getByTestId("select-marketing-journey-step-channel-2")).toHaveValue("email");
+    expect(screen.getByTestId("input-marketing-journey-step-delay-0")).toHaveValue(0);
+    expect(screen.getByTestId("input-marketing-journey-step-delay-1")).toHaveValue(48);
+    expect(screen.getByTestId("input-marketing-journey-step-delay-2")).toHaveValue(120);
+    expect((screen.getByTestId("textarea-marketing-edit-journey-metadata") as HTMLTextAreaElement).value).toContain("partner-growth");
+    expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("template_pack");
+    expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("linkedin-partner-demo");
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/journeys" && init?.method === "POST");
+    const payload = JSON.parse(String(postCall?.[1]?.body));
+    expect(payload).toMatchObject({
+      name: "Partner growth journey",
+      audienceType: "b2b",
+      status: "draft",
+      triggerType: "list_joined",
+      triggerConfig: {
+        source: "template_pack",
+        packId: "partner-growth",
+        targetAudienceId: "audience-1",
+      },
+      goalType: "reply",
+      goalConfig: {
+        source: "template_pack",
+        packId: "partner-growth",
+        suggestedReviewDays: 14,
+      },
+    });
+    expect(payload.steps).toHaveLength(3);
+    expect(payload.steps[0]).toMatchObject({
+      stepOrder: 0,
+      channel: "linkedin",
+      delayHours: 0,
+      dayOffset: 0,
+      templateKind: "template_gallery",
+      templateRef: "linkedin-partner-demo",
+      config: { source: "template_pack", packId: "partner-growth", sequenceOffset: "Day 0" },
+    });
+    expect(payload.steps[1]).toMatchObject({ channel: "whatsapp", delayHours: 48, dayOffset: 2, templateRef: "whatsapp-partner-proof-nudge" });
+    expect(payload.steps[2]).toMatchObject({ channel: "email", delayHours: 120, dayOffset: 5, templateRef: "email-referral-ask" });
+  });
+
   it("recommends best-fit templates and starts a campaign from the matchmaker", async () => {
     renderPage();
 

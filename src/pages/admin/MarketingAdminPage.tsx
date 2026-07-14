@@ -3588,6 +3588,40 @@ function campaignStudioDefaultSchedule(play: CampaignStudioPlay) {
   return toDateTimeLocal(date.toISOString());
 }
 
+function templatePackAudience(pack: ContentTemplatePack, heroTemplate: ContentTemplate | null, play: CampaignStudioPlay): Audience {
+  if (heroTemplate?.audienceType && heroTemplate.audienceType !== "both") return heroTemplate.audienceType;
+  if (play.audienceType && play.audienceType !== "both") return play.audienceType;
+  if (pack.id.includes("partner")) return "b2b";
+  if (pack.id.includes("family") || pack.id.includes("caregiver")) return "b2c";
+  return "both";
+}
+
+function templatePackTriggerType(pack: ContentTemplatePack) {
+  if (pack.id === "family-onboarding") return "signup_or_invite_sent";
+  if (pack.id === "partner-growth") return "list_joined";
+  if (pack.id === "local-community") return "event_interest";
+  if (pack.id === "retention-feedback") return "inactive_30_days";
+  if (pack.id === "social-launch") return "campaign_launch";
+  return "manual_add";
+}
+
+function templatePackGoalType(pack: ContentTemplatePack) {
+  if (pack.id === "family-onboarding") return "profile_completed";
+  if (pack.id === "partner-growth") return "reply";
+  if (pack.id === "local-community") return "event_response";
+  if (pack.id === "retention-feedback") return "feedback_or_reply";
+  if (pack.id === "social-launch") return "engagement";
+  return "reviewed";
+}
+
+function templateSequenceDelayHours(offset: string, index: number) {
+  const dayMatch = offset.match(/day\s*(-?\d+)/i);
+  if (dayMatch) return Math.max(0, Number(dayMatch[1]) * 24);
+  const weekMatch = offset.match(/week\s*(-?\d+)/i);
+  if (weekMatch) return Math.max(0, Number(weekMatch[1]) * 7 * 24);
+  return index * 48;
+}
+
 function scheduleDateTimeLocal(daysFromNow: number, hour: number) {
   const date = new Date();
   date.setDate(date.getDate() + Math.max(0, daysFromNow));
@@ -8614,6 +8648,92 @@ export default function MarketingAdminPage() {
     setActiveTab("dashboard");
   }
 
+  function loadContentTemplatePackAsJourney(pack: ContentTemplatePack, heroTemplate: ContentTemplate | null) {
+    const play = campaignStudioPlays.find((item) => item.id === pack.studioPlayId) ?? campaignStudioPlays[0];
+    const audienceType = templatePackAudience(pack, heroTemplate, play);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const triggerType = templatePackTriggerType(pack);
+    const goalType = templatePackGoalType(pack);
+    const steps = pack.sequence.map((sequenceStep, index) => {
+      const template = sequenceStep.templateId
+        ? contentTemplateGallery.find((item) => item.id === sequenceStep.templateId) ?? null
+        : null;
+      const linkedContent = content.find((item) => {
+        const metadataText = jsonText(item.metadata);
+        return Boolean(
+          (template?.id && metadataText.includes(template.id))
+          || (template?.title && lower(item.title) === lower(template.title))
+          || (template?.id && lower(item.lovableExternalId) === lower(template.id))
+          || (sequenceStep.templateId && lower(item.lovableExternalId) === lower(sequenceStep.templateId)),
+        );
+      }) ?? null;
+      const channel = template?.channel ?? sequenceStep.channel;
+      const templateRef = linkedContent
+        ? linkedContent.lovableExternalId ?? linkedContent.id
+        : template?.id ?? sequenceStep.templateId ?? "";
+
+      return journeyStarterStepDraft({
+        channel,
+        contentAsset: linkedContent,
+        delayHours: templateSequenceDelayHours(sequenceStep.offset, index),
+        notes: `${sequenceStep.offset}: ${sequenceStep.title}. ${sequenceStep.detail}`,
+        templateKind: linkedContent ? "content_asset" : "template_gallery",
+        templateRef,
+        config: {
+          source: "template_pack",
+          packId: pack.id,
+          packTitle: pack.title,
+          playId: play.id,
+          sequenceOffset: sequenceStep.offset,
+          sequenceTitle: sequenceStep.title,
+          sequenceDetail: sequenceStep.detail,
+          templateId: template?.id ?? sequenceStep.templateId ?? null,
+          templateTitle: template?.title ?? sequenceStep.title,
+          aiPrompt: pack.aiPrompt,
+        },
+      });
+    });
+
+    setActiveTab("journeys");
+    setEditingJourneyId("new");
+    setJourneyEditDraft({
+      ...emptyJourneyEditDraft(),
+      name: `${pack.title} journey`,
+      audienceType,
+      status: "draft",
+      objective: `${pack.focus}\n\n${pack.description}\n\nAI direction: ${pack.aiPrompt}`,
+      targetAudienceId: targetAudience?.id ?? "",
+      metadataText: jsonText({
+        source: "template_pack",
+        packId: pack.id,
+        packTitle: pack.title,
+        studioPlayId: play.id,
+        toneId: pack.toneId,
+        angleId: pack.angleId,
+        templateIds: pack.templateIds,
+      }),
+      triggerType,
+      triggerConfigText: jsonText({
+        source: "template_pack",
+        packId: pack.id,
+        playId: play.id,
+      }),
+      goalType,
+      goalConfigText: jsonText({
+        source: "template_pack",
+        packId: pack.id,
+        suggestedReviewDays: pack.id === "partner-growth" ? 14 : 7,
+      }),
+      exitOnGoal: true,
+      steps,
+    });
+    setConfirmingJourneyDeleteId(null);
+    setContentTemplatePackFilter(pack.id);
+    setContentActionFeedback(`Loaded ${pack.title} as an editable journey draft.`);
+    setJourneyFeedback(`Loaded ${pack.title} journey. Review the steps, then create journey.`);
+    setMessage(`Journey loaded from template pack: ${pack.title}.`);
+  }
+
   function scrollToContentPanel(ref: RefObject<HTMLDivElement | null>) {
     window.setTimeout(() => {
       const node = ref.current;
@@ -12438,6 +12558,15 @@ export default function MarketingAdminPage() {
                             data-testid={`button-marketing-template-pack-studio-${pack.id}`}
                           >
                             <Sparkles size={14} /> Load pack in studio
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => loadContentTemplatePackAsJourney(pack, heroTemplate)}
+                            disabled={contentSaving || journeySaving}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800 hover:bg-purple-100 disabled:cursor-not-allowed disabled:bg-[#f1e8f5] disabled:text-[#9d8ba3]"
+                            data-testid={`button-marketing-template-pack-journey-${pack.id}`}
+                          >
+                            <Waypoints size={14} /> Build journey
                           </button>
                           <button
                             type="button"
