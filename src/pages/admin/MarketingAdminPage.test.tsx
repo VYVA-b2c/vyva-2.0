@@ -1583,6 +1583,26 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("You are now connected to {{elder_name}}'s care circle");
   });
 
+  it("loads a smart campaign planner starter with audience, content, and recipients", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    const starterPanel = within(screen.getByTestId("marketing-campaign-planner-recipes"));
+    expect(starterPanel.getByText("Partner outreach")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-recipe-b2b-partner-outreach"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("B2B partner introduction");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-2");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("checkbox-marketing-campaign-snapshot")).toBeChecked();
+    expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Start a partner conversation");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Starter loaded: Partner outreach with Partner post");
+  });
+
   it("creates rich marketing content drafts", async () => {
     renderPage();
 

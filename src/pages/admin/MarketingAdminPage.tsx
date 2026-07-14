@@ -469,6 +469,17 @@ type CampaignStudioPlayRecommendation = {
   reasons: string[];
 };
 
+type CampaignPlannerRecipe = {
+  recommendation: CampaignStudioPlayRecommendation;
+  play: CampaignStudioPlay;
+  channel: Channel;
+  targetAudience: MarketingAudience | null;
+  matchedContent: ContentAsset | null;
+  scheduleStartsAt: string;
+  status: "draft" | "scheduled";
+  reachableContacts: number;
+};
+
 type CampaignStudioGeneratedDraft = {
   campaignName: string;
   contentTitle: string;
@@ -3053,6 +3064,35 @@ function bestCampaignStudioAudience(play: CampaignStudioPlay, audiences: Marketi
   }) ?? audiences.find((audience) => audience.memberCount > 0) ?? null;
 }
 
+function contentMatchesCampaignPlay(play: CampaignStudioPlay, channel: Channel, item: ContentAsset) {
+  if (item.channel !== channel || item.status === "archived") return false;
+  const haystack = lower([
+    item.title,
+    item.subject ?? "",
+    item.body,
+    item.ctaLabel ?? "",
+    item.ctaUrl ?? "",
+    item.lovableExternalId ?? "",
+    item.source,
+    jsonText(item.designJson),
+    jsonText(item.metadata),
+  ].join(" "));
+  const needles = [
+    play.id,
+    play.label,
+    play.campaignName,
+    play.contentTitle,
+    play.subject,
+    ...play.targetListHints,
+  ].map((value) => lower(value)).filter(Boolean);
+  return needles.some((needle) => haystack.includes(needle));
+}
+
+function bestCampaignPlannerContent(play: CampaignStudioPlay, channel: Channel, content: ContentAsset[]) {
+  const activeChannelContent = content.filter((item) => item.channel === channel && item.status !== "archived");
+  return activeChannelContent.find((item) => contentMatchesCampaignPlay(play, channel, item)) ?? null;
+}
+
 function campaignStudioSubject(play: CampaignStudioPlay, channel: Channel, angleId: CampaignStudioAngleId, target: string) {
   const base = channel === "email" ? play.subject : `${play.label}: ${play.subject}`;
   if (angleId === "proof") return channel === "email" ? `Proof point: ${play.subject}` : `${play.label}: proof point`;
@@ -5174,8 +5214,32 @@ export default function MarketingAdminPage() {
         if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
         return a.play.label.localeCompare(b.play.label);
       })
-      .slice(0, 4)
   ), [audiences, contacts]);
+  const campaignPlannerRecipes = useMemo<CampaignPlannerRecipe[]>(() => (
+    campaignStudioPlayRecommendations.map((recommendation) => {
+      const play = recommendation.play;
+      const channel = play.defaultChannel;
+      const scheduleStartsAt = campaignStudioDefaultSchedule(play);
+      const matchedContent = bestCampaignPlannerContent(play, channel, content);
+      return {
+        recommendation,
+        play,
+        channel,
+        targetAudience: recommendation.targetAudience,
+        matchedContent,
+        scheduleStartsAt,
+        status: scheduleStartsAt ? "scheduled" : "draft",
+        reachableContacts: recommendation.reachableContacts,
+      };
+    })
+      .sort((a, b) => {
+        const contentDelta = Number(Boolean(b.matchedContent)) - Number(Boolean(a.matchedContent));
+        if (contentDelta) return contentDelta;
+        if (b.recommendation.score !== a.recommendation.score) return b.recommendation.score - a.recommendation.score;
+        return a.play.label.localeCompare(b.play.label);
+      })
+      .slice(0, 6)
+  ), [campaignStudioPlayRecommendations, content]);
   const campaignStudioPrimaryAiDraft = campaignStudioAiDrafts[campaignStudio.channel] ?? null;
   const campaignStudioGenerated = campaignStudioPrimaryAiDraft ?? campaignStudioTemplateDraft;
   const campaignStudioAudiencePool = useMemo(() => contacts.filter((contact) => {
@@ -5812,6 +5876,25 @@ export default function MarketingAdminPage() {
     }));
     setCampaignStudioFeedback(`${channelLabel[channel]} draft applied to the planner and content draft.`);
     setMessage(`${channelLabel[channel]} copy is ready in the planner. Save the content asset, then link or create the campaign when ready.`);
+  }
+
+  function applyCampaignPlannerRecipe(recipe: CampaignPlannerRecipe) {
+    setCampaignDraft({
+      ...emptyCampaignDraft(),
+      name: recipe.play.campaignName,
+      audienceType: recipe.play.audienceType,
+      channel: recipe.channel,
+      contentAssetId: recipe.matchedContent?.id ?? "",
+      status: recipe.status,
+      scheduleStartsAt: recipe.scheduleStartsAt,
+      scheduleEndsAt: "",
+      objective: recipe.play.objective,
+      targetAudienceId: recipe.targetAudience?.id ?? "",
+      recipientFilter: "",
+      snapshotRecipients: recipe.reachableContacts > 0,
+    });
+    setCampaignStudioFeedback(`Starter loaded: ${recipe.play.label}${recipe.matchedContent ? ` with ${recipe.matchedContent.title}` : ""}.`);
+    setMessage(`Starter loaded: ${recipe.play.label}. Review the planner, then add the campaign.`);
   }
 
   function selectCampaignStudioCategory(categoryId: CampaignStudioCategoryId) {
@@ -8161,10 +8244,10 @@ export default function MarketingAdminPage() {
                           <h3 className="mt-1 text-lg font-black text-[#241133]">Best next campaigns from your data</h3>
                           <p className="mt-1 text-xs font-bold text-[#7d6b65]">Ranked by reachable contacts, matching lists, starter templates, and useful channel packs.</p>
                         </div>
-                        <Pill className="bg-white text-purple-800">{campaignStudioPlayRecommendations.length} picks</Pill>
+                        <Pill className="bg-white text-purple-800">{Math.min(campaignStudioPlayRecommendations.length, 4)} picks</Pill>
                       </div>
                       <div className="mt-3 grid gap-2">
-                        {campaignStudioPlayRecommendations.map((recommendation) => (
+                        {campaignStudioPlayRecommendations.slice(0, 4).map((recommendation) => (
                           <article key={recommendation.play.id} className={`rounded-xl border bg-white p-3 ${readinessClass(recommendation.state)}`} data-testid={`marketing-campaign-studio-playbook-${recommendation.play.id}`}>
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -8701,7 +8784,35 @@ export default function MarketingAdminPage() {
               </SectionCard>
 
               <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaigns, choose imported content, and optionally snapshot eligible recipients. Email sending remains a separate explicit action.">
-                <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
+                <div className="grid gap-4">
+                  {campaignPlannerRecipes.length ? (
+                    <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-campaign-planner-recipes">
+                      {campaignPlannerRecipes.map((recipe) => (
+                        <button
+                          key={recipe.play.id}
+                          type="button"
+                          onClick={() => applyCampaignPlannerRecipe(recipe)}
+                          className="min-h-[156px] rounded-xl border border-purple-100 bg-purple-50/60 p-4 text-left shadow-sm transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          data-testid={`button-marketing-campaign-recipe-${recipe.play.id}`}
+                        >
+                          <span className="flex flex-wrap items-center gap-2">
+                            <Pill className={channelClass(recipe.channel)}>{channelLabel[recipe.channel]}</Pill>
+                            <Pill className={readinessPillClass(recipe.recommendation.state)}>{readinessLabel(recipe.recommendation.state)}</Pill>
+                          </span>
+                          <span className="mt-3 block text-base font-black text-[#241133]">{recipe.play.label}</span>
+                          <span className="mt-1 line-clamp-2 block text-xs font-bold leading-relaxed text-[#6f5f59]">{recipe.play.brief}</span>
+                          <span className="mt-3 block text-xs font-black text-purple-800">
+                            {recipe.reachableContacts} reachable
+                            {recipe.targetAudience ? ` / ${recipe.targetAudience.name}` : " / all eligible"}
+                          </span>
+                          <span className="mt-1 block truncate text-xs font-bold text-[#7d6b65]">
+                            {recipe.matchedContent ? `Content: ${recipe.matchedContent.title}` : "No matching content yet"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
                     <Field label="Campaign name">
                       <input className={inputClass} value={campaignDraft.name} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Summer caregiver onboarding" data-testid="input-marketing-campaign-name" />
@@ -8772,7 +8883,8 @@ export default function MarketingAdminPage() {
                     </p>
                   ) : null}
                   <textarea className={textareaClass} value={campaignDraft.objective} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))} placeholder="Objective or internal notes" data-testid="textarea-marketing-campaign-objective" />
-                </form>
+                  </form>
+                </div>
               </SectionCard>
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
