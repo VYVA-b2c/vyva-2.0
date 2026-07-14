@@ -1102,6 +1102,17 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByTestId("marketing-dashboard-tab");
 
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Shortest path to a publishable campaign");
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Import");
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Audience");
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Creative");
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Launch");
+
+    fireEvent.click(screen.getByTestId("button-marketing-launch-lane-creative"));
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable content coverage");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Lovable content placeholders");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Finish Lovable sync setup");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review ready email send");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Replace missing Lovable content");

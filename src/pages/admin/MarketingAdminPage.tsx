@@ -560,6 +560,13 @@ type MarketingActionCenterItem = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type MarketingLaunchLaneItem = CampaignReadinessItem & {
+  value: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+};
+
 type CampaignAudienceInsightItem = {
   key: string;
   title: string;
@@ -10638,6 +10645,112 @@ export default function MarketingAdminPage() {
     }] : []),
   ].slice(0, 8);
 
+  const launchLaneContentReadyCount = content.filter((item) => (
+    item.status !== "archived"
+    && Boolean(item.subject || item.body || item.htmlBody || item.hasDesign || item.mediaAssets.length > 0)
+  )).length;
+  const launchLaneItems: MarketingLaunchLaneItem[] = [
+    {
+      key: "import",
+      title: "Import",
+      value: syncState.configured ? latestSyncRun?.status === "succeeded" ? "Synced" : "Configured" : "Blocked",
+      state: !syncState.configured ? "blocked" : latestSyncRun?.status === "failed" ? "needs_action" : latestSyncRun ? "ready" : "planning",
+      detail: !syncState.configured
+        ? "Add the Lovable export token before importing source campaigns, contacts, and content."
+        : latestSyncRun?.status === "failed"
+          ? "The last import failed; review Settings before relying on imported data."
+          : latestSyncRun
+            ? `Latest import ${latestSyncRun.status} on ${formatDate(latestSyncRun.completedAt || latestSyncRun.createdAt)}.`
+            : "Sync is configured; run the first import when ready.",
+      actionLabel: syncState.configured ? "Open sync" : "Fix setup",
+      icon: RefreshCw,
+      onSelect: () => {
+        setActiveTab("settings");
+        setMessage(syncState.configured ? "Open Settings to review or run the Lovable import." : "Open Settings to finish Lovable sync setup.");
+      },
+    },
+    {
+      key: "audience",
+      title: "Audience",
+      value: `${contactHealthDirectReachable}/${contactHealthTotal}`,
+      state: contactHealthTotal === 0 ? "blocked" : contactHealthDirectReachable === 0 || contactHealthNeedsConsent > 0 || contactHealthUnmappedListMembers > 0 ? "needs_action" : "ready",
+      detail: contactHealthTotal === 0
+        ? "Import or create contacts before campaign planning."
+        : contactHealthNeedsConsent > 0
+          ? `${contactHealthNeedsConsent} contact${contactHealthNeedsConsent === 1 ? "" : "s"} need consent review before outreach.`
+          : contactHealthUnmappedListMembers > 0
+            ? `${contactHealthUnmappedListMembers} imported list member${contactHealthUnmappedListMembers === 1 ? "" : "s"} need contact mapping.`
+            : `${contactHealthDirectReachable} contact${contactHealthDirectReachable === 1 ? "" : "s"} have email or WhatsApp reach.`,
+      actionLabel: contactHealthUnmappedListMembers > 0 ? "Open lists" : "Open contacts",
+      icon: UsersRound,
+      onSelect: () => {
+        setActiveTab("contacts");
+        setContactView(contactHealthUnmappedListMembers > 0 ? "lists" : "contacts");
+        setContactWorkQueueContactIds(null);
+        if (contactConsentReviewFilter) setContactConsentFilter(contactConsentReviewFilter);
+        setContactFeedback(contactHealthUnmappedListMembers > 0
+          ? "Review list members that still need contact mapping."
+          : "Review reachable contacts and consent before launching.");
+      },
+    },
+    {
+      key: "creative",
+      title: "Creative",
+      value: missingLovableReferenceCount > 0 ? `${missingLovableReferenceCount} missing` : `${launchLaneContentReadyCount} ready`,
+      state: missingLovableReferenceCount > 0 ? "blocked" : launchLaneContentReadyCount > 0 ? "ready" : content.length > 0 ? "needs_action" : "planning",
+      detail: missingLovableReferenceCount > 0
+        ? "Replace placeholder Lovable references with real copy, HTML, design, or media."
+        : launchLaneContentReadyCount > 0
+          ? "Content assets are ready to attach, adapt with AI, or turn into campaigns."
+          : "Create a content draft or use the AI template gaps before campaign launch.",
+      actionLabel: missingLovableReferenceCount > 0 ? "Show gaps" : "Open content",
+      icon: FileText,
+      onSelect: () => {
+        setActiveTab("content");
+        setSearch("");
+        setChannelFilter("all");
+        if (missingLovableReferenceCount > 0) {
+          setContentSourceFilter("missing_lovable_reference");
+          setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
+        } else {
+          setContentSourceFilter("all");
+          setContentActionFeedback("Open content assets, AI variants, and template packs.");
+        }
+      },
+    },
+    {
+      key: "launch",
+      title: "Launch",
+      value: firstReadyEmailCampaign ? `${readyEmailCampaigns.length} email` : firstManualHandoffCampaign ? "Handoff" : campaigns.length ? "Needs setup" : "Plan",
+      state: firstReadyEmailCampaign ? "ready" : firstManualHandoffCampaign ? "planning" : campaigns.length ? "needs_action" : "planning",
+      detail: firstReadyEmailCampaign
+        ? `"${firstReadyEmailCampaign.name}" has email content and saved recipient snapshots.`
+        : firstManualHandoffCampaign
+          ? `"${firstManualHandoffCampaign.name}" has non-email content ready for manual publishing or tracking.`
+          : campaigns.length
+            ? "Open a draft campaign, attach content, and snapshot recipients before launch."
+            : "Use Smart campaign studio to create the first campaign from a playbook.",
+      actionLabel: firstReadyEmailCampaign ? "Review send" : firstManualHandoffCampaign ? "Review handoff" : "Open studio",
+      icon: Send,
+      onSelect: () => {
+        if (firstReadyEmailCampaign) {
+          startCampaignEdit(firstReadyEmailCampaign);
+          setActiveTab("dashboard");
+          setMessage(`Opened "${firstReadyEmailCampaign.name}" for final email review.`);
+          return;
+        }
+        if (firstManualHandoffCampaign) {
+          startCampaignEdit(firstManualHandoffCampaign);
+          setActiveTab("dashboard");
+          setMessage(`Opened "${firstManualHandoffCampaign.name}" to prepare manual channel handoff.`);
+          return;
+        }
+        setActiveTab("dashboard");
+        setMessage("Use Smart campaign studio to choose a playbook, generate AI copy, and create a campaign.");
+      },
+    },
+  ];
+
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
@@ -10729,6 +10842,48 @@ export default function MarketingAdminPage() {
                 subtitle="See what can be sent, what needs content or audience work, and what should be handed off manually."
                 action={<Pill className={marketingActionCenterItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}>{marketingActionCenterItems.length ? `${marketingActionCenterItems.length} actions` : "Clear"}</Pill>}
               >
+                <div className="mb-4 rounded-2xl border border-purple-100 bg-gradient-to-r from-purple-50 via-white to-[#fffaf4] p-4" data-testid="marketing-launch-lane">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Launch lane</p>
+                      <h3 className="mt-1 text-lg font-black text-[#241133]">Shortest path to a publishable campaign</h3>
+                      <p className="mt-1 text-xs font-bold text-[#6b5b54]">Import the data, clean the audience, attach creative, then send email or hand off the manual channels.</p>
+                    </div>
+                    <Pill className={launchLaneItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : launchLaneItems.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                      {launchLaneItems.filter((item) => item.state === "ready").length}/{launchLaneItems.length} ready
+                    </Pill>
+                  </div>
+                  <div className="mt-4 grid gap-3 lg:grid-cols-4">
+                    {launchLaneItems.map((item, index) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={item.onSelect}
+                          className={`min-h-[148px] rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                          data-testid={`button-marketing-launch-lane-${item.key}`}
+                        >
+                          <span className="flex items-start justify-between gap-3">
+                            <span className="flex items-center gap-2">
+                              <span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                                <Icon size={16} aria-hidden="true" />
+                              </span>
+                              <span className="grid h-7 w-7 place-items-center rounded-full bg-purple-700 text-xs font-black text-white">{index + 1}</span>
+                            </span>
+                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                          </span>
+                          <span className="mt-3 block text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</span>
+                          <span className="mt-1 block text-2xl font-black text-[#241133]">{item.value}</span>
+                          <span className="mt-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                          <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                            {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-testid="marketing-action-center">
                   {marketingActionCenterItems.length ? marketingActionCenterItems.map((item) => {
                     const Icon = item.icon;
