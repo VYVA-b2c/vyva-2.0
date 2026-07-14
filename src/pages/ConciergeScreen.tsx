@@ -2686,6 +2686,9 @@ function providerSearchSetupFocus(mode: ProviderSearchMode | null): string {
 }
 
 function providerSearchFlowReference(mode: ProviderSearchMode | null): ConciergeFlowReference {
+  if (mode === "transport") return TRANSPORT_BOOKING_FLOW_REFERENCE;
+  if (mode === "pharmacy") return OTC_PHARMACY_FLOW_REFERENCE;
+  if (mode === "home-service") return CONCIERGE_FLOW_REFERENCES.homeService;
   if (mode === "personal-care" || mode === "specialist" || mode === "residence" || mode === "care") {
     return CARE_NAVIGATION_FLOW_REFERENCE;
   }

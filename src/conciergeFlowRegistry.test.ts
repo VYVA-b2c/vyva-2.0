@@ -138,6 +138,14 @@ describe("concierge flow registry", () => {
     expect(admin.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.insuranceAdmin);
     expect(admin.firstMissingRequirement?.labelEn).toBe("Deadline");
 
+    const insurance = evaluateConciergeFlowRequirements({
+      useCase: "insurance_admin",
+      payload: { document_type: "claim", recipient_email: "insurer@example.com" },
+      summary: "Help me send an insurance claim",
+    });
+    expect(insurance.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.insuranceAdmin);
+    expect(insurance.firstMissingRequirement?.labelEn).toBe("Deadline");
+
     const shopping = evaluateConciergeFlowRequirements({
       useCase: "shopping_request",
       payload: { draft_message: "Help me prepare groceries", category: "groceries" },
@@ -158,6 +166,18 @@ describe("concierge flow registry", () => {
     expect(care.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.careNavigation);
     expect(care.needsProvider).toBe(false);
     expect(care.missingRequirements).toEqual([]);
+
+    const legacyCare = evaluateConciergeFlowRequirements({
+      useCase: "find_provider",
+      payload: {
+        provider_search_query: "Compare care homes near Marbella",
+        provider_search_mode: "residence",
+        criteria: ["nearby", "reputation"],
+      },
+    });
+    expect(legacyCare.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.careNavigation);
+    expect(legacyCare.needsProvider).toBe(false);
+    expect(legacyCare.missingRequirements).toEqual([]);
 
     const safeHome = evaluateConciergeFlowRequirements({
       useCase: "book_appointment",
@@ -189,8 +209,16 @@ describe("concierge flow registry", () => {
     })).toBe(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
     expect(conciergeFlowReferenceForPendingAction({
       useCase: "find_provider",
+      payload: {},
+    })).toBe(CONCIERGE_FLOW_REFERENCES.careNavigation);
+    expect(conciergeFlowReferenceForPendingAction({
+      useCase: "find_provider",
       payload: { flow_reference: CONCIERGE_FLOW_REFERENCES.careNavigation },
     })).toBe(CONCIERGE_FLOW_REFERENCES.careNavigation);
+    expect(conciergeFlowReferenceForPendingAction({
+      useCase: "insurance_admin",
+      payload: {},
+    })).toBe(CONCIERGE_FLOW_REFERENCES.insuranceAdmin);
   });
 
   it("keeps a complete lifecycle coverage map for tracked flows", () => {
