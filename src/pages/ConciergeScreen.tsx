@@ -6987,6 +6987,7 @@ const ConciergeScreen = () => {
     setCoverageNotes(savedCoverage.notes?.trim() ?? "");
   }, [
     hasAppointmentCoverageInfo,
+    savedCoverage,
     savedCoverage?.coverageType,
     savedCoverage?.memberId,
     savedCoverage?.notes,
@@ -8060,6 +8061,7 @@ const ConciergeScreen = () => {
     lastCompletedTemplateKeyRef.current = templateKey;
     handleCompletedSessionUseTemplate(template);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
@@ -10001,6 +10003,7 @@ const ConciergeScreen = () => {
       openProviderReplyMode(targetAction, "confirmed");
     }
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeAction?.id,
     activeActionCanRecordProviderReply,

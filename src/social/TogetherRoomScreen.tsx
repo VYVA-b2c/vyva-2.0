@@ -20,7 +20,7 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
@@ -7892,7 +7892,7 @@ export default function TogetherRoomScreen({
     setShowProposalComposer(true);
   };
 
-  const openViewComposer = (draft = copy.roomDirectionViewDraft) => {
+  const openViewComposer = useCallback((draft = copy.roomDirectionViewDraft) => {
     setProposalKind("message");
     setProposalLocationLabel("online");
     setSelectedComfortNeeds([]);
@@ -7902,7 +7902,7 @@ export default function TogetherRoomScreen({
     setProposalGroupSize("open_room");
     setProposalDraft(draft);
     setShowProposalComposer(true);
-  };
+  }, [copy.roomDirectionViewDraft]);
 
   const openQuestionComposer = (draft = copy.starterDetails.ask) => {
     setProposalKind("question");
@@ -7925,7 +7925,7 @@ export default function TogetherRoomScreen({
     openViewComposer(text);
     setPlacedShareStoryHandoff(null);
     setPrefilledShareStoryId(shareStoryHandoff.id);
-  }, [prefilledShareStoryId, shareStoryHandoff]);
+  }, [openViewComposer, prefilledShareStoryId, shareStoryHandoff]);
 
   const editShareStoryHandoff = () => {
     if (!activeShareStoryHandoff) return;
