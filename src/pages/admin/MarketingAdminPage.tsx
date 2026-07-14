@@ -6995,12 +6995,33 @@ export default function MarketingAdminPage() {
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
   const unmappedCampaignRecipientCount = latestSyncRun ? syncUnmappedCampaignRecipientCount(latestSyncRun.summary) : 0;
-  const campaignMissingChannelContent = campaigns.find((campaign) => campaign.channels.some((channel) => !channel.contentAssetId));
+  const emailCapability = sendCapabilityByChannel.get("email");
+  const emailCampaignSendEnabled = (emailCapability?.sendCapability ?? "enabled") === "enabled" && emailCapability?.locked !== true;
+  const channelHasUsableContent = (channel: CampaignChannel) => Boolean(channel.contentAssetId && contentById.has(channel.contentAssetId));
+  const campaignHasUsableContent = (campaign: Campaign) => campaign.channels.some(channelHasUsableContent);
+  const readyEmailCampaigns = campaigns.filter((campaign) => (
+    emailCampaignSendEnabled
+    && !["archived", "paused", "published"].includes(campaign.status)
+    && campaign.recipientCount > 0
+    && campaign.channels.some((channel) => channel.channel === "email" && channelHasUsableContent(channel))
+  ));
+  const campaignMissingChannelContent = campaigns.find((campaign) => campaign.channels.some((channel) => !channelHasUsableContent(channel)));
+  const campaignNeedingAudience = campaigns.find((campaign) => (
+    !["archived", "published"].includes(campaign.status)
+    && campaign.recipientCount <= 0
+    && campaignHasUsableContent(campaign)
+  ));
   const scheduledEmailCampaignWithoutRecipients = campaigns.find((campaign) => (
     campaign.status === "scheduled"
     && campaign.recipientCount <= 0
-    && campaign.channels.some((channel) => channel.channel === "email" && Boolean(channel.contentAssetId))
+    && campaign.channels.some((channel) => channel.channel === "email" && channelHasUsableContent(channel))
   ));
+  const manualHandoffCampaigns = campaigns.filter((campaign) => campaign.channels.some((channel) => (
+    channel.channel !== "email"
+    && channelHasUsableContent(channel)
+  )));
+  const firstReadyEmailCampaign = readyEmailCampaigns[0];
+  const firstManualHandoffCampaign = manualHandoffCampaigns[0];
   const starterTemplate = contentTemplateGallery[0] ?? null;
   const marketingActionCenterItems: MarketingActionCenterItem[] = [
     ...(!syncState.configured ? [{
@@ -7024,6 +7045,19 @@ export default function MarketingAdminPage() {
       onSelect: () => {
         setActiveTab("settings");
         setMessage("Review the failed Lovable sync run.");
+      },
+    }] : []),
+    ...(firstReadyEmailCampaign ? [{
+      key: "ready-email",
+      title: "Review ready email send",
+      detail: `${readyEmailCampaigns.length} email campaign${readyEmailCampaigns.length === 1 ? "" : "s"} already have linked content and saved recipient snapshots.`,
+      state: "ready" as CampaignReadinessState,
+      actionLabel: "Open send panel",
+      icon: Send,
+      onSelect: () => {
+        startCampaignEdit(firstReadyEmailCampaign);
+        setActiveTab("dashboard");
+        setMessage(`Opened "${firstReadyEmailCampaign.name}" for final email review.`);
       },
     }] : []),
     ...(missingLovableReferenceCount > 0 ? [{
@@ -7069,6 +7103,19 @@ export default function MarketingAdminPage() {
         setMessage(`Opened "${campaignMissingChannelContent.name}" to attach missing channel content.`);
       },
     }] : []),
+    ...(campaignNeedingAudience ? [{
+      key: "campaign-audience",
+      title: "Add recipient snapshots",
+      detail: `"${campaignNeedingAudience.name}" has content, but no saved recipients yet. Snapshot the audience before scheduling or sending.`,
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Open recipients",
+      icon: UsersRound,
+      onSelect: () => {
+        startCampaignEdit(campaignNeedingAudience);
+        setActiveTab("dashboard");
+        setMessage(`Opened "${campaignNeedingAudience.name}" to snapshot campaign recipients.`);
+      },
+    }] : []),
     ...(scheduledEmailCampaignWithoutRecipients ? [{
       key: "campaign-recipients",
       title: "Snapshot scheduled recipients",
@@ -7082,6 +7129,19 @@ export default function MarketingAdminPage() {
         setMessage(`Opened "${scheduledEmailCampaignWithoutRecipients.name}" to snapshot recipients before sending.`);
       },
     }] : []),
+    ...(firstManualHandoffCampaign ? [{
+      key: "manual-handoff",
+      title: "Prepare manual channel handoff",
+      detail: `${manualHandoffCampaigns.length} campaign${manualHandoffCampaigns.length === 1 ? "" : "s"} have non-email channel content ready for manual publishing or tracking.`,
+      state: "planning" as CampaignReadinessState,
+      actionLabel: "Open handoff",
+      icon: CalendarDays,
+      onSelect: () => {
+        startCampaignEdit(firstManualHandoffCampaign);
+        setActiveTab("dashboard");
+        setMessage(`Opened "${firstManualHandoffCampaign.name}" to prepare non-email channel handoff.`);
+      },
+    }] : []),
     ...(starterTemplate ? [{
       key: "template-starter",
       title: "Start from a proven template",
@@ -7091,7 +7151,7 @@ export default function MarketingAdminPage() {
       icon: Sparkles,
       onSelect: () => startCampaignFromContentTemplate(starterTemplate),
     }] : []),
-  ].slice(0, 5);
+  ].slice(0, 8);
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
@@ -7180,11 +7240,11 @@ export default function MarketingAdminPage() {
               />
 
               <SectionCard
-                title="Recommended next actions"
-                subtitle="The fastest route from imported marketing data to a usable campaign."
+                title="Campaign command center"
+                subtitle="See what can be sent, what needs content or audience work, and what should be handed off manually."
                 action={<Pill className={marketingActionCenterItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}>{marketingActionCenterItems.length ? `${marketingActionCenterItems.length} actions` : "Clear"}</Pill>}
               >
-                <div className="grid gap-3 xl:grid-cols-5" data-testid="marketing-action-center">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-testid="marketing-action-center">
                   {marketingActionCenterItems.length ? marketingActionCenterItems.map((item) => {
                     const Icon = item.icon;
                     return (
