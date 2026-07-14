@@ -89,16 +89,24 @@ function jsonResponse(body: unknown) {
 }
 
 function renderPage(items: OperatorConciergeQueueItem[] = [readyTask, needsInfoTask, doneTask]) {
-  apiFetchMock.mockResolvedValue(jsonResponse({
-    items,
-    totals: {
-      needs_info: items.filter((item) => item.status === "needs_info").length,
-      ready: items.filter((item) => item.status === "ready").length,
-      in_progress: items.filter((item) => item.status === "in_progress").length,
-      done: items.filter((item) => item.status === "done").length,
-      failed: items.filter((item) => item.status === "failed").length,
-    },
-  }));
+  apiFetchMock.mockImplementation((path, init) => {
+    if (path === "/api/admin/concierge/queue" && (init?.method ?? "GET") === "GET") {
+      return Promise.resolve(jsonResponse({
+        items,
+        totals: {
+          needs_info: items.filter((item) => item.status === "needs_info").length,
+          ready: items.filter((item) => item.status === "ready").length,
+          in_progress: items.filter((item) => item.status === "in_progress").length,
+          done: items.filter((item) => item.status === "done").length,
+          failed: items.filter((item) => item.status === "failed").length,
+        },
+      }));
+    }
+    if (path === "/api/admin/concierge/queue/pending-1" && init?.method === "PATCH") {
+      return Promise.resolve(jsonResponse({ ok: true }));
+    }
+    return Promise.resolve(new Response(JSON.stringify({ error: "Unexpected request" }), { status: 500 }));
+  });
 
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/concierge-queue"]}>
@@ -144,5 +152,27 @@ describe("ConciergeQueueAdminPage", () => {
 
     expect(within(list).getByText("Arrange home repair")).toBeInTheDocument();
     expect(within(list).queryByText("Book a ride to the clinic")).not.toBeInTheDocument();
+  });
+
+  it("opens task details and records an operator outcome", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Book a ride to the clinic")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Open task" })[0]);
+
+    const dialog = screen.getByRole("dialog", { name: "Book a ride to the clinic" });
+    expect(dialog).toHaveTextContent("Safe Taxi");
+    fireEvent.change(within(dialog).getByLabelText("Operator note"), {
+      target: { value: "Taxi confirmed for 10:30." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Mark done" }));
+
+    expect(await screen.findByText("Concierge task updated.")).toBeInTheDocument();
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/concierge/queue/pending-1" && init?.method === "PATCH"
+    ));
+    expect(patchCall).toBeTruthy();
+    expect(String(patchCall?.[1]?.body)).toContain('"action":"done"');
+    expect(String(patchCall?.[1]?.body)).toContain("Taxi confirmed for 10:30.");
   });
 });
