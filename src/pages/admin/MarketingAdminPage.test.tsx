@@ -1306,6 +1306,33 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("Hassan Partner");
   });
 
+  it("loads smart audience recipes into the list builder and campaign studio", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
+
+    expect(screen.getByTestId("marketing-audience-recipes")).toHaveTextContent("Partner prospects");
+    expect(screen.getByTestId("marketing-audience-recipe-partner-prospects")).toHaveTextContent("1 partner");
+    expect(screen.getByTestId("marketing-audience-recipe-caregiver-onboarding")).toHaveTextContent("1 contact");
+    expect(screen.getByTestId("marketing-audience-recipe-consent-cleanup")).toHaveTextContent("2 contacts");
+
+    fireEvent.click(screen.getByTestId("button-marketing-audience-recipe-fill-partner-prospects"));
+    expect(screen.getByTestId("input-marketing-audience-name")).toHaveValue("Partner prospects");
+    expect(screen.getByTestId("select-marketing-audience-type")).toHaveValue("static");
+    expect(screen.getByTestId("input-marketing-audience-description")).toHaveValue("B2B leads, providers, and partner contacts with a reachable channel.");
+    expect(screen.getByTestId("input-marketing-audience-rules")).toHaveValue(JSON.stringify({ audienceType: "b2b", category: ["partner", "lead", "provider"], consent: "not_opted_out" }, null, 2));
+    expect(screen.getByTestId("input-marketing-audience-contact-ids")).toHaveValue("lovable-contact-2");
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent("Partner prospects recipe loaded with 1 partner.");
+
+    fireEvent.click(screen.getByTestId("button-marketing-audience-recipe-studio-partner-prospects"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Partner prospects recipe loaded: 1 partner.");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("Partners");
+  });
+
   it("filters the content library by imported Lovable source type", async () => {
     renderPage();
 

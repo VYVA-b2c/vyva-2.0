@@ -716,6 +716,19 @@ type ContactRelationshipWorkQueue = CampaignReadinessItem & {
   studioLabel: string;
 };
 
+type AudienceRecipe = CampaignReadinessItem & {
+  value: string;
+  audienceType: Audience;
+  listType: string;
+  contacts: MarketingContact[];
+  rules: Record<string, unknown>;
+  playId: CampaignStudioPlayId;
+  channels: Channel[];
+  icon: LucideIcon;
+  actionLabel: string;
+  studioLabel: string;
+};
+
 type ContentTemplateRecommendation = {
   template: ContentTemplate;
   score: number;
@@ -6139,6 +6152,116 @@ export default function MarketingAdminPage() {
     () => contacts.filter((contact) => !contactMatchesMemberIds(contact, audienceEditMemberIds)),
     [contacts, audienceEditMemberIds],
   );
+  const audienceRecipes = useMemo<AudienceRecipe[]>(() => {
+    const hasRoute = (contact: MarketingContact) => Boolean(contact.email || contact.phoneNumber || contact.whatsappNumber);
+    const searchableContact = (contact: MarketingContact) => lower([
+      contact.fullName,
+      contact.email,
+      contact.phoneNumber,
+      contact.whatsappNumber,
+      contact.audienceType,
+      contact.companyName,
+      contact.roleLabel,
+      contact.language,
+      contact.category,
+      contact.vertical,
+      contact.market,
+      contact.source,
+      contact.lovableExternalId,
+      ...(contact.tags ?? []),
+      ...(contact.lists ?? []),
+      JSON.stringify(contact.metadata ?? {}),
+    ].filter(Boolean).join(" "));
+    const countLabel = (count: number, singular = "contact") => `${count} ${singular}${count === 1 ? "" : "s"}`;
+    const partnerContacts = contacts.filter((contact) => {
+      const haystack = searchableContact(contact);
+      return hasRoute(contact)
+        && contact.consentStatus !== "opted_out"
+        && (contact.audienceType === "b2b" || contact.audienceType === "both" || Boolean(contact.companyName || contact.roleLabel))
+        && (/partner|provider|lead|business|b2b|clinic|care home|health|referral/.test(haystack));
+    });
+    const caregiverContacts = contacts.filter((contact) => {
+      const haystack = searchableContact(contact);
+      return hasRoute(contact)
+        && contact.consentStatus !== "opted_out"
+        && (contact.audienceType === "b2c" || contact.audienceType === "both")
+        && (!contact.companyName || /caregiver|family|elder|user|onboarding|invite/.test(haystack));
+    });
+    const localSpanishContacts = contacts.filter((contact) => {
+      const haystack = searchableContact(contact);
+      return hasRoute(contact)
+        && contact.consentStatus !== "opted_out"
+        && (/madrid|spain|españa|spanish|es\b|barcelona|valencia/.test(haystack));
+    });
+    const consentReviewContacts = contacts.filter((contact) => hasRoute(contact) && contact.consentStatus !== "opted_in" && contact.consentStatus !== "opted_out");
+    const recipes: AudienceRecipe[] = [
+      {
+        key: "partner-prospects",
+        title: "Partner prospects",
+        value: countLabel(partnerContacts.length, "partner"),
+        detail: "B2B leads, providers, and partner contacts with a reachable channel.",
+        state: partnerContacts.length ? "ready" : "planning",
+        audienceType: "b2b",
+        listType: "static",
+        contacts: partnerContacts,
+        rules: { audienceType: "b2b", category: ["partner", "lead", "provider"], consent: "not_opted_out" },
+        playId: "b2b-partner-outreach",
+        channels: ["email", "linkedin", "whatsapp"],
+        icon: Megaphone,
+        actionLabel: "Fill list",
+        studioLabel: "Plan partner campaign",
+      },
+      {
+        key: "caregiver-onboarding",
+        title: "Caregiver onboarding",
+        value: countLabel(caregiverContacts.length),
+        detail: "B2C/family contacts who can receive account setup and care-team onboarding.",
+        state: caregiverContacts.length ? "ready" : "planning",
+        audienceType: "b2c",
+        listType: "static",
+        contacts: caregiverContacts,
+        rules: { audienceType: "b2c", lifecycle: "onboarding", consent: "not_opted_out" },
+        playId: "caregiver-onboarding",
+        channels: ["email", "whatsapp"],
+        icon: UsersRound,
+        actionLabel: "Fill list",
+        studioLabel: "Plan onboarding campaign",
+      },
+      {
+        key: "local-spanish-reach",
+        title: "Spanish local reach",
+        value: countLabel(localSpanishContacts.length),
+        detail: "Contacts with Spanish language, city, market, or imported local-list signals.",
+        state: localSpanishContacts.length ? "ready" : "planning",
+        audienceType: "both",
+        listType: "static",
+        contacts: localSpanishContacts,
+        rules: { language: ["es", "Spanish"], market: ["Spain", "Madrid", "Barcelona", "Valencia"], consent: "not_opted_out" },
+        playId: "local-event-reminder",
+        channels: ["whatsapp", "email", "instagram"],
+        icon: CalendarDays,
+        actionLabel: "Fill list",
+        studioLabel: "Plan local campaign",
+      },
+      {
+        key: "consent-cleanup",
+        title: "Consent cleanup",
+        value: countLabel(consentReviewContacts.length),
+        detail: "Reachable contacts whose consent is still pending or unknown before scaling sends.",
+        state: consentReviewContacts.length ? "needs_action" : contacts.length ? "ready" : "planning",
+        audienceType: "both",
+        listType: "static",
+        contacts: consentReviewContacts,
+        rules: { consent: ["pending", "unknown"], channel: "reachable" },
+        playId: "preference-update",
+        channels: ["email", "whatsapp"],
+        icon: CheckCircle2,
+        actionLabel: "Fill list",
+        studioLabel: "Plan consent campaign",
+      },
+    ];
+    return recipes;
+  }, [contacts]);
 
   const journeyStarterRecommendations = useMemo<JourneyStarterRecommendation[]>(() => {
     const activeContent = content.filter((item) => item.status !== "archived");
@@ -10003,6 +10126,56 @@ export default function MarketingAdminPage() {
       draft,
       parseAudienceMemberIds(draft).filter((id) => !contactMatchesMemberIds(contact, [id])),
     ));
+  }
+
+  function applyAudienceRecipe(recipe: AudienceRecipe) {
+    const contactExternalIds = recipe.contacts.map(contactAudienceMemberId);
+    setContactView("lists");
+    setEditingAudienceId(null);
+    setAudienceEditDraft(null);
+    setConfirmingAudienceDeleteId(null);
+    setAudienceDraft({
+      name: recipe.title,
+      listType: recipe.listType,
+      description: recipe.detail,
+      rulesText: jsonText(recipe.rules),
+      contactExternalIds: contactExternalIds.join("\n"),
+    });
+    setAudienceFeedback(`${recipe.title} recipe loaded with ${recipe.value}. Review and save the list.`);
+    setMessage(`${recipe.title} audience recipe loaded.`);
+  }
+
+  function loadAudienceRecipeInStudio(recipe: AudienceRecipe) {
+    const play = campaignStudioPlays.find((item) => item.id === recipe.playId) ?? campaignStudioPlays[0];
+    const existingAudience = audiences.find((audience) => lower(audience.name) === lower(recipe.title))
+      ?? audiences.find((audience) => {
+        const recipeIds = new Set(recipe.contacts.map((contact) => lower(contactAudienceMemberId(contact))));
+        return audience.contactExternalIds.some((id) => recipeIds.has(lower(id)));
+      })
+      ?? null;
+    const selectedChannels = uniqueChannels(recipe.channels.length ? recipe.channels : recommendedCampaignStudioChannels(play));
+    const primaryChannel = selectedChannels[0] ?? play.defaultChannel;
+    setActiveTab("dashboard");
+    setCampaignStudioCategory(play.categoryId);
+    updateCampaignStudio({
+      playId: play.id,
+      channel: primaryChannel,
+      selectedChannels,
+      targetAudienceId: existingAudience?.id ?? "",
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+      toneId: recipe.key === "consent-cleanup" ? "direct" : "warm",
+      angleId: recipe.key === "partner-prospects" ? "proof" : recipe.key === "local-spanish-reach" ? "local" : "action",
+    });
+    setCampaignDraft((draft) => ({
+      ...draft,
+      audienceType: recipe.audienceType,
+      channel: primaryChannel,
+      targetAudienceId: existingAudience?.id ?? "",
+      recipientFilter: existingAudience?.name ?? recipe.title,
+      snapshotRecipients: recipe.contacts.length > 0,
+    }));
+    setCampaignStudioFeedback(`${recipe.title} recipe loaded: ${recipe.value}. ${existingAudience ? "Using the saved list." : "Save this list from Contacts > Lists if you want reusable membership before launch."}`);
+    setMessage(`${recipe.title} campaign recipe loaded.`);
   }
 
   function addAudienceEditContact(contactId: string) {
@@ -15395,6 +15568,54 @@ export default function MarketingAdminPage() {
                 </>
               ) : (
                 <>
+                  <SectionCard title="Audience recipes" subtitle="One-click starter lists based on imported contacts, consent, market, and channel readiness.">
+                    <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-audience-recipes">
+                      {audienceRecipes.map((recipe) => {
+                        const Icon = recipe.icon;
+                        return (
+                          <article key={recipe.key} className={`flex min-h-[210px] flex-col rounded-xl border p-3 ${readinessClass(recipe.state)}`} data-testid={`marketing-audience-recipe-${recipe.key}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="grid min-h-10 min-w-10 place-items-center rounded-xl bg-white/80 text-purple-800">
+                                <Icon size={18} />
+                              </div>
+                              <Pill className={readinessPillClass(recipe.state)}>{readinessLabel(recipe.state)}</Pill>
+                            </div>
+                            <div className="mt-3 flex-1">
+                              <p className="font-black text-[#241133]">{recipe.title}</p>
+                              <p className="mt-1 text-2xl font-black text-[#241133]">{recipe.value}</p>
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-[#6f5f59]">{recipe.detail}</p>
+                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                <Pill className="bg-white text-purple-800">{recipe.audienceType.toUpperCase()}</Pill>
+                                {recipe.channels.slice(0, 3).map((channel) => (
+                                  <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="mt-4 grid gap-2">
+                              <button
+                                type="button"
+                                onClick={() => applyAudienceRecipe(recipe)}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                disabled={audienceSaving}
+                                data-testid={`button-marketing-audience-recipe-fill-${recipe.key}`}
+                              >
+                                <UsersRound size={13} /> {recipe.actionLabel}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => loadAudienceRecipeInStudio(recipe)}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                disabled={campaignStudioSaving}
+                                data-testid={`button-marketing-audience-recipe-studio-${recipe.key}`}
+                              >
+                                <Sparkles size={13} /> {recipe.studioLabel}
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </SectionCard>
                   <SectionCard title="List builder" subtitle="Store reusable Lovable-style lists with optional rules and contact external IDs.">
                     <form className="grid gap-3" onSubmit={(event) => createAudience(event).catch((error) => {
                       setAudienceFeedback(error.message);
