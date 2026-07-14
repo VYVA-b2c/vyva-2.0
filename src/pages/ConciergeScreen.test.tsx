@@ -144,6 +144,14 @@ function showBookRideFastHelp() {
   return screen.getByTestId("button-concierge-fast-book-ride");
 }
 
+function showOrderGroceriesFastHelp() {
+  screen.getByTestId("button-concierge-fast-home-service");
+  act(() => {
+    vi.advanceTimersByTime(9000);
+  });
+  return screen.getByTestId("button-concierge-fast-order-groceries");
+}
+
 function showOtcPharmacyFastHelp() {
   screen.getByTestId("button-concierge-fast-home-service");
   act(() => {
@@ -152,12 +160,28 @@ function showOtcPharmacyFastHelp() {
   return screen.getByTestId("button-concierge-fast-otc-pharmacy");
 }
 
+function showFindCareFastHelp() {
+  screen.getByTestId("button-concierge-fast-home-service");
+  act(() => {
+    vi.advanceTimersByTime(18000);
+  });
+  return screen.getByTestId("button-concierge-fast-find-care");
+}
+
 function showScamCheckFastHelp() {
   screen.getByTestId("button-concierge-fast-home-service");
   act(() => {
     vi.advanceTimersByTime(9000);
   });
   return screen.getByTestId("button-concierge-fast-check-scam");
+}
+
+function showBookMedicalFastHelp() {
+  screen.getByTestId("button-concierge-fast-home-service");
+  act(() => {
+    vi.advanceTimersByTime(27000);
+  });
+  return screen.getByTestId("button-concierge-fast-book-medical");
 }
 
 afterEach(() => {
@@ -232,6 +256,53 @@ describe("ConciergeScreen action hub", () => {
       expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
       expect(screen.getByTestId("route-state")).toHaveTextContent("concierge_fast_help");
     });
+  });
+
+  it("routes Order Groceries fast help through the shopping assistant", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await showOrderGroceriesFastHelp());
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"groceries\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"delivery\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"simplicity\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"safety\"");
+    });
+  });
+
+  it("opens Find Specialist fast help as a provider comparison search", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await showFindCareFastHelp());
+    vi.useRealTimers();
+
+    expect(await screen.findByTestId("panel-offers-search")).toBeVisible();
+    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("Good reputation");
+    expect((screen.getByTestId("input-offers-query") as HTMLInputElement).value).toBe("find a specialist");
+  });
+
+  it("opens Book Medical fast help directly in the medical appointment flow", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await showBookMedicalFastHelp());
+    vi.useRealTimers();
+
+    const panel = await screen.findByTestId("panel-appointment-assistant");
+    expect(panel).toHaveTextContent("Appointment");
+    expect(panel).toHaveTextContent("Schedule");
+    expect(screen.getByRole("button", { name: "Medical" })).toBeVisible();
+    expect(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible")).toBeVisible();
+    expect(screen.queryByTestId("modal-appointment-mission")).not.toBeInTheDocument();
   });
 
   it("turns Safe Home quote prefill into a tagged home-service concierge request", async () => {
