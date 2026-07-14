@@ -10483,6 +10483,56 @@ export default function MarketingAdminPage() {
       },
     },
   ] : [];
+  const campaignNextLaunchStep = campaignLaunchSequenceSteps.find((item) => item.state !== "ready")
+    ?? campaignLaunchSequenceSteps[campaignLaunchSequenceSteps.length - 1]
+    ?? null;
+  const linkedCampaignContentCount = campaignReadinessChannels.filter((channelDraft) => Boolean(channelDraft.contentAssetId)).length;
+  const campaignOperatorBriefItems = editingCampaign ? [
+    {
+      key: "next",
+      label: "Next best action",
+      value: campaignNextLaunchStep?.title ?? "Review campaign",
+      detail: campaignNextLaunchStep?.detail ?? "Open the launch sequence and complete the first unfinished step.",
+    },
+    {
+      key: "reach",
+      label: "Reach",
+      value: savedCampaignRecipientCount > 0
+        ? `${savedCampaignRecipientCount} saved`
+        : pendingCampaignSnapshotCount > 0
+          ? `${pendingCampaignSnapshotCount} preview`
+          : selectedCampaignTargetAudience
+            ? `${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount}`
+            : "All eligible",
+      detail: savedCampaignRecipientCount > 0
+        ? "Saved recipient snapshot is ready for explicit email send or manual handoff."
+        : pendingCampaignSnapshotCount > 0
+          ? "Save the campaign to lock these planned recipients."
+          : selectedCampaignTargetAudience
+            ? `${selectedCampaignTargetAudience.name} still needs mapped, reachable contacts before launch.`
+            : "No saved list is selected, so the campaign uses all eligible contacts for its audience.",
+    },
+    {
+      key: "creative",
+      label: "Creative",
+      value: missingCampaignContentChannels.length > 0
+        ? `${missingCampaignContentChannels.length} missing`
+        : `${linkedCampaignContentCount}/${campaignReadinessChannels.length} linked`,
+      detail: missingCampaignContentChannels.length > 0
+        ? `Attach content for ${missingCampaignContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")}.`
+        : "Every planned channel has linked content.",
+    },
+    {
+      key: "channels",
+      label: "Channels",
+      value: `${campaignReadinessChannels.length} planned`,
+      detail: draftEmailChannel
+        ? planningOnlyCampaignChannels.length > 0
+          ? `Email can send in VYVA; ${planningOnlyCampaignChannels.map((channel) => channelLabel[channel.channel]).join(", ")} stay as manual handoff.`
+          : "Email can send in VYVA after the final confirmation."
+        : "All channels are planning or manual handoff until provider integrations are enabled.",
+    },
+  ] : [];
   const unmappedAudienceMemberCount = latestSyncRun
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
@@ -12214,6 +12264,17 @@ export default function MarketingAdminPage() {
                         </div>
                         {editingCampaign.lovableExternalId ? (
                           <p className="mt-3 break-all rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">Lovable ID: {editingCampaign.lovableExternalId}</p>
+                        ) : null}
+                        {campaignOperatorBriefItems.length ? (
+                          <div className="mt-3 grid gap-2 xl:grid-cols-4" data-testid="marketing-campaign-operator-brief">
+                            {campaignOperatorBriefItems.map((item) => (
+                              <div key={item.key} className="rounded-lg border border-purple-100 bg-white p-3" data-testid={`marketing-campaign-operator-brief-${item.key}`}>
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">{item.label}</p>
+                                <p className="mt-1 text-base font-black text-[#241133]">{item.value}</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
+                              </div>
+                            ))}
+                          </div>
                         ) : null}
                       </div>
 

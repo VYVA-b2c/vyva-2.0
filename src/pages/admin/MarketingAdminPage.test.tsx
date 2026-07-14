@@ -3215,6 +3215,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-campaign-schedule-end")).toHaveValue(toLocalInput("2026-07-06T11:00:00.000Z"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Ends");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-operator-brief")).toHaveTextContent("Next best action");
+    expect(screen.getByTestId("marketing-campaign-operator-brief-next")).toHaveTextContent("Launch email");
+    expect(screen.getByTestId("marketing-campaign-operator-brief-reach")).toHaveTextContent("1 saved");
+    expect(screen.getByTestId("marketing-campaign-operator-brief-creative")).toHaveTextContent("2/2 linked");
+    expect(screen.getByTestId("marketing-campaign-operator-brief-channels")).toHaveTextContent("Email can send in VYVA; LinkedIn stay as manual handoff.");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Campaign readiness");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("5/6 ready");
     expect(screen.getByTestId("marketing-campaign-readiness-content")).toHaveTextContent("Ready");
