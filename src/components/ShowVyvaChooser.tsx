@@ -29,7 +29,7 @@ const SOURCE_STYLES: Record<FileCaptureSource | "paste", { bg: string; text: str
   paste: { bg: "#ECFDF5", text: "#047857", border: "#BBF7D0" },
 };
 
-function useCaseMatches(ids: ShowVyvaUseCaseId[] | undefined) {
+function getMatchingUseCases(ids: ShowVyvaUseCaseId[] | undefined) {
   if (!ids?.length) return SHOW_VYVA_USE_CASES;
   const allowed = new Set(ids);
   return SHOW_VYVA_USE_CASES.filter((useCase) => allowed.has(useCase.id));
@@ -45,7 +45,7 @@ export default function ShowVyvaChooser({
   onPaste,
 }: ShowVyvaChooserProps) {
   const { t } = useTranslation();
-  const useCases = useMemo(() => useCaseMatches(useCaseIds), [useCaseIds]);
+  const useCases = useMemo(() => getMatchingUseCases(useCaseIds), [useCaseIds]);
   const safeDefault = useCases.some((item) => item.id === defaultUseCaseId)
     ? defaultUseCaseId
     : useCases[0]?.id ?? SHOW_VYVA_USE_CASE_IDS.scamCheck;

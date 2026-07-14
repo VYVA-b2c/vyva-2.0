@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock3, Loader2, RefreshCw, ShieldCheck, Wrench, X } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -87,7 +87,7 @@ export default function ConciergeQueueAdminPage() {
   const [savingAction, setSavingAction] = useState<QueueAction | null>(null);
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setMessage("");
     try {
@@ -104,20 +104,19 @@ export default function ConciergeQueueAdminPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void refresh();
+  }, [refresh]);
 
   const currentOperatorId = user?.id?.trim() || "";
   const currentOperatorEmail = user?.email?.trim().toLowerCase() || "";
-  const isAssignedToCurrentOperator = (item: OperatorConciergeQueueItem) => (
+  const isAssignedToCurrentOperator = useCallback((item: OperatorConciergeQueueItem) => (
     Boolean(currentOperatorId && item.operator_assigned_to === currentOperatorId)
       || Boolean(currentOperatorEmail && item.operator_assigned_email?.trim().toLowerCase() === currentOperatorEmail)
-  );
-  const isUnassigned = (item: OperatorConciergeQueueItem) => !item.operator_assigned_to && !item.operator_assigned_email;
+  ), [currentOperatorEmail, currentOperatorId]);
+  const isUnassigned = useCallback((item: OperatorConciergeQueueItem) => !item.operator_assigned_to && !item.operator_assigned_email, []);
   const canCurrentOperatorAct = (item: OperatorConciergeQueueItem) => isUnassigned(item) || isAssignedToCurrentOperator(item);
   const assignmentLabel = (item: OperatorConciergeQueueItem) => {
     if (isAssignedToCurrentOperator(item)) return "Assigned to me";
@@ -137,11 +136,10 @@ export default function ConciergeQueueAdminPage() {
     if (ownerFilter === "mine") return statusFiltered.filter(isAssignedToCurrentOperator);
     if (ownerFilter === "unassigned") return statusFiltered.filter(isUnassigned);
     return statusFiltered;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, items, ownerFilter, currentOperatorId, currentOperatorEmail]);
+  }, [filter, isAssignedToCurrentOperator, isUnassigned, items, ownerFilter]);
   const allCount = useMemo(() => OPERATOR_CONCIERGE_QUEUE_STATUSES.reduce((sum, status) => sum + totals[status], 0), [totals]);
-  const mineCount = useMemo(() => items.filter(isAssignedToCurrentOperator).length, [items, currentOperatorId, currentOperatorEmail]);
-  const unassignedCount = useMemo(() => items.filter(isUnassigned).length, [items]);
+  const mineCount = useMemo(() => items.filter(isAssignedToCurrentOperator).length, [isAssignedToCurrentOperator, items]);
+  const unassignedCount = useMemo(() => items.filter(isUnassigned).length, [isUnassigned, items]);
   const selectedCanAct = Boolean(
     selectedItem?.source === "pending"
       && selectedItem.user_confirmed
