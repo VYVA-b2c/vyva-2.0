@@ -737,6 +737,20 @@ type JourneyStepDraft = {
   notes: string;
 };
 
+type JourneyStarterRecommendation = CampaignReadinessItem & {
+  value: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  audienceType: Audience;
+  targetAudienceId: string;
+  triggerType: string;
+  triggerConfig: Record<string, unknown>;
+  goalType: string;
+  goalConfig: Record<string, unknown>;
+  exitOnGoal: boolean;
+  steps: JourneyStepDraft[];
+};
+
 type ContentDraft = {
   title: string;
   channel: Channel;
@@ -3228,6 +3242,41 @@ function newJourneyStepDraft(channel: Channel = "email"): JourneyStepDraft {
     status: "draft",
     configText: "",
     notes: "",
+  };
+}
+
+function journeyStarterStepDraft({
+  channel,
+  contentAsset,
+  delayHours,
+  notes,
+  config = {},
+  kind = "message",
+  status = "draft",
+  templateKind,
+  templateRef,
+}: {
+  channel: Channel;
+  contentAsset: ContentAsset | null;
+  delayHours: number;
+  notes: string;
+  config?: Record<string, unknown>;
+  kind?: string;
+  status?: JourneyStatus;
+  templateKind?: string;
+  templateRef?: string;
+}): JourneyStepDraft {
+  return {
+    id: newDraftId(),
+    channel,
+    contentAssetId: contentAsset?.id ?? "",
+    delayHours: String(Math.max(0, delayHours)),
+    kind,
+    templateKind: templateKind ?? (contentAsset ? "content_asset" : ""),
+    templateRef: templateRef ?? contentAsset?.lovableExternalId ?? contentAsset?.id ?? "",
+    status,
+    configText: jsonText(config),
+    notes,
   };
 }
 
@@ -5960,6 +6009,155 @@ export default function MarketingAdminPage() {
     [contacts, audienceEditMemberIds],
   );
 
+  const journeyStarterRecommendations = useMemo<JourneyStarterRecommendation[]>(() => {
+    const activeContent = content.filter((item) => item.status !== "archived");
+    const contentForChannel = (channel: Channel, terms: string[] = []) => activeContent.find((item) => {
+      if (item.channel !== channel) return false;
+      if (terms.length === 0) return true;
+      const haystack = lower([
+        item.title,
+        item.subject,
+        item.body,
+        item.ctaLabel,
+        item.lovableExternalId,
+        JSON.stringify(item.metadata ?? {}),
+      ].filter(Boolean).join(" "));
+      return terms.some((term) => haystack.includes(lower(term)));
+    }) ?? activeContent.find((item) => item.channel === channel) ?? null;
+
+    const emailContent = contentForChannel("email");
+    const caregiverEmailContent = contentForChannel("email", ["caregiver", "welcome", "onboarding", "family"]);
+    const partnerEmailContent = contentForChannel("email", ["partner", "b2b", "lead", "demo"]) ?? emailContent;
+    const partnerSocialContent = contentForChannel("linkedin", ["partner", "b2b", "lead", "demo"]);
+    const whatsappContent = contentForChannel("whatsapp", ["reply", "check", "reminder", "caregiver"]);
+    const partnerAudience = audiences.find((audience) => /partner|b2b|lead|business/i.test(audience.name))
+      ?? audiences.find((audience) => audience.memberCount > 0)
+      ?? null;
+    const caregiverAudience = audiences.find((audience) => /caregiver|family|b2c|elder|user/i.test(audience.name)) ?? null;
+    const b2bCount = contacts.filter((contact) => contact.audienceType === "b2b" || contact.audienceType === "both").length;
+    const b2cCount = contacts.filter((contact) => contact.audienceType === "b2c" || contact.audienceType === "both").length;
+    const reachableEmailCount = contacts.filter((contact) => Boolean(contact.email) && contact.consentStatus !== "opted_out").length;
+    const reachableWhatsappCount = contacts.filter((contact) => Boolean(contact.whatsappNumber) && contact.consentStatus !== "opted_out").length;
+    const starters: JourneyStarterRecommendation[] = [];
+
+    starters.push({
+      key: "partner-nurture",
+      title: "Partner nurture journey",
+      value: `${b2bCount} B2B contact${b2bCount === 1 ? "" : "s"}`,
+      detail: "Warm partner and business leads with a proof touch, an email follow-up, and a reply goal.",
+      state: b2bCount && (partnerSocialContent || partnerEmailContent) ? "ready" : b2bCount ? "needs_action" : "planning",
+      actionLabel: "Use starter",
+      icon: Waypoints,
+      audienceType: "b2b",
+      targetAudienceId: partnerAudience?.id ?? "",
+      triggerType: partnerAudience ? "list_joined" : "manual_add",
+      triggerConfig: {
+        source: "journey_starter",
+        starter: "partner-nurture",
+        ...(partnerAudience ? {
+          targetAudienceId: partnerAudience.id,
+          audienceExternalId: partnerAudience.lovableExternalId ?? partnerAudience.id,
+          audienceList: audienceSnapshot(partnerAudience),
+        } : {}),
+      },
+      goalType: "reply",
+      goalConfig: { withinDays: 14, successSignal: "reply_or_demo_request" },
+      exitOnGoal: true,
+      steps: [
+        journeyStarterStepDraft({
+          channel: partnerSocialContent?.channel ?? "linkedin",
+          contentAsset: partnerSocialContent,
+          delayHours: 0,
+          notes: "Open with a credibility/proof point that gives partners a reason to engage.",
+          config: { suggestedIntent: "proof_point" },
+        }),
+        journeyStarterStepDraft({
+          channel: "email",
+          contentAsset: partnerEmailContent,
+          delayHours: 72,
+          notes: "Follow up with a concise email and a clear reply/demo CTA.",
+          config: { suggestedIntent: "follow_up" },
+        }),
+      ],
+    });
+
+    starters.push({
+      key: "caregiver-activation",
+      title: "Caregiver activation journey",
+      value: `${b2cCount} B2C contact${b2cCount === 1 ? "" : "s"}`,
+      detail: "Help newly invited families complete the first account steps without needing a manual chase.",
+      state: b2cCount && caregiverEmailContent ? "ready" : b2cCount ? "needs_action" : "planning",
+      actionLabel: "Use starter",
+      icon: UsersRound,
+      audienceType: "b2c",
+      targetAudienceId: caregiverAudience?.id ?? "",
+      triggerType: "signup_or_invite_sent",
+      triggerConfig: {
+        source: "journey_starter",
+        starter: "caregiver-activation",
+        ...(caregiverAudience ? {
+          targetAudienceId: caregiverAudience.id,
+          audienceExternalId: caregiverAudience.lovableExternalId ?? caregiverAudience.id,
+          audienceList: audienceSnapshot(caregiverAudience),
+        } : {}),
+      },
+      goalType: "profile_completed",
+      goalConfig: { withinDays: 7, successSignal: "profile_or_care_team_completed" },
+      exitOnGoal: true,
+      steps: [
+        journeyStarterStepDraft({
+          channel: "email",
+          contentAsset: caregiverEmailContent,
+          delayHours: 0,
+          notes: "Send the plain-language welcome and explain the one action needed next.",
+          config: { suggestedIntent: "activation_welcome" },
+        }),
+        journeyStarterStepDraft({
+          channel: "whatsapp",
+          contentAsset: whatsappContent,
+          delayHours: 24,
+          notes: "Short reminder for people who have not completed setup. Keep it helpful, not pushy.",
+          config: { suggestedIntent: "gentle_reminder" },
+        }),
+      ],
+    });
+
+    starters.push({
+      key: "relationship-reengagement",
+      title: "Relationship re-engagement",
+      value: `${reachableEmailCount + reachableWhatsappCount} reachable channel${reachableEmailCount + reachableWhatsappCount === 1 ? "" : "s"}`,
+      detail: "Bring quiet contacts back with a useful check-in, then route replies into the next campaign or journey.",
+      state: reachableEmailCount || reachableWhatsappCount ? "ready" : "planning",
+      actionLabel: "Use starter",
+      icon: RefreshCw,
+      audienceType: "both",
+      targetAudienceId: "",
+      triggerType: "inactive_30_days",
+      triggerConfig: { source: "journey_starter", starter: "relationship-reengagement", inactiveDays: 30 },
+      goalType: "reply",
+      goalConfig: { withinDays: 10, successSignal: "reply_or_click" },
+      exitOnGoal: true,
+      steps: [
+        journeyStarterStepDraft({
+          channel: "email",
+          contentAsset: emailContent,
+          delayHours: 0,
+          notes: "Ask one useful question or share one relevant update. Avoid broad newsletters here.",
+          config: { suggestedIntent: "reengagement_check_in" },
+        }),
+        journeyStarterStepDraft({
+          channel: "whatsapp",
+          contentAsset: whatsappContent,
+          delayHours: 72,
+          notes: "Only use for opted-in contacts with WhatsApp available.",
+          config: { suggestedIntent: "short_follow_up" },
+        }),
+      ],
+    });
+
+    return starters;
+  }, [audiences, contacts, content]);
+
   const visibleJourneys = useMemo(() => journeys.filter((journey) => {
     const targetAudience = journeyTargetAudience(journey, audiences);
     const journeyMatchesSearch = matchesSearch(search, [
@@ -7984,6 +8182,32 @@ export default function MarketingAdminPage() {
     setConfirmingJourneyDeleteId(null);
     setJourneyFeedback("");
     setMessage("");
+  }
+
+  function applyJourneyStarter(starter: JourneyStarterRecommendation) {
+    setActiveTab("journeys");
+    setEditingJourneyId("new");
+    setJourneyEditDraft({
+      ...emptyJourneyEditDraft(),
+      name: starter.title,
+      audienceType: starter.audienceType,
+      status: "draft",
+      objective: starter.detail,
+      targetAudienceId: starter.targetAudienceId,
+      metadataText: jsonText({
+        journeyStarter: starter.key,
+        recommendedBecause: starter.value,
+      }),
+      triggerType: starter.triggerType,
+      triggerConfigText: jsonText(starter.triggerConfig),
+      goalType: starter.goalType,
+      goalConfigText: jsonText(starter.goalConfig),
+      exitOnGoal: starter.exitOnGoal,
+      steps: starter.steps.map((step) => ({ ...step, id: newDraftId() })),
+    });
+    setConfirmingJourneyDeleteId(null);
+    setJourneyFeedback(`Loaded ${starter.title}. Review the steps, then create journey.`);
+    setMessage(`Journey starter loaded: ${starter.title}.`);
   }
 
   function cancelJourneyEdit() {
@@ -11647,6 +11871,76 @@ export default function MarketingAdminPage() {
 
           {activeTab === "journeys" && (
             <div className="grid gap-4" data-testid="marketing-journeys-tab">
+              <SectionCard
+                title="Journey starters"
+                subtitle="Use imported lists, contacts, and content to draft lifecycle flows without starting from a blank page."
+              >
+                <div className="grid gap-3 xl:grid-cols-3" data-testid="marketing-journey-starters">
+                  {journeyStarterRecommendations.map((starter) => {
+                    const StarterIcon = starter.icon;
+                    const stateClass = starter.state === "ready"
+                      ? "bg-emerald-50 text-emerald-800"
+                      : starter.state === "needs_action"
+                        ? "bg-amber-50 text-amber-800"
+                        : starter.state === "blocked"
+                          ? "bg-red-50 text-red-800"
+                          : "bg-blue-50 text-blue-800";
+                    return (
+                      <article key={starter.key} className="grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-700">
+                            <StarterIcon size={19} />
+                          </span>
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            <Pill className={stateClass}>{starter.state.replace("_", " ")}</Pill>
+                            <Pill className="bg-purple-50 text-purple-700">{starter.audienceType.toUpperCase()}</Pill>
+                          </div>
+                        </div>
+                        <div>
+                          <h3 className="font-black text-[#241133]">{starter.title}</h3>
+                          <p className="mt-1 text-sm font-bold text-[#7d6b65]">{starter.value}</p>
+                          <p className="mt-2 text-sm font-semibold text-[#5b4a46]">{starter.detail}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 text-xs font-black">
+                          {starter.targetAudienceId ? (
+                            <Pill className="bg-violet-50 text-violet-800">
+                              List: {audiences.find((audience) => audience.id === starter.targetAudienceId)?.name ?? "selected"}
+                            </Pill>
+                          ) : (
+                            <Pill className="bg-[#f5eee8] text-[#7d6b65]">No list lock</Pill>
+                          )}
+                          <Pill className="bg-blue-50 text-blue-800">Trigger: {starter.triggerType}</Pill>
+                          <Pill className="bg-emerald-50 text-emerald-800">Goal: {starter.goalType}</Pill>
+                          <Pill className="bg-[#f5eee8] text-[#7d6b65]">{starter.steps.length} steps</Pill>
+                        </div>
+                        <ol className="grid gap-1.5 text-xs font-bold text-[#6b5b54]">
+                          {starter.steps.map((step, index) => {
+                            const linkedContent = step.contentAssetId ? contentById.get(step.contentAssetId) ?? null : null;
+                            return (
+                              <li key={`${starter.key}-${index}`} className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-black text-[#241133]">{index + 1}.</span>
+                                <Pill className={channelClass(step.channel)}>{channelLabel[step.channel]}</Pill>
+                                <span>{nonNegativeInt(step.delayHours)}h</span>
+                                <span className="truncate">{linkedContent?.title ?? step.notes}</span>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                        <button
+                          type="button"
+                          onClick={() => applyJourneyStarter(starter)}
+                          disabled={journeySaving}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          data-testid={`button-marketing-journey-starter-${starter.key}`}
+                        >
+                          <Plus size={15} /> {starter.actionLabel}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+
               <SectionCard
                 title="Journeys"
                 subtitle={`${visibleJourneys.length} visible of ${journeys.length} journeys in the planning foundation.`}

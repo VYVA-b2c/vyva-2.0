@@ -2216,6 +2216,51 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("loads smart journey starters into editable journey details", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+
+    expect(screen.getByTestId("marketing-journey-starters")).toHaveTextContent("Partner nurture journey");
+    expect(screen.getByTestId("marketing-journey-starters")).toHaveTextContent("Caregiver activation journey");
+
+    fireEvent.click(screen.getByTestId("button-marketing-journey-starter-partner-nurture"));
+
+    expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-journey-name")).toHaveValue("Partner nurture journey");
+    expect(screen.getByTestId("select-marketing-edit-journey-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-edit-journey-status")).toHaveValue("draft");
+    expect(screen.getByTestId("select-marketing-edit-journey-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("input-marketing-edit-journey-trigger")).toHaveValue("list_joined");
+    expect(screen.getByTestId("input-marketing-edit-journey-goal")).toHaveValue("reply");
+    expect(screen.getByTestId("marketing-journey-target-audience-summary")).toHaveTextContent("Partners: 1 mapped of 2 members");
+    expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Loaded Partner nurture journey");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Welcome email");
+    expect((screen.getByTestId("textarea-marketing-edit-journey-trigger-config") as HTMLTextAreaElement).value).toContain("journey_starter");
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/journeys" && init?.method === "POST");
+    const payload = JSON.parse(String(postCall?.[1]?.body));
+    expect(payload).toMatchObject({
+      name: "Partner nurture journey",
+      audienceType: "b2b",
+      status: "draft",
+      triggerType: "list_joined",
+      triggerConfig: { source: "journey_starter", targetAudienceId: "audience-1" },
+      goalType: "reply",
+      goalConfig: { withinDays: 14 },
+    });
+    expect(payload.steps).toHaveLength(2);
+    expect(payload.steps[0]).toMatchObject({ channel: "linkedin", contentAssetId: "content-2", delayHours: 0 });
+    expect(payload.steps[1]).toMatchObject({ channel: "email", contentAssetId: "content-1", delayHours: 72 });
+  });
+
   it("creates a blank journey draft and keeps the editor open", async () => {
     renderPage();
 
