@@ -1606,6 +1606,29 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-draft-readiness-channel")).toHaveTextContent("LinkedIn will be saved for planning or manual handoff");
   });
 
+  it("drafts missing campaign content directly from the planner", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Community proof post" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-audience"), { target: { value: "b2c" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-channel"), { target: { value: "facebook" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-objective"), {
+      target: { value: "Show families how VYVA turns daily check-ins into calmer care decisions." },
+    });
+
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("No active Facebook content assets yet.");
+    fireEvent.click(screen.getByTestId("button-marketing-draft-content-from-campaign"));
+
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Community proof post Facebook content");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("facebook");
+    expect(screen.getByTestId("input-marketing-content-subject")).toHaveValue("");
+    expect(screen.getByTestId("textarea-marketing-content-body")).toHaveTextContent("Show families how VYVA turns daily check-ins into calmer care decisions.");
+    expect(screen.getByTestId("textarea-marketing-content-design-json")).toHaveTextContent("\"generator\": \"marketing_campaign_planner\"");
+    expect(screen.getByTestId("textarea-marketing-content-design-json")).toHaveTextContent("\"channel\": \"facebook\"");
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Drafted Facebook content from the campaign planner.");
+  });
+
   it("creates rich marketing content drafts", async () => {
     renderPage();
 

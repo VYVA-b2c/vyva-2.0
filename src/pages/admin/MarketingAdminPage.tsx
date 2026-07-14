@@ -2347,6 +2347,55 @@ function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
   };
 }
 
+function contentDraftFromCampaignDraft(draft: CampaignDraft, targetAudience: MarketingAudience | null): ContentDraft {
+  const campaignName = draft.name.trim() || `${channelLabel[draft.channel]} campaign`;
+  const objective = draft.objective.trim() || "Share one clear VYVA benefit and invite the audience to take the next step.";
+  const audienceLabel = targetAudience?.name ?? (draft.audienceType === "b2b" ? "B2B contacts" : draft.audienceType === "b2c" ? "B2C contacts" : "mixed audience");
+  const ctaLabel = draft.audienceType === "b2b" ? "Book a demo" : "Open VYVA";
+  const ctaUrl = draft.audienceType === "b2b" ? "https://v2.vyva.life/demo" : "https://v2.vyva.life";
+  const channelName = channelLabel[draft.channel];
+  const body = draft.channel === "email"
+    ? [
+      "Hi {{first_name}},",
+      "",
+      objective,
+      "",
+      "VYVA helps families and care teams turn daily signals into clearer next steps.",
+      "",
+      `${ctaLabel}: ${ctaUrl}`,
+    ].join("\n")
+    : draft.channel === "whatsapp"
+      ? `${objective}\n\nVYVA helps make daily care clearer and easier to act on. ${ctaLabel}: ${ctaUrl}`
+      : draft.channel === "tiktok"
+        ? `${campaignName}\n\nHook: ${objective}\n\nShow the before: scattered care updates.\nShow the after: one clear VYVA next step.\n\nCTA: ${ctaLabel}.`
+        : `${campaignName}\n\n${objective}\n\nAudience: ${audienceLabel}.\nChannel: ${channelName}.\nCTA: ${ctaLabel} - ${ctaUrl}`;
+
+  return {
+    title: `${campaignName} ${channelName} content`,
+    channel: draft.channel,
+    language: "en",
+    status: "draft",
+    subject: draft.channel === "email" ? campaignName : "",
+    body,
+    htmlBody: draft.channel === "email"
+      ? `<h1>${campaignName}</h1><p>${objective.replace(/\n+/g, " ")}</p><p><a href="${ctaUrl}">${ctaLabel}</a></p>`
+      : "",
+    ctaLabel,
+    ctaUrl,
+    designJsonText: jsonText({
+      generator: "marketing_campaign_planner",
+      campaignName,
+      audienceType: draft.audienceType,
+      channel: draft.channel,
+      objective,
+      targetAudience: targetAudience ? audienceSnapshot(targetAudience) : null,
+      scheduleStartsAt: draft.scheduleStartsAt || null,
+      source: "campaign_planner_missing_content_action",
+    }),
+    mediaAssetsText: "[]",
+  };
+}
+
 function templateGapStudioPlayId(channel: Channel, audienceType: Audience): CampaignStudioPlayId {
   if (audienceType === "b2b") {
     if (channel === "email") return "referral-partner-nurture";
@@ -5979,6 +6028,15 @@ export default function MarketingAdminPage() {
     setMessage(`Starter loaded: ${recipe.play.label}. Review the planner, then add the campaign.`);
   }
 
+  function draftContentFromCampaignPlanner() {
+    const draft = contentDraftFromCampaignDraft(campaignDraft, selectedCampaignDraftTargetAudience);
+    setContentDraft(draft);
+    setContentFeedback(`Drafted ${channelLabel[campaignDraft.channel]} content from the campaign planner. Review and save it, then link it to the campaign.`);
+    setCampaignStudioFeedback(`${channelLabel[campaignDraft.channel]} content draft prepared from the campaign planner.`);
+    setMessage("Content draft prepared. Save it in Content, then attach the saved asset to the campaign.");
+    setActiveTab("content");
+  }
+
   function selectCampaignStudioCategory(categoryId: CampaignStudioCategoryId) {
     setCampaignStudioCategory(categoryId);
     const categoryPlays = categoryId === "all"
@@ -8971,7 +9029,19 @@ export default function MarketingAdminPage() {
                         <h3 className="mt-1 text-base font-black">{campaignDraftReadinessLabel}</h3>
                         <p className="mt-1 text-xs font-bold opacity-80">{campaignDraftReadinessDetail}</p>
                       </div>
-                      <Pill className={readinessPillClass(campaignDraftReadinessState)}>{readinessLabel(campaignDraftReadinessState)}</Pill>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {!selectedCampaignDraftContent ? (
+                          <button
+                            type="button"
+                            onClick={draftContentFromCampaignPlanner}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50"
+                            data-testid="button-marketing-draft-content-from-campaign"
+                          >
+                            <FileText size={14} /> Draft content
+                          </button>
+                        ) : null}
+                        <Pill className={readinessPillClass(campaignDraftReadinessState)}>{readinessLabel(campaignDraftReadinessState)}</Pill>
+                      </div>
                     </div>
                     <div className="mt-3 grid gap-2 xl:grid-cols-3">
                       {campaignDraftReadinessItems.map((item) => (
