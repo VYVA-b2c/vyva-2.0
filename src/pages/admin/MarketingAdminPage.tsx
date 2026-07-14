@@ -5231,6 +5231,65 @@ export default function MarketingAdminPage() {
     });
   }
 
+  function focusCampaignStudioChannel(channel: Channel) {
+    setCampaignStudio((current) => ({
+      ...current,
+      channel,
+      selectedChannels: uniqueChannels([channel, ...normalizeCampaignStudioChannels(current.channel, current.selectedChannels)]),
+    }));
+    setCampaignStudioFeedback(`${channelLabel[channel]} focused in the studio preview.`);
+  }
+
+  function applyCampaignStudioChannelDraft(channel: Channel) {
+    const channelDraft = campaignStudioChannelDrafts.find((item) => item.channel === channel);
+    const generated = channelDraft?.draft ?? campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, campaignStudio.angleId, channel, selectedCampaignStudioTargetAudience);
+    const targetAudienceId = selectedCampaignStudioTargetAudience?.id ?? campaignStudio.targetAudienceId;
+    const scheduleStartsAt = campaignStudioSchedule;
+    const channelRecipients = campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0;
+
+    setCampaignDraft((draft) => ({
+      ...draft,
+      name: generated.campaignName,
+      audienceType: selectedCampaignStudioPlay.audienceType,
+      channel,
+      contentAssetId: "",
+      status: scheduleStartsAt ? "scheduled" : "draft",
+      scheduleStartsAt,
+      scheduleEndsAt: "",
+      objective: generated.objective,
+      targetAudienceId,
+      recipientFilter: "",
+      snapshotRecipients: channelRecipients > 0,
+    }));
+    setContentDraft((draft) => ({
+      ...draft,
+      title: generated.contentTitle,
+      channel,
+      language: generated.language || "en",
+      status: "draft",
+      subject: generated.subject,
+      body: generated.body,
+      htmlBody: "",
+      ctaLabel: generated.ctaLabel,
+      ctaUrl: generated.ctaUrl,
+      designJsonText: jsonText({
+        ...generated.designJson,
+        generator: "marketing_campaign_studio",
+        playId: selectedCampaignStudioPlay.id,
+        playCategory: selectedCampaignStudioPlay.categoryId,
+        tone: campaignStudio.toneId,
+        angle: campaignStudio.angleId,
+        source: generated.source ?? "template",
+        channel,
+        primaryChannel: campaignStudio.channel,
+        audience: selectedCampaignStudioTargetAudience ? audienceSnapshot(selectedCampaignStudioTargetAudience) : null,
+      }),
+      mediaAssetsText: "[]",
+    }));
+    setCampaignStudioFeedback(`${channelLabel[channel]} draft applied to the planner and content draft.`);
+    setMessage(`${channelLabel[channel]} copy is ready in the planner. Save the content asset, then link or create the campaign when ready.`);
+  }
+
   function selectCampaignStudioCategory(categoryId: CampaignStudioCategoryId) {
     setCampaignStudioCategory(categoryId);
     const categoryPlays = categoryId === "all"
@@ -7203,22 +7262,61 @@ export default function MarketingAdminPage() {
                           );
                         })}
                       </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-2" data-testid="marketing-campaign-studio-channel-pack-preview">
-                        {campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => (
-                          <div key={channel} className="rounded-xl border border-[#eadfd5] bg-white px-3 py-2">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <Pill className={channelClass(channel)}>{channelLabel[channel]}</Pill>
-                              <span className="flex flex-wrap items-center justify-end gap-1.5">
-                                <Pill className={draft.source === "openai" ? "bg-emerald-50 text-emerald-800" : draft.source === "fallback" ? "bg-amber-50 text-amber-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
-                                  {draft.source === "openai" ? "AI" : draft.source === "fallback" ? "Fallback" : "Template"}
-                                </Pill>
-                                <span className="text-xs font-black text-[#7d6b65]">{recipients} recipient{recipients === 1 ? "" : "s"}</span>
-                              </span>
-                            </div>
-                            <p className="mt-2 line-clamp-1 text-xs font-black text-[#241133]">{draft.contentTitle}</p>
-                            <p className="mt-1 line-clamp-2 text-xs font-bold text-[#7d6b65]">{draft.subject}</p>
-                          </div>
-                        ))}
+                      <div className="mt-3 grid gap-3 md:grid-cols-2" data-testid="marketing-campaign-studio-channel-pack-preview">
+                        {campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {
+                          const execution = campaignStudioExecutionPlan.find((item) => item.channel === channel);
+                          const focused = campaignStudio.channel === channel;
+                          return (
+                            <article
+                              key={channel}
+                              className={`rounded-xl border bg-white p-3 ${focused ? "border-purple-400 shadow-[0_10px_24px_rgba(126,34,206,0.14)]" : "border-[#eadfd5]"}`}
+                              data-testid={`marketing-campaign-studio-channel-copy-${channel}`}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <Pill className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                  {focused ? <Pill className="bg-purple-700 text-white">Focused</Pill> : null}
+                                </span>
+                                <span className="flex flex-wrap items-center justify-end gap-1.5">
+                                  <Pill className={draft.source === "openai" ? "bg-emerald-50 text-emerald-800" : draft.source === "fallback" ? "bg-amber-50 text-amber-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
+                                    {draft.source === "openai" ? "AI" : draft.source === "fallback" ? "Fallback" : "Template"}
+                                  </Pill>
+                                  <span className="text-xs font-black text-[#7d6b65]">{recipients} recipient{recipients === 1 ? "" : "s"}</span>
+                                </span>
+                              </div>
+                              <p className="mt-3 text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Copy</p>
+                              <p className="mt-1 line-clamp-1 text-sm font-black text-[#241133]">{draft.contentTitle}</p>
+                              <p className="mt-1 line-clamp-2 text-xs font-bold text-[#5b4a46]">{draft.subject}</p>
+                              <p className="mt-2 line-clamp-3 whitespace-pre-line text-xs font-semibold leading-relaxed text-[#7d6b65]">{draft.body}</p>
+                              <div className="mt-3 grid gap-2 text-xs font-bold text-[#6f5f59]">
+                                <div className="rounded-lg bg-[#fffaf4] px-3 py-2">
+                                  <span className="font-black text-[#241133]">CTA:</span> {draft.ctaLabel || "None"}{draft.ctaUrl ? ` -> ${draft.ctaUrl}` : ""}
+                                </div>
+                                <div className="rounded-lg bg-[#fffaf4] px-3 py-2">
+                                  <span className="font-black text-[#241133]">Handoff:</span> {execution?.sendMode ?? "Planning record"}
+                                </div>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => focusCampaignStudioChannel(channel)}
+                                  className="inline-flex min-h-9 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50"
+                                  data-testid={`button-marketing-campaign-studio-focus-channel-${channel}`}
+                                >
+                                  Focus
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => applyCampaignStudioChannelDraft(channel)}
+                                  className="inline-flex min-h-9 items-center justify-center rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800"
+                                  data-testid={`button-marketing-campaign-studio-use-channel-${channel}`}
+                                >
+                                  Use in planner
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
                       </div>
                     </div>
 

@@ -2176,6 +2176,23 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("AI adapted all 2 selected channel drafts.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-copy")).toHaveTextContent("Refresh AI");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-copy-email")).toHaveTextContent("Partner outreach email AI content");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-copy-email")).toHaveTextContent("VYVA email send");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-focus-channel-email"));
+    expect(screen.getByTestId("marketing-campaign-studio-channel-copy-email")).toHaveTextContent("Focused");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach AI campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("AI email subject line");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-use-channel-email"));
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner outreach AI campaign");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Email draft applied to the planner and content draft.");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Partner outreach email AI content");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("email");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI email body copy");
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-focus-channel-linkedin"));
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach AI campaign");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-create"));
 
     await waitFor(() => {
