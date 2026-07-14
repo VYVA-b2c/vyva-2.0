@@ -2254,6 +2254,44 @@ describe("MarketingAdminPage", () => {
     expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH")).toBe(false);
   });
 
+  it("creates a full AI channel pack from existing content", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+    fireEvent.click(screen.getByTestId("button-marketing-channel-pack-content-ai"));
+
+    await waitFor(() => {
+      const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+      expect(contentPosts).toHaveLength(5);
+    });
+
+    const aiCalls = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")));
+    expect(aiCalls.map((payload) => payload.channel)).toEqual(["email", "whatsapp", "facebook", "instagram", "tiktok"]);
+    expect(aiCalls.every((payload) => payload.playCategory === "content_channel_variant")).toBe(true);
+    expect(aiCalls.every((payload) => payload.campaignName === "Partner post")).toBe(true);
+
+    const postPayloads = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")));
+    expect(postPayloads.map((payload) => payload.channel)).toEqual(["email", "whatsapp", "facebook", "instagram", "tiktok"]);
+    expect(postPayloads.every((payload) => payload.source === "vyva" && payload.lovableExternalId === null)).toBe(true);
+    expect(postPayloads.every((payload) => payload.metadata.channelVariantFromContentId === "content-2")).toBe(true);
+    expect(postPayloads.every((payload) => payload.designJson.aiChannelVariant.sourceChannel === "linkedin")).toBe(true);
+    expect(postPayloads.find((payload) => payload.channel === "email")?.htmlBody).toBe("<p>AI email body copy with stronger channel direction.</p>");
+    expect(postPayloads.find((payload) => payload.channel === "whatsapp")?.htmlBody).toBeNull();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("5 channel drafts created.");
+    });
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Channel variant email AI content");
+    expect(screen.getByTestId("select-marketing-edit-content-channel")).toHaveValue("email");
+    expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH")).toBe(false);
+  });
+
   it("edits and deletes imported media references", async () => {
     renderPage();
 

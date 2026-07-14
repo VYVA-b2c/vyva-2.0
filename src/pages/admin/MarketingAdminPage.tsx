@@ -5057,6 +5057,7 @@ export default function MarketingAdminPage() {
   const [contentLocalizationRunning, setContentLocalizationRunning] = useState(false);
   const [contentVariantChannel, setContentVariantChannel] = useState<Channel>("email");
   const [contentVariantRunning, setContentVariantRunning] = useState(false);
+  const [contentChannelPackRunning, setContentChannelPackRunning] = useState(false);
   const [templateGapAiRunningId, setTemplateGapAiRunningId] = useState<string | null>(null);
   const [templateGapPackRunning, setTemplateGapPackRunning] = useState(false);
   const [templateGapPackProgress, setTemplateGapPackProgress] = useState("");
@@ -6363,7 +6364,7 @@ export default function MarketingAdminPage() {
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
   const selectedContent = useMemo(() => selectedContentId ? content.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, content]);
-  const contentEditorBusy = contentSaving || contentPolishRunning || contentLocalizationRunning || contentVariantRunning;
+  const contentEditorBusy = contentSaving || contentPolishRunning || contentLocalizationRunning || contentVariantRunning || contentChannelPackRunning;
   const selectedContentUsage = useMemo(
     () => selectedContent ? contentUsageById.get(selectedContent.id) ?? [] : [],
     [contentUsageById, selectedContent],
@@ -9275,18 +9276,104 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function createChannelContentVariantDraft(sourceContentId: string, currentDraft: ContentEditDraft, targetChannel: Channel) {
+    const bodySeed = currentDraft.body.trim() || currentDraft.htmlBody.trim();
+    const subjectSeed = currentDraft.subject.trim() || currentDraft.title.trim();
+    if (!subjectSeed && !bodySeed) {
+      throw new Error("Add a subject or copy before creating a channel variant.");
+    }
+
+    const targetChannelLabel = channelLabel[targetChannel];
+    const sourceChannelLabel = channelLabel[currentDraft.channel];
+    const sourceLanguage = currentDraft.language.trim() || "en";
+    const objective = [
+      "Adapt this existing VYVA marketing content into a new channel-specific variant.",
+      `Source channel: ${sourceChannelLabel}. Target channel: ${targetChannelLabel}.`,
+      `Language: ${sourceLanguage}.`,
+      "Preserve the strategic intent, audience promise, CTA destination, and compliance meaning.",
+      "Optimize length, formatting, and call-to-action style for the target channel. Do not mention that it was adapted.",
+      currentDraft.subject ? `Current subject: ${currentDraft.subject}` : "",
+      currentDraft.body ? `Current plain copy:\n${currentDraft.body}` : "",
+      currentDraft.htmlBody && !currentDraft.body ? `Current HTML copy:\n${currentDraft.htmlBody}` : "",
+      currentDraft.ctaLabel ? `Current CTA label: ${currentDraft.ctaLabel}` : "",
+      currentDraft.ctaUrl ? `Current CTA URL: ${currentDraft.ctaUrl}` : "",
+    ].filter(Boolean).join("\n\n");
+    const result = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
+      method: "POST",
+      body: JSON.stringify({
+        playLabel: "Channel variant",
+        playCategory: "content_channel_variant",
+        audienceType: "both",
+        channel: targetChannel,
+        tone: contentPolishTone,
+        targetAudienceName: "Current marketing audience",
+        campaignName: currentDraft.title,
+        contentTitle: channelVariantContentTitle(currentDraft.title, targetChannelLabel),
+        objective,
+        subjectSeed,
+        bodySeed,
+        ctaLabel: currentDraft.ctaLabel || "Learn more",
+        ctaUrl: currentDraft.ctaUrl || "https://v2.vyva.life",
+        language: sourceLanguage,
+      }),
+    });
+
+    const variant = result.draft;
+    const variantBody = variant.body.trim() || currentDraft.body;
+    const existingDesign = optionalJsonRecordText(currentDraft.designJsonText);
+    const existingMetadata = optionalJsonRecordText(currentDraft.metadataText);
+    const createdAt = new Date().toISOString();
+    const payload = {
+      title: variant.contentTitle.trim() || channelVariantContentTitle(currentDraft.title, targetChannelLabel),
+      channel: targetChannel,
+      language: sourceLanguage,
+      status: "draft" as const,
+      subject: variant.subject.trim() || currentDraft.subject || null,
+      body: variantBody,
+      htmlBody: targetChannel === "email" && variantBody ? emailHtmlFromPlainCopy(variantBody) : null,
+      ctaLabel: variant.ctaLabel.trim() || currentDraft.ctaLabel || null,
+      ctaUrl: variant.ctaUrl.trim() || currentDraft.ctaUrl || null,
+      source: "vyva",
+      lovableExternalId: null,
+      designJson: {
+        ...existingDesign,
+        aiChannelVariant: {
+          generator: "marketing_content_ai_channel_variant",
+          source: result.source,
+          sourceContentId,
+          sourceChannel: currentDraft.channel,
+          targetChannel,
+          createdAt,
+          modelHints: variant.designJson ?? null,
+        },
+      },
+      mediaAssets: parseJsonArrayText(currentDraft.mediaAssetsText, "Media assets"),
+      metadata: {
+        ...existingMetadata,
+        channelVariantFromContentId: sourceContentId,
+        channelVariantFromLovableExternalId: currentDraft.lovableExternalId || null,
+        channelVariant: {
+          source: result.source,
+          sourceChannel: currentDraft.channel,
+          targetChannel,
+          sourceLanguage,
+          createdAt,
+          note: result.note ?? null,
+        },
+      },
+    };
+    return api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
   async function createChannelContentVariant() {
     if (!editingContentId || !contentEditDraft) return;
     const currentDraft = contentEditDraft;
     const targetChannel = contentVariantChannel;
     if (targetChannel === currentDraft.channel) {
       setContentFeedback("Choose a different channel before creating a channel variant.");
-      return;
-    }
-    const bodySeed = currentDraft.body.trim() || currentDraft.htmlBody.trim();
-    const subjectSeed = currentDraft.subject.trim() || currentDraft.title.trim();
-    if (!subjectSeed && !bodySeed) {
-      setContentFeedback("Add a subject or copy before creating a channel variant.");
       return;
     }
 
@@ -9296,87 +9383,7 @@ export default function MarketingAdminPage() {
     setContentFeedback(`Creating ${targetChannelLabel} variant with AI...`);
     setContentActionFeedback(`AI is adapting "${currentDraft.title}" from ${sourceChannelLabel} to ${targetChannelLabel}.`);
     try {
-      const sourceLanguage = currentDraft.language.trim() || "en";
-      const objective = [
-        "Adapt this existing VYVA marketing content into a new channel-specific variant.",
-        `Source channel: ${sourceChannelLabel}. Target channel: ${targetChannelLabel}.`,
-        `Language: ${sourceLanguage}.`,
-        "Preserve the strategic intent, audience promise, CTA destination, and compliance meaning.",
-        "Optimize length, formatting, and call-to-action style for the target channel. Do not mention that it was adapted.",
-        currentDraft.subject ? `Current subject: ${currentDraft.subject}` : "",
-        currentDraft.body ? `Current plain copy:\n${currentDraft.body}` : "",
-        currentDraft.htmlBody && !currentDraft.body ? `Current HTML copy:\n${currentDraft.htmlBody}` : "",
-        currentDraft.ctaLabel ? `Current CTA label: ${currentDraft.ctaLabel}` : "",
-        currentDraft.ctaUrl ? `Current CTA URL: ${currentDraft.ctaUrl}` : "",
-      ].filter(Boolean).join("\n\n");
-      const result = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
-        method: "POST",
-        body: JSON.stringify({
-          playLabel: "Channel variant",
-          playCategory: "content_channel_variant",
-          audienceType: "both",
-          channel: targetChannel,
-          tone: contentPolishTone,
-          targetAudienceName: "Current marketing audience",
-          campaignName: currentDraft.title,
-          contentTitle: channelVariantContentTitle(currentDraft.title, targetChannelLabel),
-          objective,
-          subjectSeed,
-          bodySeed,
-          ctaLabel: currentDraft.ctaLabel || "Learn more",
-          ctaUrl: currentDraft.ctaUrl || "https://v2.vyva.life",
-          language: sourceLanguage,
-        }),
-      });
-
-      const variant = result.draft;
-      const variantBody = variant.body.trim() || currentDraft.body;
-      const existingDesign = optionalJsonRecordText(currentDraft.designJsonText);
-      const existingMetadata = optionalJsonRecordText(currentDraft.metadataText);
-      const createdAt = new Date().toISOString();
-      const payload = {
-        title: variant.contentTitle.trim() || channelVariantContentTitle(currentDraft.title, targetChannelLabel),
-        channel: targetChannel,
-        language: sourceLanguage,
-        status: "draft" as const,
-        subject: variant.subject.trim() || currentDraft.subject || null,
-        body: variantBody,
-        htmlBody: targetChannel === "email" && variantBody ? emailHtmlFromPlainCopy(variantBody) : null,
-        ctaLabel: variant.ctaLabel.trim() || currentDraft.ctaLabel || null,
-        ctaUrl: variant.ctaUrl.trim() || currentDraft.ctaUrl || null,
-        source: "vyva",
-        lovableExternalId: null,
-        designJson: {
-          ...existingDesign,
-          aiChannelVariant: {
-            generator: "marketing_content_ai_channel_variant",
-            source: result.source,
-            sourceContentId: editingContentId,
-            sourceChannel: currentDraft.channel,
-            targetChannel,
-            createdAt,
-            modelHints: variant.designJson ?? null,
-          },
-        },
-        mediaAssets: parseJsonArrayText(currentDraft.mediaAssetsText, "Media assets"),
-        metadata: {
-          ...existingMetadata,
-          channelVariantFromContentId: editingContentId,
-          channelVariantFromLovableExternalId: currentDraft.lovableExternalId || null,
-          channelVariant: {
-            source: result.source,
-            sourceChannel: currentDraft.channel,
-            targetChannel,
-            sourceLanguage,
-            createdAt,
-            note: result.note ?? null,
-          },
-        },
-      };
-      const created = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      const created = await createChannelContentVariantDraft(editingContentId, currentDraft, targetChannel);
       setContent((current) => [created.content, ...current.filter((item) => item.id !== created.content.id)]);
       setSelectedContentId(created.content.id);
       setEditingContentId(created.content.id);
@@ -9394,6 +9401,59 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setContentVariantRunning(false);
+    }
+  }
+
+  async function createFullChannelContentPack() {
+    if (!editingContentId || !contentEditDraft) return;
+    const sourceContentId = editingContentId;
+    const currentDraft = contentEditDraft;
+    const targetChannels = CHANNELS.filter((channel) => channel !== currentDraft.channel);
+    if (!targetChannels.length) {
+      setContentFeedback("There are no other channels to create.");
+      return;
+    }
+
+    const sourceChannelLabel = channelLabel[currentDraft.channel];
+    const createdContent: ContentAsset[] = [];
+    setContentChannelPackRunning(true);
+    setContentFeedback(`Creating ${targetChannels.length} channel drafts with AI...`);
+    setContentActionFeedback(`AI is turning "${currentDraft.title}" from ${sourceChannelLabel} into a full channel pack.`);
+    try {
+      for (const targetChannel of targetChannels) {
+        setContentFeedback(`Creating ${channelLabel[targetChannel]} draft with AI...`);
+        const created = await createChannelContentVariantDraft(sourceContentId, currentDraft, targetChannel);
+        createdContent.push(created.content);
+      }
+      const uniqueCreatedContent = Array.from(new Map(createdContent.map((item) => [item.id, item])).values());
+      const createdIds = new Set(uniqueCreatedContent.map((item) => item.id));
+      setContent((current) => [...uniqueCreatedContent, ...current.filter((item) => !createdIds.has(item.id))]);
+      const firstCreated = createdContent[0];
+      if (firstCreated) {
+        setSelectedContentId(firstCreated.id);
+        setEditingContentId(firstCreated.id);
+        setContentEditDraft(contentEditDraftFromContent(firstCreated));
+        setContentVariantChannel(nextContentVariantChannel(firstCreated.channel));
+        setContentDrawerMode("edit");
+        setConfirmingContentDeleteId(null);
+      }
+      const channelList = targetChannels.map((channel) => channelLabel[channel]).join(", ");
+      setContentFeedback(`${createdContent.length} channel drafts created. Review the first one in the editor.`);
+      setContentActionFeedback(`Created ${createdContent.length} channel drafts for ${channelList}.`);
+      setMessage(`${createdContent.length} channel content drafts created.`);
+    } catch (error) {
+      if (createdContent.length) {
+        const uniqueCreatedContent = Array.from(new Map(createdContent.map((item) => [item.id, item])).values());
+        const createdIds = new Set(uniqueCreatedContent.map((item) => item.id));
+        setContent((current) => [...uniqueCreatedContent, ...current.filter((item) => !createdIds.has(item.id))]);
+      }
+      const errorMessage = error instanceof Error ? error.message : "Channel pack could not be created.";
+      const prefix = createdContent.length ? `${createdContent.length} drafts were created before this stopped. ` : "";
+      setContentFeedback(`${prefix}${errorMessage}`);
+      setContentActionFeedback(`${prefix}${errorMessage}`);
+      setMessage(`${prefix}${errorMessage}`);
+    } finally {
+      setContentChannelPackRunning(false);
     }
   }
 
@@ -14095,7 +14155,7 @@ export default function MarketingAdminPage() {
                         </div>
                         <div className="rounded-xl border border-purple-100 bg-white p-3">
                           <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Create channel copy</p>
-                          <p className="mt-1 text-xs font-bold text-[#7c6f83]">Adapts this copy for another channel and saves it as a new draft.</p>
+                          <p className="mt-1 text-xs font-bold text-[#7c6f83]">Adapts this copy for one channel, or creates a full cross-channel pack.</p>
                           <div className="mt-3 flex flex-wrap items-center gap-2">
                             <select
                               className="min-h-10 rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#241133]"
@@ -14118,6 +14178,15 @@ export default function MarketingAdminPage() {
                               data-testid="button-marketing-channel-variant-content-ai"
                             >
                               <Sparkles size={15} /> {contentVariantRunning ? "Creating..." : "Create channel copy"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void createFullChannelContentPack()}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f3edf3] disabled:text-[#9c8d9c]"
+                              disabled={contentEditorBusy || (!contentEditDraft.subject.trim() && !contentEditDraft.body.trim() && !contentEditDraft.htmlBody.trim())}
+                              data-testid="button-marketing-channel-pack-content-ai"
+                            >
+                              <Sparkles size={15} /> {contentChannelPackRunning ? "Creating pack..." : "Create full pack"}
                             </button>
                           </div>
                         </div>
