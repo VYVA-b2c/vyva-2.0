@@ -2021,6 +2021,12 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel")).toHaveTextContent("Reach and fit");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel-reach")).toHaveTextContent("1/1");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel-best-channel")).toHaveTextContent("LinkedIn 1");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel-consent")).toHaveTextContent("1 pending/unknown and 0 opted out");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel-localization")).toHaveTextContent("Spain 1");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Review 1 unmapped list member from Partners");
     expect(screen.getByTestId("marketing-campaign-studio-readiness")).toHaveTextContent("Studio readiness");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-recipients")).toHaveTextContent("1 eligible recipient will be snapshotted.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-channel")).toHaveTextContent("Planning");

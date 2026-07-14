@@ -501,6 +501,14 @@ type CampaignReadinessItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignAudienceInsightItem = {
+  key: string;
+  title: string;
+  value: string;
+  detail: string;
+  state: CampaignReadinessState;
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -2922,6 +2930,13 @@ function countedOptions(values: Array<string | null | undefined>): CountOption[]
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function topCountLabels(values: Array<string | null | undefined>, fallback = "Unknown", limit = 2) {
+  return countedOptions(values.map((value) => String(value ?? "").trim() || fallback))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, limit)
+    .map((item) => `${item.label} ${item.count}`);
+}
+
 function valueMatchesFilter(value: string | null | undefined, filter: string) {
   return filter === "all" || String(value ?? "").trim().toLowerCase() === filter;
 }
@@ -4482,11 +4497,77 @@ export default function MarketingAdminPage() {
     selectedCampaignStudioTargetAudience,
   );
   const campaignStudioGenerated = campaignStudioAiDraft ?? campaignStudioTemplateDraft;
-  const campaignStudioRecipientPreview = useMemo(() => contacts.filter((contact) => {
+  const campaignStudioAudiencePool = useMemo(() => contacts.filter((contact) => {
     if (!campaignAllowsContact(selectedCampaignStudioPlay.audienceType, contact.audienceType)) return false;
     if (!contactMatchesAudienceList(contact, selectedCampaignStudioTargetAudience)) return false;
+    return true;
+  }), [contacts, selectedCampaignStudioPlay, selectedCampaignStudioTargetAudience]);
+  const campaignStudioRecipientPreview = useMemo(() => campaignStudioAudiencePool.filter((contact) => {
     return Boolean(recipientForChannel(contact, campaignStudio.channel));
-  }), [campaignStudio.channel, contacts, selectedCampaignStudioPlay, selectedCampaignStudioTargetAudience]);
+  }), [campaignStudio.channel, campaignStudioAudiencePool]);
+  const campaignStudioChannelReach = useMemo(() => CHANNELS.map((channel) => ({
+    channel,
+    count: campaignStudioAudiencePool.filter((contact) => Boolean(recipientForChannel(contact, channel))).length,
+  })), [campaignStudioAudiencePool]);
+  const campaignStudioBestChannelReach = [...campaignStudioChannelReach].sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    if (a.channel === campaignStudio.channel) return -1;
+    if (b.channel === campaignStudio.channel) return 1;
+    if (a.channel === selectedCampaignStudioPlay.defaultChannel) return -1;
+    if (b.channel === selectedCampaignStudioPlay.defaultChannel) return 1;
+    return CHANNELS.indexOf(a.channel) - CHANNELS.indexOf(b.channel);
+  })[0] ?? { channel: campaignStudio.channel, count: 0 };
+  const campaignStudioConsentCounts = {
+    optedIn: campaignStudioAudiencePool.filter((contact) => contact.consentStatus === "opted_in").length,
+    optedOut: campaignStudioAudiencePool.filter((contact) => contact.consentStatus === "opted_out").length,
+    review: campaignStudioAudiencePool.filter((contact) => contact.consentStatus !== "opted_in" && contact.consentStatus !== "opted_out").length,
+  };
+  const campaignStudioLanguageLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.language), "Unknown", 2);
+  const campaignStudioMarketLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.market), "Unknown", 2);
+  const campaignStudioAudienceTypeLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.audienceType.toUpperCase()), "Unknown", 2);
+  const campaignStudioAudienceInsightItems: CampaignAudienceInsightItem[] = [
+    {
+      key: "reach",
+      title: "Selected reach",
+      value: `${campaignStudioRecipientPreview.length}/${campaignStudioAudiencePool.length}`,
+      state: campaignStudioRecipientPreview.length > 0 ? "ready" : "blocked",
+      detail: `${channelLabel[campaignStudio.channel]} can reach ${campaignStudioRecipientPreview.length} of ${campaignStudioAudiencePool.length} matching contacts.`,
+    },
+    {
+      key: "best-channel",
+      title: "Best channel",
+      value: `${channelLabel[campaignStudioBestChannelReach.channel]} ${campaignStudioBestChannelReach.count}`,
+      state: campaignStudioBestChannelReach.channel === campaignStudio.channel ? "ready" : "needs_action",
+      detail: campaignStudioBestChannelReach.channel === campaignStudio.channel
+        ? "The selected channel has the strongest available reach for this list."
+        : `Switch to ${channelLabel[campaignStudioBestChannelReach.channel]} to reach more contacts before creating.`,
+    },
+    {
+      key: "consent",
+      title: "Consent",
+      value: `${campaignStudioConsentCounts.optedIn} opted in`,
+      state: campaignStudioConsentCounts.optedOut > 0 ? "needs_action" : "ready",
+      detail: `${campaignStudioConsentCounts.review} pending/unknown and ${campaignStudioConsentCounts.optedOut} opted out in the matching audience.`,
+    },
+    {
+      key: "localization",
+      title: "Local signals",
+      value: campaignStudioLanguageLabels.join(" · ") || "Unknown",
+      state: campaignStudioAudiencePool.length > 0 ? "planning" : "blocked",
+      detail: `Markets: ${campaignStudioMarketLabels.join(" · ") || "Unknown"}. Mix: ${campaignStudioAudienceTypeLabels.join(" · ") || "Unknown"}.`,
+    },
+  ];
+  const campaignStudioAudienceRecommendation = campaignStudioAudiencePool.length === 0
+    ? "Sync or add contacts before using this play."
+    : campaignStudioRecipientPreview.length === 0 && campaignStudioBestChannelReach.count > 0
+      ? `Switch to ${channelLabel[campaignStudioBestChannelReach.channel]} before creating this campaign.`
+      : selectedCampaignStudioTargetAudience && selectedCampaignStudioTargetAudience.mappedMemberCount < selectedCampaignStudioTargetAudience.memberCount
+        ? `Review ${selectedCampaignStudioTargetAudience.memberCount - selectedCampaignStudioTargetAudience.mappedMemberCount} unmapped list member${selectedCampaignStudioTargetAudience.memberCount - selectedCampaignStudioTargetAudience.mappedMemberCount === 1 ? "" : "s"} from ${selectedCampaignStudioTargetAudience.name}.`
+        : campaignStudioConsentCounts.optedOut > 0
+          ? "Review consent before any live send."
+          : campaignStudio.channel === "email"
+            ? "Good candidate for an email campaign after copy review."
+            : `${channelLabel[campaignStudio.channel]} is useful for planning/tracking; live sending is still handled outside VYVA.`;
   const campaignStudioReadinessItems: CampaignReadinessItem[] = [
     {
       key: "content",
@@ -6245,6 +6326,36 @@ export default function MarketingAdminPage() {
                           data-testid="input-marketing-campaign-studio-schedule"
                         />
                       </Field>
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-audience-intel">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Audience intelligence</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Reach and fit</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">A quick read on list size, channel coverage, consent, and localization before you create anything.</p>
+                        </div>
+                        <Pill className={campaignStudioRecipientPreview.length > 0 ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}>
+                          {campaignStudioRecipientPreview.length} reachable
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2" data-testid="marketing-campaign-studio-audience-intel-items">
+                        {campaignStudioAudienceInsightItems.map((item) => (
+                          <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-audience-intel-${item.key}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs font-black uppercase tracking-[0.08em] opacity-80">{item.title}</p>
+                                <p className="mt-1 text-base font-black">{item.value}</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed">{item.detail}</p>
+                              </div>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-audience-recommendation">
+                        Recommendation: {campaignStudioAudienceRecommendation}
+                      </p>
                     </div>
 
                     <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4" data-testid="marketing-campaign-studio-preview">
