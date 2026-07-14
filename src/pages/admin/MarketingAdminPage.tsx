@@ -600,6 +600,16 @@ type CampaignStudioOfflineHandoffItem = {
   icon: LucideIcon;
 };
 
+type CampaignStudioCreativeVariant = {
+  key: string;
+  label: string;
+  focus: string;
+  subject: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  detail: string;
+};
+
 type CampaignPublishKitItem = CampaignReadinessItem & {
   channel: Channel;
   contentAsset: ContentAsset | null;
@@ -3440,6 +3450,62 @@ function campaignStudioBrief(
   };
 }
 
+function campaignStudioVariantSubjectBase(subject: string, fallback: string) {
+  const value = (subject || fallback).trim();
+  return value.replace(/^(proof point|next step|a gentle invite|local angle):\s*/i, "").trim() || value;
+}
+
+function buildCampaignStudioCreativeVariants(
+  play: CampaignStudioPlay,
+  generated: CampaignStudioGeneratedDraft,
+  audience: MarketingAudience | null,
+  channel: Channel,
+): CampaignStudioCreativeVariant[] {
+  const audienceName = audience?.name ?? play.audienceType.toUpperCase();
+  const baseSubject = campaignStudioVariantSubjectBase(generated.subject, play.subject || generated.campaignName);
+  const localSubject = baseSubject.replace(/\s+for\s+.+$/i, "").trim() || baseSubject;
+  const ctaUrl = generated.ctaUrl.trim() || play.ctaUrl || "https://v2.vyva.life";
+  const currentCta = generated.ctaLabel.trim() || play.ctaLabel || "Learn more";
+  return [
+    {
+      key: "clear-next-step",
+      label: "Clear next step",
+      focus: "Conversion",
+      subject: `Next step: ${baseSubject}`,
+      ctaLabel: currentCta,
+      ctaUrl,
+      detail: `Best when ${audienceName} needs one obvious action in ${channelLabel[channel]}.`,
+    },
+    {
+      key: "proof-led",
+      label: "Proof-led",
+      focus: "Trust",
+      subject: `Proof point: ${baseSubject}`,
+      ctaLabel: "See the proof",
+      ctaUrl,
+      detail: "Best for skeptical audiences, partner outreach, and credibility-led campaigns.",
+    },
+    {
+      key: "local-fit",
+      label: "Local fit",
+      focus: "Relevance",
+      subject: `${localSubject} for ${audienceName}`,
+      ctaLabel: "See local details",
+      ctaUrl,
+      detail: "Best when the list, venue, market, or community context should feel specific.",
+    },
+    {
+      key: "soft-invite",
+      label: "Soft invite",
+      focus: "Relationship",
+      subject: `A gentle invite: ${baseSubject}`,
+      ctaLabel: "I want the details",
+      ctaUrl,
+      detail: "Best for caregivers, families, and low-pressure follow-up.",
+    },
+  ];
+}
+
 function objectValue(value: unknown, key: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "";
   const item = (value as Record<string, unknown>)[key];
@@ -5576,6 +5642,10 @@ export default function MarketingAdminPage() {
   ), [campaignStudioPlayRecommendations, content]);
   const campaignStudioPrimaryAiDraft = campaignStudioAiDrafts[campaignStudio.channel] ?? null;
   const campaignStudioGenerated = campaignStudioPrimaryAiDraft ?? campaignStudioTemplateDraft;
+  const campaignStudioCreativeVariants = useMemo(
+    () => buildCampaignStudioCreativeVariants(selectedCampaignStudioPlay, campaignStudioGenerated, selectedCampaignStudioTargetAudience, campaignStudio.channel),
+    [selectedCampaignStudioPlay, campaignStudioGenerated, selectedCampaignStudioTargetAudience, campaignStudio.channel],
+  );
   const campaignStudioAudiencePool = useMemo(() => contacts.filter((contact) => {
     if (!campaignAllowsContact(selectedCampaignStudioPlay.audienceType, contact.audienceType)) return false;
     if (!contactMatchesAudienceList(contact, selectedCampaignStudioTargetAudience)) return false;
@@ -6544,6 +6614,27 @@ export default function MarketingAdminPage() {
     } finally {
       setCampaignStudioAiRunning(false);
     }
+  }
+
+  function applyCampaignStudioCreativeVariant(variant: CampaignStudioCreativeVariant) {
+    const currentDraft = campaignStudioGenerated;
+    setCampaignStudioAiDrafts((drafts) => ({
+      ...drafts,
+      [campaignStudio.channel]: {
+        ...currentDraft,
+        subject: variant.subject,
+        ctaLabel: variant.ctaLabel,
+        ctaUrl: variant.ctaUrl,
+        source: currentDraft.source ?? "template",
+        note: `Creative variant applied: ${variant.label}.`,
+        designJson: {
+          ...(currentDraft.designJson ?? {}),
+          creativeVariant: variant.key,
+          creativeVariantLabel: variant.label,
+        },
+      },
+    }));
+    setCampaignStudioFeedback(`Creative variant applied: ${variant.label}.`);
   }
 
   function applyCampaignStudioDraft() {
@@ -9283,6 +9374,9 @@ export default function MarketingAdminPage() {
                       <div className="mt-3 grid gap-2 text-sm font-bold text-[#5b4a46]">
                         <p><span className="font-black text-[#241133]">Subject:</span> {campaignStudioGenerated.subject}</p>
                         <p className="line-clamp-4 whitespace-pre-line">{campaignStudioGenerated.body}</p>
+                        {(campaignStudioGenerated.ctaLabel || campaignStudioGenerated.ctaUrl) ? (
+                          <p><span className="font-black text-[#241133]">CTA:</span> {campaignStudioGenerated.ctaLabel || "Open link"}{campaignStudioGenerated.ctaUrl ? ` - ${campaignStudioGenerated.ctaUrl}` : ""}</p>
+                        ) : null}
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Pill className={campaignStudioGenerated.source === "openai" ? "bg-emerald-50 text-emerald-800" : campaignStudioGenerated.source === "fallback" ? "bg-amber-50 text-amber-800" : "bg-white text-[#5b4a46]"}>
@@ -9293,6 +9387,41 @@ export default function MarketingAdminPage() {
                         <Pill className="bg-white text-[#5b4a46]">{campaignStudioRecipientPreview.length} eligible recipients</Pill>
                       </div>
                       {campaignStudioGenerated.note ? <p className="mt-2 text-xs font-bold text-amber-800">{campaignStudioGenerated.note}</p> : null}
+                    </div>
+
+                    <div className="rounded-xl border border-purple-200 bg-white p-4" data-testid="marketing-campaign-studio-creative-variants">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Smart creative variants</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Pick the strongest hook and CTA</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Switch the campaign angle without rewriting the full draft. The body copy stays intact; the active channel gets the chosen hook and CTA.</p>
+                        </div>
+                        <Pill className={channelClass(campaignStudio.channel)}>Applies to {channelLabel[campaignStudio.channel]}</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-4">
+                        {campaignStudioCreativeVariants.map((variant) => (
+                          <button
+                            key={variant.key}
+                            type="button"
+                            onClick={() => applyCampaignStudioCreativeVariant(variant)}
+                            className="min-h-[190px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                            data-testid={`button-marketing-campaign-studio-variant-${variant.key}`}
+                          >
+                            <span className="flex items-start justify-between gap-3" data-testid={`marketing-campaign-studio-creative-variant-${variant.key}`}>
+                              <span className="min-w-0">
+                                <span className="text-sm font-black text-[#241133]">{variant.label}</span>
+                                <span className="mt-2 block text-xs font-black uppercase tracking-[0.08em] text-purple-700">{variant.focus}</span>
+                              </span>
+                              <Pill className="bg-white text-[#5b4a46]">Use variant</Pill>
+                            </span>
+                            <span className="mt-3 block text-sm font-black leading-snug text-[#241133]">{variant.subject}</span>
+                            <span className="mt-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{variant.detail}</span>
+                            <span className="mt-3 inline-flex rounded-full bg-white px-2 py-1 text-xs font-black text-purple-700">
+                              CTA: {variant.ctaLabel}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-creative-quality">

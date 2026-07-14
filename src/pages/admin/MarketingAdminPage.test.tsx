@@ -2340,6 +2340,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-launch-brief-hook")).toHaveTextContent("Partner outreach: proof point");
     expect(screen.getByTestId("marketing-campaign-studio-launch-brief-audience")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-campaign-studio-launch-brief-channels")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-variants")).toHaveTextContent("Smart creative variants");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-variant-proof-led")).toHaveTextContent("Proof-led");
+    expect(screen.getByTestId("button-marketing-campaign-studio-variant-soft-invite")).toHaveTextContent("I want the details");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-variant-soft-invite"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Creative variant applied: Soft invite.");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("A gentle invite:");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("CTA: I want the details");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality")).toHaveTextContent("Copy checks before create");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-subject")).toHaveTextContent("Opening hook");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-cta")).toHaveTextContent("Ready");
