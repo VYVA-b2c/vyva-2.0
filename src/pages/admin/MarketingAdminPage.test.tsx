@@ -2381,6 +2381,22 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Partner handoff note"));
     });
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Offline handoff kit copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-visual-kit")).toHaveTextContent("AI visual production pack");
+    expect(screen.getByTestId("marketing-campaign-studio-visual-kit")).toHaveTextContent("Email hero image prompt");
+    expect(screen.getByTestId("marketing-campaign-studio-visual-kit")).toHaveTextContent("Short video / story storyboard");
+    const heroPrompt = screen.getByTestId("textarea-marketing-campaign-studio-visual-email-hero") as HTMLTextAreaElement;
+    expect(heroPrompt.value).toContain("Audience: Partners");
+    expect(heroPrompt.value).toContain("no readable text inside the image");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-visual-social-square"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Social square image prompt"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Social square image prompt copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-visual-kit"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Print / QR layout brief"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Visual asset kit copied.");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-copy"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));

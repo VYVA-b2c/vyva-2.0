@@ -600,6 +600,15 @@ type CampaignStudioOfflineHandoffItem = {
   icon: LucideIcon;
 };
 
+type CampaignStudioVisualAssetItem = {
+  key: string;
+  title: string;
+  format: string;
+  detail: string;
+  text: string;
+  icon: LucideIcon;
+};
+
 type CampaignStudioCreativeVariant = {
   key: string;
   label: string;
@@ -5764,6 +5773,14 @@ export default function MarketingAdminPage() {
   const campaignStudioOfflineCta = campaignStudioGenerated.ctaLabel.trim()
     ? `${campaignStudioGenerated.ctaLabel}${campaignStudioGenerated.ctaUrl.trim() ? ` - ${campaignStudioGenerated.ctaUrl.trim()}` : ""}`
     : "Ask whether they want the next step or more details";
+  const campaignStudioVisualStyle = campaignStudio.toneId === "expert"
+    ? "clean, credible, calm, editorial"
+    : campaignStudio.toneId === "direct"
+      ? "clean, practical, high-contrast, action-oriented"
+      : campaignStudio.toneId === "uplifting"
+        ? "bright, warm, optimistic, modern"
+        : "warm, human, calm, trustworthy";
+  const campaignStudioVisualChannels = campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ");
   const campaignStudioOfflineHandoffs: CampaignStudioOfflineHandoffItem[] = [
     {
       key: "phone",
@@ -5838,6 +5855,79 @@ export default function MarketingAdminPage() {
     },
   ];
   const campaignStudioOfflineHandoffPacket = campaignStudioOfflineHandoffs.map((item) => item.text).join("\n\n---\n\n");
+  const campaignStudioVisualAssets: CampaignStudioVisualAssetItem[] = [
+    {
+      key: "email-hero",
+      title: "Email hero image prompt",
+      format: "16:9",
+      detail: "Use for email headers, landing-page previews, and campaign thumbnails.",
+      icon: ImageIcon,
+      text: [
+        "Email hero image prompt",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Message hook: ${campaignStudioPersonalizedSubject}`,
+        `Visual style: ${campaignStudioVisualStyle}; VYVA purple accent; premium health-tech polish; accessible for older adults and families.`,
+        "Scene: a calm real-world care-team moment with supportive people, useful technology in the background, and a clear sense of trust.",
+        "Constraints: no readable text inside the image, no medical claims, no hospital stock-photo feel, no cluttered UI mockups.",
+        "Output: 16:9 hero image, clean space for headline overlay, natural light, realistic but polished.",
+      ].join("\n"),
+    },
+    {
+      key: "social-square",
+      title: "Social square image prompt",
+      format: "1:1",
+      detail: "Use for Facebook, Instagram, LinkedIn, or TikTok cover planning.",
+      icon: Sparkles,
+      text: [
+        "Social square image prompt",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Channels: ${campaignStudioVisualChannels}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Core idea: ${campaignStudioOfflineMessageLine}`,
+        `Visual style: ${campaignStudioVisualStyle}; warm VYVA brand accent; simple composition; strong focal point.`,
+        "Scene: one relatable moment that makes the campaign benefit instantly understandable.",
+        "Constraints: no readable text inside the image, no exaggerated ageing stereotypes, no generic stock-photo handshake unless the campaign is B2B.",
+        "Output: 1:1 social image with safe margins for platform captions and buttons.",
+      ].join("\n"),
+    },
+    {
+      key: "storyboard",
+      title: "Short video / story storyboard",
+      format: "15s",
+      detail: "Use for reels, TikTok, stories, or quick partner explainers.",
+      icon: Zap,
+      text: [
+        "Short video / story storyboard",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Hook: ${campaignStudioPersonalizedSubject}`,
+        "",
+        "Frame 1 (0-3s): show the everyday problem or missed coordination moment.",
+        `Frame 2 (3-9s): show the useful change: ${campaignStudioOfflineMessageLine}`,
+        `Frame 3 (9-15s): end with the action: ${campaignStudioOfflineCta}`,
+        "Style: calm, useful, human, not overproduced; captions can be added outside VYVA after export.",
+      ].join("\n"),
+    },
+    {
+      key: "print-layout",
+      title: "Print / QR layout brief",
+      format: "A5 / poster",
+      detail: "Use for flyers, partner venues, waiting rooms, and community boards.",
+      icon: FileText,
+      text: [
+        "Print / QR layout brief",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Headline: ${campaignStudioPersonalizedSubject}`,
+        `Body: ${campaignStudioOfflineMessageLine}`,
+        `CTA: ${campaignStudioOfflineCta}`,
+        "Layout: large headline, one short body paragraph, one QR/link block, VYVA mark, contact route, and enough white space for older-adult readability.",
+        "Design constraints: high contrast, large type, no dense copy, no tiny QR code, no decorative clutter.",
+      ].join("\n"),
+    },
+  ];
+  const campaignStudioVisualAssetPacket = campaignStudioVisualAssets.map((item) => item.text).join("\n\n---\n\n");
   const campaignStudioCreativeQualityItems: CampaignCreativeQualityItem[] = [
     {
       key: "subject",
@@ -9618,6 +9708,59 @@ export default function MarketingAdminPage() {
                                 onClick={() => void copyCampaignStudioOfflineHandoff(item.title, item.text)}
                                 className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-sm font-black text-white hover:bg-purple-800"
                                 data-testid={`button-marketing-campaign-studio-copy-offline-${item.key}`}
+                              >
+                                <Copy size={14} /> Copy
+                              </button>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-purple-200 bg-white p-4" data-testid="marketing-campaign-studio-visual-kit">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">AI visual production pack</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Make the campaign look publishable</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                            Copy-ready prompts and layout briefs for image generation, social creative, short video, and print/QR assets.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Visual asset kit", campaignStudioVisualAssetPacket)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-sm font-black text-purple-700 hover:bg-purple-50"
+                          data-testid="button-marketing-campaign-studio-copy-visual-kit"
+                        >
+                          <Copy size={14} /> Copy full visual kit
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-4" data-testid="marketing-campaign-studio-visual-items">
+                        {campaignStudioVisualAssets.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <article key={item.key} className="flex min-h-[350px] flex-col rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-campaign-studio-visual-${item.key}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-purple-700 shadow-sm">
+                                    <Icon size={15} aria-hidden="true" />
+                                  </span>
+                                  <h4 className="mt-2 font-black text-[#241133]">{item.title}</h4>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
+                                </div>
+                                <Pill className="bg-white text-[#5b4a46]">{item.format}</Pill>
+                              </div>
+                              <textarea
+                                className="mt-3 min-h-[200px] flex-1 rounded-xl border border-[#eadfd5] bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#5b4a46]"
+                                value={item.text}
+                                readOnly
+                                data-testid={`textarea-marketing-campaign-studio-visual-${item.key}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignStudioOfflineHandoff(item.title, item.text)}
+                                className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-sm font-black text-white hover:bg-purple-800"
+                                data-testid={`button-marketing-campaign-studio-copy-visual-${item.key}`}
                               >
                                 <Copy size={14} /> Copy
                               </button>
