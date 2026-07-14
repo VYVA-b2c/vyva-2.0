@@ -5,6 +5,11 @@ import SafeHomeScreen, { safeHomeQuoteState, safeHomeShoppingState } from "./Saf
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 
 const queryResultMock = vi.fn();
+const { invalidateQueriesMock, savePlanMock, toastMock } = vi.hoisted(() => ({
+  invalidateQueriesMock: vi.fn(),
+  savePlanMock: vi.fn(),
+  toastMock: vi.fn(),
+}));
 let profileMock = {
   caregiverName: "Maria",
   caregiverContact: "+34 612 345 678",
@@ -20,7 +25,16 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 });
 
 vi.mock("@/hooks/use-toast", () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast: toastMock }),
+}));
+
+vi.mock("@/lib/queryClient", () => ({
+  apiFetch: vi.fn(),
+  queryClient: { invalidateQueries: invalidateQueriesMock },
+}));
+
+vi.mock("@/lib/showVyvaActionExecutorClient", () => ({
+  saveShowVyvaActionExecutionPlan: savePlanMock,
 }));
 
 vi.mock("@/hooks/useVoiceActionFulfillment", () => ({
@@ -100,6 +114,7 @@ function renderSafeHome() {
 describe("Safe-home scan service actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    savePlanMock.mockResolvedValue({ pendingId: "show-vyva-action-1" });
     profileMock = {
       caregiverName: "Maria",
       caregiverContact: "+34 612 345 678",
@@ -144,11 +159,20 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-buy_safety_aid-scan-1"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge/shopping"));
+    expect(savePlanMock).toHaveBeenCalledWith(expect.objectContaining({
+      targetRoute: "/concierge/shopping",
+      triggerRequest: expect.objectContaining({ auto_start: false }),
+    }));
+    expect(savePlanMock.mock.calls[0][0].triggerRequest.action_payload).toMatchObject({
+      show_vyva_action_id: "buy_safety_aid",
+      user_confirmed: false,
+      no_external_action_without_confirmation: true,
+    });
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"safe_home\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent("Loose rug");
   });
 
-  it("renders a direct care-team call from scan findings", async () => {
+  it("saves a care-team call draft from scan findings", async () => {
     renderSafeHome();
 
     fireEvent.click(screen.getByText("Loose rug in hallway"));
@@ -156,6 +180,21 @@ describe("Safe-home scan service actions", () => {
     expect(screen.getByTestId("show-vyva-follow-up-scan-1")).toBeInTheDocument();
     expect(screen.getByText("Next home-safety step")).toBeInTheDocument();
     expect(screen.getByTestId("button-show-vyva-follow-up-call_care_team-scan-1")).toHaveTextContent("Call Maria");
+
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-call_care_team-scan-1"));
+
+    await waitFor(() => expect(savePlanMock).toHaveBeenCalled());
+    expect(savePlanMock.mock.calls[0][0].triggerRequest).toMatchObject({
+      provider_name: "Maria",
+      provider_phone: "+34 612 345 678",
+      auto_start: false,
+    });
+    expect(savePlanMock.mock.calls[0][0].triggerRequest.action_payload).toMatchObject({
+      show_vyva_action_id: "call_care_team",
+      requested_tool: "phone_call",
+      user_confirmed: false,
+      no_external_action_without_confirmation: true,
+    });
   });
 
   it("routes to care-team setup when no caregiver contact is saved", async () => {
@@ -169,6 +208,7 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-call_care_team-scan-1"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/care-team"));
+    expect(savePlanMock).not.toHaveBeenCalled();
   });
 
   it("routes a saved scan to a prefilled home-safety quote request", async () => {
@@ -178,6 +218,16 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-request_quote-scan-1"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
+    expect(savePlanMock).toHaveBeenCalledWith(expect.objectContaining({
+      targetRoute: "/concierge",
+      triggerRequest: expect.objectContaining({ use_case: "home_service", auto_start: false }),
+    }));
+    expect(savePlanMock.mock.calls[0][0].triggerRequest.action_payload).toMatchObject({
+      show_vyva_action_id: "request_quote",
+      flow_reference: "FLOW_HOME_SERVICE",
+      user_confirmed: false,
+      confirmation_required_before_action: true,
+    });
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"source\":\"safe_home_scan\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"home_care_quote\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);

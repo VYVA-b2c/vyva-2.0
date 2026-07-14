@@ -1475,6 +1475,10 @@ const de = {
       provider_or_deal: "VYVA vergleicht Optionen und fragt vor Kontakt, Buchung, Kauf oder Teilen von Daten.",
       health_or_home_photo: "VYVA gibt nur eine unterstutzende Prufung und fragt vor Teilen oder Eskalation.",
     },
+    executor: {
+      saved: "Gespeichert. Weiter im Concierge, wenn du bereit bist.",
+      error: "Ich konnte diesen Schritt nicht speichern. Bitte versuche es erneut.",
+    },
     contract: {
       finalConfirmation: "VYVA bereitet zuerst vor. Sie bestatigen, bevor etwas gesendet, gekauft, gebucht, angerufen, hochgeladen, eingereicht oder geteilt wird.",
       sections: {

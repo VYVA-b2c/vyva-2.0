@@ -1385,6 +1385,10 @@ const pt = {
       provider_or_deal: "VYVA compara opcoes e pergunta antes de contactar, reservar, comprar ou partilhar dados.",
       health_or_home_photo: "VYVA da apenas uma revisao de apoio e pergunta antes de partilhar ou escalar.",
     },
+    executor: {
+      saved: "Guardado. Continue no Concierge quando quiser.",
+      error: "Nao consegui guardar esse passo. Tente novamente.",
+    },
     contract: {
       finalConfirmation: "VYVA prepara primeiro. Confirma antes de algo ser enviado, comprado, reservado, chamado, carregado, submetido ou partilhado.",
       sections: {
