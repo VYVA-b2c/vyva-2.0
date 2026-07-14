@@ -2064,6 +2064,10 @@ describe("MarketingAdminPage", () => {
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
     fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack")).toHaveTextContent("Plan once, adapt by channel");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-recommended-pack"));
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
     fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
 
     await waitFor(() => {
@@ -2078,7 +2082,9 @@ describe("MarketingAdminPage", () => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
     });
 
-    const contentPost = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(contentPosts).toHaveLength(2);
+    const contentPost = contentPosts.find(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel === "linkedin");
     const contentBody = JSON.parse(String(contentPost?.[1]?.body));
     expect(contentBody).toMatchObject({
       title: "Partner outreach AI content",
@@ -2095,6 +2101,16 @@ describe("MarketingAdminPage", () => {
         source: "openai",
       },
     });
+    const emailContentBody = JSON.parse(String(contentPosts.find(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel === "email")?.[1]?.body));
+    expect(emailContentBody).toMatchObject({
+      channel: "email",
+      title: "B2B partner introduction - Email",
+      designJson: {
+        generator: "marketing_campaign_studio",
+        channel: "email",
+        primaryChannel: "linkedin",
+      },
+    });
 
     const campaignPost = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns" && init?.method === "POST");
     const campaignBody = JSON.parse(String(campaignPost?.[1]?.body));
@@ -2103,18 +2119,31 @@ describe("MarketingAdminPage", () => {
       audienceType: "b2b",
       status: "scheduled",
       objective: "AI objective for Partners",
-      channels: [{ channel: "linkedin", contentAssetId: "content-created", status: "scheduled" }],
+      channels: [
+        { channel: "linkedin", contentAssetId: "content-created", status: "scheduled", sendCapability: "planning_only" },
+        { channel: "email", contentAssetId: "content-created", status: "scheduled", sendCapability: "enabled" },
+      ],
       recipients: [{
         contactId: "contact-2",
         channel: "linkedin",
         recipient: "hassan@example.com",
         status: "planned",
+      }, {
+        contactId: "contact-2",
+        channel: "email",
+        recipient: "hassan@example.com",
+        status: "planned",
       }],
       metadata: {
         generatedContentAssetId: "content-created",
+        generatedContentAssetIds: {
+          linkedin: "content-created",
+          email: "content-created",
+        },
         studio: {
           playId: "b2b-partner-outreach",
           generatedSource: "openai",
+          selectedChannels: ["linkedin", "email"],
         },
         targetAudience: {
           name: "Partners",
@@ -2123,7 +2152,7 @@ describe("MarketingAdminPage", () => {
       },
     });
     await waitFor(() => {
-      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Created "Partner outreach AI campaign" with 1 recipient ready.');
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Created "Partner outreach AI campaign" across 2 channels with 2 recipient snapshots ready.');
     });
     expect(screen.getByTestId("marketing-campaign-edit-form")).toHaveTextContent("Partner outreach AI campaign");
   });

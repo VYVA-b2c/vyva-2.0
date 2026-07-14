@@ -429,6 +429,7 @@ type CampaignStudioState = {
   playId: CampaignStudioPlayId;
   toneId: CampaignStudioToneId;
   channel: Channel;
+  selectedChannels: Channel[];
   scheduleStartsAt: string;
   targetAudienceId: string;
 };
@@ -2744,6 +2745,28 @@ function campaignStudioDefaultSchedule(play: CampaignStudioPlay) {
   return toDateTimeLocal(date.toISOString());
 }
 
+function uniqueChannels(values: Channel[]) {
+  return Array.from(new Set(values.filter((value): value is Channel => CHANNELS.includes(value))));
+}
+
+function recommendedCampaignStudioChannels(play: CampaignStudioPlay) {
+  const channelsByCategory: Record<Exclude<CampaignStudioCategoryId, "all">, Channel[]> = {
+    onboarding: ["email", "whatsapp"],
+    engagement: ["email", "whatsapp"],
+    education: ["email", "facebook"],
+    partner: ["email", "linkedin"],
+    community: ["email", "facebook", "instagram"],
+    social: [play.defaultChannel, "email"],
+    retention: ["email", "whatsapp"],
+  };
+  return uniqueChannels([play.defaultChannel, ...(channelsByCategory[play.categoryId] ?? [])]);
+}
+
+function normalizeCampaignStudioChannels(primary: Channel, selected: Channel[]) {
+  const normalized = uniqueChannels([primary, ...selected]);
+  return normalized.length ? normalized : [primary];
+}
+
 function bestCampaignStudioAudience(play: CampaignStudioPlay, audiences: MarketingAudience[]) {
   const hints = play.targetListHints.map((hint) => lower(hint));
   return audiences.find((audience) => {
@@ -3896,6 +3919,7 @@ export default function MarketingAdminPage() {
     playId: "caregiver-onboarding",
     toneId: "warm",
     channel: "email",
+    selectedChannels: ["email"],
     scheduleStartsAt: "",
     targetAudienceId: "",
   }));
@@ -4497,6 +4521,14 @@ export default function MarketingAdminPage() {
     selectedCampaignStudioTargetAudience,
   );
   const campaignStudioGenerated = campaignStudioAiDraft ?? campaignStudioTemplateDraft;
+  const campaignStudioSelectedChannels = useMemo(
+    () => normalizeCampaignStudioChannels(campaignStudio.channel, campaignStudio.selectedChannels),
+    [campaignStudio.channel, campaignStudio.selectedChannels],
+  );
+  const campaignStudioRecommendedChannels = useMemo(
+    () => recommendedCampaignStudioChannels(selectedCampaignStudioPlay),
+    [selectedCampaignStudioPlay],
+  );
   const campaignStudioAudiencePool = useMemo(() => contacts.filter((contact) => {
     if (!campaignAllowsContact(selectedCampaignStudioPlay.audienceType, contact.audienceType)) return false;
     if (!contactMatchesAudienceList(contact, selectedCampaignStudioTargetAudience)) return false;
@@ -4509,6 +4541,18 @@ export default function MarketingAdminPage() {
     channel,
     count: campaignStudioAudiencePool.filter((contact) => Boolean(recipientForChannel(contact, channel))).length,
   })), [campaignStudioAudiencePool]);
+  const campaignStudioRecipientPreviewByChannel = useMemo(() => new Map(campaignStudioSelectedChannels.map((channel) => [
+    channel,
+    campaignStudioAudiencePool.filter((contact) => Boolean(recipientForChannel(contact, channel))),
+  ])), [campaignStudioAudiencePool, campaignStudioSelectedChannels]);
+  const campaignStudioPackRecipientCount = Array.from(campaignStudioRecipientPreviewByChannel.values()).reduce((count, recipients) => count + recipients.length, 0);
+  const campaignStudioChannelDrafts = campaignStudioSelectedChannels.map((channel) => ({
+    channel,
+    draft: channel === campaignStudio.channel
+      ? campaignStudioGenerated
+      : campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, channel, selectedCampaignStudioTargetAudience),
+    recipients: campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0,
+  }));
   const campaignStudioBestChannelReach = [...campaignStudioChannelReach].sort((a, b) => {
     if (b.count !== a.count) return b.count - a.count;
     if (a.channel === campaignStudio.channel) return -1;
@@ -4552,9 +4596,9 @@ export default function MarketingAdminPage() {
     {
       key: "localization",
       title: "Local signals",
-      value: campaignStudioLanguageLabels.join(" · ") || "Unknown",
+      value: campaignStudioLanguageLabels.join(" / ") || "Unknown",
       state: campaignStudioAudiencePool.length > 0 ? "planning" : "blocked",
-      detail: `Markets: ${campaignStudioMarketLabels.join(" · ") || "Unknown"}. Mix: ${campaignStudioAudienceTypeLabels.join(" · ") || "Unknown"}.`,
+      detail: `Markets: ${campaignStudioMarketLabels.join(" / ") || "Unknown"}. Mix: ${campaignStudioAudienceTypeLabels.join(" / ") || "Unknown"}.`,
     },
   ];
   const campaignStudioAudienceRecommendation = campaignStudioAudiencePool.length === 0
@@ -4592,9 +4636,11 @@ export default function MarketingAdminPage() {
     {
       key: "recipients",
       title: "Recipients",
-      state: campaignStudioRecipientPreview.length > 0 ? "ready" : "blocked",
-      detail: campaignStudioRecipientPreview.length > 0
-        ? `${campaignStudioRecipientPreview.length} eligible recipient${campaignStudioRecipientPreview.length === 1 ? "" : "s"} will be snapshotted.`
+      state: campaignStudioPackRecipientCount > 0 ? "ready" : "blocked",
+      detail: campaignStudioPackRecipientCount > 0
+        ? campaignStudioSelectedChannels.length === 1
+          ? `${campaignStudioRecipientPreview.length} eligible recipient${campaignStudioRecipientPreview.length === 1 ? "" : "s"} will be snapshotted.`
+          : `${campaignStudioPackRecipientCount} recipient snapshot${campaignStudioPackRecipientCount === 1 ? "" : "s"} across ${campaignStudioSelectedChannels.length} channels.`
         : "No eligible contacts match this audience, list, and channel.",
     },
     {
@@ -4610,8 +4656,8 @@ export default function MarketingAdminPage() {
       title: "Channel",
       state: campaignStudio.channel === "email" ? "ready" : "planning",
       detail: campaignStudio.channel === "email"
-        ? "Email can send later through the existing VYVA dispatcher after review."
-        : `${channelLabel[campaignStudio.channel]} is saved for planning/tracking until provider sending is enabled.`,
+        ? `${campaignStudioSelectedChannels.length} channel${campaignStudioSelectedChannels.length === 1 ? "" : "s"} selected. Email can send later through the existing VYVA dispatcher after review.`
+        : `${campaignStudioSelectedChannels.length} channel${campaignStudioSelectedChannels.length === 1 ? "" : "s"} selected. ${channelLabel[campaignStudio.channel]} is saved for planning/tracking until provider sending is enabled.`,
     },
     {
       key: "ai",
@@ -4677,6 +4723,29 @@ export default function MarketingAdminPage() {
     setCampaignStudioFeedback("");
   }
 
+  function toggleCampaignStudioChannel(channel: Channel) {
+    setCampaignStudio((current) => {
+      const selectedChannels = normalizeCampaignStudioChannels(current.channel, current.selectedChannels);
+      const selected = selectedChannels.includes(channel);
+      if (selected && channel === current.channel) return current;
+      return {
+        ...current,
+        selectedChannels: selected
+          ? selectedChannels.filter((item) => item !== channel)
+          : uniqueChannels([...selectedChannels, channel]),
+      };
+    });
+    setCampaignStudioAiDraft(null);
+    setCampaignStudioFeedback("");
+  }
+
+  function applyCampaignStudioRecommendedPack() {
+    updateCampaignStudio({
+      channel: selectedCampaignStudioPlay.defaultChannel,
+      selectedChannels: campaignStudioRecommendedChannels,
+    });
+  }
+
   function selectCampaignStudioCategory(categoryId: CampaignStudioCategoryId) {
     setCampaignStudioCategory(categoryId);
     const categoryPlays = categoryId === "all"
@@ -4693,6 +4762,7 @@ export default function MarketingAdminPage() {
     updateCampaignStudio({
       playId: nextPlay.id,
       channel: nextPlay.defaultChannel,
+      selectedChannels: [nextPlay.defaultChannel],
       scheduleStartsAt: campaignStudioDefaultSchedule(nextPlay),
       targetAudienceId: suggestedAudience?.id ?? "",
     });
@@ -4788,46 +4858,53 @@ export default function MarketingAdminPage() {
     const campaignStatus: CampaignStatus = scheduleStartsAt ? "scheduled" : "draft";
     const targetAudience = selectedCampaignStudioTargetAudience;
     const targetAudienceSnapshot = audienceSnapshot(targetAudience);
-    const recipients = campaignStudioRecipientPreview.map((contact) => ({
-      contactId: contact.id,
-      channel: campaignStudio.channel,
-      recipient: recipientForChannel(contact, campaignStudio.channel) ?? contact.id,
-      status: "planned",
-      scheduledAt: scheduleStartsAt,
-      snapshot: {
-        ...recipientSnapshot(contact),
-        ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
-      },
-    }));
+    const recipients = campaignStudioSelectedChannels.flatMap((channel) => (
+      (campaignStudioRecipientPreviewByChannel.get(channel) ?? []).map((contact) => ({
+        contactId: contact.id,
+        channel,
+        recipient: recipientForChannel(contact, channel) ?? contact.id,
+        status: "planned",
+        scheduledAt: scheduleStartsAt,
+        snapshot: {
+          ...recipientSnapshot(contact),
+          ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
+          studioChannel: channel,
+        },
+      }))
+    ));
 
     setCampaignStudioSaving(true);
     setCampaignStudioFeedback("Creating content and campaign...");
     setMessage("Creating campaign starter...");
     try {
-      const contentResult = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+      const contentResults = await Promise.all(campaignStudioChannelDrafts.map(({ channel, draft }) => api<{ content: ContentAsset }>("/api/admin/marketing/content", {
         method: "POST",
         body: JSON.stringify({
-          title: campaignStudioGenerated.contentTitle,
-          channel: campaignStudio.channel,
-          language: campaignStudioGenerated.language || "en",
+          title: draft.contentTitle,
+          channel,
+          language: draft.language || "en",
           status: "draft",
-          subject: campaignStudioGenerated.subject || null,
-          body: campaignStudioGenerated.body,
+          subject: draft.subject || null,
+          body: draft.body,
           htmlBody: null,
-          ctaLabel: campaignStudioGenerated.ctaLabel || null,
-          ctaUrl: campaignStudioGenerated.ctaUrl || null,
+          ctaLabel: draft.ctaLabel || null,
+          ctaUrl: draft.ctaUrl || null,
           designJson: {
-            ...campaignStudioGenerated.designJson,
+            ...draft.designJson,
             generator: "marketing_campaign_studio",
             playId: selectedCampaignStudioPlay.id,
             playCategory: selectedCampaignStudioPlay.categoryId,
             tone: campaignStudio.toneId,
-            source: campaignStudioGenerated.source ?? "template",
+            source: draft.source ?? "template",
+            channel,
+            primaryChannel: campaignStudio.channel,
             audience: targetAudienceSnapshot,
           },
           mediaAssets: [],
         }),
-      });
+      })));
+      const contentByChannel = new Map(contentResults.map((result) => [result.content.channel, result.content]));
+      const primaryContent = contentByChannel.get(campaignStudio.channel) ?? contentResults[0]?.content ?? null;
 
       const campaignResult = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
         method: "POST",
@@ -4844,31 +4921,37 @@ export default function MarketingAdminPage() {
               playCategory: selectedCampaignStudioPlay.categoryId,
               tone: campaignStudio.toneId,
               generatedSource: campaignStudioGenerated.source ?? "template",
+              selectedChannels: campaignStudioSelectedChannels,
             },
-            generatedContentAssetId: contentResult.content.id,
+            generatedContentAssetId: primaryContent?.id ?? null,
+            generatedContentAssetIds: Object.fromEntries(contentResults.map((result) => [result.content.channel, result.content.id])),
           }, targetAudience),
-          channels: [{
-            channel: campaignStudio.channel,
-            contentAssetId: contentResult.content.id,
+          channels: campaignStudioSelectedChannels.map((channel) => ({
+            channel,
+            contentAssetId: contentByChannel.get(channel)?.id ?? primaryContent?.id ?? null,
             status: campaignStatus,
             scheduledAt: scheduleStartsAt,
-          }],
+            sendCapability: channel === "email" ? "enabled" : "planning_only",
+          })),
           recipients,
         }),
       });
 
       await refreshAll();
-      setContent((current) => [contentResult.content, ...current.filter((item) => item.id !== contentResult.content.id)]);
+      const createdContent = contentResults.map((result) => result.content);
+      setContent((current) => [...createdContent, ...current.filter((item) => !createdContent.some((created) => created.id === item.id))]);
       setCampaigns((current) => [campaignResult.campaign, ...current.filter((campaign) => campaign.id !== campaignResult.campaign.id)]);
       setContentDraft(emptyContentDraft());
       setCampaignDraft(emptyCampaignDraft());
-      setSelectedContentId(contentResult.content.id);
+      setSelectedContentId(primaryContent?.id ?? createdContent[0]?.id ?? null);
       setEditingContentId(null);
       setContentEditDraft(null);
       setContentDrawerMode(null);
       setEditingCampaignId(campaignResult.campaign.id);
       setCampaignEditDraft(campaignEditDraftFromCampaign(campaignResult.campaign, audiences));
-      setCampaignStudioFeedback(`Created "${campaignResult.campaign.name}" with ${recipients.length} recipient${recipients.length === 1 ? "" : "s"} ready.`);
+      setCampaignStudioFeedback(campaignStudioSelectedChannels.length === 1
+        ? `Created "${campaignResult.campaign.name}" with ${recipients.length} recipient${recipients.length === 1 ? "" : "s"} ready.`
+        : `Created "${campaignResult.campaign.name}" across ${campaignStudioSelectedChannels.length} channels with ${recipients.length} recipient snapshot${recipients.length === 1 ? "" : "s"} ready.`);
       setMessage(`Campaign and content created from ${campaignStudioGenerated.source === "openai" ? "AI" : "studio"} draft.`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Campaign starter could not be created.";
@@ -6256,6 +6339,7 @@ export default function MarketingAdminPage() {
                               updateCampaignStudio({
                                 playId: play.id,
                                 channel: play.defaultChannel,
+                                selectedChannels: [play.defaultChannel],
                                 scheduleStartsAt: campaignStudioDefaultSchedule(play),
                                 targetAudienceId: suggestedAudience?.id ?? "",
                               });
@@ -6296,7 +6380,10 @@ export default function MarketingAdminPage() {
                         <select
                           className={inputClass}
                           value={campaignStudio.channel}
-                          onChange={(event) => updateCampaignStudio({ channel: event.target.value as Channel })}
+                          onChange={(event) => {
+                            const channel = event.target.value as Channel;
+                            updateCampaignStudio({ channel, selectedChannels: uniqueChannels([channel, ...campaignStudioSelectedChannels]) });
+                          }}
                           data-testid="select-marketing-campaign-studio-channel"
                         >
                           {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
@@ -6326,6 +6413,59 @@ export default function MarketingAdminPage() {
                           data-testid="input-marketing-campaign-studio-schedule"
                         />
                       </Field>
+                    </div>
+
+                    <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-4" data-testid="marketing-campaign-studio-channel-pack">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Channel pack</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Plan once, adapt by channel</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Create linked content assets and planned recipient snapshots for every selected channel.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={applyCampaignStudioRecommendedPack}
+                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50"
+                          data-testid="button-marketing-campaign-studio-recommended-pack"
+                        >
+                          <Sparkles size={14} /> Use recommended pack
+                        </button>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2" data-testid="marketing-campaign-studio-channel-pack-buttons">
+                        {CHANNELS.map((channel) => {
+                          const selected = campaignStudioSelectedChannels.includes(channel);
+                          const primary = channel === campaignStudio.channel;
+                          const reach = campaignStudioRecipientPreviewByChannel.get(channel)?.length
+                            ?? campaignStudioChannelReach.find((item) => item.channel === channel)?.count
+                            ?? 0;
+                          return (
+                            <button
+                              key={channel}
+                              type="button"
+                              onClick={() => toggleCampaignStudioChannel(channel)}
+                              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black transition ${selected ? "border-purple-400 bg-white text-purple-800 shadow-[0_6px_16px_rgba(126,34,206,0.12)]" : "border-[#eadfd5] bg-white/70 text-[#5b4a46] hover:border-purple-200"} ${primary ? "ring-2 ring-purple-300" : ""}`}
+                              aria-pressed={selected}
+                              data-testid={`button-marketing-campaign-studio-channel-pack-${channel}`}
+                            >
+                              {channelLabel[channel]}
+                              <span className="rounded-full bg-purple-50 px-2 py-0.5 text-xs text-purple-700">{reach}</span>
+                              {primary ? <span className="rounded-full bg-purple-700 px-2 py-0.5 text-xs text-white">Primary</span> : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2" data-testid="marketing-campaign-studio-channel-pack-preview">
+                        {campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => (
+                          <div key={channel} className="rounded-xl border border-[#eadfd5] bg-white px-3 py-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <Pill className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                              <span className="text-xs font-black text-[#7d6b65]">{recipients} recipient{recipients === 1 ? "" : "s"}</span>
+                            </div>
+                            <p className="mt-2 line-clamp-1 text-xs font-black text-[#241133]">{draft.contentTitle}</p>
+                            <p className="mt-1 line-clamp-2 text-xs font-bold text-[#7d6b65]">{draft.subject}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-audience-intel">
