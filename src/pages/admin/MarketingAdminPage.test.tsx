@@ -2339,6 +2339,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-subject")).toHaveTextContent("Opening hook");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-cta")).toHaveTextContent("Ready");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("LinkedIn has one focused draft ready for review.");
+    expect(screen.getByTestId("marketing-campaign-studio-personalization-preview")).toHaveTextContent("Merge field preview");
+    expect(screen.getByTestId("marketing-campaign-studio-personalization-tokens")).toHaveTextContent("{{first_name}} 1/1");
+    expect(screen.getByTestId("marketing-campaign-studio-personalization-sample")).toHaveTextContent("Sample for Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-studio-personalization-sample")).toHaveTextContent("Hi Hassan,");
     expect(screen.getByTestId("marketing-campaign-studio-readiness")).toHaveTextContent("Studio readiness");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-recipients")).toHaveTextContent("1 eligible recipient will be snapshotted.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-channel")).toHaveTextContent("Planning");

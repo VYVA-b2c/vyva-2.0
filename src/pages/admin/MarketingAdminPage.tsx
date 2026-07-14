@@ -1279,6 +1279,49 @@ function hasPersonalizationToken(value: string) {
   return /\{\{\s*(first_name|name|full_name)\s*\}\}/i.test(value);
 }
 
+function extractPersonalizationTokens(value: string) {
+  const tokens: string[] = [];
+  const seen = new Set<string>();
+  const matcher = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+  let match = matcher.exec(value);
+  while (match) {
+    const token = match[1].trim().toLowerCase();
+    if (token && !seen.has(token)) {
+      seen.add(token);
+      tokens.push(token);
+    }
+    match = matcher.exec(value);
+  }
+  return tokens;
+}
+
+function contactTokenValue(contact: MarketingContact, token: string) {
+  const normalized = token.trim().toLowerCase();
+  if (normalized === "first_name") return contact.fullName.trim().split(/\s+/)[0] || contact.email?.split("@")[0] || "";
+  if (normalized === "name" || normalized === "full_name") return contact.fullName || contact.email || "";
+  if (normalized === "email") return contact.email || "";
+  if (normalized === "phone" || normalized === "phone_number") return contact.phoneNumber || "";
+  if (normalized === "whatsapp" || normalized === "whatsapp_number") return contact.whatsappNumber || contact.phoneNumber || "";
+  if (normalized === "company" || normalized === "company_name" || normalized === "organization") return contact.companyName || "";
+  if (normalized === "role" || normalized === "role_label") return contact.roleLabel || "";
+  if (normalized === "language") return contact.language || "";
+  if (normalized === "category") return contact.category || "";
+  if (normalized === "vertical") return contact.vertical || "";
+  if (normalized === "market") return contact.market || "";
+  return "";
+}
+
+function personalizePreview(value: string, contact: MarketingContact) {
+  return value.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_token, name: string) => {
+    const replacement = contactTokenValue(contact, name);
+    return replacement || `[${name.trim()}]`;
+  });
+}
+
+function firstPreviewLine(value: string) {
+  return value.split(/\n+/).map((line) => line.trim()).find(Boolean) || "No preview line yet.";
+}
+
 function recordTimelineParts(record: { createdAt?: string | null; updatedAt?: string | null; lastSyncedAt?: string | null }) {
   const parts: string[] = [];
   if (record.updatedAt) parts.push(`Updated ${formatDate(record.updatedAt)}`);
@@ -5607,6 +5650,18 @@ export default function MarketingAdminPage() {
   const campaignStudioHasEmailChannel = campaignStudioSelectedChannels.includes("email");
   const campaignStudioHasCta = Boolean(campaignStudioGenerated.ctaLabel.trim() && campaignStudioGenerated.ctaUrl.trim());
   const campaignStudioHasPersonalization = hasPersonalizationToken(`${campaignStudioGenerated.subject}\n${campaignStudioGenerated.body}`);
+  const campaignStudioPersonalizationTokens = extractPersonalizationTokens(`${campaignStudioGenerated.subject}\n${campaignStudioGenerated.body}`);
+  const campaignStudioPersonalizationContact = campaignStudioRecipientSample[0]?.contact ?? campaignStudioAudiencePool[0] ?? null;
+  const campaignStudioPersonalizationCoverage = campaignStudioPersonalizationTokens.map((token) => ({
+    token,
+    available: campaignStudioAudiencePool.filter((contact) => Boolean(contactTokenValue(contact, token))).length,
+  }));
+  const campaignStudioPersonalizedSubject = campaignStudioPersonalizationContact
+    ? personalizePreview(campaignStudioGenerated.subject || campaignStudioGenerated.campaignName, campaignStudioPersonalizationContact)
+    : campaignStudioGenerated.subject || campaignStudioGenerated.campaignName;
+  const campaignStudioPersonalizedLine = campaignStudioPersonalizationContact
+    ? firstPreviewLine(personalizePreview(campaignStudioGenerated.body, campaignStudioPersonalizationContact))
+    : firstPreviewLine(campaignStudioGenerated.body);
   const campaignStudioCreativeQualityItems: CampaignCreativeQualityItem[] = [
     {
       key: "subject",
@@ -9131,6 +9186,42 @@ export default function MarketingAdminPage() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-studio-personalization-preview">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Merge field preview</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Check that personalization tokens resolve against the selected audience before creating content.</p>
+                          </div>
+                          <Pill className={campaignStudioPersonalizationTokens.length ? "bg-purple-50 text-purple-800" : "bg-amber-50 text-amber-800"}>
+                            {campaignStudioPersonalizationTokens.length || "No"} token{campaignStudioPersonalizationTokens.length === 1 ? "" : "s"}
+                          </Pill>
+                        </div>
+                        {campaignStudioPersonalizationTokens.length ? (
+                          <>
+                            <div className="mt-3 flex flex-wrap gap-2" data-testid="marketing-campaign-studio-personalization-tokens">
+                              {campaignStudioPersonalizationCoverage.map((item) => (
+                                <Pill
+                                  key={item.token}
+                                  className={item.available === campaignStudioAudiencePool.length ? "bg-emerald-50 text-emerald-800" : item.available > 0 ? "bg-amber-50 text-amber-800" : "bg-red-50 text-red-800"}
+                                >
+                                  {`{{${item.token}}}`} {item.available}/{campaignStudioAudiencePool.length}
+                                </Pill>
+                              ))}
+                            </div>
+                            <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 text-sm" data-testid="marketing-campaign-studio-personalization-sample">
+                              <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8a7168]">
+                                Sample for {campaignStudioPersonalizationContact?.fullName || campaignStudioPersonalizationContact?.email || "selected audience"}
+                              </p>
+                              <p className="mt-2 font-black text-[#241133]">{campaignStudioPersonalizedSubject}</p>
+                              <p className="mt-1 font-bold text-[#6f5f59]">{campaignStudioPersonalizedLine}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="mt-3 rounded-xl border border-dashed border-[#eadfd5] bg-white px-3 py-3 text-sm font-bold text-[#7d6b65]">
+                            No merge fields detected. For email or WhatsApp, add tokens like {"{{first_name}}"} or {"{{company_name}}"} when the audience data supports it.
+                          </p>
+                        )}
                       </div>
                     </div>
 
