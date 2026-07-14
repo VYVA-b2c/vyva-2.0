@@ -3986,10 +3986,27 @@ const RoomScreen = () => {
     }
   };
 
+  const loadingRoomName = room?.name || (language === "en" ? "this room" : language === "de" ? "diesen Raum" : "esta sala");
+  const loadingRoomHint = room
+    ? getTopicHint(canonicalRoomSlug, language, room.topic)
+    : language === "en"
+      ? "VYVA is preparing the room, members, and safe conversation tools."
+      : language === "de"
+        ? "VYVA bereitet Raum, Mitglieder und sichere Gespraechswerkzeuge vor."
+        : "VYVA esta preparando la sala, los miembros y las herramientas seguras.";
+  const loadingRoomLabel = language === "en"
+    ? `Opening ${loadingRoomName}`
+    : language === "de"
+      ? `Oeffne ${loadingRoomName}`
+      : `Abriendo ${loadingRoomName}`;
+
   if (isLoading) {
     return (
       <div className="px-6 py-8">
-        <div className="rounded-[30px] bg-[#FFFDFC] p-6 font-body text-[22px] text-[#7C6D8D]">Cargando...</div>
+        <div className="rounded-[30px] bg-[#FFFDFC] p-6 font-body text-[#7C6D8D]" role="status" aria-live="polite">
+          <p className="text-[22px] font-semibold text-[#45325B]">{loadingRoomLabel}</p>
+          <p className="mt-2 text-[18px] leading-[1.35]">{loadingRoomHint}</p>
+        </div>
       </div>
     );
   }
