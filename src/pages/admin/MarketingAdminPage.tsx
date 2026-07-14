@@ -723,6 +723,16 @@ type ContentTemplate = {
   mediaAssets?: unknown[];
 };
 
+type ContentTemplatePack = {
+  id: string;
+  title: string;
+  description: string;
+  focus: string;
+  templateIds: string[];
+  heroTemplateId: string;
+  aiPrompt: string;
+};
+
 type ContentTemplateGapSuggestion = ContentTemplate & {
   existingCount: number;
   channelCount: number;
@@ -2485,6 +2495,87 @@ const contentTemplateGallery: ContentTemplate[] = [
       beats: ["before scattered care", "after shared loop", "show next action", "clear signal close"],
     },
     mediaAssets: [],
+  },
+];
+
+const contentTemplatePacks: ContentTemplatePack[] = [
+  {
+    id: "family-onboarding",
+    title: "Family onboarding",
+    focus: "Turn new users and caregivers into active care-team members.",
+    description: "Warm email and WhatsApp starters for profile completion, first-week activation, caregiver access, and care-team confidence.",
+    templateIds: [
+      "caregiver-email-welcome",
+      "email-first-week-activation",
+      "email-caregiver-education-mini",
+      "whatsapp-profile-nudge",
+      "whatsapp-missed-profile-followup",
+      "whatsapp-care-team-confirmation",
+    ],
+    heroTemplateId: "caregiver-email-welcome",
+    aiPrompt: "Adapt this family onboarding pack into a 7-day welcome sequence with one email, one WhatsApp reminder, and one caregiver education message.",
+  },
+  {
+    id: "partner-growth",
+    title: "Partner growth",
+    focus: "Open and nurture B2B relationships with providers, local services, and referral partners.",
+    description: "Credible LinkedIn, WhatsApp, Facebook, and referral templates for demos, partner proof, webinars, and introductions.",
+    templateIds: [
+      "linkedin-partner-demo",
+      "linkedin-case-study",
+      "linkedin-referral-partner",
+      "linkedin-webinar-invite",
+      "whatsapp-partner-proof-nudge",
+      "facebook-provider-community-proof",
+      "email-referral-ask",
+    ],
+    heroTemplateId: "linkedin-partner-demo",
+    aiPrompt: "Turn this partner growth pack into a multi-touch B2B campaign with a proof-led LinkedIn post, WhatsApp follow-up, and referral email.",
+  },
+  {
+    id: "local-community",
+    title: "Local community",
+    focus: "Make VYVA feel relevant to nearby activities, events, and community partners.",
+    description: "Local event, community moment, webinar reminder, and accessible activity templates for online and offline follow-up.",
+    templateIds: [
+      "whatsapp-event-reminder",
+      "facebook-local-event",
+      "instagram-community-moment",
+      "facebook-webinar-reminder",
+    ],
+    heroTemplateId: "facebook-local-event",
+    aiPrompt: "Localize this community pack for one city, one neighbourhood, and one practical event CTA.",
+  },
+  {
+    id: "retention-feedback",
+    title: "Retention and feedback",
+    focus: "Bring quiet contacts back and learn what would make VYVA more useful.",
+    description: "Gentle win-back, feedback, testimonial, and referral templates that invite action without pressure.",
+    templateIds: [
+      "email-winback",
+      "email-feedback-survey",
+      "facebook-testimonial-prompt",
+      "email-referral-ask",
+    ],
+    heroTemplateId: "email-winback",
+    aiPrompt: "Convert this retention pack into a respectful reactivation campaign with one soft email, one feedback ask, and one referral prompt.",
+  },
+  {
+    id: "social-launch",
+    title: "Social launch",
+    focus: "Publish clear social concepts for feature launches, proof points, and short-form education.",
+    description: "Instagram, Facebook, TikTok, and LinkedIn starters for visual campaigns, before-after demos, and proof-led social posts.",
+    templateIds: [
+      "instagram-launch-carousel",
+      "instagram-proof-point",
+      "facebook-family-story",
+      "tiktok-feature-demo",
+      "tiktok-care-myth",
+      "tiktok-care-loop-before-after",
+      "linkedin-family-proof-article",
+    ],
+    heroTemplateId: "instagram-launch-carousel",
+    aiPrompt: "Transform this social launch pack into a coordinated 1-week content plan across Instagram, Facebook, TikTok, and LinkedIn.",
   },
 ];
 
@@ -4658,6 +4749,7 @@ export default function MarketingAdminPage() {
   const [contentTemplateChannelFilter, setContentTemplateChannelFilter] = useState<Channel | "all">("all");
   const [contentTemplateAudienceFilter, setContentTemplateAudienceFilter] = useState<Audience | "all">("all");
   const [contentTemplateCategoryFilter, setContentTemplateCategoryFilter] = useState("all");
+  const [contentTemplatePackFilter, setContentTemplatePackFilter] = useState("all");
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [editingContentId, setEditingContentId] = useState<string | null>(null);
   const [contentEditDraft, setContentEditDraft] = useState<ContentEditDraft | null>(null);
@@ -4870,6 +4962,31 @@ export default function MarketingAdminPage() {
     return contentMatchesSearch && matchesChannel && matchesSource;
   }), [content, search, channelFilter, contentSourceFilter]);
 
+  const selectedContentTemplatePack = useMemo(
+    () => contentTemplatePacks.find((pack) => pack.id === contentTemplatePackFilter) ?? null,
+    [contentTemplatePackFilter],
+  );
+  const selectedContentTemplatePackIds = useMemo(
+    () => new Set(selectedContentTemplatePack?.templateIds ?? []),
+    [selectedContentTemplatePack],
+  );
+  const contentTemplatePacksWithStats = useMemo(() => contentTemplatePacks.map((pack) => {
+    const templates = pack.templateIds
+      .map((templateId) => contentTemplateGallery.find((template) => template.id === templateId) ?? null)
+      .filter((template): template is ContentTemplate => Boolean(template));
+    const channels = Array.from(new Set(templates.map((template) => template.channel)));
+    const audiences = Array.from(new Set(templates.map((template) => template.audienceType)));
+    const categories = Array.from(new Set(templates.map((template) => template.category))).sort();
+    return {
+      pack,
+      templates,
+      heroTemplate: templates.find((template) => template.id === pack.heroTemplateId) ?? templates[0] ?? null,
+      channels,
+      audiences,
+      categories,
+      state: templates.length >= 6 ? "ready" as CampaignReadinessState : templates.length >= 4 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+    };
+  }), []);
   const visibleContentTemplates = useMemo(() => contentTemplateGallery.filter((template) => {
     const matchesText = matchesSearch(contentTemplateSearch, [
       template.id,
@@ -4890,14 +5007,16 @@ export default function MarketingAdminPage() {
       || template.audienceType === contentTemplateAudienceFilter
       || (contentTemplateAudienceFilter !== "both" && template.audienceType === "both");
     const matchesCategory = contentTemplateCategoryFilter === "all" || template.category === contentTemplateCategoryFilter;
-    return matchesText && matchesChannel && matchesAudience && matchesCategory;
-  }), [contentTemplateSearch, contentTemplateChannelFilter, contentTemplateAudienceFilter, contentTemplateCategoryFilter]);
+    const matchesPack = !selectedContentTemplatePack || selectedContentTemplatePackIds.has(template.id);
+    return matchesPack && matchesText && matchesChannel && matchesAudience && matchesCategory;
+  }), [contentTemplateSearch, contentTemplateChannelFilter, contentTemplateAudienceFilter, contentTemplateCategoryFilter, selectedContentTemplatePack, selectedContentTemplatePackIds]);
 
   const contentTemplateFiltersActive = Boolean(
     contentTemplateSearch.trim()
     || contentTemplateChannelFilter !== "all"
     || contentTemplateAudienceFilter !== "all"
-    || contentTemplateCategoryFilter !== "all",
+    || contentTemplateCategoryFilter !== "all"
+    || contentTemplatePackFilter !== "all",
   );
   const contentTemplateChannelCoverage = useMemo(() => CHANNELS.map((channel) => {
     const templates = contentTemplateGallery.filter((template) => template.channel === channel);
@@ -7490,6 +7609,7 @@ export default function MarketingAdminPage() {
     setContentTemplateChannelFilter(suggestion.channel);
     setContentTemplateAudienceFilter("all");
     setContentTemplateCategoryFilter("all");
+    setContentTemplatePackFilter("all");
     setContentFeedback(`Gap starter drafted: ${suggestion.title}. Edit it, then add content.`);
     setContentActionFeedback(`Gap starter drafted: ${suggestion.title}.`);
     setMessage(`Gap starter drafted: ${suggestion.title}.`);
@@ -7603,6 +7723,7 @@ export default function MarketingAdminPage() {
       setContentTemplateChannelFilter(suggestion.channel);
       setContentTemplateAudienceFilter(suggestion.audienceType);
       setContentTemplateCategoryFilter("all");
+      setContentTemplatePackFilter("all");
       const feedback = result.source === "openai"
         ? `AI draft generated from gap: ${suggestion.title}.`
         : result.note || `Fallback AI-style draft generated from gap: ${suggestion.title}.`;
@@ -7651,6 +7772,7 @@ export default function MarketingAdminPage() {
       setContentTemplateChannelFilter("all");
       setContentTemplateAudienceFilter("all");
       setContentTemplateCategoryFilter("all");
+      setContentTemplatePackFilter("all");
       const feedback = `AI gap pack created: ${created.length} template draft${created.length === 1 ? "" : "s"}. ${firstCreated ? "First draft opened for review." : ""}`;
       setContentFeedback(feedback);
       setContentActionFeedback(feedback);
@@ -11173,6 +11295,77 @@ export default function MarketingAdminPage() {
               ) : null}
 
               <SectionCard
+                title="Curated template packs"
+                subtitle="Task-led campaign starter packs for families, partners, community, retention, and social launches."
+                action={<Pill className="bg-purple-50 text-purple-800">{contentTemplatePacks.length} packs</Pill>}
+              >
+                <div className="grid gap-3 xl:grid-cols-5" data-testid="marketing-template-packs">
+                  {contentTemplatePacksWithStats.map(({ pack, templates, heroTemplate, channels, audiences, categories, state }) => {
+                    const selected = selectedContentTemplatePack?.id === pack.id;
+                    return (
+                      <article
+                        key={pack.id}
+                        className={`flex min-h-[300px] flex-col justify-between rounded-2xl border p-4 shadow-sm ${selected ? "border-purple-300 bg-purple-50 ring-4 ring-purple-100" : "border-[#eadfd5] bg-white"}`}
+                        data-testid={`marketing-template-pack-${pack.id}`}
+                      >
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill className={selected ? "bg-purple-700 text-white" : readinessPillClass(state)}>
+                              {selected ? "Viewing" : `${templates.length} templates`}
+                            </Pill>
+                            <Pill className="bg-white text-[#5b4a46]">{channels.length} channels</Pill>
+                          </div>
+                          <h3 className="mt-3 font-serif text-xl text-[#241133]">{pack.title}</h3>
+                          <p className="mt-2 text-sm font-black leading-snug text-[#5b4a46]">{pack.focus}</p>
+                          <p className="mt-2 text-xs font-bold leading-relaxed text-[#7d6b65]">{pack.description}</p>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {channels.map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {audiences.map((audience) => <Pill key={audience} className="bg-[#f5eee8] text-[#5b4a46]">{audience.toUpperCase()}</Pill>)}
+                            {categories.slice(0, 2).map((category) => <Pill key={category} className="bg-amber-50 text-amber-800">{category}</Pill>)}
+                          </div>
+                          <p className="mt-3 line-clamp-3 rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                            <span className="font-black text-purple-700">AI pack prompt:</span> {pack.aiPrompt}
+                          </p>
+                        </div>
+                        <div className="mt-4 grid gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setContentTemplatePackFilter(pack.id);
+                              setContentTemplateSearch("");
+                              setContentTemplateChannelFilter("all");
+                              setContentTemplateAudienceFilter("all");
+                              setContentTemplateCategoryFilter("all");
+                              setContentActionFeedback(`Showing ${pack.title} template pack.`);
+                            }}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 hover:bg-purple-50"
+                            data-testid={`button-marketing-template-pack-${pack.id}`}
+                          >
+                            <Search size={14} /> Open pack
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!heroTemplate) return;
+                              startCampaignFromContentTemplate(heroTemplate);
+                              setContentActionFeedback(`Campaign starter applied from ${pack.title}: ${heroTemplate.title}.`);
+                            }}
+                            disabled={!heroTemplate || contentSaving}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid={`button-marketing-template-pack-start-${pack.id}`}
+                          >
+                            <Megaphone size={14} /> Start best campaign
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+
+              <SectionCard
                 title="Template coverage"
                 subtitle="Channel and audience coverage for the reusable campaign library."
                 action={<Pill className="bg-purple-50 text-purple-800">{contentTemplateGallery.length} templates</Pill>}
@@ -11189,6 +11382,7 @@ export default function MarketingAdminPage() {
                           setContentTemplateChannelFilter(item.channel);
                           setContentTemplateAudienceFilter("all");
                           setContentTemplateCategoryFilter("all");
+                          setContentTemplatePackFilter("all");
                           setContentActionFeedback(`Showing ${channelLabel[item.channel]} templates.`);
                         }}
                         data-testid={`button-marketing-template-filter-channel-${item.channel}`}
@@ -11221,6 +11415,7 @@ export default function MarketingAdminPage() {
                           setContentTemplateChannelFilter("all");
                           setContentTemplateAudienceFilter(item.audience);
                           setContentTemplateCategoryFilter("all");
+                          setContentTemplatePackFilter("all");
                           setContentActionFeedback(`Showing ${item.audience.toUpperCase()} templates.`);
                         }}
                         data-testid={`button-marketing-template-filter-audience-${item.audience}`}
@@ -11273,6 +11468,7 @@ export default function MarketingAdminPage() {
                                     setContentTemplateChannelFilter(row.channel);
                                     setContentTemplateAudienceFilter(cell.audience);
                                     setContentTemplateCategoryFilter("all");
+                                    setContentTemplatePackFilter("all");
                                     setContentActionFeedback(`Showing ${channelLabel[row.channel]} ${cell.audience.toUpperCase()} template pack${cell.audience !== "both" ? " with shared BOTH templates included" : ""}.`);
                                   }}
                                   data-testid={`button-marketing-template-matrix-${row.channel}-${cell.audience}`}
@@ -11448,25 +11644,37 @@ export default function MarketingAdminPage() {
                     <input
                       className={inputClass}
                       value={contentTemplateSearch}
-                      onChange={(event) => setContentTemplateSearch(event.target.value)}
+                      onChange={(event) => {
+                        setContentTemplateSearch(event.target.value);
+                        setContentTemplatePackFilter("all");
+                      }}
                       placeholder="Search by use case, copy, CTA, or channel"
                       data-testid="input-marketing-template-search"
                     />
                   </Field>
                   <Field label="Channel">
-                    <select className={inputClass} value={contentTemplateChannelFilter} onChange={(event) => setContentTemplateChannelFilter(event.target.value as Channel | "all")} data-testid="select-marketing-template-channel">
+                    <select className={inputClass} value={contentTemplateChannelFilter} onChange={(event) => {
+                      setContentTemplateChannelFilter(event.target.value as Channel | "all");
+                      setContentTemplatePackFilter("all");
+                    }} data-testid="select-marketing-template-channel">
                       <option value="all">All channels</option>
                       {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
                     </select>
                   </Field>
                   <Field label="Audience">
-                    <select className={inputClass} value={contentTemplateAudienceFilter} onChange={(event) => setContentTemplateAudienceFilter(event.target.value as Audience | "all")} data-testid="select-marketing-template-audience">
+                    <select className={inputClass} value={contentTemplateAudienceFilter} onChange={(event) => {
+                      setContentTemplateAudienceFilter(event.target.value as Audience | "all");
+                      setContentTemplatePackFilter("all");
+                    }} data-testid="select-marketing-template-audience">
                       <option value="all">All audiences</option>
                       {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
                     </select>
                   </Field>
                   <Field label="Category">
-                    <select className={inputClass} value={contentTemplateCategoryFilter} onChange={(event) => setContentTemplateCategoryFilter(event.target.value)} data-testid="select-marketing-template-category">
+                    <select className={inputClass} value={contentTemplateCategoryFilter} onChange={(event) => {
+                      setContentTemplateCategoryFilter(event.target.value);
+                      setContentTemplatePackFilter("all");
+                    }} data-testid="select-marketing-template-category">
                       <option value="all">All categories</option>
                       {contentTemplateCategories.map((category) => <option key={category} value={category}>{category}</option>)}
                     </select>
@@ -11481,6 +11689,7 @@ export default function MarketingAdminPage() {
                         setContentTemplateChannelFilter("all");
                         setContentTemplateAudienceFilter("all");
                         setContentTemplateCategoryFilter("all");
+                        setContentTemplatePackFilter("all");
                       }}
                       data-testid="button-marketing-clear-template-filters"
                     >

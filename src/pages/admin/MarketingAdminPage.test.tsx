@@ -1453,6 +1453,24 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn family proof article");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("29 templates");
+    expect(screen.getByTestId("marketing-template-packs")).toHaveTextContent("Family onboarding");
+    expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("Partner growth");
+    expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-partner-growth"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Partner growth template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Partner demo LinkedIn post");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-start-partner-growth"));
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner demo LinkedIn post campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign starter applied from \"Partner demo LinkedIn post\"");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
