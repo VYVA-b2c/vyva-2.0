@@ -2815,6 +2815,22 @@ function parseJsonArrayText(value: string, label: string) {
   }
 }
 
+function contentCreatePayloadFromDraft(draft: ContentDraft) {
+  return {
+    title: draft.title,
+    channel: draft.channel,
+    language: draft.language.trim() || "en",
+    status: draft.status,
+    subject: draft.subject || null,
+    body: draft.body,
+    htmlBody: draft.htmlBody.trim() || null,
+    ctaLabel: draft.ctaLabel.trim() || null,
+    ctaUrl: draft.ctaUrl.trim() || null,
+    designJson: parseJsonText(draft.designJsonText, "Design JSON"),
+    mediaAssets: parseJsonArrayText(draft.mediaAssetsText, "Media assets"),
+  };
+}
+
 function nonNegativeInt(value: string, fallback = 0) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -6037,6 +6053,41 @@ export default function MarketingAdminPage() {
     setActiveTab("content");
   }
 
+  async function createAndLinkContentFromCampaignPlanner() {
+    const draft = contentDraftFromCampaignDraft(campaignDraft, selectedCampaignDraftTargetAudience);
+    setContentSaving(true);
+    setCampaignStudioFeedback(`Creating ${channelLabel[draft.channel]} content and linking it to the campaign...`);
+    try {
+      const result = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+        method: "POST",
+        body: JSON.stringify(contentCreatePayloadFromDraft(draft)),
+      });
+      setContent((current) => [result.content, ...current.filter((item) => item.id !== result.content.id)]);
+      setCampaignDraft((current) => ({
+        ...current,
+        channel: result.content.channel,
+        contentAssetId: result.content.id,
+      }));
+      setSelectedContentId(result.content.id);
+      setEditingContentId(result.content.id);
+      setContentEditDraft(contentEditDraftFromContent(result.content));
+      setContentDrawerMode("edit");
+      setContentDraft(emptyContentDraft());
+      setContentFeedback(`Created and linked ${result.content.title}.`);
+      setContentActionFeedback(`Created and linked ${result.content.title}.`);
+      setCampaignStudioFeedback(`Created and linked ${result.content.title}. The campaign draft now has content.`);
+      setMessage(`Created and linked ${result.content.title}.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Content could not be created and linked.";
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setCampaignStudioFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentSaving(false);
+    }
+  }
+
   function selectCampaignStudioCategory(categoryId: CampaignStudioCategoryId) {
     setCampaignStudioCategory(categoryId);
     const categoryPlays = categoryId === "all"
@@ -6716,19 +6767,7 @@ export default function MarketingAdminPage() {
     try {
       const result = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
         method: "POST",
-        body: JSON.stringify({
-          title: contentDraft.title,
-          channel: contentDraft.channel,
-          language: contentDraft.language.trim() || "en",
-          status: contentDraft.status,
-          subject: contentDraft.subject || null,
-          body: contentDraft.body,
-          htmlBody: contentDraft.htmlBody.trim() || null,
-          ctaLabel: contentDraft.ctaLabel.trim() || null,
-          ctaUrl: contentDraft.ctaUrl.trim() || null,
-          designJson: parseJsonText(contentDraft.designJsonText, "Design JSON"),
-          mediaAssets: parseJsonArrayText(contentDraft.mediaAssetsText, "Media assets"),
-        }),
+        body: JSON.stringify(contentCreatePayloadFromDraft(contentDraft)),
       });
       setContentDraft(emptyContentDraft());
       setSelectedContentId(result.content.id);
@@ -9031,14 +9070,26 @@ export default function MarketingAdminPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {!selectedCampaignDraftContent ? (
-                          <button
-                            type="button"
-                            onClick={draftContentFromCampaignPlanner}
-                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50"
-                            data-testid="button-marketing-draft-content-from-campaign"
-                          >
-                            <FileText size={14} /> Draft content
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={draftContentFromCampaignPlanner}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={contentSaving}
+                              data-testid="button-marketing-draft-content-from-campaign"
+                            >
+                              <FileText size={14} /> Draft content
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => createAndLinkContentFromCampaignPlanner().catch((error) => setMessage(error.message))}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              disabled={contentSaving}
+                              data-testid="button-marketing-create-link-content-from-campaign"
+                            >
+                              <Save size={14} /> {contentSaving ? "Creating..." : "Create & link"}
+                            </button>
+                          </>
                         ) : null}
                         <Pill className={readinessPillClass(campaignDraftReadinessState)}>{readinessLabel(campaignDraftReadinessState)}</Pill>
                       </div>

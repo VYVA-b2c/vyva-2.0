@@ -1629,6 +1629,40 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Drafted Facebook content from the campaign planner.");
   });
 
+  it("creates and links missing campaign content from the planner", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Community proof post" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-channel"), { target: { value: "facebook" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-objective"), {
+      target: { value: "Show families how VYVA turns daily check-ins into calmer care decisions." },
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-create-link-content-from-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(JSON.parse(String(postCall?.[1]?.body))).toMatchObject({
+      title: "Community proof post Facebook content",
+      channel: "facebook",
+      status: "draft",
+      body: expect.stringContaining("Show families how VYVA turns daily check-ins into calmer care decisions."),
+      designJson: expect.objectContaining({
+        generator: "marketing_campaign_planner",
+        channel: "facebook",
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-created");
+    });
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("Community proof post Facebook content is linked for Facebook");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created and linked Community proof post Facebook content");
+  });
+
   it("creates rich marketing content drafts", async () => {
     renderPage();
 
