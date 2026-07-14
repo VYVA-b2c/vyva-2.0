@@ -1,0 +1,148 @@
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import ConciergeQueueAdminPage from "./ConciergeQueueAdminPage";
+import { apiFetch } from "@/lib/queryClient";
+import type { OperatorConciergeQueueItem } from "../../../shared/conciergeOperatorQueue";
+
+vi.mock("@/lib/queryClient", () => ({
+  apiFetch: vi.fn(),
+}));
+
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({
+    user: { id: "admin-1", email: "admin@example.com", role: "admin" },
+    logout: vi.fn(),
+  }),
+}));
+
+const apiFetchMock = vi.mocked(apiFetch);
+
+const readyTask: OperatorConciergeQueueItem = {
+  id: "pending-1",
+  source: "pending",
+  user_id: "user-1",
+  user_label: "Carmen",
+  user_contact: "+34 600 000 001",
+  use_case: "book_ride",
+  provider_name: "Safe Taxi",
+  provider_phone: "+34 611 111 111",
+  action_summary: "Book a ride to the clinic",
+  status: "ready",
+  pending_status: "pending",
+  flow_reference: "FLOW_TRANSPORT_BOOKING",
+  action_type: "phone_call",
+  active_tool: "phone_call",
+  missing_labels: [],
+  user_confirmed: true,
+  confirmed_at: "2026-07-01T10:00:00.000Z",
+  updated_at: "2026-07-01T10:05:00.000Z",
+};
+
+const needsInfoTask: OperatorConciergeQueueItem = {
+  id: "pending-2",
+  source: "pending",
+  user_id: "user-2",
+  user_label: "Luis",
+  user_contact: null,
+  use_case: "home_service",
+  provider_name: null,
+  provider_phone: null,
+  action_summary: "Arrange home repair",
+  status: "needs_info",
+  pending_status: "pending",
+  flow_reference: "FLOW_HOME_SERVICE",
+  action_type: "manual_review",
+  active_tool: "operator_review",
+  missing_labels: ["Provider", "Service type"],
+  user_confirmed: false,
+  confirmed_at: null,
+  updated_at: "2026-07-01T10:04:00.000Z",
+};
+
+const doneTask: OperatorConciergeQueueItem = {
+  id: "session-1",
+  source: "session",
+  user_id: "user-3",
+  user_label: "Ana",
+  user_contact: "ana@example.com",
+  use_case: "order_medicine",
+  provider_name: "Trusted Pharmacy",
+  provider_phone: null,
+  action_summary: "OTC items confirmed",
+  status: "done",
+  pending_status: "completed",
+  flow_reference: "FLOW_OTC_PHARMACY",
+  action_type: "message",
+  active_tool: "whatsapp",
+  missing_labels: [],
+  user_confirmed: true,
+  confirmed_at: "2026-07-01T09:00:00.000Z",
+  updated_at: "2026-07-01T09:30:00.000Z",
+};
+
+function jsonResponse(body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function renderPage(items: OperatorConciergeQueueItem[] = [readyTask, needsInfoTask, doneTask]) {
+  apiFetchMock.mockResolvedValue(jsonResponse({
+    items,
+    totals: {
+      needs_info: items.filter((item) => item.status === "needs_info").length,
+      ready: items.filter((item) => item.status === "ready").length,
+      in_progress: items.filter((item) => item.status === "in_progress").length,
+      done: items.filter((item) => item.status === "done").length,
+      failed: items.filter((item) => item.status === "failed").length,
+    },
+  }));
+
+  return render(
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/concierge-queue"]}>
+      <ConciergeQueueAdminPage />
+    </MemoryRouter>,
+  );
+}
+
+afterEach(() => {
+  apiFetchMock.mockReset();
+});
+
+describe("ConciergeQueueAdminPage", () => {
+  it("loads the operator queue and summarizes task statuses", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Book a ride to the clinic")).toBeInTheDocument();
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/concierge/queue");
+    const summary = screen.getByTestId("admin-concierge-queue-summary");
+    expect(summary).toHaveTextContent("Showing 3 of 3 Concierge tasks.");
+    expect(summary).toHaveTextContent("Needs info");
+    expect(summary).toHaveTextContent("Ready");
+    expect(summary).toHaveTextContent("Done");
+
+    const list = screen.getByTestId("admin-concierge-queue-list");
+    expect(within(list).getByText("Carmen - +34 600 000 001")).toBeInTheDocument();
+    expect(within(list).getByText("Safe Taxi")).toBeInTheDocument();
+    expect(within(list).getByText("Provider, Service type")).toBeInTheDocument();
+  });
+
+  it("filters the visible queue by operator status", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Arrange home repair")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-concierge-queue-filter-ready"));
+
+    const list = screen.getByTestId("admin-concierge-queue-list");
+    expect(within(list).getByText("Book a ride to the clinic")).toBeInTheDocument();
+    expect(within(list).queryByText("Arrange home repair")).not.toBeInTheDocument();
+    expect(screen.getByTestId("admin-concierge-queue-summary")).toHaveTextContent("Showing 1 of 3 Concierge tasks.");
+
+    fireEvent.click(screen.getByTestId("admin-concierge-queue-filter-needs_info"));
+
+    expect(within(list).getByText("Arrange home repair")).toBeInTheDocument();
+    expect(within(list).queryByText("Book a ride to the clinic")).not.toBeInTheDocument();
+  });
+});
