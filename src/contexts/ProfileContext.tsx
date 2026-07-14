@@ -5,6 +5,7 @@ import { syncProfileLanguage, useLanguage } from "@/i18n/index";
 import { SUPPORTED_LANGUAGES } from "@/i18n/detectLanguage";
 import type { LanguageCode } from "@/i18n/languages";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { displayFirstName } from "@/lib/displayIdentity";
 
 interface ProfileData {
   firstName: string;
@@ -26,13 +27,12 @@ interface ProfileData {
   gpPhone?: string;
   gpEmail?: string;
   gender?: string;
-  mobilityLevel?: string | null;
   savedProviders?: Array<{
-    name: string;
-    role?: string;
-    category?: string;
-    phone?: string;
-    address?: string;
+    name?: string | null;
+    role?: string | null;
+    category?: string | null;
+    phone?: string | null;
+    address?: string | null;
   }>;
   serviceReadiness?: {
     hasSavedPharmacy?: boolean;
@@ -54,14 +54,11 @@ interface ProfileContextValue {
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
-function normalizeProfileLanguage(
-  language?: string | null,
-): LanguageCode | null {
+function normalizeProfileLanguage(language?: string | null): LanguageCode | null {
   if (!language) return null;
 
   const raw = language.trim().toLowerCase();
-  if (SUPPORTED_LANGUAGES.includes(raw as LanguageCode))
-    return raw as LanguageCode;
+  if (SUPPORTED_LANGUAGES.includes(raw as LanguageCode)) return raw as LanguageCode;
 
   const normalized = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const languageAliases: Record<string, LanguageCode> = {
@@ -91,10 +88,13 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const savedLanguageRevisionRef = useRef<string | null>(null);
   const { data: profile, isLoading } = useQuery<ProfileData | null>({
     queryKey: ["/api/profile"],
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: "always",
   });
 
-  const firstName = profile?.firstName?.trim() || "";
+  const firstName = displayFirstName(profile?.firstName);
   const lastName = profile?.lastName?.trim() || "";
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || "";
   const initials =
@@ -105,17 +105,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!token) return;
-    const lang = normalizeProfileLanguage(
-      profile?.languagePreference ?? profile?.language,
-    );
+    const lang = normalizeProfileLanguage(profile?.languagePreference ?? profile?.language);
     if (!lang) return;
     syncProfileLanguage(lang, profile?.profileId ?? null);
-  }, [
-    profile?.language,
-    profile?.languagePreference,
-    profile?.profileId,
-    token,
-  ]);
+  }, [profile?.language, profile?.languagePreference, profile?.profileId, token]);
 
   useEffect(() => {
     if (!token || source !== "user" || !profile?.profileId) return;
@@ -131,28 +124,18 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       method: "PATCH",
       body: JSON.stringify({ language: normalized }),
       signal: controller.signal,
-    })
-      .then((response) => {
-        if (!response.ok) return;
-        void queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-      })
-      .catch(() => {
-        savedLanguageRevisionRef.current = null;
-      });
+    }).then((response) => {
+      if (!response.ok) return;
+      void queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    }).catch(() => {
+      savedLanguageRevisionRef.current = null;
+    });
 
     return () => controller.abort();
   }, [language, profile?.profileId, revision, source, token]);
 
   return (
-    <ProfileContext.Provider
-      value={{
-        profile: profile ?? null,
-        isLoading,
-        fullName,
-        initials,
-        firstName,
-      }}
-    >
+    <ProfileContext.Provider value={{ profile: profile ?? null, isLoading, fullName, initials, firstName }}>
       {children}
     </ProfileContext.Provider>
   );

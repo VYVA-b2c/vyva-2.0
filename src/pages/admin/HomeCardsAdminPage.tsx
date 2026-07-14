@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -21,6 +21,17 @@ type HomePlanCardAdmin = {
   admin_notes?: string | null;
   updated_at?: string;
 };
+
+type CardQueueFilter = "all" | "live" | "hidden" | "route_gaps" | "targeted" | "exclusions";
+
+const CARD_QUEUE_FILTERS: Array<{ id: CardQueueFilter; label: string; description: string }> = [
+  { id: "all", label: "All cards", description: "Every Today card" },
+  { id: "live", label: "Live", description: "Enabled cards" },
+  { id: "hidden", label: "Hidden", description: "Disabled cards" },
+  { id: "route_gaps", label: "Route gaps", description: "Missing or root route" },
+  { id: "targeted", label: "Targeted", description: "Profile or hobby rules" },
+  { id: "exclusions", label: "Exclusions", description: "Avoid rules set" },
+];
 
 const emptyCard: HomePlanCardAdmin = {
   card_id: "",
@@ -48,6 +59,24 @@ function textToKeywords(value: string) {
     .filter(Boolean);
 }
 
+function hasRouteGap(card: HomePlanCardAdmin) {
+  const route = card.route.trim();
+  return route.length === 0 || route === "/";
+}
+
+function hasTargeting(card: HomePlanCardAdmin) {
+  return card.condition_keywords.length > 0 || card.hobby_keywords.length > 0;
+}
+
+function matchesCardQueue(card: HomePlanCardAdmin, filter: CardQueueFilter) {
+  if (filter === "all") return true;
+  if (filter === "live") return card.is_enabled;
+  if (filter === "hidden") return !card.is_enabled;
+  if (filter === "route_gaps") return hasRouteGap(card);
+  if (filter === "targeted") return hasTargeting(card);
+  return card.avoid_condition_keywords.length > 0;
+}
+
 function Field({ label, optional, children }: { label: string; optional?: boolean; children: ReactNode }) {
   return (
     <label className="block">
@@ -63,6 +92,7 @@ function Field({ label, optional, children }: { label: string; optional?: boolea
 export default function HomeCardsAdminPage() {
   const [cards, setCards] = useState<HomePlanCardAdmin[]>([]);
   const [draft, setDraft] = useState<HomePlanCardAdmin>(emptyCard);
+  const [cardQueueFilter, setCardQueueFilter] = useState<CardQueueFilter>("all");
   const [message, setMessage] = useState("");
   const [setupMissing, setSetupMissing] = useState(false);
 
@@ -140,6 +170,19 @@ export default function HomeCardsAdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const visibleCards = useMemo(
+    () => cards.filter((card) => matchesCardQueue(card, cardQueueFilter)),
+    [cardQueueFilter, cards],
+  );
+  const cardQueueCounts = useMemo<Record<CardQueueFilter, number>>(() => ({
+    all: cards.length,
+    live: cards.filter((card) => matchesCardQueue(card, "live")).length,
+    hidden: cards.filter((card) => matchesCardQueue(card, "hidden")).length,
+    route_gaps: cards.filter((card) => matchesCardQueue(card, "route_gaps")).length,
+    targeted: cards.filter((card) => matchesCardQueue(card, "targeted")).length,
+    exclusions: cards.filter((card) => matchesCardQueue(card, "exclusions")).length,
+  }), [cards]);
+
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
@@ -152,6 +195,53 @@ export default function HomeCardsAdminPage() {
         </AdminPageHeader>
 
         <AdminMenu />
+
+        {!setupMissing && cards.length > 0 && (
+          <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm" data-testid="admin-home-card-queue">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="font-serif text-3xl">Card health</h2>
+                <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                  Showing {visibleCards.length} of {cards.length} cards.
+                </p>
+              </div>
+              {cardQueueFilter !== "all" && (
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800"
+                  onClick={() => setCardQueueFilter("all")}
+                  data-testid="admin-home-card-clear-queue"
+                >
+                  Show all
+                </button>
+              )}
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-6">
+              {CARD_QUEUE_FILTERS.map((queue) => {
+                const active = cardQueueFilter === queue.id;
+                return (
+                  <button
+                    key={queue.id}
+                    type="button"
+                    onClick={() => setCardQueueFilter(queue.id)}
+                    className={`min-h-[92px] rounded-2xl border px-4 py-3 text-left transition ${
+                      active
+                        ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                        : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                    }`}
+                    data-testid={`admin-home-card-queue-${queue.id}`}
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-black">{queue.label}</span>
+                      <span className="text-2xl font-black leading-none">{cardQueueCounts[queue.id]}</span>
+                    </span>
+                    <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{queue.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {!setupMissing && (
           <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
@@ -206,8 +296,12 @@ export default function HomeCardsAdminPage() {
             </p>
           </section>
         ) : (
-          <section className="mt-5 grid gap-4 xl:grid-cols-2">
-            {cards.map((card) => (
+          <section className="mt-5 grid gap-4 xl:grid-cols-2" data-testid="admin-home-card-list">
+            {visibleCards.length === 0 ? (
+              <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-8 text-center text-sm font-bold text-[#7d6b65] xl:col-span-2">
+                No cards match this health queue.
+              </div>
+            ) : visibleCards.map((card) => (
               <article key={card.card_id} className="rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">

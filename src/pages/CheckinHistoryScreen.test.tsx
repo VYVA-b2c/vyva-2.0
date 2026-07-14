@@ -62,7 +62,7 @@ function renderHistoryScreen() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/health/check-ins"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/health/check-ins"]}>
         <CheckinHistoryScreen />
       </MemoryRouter>
     </QueryClientProvider>,

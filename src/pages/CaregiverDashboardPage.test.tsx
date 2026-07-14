@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import CaregiverDashboardPage, { caregiverAlertContext, caregiverAlertServiceActionKindsFor, caregiverAlertServiceActionsFor } from "./CaregiverDashboardPage";
@@ -46,9 +46,121 @@ const checkinPayload = {
 };
 
 const profilePayload = {
+  profileId: "profile-1",
+  firstName: "Maria",
+  lastName: "Lopez",
+  preferredName: "Maria",
+  phone: "+34 600 111 222",
   gpName: "Dr Garcia",
   gpPhone: "+34 612 345 678",
   gpEmail: "gp@example.com",
+};
+
+const dashboardPayload = {
+  activeProfile: {
+    profileId: "profile-1",
+    role: "caregiver",
+    profileCount: 1,
+    needsProfileSelection: false,
+    relationship: "daughter",
+    displayName: "Karim",
+  },
+  profile: {
+    ...profilePayload,
+    fullName: "Maria Lopez",
+    avatarUrl: null,
+    whatsapp: "+34 600 111 222",
+    email: "maria@example.com",
+    relationship: "daughter",
+    caregiverName: "Karim",
+    caregiverContact: "+34 600 555 121",
+  },
+  contacts: {
+    primaryPhone: "+34 600 111 222",
+    whatsapp: "+34 600 111 222",
+    caregiver: {
+      name: "Karim",
+      contact: "+34 600 555 121",
+    },
+    gp: {
+      name: "Dr Garcia",
+      phone: "+34 612 345 678",
+      email: "gp@example.com",
+    },
+  },
+  notes: [{
+    id: "note-1",
+    note: "Evening call went well. Maria sounded calm and had dinner.",
+    concernTag: "caregiver_note",
+    caregiverName: "Karim",
+    createdAt: "2026-05-29T11:00:00.000Z",
+    updatedAt: "2026-05-29T11:00:00.000Z",
+  }],
+  latestNote: {
+    id: "note-1",
+    note: "Evening call went well. Maria sounded calm and had dinner.",
+    concernTag: "caregiver_note",
+    caregiverName: "Karim",
+    createdAt: "2026-05-29T11:00:00.000Z",
+    updatedAt: "2026-05-29T11:00:00.000Z",
+  },
+};
+
+const medsPayload = {
+  today: {
+    medications: [{
+      id: "med-1",
+      medication_name: "Metformin",
+      dosage: "500mg",
+      frequency: "Morning and evening",
+      scheduled_times: ["08:00", "20:00"],
+      takenCountToday: 2,
+      scheduledCountToday: 2,
+      takenToday: true,
+    }, {
+      id: "med-2",
+      medication_name: "Atorvastatin",
+      dosage: "20mg",
+      frequency: "Night",
+      scheduled_times: ["21:00"],
+      takenCountToday: 0,
+      scheduledCountToday: 1,
+      takenToday: false,
+    }],
+  },
+  sevenDayAdherence: {
+    totalScheduled: 21,
+    totalTaken: 18,
+    missedDoses: [{
+      medication_name: "Atorvastatin",
+      scheduled_time: "21:00",
+      date: "2026-06-28",
+    }],
+  },
+};
+
+const vitalsPayload = {
+  summary: {
+    hr: {
+      latest_value: "72",
+      latest_recorded_at: "2026-05-29T08:00:00.000Z",
+      trend: ["70", "71", null, "72", null, null, "72"],
+      has_data: true,
+    },
+    bp: {
+      latest_value: "120/80",
+      latest_recorded_at: "2026-05-29T08:02:00.000Z",
+      trend: [null, "118/78", null, null, "120/80", null, null],
+      has_data: true,
+    },
+    rr: {
+      latest_value: "16",
+      latest_recorded_at: "2026-05-29T08:03:00.000Z",
+      trend: [null, null, "16", null, null, null, "16"],
+      has_data: true,
+    },
+  },
+  compliance_days: [true, true, false, true, true, false, true],
 };
 
 const brainCoachPayload = {
@@ -203,6 +315,11 @@ function mockApi(options: {
   const brainCoachPermissions = options.brainCoachPermissions ?? fullBrainCoachPermissions;
   const brainCoachSummary = options.brainCoachSummary ?? brainCoachPayload;
   let currentBrainCoachSettings = { ...brainCoachSettingsPayload };
+  let currentDashboard = {
+    ...dashboardPayload,
+    notes: [...dashboardPayload.notes],
+    latestNote: dashboardPayload.latestNote,
+  };
 
   vi.mocked(apiFetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
@@ -235,12 +352,36 @@ function mockApi(options: {
     if (path.includes("/api/caregiver/brain-coach/me/plan-preview")) {
       return new Response(JSON.stringify({ ...brainCoachPreviewPayload, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
+    if (path.includes("/api/caregiver/dashboard/notes")) {
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+      const note = {
+        id: "note-2",
+        note: body.note,
+        concernTag: body.concernTag ?? "caregiver_note",
+        caregiverName: "Karim",
+        createdAt: "2026-05-29T12:00:00.000Z",
+        updatedAt: "2026-05-29T12:00:00.000Z",
+      };
+      currentDashboard = {
+        ...currentDashboard,
+        notes: [note, ...currentDashboard.notes],
+        latestNote: note,
+      };
+      return new Response(JSON.stringify({ note, notes: currentDashboard.notes }), { status: 201, headers: { "Content-Type": "application/json" } });
+    }
+    if (path.includes("/api/caregiver/dashboard")) {
+      return new Response(JSON.stringify(currentDashboard), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
 
-     const payload = path.includes("/api/checkins/today")
+    const payload = path.includes("/api/checkins/today")
       ? checkinPayload
       : path.includes("/api/profile")
         ? profilePayload
-      : caregiverPayload;
+        : path.includes("/api/meds/caregiver")
+          ? medsPayload
+          : path.includes("/api/vitals/caregiver")
+            ? vitalsPayload
+            : caregiverPayload;
     return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
   });
 }
@@ -291,6 +432,75 @@ describe("CaregiverDashboardPage", () => {
     expect(screen.getByText("Alert timeline")).toBeInTheDocument();
     expect(screen.getAllByText("1 open").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Symptom report: chest discomfort/i).length).toBeGreaterThan(0);
+  });
+
+  it("renders loved-one contact details and saved caregiver notes from the dashboard model", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Selected profile Maria")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("link", { name: /call maria/i })).toHaveAttribute("href", "tel:+34600111222");
+    expect(screen.getByTestId("caregiver-notes-card")).toHaveTextContent("Evening call went well");
+    expect(screen.getByTestId("caregiver-notes-card")).toHaveTextContent("Karim");
+  });
+
+  it("saves new caregiver notes to the caregiver dashboard API", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Add caregiver note")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Add caregiver note"), {
+      target: { value: "Called after lunch. She confirmed both morning meds." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        "/api/caregiver/dashboard/notes",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    const saveCall = vi.mocked(apiFetch).mock.calls.find(([path, init]) => (
+      String(path).includes("/api/caregiver/dashboard/notes") &&
+      (init as RequestInit | undefined)?.method === "POST"
+    ));
+    expect(JSON.parse((saveCall?.[1] as RequestInit).body as string)).toEqual({
+      note: "Called after lunch. She confirmed both morning meds.",
+      concernTag: "caregiver_note",
+    });
+  });
+
+  it("renders medication adherence and raw vitals trends for the selected profile", async () => {
+    mockApi();
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("caregiver-meds-card")).toHaveTextContent("Today's adherence: 2 of 3 doses today");
+    });
+
+    const medsCard = screen.getByTestId("caregiver-meds-card");
+    expect(medsCard).toHaveTextContent("1 missed dose this week");
+    fireEvent.click(within(medsCard).getByRole("button", { name: /details/i }));
+    expect(medsCard).toHaveTextContent("Atorvastatin - 21:00");
+    expect(medsCard).toHaveTextContent("Call Dr Garcia");
+
+    const vitalsCard = screen.getByTestId("caregiver-vitals-card");
+    expect(vitalsCard).toHaveTextContent("72 bpm");
+    expect(vitalsCard).toHaveTextContent("120/80 mmHg");
+    expect(vitalsCard).toHaveTextContent("16 breaths/min");
+    fireEvent.click(within(vitalsCard).getByRole("button", { name: /details/i }));
+    expect(vitalsCard).toHaveTextContent("70 bpm");
+    expect(vitalsCard).toHaveTextContent("118/78 mmHg");
   });
 
   it("lets a caregiver acknowledge an alert without changing the alert message", async () => {

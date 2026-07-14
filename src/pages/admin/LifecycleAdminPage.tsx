@@ -1,4 +1,4 @@
-import { Copy, Send, Upload, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, History, Send, Upload, UserRound, UsersRound, XCircle } from "lucide-react";
 import { useEffect, useState, type ChangeEvent } from "react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -14,6 +14,8 @@ import {
 } from "./lifecycle/components";
 import {
   type BulkPreviewResponse,
+  type CareTeamInvitation,
+  type CaregiverInviteDraft,
   type Communication,
   type CommunicationProviderStatus,
   type ConsentAttempt,
@@ -26,10 +28,14 @@ import {
   type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
+  caregiverInviteWithProfileDefaults,
   cleanLabel,
   consentStatusLabel,
+  contactNumberValue,
   countryCodeOptions,
   csvToRows,
+  defaultCaregiverInviteDraft,
+  emailAddressValue,
   emptyIntakeForm,
   emptyScheduledEvent,
   entryPointLabel,
@@ -37,6 +43,8 @@ import {
   isVisibleLifecycleUser,
   lifecycleStatusLabel,
   languageOptions,
+  looksLikeContactEmail,
+  profileNameValue,
   statuses,
   stringValue,
   tierLabel,
@@ -69,8 +77,15 @@ type AdminActionNotice = {
   details: string[];
   secondaryAction?: {
     label: string;
+    busyLabel?: string;
+    busyKey?: string;
     onClick: () => void;
   };
+};
+
+type AdminActionLogEntry = Omit<AdminActionNotice, "secondaryAction"> & {
+  id: string;
+  createdAt: string;
 };
 
 type BulkUserAction = "disable" | "delete_hide" | "restore" | "assign_org" | "change_tier" | "resend_invite";
@@ -106,6 +121,7 @@ type SupportScheduleDraft = {
 
 type LifecycleTabId =
   | "users"
+  | "quality"
   | "share"
   | "forms"
   | "organizations"
@@ -116,6 +132,7 @@ type LifecycleTabId =
 
 const adminTabs: Array<{ id: LifecycleTabId; label: string }> = [
   { id: "users", label: "Users" },
+  { id: "quality", label: "Data Quality" },
   { id: "share", label: "Share Invite" },
   { id: "forms", label: "Forms" },
   { id: "organizations", label: "Organizations" },
@@ -124,6 +141,36 @@ const adminTabs: Array<{ id: LifecycleTabId; label: string }> = [
   { id: "communications", label: "Communications" },
   { id: "analytics", label: "Analytics" },
 ];
+
+function lifecycleContactDigits(user: Intake) {
+  const contact = contactNumberValue(user.login_phone) || contactNumberValue(user.profile_phone) || contactNumberValue(user.phone);
+  const digits = contact?.replace(/\D/g, "") ?? "";
+  return digits.length >= 6 ? digits : "";
+}
+
+function lifecycleHasEmailIdentityLeak(user: Intake) {
+  return looksLikeContactEmail(user.name)
+    || looksLikeContactEmail(user.phone)
+    || looksLikeContactEmail(user.profile_name);
+}
+
+function lifecycleHasTierMismatch(user: Intake) {
+  return Boolean(
+    user.intake_tier && user.tier && user.intake_tier !== user.tier,
+  );
+}
+
+function duplicatePhoneGroups(users: Intake[]) {
+  const groups = new Map<string, Intake[]>();
+  users.forEach((user) => {
+    const digits = lifecycleContactDigits(user);
+    if (!digits) return;
+    groups.set(digits, [...(groups.get(digits) ?? []), user]);
+  });
+  return Array.from(groups.entries())
+    .map(([digits, groupUsers]) => ({ digits, users: groupUsers }))
+    .filter((group) => group.users.length > 1);
+}
 
 function normalizeOrganizationLabel(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -152,6 +199,31 @@ function stringArray(value: unknown) {
 
 function recordValue(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
+}
+
+function profileGenderValue(consent: unknown) {
+  const identity = recordValue(recordValue(consent).identity);
+  return stringValue(identity.gender) ?? "prefer_not";
+}
+
+function userDetailDraft(detailProfile: JsonRecord, detailIntake: Intake, fallbackIntake: Intake, primaryMapping?: LoginMapping): JsonRecord {
+  const profileTier = stringValue(detailProfile.subscription_tier);
+  return {
+    full_name: profileNameValue(detailProfile.full_name, detailProfile.preferred_name, detailIntake.name, fallbackIntake.name),
+    preferred_name: profileNameValue(detailProfile.preferred_name),
+    date_of_birth: stringValue(detailProfile.date_of_birth) ?? "",
+    email: emailAddressValue(detailProfile.email, detailIntake.email, fallbackIntake.email, primaryMapping?.login_email, fallbackIntake.login_email, detailIntake.phone, fallbackIntake.phone),
+    phone_number: contactNumberValue(detailProfile.phone_number, detailIntake.profile_phone, fallbackIntake.profile_phone, primaryMapping?.login_phone, fallbackIntake.login_phone, detailIntake.phone, fallbackIntake.phone),
+    whatsapp_number: contactNumberValue(detailProfile.whatsapp_number),
+    country_code: stringValue(detailProfile.country_code) ?? "ES",
+    gender: profileGenderValue(detailProfile.data_sharing_consent),
+    language: stringValue(detailProfile.language) ?? "es",
+    timezone: stringValue(detailProfile.timezone) ?? "Europe/Madrid",
+    caregiver_name: stringValue(detailProfile.caregiver_name) ?? "",
+    caregiver_contact: stringValue(detailProfile.caregiver_contact) ?? "",
+    tier: profileTier ?? fallbackIntake.tier,
+    organization_id: detailIntake.organization_id ?? fallbackIntake.organization_id ?? "",
+  };
 }
 
 function numberValue(value: unknown, fallback: unknown = 0) {
@@ -225,6 +297,25 @@ function deleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice 
   };
 }
 
+function loginAccountDeleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice {
+  const releasedContacts = stringArray(result.released_contacts);
+  const disabledProfileIds = stringArray(result.disabled_profile_ids);
+  const revokedMembershipCount = numberValue(result.revoked_profile_membership_count);
+  const resetInviteCount = numberValue(result.reset_care_team_invite_count);
+  const revokedInviteCount = numberValue(result.revoked_senior_invite_count);
+
+  return {
+    tone: "warning",
+    label: "Deleted",
+    title: `${intake.name}'s login account was deleted.`,
+    details: [
+      releasedContacts.length ? `Released: ${releasedContacts.join(", ")}.` : "Released the login contact.",
+      disabledProfileIds.length ? `Closed ${disabledProfileIds.length} owned profile${disabledProfileIds.length === 1 ? "" : "s"}.` : "No owned app profile needed closing.",
+      `${revokedMembershipCount} care-team membership${revokedMembershipCount === 1 ? "" : "s"} revoked; ${resetInviteCount + revokedInviteCount} invitation${resetInviteCount + revokedInviteCount === 1 ? "" : "s"} updated.`,
+    ],
+  };
+}
+
 function restoreNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice {
   const scopeErrors = stringArray(result.scope_errors);
   return {
@@ -266,6 +357,104 @@ function SchemaHealthBanner({ health }: { health: SchemaHealth | null }) {
             {missingRemainder > 0 && (
               <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-amber-800 shadow-sm">+{missingRemainder} more</span>
             )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function adminMessageTone(message: string): AdminActionNotice["tone"] {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("could not") || normalized.includes("failed") || normalized.includes("error")) return "error";
+  if (normalized.includes("no new") || normalized.includes("required") || normalized.includes("supported")) return "warning";
+  return "success";
+}
+
+function actionToneClasses(tone: AdminActionNotice["tone"]) {
+  if (tone === "success") return {
+    panel: "border-emerald-100 bg-emerald-50 text-emerald-950",
+    badge: "bg-emerald-100 text-emerald-800",
+    icon: "text-emerald-700",
+  };
+  if (tone === "warning") return {
+    panel: "border-amber-200 bg-amber-50 text-amber-950",
+    badge: "bg-amber-100 text-amber-800",
+    icon: "text-amber-700",
+  };
+  return {
+    panel: "border-red-200 bg-red-50 text-red-950",
+    badge: "bg-red-100 text-red-700",
+    icon: "text-red-700",
+  };
+}
+
+function ActionToneIcon({ tone, className = "" }: { tone: AdminActionNotice["tone"]; className?: string }) {
+  if (tone === "success") return <CheckCircle2 className={className} aria-hidden="true" />;
+  if (tone === "warning") return <AlertTriangle className={className} aria-hidden="true" />;
+  return <XCircle className={className} aria-hidden="true" />;
+}
+
+function AdminActionCenter({
+  message,
+  notices,
+  onDismissMessage,
+  onOpenNotice,
+  onClearHistory,
+}: {
+  message: string;
+  notices: AdminActionLogEntry[];
+  onDismissMessage: () => void;
+  onOpenNotice: (notice: AdminActionLogEntry) => void;
+  onClearHistory: () => void;
+}) {
+  if (!message && notices.length === 0) return null;
+  const messageTone = message ? adminMessageTone(message) : "success";
+  const messageClasses = actionToneClasses(messageTone);
+
+  return (
+    <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-3 shadow-sm" aria-label="Admin action feedback">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1 space-y-2">
+          {message && (
+            <div className={`flex items-start gap-3 rounded-xl border px-3 py-2 ${messageClasses.panel}`} role={messageTone === "error" ? "alert" : "status"} aria-live="polite">
+              <ActionToneIcon tone={messageTone} className={`mt-0.5 h-4 w-4 shrink-0 ${messageClasses.icon}`} />
+              <p className="min-w-0 flex-1 text-sm font-bold leading-relaxed">{message}</p>
+              <button type="button" className="text-xs font-black uppercase tracking-[0.06em] opacity-70 hover:opacity-100" onClick={onDismissMessage}>
+                Clear
+              </button>
+            </div>
+          )}
+          {notices.length > 0 && (
+            <div className="grid gap-2 xl:grid-cols-3">
+              {notices.slice(0, 3).map((notice) => {
+                const classes = actionToneClasses(notice.tone);
+                const time = new Date(notice.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                return (
+                  <button
+                    key={notice.id}
+                    type="button"
+                    className={`min-w-0 rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${classes.panel}`}
+                    onClick={() => onOpenNotice(notice)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[0.68rem] font-black uppercase tracking-[0.08em] ${classes.badge}`}>{notice.label}</span>
+                      <span className="text-xs font-bold opacity-70">{time}</span>
+                    </div>
+                    <p className="mt-1 truncate text-sm font-black">{notice.title}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {notices.length > 0 && (
+          <div className="flex shrink-0 items-center gap-2 rounded-xl bg-[#fbf8f5] px-3 py-2 text-[#5f514b]">
+            <History className="h-4 w-4" aria-hidden="true" />
+            <span className="text-xs font-black uppercase tracking-[0.08em]">{notices.length} recent</span>
+            <button type="button" className="text-xs font-black text-purple-700 hover:text-purple-900" onClick={onClearHistory}>
+              Clear
+            </button>
           </div>
         )}
       </div>
@@ -319,6 +508,7 @@ export default function LifecycleAdminPage() {
   const [peopleSearchInput, setPeopleSearchInput] = useState("");
   const [peopleSearch, setPeopleSearch] = useState("");
   const [showRemovedUsers, setShowRemovedUsers] = useState(false);
+  const [showContactGapsOnly, setShowContactGapsOnly] = useState(false);
   const [summary, setSummary] = useState<JsonRecord | null>(null);
   const [schemaHealth, setSchemaHealth] = useState<SchemaHealth | null>(null);
   const [users, setUsers] = useState<Intake[]>([]);
@@ -341,14 +531,20 @@ export default function LifecycleAdminPage() {
   const [sharingSignup, setSharingSignup] = useState(false);
   const [signupShareNotice, setSignupShareNotice] = useState<SignupShareNotice | null>(null);
   const [adminActionNotice, setAdminActionNotice] = useState<AdminActionNotice | null>(null);
+  const [adminActionHistory, setAdminActionHistory] = useState<AdminActionLogEntry[]>([]);
   const [copiedSignupLink, setCopiedSignupLink] = useState(false);
   const [newOrg, setNewOrg] = useState({ name: "", default_tier: "free" });
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
   const [orgDraft, setOrgDraft] = useState({ name: "", default_tier: "free" });
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<JsonRecord>({});
+  const [caregiverInviteDraft, setCaregiverInviteDraft] = useState<CaregiverInviteDraft>({
+    ...defaultCaregiverInviteDraft,
+    permissions: { ...defaultCaregiverInviteDraft.permissions },
+  });
   const [userDetailMessage, setUserDetailMessage] = useState("");
   const [savingUserDetail, setSavingUserDetail] = useState(false);
+  const [sendingCaregiverInvite, setSendingCaregiverInvite] = useState(false);
   const [newEvent, setNewEvent] = useState(emptyScheduledEvent);
   const [bulkOrg, setBulkOrg] = useState<Organization | null>(null);
   const [bulkRows, setBulkRows] = useState<Record<string, string>[]>([]);
@@ -373,6 +569,28 @@ export default function LifecycleAdminPage() {
   function showActionReceipt(notice: AdminActionNotice) {
     setMessage("");
     setAdminActionNotice(notice);
+    const createdAt = new Date().toISOString();
+    setAdminActionHistory((current) => [
+      {
+        tone: notice.tone,
+        label: notice.label,
+        title: notice.title,
+        details: notice.details,
+        id: `${Date.now()}-${notice.label}`,
+        createdAt,
+      },
+      ...current,
+    ].slice(0, 5));
+  }
+
+  function viewCommunicationsAction() {
+    return {
+      label: "View communications",
+      onClick: () => {
+        setAdminActionNotice(null);
+        setActiveTab("communications");
+      },
+    };
   }
 
   async function refresh() {
@@ -486,17 +704,74 @@ export default function LifecycleAdminPage() {
         },
       }),
     });
+    const createdIntake = data.intake as Intake;
     showActionReceipt({
       tone: "success",
       label: "Created",
-      title: `${data.intake.name} was added to Users.`,
+      title: `${createdIntake.name} was added to Users.`,
       details: [
-        `${entryPointLabel(data.intake.entry_point ?? newIntake.entry_point)} intake created.`,
-        `Tier set to ${tierLabel(data.intake.tier ?? newIntake.tier)}.`,
+        `${entryPointLabel(createdIntake.entry_point ?? newIntake.entry_point)} intake created.`,
+        `Tier set to ${tierLabel(createdIntake.tier ?? newIntake.tier)}.`,
+        "Send the invite so they can access their account.",
       ],
+      secondaryAction: {
+        label: "Send invite",
+        busyLabel: "Sending...",
+        busyKey: `send-invite:${createdIntake.id}`,
+        onClick: () => { void sendIntakeInvite(createdIntake); },
+      },
     });
     setNewIntake(emptyIntakeForm);
     await refresh();
+  }
+
+  async function sendIntakeInvite(intake: Intake) {
+    const busyKey = `send-invite:${intake.id}`;
+    setBusyAction(busyKey);
+    setMessage("");
+    try {
+      const data = await api(`/intakes/${intake.id}/send-link`, { method: "POST" });
+      const communication = recordValue(data.communication);
+      const delivery = recordValue(data.delivery);
+      const deliveryStatus = stringValue(delivery.status);
+      const channel = cleanLabel(stringValue(delivery.channel) ?? stringValue(communication.channel) ?? "invite");
+      const recipient = stringValue(delivery.recipient) ?? stringValue(communication.recipient);
+
+      if (deliveryStatus === "failed") {
+        showActionReceipt({
+          tone: "error",
+          label: "Failed",
+          title: `Invite failed for ${intake.name}.`,
+          details: [
+            stringValue(delivery.error) ?? "The invite link was created, but delivery failed.",
+          ],
+          secondaryAction: viewCommunicationsAction(),
+        });
+        await refresh();
+        return;
+      }
+
+      showActionReceipt({
+        tone: "success",
+        label: "Invite sent",
+        title: `Invite sent to ${intake.name}.`,
+        details: [
+          recipient ? `Secure access link sent by ${channel} to ${recipient}.` : "Secure access link sent.",
+        ],
+        secondaryAction: viewCommunicationsAction(),
+      });
+      await refresh();
+    } catch (err) {
+      showActionReceipt({
+        tone: "error",
+        label: "Failed",
+        title: `Invite failed for ${intake.name}.`,
+        details: [err instanceof Error ? err.message : "Could not send the invite link."],
+        secondaryAction: viewCommunicationsAction(),
+      });
+    } finally {
+      setBusyAction((current) => current === busyKey ? null : current);
+    }
   }
 
   function compactRecipientName(value: string) {
@@ -971,22 +1246,20 @@ export default function LifecycleAdminPage() {
     setUserDetailMessage("");
     try {
       const data = await api(`/users/${intake.id}/details`);
-      const profileTier = stringValue(data.profile?.subscription_tier);
+      const detailIntake = (data.intake && typeof data.intake === "object" ? data.intake : intake) as Intake;
+      const detailProfile = recordValue(data.profile);
       const primaryMapping = Array.isArray(data.account_mappings) ? data.account_mappings[0] as LoginMapping | undefined : undefined;
       setSelectedUser(data);
-      setSelectedDraft({
-        full_name: data.profile?.full_name ?? intake.name,
-        preferred_name: data.profile?.preferred_name ?? "",
-        date_of_birth: data.profile?.date_of_birth ?? "",
-        email: data.profile?.email ?? intake.email ?? primaryMapping?.login_email ?? "",
-        phone_number: data.profile?.phone_number ?? intake.phone ?? primaryMapping?.login_phone ?? "",
-        whatsapp_number: data.profile?.whatsapp_number ?? "",
-        language: data.profile?.language ?? "es",
-        timezone: data.profile?.timezone ?? "Europe/Madrid",
-        caregiver_name: data.profile?.caregiver_name ?? "",
-        caregiver_contact: data.profile?.caregiver_contact ?? "",
-        tier: profileTier ?? intake.tier,
-        organization_id: intake.organization_id ?? "",
+      setSelectedDraft(userDetailDraft(detailProfile, detailIntake, intake, primaryMapping));
+      const caregiverName = profileNameValue(detailProfile.caregiver_name);
+      const caregiverContact = stringValue(detailProfile.caregiver_contact) ?? "";
+      const caregiverContactIsEmail = caregiverContact.includes("@");
+      setCaregiverInviteDraft({
+        ...defaultCaregiverInviteDraft,
+        permissions: { ...defaultCaregiverInviteDraft.permissions },
+        name: caregiverName,
+        email: caregiverContactIsEmail ? caregiverContact : "",
+        phone: caregiverContact && !caregiverContactIsEmail ? caregiverContact : "",
       });
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not open this user.");
@@ -1000,16 +1273,24 @@ export default function LifecycleAdminPage() {
     setSavingUserDetail(true);
     setUserDetailMessage("");
     try {
+      const profilePayload: JsonRecord = {
+        ...selectedDraft,
+        sync_profile_ids: (selectedUser.account_mappings ?? [])
+          .map((mapping) => mapping.effective_profile_id)
+          .filter(Boolean),
+        organization_id: selectedDraft.organization_id || null,
+      };
+      if (typeof profilePayload.full_name === "string" && !profilePayload.full_name.trim()) {
+        delete profilePayload.full_name;
+      }
       const data = await api(`/users/${selectedUser.intake.id}/profile`, {
         method: "PATCH",
-        body: JSON.stringify({
-          ...selectedDraft,
-          sync_profile_ids: (selectedUser.account_mappings ?? [])
-            .map((mapping) => mapping.effective_profile_id)
-            .filter(Boolean),
-          organization_id: selectedDraft.organization_id || null,
-        }),
+        body: JSON.stringify(profilePayload),
       });
+      const nextIntake = (data.intake && typeof data.intake === "object" ? data.intake : selectedUser.intake) as Intake;
+      const nextProfile = recordValue(data.profile);
+      const nextMappings = Array.isArray(data.account_mappings) ? data.account_mappings as LoginMapping[] : selectedUser.account_mappings;
+      const nextPrimaryMapping = nextMappings?.[0];
       const syncedCount = Array.isArray(data.synced_profile_ids) ? data.synced_profile_ids.length : 1;
       const confirmation = `Changes saved${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`;
       setMessage("");
@@ -1023,11 +1304,12 @@ export default function LifecycleAdminPage() {
           "The Users table will refresh with the latest status and tier.",
         ],
       });
+      setSelectedDraft(userDetailDraft(nextProfile, nextIntake, selectedUser.intake, nextPrimaryMapping));
       setSelectedUser({
         ...selectedUser,
-        intake: data.intake,
-        profile: data.profile,
-        account_mappings: data.account_mappings ?? selectedUser.account_mappings,
+        intake: nextIntake,
+        profile: data.profile ?? selectedUser.profile,
+        account_mappings: nextMappings,
         account_mapping_warnings: data.account_mapping_warnings ?? selectedUser.account_mapping_warnings,
         account_match_field: data.account_match_field ?? selectedUser.account_match_field,
         synced_profile_ids: data.synced_profile_ids ?? selectedUser.synced_profile_ids,
@@ -1042,25 +1324,86 @@ export default function LifecycleAdminPage() {
     }
   }
 
-  async function toggleUser(intake: Intake) {
-    setBusyAction(`toggle:${intake.id}`);
-    const disabled = intake.account_status === "disabled";
+  async function sendCaregiverInvite() {
+    if (!selectedUser) return;
+    const caregiverInvitePayload = caregiverInviteWithProfileDefaults(caregiverInviteDraft, selectedDraft);
+    setSendingCaregiverInvite(true);
+    setUserDetailMessage("");
     try {
-      const data = await api(`/users/${intake.id}/${disabled ? "enable" : "disable"}`, {
+      const data = await api(`/users/${selectedUser.intake.id}/caregiver-invite`, {
         method: "POST",
-        body: JSON.stringify({ reason: disabled ? "" : "Disabled by admin" }),
+        body: JSON.stringify(caregiverInvitePayload),
+      });
+      const delivery = data.delivery && typeof data.delivery === "object" && !Array.isArray(data.delivery)
+        ? data.delivery as JsonRecord
+        : {};
+      const queued = Number(delivery.queued ?? 0);
+      const sent = Number(delivery.sent ?? 0);
+      const failed = Number(delivery.failed ?? 0);
+      const inviteeName = caregiverInvitePayload.name.trim() || "Caregiver";
+      const confirmation = failed > 0
+        ? `${inviteeName}'s invite was created, but ${failed} delivery attempt${failed === 1 ? "" : "s"} failed.`
+        : sent > 0
+          ? `${inviteeName}'s caregiver invite was sent.`
+          : `${inviteeName}'s caregiver invite was queued.`;
+      const invitation = data.invitation && typeof data.invitation === "object" && !Array.isArray(data.invitation)
+        ? data.invitation as CareTeamInvitation
+        : null;
+      const communications = Array.isArray(data.communications) ? data.communications as Communication[] : [];
+      setSelectedUser((current) => {
+        if (!current || current.intake.id !== selectedUser.intake.id) return current;
+        return {
+          ...current,
+          care_team_invitations: invitation
+            ? [invitation, ...(current.care_team_invitations ?? [])]
+            : current.care_team_invitations,
+          communications: communications.length ? [...communications, ...current.communications] : current.communications,
+        };
+      });
+      setCaregiverInviteDraft({
+        ...defaultCaregiverInviteDraft,
+        permissions: { ...defaultCaregiverInviteDraft.permissions },
+      });
+      setMessage("");
+      setUserDetailMessage(confirmation);
+      showActionReceipt({
+        tone: failed > 0 ? "warning" : "success",
+        label: failed > 0 ? "Check delivery" : "Invite sent",
+        title: confirmation,
+        details: [
+          `Created a care-team invitation tied to ${selectedUser.intake.name}'s app profile.`,
+          queued > 0 ? `${queued} message${queued === 1 ? "" : "s"} queued for delivery.` : "No delivery messages were queued.",
+        ],
+      });
+      await refresh();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not send caregiver invite.";
+      setMessage(errorMessage);
+      setUserDetailMessage(errorMessage);
+    } finally {
+      setSendingCaregiverInvite(false);
+    }
+  }
+
+  async function toggleUser(intake: Intake, forceEnable?: boolean) {
+    setBusyAction(`toggle:${intake.id}`);
+    const shouldEnable = forceEnable ?? intake.account_status === "disabled";
+    try {
+      const data = await api(`/users/${intake.id}/${shouldEnable ? "enable" : "disable"}`, {
+        method: "POST",
+        body: JSON.stringify({ reason: shouldEnable ? "" : "Disabled by admin" }),
       });
       const profileCount = Array.isArray(data.profiles) ? data.profiles.length : data.profile ? 1 : 0;
-      const confirmation = disabled ? "App access enabled." : "App access disabled.";
+      const confirmation = shouldEnable ? "App access enabled." : "App access disabled.";
       setMessage("");
       setUserDetailMessage(`${confirmation} ${profileCount ? `${profileCount} linked profile${profileCount === 1 ? "" : "s"} updated.` : "No linked app profile was found."}`);
       showActionReceipt({
         tone: profileCount ? "success" : "warning",
-        label: disabled ? "Enabled" : "Disabled",
-        title: `${intake.name} ${disabled ? "can use the app again" : "cannot use the app now"}.`,
+        label: shouldEnable ? "Enabled" : "Disabled",
+        title: `${intake.name} ${shouldEnable ? "can use the app again" : "cannot use the app now"}.`,
         details: [
           profileCount ? `${profileCount} linked app profile${profileCount === 1 ? "" : "s"} updated.` : "No linked app profile was found for this lifecycle user.",
-          disabled ? "App access was enabled where matching records were found." : "App access was disabled where matching records were found.",
+          shouldEnable ? "App access was enabled where matching records were found." : "App access was disabled where matching records were found.",
         ],
       });
       if (selectedUser?.intake.id === intake.id) await openUserDetail(intake);
@@ -1090,6 +1433,43 @@ export default function LifecycleAdminPage() {
       await refresh();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Could not remove this user from Users.";
+      setMessage(errorMessage);
+      setUserDetailMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function deleteLoginAccount(mapping: LoginMapping) {
+    if (!selectedUser) return;
+    if (mapping.source !== "legacy") {
+      setUserDetailMessage("Delete this external auth account in the auth provider, then refresh VYVA.");
+      return;
+    }
+
+    const loginLabel = mapping.login_email || mapping.login_phone || mapping.login_uid;
+    const confirmation = window.prompt(`Delete login account ${loginLabel}? This frees its email/mobile for a new signup and revokes this login's access. Type DELETE LOGIN to continue.`);
+    if (confirmation !== "DELETE LOGIN") return;
+
+    setBusyAction(`delete-login:${mapping.login_uid}`);
+    setUserDetailMessage("");
+    setAdminActionNotice(null);
+    try {
+      const result = await api(`/users/${selectedUser.intake.id}/delete-login-account`, {
+        method: "POST",
+        body: JSON.stringify({
+          confirm: "DELETE_LOGIN_ACCOUNT",
+          source: mapping.source,
+          login_uid: mapping.login_uid,
+        }),
+      });
+      setUsers((current) => current.filter((user) => shouldKeepAfterDelete(user, selectedUser.intake, result)));
+      setSelectedUser(null);
+      setMessage("");
+      showActionReceipt(loginAccountDeleteNoticeFor(selectedUser.intake, result));
+      await refresh();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not delete this login account.";
       setMessage(errorMessage);
       setUserDetailMessage(errorMessage);
     } finally {
@@ -1408,15 +1788,35 @@ export default function LifecycleAdminPage() {
   const emailShareCount = parseInviteRecipients(signupShare.emails, looksLikeEmailRecipient).length;
   const whatsappShareCount = parseInviteRecipients(signupShare.whatsapp, looksLikePhoneRecipient).length;
   const totalShareRecipients = emailShareCount + whatsappShareCount;
+  const userHasContactNumber = (user: Intake) => Boolean(
+    contactNumberValue(user.login_phone) || contactNumberValue(user.profile_phone) || contactNumberValue(user.phone),
+  );
+  const visibleUsers = users.filter(isVisibleLifecycleUser);
+  const displayedUsers = showContactGapsOnly
+    ? visibleUsers.filter((user) => !userHasContactNumber(user))
+    : users;
   const selectedUsers = users.filter((user) => selectedUserIds.includes(user.id));
   const selectedSelectableUserCount = selectedUsers.filter(canSelectUserForBulk).length;
   const selectedUserCount = selectedUserIds.length;
   const hasInvalidBulkSelection = selectedUserCount > 0 && selectedSelectableUserCount !== selectedUserCount;
-  const visibleUserCount = users.filter(isVisibleLifecycleUser).length;
+  const visibleUserCount = visibleUsers.length;
   const removedUserCount = users.length - visibleUserCount;
+  const contactGapUsers = visibleUsers.filter((user) => !userHasContactNumber(user));
+  const contactGapCount = contactGapUsers.length;
+  const usersNeedingInviteCount = visibleUsers.filter((user) => user.status === "created").length;
+  const usersLinkSentCount = visibleUsers.filter((user) => user.status === "link_sent").length;
+  const usersConsentWaitingCount = visibleUsers.filter((user) => user.status === "consent_pending").length;
+  const duplicatePhoneIssueGroups = duplicatePhoneGroups(visibleUsers);
+  const duplicatePhoneUserCount = duplicatePhoneIssueGroups.reduce((total, group) => total + group.users.length, 0);
+  const emailIdentityUsers = visibleUsers.filter(lifecycleHasEmailIdentityLeak);
+  const disabledVisibleUsers = visibleUsers.filter((user) => user.account_status === "disabled");
+  const tierMismatchUsers = visibleUsers.filter(lifecycleHasTierMismatch);
+  const removedUsers = users.filter((user) => !isVisibleLifecycleUser(user));
   const usersResultLabel = usersLoadError
     ? "Users unavailable"
-    : `${users.length} result${users.length === 1 ? "" : "s"}${showRemovedUsers && removedUserCount > 0 ? `, ${removedUserCount} removed` : ""}`;
+    : showContactGapsOnly
+      ? `${displayedUsers.length} phone gap${displayedUsers.length === 1 ? "" : "s"}`
+      : `${users.length} result${users.length === 1 ? "" : "s"}${showRemovedUsers && removedUserCount > 0 ? `, ${removedUserCount} removed` : ""}`;
   const searchIsUpdating = peopleSearchInput.trim() !== peopleSearch.trim();
   const planOptions = plans.length
     ? plans.map((plan) => ({ value: plan.plan_id, label: plan.name }))
@@ -1426,6 +1826,30 @@ export default function LifecycleAdminPage() {
     && !hasInvalidBulkSelection
     && (bulkUserAction !== "assign_org" || Boolean(bulkUserOrganizationId))
     && (bulkUserAction !== "change_tier" || Boolean(bulkUserTier));
+  const bulkUserActionImpact = bulkUserAction === "disable"
+    ? "Disables linked app access. Users stay visible and login contacts remain reserved."
+    : bulkUserAction === "delete_hide"
+      ? "Removes rows from Users only. Login accounts, app access, email, and mobile are unchanged."
+      : bulkUserAction === "restore"
+        ? "Shows removed lifecycle rows again. App access is unchanged."
+        : bulkUserAction === "assign_org"
+          ? "Assigns the selected organization to visible lifecycle users."
+          : bulkUserAction === "change_tier"
+            ? "Changes the lifecycle tier and syncs linked app entitlement where possible."
+            : "Resends signup invites to users with available contact details.";
+  const bulkApplyBlockedReason = busyAction === "bulk-users"
+    ? "Bulk action is already running."
+    : selectedUserCount === 0
+      ? "Select at least one user."
+      : hasInvalidBulkSelection
+        ? bulkUserAction === "restore"
+          ? "Restore only works on removed users. Turn on removed users or clear the current selection."
+          : "This action only works on visible users. Clear removed users from the selection."
+        : bulkUserAction === "assign_org" && !bulkUserOrganizationId
+          ? "Choose an organization."
+          : bulkUserAction === "change_tier" && !bulkUserTier
+            ? "Choose a tier."
+            : "";
   const creatingFamilyIntake = newIntake.user_type === "family";
   const canCreateIntake = Boolean(
     newIntake.first_name.trim()
@@ -1436,6 +1860,10 @@ export default function LifecycleAdminPage() {
         && newIntake.elder_last_name.trim()
         && newIntake.elder_phone.trim()
       ))
+  );
+  const adminSecondaryActionBusy = Boolean(
+    adminActionNotice?.secondaryAction?.busyKey
+      && busyAction === adminActionNotice.secondaryAction.busyKey
   );
   const operationalSummary = recordValue(summary?.operational);
   const operationalCount = (key: string, fallback?: unknown) => (
@@ -1478,6 +1906,203 @@ export default function LifecycleAdminPage() {
       tone: deletedCount + disabledCount > 0 ? "muted" : "neutral",
     },
   ];
+  const userWorkQueues = [
+    {
+      label: "Needs invite",
+      value: usersNeedingInviteCount,
+      detail: "Created, not active",
+      active: filters.status === "created" && !showContactGapsOnly,
+      onClick: () => {
+        setShowContactGapsOnly(false);
+        setShowRemovedUsers(false);
+        setFilters((prev) => ({ ...prev, status: "created" }));
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "Link sent",
+      value: usersLinkSentCount,
+      detail: "Waiting on signup",
+      active: filters.status === "link_sent" && !showContactGapsOnly,
+      onClick: () => {
+        setShowContactGapsOnly(false);
+        setShowRemovedUsers(false);
+        setFilters((prev) => ({ ...prev, status: "link_sent" }));
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "Consent waiting",
+      value: usersConsentWaitingCount,
+      detail: "Family flows",
+      active: filters.status === "consent_pending" && !showContactGapsOnly,
+      onClick: () => {
+        setShowContactGapsOnly(false);
+        setShowRemovedUsers(false);
+        setFilters((prev) => ({ ...prev, status: "consent_pending" }));
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "No mobile",
+      value: contactGapCount,
+      detail: "Visible users",
+      active: showContactGapsOnly,
+      onClick: () => {
+        setShowContactGapsOnly((current) => !current);
+        setShowRemovedUsers(false);
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "Removed",
+      value: removedUserCount,
+      detail: "Hidden users",
+      active: showRemovedUsers,
+      onClick: () => {
+        setShowContactGapsOnly(false);
+        setShowRemovedUsers((current) => !current);
+        setSelectedUserIds([]);
+      },
+    },
+  ];
+  const resetUsersView = () => {
+    setActiveTab("users");
+    setPeopleSearchInput("");
+    setPeopleSearch("");
+    setShowRemovedUsers(false);
+    setShowContactGapsOnly(false);
+    setSelectedUserIds([]);
+  };
+  const qualityCards = [
+    {
+      label: "Duplicate phones",
+      value: duplicatePhoneIssueGroups.length,
+      detail: duplicatePhoneUserCount > 0 ? `${duplicatePhoneUserCount} users share numbers` : "No duplicate mobile numbers found",
+      tone: duplicatePhoneIssueGroups.length > 0 ? "danger" : "success",
+      actionLabel: "Search first duplicate",
+      disabled: duplicatePhoneIssueGroups.length === 0,
+      onClick: () => {
+        const first = duplicatePhoneIssueGroups[0];
+        if (!first) return;
+        setActiveTab("users");
+        setPeopleSearchInput(first.digits);
+        setPeopleSearch(first.digits);
+        setShowRemovedUsers(false);
+        setShowContactGapsOnly(false);
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "Missing mobile",
+      value: contactGapUsers.length,
+      detail: "Visible users without a phone number",
+      tone: contactGapUsers.length > 0 ? "warning" : "success",
+      actionLabel: "Show phone gaps",
+      disabled: contactGapUsers.length === 0,
+      onClick: () => {
+        resetUsersView();
+        setShowContactGapsOnly(true);
+      },
+    },
+    {
+      label: "Email in identity",
+      value: emailIdentityUsers.length,
+      detail: "Email appears in name or phone fields",
+      tone: emailIdentityUsers.length > 0 ? "warning" : "success",
+      actionLabel: "Review first",
+      disabled: emailIdentityUsers.length === 0,
+      onClick: () => {
+        const first = emailIdentityUsers[0];
+        if (first) void openUserDetail(first, "view");
+      },
+    },
+    {
+      label: "Disabled users",
+      value: disabledVisibleUsers.length,
+      detail: "Visible users with app access disabled",
+      tone: disabledVisibleUsers.length > 0 ? "muted" : "success",
+      actionLabel: "Review first",
+      disabled: disabledVisibleUsers.length === 0,
+      onClick: () => {
+        const first = disabledVisibleUsers[0];
+        if (first) void openUserDetail(first, "view");
+      },
+    },
+    {
+      label: "Tier mismatch",
+      value: tierMismatchUsers.length,
+      detail: "Intake tier differs from current tier",
+      tone: tierMismatchUsers.length > 0 ? "warning" : "success",
+      actionLabel: "Review first",
+      disabled: tierMismatchUsers.length === 0,
+      onClick: () => {
+        const first = tierMismatchUsers[0];
+        if (first) void openUserDetail(first, "tier");
+      },
+    },
+    {
+      label: "Removed users",
+      value: removedUsers.length,
+      detail: "Hidden from the normal Users table",
+      tone: removedUsers.length > 0 ? "muted" : "success",
+      actionLabel: "Show removed",
+      disabled: removedUsers.length === 0,
+      onClick: () => {
+        resetUsersView();
+        setShowRemovedUsers(true);
+      },
+    },
+  ];
+  const visibleQualityRows = [
+    ...duplicatePhoneIssueGroups.flatMap((group) => group.users.map((user) => ({
+      id: `duplicate-${group.digits}-${user.id}`,
+      type: "Duplicate phone",
+      severity: "High",
+      user,
+      detail: `Shares ${group.digits} with ${group.users.length - 1} other user${group.users.length === 2 ? "" : "s"}`,
+      action: () => {
+        setActiveTab("users");
+        setPeopleSearchInput(group.digits);
+        setPeopleSearch(group.digits);
+        setShowRemovedUsers(false);
+        setShowContactGapsOnly(false);
+        setSelectedUserIds([]);
+      },
+    }))),
+    ...contactGapUsers.map((user) => ({
+      id: `missing-mobile-${user.id}`,
+      type: "Missing mobile",
+      severity: "Medium",
+      user,
+      detail: "No login, profile, or intake phone number.",
+      action: () => void openUserDetail(user, "view"),
+    })),
+    ...emailIdentityUsers.map((user) => ({
+      id: `email-identity-${user.id}`,
+      type: "Email in identity",
+      severity: "Medium",
+      user,
+      detail: "Email appears in name, phone, or profile name.",
+      action: () => void openUserDetail(user, "view"),
+    })),
+    ...disabledVisibleUsers.map((user) => ({
+      id: `disabled-visible-${user.id}`,
+      type: "Disabled visible user",
+      severity: "Low",
+      user,
+      detail: "User is visible but app access is disabled.",
+      action: () => void openUserDetail(user, "view"),
+    })),
+    ...tierMismatchUsers.map((user) => ({
+      id: `tier-mismatch-${user.id}`,
+      type: "Tier mismatch",
+      severity: "Medium",
+      user,
+      detail: `${tierLabel(user.intake_tier)} intake tier, ${tierLabel(user.tier)} current tier.`,
+      action: () => void openUserDetail(user, "tier"),
+    })),
+  ].slice(0, 24);
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
@@ -1487,12 +2112,19 @@ export default function LifecycleAdminPage() {
           subtitle="Users, forms, access."
         >
           <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
-          {message && <span className="rounded-xl bg-purple-50 px-3 py-2 text-sm font-bold text-purple-800">{message}</span>}
         </AdminPageHeader>
 
         <AdminMenu />
 
         <SchemaHealthBanner health={schemaHealth} />
+
+        <AdminActionCenter
+          message={message}
+          notices={adminActionHistory}
+          onDismissMessage={() => setMessage("")}
+          onOpenNotice={(notice) => setAdminActionNotice(notice)}
+          onClearHistory={() => setAdminActionHistory([])}
+        />
 
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {operationalCards.map((card) => {
@@ -1530,6 +2162,117 @@ export default function LifecycleAdminPage() {
             </button>
           ))}
         </nav>
+
+        {activeTab === "quality" && (
+          <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-serif text-2xl">Data Quality</h2>
+                <p className="mt-1 max-w-3xl text-sm text-[#7d6b65]">
+                  Cleanup signals from the loaded lifecycle users. Use this before bulk actions, invites, or production data changes.
+                </p>
+              </div>
+              <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+                {visibleQualityRows.length} issues shown
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {qualityCards.map((card) => {
+                const toneClass = card.tone === "danger"
+                  ? "border-red-200 bg-red-50"
+                  : card.tone === "warning"
+                    ? "border-amber-200 bg-amber-50"
+                    : card.tone === "success"
+                      ? "border-emerald-100 bg-emerald-50"
+                      : "border-[#eadfd5] bg-[#fbf8f5]";
+                const valueClass = card.tone === "danger"
+                  ? "text-red-700"
+                  : card.tone === "warning"
+                    ? "text-amber-800"
+                    : card.tone === "success"
+                      ? "text-emerald-700"
+                      : "text-[#2f2135]";
+                return (
+                  <article key={card.label} className={`rounded-2xl border p-4 ${toneClass}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{card.label}</p>
+                        <p className={`mt-2 text-3xl font-black leading-none ${valueClass}`}>{card.value}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-[10px] bg-white px-3 py-2 text-xs font-black text-purple-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={card.disabled}
+                        onClick={card.onClick}
+                      >
+                        {card.actionLabel}
+                      </button>
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-[#7d6b65]">{card.detail}</p>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-[#eadfd5]">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eadfd5] px-4 py-3">
+                <div>
+                  <h3 className="font-black text-[#2f2135]">Review queue</h3>
+                  <p className="mt-1 text-sm text-[#7d6b65]">First 24 loaded cleanup signals, ordered by operational risk.</p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-[10px] border border-purple-100 bg-white px-3 py-2 text-sm font-bold text-purple-700"
+                  onClick={() => {
+                    resetUsersView();
+                    setFilters({ entry_point: "", user_type: "", status: "", tier: "" });
+                  }}
+                >
+                  Clear filters
+                </button>
+              </div>
+              {visibleQualityRows.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm font-bold text-[#7d6b65]">
+                  No cleanup issues found in the currently loaded users.
+                </p>
+              ) : (
+                <div className="divide-y divide-[#eadfd5]">
+                  {visibleQualityRows.map((row) => (
+                    <div key={row.id} className="grid gap-3 px-4 py-3 lg:grid-cols-[170px_minmax(0,1fr)_auto] lg:items-center">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{row.type}</p>
+                        <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-black ${
+                          row.severity === "High"
+                            ? "bg-red-50 text-red-700"
+                            : row.severity === "Medium"
+                              ? "bg-amber-50 text-amber-800"
+                              : "bg-[#fbf8f5] text-[#6f625d]"
+                        }`}>
+                          {row.severity}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="break-words font-black text-[#2f2135]">{row.user.name}</p>
+                        <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{row.detail}</p>
+                        <p className="mt-1 text-xs font-semibold text-[#8b7a73]">
+                          {userTypeLabel(row.user.user_type)} - {lifecycleStatusLabel(row.user.status)} - {tierLabel(row.user.tier)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-[10px] bg-[#2f2135] px-4 py-2 text-sm font-bold text-white"
+                        onClick={row.action}
+                      >
+                        Review
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {activeTab === "share" && (
           <div className="mt-3 grid gap-4">
@@ -1700,6 +2443,29 @@ export default function LifecycleAdminPage() {
               </div>
             </div>
 
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              {userWorkQueues.map((queue) => (
+                <button
+                  key={queue.label}
+                  type="button"
+                  onClick={queue.onClick}
+                  className={`rounded-[14px] border px-3 py-3 text-left transition ${
+                    queue.active
+                      ? "border-purple-300 bg-purple-50 shadow-sm"
+                      : "border-[#eadfd5] bg-[#fbf8f5] hover:border-purple-200 hover:bg-purple-50/60"
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{queue.label}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-black ${queue.active ? "bg-purple-700 text-white" : "bg-white text-purple-700"}`}>
+                      {queue.value}
+                    </span>
+                  </span>
+                  <span className="mt-2 block text-xs font-semibold text-[#7d6b65]">{queue.detail}</span>
+                </button>
+              ))}
+            </div>
+
             <form
               className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]"
               onSubmit={(event) => {
@@ -1720,6 +2486,7 @@ export default function LifecycleAdminPage() {
                     checked={showRemovedUsers}
                     onChange={(event) => {
                       setShowRemovedUsers(event.target.checked);
+                      setShowContactGapsOnly(false);
                       setSelectedUserIds([]);
                       if (!event.target.checked && bulkUserAction === "restore") setBulkUserAction("disable");
                     }}
@@ -1729,11 +2496,12 @@ export default function LifecycleAdminPage() {
               <button
                 type="button"
                 className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!peopleSearch && !peopleSearchInput && !showRemovedUsers}
+                disabled={!peopleSearch && !peopleSearchInput && !showRemovedUsers && !showContactGapsOnly}
                 onClick={() => {
                   setPeopleSearchInput("");
                   setPeopleSearch("");
                   setShowRemovedUsers(false);
+                  setShowContactGapsOnly(false);
                 }}
               >
                 Clear
@@ -1772,7 +2540,7 @@ export default function LifecycleAdminPage() {
                       ? `${selectedUserCount} selected${hasInvalidBulkSelection ? " (change action or clear selection)" : ""}`
                       : "Select users for bulk actions"}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-[#7d6b65]">Bulk disable app access, remove from Users, restore removed users, assign organization, change tier, or resend invites.</p>
+                  <p className="mt-1 max-w-2xl text-xs font-semibold leading-relaxed text-[#7d6b65]">{bulkUserActionImpact}</p>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
                   <select
@@ -1813,6 +2581,7 @@ export default function LifecycleAdminPage() {
                     type="button"
                     className="rounded-xl bg-purple-700 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={!canRunBulkUserAction}
+                    title={bulkApplyBlockedReason || undefined}
                     onClick={runBulkUserAction}
                   >
                     {busyAction === "bulk-users" ? "Working..." : "Apply"}
@@ -1825,12 +2594,15 @@ export default function LifecycleAdminPage() {
                   >
                     Clear selected
                   </button>
+                  {!canRunBulkUserAction && bulkApplyBlockedReason && (
+                    <p className="sm:col-span-2 lg:basis-full lg:text-right text-xs font-black text-[#8b7a73]">{bulkApplyBlockedReason}</p>
+                  )}
                 </div>
               </div>
             </div>
             <IntakeTable
-              users={users}
-              emptyMessage={usersLoadError || "No users match the current filters yet."}
+              users={displayedUsers}
+              emptyMessage={usersLoadError || (showContactGapsOnly ? "All visible users have a mobile number." : "No users match the current filters yet.")}
               onView={(intake) => openUserDetail(intake, "view")}
               onTriggerConsent={triggerConsent}
               onToggleEnabled={toggleUser}
@@ -2047,14 +2819,20 @@ export default function LifecycleAdminPage() {
           planOptions={planOptions}
           statusMessage={userDetailMessage}
           saving={savingUserDetail}
+          caregiverInviteDraft={caregiverInviteDraft}
+          setCaregiverInviteDraft={setCaregiverInviteDraft}
+          caregiverInviteBusy={sendingCaregiverInvite}
           scheduleBusyAction={busyAction}
           deleting={busyAction === `delete:${selectedUser.intake.id}`}
           restoring={busyAction === `restore:${selectedUser.intake.id}`}
+          deletingLoginUid={busyAction?.startsWith("delete-login:") ? busyAction.slice("delete-login:".length) : null}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
-          onToggle={() => toggleUser(selectedUser.intake)}
+          onSendCaregiverInvite={sendCaregiverInvite}
+          onToggle={(enable) => toggleUser(selectedUser.intake, enable)}
           onDelete={() => deleteUser(selectedUser.intake)}
           onRestore={() => restoreUser(selectedUser.intake)}
+          onDeleteLoginAccount={deleteLoginAccount}
           newEvent={newEvent}
           setNewEvent={setNewEvent}
           onCreateEvent={createScheduledEventForUser}
@@ -2130,10 +2908,13 @@ export default function LifecycleAdminPage() {
               {adminActionNotice.secondaryAction && (
                 <button
                   type="button"
-                  className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-3 text-sm font-bold text-[#2f2135] hover:border-purple-200 hover:text-purple-700"
+                  className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-3 text-sm font-bold text-[#2f2135] hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={adminSecondaryActionBusy}
                   onClick={adminActionNotice.secondaryAction.onClick}
                 >
-                  {adminActionNotice.secondaryAction.label}
+                  {adminSecondaryActionBusy
+                    ? adminActionNotice.secondaryAction.busyLabel ?? "Working..."
+                    : adminActionNotice.secondaryAction.label}
                 </button>
               )}
               <button

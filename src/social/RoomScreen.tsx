@@ -30,6 +30,11 @@ import SocialStyles from "./SocialStyles";
 import GamesRoomScreen from "./GamesRoomScreen";
 import MusicRoomScreen from "./MusicRoomScreen";
 import TogetherRoomScreen from "./TogetherRoomScreen";
+import StoryRoomHandoffCard, {
+  StoryRoomReplyLoopCard,
+  getStoryRoomHandoffNote,
+  type StoryRoomHandoffNote,
+} from "./StoryRoomHandoffCard";
 import { getSocialCopy, getSocialGameLanguage, getSocialLanguage } from "./roomUtils";
 import {
   TogetherProximityIcon,
@@ -2429,6 +2434,7 @@ const RoomScreen = () => {
   const gameLanguage = getSocialGameLanguage(appLanguage);
   const requestLanguage = slug === "games-room" || slug === "together-room" ? gameLanguage : language;
   const copy = getSocialCopy(language);
+  const storyHandoffNote = useMemo(() => getStoryRoomHandoffNote(location.state), [location.state]);
 
   const [visitId, setVisitId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -2446,6 +2452,7 @@ const RoomScreen = () => {
   const [roomMode, setRoomMode] = useState<RoomMode>("welcome");
   const [selectedTogetherPlanId, setSelectedTogetherPlanId] = useState("restaurant");
   const [chatDraft, setChatDraft] = useState("");
+  const chatInputRef = useRef<HTMLInputElement | null>(null);
   const [isChatSending, setIsChatSending] = useState(false);
   const [localChatMessages, setLocalChatMessages] = useState<SocialRoomChatItem[]>([]);
   const [roomEntryVisitState, setRoomEntryVisitState] = useState<SocialRoomVisitState | null>(null);
@@ -2482,6 +2489,9 @@ const RoomScreen = () => {
   const [movementWeekLogDates, setMovementWeekLogDates] = useState<string[]>(() => loadMovementWeekLogDates());
   const [isMovementExerciseLibraryExpanded, setMovementExerciseLibraryExpanded] = useState(false);
   const [selectedMovementExerciseGroup, setSelectedMovementExerciseGroup] = useState<MovementExerciseGroupId>("mobility");
+  const [prefilledStoryHandoffId, setPrefilledStoryHandoffId] = useState<string | null>(null);
+  const [dismissedStoryHandoffId, setDismissedStoryHandoffId] = useState<string | null>(null);
+  const [placedStoryHandoff, setPlacedStoryHandoff] = useState<StoryRoomHandoffNote | null>(null);
   const {
     startVoice,
     stopVoice,
@@ -2520,6 +2530,10 @@ const RoomScreen = () => {
   const roomResponse = useMemo(() => data ?? buildFallbackRoomResponse(slug, language), [data, language, slug]);
   const room = roomResponse?.room;
   const canonicalRoomSlug = room?.slug ?? (isReadingRoomSlug(slug) ? "reading-room" : slug);
+  const activeStoryHandoff = storyHandoffNote && dismissedStoryHandoffId !== storyHandoffNote.id ? storyHandoffNote : null;
+  const replyLoopStoryHandoff = placedStoryHandoff && dismissedStoryHandoffId === placedStoryHandoff.id
+    ? placedStoryHandoff
+    : null;
 
   const roomMembers = useMemo(() => {
     if (!room) return [];
@@ -3296,6 +3310,41 @@ const RoomScreen = () => {
   }, [slug]);
 
   useEffect(() => {
+    setPlacedStoryHandoff(null);
+  }, [storyHandoffNote?.id]);
+
+  useEffect(() => {
+    if (!storyHandoffNote || !room?.slug || prefilledStoryHandoffId === storyHandoffNote.id) return;
+
+    const text = storyHandoffNote.text.trim();
+    if (!text) return;
+
+    if (room.slug === "together-room") {
+      setPrefilledStoryHandoffId(storyHandoffNote.id);
+      return;
+    }
+
+    if (readingRoomActive) {
+      selectReadingIntent("share-memory");
+      setReadingReflectionDraft(text);
+      revealReadingTool("reading-reflection-card", "share");
+    } else {
+      setRoomMode("chat");
+      setChatDraft(text);
+      window.requestAnimationFrame(() => chatInputRef.current?.focus({ preventScroll: true }));
+    }
+
+    setPrefilledStoryHandoffId(storyHandoffNote.id);
+  }, [
+    prefilledStoryHandoffId,
+    readingRoomActive,
+    revealReadingTool,
+    room?.slug,
+    selectReadingIntent,
+    storyHandoffNote,
+  ]);
+
+  useEffect(() => {
     if (!readingRoomActive) return;
 
     const nextDesk = recordReadingClubVisit(loadReadingClubDeskState());
@@ -3611,7 +3660,7 @@ const RoomScreen = () => {
       });
       if (!response.ok) {
         setAgentPresence("idle");
-        return;
+        return false;
       }
 
       const result = (await response.json()) as {
@@ -3625,7 +3674,7 @@ const RoomScreen = () => {
       const reply = result.reply?.trim();
       if (!reply) {
         setAgentPresence("idle");
-        return;
+        return true;
       }
 
       setLocalChatMessages((current) => [
@@ -3744,7 +3793,7 @@ const RoomScreen = () => {
     if (!trimmed || isChatSending) return;
 
     setChatDraft("");
-    await postChatMessage(trimmed);
+    return postChatMessage(trimmed);
   };
 
   const submitReadingReflection = async () => {
@@ -3788,6 +3837,47 @@ const RoomScreen = () => {
     }
 
     await postChatMessage(trimmed);
+  };
+
+  const editStoryHandoffInRoom = () => {
+    if (!activeStoryHandoff) return;
+
+    if (readingRoomActive) {
+      revealReadingTool("reading-reflection-card", "share");
+      return;
+    }
+
+    setRoomMode("chat");
+    window.requestAnimationFrame(() => chatInputRef.current?.focus({ preventScroll: true }));
+  };
+
+  const shareStoryHandoffInRoom = async () => {
+    if (!activeStoryHandoff) return;
+
+    if (readingRoomActive) {
+      if (!readingReflectionDraft.trim()) return;
+      await submitReadingReflection();
+      setPlacedStoryHandoff(activeStoryHandoff);
+      setDismissedStoryHandoffId(activeStoryHandoff.id);
+      return;
+    }
+
+    setRoomMode("chat");
+    if (!chatDraft.trim()) return;
+    const sent = await submitChatMessage();
+    if (sent !== false) {
+      setPlacedStoryHandoff(activeStoryHandoff);
+      setDismissedStoryHandoffId(activeStoryHandoff.id);
+    }
+  };
+
+  const prepareStoryReplyDraft = (draft: string) => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+
+    setRoomMode("chat");
+    setChatDraft(trimmed);
+    window.requestAnimationFrame(() => chatInputRef.current?.focus({ preventScroll: true }));
   };
 
   const findReadingCompanion = async () => {
@@ -3925,6 +4015,9 @@ const RoomScreen = () => {
         language={language}
         visitId={visitId}
         onBack={handleBackToRooms}
+        onOpenActivities={() => navigate("/social-rooms/activities")}
+        onOpenShareStories={() => navigate("/social-rooms/share")}
+        shareStoryHandoff={storyHandoffNote}
       />
     );
   }
@@ -4031,6 +4124,30 @@ const RoomScreen = () => {
       </header>
 
       <main className="mt-5 space-y-4">
+        {activeStoryHandoff ? (
+          <StoryRoomHandoffCard
+            note={activeStoryHandoff}
+            roomName={room.name}
+            language={language}
+            isBusy={isChatSending}
+            onPrimary={() => void shareStoryHandoffInRoom()}
+            onEdit={editStoryHandoffInRoom}
+            onShareAnother={() => navigate("/social-rooms/share")}
+          />
+        ) : null}
+
+        {!activeStoryHandoff && replyLoopStoryHandoff ? (
+          <StoryRoomReplyLoopCard
+            note={replyLoopStoryHandoff}
+            roomName={room.name}
+            language={language}
+            responderName={roomMembers[0]?.name}
+            responderNames={roomMembers.slice(0, 2).map((member) => member.name)}
+            onReply={prepareStoryReplyDraft}
+            onShareAnother={() => navigate("/social-rooms/share")}
+          />
+        ) : null}
+
         {togetherRoomActive && togetherCopy && (
           <section className="rounded-[34px] border border-[#D9C7F8] bg-[linear-gradient(135deg,#FFFDFC_0%,#F7F2FF_46%,#ECFDF5_100%)] p-5 shadow-[0_16px_34px_rgba(91,33,182,0.08)]">
             <div className="flex items-start gap-3">
@@ -6630,6 +6747,7 @@ const RoomScreen = () => {
                 }}
               >
                 <input
+                  ref={chatInputRef}
                   value={chatDraft}
                   onChange={(event) => setChatDraft(event.target.value)}
                   disabled={isChatSending}

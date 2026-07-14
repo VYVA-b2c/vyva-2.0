@@ -47,9 +47,22 @@ vi.mock("./gameStorage", async () => {
 
 function renderWordRecall() {
   return render(
-    <MemoryRouter initialEntries={["/memory-games/word_recall?level=1&variant=word_recall-l1-v1"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/memory-games/word_recall?level=1&variant=word_recall-l1-v1"]}>
       <Routes>
         <Route path="/memory-games/:gameType" element={<MemoryGameRunner />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function renderRhythmTap() {
+  return render(
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/attention-boosters/rhythm-tap?level=1&variant=sequence_memory-l1-v1"]}>
+      <Routes>
+        <Route
+          path="/attention-boosters/rhythm-tap"
+          element={<MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" />}
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -65,9 +78,10 @@ describe("MemoryGameRunner word recall", () => {
     vi.mocked(saveGameResult).mockReset();
     vi.mocked(saveGameResult).mockReturnValue(new Promise<void>(() => undefined));
     window.scrollTo = vi.fn();
+    window.localStorage.clear();
   });
 
-  it("advances after Continue even when result persistence is still pending", async () => {
+  it("keeps the next-level action available when result persistence is still pending", async () => {
     renderWordRecall();
 
     fireEvent.click(await screen.findByRole("button", { name: /je suis pret/i }));
@@ -80,7 +94,7 @@ describe("MemoryGameRunner word recall", () => {
 
     expect(await screen.findByText("Tres bien")).toBeInTheDocument();
     expect(screen.getByText("Vous avez termine cet exercice")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continuer" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continuer au niveau 2" })).not.toBeDisabled();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "word_recall",
@@ -88,5 +102,21 @@ describe("MemoryGameRunner word recall", () => {
       variantId: "word_recall-l1-v1",
       language: "fr",
     }));
+  });
+
+  it("shows Rhythm Tap instructions once and reopens them from the icon", async () => {
+    setLanguage("en");
+    renderRhythmTap();
+
+    expect(await screen.findByRole("heading", { name: "How it works" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "I understand" }));
+
+    expect(window.localStorage.getItem("sequenceMemory:tutorialSeen:v1:user-1")).toBe("true");
+    expect(await screen.findByRole("button", { name: "Instructions" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Instructions" }));
+
+    expect(await screen.findByRole("heading", { name: "How it works" })).toBeInTheDocument();
   });
 });

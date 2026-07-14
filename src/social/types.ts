@@ -428,6 +428,104 @@ export type SocialRoomNotification = {
   readAt?: string | null;
 };
 
+export type SocialShareDropBoxNoteType = "memory" | "song" | "recipe" | "reading" | "hello";
+export type SocialShareDropBoxStatus = "ready" | "blocked" | "placed" | "deleted" | string;
+export type SocialShareDropBoxSource = "voice" | "typed";
+
+export type SocialShareDropBoxAudio = {
+  id: string;
+  url: string;
+  mimeType: string;
+  byteSize: number;
+  durationMs?: number | null;
+  expiresAt?: string | null;
+};
+
+export type SocialShareDropBoxNote = {
+  id: string;
+  noteType: SocialShareDropBoxNoteType;
+  source: SocialShareDropBoxSource;
+  transcript: string;
+  editedText: string;
+  suggestedRoomSlug: string;
+  promptId?: string | null;
+  promptText?: string | null;
+  promptKind?: string | null;
+  connectionGoal?: string | null;
+  connectionLabel?: string | null;
+  nextActionLabel?: string | null;
+  roomPath: string;
+  status: SocialShareDropBoxStatus;
+  safetyFlags: SocialRoomSafetyFlag[];
+  placementKind?: string | null;
+  placementTargetId?: string | null;
+  publishLabel: string;
+  publishedAt?: string | null;
+  deletedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  audio?: SocialShareDropBoxAudio | null;
+};
+
+export type SocialShareDropBoxHandoffState = {
+  socialShareDropBoxNote: {
+    id: string;
+    noteType: SocialShareDropBoxNoteType;
+    text: string;
+    source: "share-dropbox";
+  };
+};
+
+export type SocialShareDropBoxPublishResponse = {
+  ok: boolean;
+  note: SocialShareDropBoxNote;
+  roomPath?: string;
+  connection?: {
+    label: string;
+    nextActionLabel: string;
+    roomPath: string;
+  };
+  handoff?: {
+    roomSlug: string;
+    path: string;
+    state: SocialShareDropBoxHandoffState;
+  };
+};
+
+export type SocialShareStoryPrompt = {
+  id: string;
+  noteType: SocialShareDropBoxNoteType;
+  title: string;
+  body: string;
+  promptText: string;
+  promptKind: string;
+  connectionGoal: string;
+  suggestedRoomSlug: string;
+  roomPath: string;
+  roomName: string;
+  connectionLabel: string;
+  nextActionLabel: string;
+};
+
+export type SocialShareStoriesHomeResponse = {
+  todayPrompt: SocialShareStoryPrompt;
+  prompts: SocialShareStoryPrompt[];
+  recentNotes: SocialShareDropBoxNote[];
+  stats: {
+    sharedThisWeek: number;
+    placedThisWeek: number;
+    readyCount: number;
+    blockedCount: number;
+  };
+  suggestedRooms: Array<{
+    noteType: SocialShareDropBoxNoteType;
+    slug: string;
+    name: string;
+    path: string;
+    connectionGoal: string;
+  }>;
+};
+
 export type SocialRoomVisibilityItem = {
   id: "private" | "totals" | "shared" | string;
   title: string;
@@ -614,6 +712,139 @@ export type SocialRoomResponse = {
   readingClub?: SocialReadingClubDestination;
   musicCircle?: SocialMusicCircle;
   musicThreads?: SocialMusicThread[];
+};
+
+export type ParticipationEventResponseValue = "interested" | "maybe" | "not_for_me";
+export type ParticipationEventResponseAction = ParticipationEventResponseValue | "clear";
+export type ParticipationEventFormat = "nearby" | "online" | "hybrid";
+export type ParticipationHelperAction = "check_details" | "transport" | "reminder" | "bring_friend";
+
+export type ParticipationFitReason = {
+  id: string;
+  label: string;
+  kind: "interest" | "location" | "time" | "access" | "language" | "social" | "safety" | string;
+};
+
+export type ParticipationEventResponseCounts = Record<ParticipationEventResponseValue, number>;
+
+export type ParticipationEvent = {
+  id: string;
+  eventKey: string;
+  title: string;
+  summary: string;
+  description?: string;
+  format: ParticipationEventFormat;
+  locationLabel: string;
+  city?: string | null;
+  countryCode?: string | null;
+  timeLabel: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  costLabel: string;
+  languageCodes: string[];
+  tags: string[];
+  interestTags: string[];
+  accessibilityTags: string[];
+  helperActions: ParticipationHelperAction[];
+  source: "curated" | "admin" | "concierge_checked" | string;
+  sourceUrl?: string | null;
+  status: "active" | "draft" | "hidden" | "archived" | string;
+  isCurated: boolean;
+  needsLiveCheck: boolean;
+  safetyStatus: "approved" | "needs_review" | "hidden" | string;
+  responseCounts: ParticipationEventResponseCounts;
+  myResponse?: ParticipationEventResponseValue | null;
+  fitReasons: ParticipationFitReason[];
+  checkStatus?: "none" | "requested" | "checking" | "checked" | string;
+};
+
+export type AdminParticipationEvent = {
+  id: string;
+  eventKey: string;
+  titleEs: string;
+  titleDe: string;
+  titleEn: string;
+  summaryEs: string;
+  summaryDe: string;
+  summaryEn: string;
+  descriptionEs: string;
+  descriptionDe: string;
+  descriptionEn: string;
+  format: ParticipationEventFormat;
+  locationLabel: string;
+  city?: string | null;
+  countryCode?: string | null;
+  timeLabelEs: string;
+  timeLabelDe: string;
+  timeLabelEn: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  costLabelEs: string;
+  costLabelDe: string;
+  costLabelEn: string;
+  languageCodes: string[];
+  tags: string[];
+  interestTags: string[];
+  accessibilityTags: string[];
+  helperActions: ParticipationHelperAction[];
+  source: "curated" | "admin" | "concierge_checked" | string;
+  sourceUrl?: string | null;
+  status: "active" | "draft" | "hidden" | "archived" | string;
+  isCurated: boolean;
+  needsLiveCheck: boolean;
+  safetyStatus: "approved" | "needs_review" | "hidden" | string;
+  metadata?: Record<string, unknown>;
+  createdBy?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  responseCounts: ParticipationEventResponseCounts;
+  checkRequestCount: number;
+};
+
+export type ParticipationEventRecommendation = ParticipationEvent & {
+  score: number;
+};
+
+export type ParticipationEventResponse = {
+  eventId: string;
+  response: ParticipationEventResponseValue | null;
+  responseCounts: ParticipationEventResponseCounts;
+};
+
+export type ParticipationNotification = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  eventId?: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  readAt?: string | null;
+};
+
+export type ParticipationPulse = {
+  generatedAt: string;
+  language: SocialLanguage;
+  headline: string;
+  reassurance: string;
+  safetyCopy: string;
+  profileSignals: {
+    interests: string[];
+    locationLabel: string;
+    preferredTimes: string[];
+    languageLabel: string;
+    needsProfileNudge: boolean;
+  };
+  featuredEvent: ParticipationEventRecommendation;
+  recommendations: ParticipationEventRecommendation[];
+  savedEvents: ParticipationEvent[];
+  notifications: ParticipationNotification[];
+  emptyProfileNudge?: {
+    title: string;
+    body: string;
+    actionLabel: string;
+    path: string;
+  };
 };
 
 export type SocialMatchResponse = {

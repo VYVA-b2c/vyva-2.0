@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Home,
-  Camera,
   ChevronLeft,
   X,
   Clock,
@@ -14,19 +13,27 @@ import {
   ShieldAlert,
   Phone,
   Users,
-  ShoppingBasket,
-  Wrench,
 } from "lucide-react";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import ShowVyvaChooser from "@/components/ShowVyvaChooser";
+import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import type { ShoppingPriority } from "../../shared/shopping";
 import { languageText } from "../../shared/language";
+import {
+  SHOW_VYVA_USE_CASE_IDS,
+  buildShowVyvaConciergePrefill,
+  type ShowVyvaCaptureSource,
+  type ShowVyvaPastePayload,
+} from "../../shared/showVyvaFlow";
+import { showVyvaFollowUpActionsFor } from "../../shared/showVyvaFollowUp";
 
 type HomeScan = {
   id: string;
@@ -57,6 +64,9 @@ type SafeHomeQuoteState = {
   conciergePrefill: {
     kind: "home_care_quote";
     message: string;
+    flowReference: typeof CONCIERGE_FLOW_REFERENCES.safeHomeSupport;
+    actionLabel: string;
+    summary: string;
     source: "safe_home_scan";
   };
 };
@@ -111,6 +121,23 @@ export function safeHomeQuoteState(scan: SafeHomeActionScan, language = "en"): S
     conciergePrefill: {
       kind: "home_care_quote",
       source: "safe_home_scan",
+      flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+      actionLabel: languageText(language, {
+        es: "Pedir presupuesto de seguridad",
+        en: "Request safety quote",
+        fr: "Demander un devis securite",
+        de: "Sicherheitsangebot anfragen",
+        it: "Richiedere preventivo sicurezza",
+        pt: "Pedir orcamento de seguranca",
+      }),
+      summary: languageText(language, {
+        es: "VYVA prepara una ayuda de seguridad en casa y la deja pendiente de confirmacion.",
+        en: "VYVA prepares home-safety help and keeps it pending for confirmation.",
+        fr: "VYVA prepare une aide securite a domicile et attend votre confirmation.",
+        de: "VYVA bereitet Hilfe fuer Sicherheit zu Hause vor und wartet auf Bestaetigung.",
+        it: "VYVA prepara un aiuto per la sicurezza domestica e attende conferma.",
+        pt: "A VYVA prepara ajuda de seguranca em casa e aguarda confirmacao.",
+      }),
       message: languageText(language, {
         es: `Ayudame a pedir un presupuesto de seguridad en casa para revisar o arreglar estos riesgos: ${summary}. Pideme confirmacion antes de solicitar nada.`,
         en: `Help me request a home safety quote to review or fix these risks: ${summary}. Ask me to confirm before requesting anything.`,
@@ -270,6 +297,7 @@ const SafeHomeScreen = () => {
   }>(null);
   const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
   const [fullScreenScan, setFullScreenScan] = useState<HomeScan | null>(null);
+  const [homeScanCaptureSource, setHomeScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const {
     action: safetyVoiceAction,
@@ -381,93 +409,77 @@ const SafeHomeScreen = () => {
       });
   };
 
+  const openHomeScanFilePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+    setHomeScanCaptureSource(source);
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const openPastedHomeReview = (payload: ShowVyvaPastePayload) => {
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: buildShowVyvaConciergePrefill(payload, language),
+      },
+    });
+  };
+
   const resultColors = result ? getRiskColors(result.riskLevel) : null;
   const ResultIcon = resultColors?.icon ?? CheckCircle;
   const caregiverName = profile?.caregiverName?.trim() || t("safeHome.actions.caregiverFallback", "care team");
   const caregiverHref = sanitizePhoneHref(profile?.caregiverContact);
 
-  const renderServiceActions = (scan: SafeHomeActionScan, testIdSuffix: string) => (
-    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid={`safe-home-service-actions-${testIdSuffix}`}>
-      <button
-        type="button"
-        data-testid={`button-safe-home-order-aids-${testIdSuffix}`}
-        onClick={() => navigate("/concierge/shopping", {
-          state: safeHomeShoppingState(scan, language),
-        })}
-        className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#D8C5F0] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(107,33,168,0.08)]"
-      >
-        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-[#6B21A8]">
-          <ShoppingBasket size={19} />
-        </span>
-        <span className="min-w-0">
-          <span className="block font-body text-[14px] font-bold leading-tight text-vyva-text-1">
-            {t("safeHome.actions.orderAids", "Order safety aids")}
-          </span>
-          <span className="mt-0.5 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-            {t("safeHome.actions.orderAidsSub", "Compare simple items before checkout.")}
-          </span>
-        </span>
-      </button>
-      {caregiverHref ? (
-        <a
-          href={caregiverHref}
-          data-testid={`button-safe-home-call-caregiver-${testIdSuffix}`}
-          className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#BBF7D0] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(4,120,87,0.08)]"
-        >
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#ECFDF5] text-[#047857]">
-            <Phone size={19} />
-          </span>
-          <span className="min-w-0">
-            <span className="block font-body text-[14px] font-bold leading-tight text-vyva-text-1">
-              {t("safeHome.actions.callCaregiver", "Call {{name}}", { name: caregiverName })}
-            </span>
-            <span className="mt-0.5 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-              {t("safeHome.actions.callCaregiverSub", "Share the safety concern now.")}
-            </span>
-          </span>
-        </a>
-      ) : (
-        <button
-          type="button"
-          data-testid={`button-safe-home-add-caregiver-${testIdSuffix}`}
-          onClick={() => navigate("/onboarding/profile/care-team")}
-          className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#BBF7D0] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(4,120,87,0.08)]"
-        >
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#ECFDF5] text-[#047857]">
-            <Users size={19} />
-          </span>
-          <span className="min-w-0">
-            <span className="block font-body text-[14px] font-bold leading-tight text-vyva-text-1">
-              {t("safeHome.actions.addCaregiver", "Add care team")}
-            </span>
-            <span className="mt-0.5 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-              {t("safeHome.actions.addCaregiverSub", "Save someone to call from safety checks.")}
-            </span>
-          </span>
-        </button>
-      )}
-      <button
-        type="button"
-        data-testid={`button-safe-home-request-quote-${testIdSuffix}`}
-        onClick={() => navigate("/concierge", {
-          state: safeHomeQuoteState(scan, language),
-        })}
-        className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[16px] border border-[#F4D6A8] bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(154,52,18,0.08)]"
-      >
-        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FFF7ED] text-[#B45309]">
-          <Wrench size={19} />
-        </span>
-        <span className="min-w-0">
-          <span className="block font-body text-[14px] font-bold leading-tight text-vyva-text-1">
-            {t("safeHome.actions.requestQuote", "Request quote")}
-          </span>
-          <span className="mt-0.5 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-            {t("safeHome.actions.requestQuoteSub", "Prepare home help for your approval.")}
-          </span>
-        </span>
-      </button>
-    </div>
-  );
+  const renderServiceActions = (scan: SafeHomeActionScan, testIdSuffix: string) => {
+    const actions = showVyvaFollowUpActionsFor("home_safety").map((action) => {
+      if (action.id !== "call_care_team") return action;
+      if (caregiverHref) {
+        return {
+          ...action,
+          label: t("safeHome.actions.callCaregiver", "Call {{name}}", { name: caregiverName }),
+          detail: t("safeHome.actions.callCaregiverSub", "Share the safety concern now."),
+        };
+      }
+      return {
+        ...action,
+        label: t("safeHome.actions.addCaregiver", "Add care team"),
+        detail: t("safeHome.actions.addCaregiverSub", "Save someone to call from safety checks."),
+      };
+    });
+
+    return (
+      <div data-testid={`safe-home-service-actions-${testIdSuffix}`}>
+        <ShowVyvaFollowUpPanel
+          context="home_safety"
+          testIdSuffix={testIdSuffix}
+          title={t("showVyva.followUp.title.home_safety", "Next home-safety step")}
+          subtitle={t("showVyva.followUp.subtitle.home_safety", "Choose one practical step. VYVA asks before buying, booking, or calling.")}
+          actions={actions}
+          onSelect={(action) => {
+            if (action.id === "buy_safety_aid") {
+              navigate("/concierge/shopping", {
+                state: safeHomeShoppingState(scan, language),
+              });
+              return;
+            }
+            if (action.id === "request_quote") {
+              navigate("/concierge", {
+                state: safeHomeQuoteState(scan, language),
+              });
+              return;
+            }
+            if (action.id === "call_care_team") {
+              if (caregiverHref) {
+                window.location.href = caregiverHref;
+                return;
+              }
+              navigate("/onboarding/profile/care-team");
+              return;
+            }
+            toast({ description: t("safeHome.actions.safeNowSaved", "Marked safe for now.") });
+            if (testIdSuffix === "current") setResult(null);
+          }}
+        />
+      </div>
+    );
+  };
 
   return (
     <>
@@ -621,11 +633,25 @@ const SafeHomeScreen = () => {
           </div>
 
           <div className="p-[18px]">
+            <ShowVyvaChooser
+              title={t("showVyva.healthTitle", "Show VYVA")}
+              subtitle={t("safeHome.showVyvaSubtitle", "Show a room photo, home-safety concern, quote, or document. VYVA keeps the next step safe.")}
+              defaultUseCaseId={SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto}
+              useCaseIds={[
+                SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+                SHOW_VYVA_USE_CASE_IDS.providerOrDeal,
+                SHOW_VYVA_USE_CASE_IDS.documentHelp,
+              ]}
+              busy={analyzing}
+              onChooseFileSource={(source) => openHomeScanFilePicker(source)}
+              onPaste={(payload) => openPastedHomeReview(payload)}
+            />
+
             {/* Analyzing state */}
             {analyzing && (
               <div
                 data-testid="section-home-scan-analyzing"
-                className="rounded-[14px] p-[20px] flex flex-col items-center gap-3 mb-[14px]"
+                className="mt-[14px] rounded-[14px] p-[20px] flex flex-col items-center gap-3 mb-[14px]"
                 style={{ background: "#F5F3FF" }}
               >
                 <div
@@ -644,7 +670,7 @@ const SafeHomeScreen = () => {
             {result && !analyzing && (
               <div
                 data-testid="section-home-scan-result"
-                className="rounded-[14px] p-[16px] mb-[14px]"
+                className="mt-[14px] rounded-[14px] p-[16px] mb-[14px]"
                 style={{ background: resultColors!.bg }}
               >
                 <div className="flex items-center gap-[8px] mb-[8px]">
@@ -709,27 +735,11 @@ const SafeHomeScreen = () => {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
+              capture={homeScanCaptureSource === "camera" ? "environment" : undefined}
               className="hidden"
               onChange={handlePhotoSelect}
               data-testid="input-home-scan-file"
             />
-            <button
-              data-testid="button-home-scan-take-photo"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={analyzing}
-              className="w-full flex items-center justify-center gap-2 rounded-[14px] py-[14px] font-body text-[15px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50"
-              style={{
-                background: "linear-gradient(135deg, #6B21A8 0%, #9333EA 100%)",
-                color: "#FFFFFF",
-                boxShadow: "0 4px 16px rgba(107,33,168,0.30)",
-              }}
-            >
-              <Camera size={18} />
-              {result
-                ? t("safeHome.scanAgain", "Scan Another Room")
-                : t("safeHome.takePhoto", "Take or Upload a Photo")}
-            </button>
           </div>
         </div>
 

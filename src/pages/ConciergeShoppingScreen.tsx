@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import {
   getStaticShoppingSupportPackages,
   SHOPPING_CATEGORY_CHOICE_LABELS,
@@ -86,6 +87,9 @@ type Copy = {
   askTrustedPerson: string;
   careReview: string;
   careReviewBody: string;
+  prepareRequest: string;
+  prepareRequestBody: string;
+  prepareRequestSummary: string;
   safetyCheckTitle: string;
   safetyCheckBody: string;
   safetyCheckLabel: string;
@@ -166,6 +170,9 @@ const COPY: Record<"en" | "es", Copy> = {
     askTrustedPerson: "Ask someone you trust",
     careReview: "Ask trusted person",
     careReviewBody: "VYVA will prepare a review request before anyone is contacted.",
+    prepareRequest: "Prepare request",
+    prepareRequestBody: "VYVA turns this into a safe next step. You confirm before anything is sent.",
+    prepareRequestSummary: "VYVA prepares a shopping request. Nothing is ordered, paid, or sent without confirmation.",
     safetyCheckTitle: "Check a product or seller",
     safetyCheckBody: "Paste a product label, website, seller name, or price. VYVA flags scam signs, accessibility issues, and health cautions.",
     safetyCheckLabel: "Product, label, message, or website",
@@ -231,6 +238,9 @@ const COPY: Record<"en" | "es", Copy> = {
     askTrustedPerson: "Preguntar a alguien de confianza",
     careReview: "Preguntar a confianza",
     careReviewBody: "VYVA preparara una solicitud de revision antes de contactar a nadie.",
+    prepareRequest: "Preparar solicitud",
+    prepareRequestBody: "VYVA lo convierte en un siguiente paso seguro. Usted confirma antes de enviar nada.",
+    prepareRequestSummary: "VYVA prepara una solicitud de compra. No se pide, paga ni envia nada sin confirmacion.",
     safetyCheckTitle: "Comprobar producto o vendedor",
     safetyCheckBody: "Pegue una etiqueta, web, vendedor o precio. VYVA senala indicios de estafa, accesibilidad y cautelas de salud.",
     safetyCheckLabel: "Producto, etiqueta, mensaje o web",
@@ -1067,16 +1077,58 @@ const ConciergeShoppingScreen = () => {
     setResult(null);
   }
 
-  function requestShoppingReview(message: string) {
+  function requestShoppingReview(message: string, source: "shopping_helper" | "shopping_recommendation" = "shopping_helper") {
     navigate("/concierge", {
       state: {
         conciergePrefill: {
-          kind: "shopping_review",
+          kind: "task",
           message,
-          source: "shopping_helper",
+          flowReference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          requestedTool: "operator_review",
+          actionLabel: copy.prepareRequest,
+          summary: copy.prepareRequestSummary,
+          useCase: "shopping_request",
+          source,
         },
       },
     });
+  }
+
+  function requestComparisonReview() {
+    if (!result) return;
+    const selected = savedRecommendations.length > 0
+      ? savedRecommendations
+      : result.recommendations.slice(0, 2);
+    const selectedLines = selected.map((item) => (
+      `- ${item.product.name}: ${item.product.priceLabel}. ${item.reasons[0] ?? item.product.description}`
+    ));
+    const categoryText = categoryLabel(category, locale);
+    const priorityText = priorities
+      .map((priority) => PRIORITY_OPTIONS.find((option) => option.id === priority)?.[locale])
+      .filter(Boolean)
+      .join(", ");
+    const message = locale === "es"
+      ? [
+        "Ayudame a preparar una solicitud de compra segura.",
+        `Necesidad: ${needText.trim() || result.querySummary}`,
+        `Area: ${categoryText}`,
+        priorityText ? `Prioridades: ${priorityText}` : "",
+        selectedLines.length > 0 ? `Opciones:\n${selectedLines.join("\n")}` : "",
+        `Comparacion: ${result.comparison.summary}`,
+        constraintsText.trim() ? `Evitar o revisar: ${constraintsText.trim()}` : "",
+        "No inicies compra, pago ni contacto sin mi confirmacion.",
+      ].filter(Boolean).join("\n")
+      : [
+        "Help me prepare a safe shopping request.",
+        `Need: ${needText.trim() || result.querySummary}`,
+        `Area: ${categoryText}`,
+        priorityText ? `Priorities: ${priorityText}` : "",
+        selectedLines.length > 0 ? `Options:\n${selectedLines.join("\n")}` : "",
+        `Comparison: ${result.comparison.summary}`,
+        constraintsText.trim() ? `Avoid or check: ${constraintsText.trim()}` : "",
+        "Do not start checkout, payment, or contact anyone without my confirmation.",
+      ].filter(Boolean).join("\n");
+    requestShoppingReview(message);
   }
 
   function requestRecommendationReview(item: ShoppingRecommendation) {
@@ -1095,7 +1147,7 @@ const ConciergeShoppingScreen = () => {
         `Caution: ${item.cautionNotes[0] ?? item.tradeoffs[0] ?? "check seller, returns, and ease of use"}.`,
         "Do not start checkout or contact anyone without my confirmation.",
       ].join("\n");
-    requestShoppingReview(message);
+    requestShoppingReview(message, "shopping_recommendation");
   }
 
   function requestSafetyResultReview() {
@@ -1726,6 +1778,20 @@ const ConciergeShoppingScreen = () => {
               <p className="mt-3 rounded-[12px] bg-white/80 px-3 py-2 font-body text-[13px] font-semibold leading-relaxed text-[#0F766E]">
                 {result.uncertaintyNote}
               </p>
+              <div className="mt-3 grid gap-2 rounded-[16px] bg-white p-3">
+                <p className="font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+                  {copy.prepareRequestBody}
+                </p>
+                <button
+                  type="button"
+                  onClick={requestComparisonReview}
+                  className="vyva-tap inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[16px] bg-[#0F766E] px-4 py-3 font-body text-[16px] font-extrabold text-white shadow-[0_10px_22px_rgba(15,118,110,0.18)]"
+                  data-testid="button-shopping-prepare-request"
+                >
+                  <ClipboardCheck size={18} />
+                  {copy.prepareRequest}
+                </button>
+              </div>
             </section>
           </>
         )}

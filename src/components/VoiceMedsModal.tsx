@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Mic, Square, RefreshCw, CheckCircle2, Loader2, AlertTriangle, Info } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { PurpleModal, VYVA_MODAL_PRIMARY_ACTION_CLASS, VYVA_MODAL_SECONDARY_ACTION_CLASS } from "@/components/vyva-ui";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 
 const DISCLAIMER =
@@ -180,23 +180,22 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
       parsedResult.withFood ||
       parsedResult.prescribedBy);
 
-  return (
-    <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent
-        side="bottom"
-        className="bottom-[calc(env(safe-area-inset-bottom)+12px)] left-1/2 right-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-20px)] max-w-[430px] -translate-x-1/2 flex-col rounded-[28px] border border-[#E6DCCF] px-0 pb-0 shadow-[0_24px_70px_rgba(31,20,45,0.24)]"
-        data-testid="modal-voice-meds"
-      >
-        <SheetHeader className="flex-shrink-0 border-b border-gray-100 px-5 pb-4 pt-5">
-          <SheetTitle className="text-left font-display text-[24px] leading-tight text-gray-900">
-            Add medication by voice
-          </SheetTitle>
-          <SheetDescription className="text-left font-body text-[14px] leading-snug text-gray-500">
-            Speak naturally. VYVA will pull out the name, dose, timing, and prescriber where it can.
-          </SheetDescription>
-        </SheetHeader>
+  if (!open) return null;
 
-        <div className="flex-1 overflow-hidden flex flex-col">
+  return (
+    <PurpleModal
+      Icon={Mic}
+      kicker="Medication"
+      title="Voice assistant"
+      subtitle="Speak naturally. VYVA will pull out the useful details."
+      titleId="voice-meds-title"
+      onClose={handleClose}
+      closeLabel="Close"
+      modalTestId="modal-voice-meds"
+      size="narrow"
+      bodyClassName="flex max-h-[calc(88vh-132px)] flex-col p-0"
+    >
+        <div className="flex min-h-[420px] flex-1 overflow-hidden flex-col">
           {!micSupported ? (
             <div className="flex flex-col items-center justify-center gap-4 px-6 py-10">
               <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center">
@@ -211,13 +210,14 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
                   and ensure microphone permissions are granted.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
+              <button
+                type="button"
+                onClick={handleClose}
+                className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
                 data-testid="button-voice-meds-close-fallback"
               >
                 Close
-              </Button>
+              </button>
             </div>
           ) : (
             <Tabs
@@ -362,7 +362,7 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
                       <div className="flex gap-2 pt-1">
                         <Button
                           variant="outline"
-                          className="flex-1"
+                          className={`flex-1 ${VYVA_MODAL_SECONDARY_ACTION_CLASS}`}
                           onClick={handleTryAgain}
                           data-testid="button-voice-meds-tryagain"
                         >
@@ -371,7 +371,7 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
                         </Button>
                         {hasAnyParsed && (
                           <Button
-                            className="flex-1 bg-purple-700 hover:bg-purple-800 text-white"
+                            className={`flex-1 ${VYVA_MODAL_PRIMARY_ACTION_CLASS}`}
                             onClick={handleConfirm}
                             data-testid="button-voice-meds-confirm"
                           >
@@ -389,7 +389,7 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
                   <div className="flex-shrink-0 pb-6 pt-2">
                     {isActive ? (
                       <Button
-                        className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-body text-[15px] rounded-full"
+                        className="h-12 w-full rounded-full bg-red-500 font-body text-[15px] text-white hover:bg-red-600"
                         onClick={handleStopAndParse}
                         data-testid="button-voice-meds-stop"
                       >
@@ -398,8 +398,7 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
                       </Button>
                     ) : (
                       <Button
-                        className="w-full h-12 font-body text-[15px] rounded-full"
-                        style={{ background: "#6B21A8" }}
+                        className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
                         onClick={handleStartAdd}
                         disabled={isConnecting}
                         data-testid="button-voice-meds-start"
@@ -481,7 +480,7 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
                 <div className="flex-shrink-0 pb-6 pt-1">
                   {isActive ? (
                     <Button
-                      className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-body text-[15px] rounded-full"
+                    className="h-12 w-full rounded-full bg-red-500 font-body text-[15px] text-white hover:bg-red-600"
                       onClick={handleStopAsk}
                       data-testid="button-voice-ask-stop"
                     >
@@ -490,8 +489,7 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
                     </Button>
                   ) : (
                     <Button
-                      className="w-full h-12 font-body text-[15px] rounded-full"
-                      style={{ background: "#6B21A8" }}
+                      className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
                       onClick={handleStartAsk}
                       disabled={isConnecting}
                       data-testid="button-voice-ask-start"
@@ -509,8 +507,7 @@ export default function VoiceMedsModal({ open, onOpenChange, onAddMedication }: 
             </Tabs>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+    </PurpleModal>
   );
 }
 

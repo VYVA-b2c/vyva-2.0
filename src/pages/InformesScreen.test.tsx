@@ -67,7 +67,7 @@ function renderDetail(profile: unknown, reportOverride: Partial<typeof report> =
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/informes/report-1"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/informes/report-1"]}>
         <LocationProbe />
         <DetailView report={{ ...report, ...reportOverride }} onBack={vi.fn()} />
       </MemoryRouter>
@@ -79,7 +79,7 @@ function renderMain(profile: unknown, summaryOverride: Partial<{
   latestTriage: typeof report | null;
   latestVitals: unknown;
   todayMeds: { taken: number; total: number; adherencePct: number | null };
-}> = {}) {
+}> = {}, brainCoachProgress: unknown = null) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -103,10 +103,11 @@ function renderMain(profile: unknown, summaryOverride: Partial<{
     todayMeds: { taken: 0, total: 0, adherencePct: null },
     ...summaryOverride,
   });
+  queryClient.setQueryData(["/api/games/progress"], brainCoachProgress);
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/informes"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/informes"]}>
         <LocationProbe />
         <InformesMain />
       </MemoryRouter>
@@ -148,6 +149,45 @@ describe("Informes report detail actions", () => {
     expect(await screen.findByTestId("reports-overview-shell")).toHaveClass("max-w-[1180px]");
     expect(screen.getByTestId("reports-latest-grid")).toHaveClass("lg:grid-cols-2", "xl:grid-cols-3");
     expect(screen.getByTestId("reports-trends-grid")).toHaveClass("lg:grid-cols-2");
+  });
+
+  it("links Brain Coach progress into the reports overview", async () => {
+    renderMain({}, {}, {
+      summary: {
+        totalSessions: 4,
+        completedSessions: 3,
+        streakDays: 2,
+        bestStreakDays: 2,
+        lastPlayedAt: "2026-06-02T09:00:00.000Z",
+        totalDurationSeconds: 420,
+      },
+      today: {
+        completedCount: 1,
+        activityTypes: ["word_recall"],
+        domains: ["memory"],
+      },
+      domains: [
+        {
+          domain: "memory",
+          totalSessions: 3,
+          completedSessions: 3,
+          bestScore: 800,
+          totalDurationSeconds: 420,
+          lastPlayedAt: "2026-06-02T09:00:00.000Z",
+        },
+      ],
+      activities: [],
+      history: [],
+    });
+
+    const card = await screen.findByTestId("card-brain-coach-report");
+    expect(card).toHaveTextContent("Brain Coach report");
+    expect(card).toHaveTextContent("3");
+    expect(card).toHaveTextContent("Memory");
+
+    fireEvent.click(screen.getByTestId("button-open-brain-coach-report"));
+
+    await waitFor(() => expect(screen.getByTestId("location-path")).toHaveTextContent("/informes/brain-coach"));
   });
 
   it("opens concierge from the reports overview with saved report context", async () => {

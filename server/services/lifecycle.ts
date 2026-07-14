@@ -132,11 +132,11 @@ async function searchSupabaseAuthAccounts(query: string): Promise<SupabaseAuthAc
   const digitLike = digits ? `%${digits}%` : null;
   try {
     const result = await pool.query<SupabaseAuthAccount>(
-      `select id::text, email::text, phone::text as phone_number, created_at
-       from auth.users
+      `select id::text, email::text, phone_number::text as phone_number, created_at
+       from users
        where lower(coalesce(email, '')) like $1
-          or coalesce(phone, '') like $1
-          or ($2::text is not null and regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') like $2)
+          or coalesce(phone_number, '') like $1
+          or ($2::text is not null and regexp_replace(coalesce(phone_number, ''), '[^0-9]', '', 'g') like $2)
        order by created_at desc
        limit 50`,
       [like, digitLike],
@@ -153,8 +153,8 @@ async function supabaseAuthAccountsByIds(ids: string[]): Promise<SupabaseAuthAcc
   if (!ids.length) return [];
   try {
     const result = await pool.query<SupabaseAuthAccount>(
-      `select id::text, email::text, phone::text as phone_number, created_at
-       from auth.users
+      `select id::text, email::text, phone_number::text as phone_number, created_at
+       from users
        where id::text = any($1::text[])`,
       [ids],
     );
@@ -615,8 +615,7 @@ function fallbackLifecyclePhone(input: {
   if (phone) return phone;
   const whatsapp = normalizePhone(input.whatsapp ?? "");
   if (whatsapp) return whatsapp;
-  const email = normalizeEmail(input.email);
-  return email || `${input.prefix}:${input.id}`;
+  return `${input.prefix}:${input.id}`;
 }
 
 function channelForIntakeLink(intake: Intake) {

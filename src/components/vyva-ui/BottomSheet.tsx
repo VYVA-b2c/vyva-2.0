@@ -1,11 +1,13 @@
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { VYVA_MODAL_CLOSE_CLASS, VYVA_MODAL_GRADIENT } from "./PurpleModal";
 
 type BottomSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: ReactNode;
+  kicker?: ReactNode;
   description?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
@@ -18,6 +20,7 @@ export function BottomSheet({
   open,
   onOpenChange,
   title,
+  kicker,
   description,
   children,
   footer,
@@ -36,24 +39,28 @@ export function BottomSheet({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "flex max-h-[calc(100dvh-120px-env(safe-area-inset-bottom))] w-full max-w-[620px] flex-col overflow-hidden rounded-t-[34px] border border-[#E6DCCF] bg-[#FFFCF8] shadow-[0_26px_70px_rgba(45,31,66,0.22)] md:max-h-[calc(100dvh-48px)] md:rounded-[34px]",
+          "flex max-h-[calc(100dvh-120px-env(safe-area-inset-bottom))] w-full max-w-[620px] flex-col overflow-hidden rounded-t-[30px] border border-[#D8B4FE] bg-white shadow-[0_30px_90px_rgba(49,18,94,0.30)] md:max-h-[calc(100dvh-48px)] md:rounded-[30px]",
           className,
         )}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex flex-shrink-0 items-start justify-between gap-4 px-6 pt-5">
+        <div className={cn(VYVA_MODAL_GRADIENT, "flex flex-shrink-0 items-start justify-between gap-4 px-5 py-4 text-white sm:px-6 sm:py-5")}>
           <div className="min-w-0">
-            <div className="mb-4 h-1 w-14 rounded-full bg-vyva-warm2 md:hidden" />
-            {title ? <h2 className="font-display text-[30px] leading-tight text-vyva-text-1">{title}</h2> : null}
-            {description ? <p className="mt-1 font-body text-[15px] leading-snug text-vyva-text-2">{description}</p> : null}
+            {kicker ? (
+              <p className="font-body text-[11px] font-black uppercase tracking-[0.14em] text-[#FFD84D]">
+                {kicker}
+              </p>
+            ) : null}
+            {title ? <h2 className="font-body text-[25px] font-black leading-[1.04] sm:text-[29px]">{title}</h2> : null}
+            {description ? <p className="mt-1.5 max-w-[28rem] font-body text-[13px] font-bold leading-snug text-white/86 sm:text-[14px]">{description}</p> : null}
           </div>
           <button
             type="button"
             onClick={() => onOpenChange(false)}
             aria-label={closeLabel}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#F4EEE7] text-[#7A677F]"
+            className={VYVA_MODAL_CLOSE_CLASS}
           >
-            <X size={24} />
+            <X size={18} />
           </button>
         </div>
 

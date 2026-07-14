@@ -122,23 +122,6 @@ const COPY: Record<LanguageCode, WhoForCopy> = {
       },
     },
   },
-  cy: {
-    eyebrow: "Profile setup",
-    title: "Set up your VYVA profile",
-    subtitle: "One last setup detail so VYVA knows whose care profile to create.",
-    continue: "Continue",
-    saving: "Setting up...",
-    choices: {
-      self: {
-        title: "For me",
-        subtitle: "Create a profile for my own health, reminders, and support.",
-      },
-      someone_else: {
-        title: "For someone I support",
-        subtitle: "Create a profile for a family member or person I care for.",
-      },
-    },
-  },
 };
 
 const CHOICES: Array<{

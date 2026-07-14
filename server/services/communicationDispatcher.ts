@@ -139,7 +139,7 @@ function metadataString(metadata: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function buildEmailPayload(item: Communication): EmailPayload {
+export function buildEmailPayload(item: Communication): EmailPayload {
   const metadata = metadataRecord(item.metadata);
   const subject = metadataString(metadata, "subject") ?? "Join VYVA";
 
@@ -154,6 +154,12 @@ function buildEmailPayload(item: Communication): EmailPayload {
   return {
     subject,
     text: item.body ?? "",
+    ...(() => {
+      const html = metadataString(metadata, "html")
+        ?? metadataString(metadata, "htmlBody")
+        ?? metadataString(metadata, "html_body");
+      return html ? { html } : {};
+    })(),
   };
 }
 
@@ -177,6 +183,14 @@ export function buildResendEmailRequest(item: Communication, email: EmailPayload
     text: email.text,
     ...(email.html ? { html: email.html } : {}),
     ...(replyTo ? { reply_to: replyTo } : {}),
+    ...(email.attachments?.length ? {
+      attachments: email.attachments.map((attachment) => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        content_type: attachment.type,
+        ...(attachment.content_id ? { content_id: attachment.content_id } : {}),
+      })),
+    } : {}),
   };
 }
 
@@ -268,7 +282,7 @@ async function sendEmail(item: Communication) {
   const replyTo = process.env.NOTIFY_REPLY_TO_EMAIL?.trim() || from;
 
   const resendKey = resendApiKey();
-  if (resendKey && !email.attachments?.length) {
+  if (resendKey) {
     return sendResendEmail(item, email, resendKey, resendFromAddress(baseFrom), replyTo, recipientName);
   }
 

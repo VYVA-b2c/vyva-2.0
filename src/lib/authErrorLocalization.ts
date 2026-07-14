@@ -89,18 +89,6 @@ const AUTH_ERROR_MESSAGES: Record<LanguageCode, AuthErrorMessages> = {
     adminRegistrationOnly: "As contas de administrador so podem ser criadas pelo super administrador apos iniciar sessao.",
     accountSetupUnavailable: "Nao foi possivel criar esta conta agora. Tente mais tarde ou contacte o suporte VYVA.",
   },
-  cy: {
-    invalidContact: "Rhowch gyfeiriad e-bost neu rif symudol dilys.",
-    invalidSignIn: "Rhowch eich e-bost neu rif symudol a'ch cyfrinair.",
-    mobileExists: "Mae cyfrif gyda'r rhif symudol hwn eisoes yn bodoli.",
-    emailExists: "Mae cyfrif gyda'r e-bost hwn eisoes yn bodoli.",
-    incorrectCredentials: "E-bost, rhif symudol neu gyfrinair anghywir.",
-    passwordTooShort: "Rhaid i'r cyfrinair fod o leiaf 8 nod.",
-    loginFailed: "Methodd y mewngofnodi. Rhowch gynnig arall.",
-    registrationFailed: "Methu creu'r cyfrif. Rhowch gynnig arall.",
-    adminRegistrationOnly: "Dim ond y super admin all greu cyfrifon gweinyddol ar ol mewngofnodi.",
-    accountSetupUnavailable: "Ni allem greu'r cyfrif hwn ar hyn o bryd. Rhowch gynnig arall yn nes ymlaen neu cysylltwch a chymorth VYVA.",
-  },
 };
 
 function rawErrorMessage(error: unknown): string {

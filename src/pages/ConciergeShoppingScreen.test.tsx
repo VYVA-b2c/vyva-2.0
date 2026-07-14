@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeShoppingScreen from "./ConciergeShoppingScreen";
 import { apiFetch } from "@/lib/queryClient";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { buildShoppingRecommendations, getStaticShoppingSupportPackages } from "../../shared/shopping";
 
 vi.mock("@/lib/queryClient", () => ({
@@ -76,7 +77,7 @@ function mockShoppingApiWithPackages(packages: unknown[], nextRecommendationResp
 
 function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge/shopping"]) {
   return render(
-    <MemoryRouter initialEntries={initialEntries}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={initialEntries}>
       <LocationProbe />
       <ConciergeShoppingScreen />
     </MemoryRouter>,
@@ -124,6 +125,35 @@ describe("ConciergeShoppingScreen", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("shopping-shortlist")).not.toBeInTheDocument();
       expect(screen.getByText("Shortlist: 0")).toBeInTheDocument();
+    });
+  });
+
+  it("prepares a shopping request through the concierge task flow", async () => {
+    mockShoppingApi(jsonResponse(buildShoppingRecommendations({
+      needText: "Groceries for the week that are easy to carry",
+      category: "groceries",
+      priorities: ["delivery", "simplicity"],
+      locale: "en",
+    })));
+
+    renderScreen();
+
+    fireEvent.change(screen.getByLabelText("What do you need help choosing?"), {
+      target: { value: "Groceries for the week that are easy to carry" },
+    });
+    fireEvent.click(screen.getByTestId("button-shopping-find"));
+
+    await screen.findByTestId("shopping-recommendation-results");
+
+    fireEvent.click(screen.getByTestId("button-shopping-prepare-request"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"task\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"useCase\":\"shopping_request\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("Groceries for the week");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("without my confirmation");
     });
   });
 
@@ -338,7 +368,9 @@ describe("ConciergeShoppingScreen", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge");
-      expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"shopping_review\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"task\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"useCase\":\"shopping_request\"");
       expect(screen.getByTestId("route-state")).toHaveTextContent("gift card");
     });
   });

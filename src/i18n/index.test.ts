@@ -144,7 +144,7 @@ describe("language persistence", () => {
 
   it("keeps the home-style Health page labels localized", () => {
     const expected = {
-      en: ["or explore a topic", "My Symptoms", "My Medication", "My Vitals", "My Health Plan", "Fast help", "My Reports", "Visual Health Scan", "Find a Specialist"],
+      en: ["or explore a topic", "My Symptoms", "My Medication", "My Vitals", "My Health Plan", "Fast help", "My Reports", "Visual Health Scan", "Ask Expert"],
       es: ["o explora un tema", "Mis sintomas", "Mi medicacion", "Mis signos vitales", "Mi plan de salud", "Ayuda rapida", "Mis informes", "Escaneo visual de salud", "Encontrar especialista"],
       fr: ["ou explorez un sujet", "Mes symptomes", "Mes medicaments", "Mes constantes", "Mon plan de sante", "Aide rapide", "Mes rapports", "Scan visuel de sante", "Trouver un specialiste"],
       de: ["oder ein Thema erkunden", "Meine Symptome", "Meine Medikamente", "Meine Vitalwerte", "Mein Gesundheitsplan", "Schnelle Hilfe", "Meine Berichte", "Visueller Gesundheitscheck", "Spezialisten finden"],
@@ -169,12 +169,12 @@ describe("language persistence", () => {
 
   it("keeps compact Health mobile labels localized", () => {
     const expected = {
-      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Health Plan", "Need help now?", "Recent health summaries", "Take or upload an image", "Find the right expert"],
-      es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Toma o sube imagen", "Encuentra experto"],
-      fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Photo ou image", "Trouver le bon expert"],
-      de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild aufnehmen", "Passenden Experten finden"],
-      it: ["Parla col medico", "Sintomi", "Farmaci", "Parametri", "Piano salute", "Serve aiuto?", "Riepiloghi recenti", "Scatta o carica immagine", "Trova l'esperto giusto"],
-      pt: ["Falar com medico", "Sintomas", "Medicacao", "Sinais vitais", "Plano saude", "Precisa de ajuda?", "Resumos recentes", "Tire ou carregue imagem", "Encontrar especialista"],
+      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Health Plan", "Need help now?", "Recent summaries", "Image review", "VYVA experts"],
+      es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Revision de imagen", "Experto adecuado"],
+      fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Revue image", "Bon expert"],
+      de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild prufen", "Passender Experte"],
+      it: ["Parla col medico", "Sintomi", "Farmaci", "Parametri", "Piano salute", "Serve aiuto?", "Riepiloghi recenti", "Revisione immagine", "Esperto giusto"],
+      pt: ["Falar com medico", "Sintomas", "Medicacao", "Sinais vitais", "Plano saude", "Precisa de ajuda?", "Resumos recentes", "Rever imagem", "Especialista certo"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -386,7 +386,7 @@ describe("language persistence", () => {
 
   it("keeps specialist service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Call", "Appointment", "Find transport", "Map", "Share", "Search specialists"],
+      en: ["Call", "Appointment", "Find transport", "Map", "Share", "Search local specialists"],
       es: ["Llamar", "Cita", "Buscar transporte", "Mapa", "Compartir", "Buscar especialistas"],
       fr: ["Appeler", "Rendez-vous", "Trouver transport", "Carte", "Partager", "Rechercher specialistes"],
       de: ["Anrufen", "Termin", "Transport finden", "Karte", "Teilen", "Fachaerzte suchen"],
@@ -539,6 +539,26 @@ describe("language persistence", () => {
         translate(language as keyof typeof expected, "scamGuard.actions.callTrusted"),
         translate(language as keyof typeof expected, "scamGuard.actions.safeHelp"),
         translate(language as keyof typeof expected, "scamGuard.actions.callGuidance"),
+      ]).toEqual(labels);
+    }
+  });
+
+  it("keeps Show VYVA follow-up actions localized for supported account languages", () => {
+    const expected = {
+      en: ["Next safe step", "Next scam-safe step", "Check company", "Compare nearby"],
+      es: ["Siguiente paso seguro", "Siguiente paso contra estafas", "Revisar empresa", "Comparar cerca"],
+      fr: ["Prochaine etape sure", "Prochaine etape anti-arnaque", "Verifier entreprise", "Comparer proche"],
+      de: ["Nachster sicherer Schritt", "Nachster Betrugsschutz-Schritt", "Firma prufen", "Nahe vergleichen"],
+      it: ["Prossimo passo sicuro", "Prossimo passo anti-truffa", "Controlla azienda", "Confronta vicino"],
+      pt: ["Proximo passo seguro", "Proximo passo anti-burla", "Verificar empresa", "Comparar perto"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "showVyva.followUp.kicker"),
+        translate(language as keyof typeof expected, "showVyva.followUp.title.scam"),
+        translate(language as keyof typeof expected, "showVyva.followUp.action.check_company.label"),
+        translate(language as keyof typeof expected, "showVyva.followUp.action.compare_proximity.label"),
       ]).toEqual(labels);
     }
   });

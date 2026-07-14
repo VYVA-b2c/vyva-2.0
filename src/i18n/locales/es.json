@@ -349,11 +349,11 @@
         "openLabel": "Abrir bienestar"
       },
       "cognitive": {
-        "title": "Actividades",
-        "subtitle": "Eventos, clases y planes tranquilos",
-        "bubble": "Puedo encontrar planes seguros que encajen contigo.",
-        "micLabel": "Buscar actividades",
-        "openLabel": "Abrir actividades"
+        "title": "Mi cerebro",
+        "subtitle": "Memoria, atencion y calma",
+        "bubble": "Puedo ayudarte a mantener la mente activa a tu ritmo.",
+        "micLabel": "Abrir Mi cerebro",
+        "openLabel": "Abrir Mi cerebro"
       },
       "social": {
         "title": "Mi comunidad",
@@ -370,9 +370,48 @@
         "openLabel": "Abrir conserje"
       }
     },
+    "nudge": {
+      "text": "No sabes por donde empezar?",
+      "action": "Preguntar a VYVA",
+      "aria": "Preguntar a VYVA por donde empezar"
+    },
+    "conciergeResume": {
+      "kicker": "Ahora",
+      "kickerConfirm": "Necesita tu OK",
+      "kickerReview": "Revisar",
+      "kickerWaiting": "Esperando",
+      "titlePrefix": "VYVA trabaja en tu",
+      "titleConfirmPrefix": "Confirma tu",
+      "titleReviewPrefix": "Revisa tu",
+      "task": {
+        "ride": "transporte",
+        "appointment": "cita",
+        "pharmacy": "solicitud de farmacia",
+        "homeService": "servicio en casa",
+        "default": "solicitud"
+      },
+      "fastStatus": {
+        "ride": "Ver transporte",
+        "appointment": "Ver cita",
+        "pharmacy": "Ver farmacia",
+        "homeService": "Ver servicio",
+        "default": "Ver solicitud"
+      },
+      "step": {
+        "contacting": "Contactando proveedor",
+        "waiting": "Esperando respuesta",
+        "form": "Preparando formulario",
+        "save": "Listo para guardar",
+        "attention": "Necesita tu revision",
+        "confirm": "Esperando tu confirmacion"
+      },
+      "open": "Abrir ahora"
+    },
     "fastHelp": {
       "kicker": "Ayuda rapida",
       "title": "Que quieres que haga VYVA?",
+      "rotate": "Mas",
+      "rotateAria": "Mostrar otras opciones de ayuda rapida",
       "doctor": {
         "label": "Hablar con un medico real ahora",
         "sub": "Recibe ayuda medica en vivo."
@@ -406,8 +445,13 @@
   "voiceHero": {
     "talkToVyva": "Hablemos",
     "speaking": "VYVA está hablando...",
+    "speakingStatus": "VYVA habla",
+    "speakingFallback": "Un momento",
     "listening": "Escuchando...",
     "connecting": "Conectando...",
+    "micOffShort": "Micro apagado",
+    "micOnShort": "Micro activo",
+    "touchInsteadShort": "Tocar",
     "active": "Activa",
     "live": "En vivo",
     "you": "Tú",
@@ -598,7 +642,8 @@
         "appVersion": "Versión de la aplicación",
         "signOut": "Cerrar sesión",
         "deleteAccount": "Eliminar mi cuenta y todos los datos",
-        "deleteAccountSub": "Permanente — no se puede deshacer"
+        "deleteAccountSub": "Permanente — no se puede deshacer",
+        "downloadDataStartedDesc": "VYVA ha empezado a descargar la exportaci?n de tu perfil."
       }
     },
     "notifications": {
@@ -629,7 +674,8 @@
       "supportModeAi": "Con IA",
       "supportModeAiSub": "VYVA gestiona automáticamente los check-ins y recordatorios rutinarios.",
       "supportModeHuman": "Con apoyo humano",
-      "supportModeHumanSub": "Una persona gestiona el contacto mientras VYVA mantiene el plan claro."
+      "supportModeHumanSub": "Una persona gestiona el contacto mientras VYVA mantiene el plan claro.",
+      "savedDesc": "Tus preferencias de notificaci?n se han actualizado."
     },
     "privacy": {
       "title": "Privacidad y consentimiento",
@@ -645,7 +691,9 @@
       "locationSub": "Ubicación en tiempo real cuando está activo",
       "conversationsLabel": "Resúmenes de conversaciones",
       "conversationsSub": "Aspectos destacados diarios de tus chats",
-      "gdprFooter": "Los cambios se guardan automáticamente. Protegido por el RGPD."
+      "gdprFooter": "Los cambios se guardan automáticamente. Protegido por el RGPD.",
+      "brainCoachAccessUpdated": "Acceso a Brain Coach actualizado",
+      "brainCoachAccessUpdatedDesc": "Los permisos de Brain Coach de este miembro del equipo de cuidado se han guardado."
     },
     "account": {
       "title": "Mi cuenta",
@@ -693,7 +741,13 @@
       "requiredFieldsMissing": "Completa los campos obligatorios.",
       "saved": "Datos de la cuenta guardados",
       "saveError": "No se pudieron guardar los datos de la cuenta",
-      "defaultName": "Maria"
+      "defaultName": "Maria",
+      "requiredFieldsMissingDesc": "Completa los datos resaltados del perfil antes de guardar.",
+      "savedDesc": "Los datos de tu cuenta se han guardado.",
+      "photoUpdated": "Foto actualizada",
+      "photoUpdatedDesc": "Tu foto de perfil se ha guardado.",
+      "photoError": "No se pudo actualizar la foto",
+      "photoErrorDesc": "Tu foto de perfil no se ha guardado. Prueba con otra imagen."
     }
   },
   "health": {
@@ -1084,6 +1138,37 @@
       "locationPlaceholder": "Ciudad o zona",
       "searching": "Buscando especialistas...",
       "searchButton": "Buscar especialistas",
+      "experts": {
+        "title": "Elige un experto",
+        "elena": {
+          "label": "Elena Ruiz",
+          "detail": "Jardinera urbana"
+        },
+        "viktor": {
+          "label": "Viktor Sanz",
+          "detail": "Compañero de juegos"
+        },
+        "lola": {
+          "label": "Lola Martínez",
+          "detail": "Chef mediterránea"
+        },
+        "amara": {
+          "label": "Amara Osei",
+          "detail": "Guía de movimiento"
+        },
+        "marco": {
+          "label": "Marco Reyes",
+          "detail": "Guía de calma"
+        },
+        "diego": {
+          "label": "Diego Salinas",
+          "detail": "Musicólogo"
+        },
+        "isabel": {
+          "label": "Isabel Fuentes",
+          "detail": "Anfitriona literaria"
+        }
+      },
       "recommendedSpecialties": "Especialidades recomendadas",
       "disclaimer": "Esto no es un diagnóstico. Si los síntomas son graves o repentinos, llama a emergencias o a tu médico.",
       "noProvidersTitle": "No he encontrado proveedores verificados con datos suficientes ahora mismo.",
@@ -1171,18 +1256,37 @@
     ],
     "quickAccess": "Medicacion",
     "primary": {
-      "reminders": "Recordatorios",
+      "myMedicines": "Mis medicinas",
+      "myMedicinesSub": "Lista guardada",
+      "myMedicinesCount": "{{count}} guardadas",
+      "reminders": "Mis recordatorios",
       "remindersSub": "Revisa el horario de hoy y anade recordatorios de medicacion.",
-      "refills": "Reposiciones",
+      "remindersMobileSub": "Horario de hoy",
+      "refills": "Mis reposiciones",
       "refillsSub": "Prepara recetas repetidas o entregas.",
+      "refillsMobileSub": "Farmacia",
+      "checkInteractions": "Revisar seguridad",
+      "checkInteractionsSub": "Mezcla de medicinas",
       "interactions": "Interacciones",
       "interactionsSub": "Revisa medicinas y suplementos.",
-      "adherence": "Cumplimiento",
-      "adherenceSub": "Ve progreso y dosis omitidas."
+      "interactionsMobileSub": "Revisar mezcla",
+      "adherence": "Mi cumplimiento",
+      "adherenceSub": "Ve progreso y dosis omitidas.",
+      "adherenceMobileSub": "Progreso diario",
+      "adherenceToday": "{{value}}% hoy"
     },
     "canHelpWith": "Te puedo ayudar con",
     "fastHelpKicker": "Ayuda rapida",
     "takenToday": "{{taken}} de {{total}} tomados hoy",
+    "heroDoseHeadline": "No olvides tu\n{{medication}}",
+    "heroDoseDueToday": "Toca hoy. Pulsa Recordatorios al tomarla.",
+    "heroDoseDueNow": "Toca ahora. Pulsa Recordatorios al tomarla.",
+    "heroDoseDueInMinutes_one": "Toca en {{count}} min. Pulsa Recordatorios al tomarla.",
+    "heroDoseDueInMinutes_other": "Toca en {{count}} min. Pulsa Recordatorios al tomarla.",
+    "heroDoseDueAt": "Toca a las {{time}}. Pulsa Recordatorios al tomarla.",
+    "heroAllDoneHeadline": "Medicacion\nde hoy lista",
+    "heroAllDoneSub": "Muy bien. No queda nada pendiente hoy.",
+    "loadingSchedule": "Revisando el horario de hoy...",
     "todaySchedule": "Horario de hoy",
     "dueTonight": "1 pendiente esta noche",
     "taken": "Tomado",
@@ -1207,6 +1311,22 @@
     "toastAdded": "Medicamento añadido",
     "toastAddedDesc": "{{name}} ha sido añadido a tu lista.",
     "toastAddedDefault": "Tu medicamento ha sido añadido.",
+    "voiceSaveError": "No pude guardar esa medicina. Intentalo de nuevo.",
+    "checkInteractions": {
+      "kicker": "Seguridad de medicinas",
+      "title": "Revisar seguridad",
+      "loadingSub": "VYVA esta revisando tu lista guardada.",
+      "loading": "Revisando tu lista...",
+      "error": "No pude revisar esto ahora. Intentalo de nuevo.",
+      "clearTitle": "Parece seguro hoy",
+      "clearSub": "No hay preguntas de seguridad segun las reglas que reviso VYVA.",
+      "flagKicker": "Pregunta de seguridad",
+      "ruleShort": "Revisa antes de tomarlas juntas.",
+      "duplicateShort": "Medicinas parecidas. Revisa si necesitas las dos.",
+      "asked": "Ya pregunte",
+      "later": "Luego",
+      "footer": "{{count}} medicinas revisadas. VYVA nunca cambia dosis."
+    },
     "assistant": {
       "interactions": {
         "label": "Verificar interacciones",
@@ -1251,6 +1371,10 @@
         "sub": "Hablar de sintomas a vigilar",
         "sheetTitle": "Revisar efectos secundarios",
         "prompt": "Tomo los siguientes medicamentos: {{medNames}}. Ayudame a pensar en posibles efectos secundarios, sintomas que debo vigilar y preguntas para mi medico o farmaceutico. Si algo suena urgente, dime que busque ayuda medica."
+      },
+      "refillHelp": {
+        "label": "Ayuda para reposicion",
+        "sub": "Apoyo para pedir"
       }
     },
     "notes": {
@@ -1344,6 +1468,31 @@
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
       "dosageFallback": "—"
+    },
+    "takenToastTitle": "Buen trabajo",
+    "takenToastDescription": "{{medicine}} fue marcado como tomado.",
+    "allTakenToastDescription": "Todas las dosis de hoy ya est?n marcadas como tomadas.",
+    "editSuccessDesc": "Los datos del medicamento se han guardado.",
+    "editErrorDesc": "Los datos del medicamento no se guardaron. Int?ntalo de nuevo.",
+    "deleteSuccessDesc": "Este medicamento se elimin? de tu lista.",
+    "deleteErrorDesc": "Este medicamento no se elimin? de tu lista. Int?ntalo de nuevo.",
+    "confirmDoseError": "No se pudo confirmar la dosis",
+    "confirmDoseErrorDesc": "La dosis no se marc? como tomada. Int?ntalo de nuevo.",
+    "safety": {
+      "analyseSuccess": "Revisi?n de seguridad actualizada",
+      "analyseSuccessDesc": "VYVA revis? las se?ales de tus medicamentos.",
+      "analyseError": "No se pudo analizar la seguridad de los medicamentos",
+      "analyseErrorDesc": "VYVA no pudo revisar tus se?ales de medicamentos ahora mismo.",
+      "sharedSuccess": "Caso compartido con el cuidador",
+      "sharedSuccessDesc": "El caso de seguridad del medicamento se comparti? con tu cuidador.",
+      "saveSuccess": "Caso de seguridad guardado",
+      "saveSuccessDesc": "El caso de seguridad del medicamento se guard? para revisi?n.",
+      "saveError": "No se pudo guardar el caso de seguridad",
+      "saveErrorDesc": "El caso de seguridad del medicamento no se guard?. Int?ntalo de nuevo.",
+      "exportSuccess": "Paquete listo para auditor?a creado",
+      "exportSuccessDesc": "El paquete de seguridad del medicamento est? listo para copiar o compartir.",
+      "exportError": "No se pudo exportar el caso de seguridad",
+      "exportErrorDesc": "El paquete de seguridad del medicamento no se cre?. Int?ntalo de nuevo."
     }
   },
   "brain": {
@@ -1592,6 +1741,30 @@
       "title": "Próximamente",
       "subtitle": "Esta sección estará disponible pronto.",
       "back": "Volver al perfil"
+    },
+    "toast": {
+      "allergensAlreadySaved": {
+        "title": "Al?rgenos ya guardados",
+        "description": "Todo lo que dijiste ya est? en tu lista de alergias."
+      },
+      "allergyListUpdated": {
+        "title": "Lista de alergias actualizada"
+      },
+      "healthConditionsUpdated": {
+        "title": "Condiciones de salud actualizadas"
+      },
+      "hobbiesAlreadySaved": {
+        "title": "Aficiones ya guardadas",
+        "description": "Todo lo que dijiste ya est? seleccionado."
+      },
+      "hobbiesUpdated": {
+        "title": "Aficiones actualizadas"
+      },
+      "providerUpdated": {
+        "title": "Proveedor actualizado",
+        "description": "{{name}} se guard? en tus proveedores de confianza.",
+        "fallbackName": "Este proveedor"
+      }
     }
   },
   "weather": {
@@ -1662,7 +1835,8 @@
       "accepted": "Conectado",
       "accept": "Aceptar",
       "decline": "Rechazar",
-      "requestSent": "¡Solicitud de conexión enviada!"
+      "requestSent": "¡Solicitud de conexión enviada!",
+      "requestSentDesc": "Tu solicitud de compa??a fue enviada."
     },
     "noConnections": "Aún no tienes compañeros — ¡consulta la pestaña de Sugerencias!",
     "activityTile": "Conecta con otros",
@@ -1673,7 +1847,11 @@
       "saveInterestsFailed": "No se pudieron guardar tus intereses",
       "connectFailed": "No se pudo enviar la solicitud",
       "respondFailed": "No se pudo actualizar la conexión",
-      "activateFailed": "No se pudo activar la comunidad. Inténtalo de nuevo."
+      "activateFailed": "No se pudo activar la comunidad. Inténtalo de nuevo.",
+      "saveInterestsFailedDesc": "Tus intereses para compa??a no se guardaron. Int?ntalo de nuevo.",
+      "connectFailedDesc": "Tu solicitud de compa??a no se envi?. Int?ntalo de nuevo.",
+      "respondFailedDesc": "Tu respuesta de compa??a no se guard?. Int?ntalo de nuevo.",
+      "activateFailedDesc": "La b?squeda de compa??a no se activ?. Int?ntalo de nuevo."
     },
     "profile": {
       "valuesTitle": "Lo que te importa",
@@ -1748,22 +1926,22 @@
     },
     "primaryCards": {
       "service": {
-        "label": "Buscar ayuda",
+        "label": "Buscar un servicio",
         "mobile": "Ayuda",
-        "sub": "Arreglos, limpieza, cuidados",
-        "mobileSub": "Arreglos y cuidado"
+        "sub": "Fontanero, reparaciones, limpieza, cuidados",
+        "mobileSub": "Reparaciones y cuidados"
       },
       "ride": {
-        "label": "Pedir taxi",
+        "label": "Reservar transporte",
         "mobile": "Taxi",
-        "sub": "Taxi, traslado, vuelta a casa",
+        "sub": "Taxi, transporte medico, volver a casa",
         "mobileSub": "Taxi o traslado"
       },
       "delivery": {
-        "label": "Pedir comida",
+        "label": "Hacer un pedido",
         "mobile": "Pedido",
-        "sub": "Compra, farmacia, comida",
-        "mobileSub": "Comida y basicos"
+        "sub": "Compra, farmacia, comida, esenciales",
+        "mobileSub": "Comida y esenciales"
       },
       "appointment": {
         "label": "Reservar cita",

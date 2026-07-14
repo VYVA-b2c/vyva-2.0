@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SocialHub from "./SocialHub";
@@ -32,11 +32,20 @@ vi.mock("@/components/VoiceHero", () => ({
   },
 }));
 
+vi.mock("@/components/VyvaSessionCta", () => ({
+  default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
+    <button type="button" data-testid={testId} className={className}>
+      {label}
+    </button>
+  ),
+}));
+
 vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
   default: () => null,
 }));
 
 vi.mock("@/hooks/useRouteVoiceAutoStart", () => ({
+  SECTION_VOICE_AUTO_START_KEY: "autoStartSectionVoice",
   useRouteVoiceAutoStart: () => false,
 }));
 
@@ -92,9 +101,13 @@ function LocationProbe() {
 
 function renderSocialHub() {
   return render(
-    <MemoryRouter initialEntries={["/social-rooms"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/social-rooms"]}>
       <Routes>
-        <Route path="/social-rooms" element={<SocialHub />} />
+        <Route path="/social-rooms" element={<><SocialHub /><LocationProbe /></>} />
+        <Route path="/social-rooms/join-in" element={<><SocialHub roomsOnly /><LocationProbe /></>} />
+        <Route path="/social-rooms/experts" element={<LocationProbe />} />
+        <Route path="/social-rooms/share" element={<LocationProbe />} />
+        <Route path="/social-rooms/activities" element={<LocationProbe />} />
         <Route path="/social-rooms/:slug" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
@@ -114,54 +127,98 @@ describe("SocialHub home-style layout", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
-  it("keeps the voice hero and renders the four static primary cards", () => {
+  it("renders the Community master layout without the old duplicate room launcher", () => {
     renderSocialHub();
 
-    expect(screen.getByTestId("voice-hero")).toBeInTheDocument();
-    expect(voiceHeroMock).toHaveBeenCalledWith(expect.objectContaining({
-      autoStartVoice: false,
-      voiceAgentSlug: "companion",
-    }));
+    expect(screen.getByTestId("community-master-layout")).toBeInTheDocument();
+    expect(screen.getByTestId("community-master-hero")).toHaveTextContent("Community ready");
+    expect(screen.queryByTestId("voice-hero")).not.toBeInTheDocument();
+    expect(voiceHeroMock).not.toHaveBeenCalled();
 
     const primaryCards = screen.getByTestId("social-primary-cards");
-    expect(within(primaryCards).getByText("Match")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Socialise")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Share")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Participate")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("Make Friends")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("Ask an Expert")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("What's On")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("Share Stories")).toBeInTheDocument();
+    expect(within(primaryCards).getAllByRole("button").map((card) => card.textContent)).toEqual([
+      "Make Friends",
+      "Ask an Expert",
+      "Share Stories",
+      "What's On",
+    ]);
+    expect(primaryCards).not.toHaveTextContent("Participate");
+    expect(primaryCards).not.toHaveTextContent("Join In");
+    expect(screen.getByTestId("card-social-primary-experts")).toHaveAccessibleName("Ask an Expert. Talk with a VYVA specialist");
+    expect(primaryCards).not.toHaveTextContent("Movement and clubs");
+    expect(screen.getByTestId("card-social-primary-activities")).toHaveAccessibleName("What's On. Movement and clubs");
     expect(primaryCards).not.toHaveTextContent("Challenge");
     expect(primaryCards).not.toHaveTextContent("Learn");
     expect(screen.queryByTestId("button-social-quick-challenge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-social-quick-learn")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("social-room-list")).not.toBeInTheDocument();
   });
 
-  it("shows three live Fast help room rows with improved headlines and rotates to the rest", () => {
+  it("opens Ask an Expert as a dedicated expert hub", () => {
+    renderSocialHub();
+
+    fireEvent.click(screen.getByTestId("card-social-primary-experts"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/experts");
+  });
+
+  it("opens Activities as the Community activities area", () => {
+    renderSocialHub();
+
+    fireEvent.click(screen.getByTestId("card-social-primary-activities"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/activities");
+  });
+
+  it("opens Share Stories as the dedicated story drop box", () => {
+    renderSocialHub();
+
+    fireEvent.click(screen.getByTestId("card-social-primary-share"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/share");
+  });
+
+  it("shows three visible Fast help actions", () => {
     renderSocialHub();
 
     const fastHelp = screen.getByTestId("social-fast-help");
     expect(fastHelp).toHaveTextContent("Fast help");
-    expect(fastHelp).toHaveTextContent("Cook Something Simple");
-    expect(fastHelp).toHaveTextContent("Bring a Song");
-    expect(fastHelp).toHaveTextContent("Grow Something Together");
+    expect(fastHelp).toHaveTextContent("Bring Song");
+    expect(fastHelp).toHaveTextContent("Cook Together");
+    expect(fastHelp).toHaveTextContent("Garden Chat");
     expect(screen.getAllByTestId(/^button-social-fast-help-/)).toHaveLength(3);
-
-    fireEvent.click(screen.getByTestId("button-social-rooms-next"));
-
-    expect(fastHelp).toHaveTextContent("Find a Reading Corner");
-    expect(fastHelp).toHaveTextContent("Play a Light Game");
   });
 
-  it("opens the existing room detail sheet and enters the selected room", () => {
+  it("rotates through the full final Fast help set", () => {
+    vi.useFakeTimers();
     renderSocialHub();
 
-    fireEvent.click(screen.getByTestId("button-social-fast-help-music-room"));
+    expect(screen.getByTestId("button-social-fast-help-bring-song")).toHaveTextContent("Bring Song");
+    expect(screen.getByTestId("button-social-fast-help-cook-together")).toHaveTextContent("Cook Together");
+    expect(screen.getByTestId("button-social-fast-help-garden-chat")).toHaveTextContent("Garden Chat");
 
-    expect(screen.getByRole("dialog")).toHaveTextContent("Music Room");
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
 
-    fireEvent.click(screen.getByTestId("button-social-room-enter"));
+    expect(screen.getByTestId("button-social-fast-help-reading-corner")).toHaveTextContent("Reading Corner");
+    expect(screen.getByTestId("button-social-fast-help-light-game")).toHaveTextContent("Light Game");
+    expect(screen.getByTestId("button-social-fast-help-move-together")).toHaveTextContent("Move Together");
+  });
 
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/music-room");
+  it("opens room routes from Fast help", () => {
+    renderSocialHub();
+
+    fireEvent.click(screen.getByTestId("button-social-fast-help-cook-together"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/kitchen-table");
   });
 });

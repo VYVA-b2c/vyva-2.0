@@ -12,6 +12,8 @@ import {
 } from "../../shared/vitalsEvidence.js";
 import { unitForSignal, type VitalsSignalKey } from "../../shared/vitalsSignalCatalog.js";
 import { requireUser } from "../middleware/auth.js";
+import { requireActiveProfileId } from "../lib/profileAccess.js";
+import { resolveDomainAccess } from "../lib/caregiverDomainAccess.js";
 
 const router = Router();
 
@@ -245,55 +247,84 @@ async function mirrorToVitalsEngine(userId: string, metricType: MetricType, valu
   }
 }
 
-router.get("/", requireUser, async (req: Request, res: Response) => {
-  const userId = req.user!.id;
+async function resolveProfileParam(req: Request, res: Response, value: string): Promise<string | null> {
+  if (value === "me") return requireActiveProfileId(req.user!.id, res);
+  return value;
+}
+
+async function loadVitalsSummaryForUser(userId: string) {
   const sevenDaysAgo = startOfDayUTC(6);
+  const rows = await db
+    .select()
+    .from(vitalsReadings)
+    .where(
+      and(
+        eq(vitalsReadings.user_id, userId),
+        gte(vitalsReadings.recorded_at, sevenDaysAgo),
+      ),
+    )
+    .orderBy(desc(vitalsReadings.recorded_at));
+
+  const byMetric: Record<MetricType, MetricReading[]> = {
+    hr: [], rr: [], bp: [],
+  };
+
+  for (const row of rows) {
+    for (const { metric, ...reading } of rowToMetricEntries(row)) {
+      byMetric[metric].push(reading);
+    }
+  }
 
   try {
-    const rows = await db
+    const signalRows = await db
       .select()
-      .from(vitalsReadings)
+      .from(vyvaSignalReadings)
       .where(
         and(
-          eq(vitalsReadings.user_id, userId),
-          gte(vitalsReadings.recorded_at, sevenDaysAgo),
+          eq(vyvaSignalReadings.user_id, userId),
+          gte(vyvaSignalReadings.recorded_at, sevenDaysAgo),
+          inArray(vyvaSignalReadings.signal_type, [...SUMMARY_ENGINE_SIGNAL_TYPES]),
         ),
       )
-      .orderBy(desc(vitalsReadings.recorded_at));
+      .orderBy(desc(vyvaSignalReadings.recorded_at));
 
-    const byMetric: Record<MetricType, MetricReading[]> = {
-      hr: [], rr: [], bp: [],
-    };
-
-    for (const row of rows) {
-      for (const { metric, ...reading } of rowToMetricEntries(row)) {
-        byMetric[metric].push(reading);
-      }
+    for (const { metric, ...reading } of engineRowsToMetricEntries(signalRows)) {
+      byMetric[metric].push(reading);
     }
+  } catch (signalErr) {
+    console.warn("[vitals GET signal readings]", signalErr);
+  }
 
-    try {
-      const signalRows = await db
-        .select()
-        .from(vyvaSignalReadings)
-        .where(
-          and(
-            eq(vyvaSignalReadings.user_id, userId),
-            gte(vyvaSignalReadings.recorded_at, sevenDaysAgo),
-            inArray(vyvaSignalReadings.signal_type, [...SUMMARY_ENGINE_SIGNAL_TYPES]),
-          ),
-        )
-        .orderBy(desc(vyvaSignalReadings.recorded_at));
+  const { summary, compliance_days: complianceDays } = buildVitalsSummary(byMetric);
+  return { summary, compliance_days: complianceDays };
+}
 
-      for (const { metric, ...reading } of engineRowsToMetricEntries(signalRows)) {
-        byMetric[metric].push(reading);
-      }
-    } catch (signalErr) {
-      console.warn("[vitals GET signal readings]", signalErr);
-    }
+router.get("/caregiver/:profileId", requireUser, async (req: Request, res: Response) => {
+  try {
+    const profileId = await resolveProfileParam(req, res, req.params.profileId);
+    if (!profileId) return;
+    const access = await resolveDomainAccess({
+      actorUserId: req.user!.id,
+      targetUserId: profileId,
+      domain: "health",
+      requiredPermission: "view_vitals",
+      actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
+      actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
+    });
+    if (!access) return res.status(403).json({ error: "Caregiver vitals access is not enabled." });
 
-    const { summary, compliance_days: complianceDays } = buildVitalsSummary(byMetric);
+    return res.json(await loadVitalsSummaryForUser(profileId));
+  } catch (err) {
+    console.error("[vitals caregiver GET]", err);
+    return res.status(500).json({ error: "Failed to fetch caregiver vitals readings" });
+  }
+});
 
-    return res.json({ summary, compliance_days: complianceDays });
+router.get("/", requireUser, async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+
+  try {
+    return res.json(await loadVitalsSummaryForUser(userId));
   } catch (err) {
     console.error("[vitals GET]", err);
     return res.status(500).json({ error: "Failed to fetch vitals readings" });

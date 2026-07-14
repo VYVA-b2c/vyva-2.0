@@ -74,6 +74,13 @@ function withReturnTo(path: string, returnTo: string): string {
 }
 
 function setupToastCopy(step: MissingSetupStep) {
+  if (step.section === "account") {
+    return {
+      title: "Account access disabled",
+      description: step.reason,
+    };
+  }
+
   if (step.section === "subscription") {
     return {
       title: "Plan upgrade needed",
@@ -136,7 +143,7 @@ export function useServiceGate() {
       navigate(withReturnTo(firstMissing.path, returnTo));
       return false;
     },
-    [navigate, readinessQuery.data, readinessQuery.isLoading, toast],
+    [navigate, readinessQuery.data, toast],
   );
 
   const guardPath = useCallback(

@@ -6,6 +6,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  BrainCircuit,
   Calendar,
   Car,
   CheckCircle2,
@@ -14,9 +15,9 @@ import {
   Droplets,
   ExternalLink,
   Gauge,
+  Gamepad2,
   Heart,
   Mail,
-  MessageCircle,
   Pill,
   PhoneCall,
   Send,
@@ -32,6 +33,15 @@ import {
 } from "lucide-react";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { compactReportRecommendations } from "@/lib/reportRecommendations";
+import type { BrainCoachProgress } from "@/lib/brainCoachReport";
+import {
+  buildBrainCoachNarrative,
+  domainLabel,
+  formatBrainCoachDate,
+  formatBrainCoachDuration,
+  hasBrainCoachData,
+  strongestBrainCoachDomain,
+} from "@/lib/brainCoachReport";
 import {
   HealthWizardCard,
   HealthWizardHero,
@@ -654,10 +664,10 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
 
       <button
         data-testid="button-report-detail-chat"
-        onClick={() => navigate("/chat")}
+        onClick={openDoctorWithContext}
         className="vyva-primary-action mt-5 w-full"
       >
-        <MessageCircle size={18} />
+        <Stethoscope size={18} />
         {t("informes.reportDetail.chatCta")}
       </button>
     </HealthWizardShell>
@@ -686,6 +696,10 @@ export function InformesMain() {
   });
   const { data: vitalsHistory } = useQuery<VitalsHistory>({
     queryKey: ["/api/reports/vitals/history"],
+  });
+  const { data: brainCoachProgress } = useQuery<BrainCoachProgress>({
+    queryKey: ["/api/games/progress"],
+    retry: false,
   });
   const { data: profileContacts } = useQuery<ProfileContactsResponse>({
     queryKey: ["/api/profile"],
@@ -726,6 +740,9 @@ export function InformesMain() {
   const hasData = summary && (summary.latestTriage || summary.latestVitals || latestSignals.length > 0 || summary.todayMeds.total > 0);
   const signal = reportSignal(summary);
   const pendingMeds = summary?.todayMeds.total ? Math.max(summary.todayMeds.total - summary.todayMeds.taken, 0) : 0;
+  const brainCoachHasProgress = hasBrainCoachData(brainCoachProgress);
+  const brainCoachSummary = brainCoachProgress?.summary;
+  const brainCoachStrongestDomain = strongestBrainCoachDomain(brainCoachProgress);
   const statusTone = signal.tone === "urgent" ? "#B91C1C" : signal.tone === "routine" ? "#B45309" : signal.tone === "good" ? "#047857" : "#6B7280";
   const latestTriage = summary?.latestTriage ?? null;
   const latestDoctorNote = latestTriage ? reportDoctorNote(latestTriage, t) : "";
@@ -967,6 +984,7 @@ export function InformesMain() {
     ...(summary?.latestTriage ? [{ label: t("informes.cards.symptom.title"), value: formatDate(summary.latestTriage.created_at), tone: "neutral" as const }] : []),
     ...(primarySignal ? [{ label: t("health.quickTiles.status.label", "Status"), value: signalDisplay(primarySignal), tone: "good" as const }] : summary?.latestVitals ? [{ label: t("health.quickTiles.status.label", "Status"), value: `${summary.latestVitals.bpm} bpm`, tone: "good" as const }] : []),
     ...(summary?.todayMeds.total ? [{ label: t("health.quickTiles.medication.label", "Medication"), value: `${summary.todayMeds.taken}/${summary.todayMeds.total}`, tone: pendingMeds ? "warning" as const : "good" as const }] : []),
+    ...(brainCoachHasProgress ? [{ label: t("reports.brainCoach.title", "Brain Coach report"), value: `${brainCoachSummary?.completedSessions ?? 0}`, tone: "good" as const }] : []),
   ];
 
   if (selectedReportId) {
@@ -1373,6 +1391,78 @@ export function InformesMain() {
               ) : (
                 <p className="font-body text-[14px] leading-relaxed text-vyva-text-2">{t("informes.cards.meds.empty")}</p>
               )}
+            </section>
+
+            <section className={`${cardShell} p-5`} data-testid="card-brain-coach-report">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple">
+                  <BrainCircuit size={21} />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-body text-[16px] font-bold text-vyva-text-1">{t("reports.brainCoach.title", "Brain Coach report")}</p>
+                  <p className="font-body text-[12px] text-vyva-text-2">
+                    {brainCoachHasProgress
+                      ? formatBrainCoachDate(brainCoachSummary?.lastPlayedAt)
+                      : t("reports.brainCoach.notStarted", "Not started yet")}
+                  </p>
+                </div>
+              </div>
+
+              {brainCoachHasProgress ? (
+                <>
+                  <p className="line-clamp-2 font-body text-[14px] font-bold leading-relaxed text-vyva-text-2">
+                    {buildBrainCoachNarrative(brainCoachProgress)}
+                  </p>
+                  <div className="mt-4 grid grid-cols-3 gap-3 border-y border-[#E8DED4] py-3">
+                    <div>
+                      <p className="font-body text-[22px] font-black leading-none text-[#047857]">{brainCoachSummary?.completedSessions ?? 0}</p>
+                      <p className="mt-1 font-body text-[11px] font-bold text-[#047857]">{t("reports.brainCoach.completed", "Completed")}</p>
+                    </div>
+                    <div>
+                      <p className="font-body text-[22px] font-black leading-none text-[#B45309]">{brainCoachSummary?.streakDays ?? 0}</p>
+                      <p className="mt-1 font-body text-[11px] font-bold text-[#B45309]">{t("reports.brainCoach.streak", "Streak")}</p>
+                    </div>
+                    <div>
+                      <p className="font-body text-[18px] font-black leading-none text-[#1D4ED8]">{formatBrainCoachDuration(brainCoachSummary?.totalDurationSeconds ?? 0)}</p>
+                      <p className="mt-1 font-body text-[11px] font-bold text-[#1D4ED8]">{t("reports.brainCoach.time", "Time")}</p>
+                    </div>
+                  </div>
+                  {brainCoachStrongestDomain ? (
+                    <div className="mt-4 flex items-center gap-2 rounded-[18px] border border-[#DDD6FE] bg-[#F8F5FF] px-3 py-2">
+                      <Gamepad2 size={16} className="text-vyva-purple" />
+                      <p className="font-body text-[13px] font-bold text-vyva-text-2">
+                        {t("reports.brainCoach.mostPracticed", "Most practiced")}: <span className="text-vyva-text-1">{domainLabel(brainCoachStrongestDomain.domain)}</span>
+                      </p>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="font-body text-[14px] font-bold leading-relaxed text-vyva-text-2">
+                  {t("reports.brainCoach.emptyCard", "Finish one Brain Coach game and VYVA will start a simple progress report.")}
+                </p>
+              )}
+
+              <div className="mt-4 flex flex-col gap-2 border-t border-[#E8DED4] pt-4 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => navigate("/informes/brain-coach")}
+                  data-testid="button-open-brain-coach-report"
+                  className="vyva-tap inline-flex min-h-[42px] flex-1 items-center justify-center gap-1 rounded-full bg-[#F5F3FF] px-4 font-body text-[12px] font-bold text-vyva-purple"
+                >
+                  {t("reports.brainCoach.view", "View report")}
+                  <ArrowRight size={15} />
+                </button>
+                {!brainCoachHasProgress ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/mind-memory")}
+                    data-testid="button-start-brain-coach-from-reports"
+                    className="vyva-tap inline-flex min-h-[42px] flex-1 items-center justify-center gap-1 rounded-full bg-vyva-purple px-4 font-body text-[12px] font-bold text-white"
+                  >
+                    {t("reports.brainCoach.start", "Start a game")}
+                  </button>
+                ) : null}
+              </div>
             </section>
           </div>
 

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, CircleHelp, Layers, Loader2, Palette, Ruler, Shapes, Square } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import { supabase } from "../lib/supabaseClient";
-import BrainGameResultActions from "./shared/BrainGameResultActions";
+import { gameData } from "./shared/gameDataApi";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
@@ -342,7 +342,13 @@ function CategoryMarker({ category, rule, compact = false }) {
   return <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FFF7ED] text-[26px] font-black text-[#9A3412]" aria-hidden="true">{symbol}</span>;
 }
 
-export default function CategorySort({ userId, onExit }) {
+export default function CategorySort({
+  userId,
+  onExit,
+  assessmentPractice = null,
+  onAssessmentPracticeComplete,
+  onAssessmentPracticeReturn,
+}) {
   const { language, t } = useLanguage();
   const gameLanguage = normalizeGameLanguage(language);
   const text = useMemo(() => ({
@@ -489,8 +495,8 @@ export default function CategorySort({ userId, onExit }) {
     const fallback = getDefaultUserState(userId);
     if (!userId) return readLocalUserState(userId) ?? fallback;
 
-    const existing = await supabase
-      .from("category_sort_user_state")
+    const existing = await gameData
+      .table("category_sort_user_state")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -498,8 +504,8 @@ export default function CategorySort({ userId, onExit }) {
     if (existing.error) throw existing.error;
     if (existing.data) return existing.data;
 
-    const created = await supabase
-      .from("category_sort_user_state")
+    const created = await gameData
+      .table("category_sort_user_state")
       .upsert(fallback, { onConflict: "user_id" })
       .select("*")
       .single();
@@ -518,8 +524,8 @@ export default function CategorySort({ userId, onExit }) {
     const start = startOfLocalDay();
     const end = addDays(start, 1);
 
-    const todaySessions = await supabase
-      .from("category_sort_sessions")
+    const todaySessions = await gameData
+      .table("category_sort_sessions")
       .select("sequence_id")
       .eq("user_id", userId)
       .gte("played_at", start.toISOString())
@@ -531,8 +537,8 @@ export default function CategorySort({ userId, onExit }) {
     let selectedSequence = null;
 
     for (const languageToUse of languageOrder) {
-      let query = supabase
-        .from("category_sort_sequences")
+      let query = gameData
+        .table("category_sort_sequences")
         .select("*")
         .eq("difficulty_tier", tier)
         .eq("is_active", true)
@@ -552,8 +558,8 @@ export default function CategorySort({ userId, onExit }) {
     }
 
     if (!selectedSequence) {
-      const history = await supabase
-        .from("category_sort_sessions")
+      const history = await gameData
+        .table("category_sort_sessions")
         .select("sequence_id,played_at")
         .eq("user_id", userId)
         .eq("difficulty_tier", tier)
@@ -569,8 +575,8 @@ export default function CategorySort({ userId, onExit }) {
       }
 
       for (const languageToUse of languageOrder) {
-        const rows = await supabase
-          .from("category_sort_sequences")
+        const rows = await gameData
+          .table("category_sort_sequences")
           .select("*")
           .eq("difficulty_tier", tier)
           .eq("is_active", true)
@@ -588,8 +594,8 @@ export default function CategorySort({ userId, onExit }) {
 
     const normalized = normalizeSequence(selectedSequence);
     const cardIds = normalized.card_ids;
-    const cardRows = await supabase
-      .from("category_sort_cards")
+    const cardRows = await gameData
+      .table("category_sort_cards")
       .select("*")
       .in("id", cardIds);
 
@@ -656,7 +662,7 @@ export default function CategorySort({ userId, onExit }) {
       duration_seconds: result.duration_seconds,
     };
 
-    const saved = await supabase.from("category_sort_sessions").insert(payload);
+    const saved = await gameData.table("category_sort_sessions").insert(payload);
     if (saved.error) {
       sessionSavedRef.current = false;
     }
@@ -754,8 +760,8 @@ export default function CategorySort({ userId, onExit }) {
       return next;
     }
 
-    const updated = await supabase
-      .from("category_sort_user_state")
+    const updated = await gameData
+      .table("category_sort_user_state")
       .upsert(next, { onConflict: "user_id" })
       .select("*")
       .single();
@@ -824,9 +830,14 @@ export default function CategorySort({ userId, onExit }) {
     await saveSession(result);
 
     await updateUserState(result);
+    onAssessmentPracticeComplete?.({
+      score: result.score,
+      accuracyPct: result.combined_accuracy_pct,
+      practiceTitle: assessmentPractice?.practiceTitle,
+    });
     setScreen("result");
     setIsResolving(false);
-  }, [clearTimers, computeScore, saveSession, updateUserState]);
+  }, [assessmentPractice, clearTimers, computeScore, onAssessmentPracticeComplete, saveSession, updateUserState]);
 
   const saveAbandonedIfNeeded = useCallback(async () => {
     if (sessionSavedRef.current) return;
@@ -1309,14 +1320,28 @@ export default function CategorySort({ userId, onExit }) {
           </section>
         </div>
 
-        <BrainGameResultActions
-          className="shrink-0 pt-3"
+        <BrainGameCompletionDialog
+          title={result.score >= 600 ? text.resultGreat : text.resultGood}
+          summary={`${text.score}: ${result.score} | ${text.accuracy}: ${Math.round(result.accuracy_pct)}%`}
+          metrics={[
+            { label: text.accuracy, value: `${Math.round(result.accuracy_pct)}%` },
+            { label: text.flexibility, value: `${Math.round(result.flexibility_pct)}%` },
+            { label: text.score, value: String(result.score) },
+            { label: text.streak, value: `${userState?.streak_days ?? 1} ${text.days}` },
+          ]}
           continueLabel={continueLabel}
           replayLabel={text.playAgain}
           anotherLabel={text.playAnotherGame}
+          assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
+          assessmentReturnHint={
+            assessmentPractice
+              ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
+              : undefined
+          }
           onContinue={handleContinue}
           onReplay={handleReplay}
           onAnother={handleExit}
+          onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
         />
       </div>
     </div>

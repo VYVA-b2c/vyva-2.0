@@ -13,6 +13,12 @@ import {
   isVoiceAppActionDomain,
   specialistTransferFromToolCall,
 } from "@/lib/voiceNavigation";
+import {
+  ensureVoiceSessionId,
+  readVoiceSessionId,
+  VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
+  type VoiceTriageTouchAnswerDetail,
+} from "@/lib/voiceSessionBridge";
 import { deriveVoiceSessionPhase, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 
@@ -92,6 +98,51 @@ export interface TranscriptEntry {
   timestamp: number;
 }
 
+export type VoiceDiagnosticStepId =
+  | "browser_microphone"
+  | "account_access"
+  | "agent_config"
+  | "server_credentials"
+  | "session_token"
+  | "elevenlabs_session";
+
+export type VoiceDiagnosticStatus = "pending" | "running" | "passed" | "failed" | "skipped";
+
+export type VoiceDiagnosticStep = {
+  id: VoiceDiagnosticStepId;
+  label: string;
+  status: VoiceDiagnosticStatus;
+  detail?: string;
+};
+
+export type VoiceConnectionErrorCode =
+  | "VOICE_AUTH_REQUIRED"
+  | "VOICE_ENTITLEMENT_REQUIRED"
+  | "VOICE_ACCOUNT_ACCESS_DISABLED"
+  | "VOICE_ACTIVE_PROFILE_MISSING"
+  | "VOICE_ACTIVE_PROFILE_NOT_FOUND"
+  | "VOICE_ACCESS_UNAVAILABLE"
+  | "ELEVENLABS_AGENT_MISSING"
+  | "ELEVENLABS_API_KEY_MISSING"
+  | "ELEVENLABS_SIGNED_URL_ERROR"
+  | "ELEVENLABS_TOKEN_ERROR"
+  | "MICROPHONE_UNAVAILABLE"
+  | "MICROPHONE_PERMISSION_DENIED"
+  | "MICROPHONE_ACCESS_FAILED"
+  | "VOICE_SESSION_CLOSED"
+  | "VOICE_SESSION_ERROR"
+  | "VOICE_SESSION_START_FAILED";
+
+class VoiceConnectionError extends Error {
+  code: VoiceConnectionErrorCode;
+
+  constructor(message: string, code: VoiceConnectionErrorCode) {
+    super(message);
+    this.name = "VoiceConnectionError";
+    this.code = code;
+  }
+}
+
 type StartVoiceOptions = {
   agentId?: string;
   agentSlug?: string;
@@ -131,12 +182,20 @@ type ActiveVoiceRecommendation = {
 
 const VYVA_AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID ?? "agent_0401knfndsypfmqa31ssw82h364m";
 const FALLBACK_USER_ID = "vyva-local-user";
-const VOICE_SESSION_STORAGE_KEY = "vyva.voice.sessionId";
 const VOICE_FORCE_STOP_EVENT = "vyva:voice-force-stop";
 const ALLOW_PUBLIC_AGENT_FALLBACK =
   import.meta.env.DEV && import.meta.env.VITE_ELEVENLABS_ALLOW_PUBLIC_FALLBACK === "true";
 
 let activeVoiceInstanceId: string | null = null;
+
+const VOICE_DIAGNOSTIC_LABELS: Record<VoiceDiagnosticStepId, string> = {
+  browser_microphone: "Microphone",
+  account_access: "Account access",
+  agent_config: "Agent config",
+  server_credentials: "Server key",
+  session_token: "Signed URL",
+  elevenlabs_session: "ElevenLabs session",
+};
 
 type ConversationTurn = { role: "user" | "assistant"; content: string };
 
@@ -158,6 +217,98 @@ type VoiceContextResponse = {
   dynamic_variables?: Record<string, string | number | boolean>;
 };
 
+type VoiceReadinessResponse = {
+  ready?: boolean;
+  agent_slug?: string;
+  room_slug?: string;
+  source?: string;
+  agent_id_present?: boolean;
+};
+
+type VoiceServerErrorBody = {
+  error?: string;
+  code?: string;
+  detail?: string;
+  expected_keys?: string[];
+  account_user_id?: string | null;
+  active_profile_id?: string | null;
+  profile_id?: string | null;
+  account_status?: string | null;
+  profile_count?: number;
+  needs_profile_setup?: boolean;
+  needs_profile_selection?: boolean;
+};
+
+function sanitizeVoiceDiagnosticDetail(value?: string | null) {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  if (!trimmed) return undefined;
+
+  return trimmed
+    .replace(/([?&](?:token|api_key|xi-api-key|signed_url)=)[^&\s]+/gi, "$1[hidden]")
+    .replace(/\b(?:wss?|https?):\/\/\S+/gi, "[voice session url hidden]")
+    .replace(/\bBearer\s+[A-Za-z0-9._-]+/gi, "Bearer [hidden]")
+    .slice(0, 180);
+}
+
+function createVoiceDiagnostics(input: {
+  skipMicrophone: boolean;
+  options?: StartVoiceOptions;
+  readinessAgentId?: string;
+}): VoiceDiagnosticStep[] {
+  const agentDetail = input.options?.agentSlug
+    ? `Slug: ${input.options.agentSlug}`
+    : input.options?.roomSlug
+    ? `Room: ${input.options.roomSlug}`
+    : input.readinessAgentId
+    ? "Default VYVA agent selected"
+    : undefined;
+
+  return [
+    {
+      id: "browser_microphone",
+      label: VOICE_DIAGNOSTIC_LABELS.browser_microphone,
+      status: input.skipMicrophone ? "skipped" : "pending",
+      ...(input.skipMicrophone ? { detail: "Text-only mode" } : {}),
+    },
+    { id: "account_access", label: VOICE_DIAGNOSTIC_LABELS.account_access, status: "pending" },
+    {
+      id: "agent_config",
+      label: VOICE_DIAGNOSTIC_LABELS.agent_config,
+      status: "pending",
+      ...(agentDetail ? { detail: agentDetail } : {}),
+    },
+    { id: "server_credentials", label: VOICE_DIAGNOSTIC_LABELS.server_credentials, status: "pending" },
+    { id: "session_token", label: VOICE_DIAGNOSTIC_LABELS.session_token, status: "pending" },
+    { id: "elevenlabs_session", label: VOICE_DIAGNOSTIC_LABELS.elevenlabs_session, status: "pending" },
+  ];
+}
+
+function failedVoiceDiagnosticStep(code: VoiceConnectionErrorCode): VoiceDiagnosticStepId {
+  if (
+    code === "MICROPHONE_UNAVAILABLE" ||
+    code === "MICROPHONE_PERMISSION_DENIED" ||
+    code === "MICROPHONE_ACCESS_FAILED"
+  ) {
+    return "browser_microphone";
+  }
+
+  if (
+    code === "VOICE_AUTH_REQUIRED" ||
+    code === "VOICE_ENTITLEMENT_REQUIRED" ||
+    code === "VOICE_ACCOUNT_ACCESS_DISABLED" ||
+    code === "VOICE_ACTIVE_PROFILE_MISSING" ||
+    code === "VOICE_ACTIVE_PROFILE_NOT_FOUND" ||
+    code === "VOICE_ACCESS_UNAVAILABLE"
+  ) {
+    return "account_access";
+  }
+
+  if (code === "ELEVENLABS_AGENT_MISSING") return "agent_config";
+  if (code === "ELEVENLABS_API_KEY_MISSING") return "server_credentials";
+  if (code === "ELEVENLABS_SIGNED_URL_ERROR" || code === "ELEVENLABS_TOKEN_ERROR") return "session_token";
+  return "elevenlabs_session";
+}
+
 function normalizeTranscriptText(text: string) {
   return text
     .toLowerCase()
@@ -172,6 +323,128 @@ function formatDisconnectDetails(details: DisconnectionDetails) {
   const closeReason = "closeReason" in details && details.closeReason ? `: ${details.closeReason}` : "";
   const message = details.reason === "error" ? details.message : "Agent ended the session";
   return `Voice session closed (${details.reason}${closeCode})${closeReason}. ${message}`;
+}
+
+async function requestVoiceMicrophonePermission() {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    throw new VoiceConnectionError("Microphone access is not available in this browser.", "MICROPHONE_UNAVAILABLE");
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((track) => track.stop());
+  } catch (error) {
+    const name = error instanceof DOMException ? error.name : "";
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      throw new VoiceConnectionError("Microphone permission was denied.", "MICROPHONE_PERMISSION_DENIED");
+    }
+    throw new VoiceConnectionError(
+      error instanceof Error ? error.message : "Microphone access failed.",
+      "MICROPHONE_ACCESS_FAILED",
+    );
+  }
+}
+
+function isVoiceConnectionError(error: unknown): error is VoiceConnectionError {
+  return error instanceof VoiceConnectionError;
+}
+
+function voiceConnectionErrorCode(error: unknown, fallback: VoiceConnectionErrorCode): VoiceConnectionErrorCode {
+  return isVoiceConnectionError(error) ? error.code : fallback;
+}
+
+function shortVoiceDebugId(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.length > 14 ? `${trimmed.slice(0, 8)}...${trimmed.slice(-4)}` : trimmed;
+}
+
+function voiceAccountAccessMessage(parsed: VoiceServerErrorBody, fallback: string) {
+  const activeProfileId = shortVoiceDebugId(parsed.profile_id ?? parsed.active_profile_id);
+  const accountUserId = shortVoiceDebugId(parsed.account_user_id);
+
+  if (parsed.code === "ACCOUNT_ACCESS_DISABLED") {
+    const profileDetail = activeProfileId ? ` Active profile: ${activeProfileId}.` : "";
+    const statusDetail = parsed.account_status ? ` Status: ${parsed.account_status}.` : "";
+    return `Account access is disabled for the active profile.${profileDetail}${statusDetail}`;
+  }
+
+  if (parsed.code === "ACTIVE_PROFILE_REQUIRED") {
+    const accountDetail = accountUserId ? ` Account: ${accountUserId}.` : "";
+    return `No active care profile is selected for this login.${accountDetail}`;
+  }
+
+  if (parsed.code === "ACTIVE_PROFILE_NOT_FOUND") {
+    const profileDetail = activeProfileId ? ` Active profile: ${activeProfileId}.` : "";
+    const accountDetail = accountUserId ? ` Account: ${accountUserId}.` : "";
+    return `The selected care profile could not be found.${profileDetail}${accountDetail}`;
+  }
+
+  return fallback;
+}
+
+function codeFromTokenError(status: number, parsed: { code?: string; error?: string; detail?: string }): VoiceConnectionErrorCode {
+  if (parsed.code === "ACCOUNT_ACCESS_DISABLED") return "VOICE_ACCOUNT_ACCESS_DISABLED";
+  if (parsed.code === "ACTIVE_PROFILE_REQUIRED") return "VOICE_ACTIVE_PROFILE_MISSING";
+  if (parsed.code === "ACTIVE_PROFILE_NOT_FOUND") return "VOICE_ACTIVE_PROFILE_NOT_FOUND";
+  if (parsed.code === "ENTITLEMENT_REQUIRED") return "VOICE_ENTITLEMENT_REQUIRED";
+  if (parsed.code === "FEATURE_ACCESS_UNAVAILABLE") return "VOICE_ACCESS_UNAVAILABLE";
+  if (parsed.code === "ELEVENLABS_AGENT_MISSING") return "ELEVENLABS_AGENT_MISSING";
+  if (parsed.code === "ELEVENLABS_API_KEY_MISSING") return "ELEVENLABS_API_KEY_MISSING";
+  if (parsed.code === "ELEVENLABS_SIGNED_URL_ERROR") return "ELEVENLABS_SIGNED_URL_ERROR";
+  if (parsed.code === "ELEVENLABS_TOKEN_ERROR") return "ELEVENLABS_TOKEN_ERROR";
+  if (status === 401) return "VOICE_AUTH_REQUIRED";
+  if (status === 403) return "VOICE_ENTITLEMENT_REQUIRED";
+
+  const text = `${parsed.error ?? ""} ${parsed.detail ?? ""}`.toLowerCase();
+  if (text.includes("api key")) return "ELEVENLABS_API_KEY_MISSING";
+  if (text.includes("agent configured")) return "ELEVENLABS_AGENT_MISSING";
+  if (text.includes("signed url")) return "ELEVENLABS_SIGNED_URL_ERROR";
+  return "VOICE_SESSION_START_FAILED";
+}
+
+async function voiceConnectionErrorFromResponse(
+  response: Response,
+  fallbackMessage: string,
+) {
+  const errorText = await response.text();
+  let message = errorText || fallbackMessage;
+  let parsedErrorCode: VoiceConnectionErrorCode | null = null;
+
+  try {
+    const parsed = JSON.parse(errorText) as VoiceServerErrorBody;
+    message = parsed.error || parsed.detail || message;
+    message = voiceAccountAccessMessage(parsed, message);
+    if (parsed.expected_keys?.[0]) {
+      message = `${message} (${parsed.expected_keys[0]})`;
+    }
+    parsedErrorCode = codeFromTokenError(response.status, parsed);
+  } catch {
+    // Keep the raw response text when the server did not return JSON.
+  }
+
+  return new VoiceConnectionError(
+    message,
+    parsedErrorCode ?? codeFromTokenError(response.status, { error: message }),
+  );
+}
+
+async function checkBrowserVoiceReadiness(skipMicrophone: boolean) {
+  if (skipMicrophone) return;
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    throw new VoiceConnectionError("Microphone access is not available in this browser.", "MICROPHONE_UNAVAILABLE");
+  }
+
+  if (!navigator.permissions?.query) return;
+
+  try {
+    const permission = await navigator.permissions.query({ name: "microphone" as PermissionName });
+    if (permission.state === "denied") {
+      throw new VoiceConnectionError("Microphone permission was denied.", "MICROPHONE_PERMISSION_DENIED");
+    }
+  } catch (error) {
+    if (isVoiceConnectionError(error)) throw error;
+  }
 }
 
 function decodeBase64Url(value: string) {
@@ -196,18 +469,30 @@ function userIdFromToken() {
 }
 
 function getVoiceSessionId() {
-  try {
-    const existing = sessionStorage.getItem(VOICE_SESSION_STORAGE_KEY);
-    if (existing) return existing;
-    const next =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    sessionStorage.setItem(VOICE_SESSION_STORAGE_KEY, next);
-    return next;
-  } catch {
-    return `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return ensureVoiceSessionId();
+}
+
+function voiceTriageTouchContext(detail: VoiceTriageTouchAnswerDetail) {
+  const answer = detail.utterance.trim() || detail.choiceId?.trim() || "a tapped answer";
+  const nextQuestion = detail.nextQuestion?.trim();
+  const status = detail.status?.trim();
+
+  if (status === "complete") {
+    return `The user tapped this answer in the app: "${answer}". The shared VYVA triage session has completed and saved the result. Do not ask the same question again.`;
   }
+
+  if (status === "emergency") {
+    return `The user tapped this answer in the app: "${answer}". The shared VYVA triage session is now in emergency guidance. Speak only the emergency guidance from the triage tool and do not downgrade urgency.`;
+  }
+
+  return [
+    `The user tapped this answer in the app: "${answer}".`,
+    "The shared VYVA triage session has already processed this answer.",
+    nextQuestion
+      ? `Continue from this current triage question: "${nextQuestion}".`
+      : "Continue from the current triage question shown in the app.",
+    "Do not call the triage tool again for the tapped answer.",
+  ].join(" ");
 }
 
 function createVoiceInstanceId() {
@@ -234,8 +519,86 @@ function transcriptToHistory(transcript: TranscriptEntry[]): ConversationTurn[] 
   }));
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function textFromUnknown(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(textFromUnknown).filter(Boolean).join(" ").trim();
+
+  const record = asRecord(value);
+  if (!record) return "";
+
+  const textKeys = [
+    "message",
+    "text",
+    "transcript",
+    "content",
+    "response",
+    "agent_response",
+    "agentResponse",
+    "corrected_agent_response",
+    "original_agent_response",
+    "user_transcript",
+    "userTranscript",
+    "agent_response_event",
+    "agent_response_correction_event",
+    "user_transcription_event",
+    "tentative_user_transcription_event",
+    "tentative_agent_response_internal_event",
+    "text_response_part",
+  ];
+
+  for (const key of textKeys) {
+    const text = textFromUnknown(record[key]);
+    if (text) return text;
+  }
+
+  return "";
+}
+
+function textPartFromUnknown(value: unknown): string {
+  const record = asRecord(value);
+  if (typeof record?.text === "string") return record.text;
+  return textFromUnknown(value);
+}
+
+function textPartType(value: unknown): string {
+  const record = asRecord(value);
+  return typeof record?.type === "string" ? record.type.toLowerCase() : "";
+}
+
+function isUserVoiceMessage(payload: unknown) {
+  const record = asRecord(payload);
+  if (!record) return false;
+
+  const role = typeof record.role === "string" ? record.role.toLowerCase() : "";
+  const source = typeof record.source === "string" ? record.source.toLowerCase() : "";
+  const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
+
+  return role === "user" ||
+    source === "user" ||
+    type.includes("user_transcript") ||
+    Boolean(record.user_transcription_event) ||
+    Boolean(record.tentative_user_transcription_event);
+}
+
+function isAgentVoiceDebugEvent(payload: unknown) {
+  const record = asRecord(payload);
+  if (!record) return false;
+  const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
+  return type.includes("agent_response") ||
+    type.includes("agent_chat_response_part") ||
+    Boolean(record.agent_response_event) ||
+    Boolean(record.agent_response_correction_event) ||
+    Boolean(record.text_response_part);
+}
+
 function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   const agentSlug = options?.agentSlug?.trim().toLowerCase();
+  if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
@@ -300,6 +663,7 @@ function inferRecommendationFeedbackAction(text: string): VoiceRecommendationFee
 }
 
 function useVyvaVoiceController() {
+  const [isPreparing, setIsPreparing] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [status, setStatus] = useState<"idle" | "connecting" | "connected">("idle");
@@ -310,9 +674,12 @@ function useVyvaVoiceController() {
   const [hasEnded, setHasEnded] = useState(false);
   const [lastResolvedSessionContext, setLastResolvedSessionContext] = useState<VoiceResolvedSessionContext | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [lastErrorCode, setLastErrorCode] = useState<VoiceConnectionErrorCode | null>(null);
+  const [voiceDiagnostics, setVoiceDiagnostics] = useState<VoiceDiagnosticStep[]>(() => createVoiceDiagnostics({ skipMicrophone: false }));
   const [hasMicrophone, setHasMicrophone] = useState(false);
   const systemPromptRef = useRef<string | undefined>(undefined);
   const statusRef = useRef<"idle" | "connecting" | "connected">("idle");
+  const isPreparingRef = useRef(false);
   const conversationRef = useRef<ElevenConversation | null>(null);
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const sessionGenerationRef = useRef(0);
@@ -320,6 +687,8 @@ function useVyvaVoiceController() {
   const shouldMuteOnConnectRef = useRef(true);
   const transferPendingRef = useRef(false);
   const hiddenOutgoingMessagesRef = useRef<string[]>([]);
+  const streamingVyvaTranscriptRef = useRef("");
+  const streamingVyvaTranscriptShouldAppendRef = useRef(false);
   const voiceInstanceIdRef = useRef(createVoiceInstanceId());
   const activeRecommendationRef = useRef<ActiveVoiceRecommendation | null>(null);
   const recordedRecommendationActionsRef = useRef<Set<string>>(new Set());
@@ -327,6 +696,59 @@ function useVyvaVoiceController() {
   const setVoiceStatus = useCallback((nextStatus: "idle" | "connecting" | "connected") => {
     statusRef.current = nextStatus;
     setStatus(nextStatus);
+  }, []);
+
+  const setVoicePreparing = useCallback((nextPreparing: boolean) => {
+    isPreparingRef.current = nextPreparing;
+    setIsPreparing(nextPreparing);
+  }, []);
+
+  const updateVoiceDiagnostic = useCallback((
+    id: VoiceDiagnosticStepId,
+    status: VoiceDiagnosticStatus,
+    detail?: string,
+  ) => {
+    setVoiceDiagnostics((current) => current.map((step) => (
+      step.id === id
+        ? {
+            ...step,
+            status,
+            ...(detail !== undefined ? { detail: sanitizeVoiceDiagnosticDetail(detail) } : {}),
+          }
+        : step
+    )));
+  }, []);
+
+  const markVoiceDiagnosticFailure = useCallback((
+    code: VoiceConnectionErrorCode,
+    detail?: string,
+  ) => {
+    const failedStep = failedVoiceDiagnosticStep(code);
+    setVoiceDiagnostics((current) => current.map((step) => {
+      const passedBeforeFailure =
+        (failedStep === "agent_config" && step.id === "account_access") ||
+        (failedStep === "server_credentials" && ["account_access", "agent_config"].includes(step.id)) ||
+        (failedStep === "session_token" && ["account_access", "agent_config", "server_credentials"].includes(step.id)) ||
+        (failedStep === "elevenlabs_session" && ["account_access", "agent_config", "server_credentials", "session_token"].includes(step.id));
+
+      if (step.id === failedStep) {
+        return {
+          ...step,
+          status: "failed",
+          detail: sanitizeVoiceDiagnosticDetail(detail) ?? step.detail,
+        };
+      }
+
+      if (passedBeforeFailure && step.status !== "skipped") {
+        return { ...step, status: "passed" };
+      }
+
+      if (step.status === "running") {
+        return { ...step, status: "pending" };
+      }
+
+      return step;
+    }));
   }, []);
 
   const replaceTranscript = useCallback((nextTranscript: TranscriptEntry[]) => {
@@ -342,6 +764,53 @@ function useVyvaVoiceController() {
     });
   }, []);
 
+  const upsertLatestVyvaTranscript = useCallback((text: string, options?: { forceAppend?: boolean }) => {
+    const normalizedText = text.trim();
+    if (!normalizedText) return;
+
+    setTranscript((previous) => {
+      const latestEntry = previous[previous.length - 1];
+      const next = latestEntry?.from === "vyva" && !options?.forceAppend
+        ? [
+            ...previous.slice(0, -1),
+            { ...latestEntry, text: normalizedText, timestamp: Date.now() },
+          ]
+        : [
+            ...previous,
+            { from: "vyva" as const, text: normalizedText, timestamp: Date.now() },
+          ];
+      transcriptRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const handleVyvaTranscriptPart = useCallback((part: unknown) => {
+    const partType = textPartType(part);
+    const partText = textPartFromUnknown(part);
+
+    if (partType === "start") {
+      streamingVyvaTranscriptRef.current = partText;
+      streamingVyvaTranscriptShouldAppendRef.current = true;
+    } else if (partType === "delta") {
+      streamingVyvaTranscriptRef.current += partText;
+    } else if (partType === "stop") {
+      if (partText) streamingVyvaTranscriptRef.current += partText;
+    } else {
+      streamingVyvaTranscriptRef.current = partText || streamingVyvaTranscriptRef.current;
+    }
+
+    const shouldAppend = streamingVyvaTranscriptShouldAppendRef.current;
+    upsertLatestVyvaTranscript(streamingVyvaTranscriptRef.current, { forceAppend: shouldAppend });
+    if (streamingVyvaTranscriptRef.current.trim()) {
+      streamingVyvaTranscriptShouldAppendRef.current = false;
+    }
+
+    if (partType === "stop") {
+      streamingVyvaTranscriptRef.current = "";
+      streamingVyvaTranscriptShouldAppendRef.current = false;
+    }
+  }, [upsertLatestVyvaTranscript]);
+
   const interruptAgentAudio = useCallback(() => {
     setIsSpeaking(false);
   }, []);
@@ -354,14 +823,17 @@ function useVyvaVoiceController() {
       void conversation.endSession().catch(() => {});
     }
     hiddenOutgoingMessagesRef.current = [];
+    streamingVyvaTranscriptRef.current = "";
+    streamingVyvaTranscriptShouldAppendRef.current = false;
     activeRecommendationRef.current = null;
     recordedRecommendationActionsRef.current.clear();
     setIsConnecting(false);
+    setVoicePreparing(false);
     setHasMicrophone(false);
     setIsSpeaking(false);
     setIsUserSpeaking(false);
     setIsMicMuted(true);
-  }, []);
+  }, [setVoicePreparing]);
 
   useEffect(() => () => {
     teardown();
@@ -378,20 +850,23 @@ function useVyvaVoiceController() {
 
       userClosingRef.current = true;
       teardown();
+      userClosingRef.current = false;
       releaseVoiceInstance(voiceInstanceIdRef.current);
       setVoiceStatus("idle");
       setIsConnecting(false);
+      setVoicePreparing(false);
       setIsSpeaking(false);
       setIsUserSpeaking(false);
       setIsMicMuted(true);
       setIsTransferring(false);
       transferPendingRef.current = false;
       setLastError(null);
+      setLastErrorCode(null);
     };
 
     window.addEventListener(VOICE_FORCE_STOP_EVENT, handleForceStop);
     return () => window.removeEventListener(VOICE_FORCE_STOP_EVENT, handleForceStop);
-  }, [setVoiceStatus, teardown]);
+  }, [setVoicePreparing, setVoiceStatus, teardown]);
 
   useEffect(() => {
     return subscribeAgentAppContext((message) => {
@@ -404,11 +879,30 @@ function useVyvaVoiceController() {
     });
   }, []);
 
+  useEffect(() => {
+    const handleTouchAnswer = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as VoiceTriageTouchAnswerDetail | undefined
+        : undefined;
+      if (!detail?.conversationId) return;
+      if (detail.conversationId !== readVoiceSessionId()) return;
+      if (statusRef.current !== "connected" || !conversationRef.current) return;
+
+      try {
+        conversationRef.current.sendContextualUpdate(voiceTriageTouchContext(detail));
+      } catch (error) {
+        console.warn("[VYVA] Failed to sync touch answer into voice session:", error);
+      }
+    };
+
+    window.addEventListener(VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT, handleTouchAnswer);
+    return () => window.removeEventListener(VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT, handleTouchAnswer);
+  }, []);
+
   const fetchSessionOptions = useCallback(
     async (
       activeAgentId: string | undefined,
       shouldResolveAgentOnServer: boolean,
-      systemPrompt: string | undefined,
       options: StartVoiceOptions | undefined,
     ): Promise<PartialOptions> => {
       try {
@@ -418,26 +912,10 @@ function useVyvaVoiceController() {
             ...(activeAgentId ? { agent_id: activeAgentId } : {}),
             ...(options?.agentSlug ? { agent_slug: options.agentSlug } : {}),
             ...(options?.roomSlug ? { room_slug: options.roomSlug } : {}),
-            ...(systemPrompt ? { prompt_override: systemPrompt } : {}),
           }),
         });
         if (!res.ok) {
-          const errorText = await res.text();
-          let message = errorText || "token fetch failed";
-          try {
-            const parsed = JSON.parse(errorText) as {
-              error?: string;
-              detail?: string;
-              expected_keys?: string[];
-            };
-            message = parsed.error || parsed.detail || message;
-            if (parsed.expected_keys?.[0]) {
-              message = `${message} (${parsed.expected_keys[0]})`;
-            }
-          } catch {
-            // Keep the raw response text when the server did not return JSON.
-          }
-          throw new Error(message);
+          throw await voiceConnectionErrorFromResponse(res, "token fetch failed");
         }
 
         const data = (await res.json()) as { signed_url?: string; token?: string };
@@ -456,6 +934,42 @@ function useVyvaVoiceController() {
         if (ALLOW_PUBLIC_AGENT_FALLBACK) {
           console.warn("[VYVA] Token fetch failed, trying explicit dev public fallback:", err);
           return { agentId: activeAgentId, connectionType: "websocket" };
+        }
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const checkVoiceReadiness = useCallback(
+    async (
+      activeAgentId: string | undefined,
+      shouldResolveAgentOnServer: boolean,
+      options: StartVoiceOptions | undefined,
+    ): Promise<VoiceReadinessResponse> => {
+      try {
+        const res = await apiFetch("/api/voice-readiness", {
+          method: "POST",
+          body: JSON.stringify({
+            ...(activeAgentId ? { agent_id: activeAgentId } : {}),
+            ...(options?.agentSlug ? { agent_slug: options.agentSlug } : {}),
+            ...(options?.roomSlug ? { room_slug: options.roomSlug } : {}),
+          }),
+        });
+
+        if (!res.ok) {
+          throw await voiceConnectionErrorFromResponse(res, "voice readiness check failed");
+        }
+
+        return await res.json() as VoiceReadinessResponse;
+      } catch (err) {
+        if (ALLOW_PUBLIC_AGENT_FALLBACK && activeAgentId && !shouldResolveAgentOnServer) {
+          console.warn("[VYVA] Readiness check failed, allowing explicit dev public fallback:", err);
+          return {
+            ready: true,
+            source: "public-dev-fallback",
+            agent_id_present: Boolean(activeAgentId),
+          };
         }
         throw err;
       }
@@ -598,21 +1112,115 @@ function useVyvaVoiceController() {
       systemPrompt?: string,
       options?: StartVoiceOptions,
     ) => {
-      if (statusRef.current !== "idle") return;
-      claimVoiceInstance(voiceInstanceIdRef.current);
+      if (statusRef.current !== "idle" || isPreparingRef.current) return;
+      // Manual teardown invalidates old callbacks before they can clear this flag.
+      userClosingRef.current = false;
       const sessionGeneration = sessionGenerationRef.current + 1;
       sessionGenerationRef.current = sessionGeneration;
       const isCurrentSession = () => sessionGenerationRef.current === sessionGeneration && !userClosingRef.current;
 
-      setIsConnecting(true);
-      setVoiceStatus("connecting");
+      setVoicePreparing(true);
       setHasEnded(false);
       replaceTranscript([]);
+      streamingVyvaTranscriptRef.current = "";
+      streamingVyvaTranscriptShouldAppendRef.current = false;
       setLastError(null);
+      setLastErrorCode(null);
       setHasMicrophone(false);
       setIsMicMuted(true);
       const voiceSessionId = getVoiceSessionId();
+      const skipMicrophone = options?.skipMicrophone ?? false;
       const shouldResolveAgentOnServer = Boolean(options?.agentSlug || options?.roomSlug);
+      const readinessAgentId = options?.agentId ?? (shouldResolveAgentOnServer ? undefined : VYVA_AGENT_ID);
+      setVoiceDiagnostics(createVoiceDiagnostics({ skipMicrophone, options, readinessAgentId }));
+
+      try {
+        if (!skipMicrophone) {
+          updateVoiceDiagnostic("browser_microphone", "running", "Checking browser microphone permission");
+        }
+        await checkBrowserVoiceReadiness(skipMicrophone);
+        if (!skipMicrophone) {
+          updateVoiceDiagnostic("browser_microphone", "passed", "Browser can request microphone access");
+        }
+
+        updateVoiceDiagnostic("account_access", "running", "Checking VYVA voice access");
+        updateVoiceDiagnostic("agent_config", "running");
+        updateVoiceDiagnostic("server_credentials", "running");
+        const readiness = await checkVoiceReadiness(readinessAgentId, shouldResolveAgentOnServer, options);
+        const readinessAgentDetail = readiness.agent_slug
+          ? `Slug: ${readiness.agent_slug}${readiness.source ? ` (${readiness.source})` : ""}`
+          : readiness.agent_id_present
+          ? "Explicit agent ID selected"
+          : options?.agentSlug
+          ? `Slug: ${options.agentSlug}`
+          : "Agent selected";
+        updateVoiceDiagnostic("account_access", "passed", "Voice access verified");
+        updateVoiceDiagnostic("agent_config", "passed", readinessAgentDetail);
+        updateVoiceDiagnostic("server_credentials", "passed", "Server credentials available");
+      } catch (err) {
+        if (!isCurrentSession()) return;
+
+        const detail = err instanceof Error ? err.message : "Voice is not ready yet.";
+        const errorCode = voiceConnectionErrorCode(err, "VOICE_SESSION_START_FAILED");
+        setLastError(detail);
+        setLastErrorCode(errorCode);
+        markVoiceDiagnosticFailure(errorCode, detail);
+        setVoiceStatus("idle");
+        setVoicePreparing(false);
+        setIsConnecting(false);
+        setIsMicMuted(true);
+        setIsTransferring(false);
+        transferPendingRef.current = false;
+        recordVoiceTimelineEvent({
+          kind: "session_error",
+          title: "Voice readiness failed",
+          detail,
+          sessionId: voiceSessionId,
+          ...(options?.agentSlug ? { agentSlug: options.agentSlug } : {}),
+        });
+        return;
+      }
+
+      if (!isCurrentSession()) {
+        setVoicePreparing(false);
+        return;
+      }
+
+      setVoicePreparing(false);
+      claimVoiceInstance(voiceInstanceIdRef.current);
+      setIsConnecting(true);
+      setVoiceStatus("connecting");
+      if (!skipMicrophone) {
+        try {
+          updateVoiceDiagnostic("browser_microphone", "running", "Requesting microphone access");
+          await requestVoiceMicrophonePermission();
+          updateVoiceDiagnostic("browser_microphone", "passed", "Microphone access granted");
+        } catch (err) {
+          if (!isCurrentSession()) return;
+
+          const detail = err instanceof Error ? err.message : "Microphone access is needed to start voice.";
+          const errorCode = voiceConnectionErrorCode(err, "MICROPHONE_ACCESS_FAILED");
+          setLastError(detail);
+          setLastErrorCode(errorCode);
+          markVoiceDiagnosticFailure(errorCode, detail);
+          setVoiceStatus("idle");
+          setVoicePreparing(false);
+          setIsConnecting(false);
+          setIsMicMuted(true);
+          setIsTransferring(false);
+          transferPendingRef.current = false;
+          recordVoiceTimelineEvent({
+            kind: "session_error",
+            title: "Voice microphone access failed",
+            detail,
+            sessionId: voiceSessionId,
+            ...(options?.agentSlug ? { agentSlug: options.agentSlug } : {}),
+          });
+          releaseVoiceInstance(voiceInstanceIdRef.current);
+          teardown();
+          return;
+        }
+      }
       const routedSession = await resolveRouterSession(contextHint, systemPrompt, options);
       const activeAgentId = routedSession.agentId ?? (shouldResolveAgentOnServer ? undefined : VYVA_AGENT_ID);
       const resolvedSystemPrompt = routedSession.systemPrompt;
@@ -662,7 +1270,6 @@ function useVyvaVoiceController() {
       });
       activeRecommendationRef.current = activeRecommendationFromVariables(routedSession.dynamicVariables);
       recordedRecommendationActionsRef.current.clear();
-      const skipMicrophone = options?.skipMicrophone ?? false;
       const autoStartListening = options?.autoStartListening ?? false;
       systemPromptRef.current = resolvedSystemPrompt;
       userClosingRef.current = false;
@@ -671,6 +1278,8 @@ function useVyvaVoiceController() {
       if (!activeAgentId && !shouldResolveAgentOnServer) {
         const greeting = contextHint ?? "Listening...";
         if (!isCurrentSession()) return;
+        updateVoiceDiagnostic("session_token", "skipped", "Using local fallback voice mode");
+        updateVoiceDiagnostic("elevenlabs_session", "skipped", "Using local fallback voice mode");
         replaceTranscript([{ from: "vyva", text: greeting, timestamp: Date.now() }]);
         setIsSpeaking(true);
         setVoiceStatus("connected");
@@ -686,15 +1295,17 @@ function useVyvaVoiceController() {
       }
 
       try {
+        updateVoiceDiagnostic("session_token", "running", "Requesting ElevenLabs signed URL");
         const sessionOptions = await fetchSessionOptions(
           activeAgentId,
           shouldResolveAgentOnServer,
-          resolvedSystemPrompt,
           options,
         );
+        updateVoiceDiagnostic("session_token", "passed", "Signed URL received");
 
         if (!isCurrentSession()) return;
 
+        updateVoiceDiagnostic("elevenlabs_session", "running", "Opening browser voice session");
         const conversation = await Conversation.startSession({
           ...sessionOptions,
           textOnly: skipMicrophone,
@@ -811,9 +1422,6 @@ function useVyvaVoiceController() {
                 : "Feedback could not be recorded.";
             },
           },
-          overrides: resolvedSystemPrompt
-            ? { agent: { prompt: { prompt: resolvedSystemPrompt } } }
-            : undefined,
           onConversationCreated: (createdConversation) => {
             if (!isCurrentSession()) {
               void createdConversation.endSession().catch(() => {});
@@ -828,12 +1436,20 @@ function useVyvaVoiceController() {
           onConnect: () => {
             if (!isCurrentSession()) return;
 
+            updateVoiceDiagnostic("elevenlabs_session", "passed", "Voice session connected");
             setVoiceStatus("connected");
             setIsConnecting(false);
             setHasMicrophone(!skipMicrophone);
             setIsMicMuted(skipMicrophone ? true : !autoStartListening);
             setIsTransferring(false);
             transferPendingRef.current = false;
+            if (resolvedSystemPrompt?.trim()) {
+              try {
+                conversationRef.current?.sendContextualUpdate(resolvedSystemPrompt);
+              } catch (error) {
+                console.warn("[VYVA] Failed to send initial voice context:", error);
+              }
+            }
             recordVoiceTimelineEvent({
               kind: "session_connected",
               title: "Voice session connected",
@@ -865,6 +1481,8 @@ function useVyvaVoiceController() {
             if (!userClosingRef.current && message) {
               console.warn("[VYVA] Voice session closed:", details);
               setLastError(message);
+              setLastErrorCode("VOICE_SESSION_CLOSED");
+              markVoiceDiagnosticFailure("VOICE_SESSION_CLOSED", message);
               recordVoiceTimelineEvent({
                 kind: "session_error",
                 title: "Voice session closed unexpectedly",
@@ -888,6 +1506,8 @@ function useVyvaVoiceController() {
 
             console.error("[VYVA] Voice session error:", message, context);
             setLastError(message);
+            setLastErrorCode("VOICE_SESSION_ERROR");
+            markVoiceDiagnosticFailure("VOICE_SESSION_ERROR", message);
             setIsTransferring(false);
             transferPendingRef.current = false;
             recordVoiceTimelineEvent({
@@ -920,10 +1540,11 @@ function useVyvaVoiceController() {
             if (!isCurrentSession()) return;
             setIsSpeaking(false);
           },
-          onMessage: ({ role, source, message }) => {
+          onMessage: (payload) => {
             if (!isCurrentSession()) return;
+            const message = textFromUnknown(payload);
             if (!message?.trim()) return;
-            if (role === "user" || source === "user") {
+            if (isUserVoiceMessage(payload)) {
               const normalized = normalizeTranscriptText(message);
               const hiddenIndex = hiddenOutgoingMessagesRef.current.findIndex((entry) => entry === normalized);
               if (hiddenIndex !== -1) {
@@ -942,7 +1563,26 @@ function useVyvaVoiceController() {
               emitVoiceUserMessage({ text: message, transcriptEntry });
               return;
             }
-            appendTranscript({ from: "vyva", text: message, timestamp: Date.now() });
+            streamingVyvaTranscriptRef.current = "";
+            streamingVyvaTranscriptShouldAppendRef.current = false;
+            upsertLatestVyvaTranscript(message);
+          },
+          onAgentChatResponsePart: (part) => {
+            if (!isCurrentSession()) return;
+            handleVyvaTranscriptPart(part);
+          },
+          onDebug: (payload) => {
+            if (!isCurrentSession() || !isAgentVoiceDebugEvent(payload)) return;
+            const record = asRecord(payload);
+            if (record?.text_response_part) {
+              handleVyvaTranscriptPart(record.text_response_part);
+              return;
+            }
+            const message = textFromUnknown(payload);
+            if (!message) return;
+            streamingVyvaTranscriptRef.current = "";
+            streamingVyvaTranscriptShouldAppendRef.current = false;
+            upsertLatestVyvaTranscript(message);
           },
         });
 
@@ -956,7 +1596,11 @@ function useVyvaVoiceController() {
         if (!isCurrentSession()) return;
 
         console.error("[VYVA] Failed to start session:", err);
-        setLastError(err instanceof Error ? err.message : "Unable to start voice session");
+        const detail = err instanceof Error ? err.message : "Unable to start voice session";
+        const errorCode = voiceConnectionErrorCode(err, "VOICE_SESSION_START_FAILED");
+        setLastError(detail);
+        setLastErrorCode(errorCode);
+        markVoiceDiagnosticFailure(errorCode, detail);
         setVoiceStatus("idle");
         setIsConnecting(false);
         setIsMicMuted(true);
@@ -965,7 +1609,7 @@ function useVyvaVoiceController() {
         recordVoiceTimelineEvent({
           kind: "session_error",
           title: "Voice session failed to start",
-          detail: err instanceof Error ? err.message : "Unable to start voice session",
+          detail,
           sessionId: voiceSessionId,
           ...(resolvedDomain ? { domain: resolvedDomain } : {}),
         });
@@ -973,7 +1617,7 @@ function useVyvaVoiceController() {
         teardown();
       }
     },
-    [appendTranscript, fetchSessionOptions, recordRecommendationFeedback, replaceTranscript, resolveRouterSession, setVoiceStatus, teardown]
+    [appendTranscript, checkVoiceReadiness, fetchSessionOptions, handleVyvaTranscriptPart, markVoiceDiagnosticFailure, recordRecommendationFeedback, replaceTranscript, resolveRouterSession, setVoicePreparing, setVoiceStatus, teardown, updateVoiceDiagnostic, upsertLatestVyvaTranscript]
   );
 
   const beginUserTurn = useCallback(async () => {
@@ -1031,6 +1675,7 @@ function useVyvaVoiceController() {
   const stopVoice = useCallback(() => {
     userClosingRef.current = true;
     teardown();
+    userClosingRef.current = false;
     releaseVoiceInstance(voiceInstanceIdRef.current);
     setVoiceStatus("idle");
     setIsSpeaking(false);
@@ -1041,6 +1686,7 @@ function useVyvaVoiceController() {
       setIsTransferring(false);
     }
     setLastError(null);
+    setLastErrorCode(null);
     systemPromptRef.current = undefined;
     recordVoiceTimelineEvent({
       kind: "session_ended",
@@ -1102,9 +1748,12 @@ function useVyvaVoiceController() {
     isMicMuted,
     isTransferring,
     voiceSessionPhase,
+    isPreparing,
     isConnecting,
     hasMicrophone,
     lastError,
+    lastErrorCode,
+    voiceDiagnostics,
     transcript,
     lastResolvedSessionContext,
     systemPromptRef,

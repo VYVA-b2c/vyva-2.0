@@ -49,7 +49,7 @@ type RoutineTemplate = {
   activities: string[];
 };
 
-type GameContentLanguage = Exclude<LanguageCode, "cy">;
+type GameContentLanguage = LanguageCode;
 
 type StoryChoiceQuestion = {
   prompt: string;
@@ -1599,9 +1599,10 @@ const memoryMatchLevels = buildMemoryMatchLevels(memoryMatchSets);
 
 export const MEMORY_GAME_ORDER: MemoryGameType[] = [
   "memory_match",
-  "word_recall",
-  "number_memory",
   "association_memory",
+  "word_recall",
+  "story_recall",
+  "number_memory",
 ];
 
 export const memoryGameRegistry: Record<MemoryGameType, MemoryGameDefinition> = {

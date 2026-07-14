@@ -226,6 +226,8 @@ describe("TogetherRoomScreen", () => {
     render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Together Room" })).toBeInTheDocument();
+    expect(screen.getByText("Today's step")).toBeInTheDocument();
+    expect(screen.getByText("No commitment. Private contact stays inside VYVA.")).toBeInTheDocument();
     expect(screen.getByText("Protected room")).toBeInTheDocument();
     expect(screen.getByTestId("together-safety-quick-help")).toHaveTextContent("Help or safety");
     expect(screen.getByTestId("together-safety-quick-help")).toHaveAttribute("aria-expanded", "false");
@@ -332,8 +334,8 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-path-vote")).toHaveTextContent("The room only sees totals.");
     expect(screen.getByTestId("together-path-view")).toHaveTextContent("Share a view");
     expect(screen.getByTestId("together-path-view")).toHaveTextContent("VYVA review stays nearby.");
-    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("Help the activity");
-    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("choose one small helper action.");
+    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("Activities for you");
+    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("recommended activities");
     expect(screen.getByTestId("together-participation-path")).toHaveTextContent(
       "Looking first is welcome. No path shares private contact.",
     );
@@ -555,6 +557,26 @@ describe("TogetherRoomScreen", () => {
     expect(screen.queryByTestId("together-view-circle")).not.toBeInTheDocument();
     expect(screen.queryByTestId("together-view-starters")).not.toBeInTheDocument();
     expect(screen.getAllByText("Contact is shared only when both people agree.").length).toBeGreaterThan(0);
+  });
+
+  it("keeps deeper room tools tucked behind one clear reveal", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-featured-plan-details")).toHaveClass("hidden");
+    expect(screen.getByTestId("together-plan-extra-details")).toHaveClass("hidden");
+    expect(screen.getByTestId("together-room-detail-sections")).toHaveClass("hidden");
+
+    const toggle = screen.getByTestId("together-more-options-toggle");
+    expect(toggle).toHaveTextContent("More room options");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveTextContent("Hide options");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("together-featured-plan-details")).not.toHaveClass("hidden");
+    expect(screen.getByTestId("together-plan-extra-details")).not.toHaveClass("hidden");
+    expect(screen.getByTestId("together-room-detail-sections")).not.toHaveClass("hidden");
   });
 
   it("turns today's room notes into a gentle next action", () => {
@@ -846,6 +868,24 @@ describe("TogetherRoomScreen", () => {
     } finally {
       Element.prototype.scrollIntoView = originalScrollIntoView;
     }
+  });
+
+  it("opens the main Activities area from the activity path when provided", () => {
+    const onOpenActivities = vi.fn();
+
+    render(
+      <TogetherRoomScreen
+        roomResponse={roomResponse}
+        language="en"
+        visitId="visit-1"
+        onBack={vi.fn()}
+        onOpenActivities={onOpenActivities}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("together-path-activity"));
+
+    expect(onOpenActivities).toHaveBeenCalledTimes(1);
   });
 
   it("opens a safe room trust check with VYVA", () => {

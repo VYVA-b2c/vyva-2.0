@@ -8,6 +8,7 @@ import { db } from "../db.js";
 import { onboardingState, profileMemberships, profiles, teamInvitations, users } from "../../shared/schema.js";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { AUTH_SESSION_COOKIE } from "../lib/sessionCookie.js";
+import { signToken } from "../lib/jwt.js";
 
 function buildApp() {
   const app = express();
@@ -316,6 +317,27 @@ describe("Auth endpoints", () => {
       .expect(401);
 
     expect(res.body).toHaveProperty("error");
+  });
+
+  it("GET /me rejects a revoked legacy login token", async () => {
+    const revokedUserId = randomUUID();
+    await db.insert(users).values({
+      id: revokedUserId,
+      password_hash: `revoked:${Date.now()}`,
+      onboarding_intent: "admin_deleted_login",
+    });
+    const token = await signToken(revokedUserId);
+
+    try {
+      const res = await request(app)
+        .get("/api/auth/me")
+        .set("Authorization", `Bearer ${token}`)
+        .expect(401);
+
+      expect(res.body).toHaveProperty("error");
+    } finally {
+      await db.delete(users).where(eq(users.id, revokedUserId));
+    }
   });
 
   it("POST /logout clears the session cookie", async () => {

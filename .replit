@@ -1,14 +1,14 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web"]
 [agent]
 expertMode = true
-integrations = ["javascript_database:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-run = "NODE_ENV=production node ./server-dist/index.cjs"
+ignoreDatabaseMigrations = true
+run = "npm run build && npm run db:health-insights && npm run db:lifecycle-contact-cleanup && NODE_ENV=production node ./server-dist/index.cjs"
 build = ["npm", "run", "build"]
 
 [workflows]

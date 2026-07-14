@@ -39,6 +39,10 @@ export {
 } from "./engine/routeOutcome.js";
 
 export {
+  buildGuidancePlan,
+} from "./engine/guidanceProtocolMap.js";
+
+export {
   resetTriageTelemetrySink,
   setTriageTelemetrySink,
   trackTriageEvent,
@@ -52,6 +56,9 @@ export type {
   RaiseTriageLevel,
   TriageEscalationSource,
   TriageChatMessage,
+  TriageGuidanceConfidence,
+  TriageGuidancePlan,
+  TriageGuidanceSignal,
   TriageHealthMemory,
   TriagePersonalizedSuggestion,
   TriageSuggestionReasonCode,

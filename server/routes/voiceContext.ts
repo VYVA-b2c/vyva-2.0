@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { buildVoiceContext, type VoiceContextDomain } from "../lib/voiceContext.js";
 import {
   signMedicalProfileToolToken,
+  signVoiceTriageToolToken,
   signVoiceRecommendationFeedbackToolToken,
 } from "../lib/jwt.js";
 import { recordShownVoiceRecommendation } from "../lib/voiceRecommendationFeedback.js";
@@ -29,6 +30,7 @@ function resolveDomain(body: Record<string, unknown>): VoiceContextDomain {
 
   const agentSlug = typeof body.agent_slug === "string" ? normalizeSlug(body.agent_slug) : "";
   const roomSlug = typeof body.room_slug === "string" ? normalizeSlug(body.room_slug) : "";
+  if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
@@ -73,9 +75,12 @@ export async function voiceContextHandler(req: Request, res: Response) {
     });
     if (isMedicalContextDomain(domain)) {
       const token = await signMedicalProfileToolToken(userId, conversationId);
+      const voiceTriageToken = await signVoiceTriageToolToken(userId, conversationId);
       dynamicVariables.conversation_id = conversationId;
       dynamicVariables.context_token = token;
       dynamicVariables.medical_profile_token = token;
+      dynamicVariables.voice_triage_tool_token = voiceTriageToken;
+      dynamicVariables.language = String(dynamicVariables.preferred_language || "en");
     }
     return res.json({ domain, dynamic_variables: dynamicVariables });
   } catch (err) {

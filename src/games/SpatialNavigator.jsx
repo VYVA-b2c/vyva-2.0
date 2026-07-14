@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { supabase } from "../lib/supabaseClient";
+import { gameData } from "./shared/gameDataApi";
 import { useLanguage } from "../i18n";
-import BrainGameResultActions from "./shared/BrainGameResultActions";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
@@ -227,8 +227,8 @@ export default function SpatialNavigator({ userId, onExit }) {
   const loadUserState = useCallback(async () => {
     if (!userId) return defaultUserState(userId);
 
-    const { data, error } = await supabase
-      .from("spatial_nav_user_state")
+    const { data, error } = await gameData
+      .table("spatial_nav_user_state")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -237,8 +237,8 @@ export default function SpatialNavigator({ userId, onExit }) {
     if (data) return data;
 
     const initial = defaultUserState(userId);
-    const { data: created, error: upsertError } = await supabase
-      .from("spatial_nav_user_state")
+    const { data: created, error: upsertError } = await gameData
+      .table("spatial_nav_user_state")
       .upsert(initial, { onConflict: "user_id" })
       .single();
 
@@ -253,8 +253,8 @@ export default function SpatialNavigator({ userId, onExit }) {
     const start = localDayStart();
     const end = addDays(start, 1);
 
-    const { data: todaySessions, error: sessionsError } = await supabase
-      .from("spatial_nav_sessions")
+    const { data: todaySessions, error: sessionsError } = await gameData
+      .table("spatial_nav_sessions")
       .select("map_id")
       .eq("user_id", userId)
       .gte("played_at", start.toISOString())
@@ -269,8 +269,8 @@ export default function SpatialNavigator({ userId, onExit }) {
     const languageOrder = [...new Set([gameLanguage, "es", "en", "de"])];
 
     for (const mapLanguage of languageOrder) {
-      let query = supabase
-        .from("spatial_nav_maps")
+      let query = gameData
+        .table("spatial_nav_maps")
         .select("*")
         .eq("difficulty_tier", tier)
         .eq("is_active", true)
@@ -287,8 +287,8 @@ export default function SpatialNavigator({ userId, onExit }) {
     }
 
     for (const mapLanguage of languageOrder) {
-      const { data: maps, error: mapsError } = await supabase
-        .from("spatial_nav_maps")
+      const { data: maps, error: mapsError } = await gameData
+        .table("spatial_nav_maps")
         .select("*")
         .eq("difficulty_tier", tier)
         .eq("is_active", true)
@@ -298,8 +298,8 @@ export default function SpatialNavigator({ userId, onExit }) {
       if (mapsError) throw mapsError;
       if (!maps?.length) continue;
 
-      const { data: history, error: historyError } = await supabase
-        .from("spatial_nav_sessions")
+      const { data: history, error: historyError } = await gameData
+        .table("spatial_nav_sessions")
         .select("map_id,played_at")
         .eq("user_id", userId)
         .eq("difficulty_tier", tier)
@@ -418,7 +418,7 @@ export default function SpatialNavigator({ userId, onExit }) {
       score: result?.score ?? 0,
     };
 
-    const { data } = await supabase.from("spatial_nav_sessions").insert(payload);
+    const { data } = await gameData.table("spatial_nav_sessions").insert(payload);
     const savedSession = Array.isArray(data) ? data[0] : data;
 
     await recordCognitiveSession({
@@ -498,7 +498,7 @@ export default function SpatialNavigator({ userId, onExit }) {
 
     setUserState(next);
     if (userId && map?.id) {
-      await supabase.from("spatial_nav_user_state").upsert(next, { onConflict: "user_id" });
+      await gameData.table("spatial_nav_user_state").upsert(next, { onConflict: "user_id" });
     }
     return next;
   }, [map?.id, userId, userState]);
@@ -937,7 +937,15 @@ export default function SpatialNavigator({ userId, onExit }) {
           </div>
           <p className="spatial-hint">{text.progressNext} {nextTier}</p>
 
-          <BrainGameResultActions
+          <BrainGameCompletionDialog
+            title={resultAccuracy >= 60 ? text.resultGreat : text.resultTry}
+            summary={`${text.accuracy}: ${resultAccuracy}% | ${text.score}: ${sessionResult?.score ?? 0}`}
+            metrics={[
+              { label: text.accuracy, value: `${resultAccuracy}%` },
+              { label: text.streak, value: `${userState?.streak_days ?? 1} ${text.days}` },
+              { label: text.score, value: sessionResult?.score ?? 0 },
+              { label: text.level, value: `${text.level} ${resultTier}` },
+            ]}
             continueLabel={continueLabel}
             replayLabel={text.playAgain}
             anotherLabel={text.playAnotherGame}

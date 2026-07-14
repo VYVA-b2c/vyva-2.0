@@ -40,7 +40,7 @@ function validInvite(overrides: Record<string, unknown> = {}) {
       status: "pending",
       canAccept: true,
       seniorDisplayName: "Elena Senior",
-      inviteeName: "Mary Caregiver",
+      inviteeName: "mary caregiver",
       role: "caregiver",
       relationship: "daughter",
       expiresAt: "2026-06-08T00:00:00.000Z",
@@ -63,10 +63,12 @@ function LocationSpy() {
 
 function renderInvitePage(initialEntry = "/care-team/invite/token-123") {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
         <Route path="/login" element={<LocationSpy />} />
+        <Route path="/caregiver/login" element={<LocationSpy />} />
+        <Route path="/caregiver/register" element={<LocationSpy />} />
         <Route path="/caregiver" element={<LocationSpy />} />
       </Routes>
     </MemoryRouter>,
@@ -95,16 +97,22 @@ describe("CareTeamInvitePage", () => {
     expect(await screen.findByText(/Elena Senior invited you/i)).toBeInTheDocument();
     expect(window.sessionStorage.getItem("vyva_care_team_invite_return")).toBe("/care-team/invite/token-123");
     expect(screen.getByText("Mary Caregiver")).toBeInTheDocument();
-    expect(screen.getByText("Caregiver - daughter")).toBeInTheDocument();
-    expect(screen.getByText("Daily wellbeing summary")).toBeInTheDocument();
+    expect(screen.getByText("Caregiver - Daughter")).toBeInTheDocument();
+    expect(screen.getByText("Use the invited email or mobile number")).toBeInTheDocument();
+    expect(screen.getByText(/same email address or mobile number this invite was sent to/i)).toBeInTheDocument();
+    expect(screen.getByText(/New to VYVA/i)).toBeInTheDocument();
+    expect(screen.getByText("What you will be able to see")).toBeInTheDocument();
+    expect(screen.getByText("Caregiver dashboard")).toBeInTheDocument();
+    expect(screen.getByText(/private dashboard for the loved one's profile/i)).toBeInTheDocument();
+    expect(screen.getByText("Daily wellbeing recap")).toBeInTheDocument();
 
-    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Create caregiver account" })).toHaveAttribute(
       "href",
-      "/login?mode=login&returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
+      "/caregiver/register?returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
     );
-    expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Sign in with existing account" })).toHaveAttribute(
       "href",
-      "/login?mode=register&returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
+      "/caregiver/login?returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
     );
   });
 

@@ -46,12 +46,6 @@ const REDIRECT_COPY: Record<LanguageCode, { eyebrow: string; title: string; body
     body: "Um momento enquanto a VYVA prepara os dados seguros da sua conta.",
     secure: "O seu convite abre num perfil separado.",
   },
-  cy: {
-    eyebrow: "VYVA setup",
-    title: "Opening VYVA setup",
-    body: "One moment while VYVA prepares your secure account details.",
-    secure: "Your invite opens in a separate profile.",
-  },
 };
 
 export function inviteSetupPath(search: string) {
@@ -61,7 +55,7 @@ export function inviteSetupPath(search: string) {
   params.set("mode", "register");
   params.set("invite", "1");
   params.set("returnTo", caregiverInvite ? "/onboarding/who-for" : "/");
-  return `/login?${params.toString()}`;
+  return `${caregiverInvite ? "/caregiver/register" : "/login"}?${params.toString()}`;
 }
 
 export function inviteHomePath() {

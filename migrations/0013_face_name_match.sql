@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.face_name_sets (
 
 CREATE TABLE IF NOT EXISTS public.face_name_sessions (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id               UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id               UUID NOT NULL,
   played_at             TIMESTAMPTZ DEFAULT NOW(),
   set_id                UUID REFERENCES public.face_name_sets(id),
   difficulty_tier       INTEGER NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS public.face_name_sessions (
 );
 
 CREATE TABLE IF NOT EXISTS public.face_name_user_state (
-  user_id               UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id               UUID PRIMARY KEY,
   current_tier          INTEGER NOT NULL DEFAULT 1 CHECK (current_tier BETWEEN 1 AND 10),
   sessions_at_tier      INTEGER NOT NULL DEFAULT 0,
   consecutive_wins      INTEGER NOT NULL DEFAULT 0,
@@ -70,21 +70,21 @@ ALTER TABLE public.face_name_personas ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS user_own_fn_sessions ON public.face_name_sessions;
 CREATE POLICY user_own_fn_sessions ON public.face_name_sessions
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS user_own_fn_state ON public.face_name_user_state;
 CREATE POLICY user_own_fn_state ON public.face_name_user_state
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS fn_sets_read ON public.face_name_sets;
 CREATE POLICY fn_sets_read ON public.face_name_sets
-  FOR SELECT USING (auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS fn_personas_read ON public.face_name_personas;
 CREATE POLICY fn_personas_read ON public.face_name_personas
-  FOR SELECT USING (auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 
 CREATE INDEX IF NOT EXISTS idx_fns_user_played ON public.face_name_sessions (user_id, played_at DESC);
 CREATE INDEX IF NOT EXISTS idx_fnsets_tier ON public.face_name_sets (difficulty_tier, is_active, language);

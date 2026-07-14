@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
+import { useTranslation } from "react-i18next";
 
 const CATEGORIES: { id: string; marker: string; label: string }[] = [
   { id: "heart",       marker: "HEART", label: "Heart & circulation" },
@@ -151,6 +152,7 @@ export default function ConditionsSection() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [noKnownConditions, setNoKnownConditions] = useState(false);
@@ -259,7 +261,13 @@ export default function ConditionsSection() {
     setSelected(newSelected);
     setSpeakItMatches([]);
     scheduleAutoSave();
-    toast({ title: `${speakItMatches.length} condition${speakItMatches.length > 1 ? "s" : ""} added` });
+    toast({
+      title: t("onboarding.toast.healthConditionsUpdated.title", "Health conditions updated"),
+      description: t("onboarding.toast.healthConditionsUpdated.description", {
+        count: speakItMatches.length,
+        defaultValue: "{{count}} condition was added to your profile.",
+      }),
+    });
   };
 
   const toggleCat = (catId: string) => {

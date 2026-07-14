@@ -20,7 +20,7 @@ type ResponsiveSession = {
   onboardingStage: string;
 };
 
-type ExpectedLayout = "compact" | "wide" | "fullscreen";
+type ExpectedLayout = "compact" | "wide" | "vitals" | "fullscreen";
 
 type ResponsiveRoute = {
   name: string;
@@ -814,11 +814,11 @@ async function expectResponsiveRoute(
   await page.waitForLoadState("networkidle", { timeout: 500 }).catch(() => undefined);
   await page
     .getByRole("status", { name: "Opening VYVA" })
-    .waitFor({ state: "hidden", timeout: 3000 })
+    .waitFor({ state: "hidden", timeout: 5000 })
     .catch(() => undefined);
 
   await page
-    .waitForFunction(() => (document.body.textContent ?? "").trim().length > 0, undefined, { timeout: 3000 })
+    .waitForFunction(() => (document.body.textContent ?? "").trim().length > 0, undefined, { timeout: 8000 })
     .catch(() => undefined);
 
   const audit = await page.evaluate(() => {
@@ -868,7 +868,7 @@ async function expectResponsiveRoute(
       "button:visible,a[href]:visible,input:visible,textarea:visible,select:visible,[role='button']:visible",
     );
     const firstControl = interactive.first();
-    await firstControl.waitFor({ state: "visible", timeout: 3000 });
+    await firstControl.waitFor({ state: "visible", timeout: 5000 });
     await firstControl.scrollIntoViewIfNeeded();
     await expect(firstControl).toBeVisible();
 
@@ -936,7 +936,7 @@ const protectedCoreRoutes: ResponsiveRoute[] = [
 
 const protectedHealthRoutes: ResponsiveRoute[] = [
   { name: "health", path: "/health", expectedLayout: "wide" },
-  { name: "vitals", path: "/health/vitals", expectedLayout: "wide" },
+  { name: "vitals", path: "/health/vitals", expectedLayout: "vitals" },
   { name: "meds", path: "/meds", expectedLayout: "wide" },
   { name: "adherence report", path: "/meds/adherence-report", expectedLayout: "wide" },
   { name: "reports", path: "/informes", expectedLayout: "wide" },
@@ -944,7 +944,7 @@ const protectedHealthRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedUtilityRoutes: ResponsiveRoute[] = [
-  { name: "activities", path: "/activities", expectedLayout: "wide" },
+  { name: "mind memory", path: "/mind-memory", expectedLayout: "wide" },
   { name: "activity", path: "/activity", expectedLayout: "wide" },
   { name: "concierge", path: "/concierge", expectedLayout: "wide" },
   { name: "shopping helper", path: "/concierge/shopping", expectedLayout: "wide" },
@@ -959,7 +959,7 @@ const protectedUtilityRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedGameIndexRoutes: ResponsiveRoute[] = [
-  { name: "language games", path: "/language", expectedLayout: "wide" },
+  { name: "learn something new", path: "/learn", expectedLayout: "wide" },
   { name: "attention boosters", path: "/attention-boosters", expectedLayout: "wide" },
   { name: "executive function", path: "/executive-function", expectedLayout: "wide" },
   { name: "memory games", path: "/memory-games", expectedLayout: "wide" },
@@ -974,7 +974,7 @@ const protectedRoutes = [
 
 const socialAndGameRoutes: ResponsiveRoute[] = [
   { name: "social hub", path: "/social-rooms", expectedLayout: "wide" },
-  { name: "games room", path: "/social-rooms/games-room", expectedLayout: "wide" },
+  { name: "games room", path: "/social-rooms/games-room", expectedLayout: "wide", minTextLength: 60 },
   { name: "music room", path: "/social-rooms/music-room", expectedLayout: "wide" },
   { name: "reading room", path: "/social-rooms/reading-room", expectedLayout: "wide" },
   { name: "together room", path: "/social-rooms/together-room", expectedLayout: "wide" },

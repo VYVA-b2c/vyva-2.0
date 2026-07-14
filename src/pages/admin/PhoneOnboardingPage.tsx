@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
+  ArrowRight,
   BadgeCheck,
+  CheckCircle2,
   Clock,
   FileText,
   MessageCircle,
@@ -65,6 +68,55 @@ function phoneBucket(user: PhoneIntake): PhoneBucket {
   return "new_call";
 }
 
+function phoneSearchText(user: PhoneIntake) {
+  return [
+    profileName(user),
+    user.profile_phone,
+    user.login_phone,
+    user.phone,
+    user.profile_email,
+    user.login_email,
+    user.email,
+    user.organization_name,
+    user.journey_step,
+    user.status,
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function phoneAction(user: PhoneIntake) {
+  const bucket = phoneBucket(user);
+  if (bucket === "missing_info") return {
+    label: "Missing info",
+    title: "Complete caller details",
+    detail: "Review the captured phone data, then complete the profile in Lifecycle if name, phone, or consent is missing.",
+    tone: "warning" as const,
+  };
+  if (bucket === "link_sent") return {
+    label: "Invite sent",
+    title: "Check signup progress",
+    detail: "The caller has a link. Watch for completion, resend only if they report not receiving it.",
+    tone: "info" as const,
+  };
+  if (bucket === "completed") return {
+    label: "Completed",
+    title: "No immediate action",
+    detail: "This inbound caller appears to have completed onboarding or activated their account.",
+    tone: "success" as const,
+  };
+  return {
+    label: "New call",
+    title: "Ready for admin review",
+    detail: "Caller has enough phone intake data to review next steps, invite state, and organization assignment.",
+    tone: "info" as const,
+  };
+}
+
+function actionToneClass(tone: ReturnType<typeof phoneAction>["tone"]) {
+  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-950";
+  if (tone === "success") return "border-emerald-100 bg-emerald-50 text-emerald-950";
+  return "border-blue-100 bg-blue-50 text-blue-950";
+}
+
 function keyData(user: PhoneIntake) {
   const metadata = user.metadata ?? {};
   const source = user.source_payload ?? {};
@@ -100,6 +152,7 @@ function statusTone(status: string) {
 function PhoneUserCard({ user }: { user: PhoneIntake }) {
   const dataRows = keyData(user);
   const bucket = phoneBucket(user);
+  const action = phoneAction(user);
 
   return (
     <article className="rounded-[24px] border border-[#eadfd5] bg-white p-5 shadow-sm">
@@ -142,6 +195,17 @@ function PhoneUserCard({ user }: { user: PhoneIntake }) {
         <MiniMetric icon={UserRound} label="Profile ID" value={user.elder_user_id || user.user_id || user.id} />
       </div>
 
+      <div className={`mt-4 rounded-2xl border px-4 py-3 ${actionToneClass(action.tone)}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.08em] opacity-70">{action.label}</p>
+            <p className="mt-1 font-black">{action.title}</p>
+            <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed opacity-80">{action.detail}</p>
+          </div>
+          {action.tone === "warning" ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
+        </div>
+      </div>
+
       <div className="mt-4 rounded-2xl bg-[#fffaf5] p-4">
         <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">
           <FileText size={14} className="text-purple-700" />
@@ -176,12 +240,18 @@ function MiniMetric({ icon: Icon, label, value }: { icon: typeof Clock; label: s
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: number }) {
+function SummaryCard({ label, value, active, testId, onClick }: { label: string; value: number; active: boolean; testId: string; onClick: () => void }) {
   return (
-    <div className="rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 shadow-sm">
+    <button
+      type="button"
+      data-testid={testId}
+      className={`rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-55 ${active ? "border-purple-300 bg-purple-50" : "border-[#eadfd5] bg-white"}`}
+      disabled={value === 0 && !active}
+      onClick={onClick}
+    >
       <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{label}</p>
       <p className="mt-1 text-3xl font-black leading-none">{value}</p>
-    </div>
+    </button>
   );
 }
 
@@ -228,17 +298,47 @@ export default function PhoneOnboardingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const phoneSummary = useMemo(() => ([
-    [phoneBucketLabels.new_call, users.filter((user) => phoneBucket(user) === "new_call").length],
-    [phoneBucketLabels.missing_info, users.filter((user) => phoneBucket(user) === "missing_info").length],
-    [phoneBucketLabels.link_sent, users.filter((user) => phoneBucket(user) === "link_sent").length],
-    [phoneBucketLabels.completed, users.filter((user) => phoneBucket(user) === "completed").length],
-  ]), [users]);
+  const phoneSummary = useMemo(() => (
+    (Object.keys(phoneBucketLabels) as PhoneBucket[]).map((bucket) => ({
+      bucket,
+      label: phoneBucketLabels[bucket],
+      value: users.filter((user) => phoneBucket(user) === bucket).length,
+    }))
+  ), [users]);
+
+  const phoneWorkQueue = useMemo(() => {
+    const priority: Record<PhoneBucket, number> = {
+      missing_info: 0,
+      new_call: 1,
+      link_sent: 2,
+      completed: 3,
+    };
+    return [...users]
+      .filter((user) => phoneBucket(user) !== "completed")
+      .sort((left, right) => priority[phoneBucket(left)] - priority[phoneBucket(right)])
+      .slice(0, 8);
+  }, [users]);
 
   const visiblePhoneUsers = useMemo(
-    () => (bucketFilter ? users.filter((user) => phoneBucket(user) === bucketFilter) : users),
-    [bucketFilter, users],
+    () => {
+      const needle = query.trim().toLowerCase();
+      return users.filter((user) => {
+        if (bucketFilter && phoneBucket(user) !== bucketFilter) return false;
+        return !needle || phoneSearchText(user).includes(needle);
+      });
+    },
+    [bucketFilter, query, users],
   );
+
+  function focusCaller(user: PhoneIntake) {
+    setBucketFilter(phoneBucket(user));
+    setQuery(profileName(user) || user.phone || "");
+  }
+
+  function clearFilters() {
+    setBucketFilter("");
+    setQuery("");
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
@@ -262,10 +362,62 @@ export default function PhoneOnboardingPage() {
         <AdminMenu />
 
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          {phoneSummary.map(([label, value]) => (
-            <SummaryCard key={label} label={label} value={value} />
+          {phoneSummary.map((item) => (
+            <SummaryCard
+              key={item.bucket}
+              label={item.label}
+              value={item.value}
+              active={bucketFilter === item.bucket}
+              testId={`phone-summary-${item.bucket}`}
+              onClick={() => setBucketFilter(bucketFilter === item.bucket ? "" : item.bucket)}
+            />
           ))}
         </div>
+
+        <section className="mt-4 rounded-[24px] border border-[#eadfd5] bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Work queue</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Needs follow-up</h2>
+              <p className="mt-1 max-w-2xl text-sm font-semibold text-[#7d6b65]">
+                Inbound callers that are not completed yet, ordered by the most likely admin follow-up first.
+              </p>
+            </div>
+            <span className="rounded-full bg-[#f3e8ff] px-4 py-2 text-sm font-black text-purple-800">
+              {phoneWorkQueue.length} shown
+            </span>
+          </div>
+
+          {phoneWorkQueue.length === 0 ? (
+            <div className="mt-4 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+              <CheckCircle2 size={18} />
+              No inbound callers need follow-up in the loaded records.
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-2 lg:grid-cols-2">
+              {phoneWorkQueue.map((user) => {
+                const action = phoneAction(user);
+                return (
+                  <button
+                    key={`queue-${user.id}`}
+                    type="button"
+                    className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${actionToneClass(action.tone)}`}
+                    onClick={() => focusCaller(user)}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-black">{profileName(user)}</p>
+                        <p className="mt-1 text-xs font-black uppercase tracking-[0.08em] opacity-70">{action.label}</p>
+                        <p className="mt-1 truncate text-sm font-semibold opacity-80">{action.title}</p>
+                      </div>
+                      <ArrowRight className="mt-1 h-4 w-4 shrink-0" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         <section className="mt-4 rounded-[24px] border border-[#eadfd5] bg-white p-4 shadow-sm">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -300,7 +452,7 @@ export default function PhoneOnboardingPage() {
               Search
             </button>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
               type="button"
               className={`rounded-full px-4 py-2 text-sm font-black ${bucketFilter === "" ? "bg-purple-700 text-white" : "border border-purple-100 bg-white text-purple-700"}`}
@@ -318,7 +470,19 @@ export default function PhoneOnboardingPage() {
                 {phoneBucketLabels[bucket]}
               </button>
             ))}
+            {(bucketFilter || query.trim()) && (
+              <button
+                type="button"
+                className="rounded-full border border-[#eadfd5] bg-white px-4 py-2 text-sm font-black text-[#5f514b] hover:border-purple-200 hover:text-purple-700"
+                onClick={clearFilters}
+              >
+                Clear filters
+              </button>
+            )}
           </div>
+          <p className="mt-3 text-sm font-bold text-[#7d6b65]">
+            Showing {visiblePhoneUsers.length} of {users.length} loaded callers.
+          </p>
         </section>
 
         <section className="mt-4 grid gap-4">

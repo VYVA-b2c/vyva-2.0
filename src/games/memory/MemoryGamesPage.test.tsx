@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import MemoryGamesPage from "./MemoryGamesPage";
@@ -29,10 +29,18 @@ vi.mock("./progressionEngine", () => ({
   selectNextMemoryGame: mocks.selectNextMemoryGame,
 }));
 
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="current-route">{location.pathname}</div>;
+}
+
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <MemoryGamesPage />
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/memory-games"]}>
+      <Routes>
+        <Route path="/memory-games" element={<MemoryGamesPage />} />
+        <Route path="/mind-memory" element={<LocationProbe />} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -58,7 +66,7 @@ describe("MemoryGamesPage", () => {
 
     renderPage();
 
-    expect(screen.queryByText("Choose another exercise")).not.toBeInTheDocument();
+    expect(screen.queryByText("More exercises")).not.toBeInTheDocument();
 
     resolveRecommendation({
       gameType: "memory_match",
@@ -67,14 +75,60 @@ describe("MemoryGamesPage", () => {
       reason: "recommended",
     });
 
-    const heading = await screen.findByText("Choose another exercise");
+    const heading = await screen.findByText("More exercises");
     const choices = heading.closest("section");
     expect(choices).not.toBeNull();
 
     expect(within(choices as HTMLElement).queryByText("Visual memory")).not.toBeInTheDocument();
+    expect(within(choices as HTMLElement).queryByText("Curious Minds")).not.toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Remember Later")).toBeInTheDocument();
-    expect(within(choices as HTMLElement).getByText("Recall words")).toBeInTheDocument();
-    expect(within(choices as HTMLElement).getByText("Number memory")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Association")).toBeInTheDocument();
+    expect(within(choices as HTMLElement).getByText("Recall words")).toBeInTheDocument();
+    expect(within(choices as HTMLElement).getByText("Short stories")).toBeInTheDocument();
+    expect(within(choices as HTMLElement).getByText("Number memory")).toBeInTheDocument();
+  });
+
+  it("renders when the latest history item is a standalone memory activity", async () => {
+    mocks.getGameHistory.mockResolvedValue([
+      {
+        userId: "user-1",
+        gameType: "remember_later",
+        cognitiveDomain: "prospective_memory",
+        variantId: "remember-later-1",
+        level: 1,
+        score: 1,
+        accuracy: 100,
+        mistakes: 0,
+        durationSeconds: 10,
+        completedAt: "2026-07-05T09:00:00.000Z",
+        language: "en",
+      },
+    ]);
+    mocks.selectNextMemoryGame.mockResolvedValue({
+      gameType: "memory_match",
+      level: 1,
+      variantId: "memory_match-l1-v1",
+      reasonLabel: "Start here",
+    });
+
+    renderPage();
+
+    expect(await screen.findByText(/Remember Later -/)).toBeInTheDocument();
+    expect(await screen.findByText("More exercises")).toBeInTheDocument();
+  });
+
+  it("returns to Mind & Memory from the back button", async () => {
+    mocks.selectNextMemoryGame.mockResolvedValue({
+      gameType: "memory_match",
+      level: 1,
+      variantId: "memory_match-l1-v1",
+      reasonLabel: "Start here",
+    });
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /back/i }));
+
+    expect(await screen.findByTestId("current-route")).toHaveTextContent("/mind-memory");
   });
 });

@@ -3,7 +3,6 @@ const PUBLIC_PWA_INSTALL_PREFIXES = ["/access/", "/care-team/invite/"];
 
 const AUTHENTICATED_PWA_INSTALL_PATHS = [
   "/",
-  "/activities",
   "/activity",
   "/attention-boosters",
   "/caregiver",
@@ -17,8 +16,10 @@ const AUTHENTICATED_PWA_INSTALL_PATHS = [
   "/health",
   "/history",
   "/informes",
+  "/learn",
   "/language",
   "/meds",
+  "/mind-memory",
   "/memory-games",
   "/safe-home",
   "/scam-guard",

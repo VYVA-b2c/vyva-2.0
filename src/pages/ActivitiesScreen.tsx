@@ -77,7 +77,6 @@ const ActivitiesScreen = () => {
     retry: false,
   });
   const streak = brainCoachProgress?.summary?.streakDays ?? 0;
-  const completedTodayCount = brainCoachProgress?.today?.completedCount ?? 0;
   const caregiverNudge = dailyPlan?.caregiverNudge ?? null;
   const visibleCaregiverNudge = caregiverNudge?.status === "dismissed" ? null : caregiverNudge;
 
@@ -86,6 +85,8 @@ const ActivitiesScreen = () => {
     icon: LucideIcon;
     label: string;
     sub: string;
+    mobileLabel: string;
+    mobileSub: string;
     color: string;
     bg: string;
     to: string;
@@ -96,6 +97,8 @@ const ActivitiesScreen = () => {
       icon: BrainCircuit,
       label: t("activities.primary.memory", "Strengthen Memory"),
       sub: t("activities.primary.memorySub", "Practice recall, matching, and daily routines."),
+      mobileLabel: t("activities.primary.memoryMobile", "Memory"),
+      mobileSub: t("activities.primary.memorySubMobile", "Recall practice"),
       color: "#7C3AED",
       bg: "#F5F3FF",
       to: "/memory-games",
@@ -106,6 +109,8 @@ const ActivitiesScreen = () => {
       icon: Route,
       label: t("activities.primary.reflexes", "Train Reflexes"),
       sub: t("activities.primary.reflexesSub", "Build faster focus and response."),
+      mobileLabel: t("activities.primary.reflexesMobile", "Reflexes"),
+      mobileSub: t("activities.primary.reflexesSubMobile", "Quick response"),
       color: "#0A7C4E",
       bg: "#ECFDF5",
       to: "/attention-boosters",
@@ -114,8 +119,10 @@ const ActivitiesScreen = () => {
     {
       id: "intelligence",
       icon: Puzzle,
-      label: t("activities.primary.intelligence", "Boost Intelligence"),
+      label: t("activities.primary.intelligence", "Improve Thinking"),
       sub: t("activities.primary.intelligenceSub", "Challenge logic, planning, and problem solving."),
+      mobileLabel: t("activities.primary.intelligenceMobile", "Logic"),
+      mobileSub: t("activities.primary.intelligenceSubMobile", "Problem solving"),
       color: "#C9890A",
       bg: "#FEF3C7",
       to: "/executive-function",
@@ -125,10 +132,12 @@ const ActivitiesScreen = () => {
       id: "senses",
       icon: Headphones,
       label: t("activities.primary.senses", "Sharpen Senses"),
-      sub: t("activities.primary.sensesSub", "Reset with sound, breath, and calm attention."),
+      sub: t("activities.primary.sensesSub", "Practice association, observation, and recall."),
+      mobileLabel: t("activities.primary.sensesMobile", "Senses"),
+      mobileSub: t("activities.primary.sensesSubMobile", "Sound focus"),
       color: "#0F766E",
       bg: "#CCFBF1",
-      to: "/activities/relax-breathe",
+      to: "/senses",
       testId: "button-activities-primary-senses",
     },
   ];
@@ -138,6 +147,8 @@ const ActivitiesScreen = () => {
     icon: LucideIcon;
     label: string;
     sub: string;
+    mobileLabel: string;
+    mobileSub: string;
     to: string;
     iconBg: string;
     iconColor: string;
@@ -150,6 +161,8 @@ const ActivitiesScreen = () => {
       icon: Headphones,
       label: t("activities.quick.relax", "Relax & Breathe"),
       sub: t("activities.quick.relaxSub", "Take a calm guided pause."),
+      mobileLabel: t("activities.quick.relaxMobile", "Relax"),
+      mobileSub: t("activities.quick.relaxSubMobile", "Calm pause"),
       to: "/activities/relax-breathe",
       iconBg: "#CCFBF1",
       iconColor: "#0F766E",
@@ -161,8 +174,10 @@ const ActivitiesScreen = () => {
       id: "learn",
       icon: BookOpen,
       label: t("activities.quick.learn", "Learn Something New"),
-      sub: t("activities.quick.learnSub", "Try words, language, and recall."),
-      to: "/language",
+      sub: t("activities.quick.learnSub", "Start a short daily learning program."),
+      mobileLabel: t("activities.quick.learnMobile", "Learn"),
+      mobileSub: t("activities.quick.learnSubMobile", "Daily lessons"),
+      to: "/learn",
       iconBg: "#F5F3FF",
       iconColor: "#7C3AED",
       border: "#D8B4FE",
@@ -174,6 +189,8 @@ const ActivitiesScreen = () => {
       icon: BrainCircuit,
       label: t("activities.quick.play", "Take a cognitive assessment."),
       sub: t("activities.quick.playSub", "Practice memory and focus."),
+      mobileLabel: t("activities.quick.playMobile", "Play"),
+      mobileSub: t("activities.quick.playSubMobile", "Brain games"),
       to: "/memory-games",
       iconBg: "#EFF6FF",
       iconColor: "#2563EB",
@@ -304,30 +321,6 @@ const ActivitiesScreen = () => {
         </section>
       )}
 
-      <section
-        className="mt-[14px] flex items-center gap-3 rounded-[22px] border border-[#EDE2D1] bg-[#FFFCF8] px-4 py-3"
-        data-testid="brain-coach-progress-summary"
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
-          <BrainCircuit size={20} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-            {t("brain.progressSummary", "Brain Coach progress")}
-          </span>
-          <span className="mt-0.5 block truncate font-body text-[15px] font-extrabold text-vyva-text-1">
-            {streak > 0
-              ? t("brain.progressStreak", "{{count}} day streak", { count: streak })
-              : t("brain.progressStart", "Start with one short activity")}
-          </span>
-        </span>
-        {completedTodayCount > 0 && (
-          <span className="shrink-0 rounded-full bg-[#D1FAE5] px-3 py-1 font-body text-[12px] font-black text-[#047857]">
-            {t("brain.doneTodayShort", "Today done")}
-          </span>
-        )}
-      </section>
-
       <section className="mt-[18px]" data-testid="section-activities-primary-actions">
         <SectionTitle
           className="mb-3"
@@ -339,11 +332,22 @@ const ActivitiesScreen = () => {
             <ActionCard
               key={action.id}
               data-testid={action.testId}
+              aria-label={action.label}
               icon={action.icon}
               iconBg={action.bg}
               iconColor={action.color}
-              title={action.label}
-              description={action.sub}
+              title={
+                <>
+                  <span className="sm:hidden">{action.mobileLabel}</span>
+                  <span className="hidden sm:inline">{action.label}</span>
+                </>
+              }
+              description={
+                <>
+                  <span className="sm:hidden">{action.mobileSub}</span>
+                  <span className="hidden sm:inline">{action.sub}</span>
+                </>
+              }
               size="large"
               surface="white"
               onClick={() => navigate(action.to)}
@@ -419,7 +423,8 @@ const ActivitiesScreen = () => {
             {t("activities.quick.kicker", "Brain Coach")}
           </p>
           <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-            {t("activities.libraryTitle", "Choose an activity")}
+            <span className="sm:hidden">{t("activities.libraryTitleMobile", "Pick one")}</span>
+            <span className="hidden sm:inline">{t("activities.libraryTitle", "Choose an activity")}</span>
           </h2>
         </div>
         <div className="grid grid-cols-1 gap-3">
@@ -430,6 +435,7 @@ const ActivitiesScreen = () => {
                 key={action.id}
                 type="button"
                 data-testid={action.testId}
+                aria-label={action.label}
                 onClick={() => navigate(action.to)}
                 className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5"
                 style={{
@@ -445,10 +451,12 @@ const ActivitiesScreen = () => {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                    {action.label}
+                    <span className="sm:hidden">{action.mobileLabel}</span>
+                    <span className="hidden sm:inline">{action.label}</span>
                   </span>
                   <span className="mt-1 block max-w-[24rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                    {action.sub}
+                    <span className="sm:hidden">{action.mobileSub}</span>
+                    <span className="hidden sm:inline">{action.sub}</span>
                   </span>
                 </span>
               </button>

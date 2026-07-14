@@ -26,8 +26,9 @@ const scryptAsync = promisify(scrypt);
 const isDev = !isProductionRuntime();
 const isProduction = isProductionRuntime();
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
+const REVOKED_LEGACY_LOGIN_INTENT = "admin_deleted_login";
 const emailSchema = z.string().trim().email();
-const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt", "cy"] as const;
+const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
 type ProfileLanguage = (typeof SUPPORTED_PROFILE_LANGUAGES)[number];
 
 function getPublicAppUrl(req: Request): string | null {
@@ -160,6 +161,12 @@ async function findUserById(userId: string) {
     .limit(1);
 
   return user ?? null;
+}
+
+function isRevokedLegacyLogin(user: typeof users.$inferSelect | null | undefined) {
+  return !user
+    || user.onboarding_intent === REVOKED_LEGACY_LOGIN_INTENT
+    || user.password_hash.startsWith("revoked:");
 }
 
 async function getOrCreateAuthenticatedUser(userId: string, email?: unknown) {
@@ -1011,7 +1018,7 @@ authRouter.post("/magic-login", async (req: Request, res: Response) => {
     .where(eq(users.id, userId))
     .limit(1);
 
-  if (!user) {
+  if (!user || isRevokedLegacyLogin(user)) {
     return res.status(401).json({ error: "This sign-in link is invalid or expired." });
   }
 
@@ -1391,14 +1398,16 @@ authRouter.post("/reset-request", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Could not prepare reset email. Please try again later." });
   }
 
+  let emailDeliveryFailed = false;
+
   try {
     await sendPasswordResetEmail({ to: user.email, resetLink, allowDevelopmentLog: isLocalRequest(req) });
   } catch (err) {
     console.error("[auth] Failed to send password reset email:", err);
-    const message = err instanceof Error && err.message.trim()
-      ? err.message
-      : "Failed to send reset email. Please try again later.";
-    return res.status(503).json({ error: message });
+    if (!(isDev && isLocalRequest(req))) {
+      return res.status(503).json({ error: "Could not send the reset email right now. Please try again later or contact VYVA support." });
+    }
+    emailDeliveryFailed = true;
   }
 
   const response: Record<string, unknown> = { ...genericOk };
@@ -1407,6 +1416,10 @@ authRouter.post("/reset-request", async (req: Request, res: Response) => {
   // directly from the API without requiring a real mail server.
   if (isDev && isLocalRequest(req)) {
     response._devToken = resetToken;
+    response._devResetLink = resetLink;
+    if (emailDeliveryFailed) {
+      response._devEmailDeliveryFailed = true;
+    }
   }
 
   return res.json(response);

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeSuppliesAdminPage from "./ConciergeSuppliesAdminPage";
@@ -58,14 +58,17 @@ function jsonResponse(body: unknown) {
   });
 }
 
-function renderPage() {
+function renderPage({
+  products = [adminProduct],
+  packages = [adminPackage],
+} = {}) {
   apiFetchMock.mockImplementation((path, init) => {
     const method = init?.method ?? "GET";
     if (path === "/api/admin/concierge/shopping/products" && method === "GET") {
-      return Promise.resolve(jsonResponse({ products: [adminProduct] }));
+      return Promise.resolve(jsonResponse({ products }));
     }
     if (path === "/api/admin/concierge/shopping/packages" && method === "GET") {
-      return Promise.resolve(jsonResponse({ packages: [adminPackage] }));
+      return Promise.resolve(jsonResponse({ packages }));
     }
     if (path === "/api/admin/concierge/shopping/products/small-water-bottle-multipack" && method === "PATCH") {
       return Promise.resolve(jsonResponse({ product: adminProduct }));
@@ -89,7 +92,7 @@ function renderPage() {
   });
 
   return render(
-    <MemoryRouter initialEntries={["/admin/concierge-supplies"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/concierge-supplies"]}>
       <ConciergeSuppliesAdminPage />
     </MemoryRouter>,
   );
@@ -100,6 +103,61 @@ afterEach(() => {
 });
 
 describe("ConciergeSuppliesAdminPage", () => {
+  it("filters catalog health queues across products and packages", async () => {
+    const disabledProduct = {
+      ...adminProduct,
+      product_id: "disabled-shower-stool",
+      category: "mobility_aids",
+      name: { en: "Disabled shower stool", es: "Taburete de ducha desactivado" },
+      is_enabled: false,
+    };
+    const unlinkedPackage = {
+      ...adminPackage,
+      package_id: "empty_enabled_package",
+      label: { en: "Empty enabled package", es: "Paquete activo vacio" },
+      product_ids: [],
+      service_request: false,
+      is_enabled: true,
+    };
+    const servicePackage = {
+      ...adminPackage,
+      package_id: "concierge_service_request",
+      label: { en: "Concierge service request", es: "Solicitud a Concierge" },
+      product_ids: [],
+      service_request: true,
+    };
+
+    renderPage({
+      products: [adminProduct, disabledProduct],
+      packages: [adminPackage, unlinkedPackage, servicePackage],
+    });
+
+    expect(await screen.findByTestId("admin-shopping-catalog-queue")).toHaveTextContent("Showing 2 of 2 products and 3 of 3 packages.");
+    const productsList = screen.getByTestId("admin-shopping-products");
+    const packagesList = screen.getByTestId("admin-shopping-packages");
+    expect(within(productsList).getByText("small-water-bottle-multipack")).toBeInTheDocument();
+    expect(within(productsList).getByText("disabled-shower-stool")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-shopping-queue-hidden"));
+
+    expect(screen.getByTestId("admin-shopping-catalog-queue")).toHaveTextContent("Showing 1 of 2 products and 0 of 3 packages.");
+    expect(within(productsList).getByText("disabled-shower-stool")).toBeInTheDocument();
+    expect(within(productsList).queryByText("small-water-bottle-multipack")).not.toBeInTheDocument();
+    expect(within(packagesList).getByText("No packages match this catalog queue.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-shopping-queue-package_gaps"));
+
+    expect(screen.getByTestId("admin-shopping-catalog-queue")).toHaveTextContent("Showing 0 of 2 products and 1 of 3 packages.");
+    expect(within(productsList).getByText("No supply items match this catalog queue.")).toBeInTheDocument();
+    expect(within(packagesList).getByText("empty_enabled_package")).toBeInTheDocument();
+    expect(within(packagesList).queryByText("hydration_support")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-shopping-clear-catalog-queue"));
+
+    expect(within(productsList).getByText("small-water-bottle-multipack")).toBeInTheDocument();
+    expect(within(packagesList).getByText("hydration_support")).toBeInTheDocument();
+  });
+
   it("loads, edits, saves, assigns, and previews curated supply packages", async () => {
     renderPage();
 

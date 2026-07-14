@@ -46,6 +46,7 @@ import {
   homeServiceSearchTerms,
   homeServiceTypeLabel,
 } from "../../shared/serviceIntake.js";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry.js";
 
 const router = Router();
 
@@ -128,6 +129,22 @@ function optionName(option: AppointmentProviderOption | null | undefined): strin
 function snapshotText(snapshot: Record<string, unknown>, key: string): string | null {
   const value = snapshot[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function appointmentRequestFlowReference(request: AppointmentRequest): string {
+  const preferences = recordValue(request.preferences);
+  const flowReference = preferences.flow_reference;
+  if (
+    typeof flowReference === "string"
+    && Object.values(CONCIERGE_FLOW_REFERENCES).includes(
+      flowReference as typeof CONCIERGE_FLOW_REFERENCES[keyof typeof CONCIERGE_FLOW_REFERENCES],
+    )
+  ) {
+    return flowReference;
+  }
+  return request.appointment_type === "home-service"
+    ? CONCIERGE_FLOW_REFERENCES.homeService
+    : CONCIERGE_FLOW_REFERENCES.medicalAppointment;
 }
 
 function appointmentChannelRecipient(channel: AppointmentChannel, snapshot: Record<string, unknown>): string | null {
@@ -498,16 +515,25 @@ async function savedProviderOptions(
 function appointmentMessage(channel: AppointmentChannel, option: AppointmentProviderOption, request: AppointmentRequest) {
   const provider = optionName(option);
   const reason = request.reason_detail?.trim() || "I would like to arrange an appointment.";
-  const subject = "Appointment request";
+  const isHomeService = request.appointment_type === "home-service";
+  const subject = isHomeService ? "Home service request" : "Appointment request";
+  const requestLine = isHomeService
+    ? "VYVA is helping me arrange a home service visit."
+    : "VYVA is helping me arrange an appointment.";
+  const askLine = isHomeService
+    ? "Could you confirm availability, visit timing, estimated cost if possible, and anything I should do before you arrive?"
+    : "Could you send available dates, times, location, price if relevant, and any preparation needed?";
   const body = channel === "whatsapp"
-    ? `Hello ${provider}, VYVA is helping me arrange an appointment. Reason: ${reason}. Could you send available dates, times, location, price if relevant, and any preparation needed? Thank you.`
+    ? `Hello ${provider}, ${requestLine} Request: ${reason}. ${askLine} Nothing is confirmed until I approve the next step. Thank you.`
     : [
         `Hello ${provider},`,
         "",
-        "VYVA is helping me arrange an appointment.",
-        `Reason: ${reason}`,
+        requestLine,
+        `Request: ${reason}`,
         "",
-        "Could you send available dates, times, location, price if relevant, and any preparation needed?",
+        askLine,
+        "",
+        "Nothing is confirmed until I approve the next step.",
         "",
         "Thank you.",
       ].join("\n");
@@ -807,8 +833,11 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
     const snapshot = (option.provider_snapshot ?? {}) as Record<string, unknown>;
     const providerName = optionName(option);
     const providerPhone = snapshotText(snapshot, "phone");
+    const providerEmail = snapshotText(snapshot, "email");
+    const providerWhatsapp = snapshotText(snapshot, "whatsapp");
     const bookingUrl = snapshotText(snapshot, "booking_url");
     const channel = parsed.data.channel;
+    const flowReference = appointmentRequestFlowReference(request);
     const communicationRecipient = appointmentChannelRecipient(channel, snapshot);
     const preferenceSnapshot = orderAppointmentChannels({
       channels: option.available_channels as AppointmentChannel[],
@@ -869,12 +898,16 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
             appointment_type: request.appointment_type,
+            flow_reference: flowReference,
             mission_status: "contacting_provider",
             preferred_channel: channel,
             provider_preference_snapshot: preferenceSnapshot,
             user_control_state: userControlState,
             execution_channel: "phone",
             reason: request.reason_detail,
+            provider_phone: providerPhone,
+            provider_email: providerEmail,
+            provider_whatsapp: providerWhatsapp,
             booking_url: bookingUrl,
             provider_notes: snapshotText(snapshot, "notes"),
           },
@@ -928,7 +961,13 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
             appointment_type: request.appointment_type,
+            flow_reference: flowReference,
             provider_name: providerName,
+            provider_phone: providerPhone,
+            provider_email: providerEmail,
+            provider_whatsapp: providerWhatsapp,
+            booking_url: bookingUrl,
+            execution_channel: channel,
             provider_snapshot: snapshot,
             preferred_channel: channel,
             provider_preference_snapshot: preferenceSnapshot,
@@ -1013,12 +1052,16 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
             appointment_type: request.appointment_type,
+            flow_reference: flowReference,
             mission_status: "form_in_progress",
             preferred_channel: channel,
             provider_preference_snapshot: preferenceSnapshot,
             user_control_state,
             execution_channel: "booking_url",
             reason: request.reason_detail,
+            provider_phone: providerPhone,
+            provider_email: providerEmail,
+            provider_whatsapp: providerWhatsapp,
             booking_url: bookingUrl,
             provider_notes: snapshotText(snapshot, "notes"),
             form_automation_status: formResult.status,
@@ -1068,12 +1111,16 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           appointment_option_id: option.id,
           appointment_attempt_id: attempt.id,
           appointment_type: request.appointment_type,
+          flow_reference: flowReference,
           mission_status: "awaiting_user_save",
           preferred_channel: channel,
           provider_preference_snapshot: preferenceSnapshot,
           user_control_state,
           execution_channel: "manual",
           reason: request.reason_detail,
+          provider_phone: providerPhone,
+          provider_email: providerEmail,
+          provider_whatsapp: providerWhatsapp,
           booking_url: bookingUrl,
           provider_notes: snapshotText(snapshot, "notes"),
         },

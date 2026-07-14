@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft,
@@ -11,6 +11,10 @@ import {
   MapPin,
   Phone,
   Pencil,
+  Mail,
+  MessageCircle,
+  Link2,
+  ShieldCheck,
 } from "lucide-react";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { Input } from "@/components/ui/input";
@@ -21,12 +25,20 @@ import { MerchantDetailSheet, ProviderDetails } from "@/components/onboarding/Me
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { friendlyError } from "@/lib/apiError";
+import {
+  CONCIERGE_PROVIDER_CATEGORIES,
+  normalizeConciergeProviderCategory,
+  type ConciergeProviderCategoryId,
+} from "../../../../shared/conciergeFlowRegistry";
+import { useTranslation } from "react-i18next";
 
 interface ProviderCategory {
-  id: string;
+  id: ConciergeProviderCategoryId;
   label: string;
-  placesType: PlaceCategory;
+  placesType?: PlaceCategory;
 }
+
+type ProviderContactChannel = "phone" | "whatsapp" | "email" | "booking_url" | "manual";
 
 const GOOGLE_TYPE_LABELS: Record<string, string> = {
   accounting: "Accounting",
@@ -169,25 +181,109 @@ function getPrimaryGoogleTypeLabel(types: string[]): string | null {
   return fallback ? formatFallbackType(fallback) : null;
 }
 
-const PROVIDER_CATEGORIES: ProviderCategory[] = [
-  { id: "pharmacy",        label: "Pharmacy",     placesType: "pharmacy" },
-  { id: "doctor",          label: "GP / Doctor",  placesType: "doctor" },
-  { id: "hospital",        label: "Hospital",     placesType: "hospital" },
-  { id: "dentist",         label: "Dentist",      placesType: "dentist" },
-  { id: "physiotherapist", label: "Physio",       placesType: "physiotherapist" },
-  { id: "clinic",          label: "Clinic",       placesType: "health" },
-  { id: "restaurant",      label: "Restaurant",   placesType: "restaurant" },
-  { id: "cafe",            label: "Cafe",         placesType: "cafe" },
-  { id: "meal_takeaway",   label: "Takeaway",     placesType: "meal_takeaway" },
-  { id: "meal_delivery",   label: "Deliveries",   placesType: "meal_delivery" },
-  { id: "supermarket",     label: "Supermarket",  placesType: "supermarket" },
-  { id: "convenience",     label: "Convenience",  placesType: "convenience_store" },
-  { id: "shopping",        label: "Shopping",     placesType: "shopping_mall" },
-  { id: "beauty_salon",    label: "Beauty Salon", placesType: "beauty_salon" },
-  { id: "hair_care",       label: "Hair Care",    placesType: "hair_care" },
-  { id: "spa",             label: "Spa",          placesType: "spa" },
-  { id: "gym",             label: "Gym",          placesType: "gym" },
+const PROVIDER_CATEGORIES: ProviderCategory[] = CONCIERGE_PROVIDER_CATEGORIES.map((category) => ({
+  id: category.id,
+  label: category.label,
+  placesType: category.placesType as PlaceCategory | undefined,
+}));
+
+function normalizeProviderCategory(value: string | null | undefined): ConciergeProviderCategoryId {
+  return normalizeConciergeProviderCategory(value);
+}
+
+function setupFocusFromState(state: unknown): string | null {
+  if (!state || typeof state !== "object") return null;
+  const focus = (state as Record<string, unknown>).setupFocus;
+  return typeof focus === "string" ? normalizeProviderCategory(focus) : null;
+}
+
+const CONTACT_CHANNELS: { value: ProviderContactChannel; label: string }[] = [
+  { value: "phone", label: "Phone" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "email", label: "Email" },
+  { value: "booking_url", label: "Booking link" },
+  { value: "manual", label: "Ask me" },
 ];
+
+function isProviderContactChannel(value: unknown): value is ProviderContactChannel {
+  return typeof value === "string" && CONTACT_CHANNELS.some((channel) => channel.value === value);
+}
+
+interface RouteProviderPrefill {
+  name: string;
+  category: ConciergeProviderCategoryId;
+  address: string;
+  phone: string;
+  email: string;
+  whatsapp: string;
+  booking_url: string;
+  preferred_channel: ProviderContactChannel | null;
+  can_contact_after_confirmation: boolean;
+  notes: string;
+}
+
+function routeString(record: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function providerPrefillFromState(state: unknown): RouteProviderPrefill | null {
+  if (!state || typeof state !== "object") return null;
+  const raw = (state as Record<string, unknown>).providerPrefill;
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const name = routeString(record, ["name", "provider_name"]);
+  if (!name) return null;
+  const preferredChannel = isProviderContactChannel(record.preferred_channel)
+    ? record.preferred_channel
+    : isProviderContactChannel(record.preferredChannel)
+      ? record.preferredChannel
+      : null;
+  return {
+    name,
+    category: normalizeProviderCategory(routeString(record, ["category", "role", "setupFocus"])),
+    address: routeString(record, ["address", "location"]),
+    phone: routeString(record, ["phone", "provider_phone"]),
+    email: routeString(record, ["email", "provider_email"]),
+    whatsapp: routeString(record, ["whatsapp", "provider_whatsapp"]),
+    booking_url: routeString(record, ["booking_url", "bookingUrl", "provider_booking_url"]),
+    preferred_channel: preferredChannel,
+    can_contact_after_confirmation: typeof record.can_contact_after_confirmation === "boolean"
+      ? record.can_contact_after_confirmation
+      : true,
+    notes: routeString(record, ["notes", "note"]),
+  };
+}
+
+function inferPreferredChannel(prefill: RouteProviderPrefill | null): ProviderContactChannel {
+  if (!prefill) return "phone";
+  if (prefill.preferred_channel) return prefill.preferred_channel;
+  if (prefill.booking_url) return "booking_url";
+  if (prefill.whatsapp) return "whatsapp";
+  if (prefill.email) return "email";
+  if (prefill.phone) return "phone";
+  return "manual";
+}
+
+function returnToFromState(state: unknown): string | null {
+  if (!state || typeof state !== "object") return null;
+  const returnTo = (state as Record<string, unknown>).returnTo;
+  return typeof returnTo === "string" && returnTo.startsWith("/") ? returnTo : null;
+}
+
+function noticeFromState(state: unknown): string {
+  if (!state || typeof state !== "object") return "";
+  const notice = (state as Record<string, unknown>).notice;
+  return typeof notice === "string" ? notice.trim() : "";
+}
+
+function conciergeResumeFromState(state: unknown): unknown {
+  if (!state || typeof state !== "object") return null;
+  return (state as Record<string, unknown>).conciergeResume ?? null;
+}
 
 interface ProviderEntry {
   id: string;
@@ -204,6 +300,11 @@ interface ProviderEntry {
   contact_name?: string;
   contact_role?: string;
   contact_phone?: string;
+  email?: string;
+  whatsapp?: string;
+  booking_url?: string;
+  preferred_channel?: ProviderContactChannel;
+  can_contact_after_confirmation?: boolean;
   usual_order?: string;
   special_requests?: string;
   online_order_url?: string;
@@ -214,7 +315,13 @@ interface ProviderEntry {
 interface SavedProvider {
   name: string;
   role?: string;
+  category?: string;
   phone?: string;
+  email?: string;
+  whatsapp?: string;
+  booking_url?: string;
+  preferred_channel?: ProviderContactChannel;
+  can_contact_after_confirmation?: boolean;
   google_maps_url?: string;
   google_place_id?: string;
   address?: string;
@@ -225,6 +332,11 @@ interface SavedProvider {
   contact_name?: string;
   contact_role?: string;
   contact_phone?: string;
+  email?: string;
+  whatsapp?: string;
+  booking_url?: string;
+  preferred_channel?: ProviderContactChannel;
+  can_contact_after_confirmation?: boolean;
   usual_order?: string;
   special_requests?: string;
   online_order_url?: string;
@@ -236,6 +348,9 @@ interface PendingProvider {
   name: string;
   address: string;
   phone: string;
+  email: string;
+  whatsapp: string;
+  bookingUrl: string;
   mapsUrl: string;
   placeId: string;
   types?: string[];
@@ -259,6 +374,11 @@ async function saveProvidersToServer(entries: ProviderEntry[]): Promise<Response
         contact_name:     e.contact_name || undefined,
         contact_role:     e.contact_role || undefined,
         contact_phone:    e.contact_phone || undefined,
+        email:            e.email || undefined,
+        whatsapp:         e.whatsapp || undefined,
+        booking_url:      e.booking_url || e.online_order_url || undefined,
+        preferred_channel: e.preferred_channel || undefined,
+        can_contact_after_confirmation: e.can_contact_after_confirmation ?? undefined,
         usual_order:      e.usual_order || undefined,
         special_requests: e.special_requests || undefined,
         online_order_url: e.online_order_url || undefined,
@@ -271,16 +391,29 @@ async function saveProvidersToServer(entries: ProviderEntry[]): Promise<Response
 
 const ProvidersSection = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
-  const [activeCategory, setActiveCategory] = useState<string>(PROVIDER_CATEGORIES[0].id);
+  const providerPrefill = providerPrefillFromState(location.state);
+  const setupReturnTo = returnToFromState(location.state);
+  const setupNotice = noticeFromState(location.state);
+  const conciergeResume = conciergeResumeFromState(location.state);
+  const initialCategory = providerPrefill?.category ?? setupFocusFromState(location.state) ?? PROVIDER_CATEGORIES[0].id;
+  const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
 
   const [pending, setPending] = useState<PendingProvider | null>(null);
-  const [showManualForm, setShowManualForm] = useState(false);
-  const [manualName, setManualName] = useState("");
-  const [manualAddress, setManualAddress] = useState("");
-  const [manualPhone, setManualPhone] = useState("");
+  const [showManualForm, setShowManualForm] = useState(Boolean(providerPrefill));
+  const [manualName, setManualName] = useState(providerPrefill?.name ?? "");
+  const [manualAddress, setManualAddress] = useState(providerPrefill?.address ?? "");
+  const [manualPhone, setManualPhone] = useState(providerPrefill?.phone ?? "");
+  const [manualEmail, setManualEmail] = useState(providerPrefill?.email ?? "");
+  const [manualWhatsapp, setManualWhatsapp] = useState(providerPrefill?.whatsapp ?? "");
+  const [manualBookingUrl, setManualBookingUrl] = useState(providerPrefill?.booking_url ?? "");
+  const [manualNotes, setManualNotes] = useState(providerPrefill?.notes ?? "");
+  const [manualPreferredChannel, setManualPreferredChannel] = useState<ProviderContactChannel>(inferPreferredChannel(providerPrefill));
+  const [manualCanContactAfterConfirmation, setManualCanContactAfterConfirmation] = useState(providerPrefill?.can_contact_after_confirmation ?? true);
 
   const [searchKey, setSearchKey] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -303,12 +436,9 @@ const ProvidersSection = () => {
       loadedRef.current = true;
       const entries: ProviderEntry[] = saved.map((p, i) => {
         counterRef.current = i + 1;
-        const categoryMatch = PROVIDER_CATEGORIES.find(
-          (c) => c.id === p.role || c.placesType === p.role || c.label.toLowerCase() === (p.role ?? "").toLowerCase()
-        );
         return {
           id: `provider-${i + 1}`,
-          category: categoryMatch?.id ?? "pharmacy",
+          category: normalizeProviderCategory(p.category ?? p.role),
           name: p.name,
           address: p.address ?? "",
           phone: p.phone ?? "",
@@ -321,6 +451,11 @@ const ProvidersSection = () => {
           contact_name: p.contact_name,
           contact_role: p.contact_role,
           contact_phone: p.contact_phone,
+          email: p.email,
+          whatsapp: p.whatsapp,
+          booking_url: p.booking_url,
+          preferred_channel: p.preferred_channel,
+          can_contact_after_confirmation: p.can_contact_after_confirmation,
           usual_order: p.usual_order,
           special_requests: p.special_requests,
           online_order_url: p.online_order_url,
@@ -336,6 +471,24 @@ const ProvidersSection = () => {
 
   const activeCategoryDef = PROVIDER_CATEGORIES.find((c) => c.id === activeCategory)!;
 
+  const finishFocusedSetup = async (entry: ProviderEntry) => {
+    if (!setupReturnTo) return;
+    await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
+    toast({
+      title: "Provider saved",
+      description: `${entry.name} was added to your trusted providers.`,
+    });
+    navigate(setupReturnTo, {
+      state: {
+        trustedProviderSaved: {
+          name: entry.name,
+          category: entry.category,
+          conciergeResume,
+        },
+      },
+    });
+  };
+
   const handleSearchSelect = (p: PlaceResult | null) => {
     if (!p) {
       setPending(null);
@@ -345,6 +498,9 @@ const ProvidersSection = () => {
       name: p.name,
       address: p.full_address,
       phone: p.phone,
+      email: "",
+      whatsapp: "",
+      bookingUrl: "",
       mapsUrl: p.google_maps_url ?? "",
       placeId: p.google_place_id ?? "",
       types: p.types,
@@ -368,6 +524,11 @@ const ProvidersSection = () => {
       name: pending.name,
       address: pending.address,
       phone: pending.phone,
+      email: pending.email,
+      whatsapp: pending.whatsapp,
+      booking_url: pending.bookingUrl,
+      preferred_channel: pending.bookingUrl ? "booking_url" : (pending.phone ? "phone" : "manual"),
+      can_contact_after_confirmation: true,
       google_maps_url: resolvedMapsUrl,
       google_place_id: pending.placeId || undefined,
     };
@@ -379,6 +540,7 @@ const ProvidersSection = () => {
     try {
       res = await saveProvidersToServer(updated);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await finishFocusedSetup(entry);
     } catch (err) {
       setProviders(providers);
       setPending(snapshot);
@@ -402,26 +564,51 @@ const ProvidersSection = () => {
       name: manualName,
       address: manualAddress,
       phone: manualPhone,
+      email: manualEmail,
+      whatsapp: manualWhatsapp,
+      booking_url: manualBookingUrl,
+      preferred_channel: manualPreferredChannel,
+      can_contact_after_confirmation: manualCanContactAfterConfirmation,
       google_maps_url: resolvedMapsUrl,
+      notes: manualNotes,
     };
     const updated = [...providers, entry];
     setProviders(updated);
     const snapshotName = manualName;
     const snapshotAddress = manualAddress;
     const snapshotPhone = manualPhone;
+    const snapshotEmail = manualEmail;
+    const snapshotWhatsapp = manualWhatsapp;
+    const snapshotBookingUrl = manualBookingUrl;
+    const snapshotNotes = manualNotes;
+    const snapshotPreferredChannel = manualPreferredChannel;
+    const snapshotCanContact = manualCanContactAfterConfirmation;
     setManualName("");
     setManualAddress("");
     setManualPhone("");
+    setManualEmail("");
+    setManualWhatsapp("");
+    setManualBookingUrl("");
+    setManualNotes("");
+    setManualPreferredChannel("phone");
+    setManualCanContactAfterConfirmation(true);
     setShowManualForm(false);
     let res: Response | undefined;
     try {
       res = await saveProvidersToServer(updated);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await finishFocusedSetup(entry);
     } catch (err) {
       setProviders(providers);
       setManualName(snapshotName);
       setManualAddress(snapshotAddress);
       setManualPhone(snapshotPhone);
+      setManualEmail(snapshotEmail);
+      setManualWhatsapp(snapshotWhatsapp);
+      setManualBookingUrl(snapshotBookingUrl);
+      setManualNotes(snapshotNotes);
+      setManualPreferredChannel(snapshotPreferredChannel);
+      setManualCanContactAfterConfirmation(snapshotCanContact);
       setShowManualForm(true);
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
       toast({ title: "Could not add provider", description: msg, variant: "destructive" });
@@ -482,6 +669,11 @@ const ProvidersSection = () => {
       contact_name:    updated.contact_name,
       contact_role:    updated.contact_role,
       contact_phone:   updated.contact_phone,
+      email:           updated.email,
+      whatsapp:        updated.whatsapp,
+      booking_url:     updated.booking_url,
+      preferred_channel: updated.preferred_channel,
+      can_contact_after_confirmation: updated.can_contact_after_confirmation,
       usual_order:     updated.usual_order,
       special_requests: updated.special_requests,
       online_order_url: updated.online_order_url,
@@ -494,7 +686,13 @@ const ProvidersSection = () => {
     try {
       res = await saveProvidersToServer(updatedList);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast({ title: "Provider updated" });
+      toast({
+        title: t("onboarding.toast.providerUpdated.title", "Provider updated"),
+        description: t("onboarding.toast.providerUpdated.description", {
+          name: entry.name || t("onboarding.toast.providerUpdated.fallbackName", "This provider"),
+          defaultValue: "{{name}} was saved to your trusted providers.",
+        }),
+      });
     } catch (err) {
       setProviders(providers);
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -522,19 +720,19 @@ const ProvidersSection = () => {
           >
             <Building2 size={18} style={{ color: "#6B21A8" }} />
           </div>
-          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">My Providers</h1>
+          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">Trusted providers</h1>
         </div>
       </div>
 
       <div className="flex-1 px-5 space-y-7 pb-4">
         <ProfileSectionHero
           icon={Building2}
-          title="Trusted places"
+          title="Trusted providers"
           kicker="Concierge-ready"
-          description="Save the pharmacies, clinics, restaurants, salons, and services VYVA can help you call, book, or find again."
+          description="Save the people and places VYVA can help contact after you confirm."
           badges={[
-            { label: "Health services", color: "blue" },
-            { label: "Daily help", color: "amber" },
+            { label: "No booking without your say", color: "blue" },
+            { label: "Calls and links ready", color: "amber" },
             { label: "Trusted list", color: "purple" },
           ]}
         />
@@ -549,6 +747,15 @@ const ProvidersSection = () => {
             setSearchKey((k) => k + 1);
           }}
         />
+
+        {setupNotice ? (
+          <div
+            className="rounded-[18px] border border-[#BBF7D0] bg-[#ECFDF5] px-4 py-3 font-body text-[13px] font-black text-[#047857]"
+            data-testid="notice-provider-focused-setup"
+          >
+            {setupNotice}
+          </div>
+        ) : null}
 
         <div data-testid="search-providers-places">
           <label className="mb-2 block font-body text-[15px] font-extrabold text-vyva-text-2">
@@ -575,6 +782,7 @@ const ProvidersSection = () => {
                 Confirm this {categoryLabel}
               </p>
               {pending.types && pending.types.length > 0 &&
+                activeCategoryDef.placesType &&
                 !CATEGORY_TYPES[activeCategoryDef.placesType]?.some((t) =>
                   pending.types!.includes(t)
                 ) && (() => {
@@ -723,6 +931,107 @@ const ProvidersSection = () => {
                 />
               )}
             </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 flex items-center gap-1">
+                  <Mail size={12} className="text-vyva-text-3" />
+                  Email <span className="text-vyva-text-3 font-normal">(optional)</span>
+                </label>
+                <Input
+                  data-testid="input-manual-email"
+                  type="email"
+                  value={manualEmail}
+                  onChange={(e) => setManualEmail(e.target.value)}
+                  placeholder="hello@example.com"
+                  className={seniorInputClassName}
+                />
+              </div>
+              <div>
+                <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 flex items-center gap-1">
+                  <MessageCircle size={12} className="text-vyva-text-3" />
+                  WhatsApp <span className="text-vyva-text-3 font-normal">(optional)</span>
+                </label>
+                <Input
+                  data-testid="input-manual-whatsapp"
+                  type="tel"
+                  value={manualWhatsapp}
+                  onChange={(e) => setManualWhatsapp(e.target.value)}
+                  placeholder="+44 1234 567890"
+                  className={seniorInputClassName}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 flex items-center gap-1">
+                <Link2 size={12} className="text-vyva-text-3" />
+                Booking link <span className="text-vyva-text-3 font-normal">(optional)</span>
+              </label>
+              <Input
+                data-testid="input-manual-booking-url"
+                type="url"
+                value={manualBookingUrl}
+                onChange={(e) => setManualBookingUrl(e.target.value)}
+                placeholder="https://booking.example.com"
+                className={seniorInputClassName}
+              />
+            </div>
+            <div>
+              <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 block">
+                Notes <span className="text-vyva-text-3 font-normal">(optional)</span>
+              </label>
+              <textarea
+                data-testid="input-manual-notes"
+                value={manualNotes}
+                onChange={(e) => setManualNotes(e.target.value)}
+                placeholder="Anything VYVA should remember"
+                className={`${seniorInputClassName} min-h-[82px] resize-none py-3`}
+              />
+            </div>
+            <div>
+              <p className="mb-2 font-body text-[12px] font-medium text-vyva-text-2">
+                Best way to reach them
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {CONTACT_CHANNELS.map((channel) => (
+                  <button
+                    key={channel.value}
+                    type="button"
+                    data-testid={`button-manual-channel-${channel.value}`}
+                    onClick={() => setManualPreferredChannel(channel.value)}
+                    className={`min-h-9 rounded-full border px-3 font-body text-[12px] font-black ${
+                      manualPreferredChannel === channel.value
+                        ? "border-vyva-purple bg-vyva-purple text-white"
+                        : "border-vyva-border bg-white text-vyva-text-2"
+                    }`}
+                  >
+                    {channel.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="button-manual-contact-permission"
+              onClick={() => setManualCanContactAfterConfirmation((value) => !value)}
+              className={`flex w-full items-start gap-3 rounded-[16px] border px-3 py-3 text-left ${
+                manualCanContactAfterConfirmation
+                  ? "border-[#BBF7D0] bg-[#ECFDF5]"
+                  : "border-vyva-border bg-white"
+              }`}
+            >
+              <ShieldCheck
+                size={18}
+                className={manualCanContactAfterConfirmation ? "mt-0.5 text-[#047857]" : "mt-0.5 text-vyva-text-3"}
+              />
+              <span className="min-w-0">
+                <span className="block font-body text-[13px] font-black text-vyva-text-1">
+                  VYVA may contact them after I confirm.
+                </span>
+                <span className="mt-0.5 block font-body text-[11px] font-semibold text-vyva-text-3">
+                  Nothing is called, sent, or booked without your final say.
+                </span>
+              </span>
+            </button>
             <button
               data-testid="button-manual-add"
               onClick={addFromManual}
@@ -760,6 +1069,7 @@ const ProvidersSection = () => {
             {providers.map((p) => {
               const catLabel = PROVIDER_CATEGORIES.find((c) => c.id === p.category)?.label ?? p.category;
               const hasPrefs = p.usual_order || p.special_requests || p.contact_name || p.opening_hours?.length;
+              const hasContact = p.phone || p.email || p.whatsapp || p.booking_url || p.online_order_url;
               return (
                 <div
                   key={p.id}
@@ -772,9 +1082,18 @@ const ProvidersSection = () => {
                     {p.address && (
                       <p className="font-body text-[12px] text-vyva-text-2 truncate">{p.address}</p>
                     )}
-                    {hasPrefs && (
-                      <p className="font-body text-[11px] text-vyva-purple mt-0.5">Details saved</p>
-                    )}
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {hasContact && (
+                        <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 font-body text-[11px] font-black text-[#047857]">
+                          Contact ready
+                        </span>
+                      )}
+                      {hasPrefs && (
+                        <span className="rounded-full bg-[#F5F3FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple">
+                          Details saved
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button

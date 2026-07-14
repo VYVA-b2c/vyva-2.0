@@ -2,7 +2,7 @@ import type { Response } from "express";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db.js";
 import { profileMemberships, profiles, users } from "../../shared/schema.js";
-import { isMissingRelationError } from "./dbCompatibility.js";
+import { isMissingRelationError, missingColumnName } from "./dbCompatibility.js";
 
 type ProfileMemberRole = (typeof profileMemberships.$inferSelect)["role"];
 
@@ -52,6 +52,11 @@ function isProfileMembershipSchemaError(err: unknown): boolean {
   );
 }
 
+function isProfileColumnMissingError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return Boolean(missingColumnName(err)) && message.includes("profiles");
+}
+
 function hasLegacyProfileContent(profile: DirectProfile | undefined): profile is DirectProfile {
   if (!profile) return false;
   return Boolean(
@@ -99,15 +104,30 @@ export async function getProfileChoices(accountUserId: string): Promise<ProfileC
   const profileIds = Array.from(new Set(memberships.map((membership) => membership.profile_id)));
   if (profileIds.length === 0) return [];
 
-  const profileRows = await db
-    .select({
-      id: profiles.id,
-      full_name: profiles.full_name,
-      preferred_name: profiles.preferred_name,
-      avatar_url: profiles.avatar_url,
-    })
-    .from(profiles)
-    .where(inArray(profiles.id, profileIds));
+  let profileRows: Array<{
+    id: string;
+    full_name?: string | null;
+    preferred_name?: string | null;
+    avatar_url?: string | null;
+  }>;
+  try {
+    profileRows = await db
+      .select({
+        id: profiles.id,
+        full_name: profiles.full_name,
+        preferred_name: profiles.preferred_name,
+        avatar_url: profiles.avatar_url,
+      })
+      .from(profiles)
+      .where(inArray(profiles.id, profileIds));
+  } catch (err) {
+    if (!isProfileColumnMissingError(err)) throw err;
+    console.warn("[profileAccess] profile display columns unavailable; using profile ids only.");
+    profileRows = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(inArray(profiles.id, profileIds));
+  }
 
   const profileById = new Map(profileRows.map((profile) => [profile.id, profile]));
 
@@ -130,19 +150,41 @@ export async function getProfileChoices(accountUserId: string): Promise<ProfileC
 }
 
 export async function getActiveProfileContext(accountUserId: string): Promise<ActiveProfileContext> {
-  const [directProfile] = await db
-    .select({
-      id: profiles.id,
-      full_name: profiles.full_name,
-      preferred_name: profiles.preferred_name,
-      date_of_birth: profiles.date_of_birth,
-      phone_number: profiles.phone_number,
-      onboarding_complete: profiles.onboarding_complete,
-      current_stage: profiles.current_stage,
-    })
-    .from(profiles)
-    .where(eq(profiles.id, accountUserId))
-    .limit(1);
+  let directProfile: DirectProfile | undefined;
+  try {
+    [directProfile] = await db
+      .select({
+        id: profiles.id,
+        full_name: profiles.full_name,
+        preferred_name: profiles.preferred_name,
+        date_of_birth: profiles.date_of_birth,
+        phone_number: profiles.phone_number,
+        onboarding_complete: profiles.onboarding_complete,
+        current_stage: profiles.current_stage,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, accountUserId))
+      .limit(1);
+  } catch (err) {
+    if (!isProfileColumnMissingError(err)) throw err;
+    console.warn("[profileAccess] direct profile detail columns unavailable; using profile id only.");
+    const [minimalProfile] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.id, accountUserId))
+      .limit(1);
+    directProfile = minimalProfile
+      ? {
+        id: minimalProfile.id,
+        full_name: null,
+        preferred_name: null,
+        date_of_birth: null,
+        phone_number: null,
+        onboarding_complete: false,
+        current_stage: null,
+      }
+      : undefined;
+  }
 
   let account: { active_profile_id: string | null } | null = null;
   try {

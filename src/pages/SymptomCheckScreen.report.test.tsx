@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -49,7 +49,7 @@ function renderReport(
   } = {},
 ) {
   return render(
-    <MemoryRouter initialEntries={["/health/symptom-check"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/health/symptom-check"]}>
       <LocationProbe />
       <ReportScreen
         summary={{ ...summary, ...options.summaryOverride }}
@@ -57,6 +57,8 @@ function renderReport(
         respiratoryRate={null}
         durationSeconds={null}
         reportId="report-1"
+        reportSaveState="saved"
+        savedReport={null}
         profileContacts={profileContacts}
         careTeamMembers={[]}
         emergencyContact={options.emergencyContact ?? null}
@@ -126,7 +128,7 @@ describe("SymptomCheck report service actions", () => {
       },
     });
 
-    const packageAction = screen.getByTestId("button-report-action-0-online_order");
+    const packageAction = screen.getByTestId("button-report-support-online_order");
     expect(packageAction).toHaveTextContent("Get support package");
 
     fireEvent.click(packageAction);
@@ -145,12 +147,12 @@ describe("SymptomCheck report service actions", () => {
       },
     });
 
-    expect(screen.getByTestId("button-report-action-0-doctor_help")).toBeInTheDocument();
-    expect(screen.queryByTestId("button-report-action-0-online_order")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-report-doctor")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-report-support-online_order")).not.toBeInTheDocument();
     expect(screen.queryByText("Get support package")).not.toBeInTheDocument();
   });
 
-  it("shows two Do now steps by default and collapses supporting report detail", () => {
+  it("shows a concise action plan, context confidence, and collapsed supporting detail", () => {
     renderReport({}, {
       summaryOverride: {
         recommendations: [
@@ -163,13 +165,27 @@ describe("SymptomCheck report service actions", () => {
         watchSigns: ["Chest pain", "Confusion"],
         vitalsNotes: ["Heart Rate: 72 bpm"],
         evidenceSummary: "Checked trusted guidance.",
+        contextConfidence: {
+          score: 4,
+          label: "Strong confidence",
+          reasons: ["symptom described", "safety question answered"],
+          missing: ["blood pressure"],
+        },
+        contextSignals: [
+          { id: "bp", label: "Blood pressure", status: "missing" },
+        ],
       },
     });
 
     expect(screen.queryByTestId("card-report-next-step-explainer")).not.toBeInTheDocument();
     expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Drink water now");
     expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Rest somewhere cool");
-    expect(screen.getByTestId("report-all-steps")).toHaveTextContent("Show all steps");
+    expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Call a doctor if symptoms worsen");
+    expect(screen.getByTestId("card-report-context-confidence")).toHaveTextContent("Strong confidence");
+    expect(screen.getByTestId("card-report-context-confidence")).toHaveTextContent("blood pressure");
+    expect(screen.getByTestId("button-report-missing-signal-bloodPressure")).toHaveTextContent("Check blood pressure now");
+    fireEvent.click(screen.getByTestId("button-report-missing-signal-bloodPressure"));
+    expect(screen.getByPlaceholderText("120/80")).toBeVisible();
     expect(screen.getByText("Why this answer")).toBeVisible();
     expect(screen.getByText("What to watch for")).toBeVisible();
     expect(screen.getByText("Readings used")).toBeVisible();
@@ -177,11 +193,6 @@ describe("SymptomCheck report service actions", () => {
     screen.getAllByText("Chest pain").forEach((match) => {
       expect(match).not.toBeVisible();
     });
-
-    fireEvent.click(screen.getByText("Show all steps"));
-
-    expect(within(screen.getByTestId("report-all-steps")).getByText("Call a doctor if symptoms worsen")).toBeVisible();
-    expect(within(screen.getByTestId("report-all-steps")).getByText("Write down any new symptoms")).toBeVisible();
   });
 
   it("renders vital refinement as an action, not a passive note", () => {

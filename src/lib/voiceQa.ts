@@ -109,7 +109,8 @@ function firstValue(events: VoiceTimelineEvent[], key: keyof VoiceTimelineEvent)
 function sessionFlags(events: VoiceTimelineEvent[]) {
   const kinds = new Set(events.map((event) => event.kind));
   const flags: string[] = [];
-  if (kinds.has("session_error")) flags.push("Error");
+  if (kinds.has("session_error") || kinds.has("voice_triage_tool_failed") || events.some((event) => event.severity === "error")) flags.push("Error");
+  if (kinds.has("voice_triage_emergency")) flags.push("Health emergency");
   if (kinds.has("session_started") && !kinds.has("session_connected")) flags.push("No connection");
   if (kinds.has("session_started") && !kinds.has("session_ended") && !kinds.has("session_error")) flags.push("No end event");
   if (events.filter((event) => event.kind === "transfer_requested").length > 1) flags.push("Repeated transfer");
@@ -176,7 +177,7 @@ export function groupVoiceTimelineSessions(events: VoiceTimelineEvent[]) {
       transferCount: ordered.filter((event) => event.kind === "transfer_requested").length,
       completedActionCount: ordered.filter((event) => event.kind === "action_completed").length,
       dismissedActionCount: ordered.filter((event) => event.kind === "action_dismissed").length,
-      errorCount: ordered.filter((event) => event.kind === "session_error").length,
+      errorCount: ordered.filter((event) => event.kind === "session_error" || event.kind === "voice_triage_tool_failed" || event.severity === "error").length,
       flags,
       latestTitle: latest?.title ?? "Voice event",
       events: ordered,

@@ -1,3 +1,5 @@
+import { displayFirstName } from "@/lib/displayIdentity";
+
 export type HeroLanguage = "es" | "en" | "de" | "fr" | "it" | "pt";
 
 export type HeroSurface =
@@ -390,7 +392,7 @@ function validCopy(copy: HeroCopy): boolean {
 
 function buildResult(message: HeroMessageDefinition, language: HeroLanguage, context: HeroMessageContext): HeroMessageResult {
   const copy = message.copy[language] ?? message.copy.en ?? message.copy.es ?? { headline: "" };
-  const name = context.firstName?.trim();
+  const name = displayFirstName(context.firstName);
   let headline = copy.headline;
   if (name && copy.headlineWithName) {
     const personalized = applyName(copy.headlineWithName, name);

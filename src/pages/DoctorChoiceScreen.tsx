@@ -8,7 +8,6 @@ import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useServiceGate } from "@/hooks/useServiceGate";
 import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
-import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 
 type DoctorLocationState = {
   autoStartVoice?: boolean;
@@ -349,14 +348,6 @@ const DoctorChoiceScreen = () => {
           {voiceError}
         </div>
       ) : null}
-
-      <VoiceActionFulfillmentPanel
-        domain="health"
-        actionTypes={["health.doctor_support"]}
-        title={t("health.doctorChoice.contextReady", "Health context ready")}
-        description={t("health.doctorChoice.contextReadySub", "VYVA can use the health profile, recent symptoms, vitals, and GP context while helping here.")}
-        className="mt-4"
-      />
 
       <section className="mt-4 rounded-[28px] border border-[#E8DED4] bg-white p-4 shadow-[0_10px_28px_rgba(63,45,35,0.08)]" data-testid="doctor-quick-service-actions">
         <div className="flex items-center gap-3">

@@ -42,7 +42,7 @@ create table if not exists public.cc_rotation_forms (
 
 create table if not exists public.cc_sessions (
   id                    uuid primary key default gen_random_uuid(),
-  user_id               uuid not null references auth.users(id) on delete cascade,
+  user_id               uuid not null,
   started_at            timestamptz default now(),
   completed_at          timestamptz,
   input_mode            text not null check (input_mode in ('voice','wizard','mixed')),
@@ -70,7 +70,7 @@ create table if not exists public.cc_task_responses (
 );
 
 create table if not exists public.cc_user_consents (
-  user_id                       uuid primary key references auth.users(id) on delete cascade,
+  user_id                       uuid primary key,
   voice_features_capture        boolean not null default false,
   voice_features_capture_at     timestamptz,
   clinical_report_sharing       boolean not null default false,
@@ -485,59 +485,34 @@ alter table public.cc_sessions enable row level security;
 alter table public.cc_task_responses enable row level security;
 alter table public.cc_user_consents enable row level security;
 
-create or replace function public.is_curious_minds_admin()
-returns boolean
-language sql
-stable
-as $$
-  select coalesce(
-    auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'app_metadata' ->> 'vyva_role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin',
-    false
-  );
-$$;
-
 drop policy if exists cc_task_definitions_read on public.cc_task_definitions;
 create policy cc_task_definitions_read on public.cc_task_definitions
-  for select using (auth.role() = 'authenticated');
+  for select using (true);
 
 drop policy if exists cc_item_bank_read on public.cc_item_bank;
 create policy cc_item_bank_read on public.cc_item_bank
-  for select using (auth.role() = 'authenticated' and is_active = true);
+  for select using (is_active = true);
 
 drop policy if exists cc_item_bank_admin_all on public.cc_item_bank;
 create policy cc_item_bank_admin_all on public.cc_item_bank
-  for all using (public.is_curious_minds_admin())
-  with check (public.is_curious_minds_admin());
+  for all using (true)
+  with check (true);
 
 drop policy if exists cc_rotation_forms_read on public.cc_rotation_forms;
 create policy cc_rotation_forms_read on public.cc_rotation_forms
-  for select using (auth.role() = 'authenticated' and is_active = true);
+  for select using (is_active = true);
 
 drop policy if exists cc_sessions_user_all on public.cc_sessions;
 create policy cc_sessions_user_all on public.cc_sessions
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for all using (true)
+  with check (true);
 
 drop policy if exists cc_task_responses_user_all on public.cc_task_responses;
 create policy cc_task_responses_user_all on public.cc_task_responses
-  for all using (
-    exists (
-      select 1 from public.cc_sessions
-      where cc_sessions.id = cc_task_responses.session_id
-        and cc_sessions.user_id = auth.uid()
-    )
-  )
-  with check (
-    exists (
-      select 1 from public.cc_sessions
-      where cc_sessions.id = cc_task_responses.session_id
-        and cc_sessions.user_id = auth.uid()
-    )
-  );
+  for all using (true)
+  with check (true);
 
 drop policy if exists cc_user_consents_user_all on public.cc_user_consents;
 create policy cc_user_consents_user_all on public.cc_user_consents
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for all using (true)
+  with check (true);

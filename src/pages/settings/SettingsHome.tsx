@@ -220,7 +220,10 @@ export default function SettingsHome() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast({ title: t("settings.home.rows.downloadDataStarted", "Your data export is downloading") });
+      toast({
+        title: t("settings.home.rows.downloadDataStarted", "Your data export is downloading"),
+        description: t("settings.home.rows.downloadDataStartedDesc", "VYVA started downloading your profile export."),
+      });
     } catch (err) {
       toast({
         title: t("settings.home.rows.downloadDataError", "Could not download your data"),
@@ -240,11 +243,6 @@ export default function SettingsHome() {
           title={t("settings.home.title")}
           kicker="VYVA settings"
           description={t("settings.home.subtitle")}
-          badges={[
-            { label: t("settings.home.sections.account"), color: "purple" },
-            { label: t("settings.home.sections.privacy"), color: "green" },
-            { label: t("settings.home.sections.subscription"), color: "amber" },
-          ]}
           className="md:col-span-2"
         />
 

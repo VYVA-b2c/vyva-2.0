@@ -7,7 +7,13 @@ import { eq } from "drizzle-orm";
 import medsAdherenceRouter from "../routes/medsAdherence.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { db } from "../db.js";
-import { medicationAdherence, userMedications } from "../../shared/schema.js";
+import {
+  interactionFlagDismissals,
+  medicationAdherence,
+  myMedicines,
+  myMedicinesChangeLog,
+  userMedications,
+} from "../../shared/schema.js";
 
 function buildApp() {
   const app = express();
@@ -21,6 +27,9 @@ const app = buildApp();
 const TEST_USER_ID = randomUUID();
 
 async function cleanupUser(userId: string) {
+  await db.delete(interactionFlagDismissals).where(eq(interactionFlagDismissals.user_id, userId));
+  await db.delete(myMedicinesChangeLog).where(eq(myMedicinesChangeLog.user_id, userId));
+  await db.delete(myMedicines).where(eq(myMedicines.user_id, userId));
   await db.delete(medicationAdherence).where(eq(medicationAdherence.user_id, userId));
   await db.delete(userMedications).where(eq(userMedications.user_id, userId));
 }
@@ -159,5 +168,54 @@ describe("Medication adherence routes", () => {
       "missed",
       "none",
     ]);
+  });
+
+  it("returns latest taken and today's summary in the adherence report", async () => {
+    await cleanupUser(TEST_USER_ID);
+    await seedMedication({
+      name: "Metformin",
+      scheduledTimes: ["08:00", "20:00"],
+    });
+    await seedMedication({
+      name: "Aspirin",
+      scheduledTimes: ["09:00"],
+    });
+    const earlier = new Date();
+    earlier.setUTCHours(8, 0, 0, 0);
+    const later = new Date();
+    later.setUTCHours(9, 0, 0, 0);
+    await seedTakenLog({
+      name: "Metformin",
+      scheduledTime: "08:00",
+      createdAt: earlier,
+    });
+    await seedTakenLog({
+      name: "Aspirin",
+      scheduledTime: "09:00",
+      createdAt: later,
+    });
+
+    const res = await request(app)
+      .get("/api/meds/adherence-report")
+      .set("x-user-id", TEST_USER_ID)
+      .expect(200);
+
+    expect(res.body.latestTaken).toMatchObject({
+      medication_name: "Aspirin",
+      scheduled_time: "09:00",
+    });
+    expect(res.body.latestTaken.confirmed_taken_at).toEqual(later.toISOString());
+    expect(res.body.nextDue).toEqual({
+      medication_name: "Metformin",
+      scheduled_time: "20:00",
+    });
+    expect(res.body.todaySummary).toEqual({
+      taken: 2,
+      scheduled: 3,
+      remaining: 1,
+      medicationCount: 2,
+      completedMedicationCount: 1,
+      pendingMedicationCount: 1,
+    });
   });
 });

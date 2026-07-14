@@ -4,12 +4,13 @@ CREATE TABLE user_providers (
 
   category         text NOT NULL
                    CHECK (category IN (
-                     'taxi', 'pharmacy', 'gp', 'hospital', 'dentist',
+                     'pharmacy', 'doctor_clinic', 'transport',
+                     'home_service', 'personal_care', 'food', 'other',
+                     'taxi', 'gp', 'hospital', 'dentist',
                      'physio', 'clinic', 'restaurant', 'cafe', 'takeaway',
                      'supermarket', 'convenience', 'shopping',
                      'beauty_salon', 'hair_care', 'spa', 'gym',
-                     'home_repair', 'electrician', 'plumber', 'cleaner',
-                     'other'
+                     'home_repair', 'electrician', 'plumber', 'cleaner'
                    )),
 
   name             text NOT NULL,
@@ -43,6 +44,10 @@ CREATE TABLE concierge_pending (
                      'find_provider',
                      'find_offers',
                      'paperwork',
+                     'admin_task',
+                     'scam_check',
+                     'shopping_request',
+                     'insurance_admin',
                      'travel',
                      'send_message',
                      'order_food'
@@ -88,6 +93,10 @@ CREATE TABLE concierge_sessions (
                      'find_provider',
                      'find_offers',
                      'paperwork',
+                     'admin_task',
+                     'scam_check',
+                     'shopping_request',
+                     'insurance_admin',
                      'travel',
                      'send_message',
                      'order_food'
@@ -103,10 +112,15 @@ CREATE TABLE concierge_sessions (
 
   outcome          text NOT NULL DEFAULT 'pending'
                    CHECK (outcome IN (
+                     'pending',
+                     'completed',
                      'confirmed',
                      'no_answer',
+                     'unavailable',
                      'cant_fulfil',
+                     'needs_more_info',
                      'user_cancelled',
+                     'cancelled',
                      'error'
                    )),
 
@@ -212,7 +226,7 @@ CREATE INDEX idx_cr_user_active
 -- [x] concierge_sessions.location_type column exists (text, nullable)
 -- [x] concierge_pending.expires_at defaults to now() + interval '30 minutes'
 -- [x] concierge_pending.status CHECK covers all five values
--- [x] concierge_sessions.outcome defaults to 'pending'
+-- [x] concierge_sessions.outcome defaults to 'pending' and allows completed follow-up saves
 -- [x] user_providers allows insert with only user_id, category, name
 -- [x] concierge_reminders allows insert with only user_id, reminder_type, title, reminder_date
 -- [x] All six indexes created successfully

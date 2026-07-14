@@ -1,15 +1,20 @@
-import { useState, useRef, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, Settings, Square, ArrowUp, Mic, Keyboard } from "lucide-react";
+import { useCallback, useState, useRef, useEffect } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { ChevronLeft, Settings, ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { useVyvaVoice, type TranscriptEntry } from "@/hooks/useVyvaVoice";
+import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
+import { apiFetch } from "@/lib/queryClient";
+import { useLanguage } from "@/i18n";
 
-type ChatMode = "type" | "voice";
+type LiveChatHistoryTurn = { role: "user" | "assistant"; content: string };
 
 const ChatScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const [searchParams] = useSearchParams();
   const {
     startVoice,
@@ -22,58 +27,162 @@ const ChatScreen = () => {
     voiceSessionPhase,
     isMicMuted,
     setMicrophoneMuted,
+    lastError,
+    lastErrorCode,
   } = useVyvaVoice();
   const [text, setText] = useState("");
+  const [typedTranscript, setTypedTranscript] = useState<TranscriptEntry[]>([]);
+  const [isTextSending, setIsTextSending] = useState(false);
   const pendingRef = useRef<string | null>(searchParams.get("q"));
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const chatMode: ChatMode = searchParams.get("mode") === "voice" ? "voice" : "type";
+  const routeState = location.state as Record<string, unknown> | null;
+  const hasRouteVoiceAutoStart = routeState?.[SECTION_VOICE_AUTO_START_KEY] === true;
+  const isVoiceMode = searchParams.get("mode") === "voice" || hasRouteVoiceAutoStart;
+  const visibleTranscript = isVoiceMode ? transcript : typedTranscript;
 
   useEffect(() => {
+    if (!isVoiceMode) {
+      stopVoice();
+      return;
+    }
+
     void startVoice("companion", undefined, {
-      skipMicrophone: chatMode === "type",
-      autoStartListening: chatMode === "voice",
+      skipMicrophone: false,
+      autoStartListening: true,
       dynamicVariables: {
-        app_entrypoint: chatMode === "voice" ? "chat_voice_mode" : "chat_type_mode",
+        app_entrypoint: "chat_voice_mode",
       },
     });
-  }, [chatMode, startVoice]);
+  }, [isVoiceMode, startVoice, stopVoice]);
 
   useEffect(() => {
-    if (status === "connected" && pendingRef.current) {
+    if (!hasRouteVoiceAutoStart) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("mode", "voice");
+    navigate(`${location.pathname}?${nextParams.toString()}`, { replace: true, state: null });
+  }, [hasRouteVoiceAutoStart, location.pathname, navigate, searchParams]);
+
+  const localFallbackReply = useCallback((message: string) => {
+    const lower = message.toLowerCase();
+    if (language.startsWith("es")) {
+      if (lower.includes("medico") || lower.includes("doctor")) {
+        return "Puedo ayudarte a preparar el siguiente paso. Dime que necesitas y VYVA lo dejara listo para que confirmes antes de contactar a nadie.";
+      }
+      return "Estoy aqui contigo. Dime un poco mas y te ayudare a elegir el siguiente paso de forma sencilla.";
+    }
+    if (lower.includes("doctor") || lower.includes("appointment")) {
+      return "I can help prepare the next step. Tell me what you need, and VYVA will keep it ready for you to confirm before anyone is contacted.";
+    }
+    return "I am here with you. Tell me a little more, and I will help you choose the next simple step.";
+  }, [language]);
+
+  const sendTypedMessage = useCallback(async (rawMessage: string) => {
+    const message = rawMessage.trim();
+    if (!message || isTextSending) return;
+
+    const history: LiveChatHistoryTurn[] = typedTranscript.slice(-12).map((entry) => ({
+      role: entry.from === "user" ? "user" : "assistant",
+      content: entry.text,
+    }));
+
+    setTypedTranscript((previous) => [
+      ...previous,
+      { from: "user", text: message, timestamp: Date.now() },
+    ]);
+    setIsTextSending(true);
+
+    try {
+      const response = await apiFetch("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message,
+          history,
+          locale: language,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Chat request failed: ${response.status}`);
+      const data = await response.json() as { reply?: unknown };
+      const reply = typeof data.reply === "string" && data.reply.trim()
+        ? data.reply.trim()
+        : localFallbackReply(message);
+
+      setTypedTranscript((previous) => [
+        ...previous,
+        { from: "vyva", text: reply, timestamp: Date.now() },
+      ]);
+    } catch {
+      setTypedTranscript((previous) => [
+        ...previous,
+        { from: "vyva", text: localFallbackReply(message), timestamp: Date.now() },
+      ]);
+    } finally {
+      setIsTextSending(false);
+    }
+  }, [language, isTextSending, localFallbackReply, typedTranscript]);
+
+  useEffect(() => {
+    if (!pendingRef.current) return;
+
+    if (!isVoiceMode) {
+      const pending = pendingRef.current;
+      pendingRef.current = null;
+      void sendTypedMessage(pending);
+      return;
+    }
+
+    if (status === "connected") {
       sendText(pendingRef.current);
       pendingRef.current = null;
     }
-  }, [sendText, status]);
+  }, [isVoiceMode, sendText, sendTypedMessage, status]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [transcript]);
+  }, [visibleTranscript, isTextSending]);
 
   const handleSend = () => {
     if (!text.trim()) return;
-    sendText(text.trim());
+    void sendTypedMessage(text.trim());
     setText("");
   };
 
-  const handleModeChange = (nextMode: ChatMode) => {
-    if (nextMode === chatMode) return;
-    stopVoice();
-    navigate(`/chat?mode=${nextMode}`, { replace: true });
-  };
+  const connectionLabel = isTextSending
+    ? t("chat.mode.thinking", "VYVA is replying")
+    : t("chat.mode.typeStatus", "Text mode");
 
   const handleEndVoiceMode = () => {
     stopVoice();
-    navigate("/chat?mode=type", { replace: true });
+    navigate("/", { replace: true });
   };
 
-  const connectionLabel = isConnecting
-    ? t("chat.connecting")
-    : status === "connected"
-    ? chatMode === "voice"
-      ? t("chat.mode.voiceStatus", "Voice mode")
-      : t("chat.mode.typeStatus", "Text mode")
-    : t("chat.tapToConnect");
+  const handleRetryVoiceMode = () => {
+    stopVoice();
+    void startVoice("companion", undefined, {
+      autoStartListening: true,
+      dynamicVariables: {
+        app_entrypoint: "chat_voice_mode",
+      },
+    });
+  };
+
+  if (isVoiceMode) {
+    return (
+      <VoiceCallOverlay
+        isSpeaking={isSpeaking}
+        isConnecting={isConnecting || (status === "idle" && !lastError)}
+        transcript={transcript}
+        onEnd={handleEndVoiceMode}
+        voiceSessionPhase={voiceSessionPhase}
+        isMicMuted={isMicMuted}
+        onMicToggle={setMicrophoneMuted}
+        connectionError={lastError}
+        connectionErrorCode={lastErrorCode}
+        onRetry={handleRetryVoiceMode}
+      />
+    );
+  }
 
   return (
     <div
@@ -101,57 +210,42 @@ const ChatScreen = () => {
         <div className="w-9 h-9" />
       </div>
 
-      <div
-        className="mx-4 mb-2 grid grid-cols-2 gap-2 rounded-[20px] p-1.5 flex-shrink-0"
-        style={{
-          background: "rgba(255,255,255,0.08)",
-          border: "1px solid rgba(255,255,255,0.13)",
-        }}
-        data-testid="chat-mode-toggle"
-        aria-label={t("chat.mode.label", "Choose chat mode")}
-      >
-        <button
-          type="button"
-          data-testid="button-chat-mode-type"
-          aria-pressed={chatMode === "type"}
-          onClick={() => handleModeChange("type")}
-          className="flex min-h-[46px] items-center justify-center gap-2 rounded-[16px] px-3 font-body text-[14px] font-black transition"
-          style={{
-            background: chatMode === "type" ? "rgba(255,255,255,0.92)" : "transparent",
-            color: chatMode === "type" ? "#5B12A0" : "rgba(255,255,255,0.72)",
-          }}
-        >
-          <Keyboard size={17} strokeWidth={2.5} />
-          {t("chat.mode.type", "Type")}
-        </button>
-        <button
-          type="button"
-          data-testid="button-chat-mode-voice"
-          aria-pressed={chatMode === "voice"}
-          onClick={() => handleModeChange("voice")}
-          className="flex min-h-[46px] items-center justify-center gap-2 rounded-[16px] px-3 font-body text-[14px] font-black transition"
-          style={{
-            background: chatMode === "voice" ? "rgba(255,255,255,0.92)" : "transparent",
-            color: chatMode === "voice" ? "#5B12A0" : "rgba(255,255,255,0.72)",
-          }}
-        >
-          <Mic size={17} strokeWidth={2.5} />
-          {t("chat.mode.voice", "Voice")}
-        </button>
-      </div>
-
       {/* Messages */}
       <div
         className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-3"
         style={{ scrollbarWidth: "none" }}
       >
-        <div className="text-center py-3">
-          <span className="font-body text-[13px]" style={{ color: "rgba(255,255,255,0.38)" }}>
-            {t("chat.started")}
-          </span>
-        </div>
+        {visibleTranscript.length === 0 ? (
+          <div
+            data-testid="chat-empty-state"
+            className="mx-auto flex min-h-[44vh] w-full max-w-[360px] flex-col items-center justify-center text-center"
+          >
+            <div
+              className="mb-5 flex h-16 w-16 items-center justify-center rounded-full font-display text-[30px] font-black text-white"
+              style={{
+                background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)",
+                boxShadow: "0 18px 42px rgba(124,58,237,0.24)",
+              }}
+              aria-hidden="true"
+            >
+              V
+            </div>
+            <h1 className="font-body text-[30px] font-black leading-tight text-white">
+              {t("chat.emptyTitle", "Ask VYVA")}
+            </h1>
+            <p className="mt-3 max-w-[280px] font-body text-[16px] font-semibold leading-relaxed" style={{ color: "rgba(255,255,255,0.66)" }}>
+              {t("chat.emptyBody", "Health, rides, reminders, or a quiet chat.")}
+            </p>
+          </div>
+        ) : (
+          <div className="text-center py-3">
+            <span className="font-body text-[13px]" style={{ color: "rgba(255,255,255,0.38)" }}>
+              {t("chat.started")}
+            </span>
+          </div>
+        )}
 
-        {transcript.map((msg, i) => (
+        {visibleTranscript.map((msg, i) => (
           <div
             key={i}
             className={`flex gap-3 ${msg.from === "user" ? "justify-end" : "justify-start"}`}
@@ -177,6 +271,25 @@ const ChatScreen = () => {
             </div>
           </div>
         ))}
+
+        {isTextSending && (
+          <div className="flex justify-start gap-3" data-testid="bubble-chat-vyva-thinking">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 self-end"
+              style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
+            >
+              <span className="font-display text-[13px] font-bold text-white">V</span>
+            </div>
+            <div
+              className="max-w-[78%] px-4 py-3"
+              style={{ background: "rgba(255,255,255,0.10)", borderRadius: "20px 20px 20px 6px" }}
+            >
+              <p className="font-body text-[16px] leading-[1.6] text-white">
+                {t("chat.mode.thinkingBody", "Thinking with you...")}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
       </div>
@@ -222,16 +335,8 @@ const ChatScreen = () => {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => stopVoice()}
-                data-testid="button-chat-stop"
-                className="w-9 h-9 flex items-center justify-center rounded-full"
-                style={{ background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.65)" }}
-              >
-                <Square size={14} />
-              </button>
-              <button
                 onClick={handleSend}
-                disabled={!text.trim() || status !== "connected"}
+                disabled={!text.trim() || isTextSending}
                 data-testid="button-chat-send"
                 className="w-9 h-9 flex items-center justify-center rounded-full disabled:opacity-30 transition-opacity"
                 style={{ background: "#7C3AED" }}
@@ -243,17 +348,6 @@ const ChatScreen = () => {
         </div>
       </div>
 
-      {chatMode === "voice" && (status === "connected" || isConnecting) && (
-        <VoiceCallOverlay
-          isSpeaking={isSpeaking}
-          isConnecting={isConnecting}
-          transcript={transcript}
-          onEnd={handleEndVoiceMode}
-          voiceSessionPhase={voiceSessionPhase}
-          isMicMuted={isMicMuted}
-          onMicToggle={setMicrophoneMuted}
-        />
-      )}
     </div>
   );
 };

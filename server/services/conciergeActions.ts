@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import { profiles } from "../../shared/schema.js";
 import { normalizeAppLanguage } from "../../shared/language.js";
+import { withConciergeExecutionTask, type ConciergeExecutionTaskStatus } from "../../shared/conciergeActionExecution.js";
 
 export const CONCIERGE_USE_CASES = [
   "book_ride",
@@ -11,6 +12,10 @@ export const CONCIERGE_USE_CASES = [
   "find_provider",
   "find_offers",
   "paperwork",
+  "admin_task",
+  "scam_check",
+  "shopping_request",
+  "insurance_admin",
   "travel",
   "send_message",
   "order_food",
@@ -68,6 +73,12 @@ export interface TriggerResult {
   conversationId: string | null;
   callSid: string | null;
   message: string;
+}
+
+export interface CompleteResult {
+  ok: true;
+  status: "completed";
+  sessionId: string | null;
 }
 
 type OutboundResponse = {
@@ -208,7 +219,7 @@ async function loadProfile(userId: string): Promise<BasicProfile> {
 }
 
 async function insertPending(input: ConciergeTriggerInput, language: string): Promise<PendingRow> {
-  const actionPayload = {
+  const basePayload = {
     ...input.actionPayload,
     _meta: {
       ...(typeof input.actionPayload._meta === "object" && input.actionPayload._meta !== null
@@ -218,6 +229,15 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
       created_via: "concierge_trigger_api",
     },
   };
+  const actionPayload = withConciergeExecutionTask({
+    useCase: input.useCase,
+    payload: basePayload,
+    providerName: input.providerName,
+    providerPhone: input.providerPhone,
+    summary: input.actionSummary,
+    pendingStatus: "pending",
+    userConfirmed: false,
+  });
 
   const result = await pool.query<PendingRow>(
     `
@@ -262,15 +282,41 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
   return result.rows[0]!;
 }
 
-async function updatePendingStatus(pendingId: string, status: "calling" | "failed" | "cancelled") {
+async function updatePendingStatus(
+  pending: PendingRow,
+  status: "calling" | "completed" | "failed" | "cancelled",
+  options: {
+    lifecycleStatus?: ConciergeExecutionTaskStatus;
+    userConfirmed?: boolean;
+    confirmationSource?: string;
+    failureReason?: string;
+    outcome?: string;
+  } = {},
+) {
+  const actionPayload = withConciergeExecutionTask({
+    useCase: pending.use_case,
+    payload: pending.action_payload ?? {},
+    providerName: pending.provider_name,
+    providerPhone: pending.provider_phone,
+    summary: pending.action_summary,
+    pendingStatus: status,
+    lifecycleStatus: options.lifecycleStatus,
+    userConfirmed: options.userConfirmed,
+    confirmationSource: options.confirmationSource,
+    failureReason: options.failureReason,
+    outcome: options.outcome,
+  });
+
   await pool.query(
     `
       update concierge_pending
-      set status = $2, updated_at = now()
+      set status = $2, action_payload = $3::jsonb, updated_at = now()
       where id = $1::uuid
     `,
-    [pendingId, status],
+    [pending.id, status, JSON.stringify(actionPayload)],
   );
+  pending.status = status;
+  pending.action_payload = actionPayload;
 }
 
 async function loadPendingById(pendingId: string): Promise<PendingRow | null> {
@@ -298,28 +344,32 @@ async function loadPendingById(pendingId: string): Promise<PendingRow | null> {
   return result.rows[0] ?? null;
 }
 
-async function startOutboundCall(pending: PendingRow, profile: BasicProfile): Promise<TriggerResult> {
+async function startOutboundCall(
+  pending: PendingRow,
+  profile: BasicProfile,
+  confirmationSource = "confirm_endpoint",
+): Promise<TriggerResult> {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
   const agentId = readEnv(OUTBOUND_AGENT_ENV_KEYS);
   const agentPhoneNumberId = readEnv(OUTBOUND_PHONE_ENV_KEYS);
 
   if (!apiKey) {
-    await updatePendingStatus(pending.id, "failed");
+    await updatePendingStatus(pending, "failed", { failureReason: "missing_elevenlabs_api_key" });
     throw new Error("Missing ElevenLabs API key.");
   }
 
   if (!agentId) {
-    await updatePendingStatus(pending.id, "failed");
+    await updatePendingStatus(pending, "failed", { failureReason: "missing_concierge_agent_id" });
     throw new Error("Missing ElevenLabs concierge caller agent ID.");
   }
 
   if (!agentPhoneNumberId) {
-    await updatePendingStatus(pending.id, "failed");
+    await updatePendingStatus(pending, "failed", { failureReason: "missing_concierge_phone_number_id" });
     throw new Error("Missing ElevenLabs concierge phone number ID.");
   }
 
   if (!pending.provider_phone?.trim()) {
-    await updatePendingStatus(pending.id, "failed");
+    await updatePendingStatus(pending, "failed", { failureReason: "missing_provider_phone" });
     throw new Error("Missing provider phone number for outbound call.");
   }
 
@@ -342,12 +392,16 @@ async function startOutboundCall(pending: PendingRow, profile: BasicProfile): Pr
 
   if (!response.ok) {
     const detail = await response.text();
-    await updatePendingStatus(pending.id, "failed");
+    await updatePendingStatus(pending, "failed", { failureReason: "outbound_call_failed" });
     throw new Error(`ElevenLabs outbound call failed: ${detail}`);
   }
 
   const data = (await response.json()) as OutboundResponse;
-  await updatePendingStatus(pending.id, "calling");
+  await updatePendingStatus(pending, "calling", {
+    lifecycleStatus: "in_progress",
+    userConfirmed: true,
+    confirmationSource,
+  });
 
   return {
     pendingId: pending.id,
@@ -374,7 +428,7 @@ export async function triggerConciergeAction(input: ConciergeTriggerInput): Prom
   }
 
   const profile = await loadProfile(input.userId);
-  return startOutboundCall(pending, profile);
+  return startOutboundCall(pending, profile, input.triggerSource ?? "auto_start");
 }
 
 export async function startPendingConciergeAction(pendingId: string, userId: string): Promise<TriggerResult> {
@@ -399,7 +453,7 @@ export async function startPendingConciergeAction(pendingId: string, userId: str
   }
 
   const profile = await loadProfile(userId);
-  return startOutboundCall(pending, profile);
+  return startOutboundCall(pending, profile, "confirm_endpoint");
 }
 
 export async function cancelPendingConciergeAction(pendingId: string, userId: string): Promise<void> {
@@ -414,5 +468,110 @@ export async function cancelPendingConciergeAction(pendingId: string, userId: st
     return;
   }
 
-  await updatePendingStatus(pendingId, "cancelled");
+  await updatePendingStatus(pending, "cancelled", { lifecycleStatus: "cancelled" });
+}
+
+export async function completePendingConciergeAction(
+  pendingId: string,
+  userId: string,
+  input: { outcomeSummary?: string | null; outcomePayload?: Record<string, unknown> | null } = {},
+): Promise<CompleteResult> {
+  const pending = await loadPendingById(pendingId);
+  if (!pending) {
+    throw new Error("Concierge action not found.");
+  }
+  if (pending.user_id !== userId) {
+    throw new Error("You do not have access to this concierge action.");
+  }
+
+  if (pending.status === "completed") {
+    const existing = await pool.query<{ id: string }>(
+      `
+        select id
+        from concierge_sessions
+        where pending_id = $1::uuid
+          and outcome = 'completed'
+        order by completed_at desc nulls last
+        limit 1
+      `,
+      [pendingId],
+    );
+    return { ok: true, status: "completed", sessionId: existing.rows[0]?.id ?? null };
+  }
+
+  if (pending.status === "failed" || pending.status === "cancelled") {
+    throw new Error(`Concierge action cannot be completed from status "${pending.status}".`);
+  }
+
+  const finalActionPayload = withConciergeExecutionTask({
+    useCase: pending.use_case,
+    payload: pending.action_payload ?? {},
+    providerName: pending.provider_name,
+    providerPhone: pending.provider_phone,
+    summary: pending.action_summary,
+    pendingStatus: "completed",
+    lifecycleStatus: "done",
+    userConfirmed: true,
+    confirmationSource: "completion_endpoint",
+    outcome: input.outcomeSummary?.trim() || pending.action_summary || "completed",
+  });
+  const finalOutcomePayload = {
+    ...(input.outcomePayload ?? {}),
+    execution_task: finalActionPayload.execution_task,
+  };
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const inserted = await client.query<{ id: string }>(
+      `
+        insert into concierge_sessions (
+          user_id,
+          pending_id,
+          use_case,
+          provider_id,
+          provider_name,
+          provider_phone,
+          found_externally,
+          action_summary,
+          action_payload,
+          outcome,
+          outcome_payload,
+          outcome_summary,
+          completed_at
+        )
+        values ($1, $2::uuid, $3, $4::uuid, $5, $6, $7, $8, $9::jsonb, 'completed', $10::jsonb, $11, now())
+        returning id
+      `,
+      [
+        pending.user_id,
+        pending.id,
+        pending.use_case,
+        pending.provider_id,
+        pending.provider_name,
+        pending.provider_phone,
+        pending.found_externally,
+        pending.action_summary,
+        JSON.stringify(finalActionPayload),
+        JSON.stringify(finalOutcomePayload),
+        input.outcomeSummary?.trim() || pending.action_summary || null,
+      ],
+    );
+
+    await client.query(
+      `
+        update concierge_pending
+        set status = 'completed', action_payload = $2::jsonb, updated_at = now()
+        where id = $1::uuid
+      `,
+      [pendingId, JSON.stringify(finalActionPayload)],
+    );
+    await client.query("commit");
+    return { ok: true, status: "completed", sessionId: inserted.rows[0]?.id ?? null };
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
 }

@@ -40,10 +40,11 @@ function LocationSpy() {
 
 function renderInvite(initialEntry: string) {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/invite" element={<InviteLandingPage />} />
         <Route path="/login" element={<LocationSpy />} />
+        <Route path="/caregiver/register" element={<LocationSpy />} />
         <Route path="/" element={<LocationSpy />} />
       </Routes>
     </MemoryRouter>,
@@ -75,7 +76,7 @@ describe("invite landing compatibility redirect", () => {
 
   it("routes caregiver setup invites into the who-for onboarding step", () => {
     expect(inviteSetupPath("?lang=en&email=care%40example.com&setup_for=someone_else")).toBe(
-      "/login?lang=en&email=care%40example.com&setup_for=someone_else&mode=register&invite=1&returnTo=%2Fonboarding%2Fwho-for",
+      "/caregiver/register?lang=en&email=care%40example.com&setup_for=someone_else&mode=register&invite=1&returnTo=%2Fonboarding%2Fwho-for",
     );
   });
 

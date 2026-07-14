@@ -195,7 +195,10 @@ export default function NotificationsSettings() {
     onSuccess: (saved) => {
       setDraft(saved);
       queryClient.setQueryData(["/api/profile/channel-preferences"], saved);
-      toast({ title: t("settings.notifications.saved", "Preferences saved") });
+      toast({
+        title: t("settings.notifications.saved", "Preferences saved"),
+        description: t("settings.notifications.savedDesc", "Your notification preferences were updated."),
+      });
     },
     onError: (error) => {
       toast({

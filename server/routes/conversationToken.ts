@@ -120,6 +120,7 @@ const SOCIAL_AGENT_ENV_KEYS: Record<string, string[]> = {
   "viktor-sanz": ["ELEVENLABS_AGENT_VIKTOR_SANZ", "ELEVENLABS_SOCIAL_AGENT_VIKTOR_SANZ", "ELEVENLABS_SOCIAL_GAMES_ROOM_AGENT_ID", "ELEVENLABS_SOCIAL_CHESS_CORNER_AGENT_ID", "ELEVENLABS_CHESS_SOCIAL_AGENT_ID"],
   "lola-martinez": ["ELEVENLABS_AGENT_LOLA_MARTINEZ", "ELEVENLABS_SOCIAL_AGENT_LOLA_MARTINEZ", "ELEVENLABS_SOCIAL_KITCHEN_TABLE_AGENT_ID", "ELEVENLABS_AGENT_LOLA", "ELEVENLABS_SOCIAL_AGENT_LOLA"],
   "amara-osei": ["ELEVENLABS_AGENT_AMARA_OSEI", "ELEVENLABS_SOCIAL_AGENT_AMARA_OSEI", "ELEVENLABS_SOCIAL_MORNING_MOVEMENT_AGENT_ID", "ELEVENLABS_MOVEMENT_SOCIAL_AGENT_ID"],
+  amara: ["ELEVENLABS_AGENT_AMARA_OSEI", "ELEVENLABS_SOCIAL_AGENT_AMARA_OSEI", "ELEVENLABS_SOCIAL_MORNING_MOVEMENT_AGENT_ID", "ELEVENLABS_MOVEMENT_SOCIAL_AGENT_ID"],
   "marco-reyes": ["ELEVENLABS_AGENT_MARCO_REYES", "ELEVENLABS_SOCIAL_AGENT_MARCO_REYES", "ELEVENLABS_SOCIAL_EVENING_WIND_DOWN_AGENT_ID", "ELEVENLABS_AGENT_MARCO", "ELEVENLABS_SOCIAL_AGENT_MARCO"],
   "diego-salinas": ["ELEVENLABS_AGENT_DIEGO_SALINAS", "ELEVENLABS_SOCIAL_AGENT_DIEGO_SALINAS", "ELEVENLABS_SOCIAL_MUSIC_ROOM_AGENT_ID", "ELEVENLABS_SOCIAL_MUSIC_SALON_AGENT_ID", "ELEVENLABS_MUSIC_SOCIAL_AGENT_ID"],
   "isabel-fuentes": ["ELEVENLABS_AGENT_ISABEL_FUENTES", "ELEVENLABS_SOCIAL_AGENT_ISABEL_FUENTES", "ELEVENLABS_SOCIAL_READING_ROOM_AGENT_ID", "ELEVENLABS_SOCIAL_BOOK_CLUB_AGENT_ID", "ELEVENLABS_AGENT_ISABEL", "ELEVENLABS_SOCIAL_AGENT_ISABEL"],
@@ -141,10 +142,29 @@ const SOCIAL_AGENT_ENV_KEYS: Record<string, string[]> = {
 };
 
 const TOP_LEVEL_AGENT_ENV_KEYS: Record<string, string[]> = {
-  vyva: ["ELEVENLABS_MAIN_VYVA_AGENT_ID", "ELEVENLABS_AGENT_VYVA", "ELEVENLABS_AGENT_ID"],
-  "main-vyva": ["ELEVENLABS_MAIN_VYVA_AGENT_ID", "ELEVENLABS_AGENT_VYVA", "ELEVENLABS_AGENT_ID"],
-  health: ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID"],
-  "health-assistant": ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID"],
+  vyva: [
+    "ELEVENLABS_MAIN_VYVA_AGENT_ID",
+    "ELEVENLABS_COMPANION_AGENT_ID",
+    "ELEVENLABS_AGENT_VYVA",
+    "ELEVENLABS_SOCIAL_AGENT_ID",
+    "ELEVENLABS_AGENT_ID",
+  ],
+  "main-vyva": [
+    "ELEVENLABS_MAIN_VYVA_AGENT_ID",
+    "ELEVENLABS_COMPANION_AGENT_ID",
+    "ELEVENLABS_AGENT_VYVA",
+    "ELEVENLABS_SOCIAL_AGENT_ID",
+    "ELEVENLABS_AGENT_ID",
+  ],
+  main_vyva: [
+    "ELEVENLABS_MAIN_VYVA_AGENT_ID",
+    "ELEVENLABS_COMPANION_AGENT_ID",
+    "ELEVENLABS_AGENT_VYVA",
+    "ELEVENLABS_SOCIAL_AGENT_ID",
+    "ELEVENLABS_AGENT_ID",
+  ],
+  health: ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
+  "health-assistant": ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
   doctor: ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   "medical-doctor": ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   meds: ["ELEVENLABS_MEDS_AGENT_ID", "ELEVENLABS_MEDICATION_AGENT_ID", "ELEVENLABS_MEDICATIONS_AGENT_ID"],
@@ -171,8 +191,10 @@ const FIXED_AGENT_IDS: Record<string, string> = {
 };
 
 const DEFAULT_AGENT_ENV_KEYS = [
+  "ELEVENLABS_COMPANION_AGENT_ID",
   "ELEVENLABS_SOCIAL_AGENT_ID",
   "ELEVENLABS_AGENT_ID",
+  "VITE_ELEVENLABS_COMPANION_AGENT_ID",
   "VITE_ELEVENLABS_SOCIAL_AGENT_ID",
   "VITE_ELEVENLABS_AGENT_ID",
 ];
@@ -193,6 +215,12 @@ function envSlug(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
 }
 
+function readElevenLabsApiKey() {
+  return process.env.ELEVENLABS_API_KEY ||
+    process.env.VITE_ELEVENLABS_API_KEY ||
+    process.env.ELEVENLABS_CONVAI_API_KEY;
+}
+
 function buildRoomAgentKeys(roomSlug: string, agentSlug?: string) {
   const canonicalRoomSlug = resolveSocialRoomSlug(roomSlug);
   const slugKey = envSlug(canonicalRoomSlug);
@@ -210,7 +238,7 @@ function buildRoomAgentKeys(roomSlug: string, agentSlug?: string) {
   return [...new Set(keys)];
 }
 
-function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
+export function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
   const normalizedAgentSlug = normalizeSlug(agentSlug);
   const normalizedRoomSlug = normalizeSlug(roomSlug);
   const canonicalRoomSlug = normalizedRoomSlug ? resolveSocialRoomSlug(normalizedRoomSlug) : undefined;
@@ -259,13 +287,12 @@ function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
   };
 }
 
-export async function conversationTokenHandler(req: Request, res: Response) {
-  const { agent_id, agent_slug, room_slug } = req.body as {
-    agent_id?: string;
-    agent_slug?: string;
-    room_slug?: string;
-  };
-
+function resolveConversationAgent(body: {
+  agent_id?: string;
+  agent_slug?: string;
+  room_slug?: string;
+}) {
+  const { agent_id, agent_slug, room_slug } = body;
   const normalizedRoomSlug = normalizeSlug(room_slug);
   const explicitAgentId = agent_id?.trim();
   const resolved = normalizedRoomSlug
@@ -274,39 +301,103 @@ export async function conversationTokenHandler(req: Request, res: Response) {
     ? { agentId: explicitAgentId, resolvedSlug: normalizeSlug(agent_slug), source: "explicit" }
     : resolveSocialAgentId(agent_slug, room_slug);
 
+  return {
+    agentSlug: agent_slug,
+    roomSlug: room_slug,
+    normalizedRoomSlug,
+    resolved,
+  };
+}
+
+function sendMissingAgentResponse(
+  res: Response,
+  input: {
+    agentSlug?: string;
+    roomSlug?: string;
+    resolved: ReturnType<typeof resolveSocialAgentId> | { agentId?: string; resolvedSlug?: string; source: string; expectedKeys?: string[] };
+  },
+) {
+  console.warn("[conversationToken] No ElevenLabs agent configured", {
+    agent_slug: input.agentSlug,
+    room_slug: input.roomSlug,
+    resolved_slug: input.resolved.resolvedSlug,
+    source: input.resolved.source,
+    expected_keys: input.resolved.expectedKeys?.slice(0, 6),
+  });
+  return res.status(400).json({
+    error: "No ElevenLabs agent configured for this room yet.",
+    code: "ELEVENLABS_AGENT_MISSING",
+    room_slug: input.roomSlug,
+    agent_slug: input.agentSlug,
+    source: input.resolved.source,
+    agent_id_present: false,
+    expected_keys: input.resolved.expectedKeys?.slice(0, 6),
+  });
+}
+
+export async function conversationReadinessHandler(req: Request, res: Response) {
+  const { agentSlug, roomSlug, normalizedRoomSlug, resolved } = resolveConversationAgent(req.body as {
+    agent_id?: string;
+    agent_slug?: string;
+    room_slug?: string;
+  });
+
   if (!resolved.agentId) {
-    console.warn("[conversationToken] No ElevenLabs agent configured", {
-      agent_slug,
-      room_slug,
-      resolved_slug: resolved.resolvedSlug,
+    return sendMissingAgentResponse(res, { agentSlug, roomSlug, resolved });
+  }
+
+  if (!readElevenLabsApiKey()) {
+    return res.status(500).json({
+      error: "Missing ElevenLabs API key",
+      code: "ELEVENLABS_API_KEY_MISSING",
+      agent_slug: resolved.resolvedSlug,
+      room_slug: normalizedRoomSlug,
       source: resolved.source,
-      expected_keys: resolved.expectedKeys?.slice(0, 6),
-    });
-    return res.status(400).json({
-      error: "No ElevenLabs agent configured for this room yet.",
-      room_slug,
-      agent_slug,
-      source: resolved.source,
-      expected_keys: resolved.expectedKeys?.slice(0, 6),
+      agent_id_present: true,
     });
   }
 
-  const ELEVENLABS_API_KEY =
-    process.env.ELEVENLABS_API_KEY ||
-    process.env.VITE_ELEVENLABS_API_KEY ||
-    process.env.ELEVENLABS_CONVAI_API_KEY;
+  return res.json({
+    ready: true,
+    agent_slug: resolved.resolvedSlug,
+    room_slug: normalizedRoomSlug,
+    source: resolved.source,
+    agent_id_present: true,
+  });
+}
+
+export async function conversationTokenHandler(req: Request, res: Response) {
+  const { agent_id, agent_slug, room_slug } = req.body as {
+    agent_id?: string;
+    agent_slug?: string;
+    room_slug?: string;
+  };
+
+  const { normalizedRoomSlug, resolved } = resolveConversationAgent({ agent_id, agent_slug, room_slug });
+
+  if (!resolved.agentId) {
+    return sendMissingAgentResponse(res, { agentSlug: agent_slug, roomSlug: room_slug, resolved });
+  }
+
+  const ELEVENLABS_API_KEY = readElevenLabsApiKey();
   if (!ELEVENLABS_API_KEY) {
-    return res.status(500).json({ error: "Missing ElevenLabs API key" });
+    return res.status(500).json({
+      error: "Missing ElevenLabs API key",
+      code: "ELEVENLABS_API_KEY_MISSING",
+    });
   }
 
   try {
-    return signedUrlNoOverride(resolved.agentId, ELEVENLABS_API_KEY, res, {
+    return await signedUrlNoOverride(resolved.agentId, ELEVENLABS_API_KEY, res, {
       agent_slug: resolved.resolvedSlug,
       room_slug: normalizedRoomSlug,
       source: resolved.source,
     });
   } catch (e) {
-    return res.status(500).json({ error: (e as Error).message });
+    return res.status(500).json({
+      error: (e as Error).message,
+      code: "ELEVENLABS_TOKEN_ERROR",
+    });
   }
 }
 
@@ -324,9 +415,21 @@ async function signedUrlNoOverride(
   if (!resp.ok) {
     const errText = await resp.text();
     console.warn("[conversationToken] get_signed_url failed:", errText);
-    return res.status(resp.status).json({ error: "ElevenLabs signed URL error", detail: errText });
+    return res.status(resp.status).json({
+      error: "ElevenLabs signed URL error",
+      code: "ELEVENLABS_SIGNED_URL_ERROR",
+      detail: errText,
+    });
   }
 
   const data = (await resp.json()) as { signed_url?: string };
+  if (!data.signed_url) {
+    console.warn("[conversationToken] get_signed_url response missing signed_url", metadata);
+    return res.status(502).json({
+      error: "ElevenLabs signed URL response was empty",
+      code: "ELEVENLABS_TOKEN_ERROR",
+    });
+  }
+
   return res.json({ signed_url: data.signed_url, ...metadata });
 }

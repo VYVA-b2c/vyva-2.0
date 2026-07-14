@@ -53,7 +53,7 @@ const labels: Record<string, string> = {
   "activities.primary.memorySub": "Practice recall, matching, and daily routines.",
   "activities.primary.reflexes": "Train Reflexes",
   "activities.primary.reflexesSub": "Build faster focus and response.",
-  "activities.primary.intelligence": "Boost Intelligence",
+  "activities.primary.intelligence": "Improve Thinking",
   "activities.primary.intelligenceSub": "Challenge logic, planning, and problem solving.",
   "activities.primary.senses": "Sharpen Senses",
   "activities.primary.sensesSub": "Reset with sound, breath, and calm attention.",
@@ -61,7 +61,8 @@ const labels: Record<string, string> = {
   "activities.quick.relax": "Relax & Breathe",
   "activities.quick.relaxSub": "Take a calm guided pause.",
   "activities.quick.learn": "Learn Something New",
-  "activities.quick.learnSub": "Try words, language, and recall.",
+  "activities.quick.learnSub": "Start a short daily learning program.",
+  "activities.quick.learnSubMobile": "Daily lessons",
   "activities.quick.play": "Take a cognitive assessment.",
   "activities.quick.playSub": "Practice memory and focus.",
   "activities.chooseActivity": "Choose an activity",
@@ -100,12 +101,14 @@ function LocationProbe() {
 
 function renderActivities() {
   return render(
-    <MemoryRouter initialEntries={["/activities"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/activities"]}>
       <Routes>
         <Route path="/activities" element={<ActivitiesScreen />} />
         <Route path="/activity" element={<LocationProbe />} />
         <Route path="/memory-games" element={<LocationProbe />} />
+        <Route path="/learn" element={<LocationProbe />} />
         <Route path="/attention-boosters" element={<LocationProbe />} />
+        <Route path="/senses" element={<LocationProbe />} />
         <Route path="/executive-function" element={<LocationProbe />} />
         <Route path="/language" element={<LocationProbe />} />
         <Route path="/activities/relax-breathe" element={<LocationProbe />} />
@@ -125,13 +128,11 @@ describe("Activities service actions", () => {
   it("renders the health-style primary cards and reordered activity library", () => {
     renderActivities();
 
-    const progressSummary = screen.getByTestId("brain-coach-progress-summary");
     const primarySection = screen.getByTestId("section-activities-primary-actions");
     expect(screen.queryByTestId("brain-coach-weekly-streak")).not.toBeInTheDocument();
-    expect(progressSummary).toHaveTextContent("Brain Coach progress");
-    expect(progressSummary).toHaveTextContent("2 day streak");
-    expect(progressSummary.compareDocumentPosition(primarySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByTestId("brain-coach-progress-summary")).not.toBeInTheDocument();
 
+    expect(primarySection).toBeInTheDocument();
     expect(screen.getByText("Choose your focus")).toBeInTheDocument();
     expect(voiceHeroMock).toHaveBeenCalledWith(expect.objectContaining({
       autoStartVoice: false,
@@ -139,7 +140,7 @@ describe("Activities service actions", () => {
     }));
     expect(screen.getByTestId("button-activities-primary-memory")).toHaveTextContent("Strengthen Memory");
     expect(screen.getByTestId("button-activities-primary-reflexes")).toHaveTextContent("Train Reflexes");
-    expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Boost Intelligence");
+    expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Improve Thinking");
     expect(screen.getByTestId("button-activities-primary-senses")).toHaveTextContent("Sharpen Senses");
 
     const quickActions = screen.getByTestId("activities-quick-actions");
@@ -160,6 +161,14 @@ describe("Activities service actions", () => {
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games"));
   });
 
+  it("routes the Sharpen Senses primary card to the senses hub", async () => {
+    renderActivities();
+
+    fireEvent.click(screen.getByTestId("button-activities-primary-senses"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/senses"));
+  });
+
   it("routes the Relax & Breathe quick action to the dedicated page", async () => {
     renderActivities();
 
@@ -169,12 +178,12 @@ describe("Activities service actions", () => {
     expect(screen.getByTestId("route-state")).toHaveTextContent("{}");
   });
 
-  it("routes the Learn Something New quick action to language activities", async () => {
+  it("routes the Learn Something New quick action to the learning program", async () => {
     renderActivities();
 
     fireEvent.click(screen.getByTestId("button-activities-quick-learn"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/language"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/learn"));
   });
 
   it("routes the brain game quick action to memory games", async () => {

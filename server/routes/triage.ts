@@ -1,9 +1,9 @@
 import { Router, raw } from "express";
 import type { Request, Response } from "express";
 import OpenAI from "openai";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db.js";
-import { profiles } from "../../shared/schema.js";
+import { profiles, userHealthConditions } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
 import { getMediSearchTriageContext, type MediSearchTriageContext } from "../services/medisearch.js";
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
@@ -15,6 +15,7 @@ import {
   type TriageScanType,
 } from "../../shared/triageScans.js";
 import {
+  buildGuidancePlan,
   buildFallbackTriageReportWithTelemetry,
   buildPersonalizedTriageSuggestions,
   evaluateTriageSafetyFloor,
@@ -26,6 +27,7 @@ import {
   selectedSymptomId,
   trackTriageEvent,
   type ProfileRiskFlags,
+  type TriageGuidancePlan,
   type TriageHealthMemory,
   type TriageOutcomeTelemetry,
   type TriageSummary,
@@ -71,6 +73,26 @@ function transcriptionLanguageFor(value: unknown) {
   if (typeof value !== "string") return undefined;
   const normalized = normalizeAppLanguage(value, "en");
   return normalized || undefined;
+}
+
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function activeHealthConditionsFor(userId: string): Promise<string[]> {
+  if (!looksLikeUuid(userId)) return [];
+
+  const rows = await db
+    .select({ condition: userHealthConditions.condition })
+    .from(userHealthConditions)
+    .where(and(
+      eq(userHealthConditions.user_id, userId),
+      eq(userHealthConditions.is_active, true),
+    ));
+
+  return rows
+    .map((row) => row.condition.trim())
+    .filter(Boolean);
 }
 
 export async function transcribeTriageAudioHandler(req: Request, res: Response) {
@@ -143,6 +165,8 @@ type TriageVitalsPrompt = {
   actions: TriageVitalsPromptAction[];
 } | null;
 
+type TriageGuidancePlanResponse = TriageGuidancePlan;
+
 interface TriageRequestBody {
   messages?: ChatMessage[];
   vitals?: {
@@ -161,6 +185,45 @@ interface TriageRequestBody {
   healthMemory?: TriageHealthMemory;
   medisearchConversationId?: string;
 }
+
+export class TriageStepRequestError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.name = "TriageStepRequestError";
+    this.statusCode = statusCode;
+  }
+}
+
+export type TriageStepResponse = {
+  role: "assistant";
+  content: string;
+  done?: boolean;
+  urgent?: boolean;
+  safetyAlert?: {
+    id: string;
+    label: string;
+    recommendation: string;
+    emergencyContact?: EmergencyContact;
+  };
+  emergencyContact?: EmergencyContact;
+  summary?: TriageSummary & {
+    evidenceSummary?: string;
+    evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  };
+  quickReplies?: TriageQuickReply[];
+  wizardStage?: WizardStage | "support";
+  wizardStageLabel?: string;
+  wizardSymptomId?: string;
+  questionReason?: string | null;
+  profileContextUsed?: boolean;
+  vitalsPrompt?: TriageVitalsPrompt;
+  guidancePlan?: TriageGuidancePlanResponse;
+  evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  medisearchConversationId?: string;
+  medicalFollowups?: string[];
+};
 
 async function getRequestGender(req: Request): Promise<GrammaticalGender> {
   const userId = req.user?.id;
@@ -242,14 +305,21 @@ function healthMemoryText(memory?: TriageHealthMemory): string {
   ].filter(Boolean);
   const lines = [
     memory.healthContext ? `Health profile summary: ${memory.healthContext}` : "",
+    memory.careContext ? `Care and living context: ${memory.careContext}` : "",
+    memory.checkinContext ? `Check-in context: ${memory.checkinContext}` : "",
     memory.conditions ? `Known conditions: ${memory.conditions}` : "",
     memory.allergies ? `Known allergies: ${memory.allergies}` : "",
     memory.medications ? `Current medications: ${memory.medications}` : "",
+    memory.devices ? `Health devices: ${memory.devices}` : "",
     memory.latestVitals ? `Latest vitals: ${memory.latestVitals}` : "",
     memory.vitalsTrend ? `Vitals trend: ${memory.vitalsTrend}` : "",
     memory.latestSymptomReport ? `Latest symptom report: ${memory.latestSymptomReport}` : "",
+    memory.recentSymptomReports ? `Recent symptom history: ${memory.recentSymptomReports}` : "",
     memory.medicationAdherence ? `Medication adherence: ${memory.medicationAdherence}` : "",
     memory.medicationInteraction ? `Medication interaction context: ${memory.medicationInteraction}` : "",
+    memory.recentHealthEvents ? `Recent health events: ${memory.recentHealthEvents}` : "",
+    memory.latestMedicalVisit ? `Latest medical visit: ${memory.latestMedicalVisit}` : "",
+    memory.upcomingMedicalAppointment ? `Upcoming medical appointment: ${memory.upcomingMedicalAppointment}` : "",
     riskLabels.length ? `Deterministic profile flags: ${riskLabels.join(", ")}` : "",
   ].filter(Boolean);
 
@@ -337,6 +407,9 @@ function inferContextFromClue(rawClue: string, locale: string): TriageQuickReply
   const clue = normalizeClue(rawClue);
   if (/\b(anxiety|anxious|panic|panicky|nervous|ansiedad|ansiedade|ansia|anxiete|angst|angstgefuhl|panico|panique|panik|nervios|nervioso|nerviosa|nervoso|nervosa)\b/.test(clue)) {
     return reply(locale, "anxiety_context", "free_text", "Anxiety or panic", "Ansiedad o panico", "This feels like anxiety or panic.", "Esto se siente como ansiedad o panico.", "help", "purple");
+  }
+  if (/\b(medicine|medication|tablet|pill|dose|new med|missed dose|took extra|side effect|medicina|medicacion|pastilla|dosis|efecto)\b/.test(clue)) {
+    return reply(locale, "medication_context", "free_text", "Medicine change", "Cambio de medicina", "This may be related to a medicine or dose.", "Puede estar relacionado con una medicina o dosis.", "help", "purple");
   }
 
   return null;
@@ -623,6 +696,103 @@ function profileContextUsedForQuestion(stage: WizardStage, symptomId: string | u
   return profileRedFlagReplies("en", symptomId, profileRiskFlags(healthMemory)).length > 0;
 }
 
+const SYMPTOM_MEMORY_PATTERNS: Record<string, RegExp> = {
+  breathing: /\b(breath|oxygen|spo2|wheeze|air|respir|falta de aire|oxigeno)\b/,
+  chest: /\b(chest|pressure|tight|heart|pecho|presion)\b/,
+  confusion: /\b(confus|memory|disorient|not like myself|confusion|memoria|desorient)\b/,
+  dizzy: /\b(dizz|faint|lightheaded|vertigo|mareo|desmay)\b/,
+  fall: /\b(fall|fell|injur|hit|unsteady|caida|golpe|lesion)\b/,
+  fever: /\b(fever|temperature|chills|infection|fiebre|temperatura)\b/,
+  pain: /\b(pain|ache|headache|dolor|cabeza)\b/,
+  skin: /\b(skin|wound|rash|swelling|piel|herida|hinch)\b/,
+  stomach: /\b(stomach|bowel|vomit|nausea|diarrhea|belly|estomago|diarrea|vomit|nausea)\b/,
+  tired: /\b(tired|weak|fatigue|sleepy|cansad|debil|fatiga)\b/,
+  urinary: /\b(urine|bladder|pee|uti|orina|vejiga)\b/,
+};
+
+function memoryBlob(memory: TriageHealthMemory | undefined, fields: Array<keyof TriageHealthMemory>) {
+  return normalizeClue(fields.map((field) => memory?.[field] ?? "").join(" "));
+}
+
+function hasRecentSymptomMemory(symptomId: string | undefined, healthMemory?: TriageHealthMemory) {
+  if (!symptomId) return false;
+  const pattern = SYMPTOM_MEMORY_PATTERNS[symptomId];
+  if (!pattern) return false;
+  const recentText = memoryBlob(healthMemory, ["latestSymptomReport", "recentSymptomReports", "recentHealthEvents"]);
+  return pattern.test(recentText);
+}
+
+function hasMedicationMemory(healthMemory?: TriageHealthMemory) {
+  const medicationText = memoryBlob(healthMemory, ["medicationAdherence", "medicationInteraction", "medications"]);
+  return /\b(missed|skipped|late|dose|tablet|pill|medicine|medication|side effect|missed\/skipped|pastilla|dosis|medicina)\b/.test(medicationText);
+}
+
+function hasCareSafetyMemory(healthMemory?: TriageHealthMemory) {
+  const careText = memoryBlob(healthMemory, ["careContext", "checkinContext"]);
+  return /\b(living alone|alone|no care|caregiver|emergency contact|missed check|possible missed|overdue|support mode|vive sol|cuidador)\b/.test(careText);
+}
+
+function hasVitalsOrDeviceMemory(healthMemory?: TriageHealthMemory) {
+  const signalText = memoryBlob(healthMemory, ["devices", "latestVitals", "vitalsTrend", "recentHealthEvents"]);
+  return /\b(oxygen|spo2|pulse|heart rate|blood pressure|temperature|glucose|walker|walking aid|sensor|device|vital|presion|pulso|oxigeno)\b/.test(signalText);
+}
+
+function memoryReasonForQuestion(
+  stage: WizardStage,
+  symptomId: string | undefined,
+  locale: string,
+  healthMemory?: TriageHealthMemory,
+) {
+  if (!healthMemory) return "";
+  if (stage === "red_flag" && hasCareSafetyMemory(healthMemory) && ["dizzy", "fall", "confusion", "breathing", "tired", "other"].includes(symptomId ?? "")) {
+    return text(
+      locale,
+      "I am checking safety first because your support or check-in context may matter if this gets worse.",
+      "Primero compruebo seguridad porque tu apoyo o contexto de check-in puede importar si esto empeora.",
+    );
+  }
+  if (stage === "red_flag" && hasRecentSymptomMemory(symptomId, healthMemory)) {
+    return text(
+      locale,
+      "I am checking urgent warning signs first because a similar symptom was recorded recently.",
+      "Primero compruebo senales urgentes porque se registro un sintoma parecido recientemente.",
+    );
+  }
+  if (["red_flag", "severity", "trend"].includes(stage) && hasMedicationMemory(healthMemory) && ["dizzy", "tired", "confusion", "stomach", "breathing", "other"].includes(symptomId ?? "")) {
+    return text(
+      locale,
+      "I am asking this because medication timing or missed doses can sometimes change how symptoms feel.",
+      "Pregunto esto porque los horarios de medicacion o dosis omitidas a veces pueden cambiar como se sienten los sintomas.",
+    );
+  }
+  if (["severity", "trend"].includes(stage) && hasVitalsOrDeviceMemory(healthMemory)) {
+    return text(
+      locale,
+      "I am asking this because your recent readings or health devices may help decide whether to monitor or get support.",
+      "Pregunto esto porque tus mediciones recientes o dispositivos de salud pueden ayudar a decidir si vigilar o pedir apoyo.",
+    );
+  }
+  if (stage === "duration" && hasRecentSymptomMemory(symptomId, healthMemory)) {
+    return text(
+      locale,
+      "I am checking timing because VYVA has a recent report that may be related.",
+      "Compruebo el tiempo porque VYVA tiene un informe reciente que puede estar relacionado.",
+    );
+  }
+  if (stage === "support" && healthMemory.upcomingMedicalAppointment) {
+    return text(
+      locale,
+      "I am asking about support so this can fit with the care or appointment already recorded.",
+      "Pregunto sobre apoyo para que encaje con la atencion o cita ya registrada.",
+    );
+  }
+  return "";
+}
+
+function memoryContextUsedForQuestion(stage: WizardStage, symptomId: string | undefined, healthMemory?: TriageHealthMemory) {
+  return Boolean(memoryReasonForQuestion(stage, symptomId, "en", healthMemory));
+}
+
 function questionReasonFor(
   stage: WizardStage,
   wizard: TriageWizardContext | undefined,
@@ -638,6 +808,8 @@ function questionReasonFor(
       "Lo estoy comprobando porque tu perfil de salud puede hacer que este sintoma sea mas importante.",
     );
   }
+  const memoryReason = memoryReasonForQuestion(stage, symptomId, locale, healthMemory);
+  if (memoryReason) return memoryReason;
 
   const reasons: Record<WizardStage, { en: string; es: string }> = {
     symptom: {
@@ -733,6 +905,22 @@ function vitalsPromptFor(stage: WizardStage, wizard: TriageWizardContext | undef
     body: text(locale, "Only do this if it is easy and safe. You can keep answering without it.", "Hazlo solo si es facil y seguro. Puedes seguir respondiendo sin eso."),
     actions,
   };
+}
+
+function guidancePlanFor(
+  stage: WizardStage,
+  wizard: TriageWizardContext | undefined,
+  locale: string,
+  healthMemory: TriageHealthMemory | undefined,
+  messages: ChatMessage[],
+): TriageGuidancePlanResponse {
+  return buildGuidancePlan({
+    locale,
+    stage,
+    wizard,
+    healthMemory,
+    messages,
+  });
 }
 
 function matrixReplyToQuickReply(locale: string, item: TriageWizardMatrixReply): TriageQuickReply {
@@ -993,26 +1181,38 @@ router.get("/context", async (req: Request, res: Response) => {
     const variables = await getDoctorMedicalProfileVariables(userId);
     const memory: TriageHealthMemory = {
       healthContext: String(variables.health_profile_summary || variables.health_context || ""),
+      careContext: String(variables.care_context || variables.care_team || ""),
+      checkinContext: String(variables.checkin_context || ""),
       conditions: String(variables.health_conditions || ""),
       allergies: String(variables.allergies || ""),
       medications: String(variables.medications || ""),
+      devices: String(variables.devices || ""),
       latestVitals: String(variables.latest_vitals_scan || ""),
       vitalsTrend: String(variables.vitals_trend || ""),
       latestSymptomReport: String(variables.latest_symptom_report || ""),
+      recentSymptomReports: String(variables.recent_symptom_reports || ""),
       medicationAdherence: String(variables.medication_adherence_summary || ""),
       medicationInteraction: String(variables.medication_interaction_context || ""),
+      recentHealthEvents: String(variables.recent_health_events || ""),
+      latestMedicalVisit: String(variables.latest_medical_visit || ""),
+      upcomingMedicalAppointment: String(variables.upcoming_medical_appointment || ""),
       countryCode: String(variables.country_code || ""),
     };
     const usedItems = [
       memory.latestVitals ? "Latest vitals" : "",
       memory.vitalsTrend ? "Vitals trend" : "",
       memory.medications ? "Medications" : "",
+      memory.devices ? "Health devices" : "",
+      memory.careContext ? "Care coverage" : "",
+      memory.checkinContext ? "Check-ins" : "",
       memory.medicationAdherence || memory.medicationInteraction ? "Medication context" : "",
       memory.allergies ? "Allergies" : "",
       memory.conditions ? "Conditions" : "",
-      memory.latestSymptomReport ? "Recent symptoms" : "",
+      memory.latestSymptomReport || memory.recentSymptomReports ? "Recent symptoms" : "",
+      memory.recentHealthEvents ? "Recent health events" : "",
     ].filter(Boolean);
     const language = normalizeAppLanguage(req.language ?? req.header("X-VYVA-Language"), "en");
+    const activeConditions = await activeHealthConditionsFor(userId);
 
     return res.json({
       memory,
@@ -1020,6 +1220,7 @@ router.get("/context", async (req: Request, res: Response) => {
       countryCode: memory.countryCode || undefined,
       emergencyContact: emergencyContactForCountry(memory.countryCode),
       personalizedSuggestions: buildPersonalizedTriageSuggestions(memory, language),
+      activeConditions,
     });
   } catch (err) {
     console.error("[triage/context]", err);
@@ -1027,16 +1228,19 @@ router.get("/context", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/message", async (req: Request, res: Response) => {
-  const { messages = [], vitals, locale = "en", wizard, healthMemory, medisearchConversationId } = req.body as TriageRequestBody;
+export async function runTriageStep(
+  body: TriageRequestBody,
+  options: { gender?: GrammaticalGender } = {},
+): Promise<TriageStepResponse> {
+  const { messages = [], vitals, locale = "en", wizard, healthMemory, medisearchConversationId } = body;
 
   if (!Array.isArray(messages)) {
-    return res.status(400).json({ error: "messages must be an array" });
+    throw new TriageStepRequestError("messages must be an array");
   }
 
   const normalizedLocale = normalizeAppLanguage(locale, "en");
   const language = LOCALE_TO_LANGUAGE[normalizedLocale] ?? languageName(normalizedLocale);
-  const gender = await getRequestGender(req).catch(() => "neutral" as const);
+  const gender = options.gender ?? "neutral";
 
   const validMessages: ChatMessage[] = messages
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
@@ -1048,8 +1252,9 @@ router.post("/message", async (req: Request, res: Response) => {
   const safetyAnswer = effectiveWizard?.refineRequested ? null : selectedSafetyAnswer(effectiveWizard);
   if (safetyAnswer) {
     const emergencyContact = emergencyContactForCountry(healthMemory?.countryCode);
+    const guidancePlan = guidancePlanFor("support", effectiveWizard, normalizedLocale, healthMemory, validMessages);
     trackSafetyAlertTriage(effectiveWizard, `triage.emergency.${safetyAnswer.id}`);
-    return res.json({
+    return {
       role: "assistant",
       content: safetyMessage(normalizedLocale, safetyAnswer.label, emergencyContact),
       done: false,
@@ -1066,18 +1271,23 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStageLabel: wizardStageLabel("support", normalizedLocale),
       wizardSymptomId: selectedSymptomId(effectiveWizard),
       questionReason: questionReasonFor("support", effectiveWizard, normalizedLocale, healthMemory),
-      profileContextUsed: false,
+      profileContextUsed: memoryContextUsedForQuestion("support", selectedSymptomId(effectiveWizard), healthMemory),
       vitalsPrompt: null,
+      guidancePlan,
       evidenceSources: [],
       medicalFollowups: [],
-    });
+    };
   }
 
   const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
   if (stage !== "complete") {
     const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
     const symptomId = selectedSymptomId(effectiveWizard);
-    const profileContextUsed = profileContextUsedForQuestion(stage, symptomId, healthMemory);
+    const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
+    const profileContextUsed =
+      profileContextUsedForQuestion(stage, symptomId, healthMemory) ||
+      memoryContextUsedForQuestion(stage, symptomId, healthMemory) ||
+      guidancePlan.profileContextUsed;
     const vitalsPrompt = vitalsPromptFor(stage, effectiveWizard, normalizedLocale, healthMemory);
     const latestMessage = validMessages[validMessages.length - 1];
     const medisearchContext = latestMessage?.role === "user"
@@ -1088,7 +1298,7 @@ router.post("/message", async (req: Request, res: Response) => {
           wizard: effectiveWizard,
         })
       : null;
-    return res.json({
+    return {
       role: "assistant",
       content: protocolQuestion,
       done: false,
@@ -1099,17 +1309,19 @@ router.post("/message", async (req: Request, res: Response) => {
       questionReason: questionReasonFor(stage, effectiveWizard, normalizedLocale, healthMemory),
       profileContextUsed,
       vitalsPrompt,
+      guidancePlan,
       evidenceSources: [],
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: medisearchContext?.followups ?? [],
-    });
+    };
   }
 
   const apiKey = process.env.OPENAI_API_KEY ?? "";
   if (!apiKey) {
     const fallbackReport = buildFallbackTriageReportWithTelemetry(normalizedLocale, effectiveWizard, validMessages, healthMemory);
+    const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
     trackCompletedTriage(fallbackReport.telemetry);
-    return res.json({
+    return {
       role: "assistant",
       content: fallbackReport.content,
       done: true,
@@ -1119,11 +1331,12 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       wizardSymptomId: selectedSymptomId(effectiveWizard),
       questionReason: null,
-      profileContextUsed: false,
+      profileContextUsed: guidancePlan.profileContextUsed,
       vitalsPrompt: null,
+      guidancePlan,
       evidenceSources: [],
       medicalFollowups: [],
-    });
+    };
   }
 
   try {
@@ -1171,9 +1384,10 @@ router.post("/message", async (req: Request, res: Response) => {
       evidenceSummary: evidenceSummary || undefined,
       evidenceSources: evidenceSources.length ? evidenceSources : undefined,
     };
+    const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
     trackCompletedTriage(safeOutcome?.telemetry ?? fallbackReport.telemetry);
 
-    return res.json({
+    return {
       role: "assistant",
       content: summaryWithEvidence ? content || fallbackReport.content : fallbackReport.content,
       done: true,
@@ -1183,14 +1397,27 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       wizardSymptomId: selectedSymptomId(effectiveWizard),
       questionReason: null,
-      profileContextUsed: false,
+      profileContextUsed: guidancePlan.profileContextUsed,
       vitalsPrompt: null,
+      guidancePlan,
       evidenceSources,
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: [],
-    });
+    };
   } catch (err) {
     console.error("[triage] OpenAI error:", err);
+    throw err;
+  }
+}
+
+router.post("/message", async (req: Request, res: Response) => {
+  try {
+    const gender = await getRequestGender(req).catch(() => "neutral" as const);
+    return res.json(await runTriageStep(req.body as TriageRequestBody, { gender }));
+  } catch (err) {
+    if (err instanceof TriageStepRequestError) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
     return res.status(500).json({ error: "Failed to process triage request" });
   }
 });

@@ -2,9 +2,10 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Mic, MicOff, PhoneCall, PhoneOff, UserRound } from "lucide-react";
+import { AlertCircle, Mic, MicOff, PhoneCall, UserRound, X } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
+import VoiceCallOverlay from "./VoiceCallOverlay";
 import VoiceActionCard from "./VoiceActionCard";
 import VoiceActionSimulator from "./VoiceActionSimulator";
 import MotivationMilestoneProvider from "./MotivationMilestoneProvider";
@@ -14,6 +15,7 @@ import {
   actionForSpecialistTransfer,
   actionForVoiceUtterance,
   emitVoiceAppAction,
+  isActionableVoiceText,
   VYVA_VOICE_APP_ACTION_EVENT,
   VYVA_VOICE_SPECIALIST_TRANSFER_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
@@ -22,12 +24,18 @@ import {
   type VoiceUserMessageDetail,
 } from "@/lib/voiceNavigation";
 import { useServiceGate } from "@/hooks/useServiceGate";
+import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { useToastSurface } from "@/hooks/useToastSurface";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
+import {
+  VYVA_VOICE_OVERLAY_PRESENCE_EVENT,
+  type VoiceOverlayPresenceDetail,
+} from "@/lib/voiceOverlayFocus";
+import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 
 type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
 
@@ -43,6 +51,7 @@ const WIDE_ROUTE_PREFIXES = [
   "/settings",
   "/health",
   "/informes",
+  "/mind-memory/cognitive-assessment",
   "/social-rooms",
   "/meds",
   "/attention-boosters",
@@ -54,8 +63,11 @@ const WIDE_ROUTE_PREFIXES = [
 const WIDE_ROUTES = [
   "/",
   "/companions",
+  "/mind-memory",
   "/activities",
+  "/senses",
   "/activity",
+  "/learn",
   "/language",
   "/safe-home",
   "/scam-guard",
@@ -124,7 +136,120 @@ type VoiceSessionDockProps = {
   voiceSessionPhase: VoiceSessionPhase;
   isMicMuted: boolean;
   onMicToggle: (muted: boolean) => void;
+  onOpen: () => void;
 };
+
+function voiceDockPhaseLabel(phase: VoiceSessionPhase) {
+  return phase === "speaking" ? "Speaking" : voiceSessionPhaseLabel(phase);
+}
+
+function voicePayloadString(action: VoiceAppAction, key: string) {
+  const value = action.payload?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function voicePayloadDetails(action: VoiceAppAction, keys: string[]) {
+  return keys
+    .map((key) => {
+      const value = voicePayloadString(action, key);
+      return value ? `${key.replace(/_/g, " ")}: ${value}` : "";
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildConciergePrefillMessage(action: VoiceAppAction) {
+  const details = voicePayloadDetails(action, [
+    "pickup",
+    "destination",
+    "time",
+    "mobility_needs",
+    "provider_type",
+    "appointment_reason",
+    "reminder_text",
+    "reminder_time",
+  ]);
+  const base = action.sourceText.trim() || action.summary;
+  return `${base}${details ? ` (${details})` : ""}. Prepare the next step and ask me to confirm before acting.`;
+}
+
+function shoppingCategoryForVoiceAction(action: VoiceAppAction) {
+  const category = voicePayloadString(action, "category").toLowerCase();
+  if (["groceries", "pharmacy_basics", "household", "mobility_aids", "safe_home"].includes(category)) {
+    return category;
+  }
+  const text = `${action.sourceText} ${voicePayloadString(action, "items")}`.toLowerCase();
+  if (/grocery|groceries|food|meal|supermarket|comida|compra/.test(text)) return "groceries";
+  if (/pharmacy|farmacia/.test(text)) return "pharmacy_basics";
+  if (/walker|cane|wheelchair|mobility|andador|baston/.test(text)) return "mobility_aids";
+  if (/cleaning|household|home|limpieza|hogar/.test(text)) return "household";
+  return "safe_home";
+}
+
+function shoppingPrioritiesForVoiceAction(action: VoiceAppAction) {
+  const text = `${action.sourceText} ${voicePayloadString(action, "constraint")}`.toLowerCase();
+  if (/budget|cheap|cost|precio|barato/.test(text)) return ["budget", "delivery"];
+  if (/diet|salt|sugar|comida|food/.test(text)) return ["diet", "delivery"];
+  if (/pharmacy|medicine|farmacia/.test(text)) return ["safety", "simplicity"];
+  return ["delivery", "simplicity"];
+}
+
+export function buildVoiceActionRouteState(action: VoiceAppAction): Record<string, unknown> {
+  const baseState: Record<string, unknown> = {
+    voiceActionId: action.id,
+    voiceActionTitle: action.title,
+    voiceActionDomain: action.domain,
+    voiceActionType: action.actionType,
+    voiceActionPayload: action.payload ?? {},
+    voiceActionRequiredPayloadKeys: action.requiredPayloadKeys ?? [],
+    voiceActionOptionalPayloadKeys: action.optionalPayloadKeys ?? [],
+  };
+
+  if (action.actionType === "concierge.ride_booking") {
+    return {
+      ...baseState,
+      conciergePrefill: {
+        kind: "ride",
+        message: buildConciergePrefillMessage(action),
+        source: "voice_action",
+      },
+    };
+  }
+
+  if (action.actionType === "concierge.appointment_help") {
+    return {
+      ...baseState,
+      conciergePrefill: {
+        kind: "appointment",
+        message: buildConciergePrefillMessage(action),
+        source: "voice_action",
+      },
+    };
+  }
+
+  if (action.actionType === "concierge.order_request" || action.actionType === "concierge.shopping") {
+    const items = voicePayloadString(action, "items") || voicePayloadString(action, "need") || action.sourceText;
+    const constraints = [
+      voicePayloadString(action, "budget"),
+      voicePayloadString(action, "delivery_time"),
+      voicePayloadString(action, "substitutions"),
+      voicePayloadString(action, "constraint"),
+    ].filter(Boolean);
+
+    return {
+      ...baseState,
+      shoppingPrefill: {
+        needText: items,
+        category: shoppingCategoryForVoiceAction(action),
+        priorities: shoppingPrioritiesForVoiceAction(action),
+        constraints,
+        sourceRecommendation: buildConciergePrefillMessage(action),
+      },
+    };
+  }
+
+  return baseState;
+}
 
 const VoiceSessionDock = ({
   isSpeaking,
@@ -134,53 +259,80 @@ const VoiceSessionDock = ({
   voiceSessionPhase,
   isMicMuted,
   onMicToggle,
+  onOpen,
 }: VoiceSessionDockProps) => {
   const latestEntry = transcript[transcript.length - 1];
   const canToggleMic = voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring";
+  const previewText = latestEntry?.text || "Voice is active";
   const label = isConnecting
     ? "Connecting"
     : voiceSessionPhase
-      ? voiceSessionPhaseLabel(voiceSessionPhase)
+      ? voiceDockPhaseLabel(voiceSessionPhase)
       : isSpeaking
-        ? "VYVA speaking"
+        ? "Speaking"
         : "Listening";
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[64] flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[64] flex justify-center px-3 sm:px-4">
       <section
         data-testid="voice-session-dock"
-        className="pointer-events-auto flex w-full max-w-[480px] items-center gap-3 rounded-[24px] border border-vyva-border bg-white/95 px-3 py-3 shadow-[0_18px_48px_rgba(47,33,53,0.2)] backdrop-blur"
+        className="pointer-events-auto flex w-full max-w-[520px] items-center gap-2 rounded-[24px] border border-[#E9D5FF] bg-white/95 px-3 py-3 shadow-[0_18px_48px_rgba(47,33,53,0.18)] backdrop-blur sm:gap-3"
       >
-        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isMicMuted ? "bg-emerald-50 text-emerald-700" : "bg-vyva-purple text-white"}`}>
-          {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-body text-[13px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-            {label}
-          </p>
-          <p className="truncate font-body text-[14px] font-semibold text-vyva-text-1">
-            {latestEntry?.text || "Voice is active. You can keep using the page."}
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={onOpen}
+          data-testid="button-open-voice-overlay"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-[18px] text-left transition active:scale-[0.99]"
+          aria-label="Open voice screen"
+          title="Open voice screen"
+        >
+          <div
+            className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
+            aria-hidden="true"
+            style={{
+              background: "radial-gradient(circle at 45% 38%, #E9D5FF 0%, #A855F7 42%, #5B12A0 100%)",
+              boxShadow: "0 0 0 8px rgba(124,58,237,0.08), 0 8px 22px rgba(91,18,160,0.16)",
+            }}
+          >
+            <span
+              className="h-5 w-5 rounded-full"
+              style={{
+                background: "radial-gradient(circle, rgba(255,255,255,0.9), rgba(255,255,255,0.12))",
+                opacity: 0.72,
+              }}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="flex min-w-0 items-center gap-2 truncate font-body text-[14px] font-black leading-tight text-vyva-purple">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#8B5CF6] shadow-[0_0_0_5px_rgba(139,92,246,0.12)]" />
+              {label}
+            </p>
+            <p className="mt-0.5 truncate font-body text-[13px] font-semibold leading-tight text-vyva-text-2 sm:text-[14px]">
+              {previewText}
+            </p>
+          </div>
+        </button>
         {canToggleMic && (
           <button
             type="button"
             onClick={() => onMicToggle(!isMicMuted)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-vyva-warm text-vyva-text-1 transition active:scale-95"
+            data-testid="button-dock-toggle-mic"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E9D5FF] bg-[#F7F0FF] font-body text-vyva-purple shadow-sm transition active:scale-95"
             aria-label={isMicMuted ? "Turn microphone on" : "Mute microphone"}
-            title={isMicMuted ? "Talk" : "Mute"}
+            title={isMicMuted ? "Mic off" : "Mic on"}
           >
-            {isMicMuted ? <Mic size={19} /> : <MicOff size={19} />}
+            {isMicMuted ? <MicOff size={19} /> : <Mic size={19} />}
           </button>
         )}
         <button
           type="button"
           onClick={onEnd}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FEE2E2] text-[#B91C1C] transition active:scale-95"
+          data-testid="button-dock-end-call"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#111111] text-white shadow-[0_12px_28px_rgba(17,17,17,0.22)] transition active:scale-95"
           aria-label="End voice chat"
           title="End chat"
         >
-          <PhoneOff size={19} />
+          <X size={20} strokeWidth={2.8} />
         </button>
       </section>
     </div>
@@ -280,8 +432,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const { profile } = useProfile();
   const { canUseService, guardPath } = useServiceGate();
   const [sosOpen, setSosOpen] = useState(false);
+  const [dockVoiceOverlayOpen, setDockVoiceOverlayOpen] = useState(false);
+  const [externalVoiceOverlayPresent, setExternalVoiceOverlayPresent] = useState(false);
   const lastVoiceActionRef = useRef<{ key: string; at: number } | null>(null);
   const lastOpenedVoiceActionRef = useRef<{ key: string; at: number } | null>(null);
+  const previousPathRef = useRef(location.pathname);
   const {
     status,
     isConnecting,
@@ -293,6 +448,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     voiceSessionPhase,
     isMicMuted,
     setMicrophoneMuted,
+    lastError,
+    lastErrorCode,
+    voiceDiagnostics,
     sendContextUpdate,
     recordRecommendationFeedback,
   } = useVyvaVoice();
@@ -305,11 +463,17 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isFullScreen = appShellLayout === "fullscreen";
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
-  const isChatTypeMode =
-    location.pathname === "/chat" && new URLSearchParams(location.search).get("mode") !== "voice";
+  const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
+  const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
+  const routeState = location.state as Record<string, unknown> | null;
+  const chatModeParam = new URLSearchParams(location.search).get("mode");
+  const isChatVoiceMode =
+    location.pathname === "/chat" &&
+    (chatModeParam === "voice" || routeState?.[SECTION_VOICE_AUTO_START_KEY] === true);
+  const isChatTypeMode = location.pathname === "/chat" && !isChatVoiceMode;
   const shellMaxWidthClassName = isFullScreen
     ? "max-w-none"
-    : isVitalsRoute
+    : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
       : isWideRoute
         ? "max-w-[920px]"
@@ -317,14 +481,27 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const voiceActionRouteMatches = activeVoiceAction
     ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
     : false;
-  const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
+  const visibleVoiceAction = activeVoiceAction?.domain === "health" ? null : activeVoiceAction;
+  const visibleVoiceActionRouteMatches = visibleVoiceAction
+    ? location.pathname === visibleVoiceAction.route || location.pathname.startsWith(`${visibleVoiceAction.route}/`)
+    : false;
+  const showInlineVoiceAction = Boolean(!isFullScreen && visibleVoiceAction && visibleVoiceActionRouteMatches);
+  const hasVoiceSessionSurface =
+    !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring" || Boolean(lastError));
+  const showDockVoiceOverlay = !isFullScreen && dockVoiceOverlayOpen && hasVoiceSessionSurface;
+  const isVoiceOverlayFocused = externalVoiceOverlayPresent || showDockVoiceOverlay;
   const showVoiceDock =
-    !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring");
+    !isFullScreen &&
+    !isChatTypeMode &&
+    (status === "connected" || isConnecting || voiceSessionPhase === "transferring") &&
+    !isVoiceOverlayFocused;
   const suppressMilestonePopup = isFullScreen ||
     sosOpen ||
     showVoiceDock ||
+    isVoiceOverlayFocused ||
+    location.pathname === "/learn" ||
     location.pathname === "/sos" ||
-    location.pathname.startsWith("/health/symptom") ||
+    isSymptomCheckRoute ||
     location.pathname.startsWith("/triage");
   const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 128);
   const { data: onboardingState, isLoading: sosContactLoading } = useQuery<OnboardingStateResponse>({
@@ -340,6 +517,38 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   });
   const sosProfileContact = emergencyProfileContactFromState(onboardingState);
 
+  useEffect(() => {
+    const handleVoiceOverlayPresence = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? (event.detail as VoiceOverlayPresenceDetail | undefined)
+        : undefined;
+      setExternalVoiceOverlayPresent(Boolean(detail?.open));
+    };
+
+    window.addEventListener(VYVA_VOICE_OVERLAY_PRESENCE_EVENT, handleVoiceOverlayPresence);
+    return () => window.removeEventListener(VYVA_VOICE_OVERLAY_PRESENCE_EVENT, handleVoiceOverlayPresence);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenSos = () => {
+      if (canUseService("sos", "/sos")) setSosOpen(true);
+    };
+
+    window.addEventListener(VYVA_OPEN_SOS_EVENT, handleOpenSos);
+    return () => window.removeEventListener(VYVA_OPEN_SOS_EVENT, handleOpenSos);
+  }, [canUseService]);
+
+  useEffect(() => {
+    if (!hasVoiceSessionSurface) setDockVoiceOverlayOpen(false);
+  }, [hasVoiceSessionSurface]);
+
+  useEffect(() => {
+    if (previousPathRef.current === location.pathname) return;
+
+    previousPathRef.current = location.pathname;
+    setDockVoiceOverlayOpen(false);
+  }, [location.pathname]);
+
   const openVoiceAppAction = useCallback((action: VoiceAppAction) => {
     const actionKey = `${action.id}:${action.route}`;
     const previous = lastOpenedVoiceActionRef.current;
@@ -353,14 +562,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
     const alreadyOnRoute = location.pathname === action.route;
     const navigated = alreadyOnRoute || guardPath(action.route, {
-      state: {
-        voiceActionId: action.id,
-        voiceActionTitle: action.title,
-        voiceActionDomain: action.domain,
-      },
+      state: buildVoiceActionRouteState(action),
     });
 
     if (navigated) {
+      setDockVoiceOverlayOpen(false);
       void recordRecommendationFeedback("accepted", {
         source: "app_voice_action",
         voice_action_id: action.id,
@@ -387,6 +593,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         ? (event.detail as VoiceUserMessageDetail | undefined)
         : undefined;
       if (!detail?.text) return;
+      if (!isActionableVoiceText(detail.text)) return;
 
       const action = actionForVoiceUtterance(detail.text);
       if (!action) return;
@@ -444,7 +651,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             agentSlug: request.agentSlug,
             autoStartListening: true,
             dynamicVariables: {
-              app_entrypoint: "voice_specialist_transfer",
+              app_entrypoint: request.appEntrypoint || "voice_specialist_transfer",
               transfer_domain: request.domain,
               transfer_reason: request.reason,
             },
@@ -460,6 +667,15 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!activeVoiceAction) return;
     if (!voiceActionRouteMatches) return;
+    if (activeVoiceAction.domain === "health") {
+      completeActiveAction({
+        metadata: {
+          source: "app_voice_health_route_landed",
+          current_path: location.pathname,
+        },
+      });
+      return;
+    }
     if (activeVoiceAction.completion?.mode !== "route_landed") return;
 
     const timer = window.setTimeout(() => {
@@ -501,11 +717,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         className={`relative w-full ${shellMaxWidthClassName}`}
       >
         {!isFullScreen && <StatusBar wide={isWideRoute || isVitalsRoute} />}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[76px] pb-[128px] lg:pb-10" : "pt-[76px] pb-[128px]"}`}>
-          {showInlineVoiceAction && activeVoiceAction && (
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+          {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
-                action={activeVoiceAction}
+                action={visibleVoiceAction}
                 onComplete={handleCompleteVoiceAction}
                 onDismiss={handleDismissVoiceAction}
               />
@@ -529,7 +745,27 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             contactLoading={sosContactLoading}
           />
         )}
-        {!isFullScreen && !isVitalsRoute && <VoiceActionSimulator />}
+        {!isFullScreen && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
+        {showDockVoiceOverlay && (
+          <VoiceCallOverlay
+            isSpeaking={isSpeaking}
+            isConnecting={isConnecting}
+            transcript={transcript}
+            onEnd={() => {
+              setDockVoiceOverlayOpen(false);
+              stopVoice();
+            }}
+            onMinimize={() => setDockVoiceOverlayOpen(false)}
+            activeAction={visibleVoiceAction}
+            voiceSessionPhase={voiceSessionPhase}
+            isMicMuted={isMicMuted}
+            onMicToggle={setMicrophoneMuted}
+            connectionError={lastError}
+            connectionErrorCode={lastErrorCode}
+            voiceDiagnostics={voiceDiagnostics}
+            onType={() => setDockVoiceOverlayOpen(false)}
+          />
+        )}
         {showVoiceDock && (
           <VoiceSessionDock
             isSpeaking={isSpeaking}
@@ -539,6 +775,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={setMicrophoneMuted}
+            onOpen={() => setDockVoiceOverlayOpen(true)}
           />
         )}
       </div>

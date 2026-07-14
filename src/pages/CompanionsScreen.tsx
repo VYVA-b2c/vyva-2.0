@@ -9,6 +9,7 @@ import {
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
+import { PurpleModal, VYVA_MODAL_PRIMARY_ACTION_CLASS, VYVA_MODAL_SECONDARY_ACTION_CLASS } from "@/components/vyva-ui";
 
 // ─── Static data ───────────────────────────────────────────────────────────────
 
@@ -219,38 +220,26 @@ function ChipToggle({
 function IntroModal({ name, onClose }: { name: string; onClose: () => void }) {
   const { t } = useTranslation();
   return (
-    <div
-      className="fixed inset-0 z-[300] flex items-center justify-center px-6"
-      style={{ background: "rgba(30,26,46,0.55)" }}
-      onClick={onClose}
+    <PurpleModal
+      Icon={Sparkles}
+      kicker={t("community.kicker", "Community")}
+      title={t("community.introModal.title")}
+      subtitle={t("community.introModal.body", { name })}
+      titleId="community-intro-title"
+      onClose={onClose}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="modal-community-intro"
+      size="narrow"
+      layer="top"
     >
-      <div
-        className="bg-white rounded-[20px] p-8 max-w-[340px] w-full text-center"
-        style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="w-[64px] h-[64px] rounded-full flex items-center justify-center mx-auto mb-4"
-          style={{ background: "#F5F3FF" }}
-        >
-          <Sparkles size={28} style={{ color: "#6B21A8" }} />
-        </div>
-        <h3 className="font-display italic font-normal text-[22px] text-vyva-text-1 mb-2">
-          {t("community.introModal.title")}
-        </h3>
-        <p className="font-body text-[15px] text-vyva-text-2 leading-relaxed mb-6">
-          {t("community.introModal.body", { name })}
-        </p>
         <button
           data-testid="button-intro-modal-close"
           onClick={onClose}
-          className="w-full rounded-full py-3 font-body text-[15px] font-semibold text-white"
-          style={{ background: "#6B21A8" }}
+          className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
         >
           {t("community.introModal.ok")}
         </button>
-      </div>
-    </div>
+    </PurpleModal>
   );
 }
 
@@ -911,31 +900,18 @@ function ConsentSheet({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[300] flex items-end justify-center"
-      style={{ background: "rgba(30,26,46,0.55)" }}
-      onClick={onDismiss}
+    <PurpleModal
+      Icon={Shield}
+      kicker={t("community.kicker", "Community")}
+      title={t("community.consent.title")}
+      titleId="community-consent-title"
+      onClose={onDismiss}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="modal-community-consent"
+      size="narrow"
+      layer="top"
     >
-      <div
-        className="bg-white rounded-t-[24px] w-full max-w-[480px] px-6 pt-6 pb-10"
-        style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* drag handle */}
-        <div className="w-[40px] h-[4px] rounded-full bg-gray-200 mx-auto mb-6" />
-
-        <div
-          className="w-[52px] h-[52px] rounded-full flex items-center justify-center mx-auto mb-4"
-          style={{ background: "#F5F3FF" }}
-        >
-          <Shield size={24} style={{ color: "#6B21A8" }} />
-        </div>
-
-        <h2 className="font-display italic font-normal text-[22px] text-vyva-text-1 text-center mb-4">
-          {t("community.consent.title")}
-        </h2>
-
-        <ul className="space-y-3 mb-6">
+        <ul className="mb-6 space-y-3">
           <li className="flex items-start gap-3">
             <span
               className="w-[22px] h-[22px] rounded-full flex-shrink-0 flex items-center justify-center mt-[1px]"
@@ -969,8 +945,7 @@ function ConsentSheet({
             data-testid="button-consent-confirm"
             onClick={onConfirm}
             disabled={loading}
-            className="w-full rounded-full py-4 font-body text-[16px] font-semibold text-white transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-            style={{ background: "#6B21A8" }}
+            className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
           >
             {loading ? (
               <>
@@ -985,14 +960,12 @@ function ConsentSheet({
             data-testid="button-consent-dismiss"
             onClick={onDismiss}
             disabled={loading}
-            className="w-full rounded-full py-4 font-body text-[16px] font-medium text-vyva-text-2 transition-opacity disabled:opacity-50"
-            style={{ background: "#F5F3FF" }}
+            className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
           >
             {t("community.consent.dismissBtn")}
           </button>
         </div>
-      </div>
-    </div>
+    </PurpleModal>
   );
 }
 
@@ -1117,7 +1090,11 @@ const CompanionsScreen = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companions/suggestions"] });
     },
     onError: () => {
-      toast({ title: t("companions.errors.saveInterestsFailed"), variant: "destructive" });
+      toast({
+        title: t("companions.errors.saveInterestsFailed"),
+        description: t("companions.errors.saveInterestsFailedDesc", "Your companion interests were not saved. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -1135,11 +1112,18 @@ const CompanionsScreen = () => {
       setConnecting(null);
       queryClient.invalidateQueries({ queryKey: ["/api/companions/suggestions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/companions/connections"] });
-      toast({ title: t("companions.connection.requestSent") });
+      toast({
+        title: t("companions.connection.requestSent"),
+        description: t("companions.connection.requestSentDesc", "Your companion request was sent."),
+      });
     },
     onError: () => {
       setConnecting(null);
-      toast({ title: t("companions.errors.connectFailed"), variant: "destructive" });
+      toast({
+        title: t("companions.errors.connectFailed"),
+        description: t("companions.errors.connectFailedDesc", "Your companion request was not sent. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -1159,7 +1143,11 @@ const CompanionsScreen = () => {
     },
     onError: () => {
       setResponding(null);
-      toast({ title: t("companions.errors.respondFailed"), variant: "destructive" });
+      toast({
+        title: t("companions.errors.respondFailed"),
+        description: t("companions.errors.respondFailedDesc", "Your companion response was not saved. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -1179,7 +1167,11 @@ const CompanionsScreen = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companions/suggestions"] });
     },
     onError: () => {
-      toast({ title: t("companions.errors.activateFailed"), variant: "destructive" });
+      toast({
+        title: t("companions.errors.activateFailed"),
+        description: t("companions.errors.activateFailedDesc", "Companion matching was not turned on. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 

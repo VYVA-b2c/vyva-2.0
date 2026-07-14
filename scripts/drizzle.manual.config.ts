@@ -1,0 +1,18 @@
+import { defineConfig } from "drizzle-kit";
+
+if (process.env.ALLOW_DRIZZLE_SCHEMA_PUSH !== "true") {
+  throw new Error("Drizzle schema push is disabled. Use reviewed SQL migrations instead.");
+}
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is not set");
+}
+
+export default defineConfig({
+  schema: "./shared/schema.ts",
+  out: "./migrations",
+  dialect: "postgresql",
+  dbCredentials: {
+    url: process.env.DATABASE_URL,
+  },
+});

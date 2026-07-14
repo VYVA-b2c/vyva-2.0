@@ -31,4 +31,8 @@ describe("voice session state", () => {
   it("labels muted state as mic off", () => {
     expect(voiceSessionPhaseLabel("muted")).toBe("Mic off");
   });
+
+  it("labels speaking state once and compactly", () => {
+    expect(voiceSessionPhaseLabel("speaking")).toBe("Speaking");
+  });
 });

@@ -43,7 +43,7 @@ function readinessForDoctor(ready: boolean, reason = "Add a GP or care contact f
 
 function renderGate(initialPath = "/health/doctor") {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialPath]}>
       <ServiceGateRoute service="doctor">
         <div data-testid="doctor-page">Doctor page loaded</div>
       </ServiceGateRoute>

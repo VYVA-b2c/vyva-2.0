@@ -54,7 +54,7 @@ function renderHealthDevices() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/settings/health-devices"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings/health-devices"]}>
         <Routes>
           <Route path="/settings/health-devices" element={<HealthDevicesSettings />} />
           <Route path="/health/vitals" element={<div data-testid="vitals-route">Vitals</div>} />

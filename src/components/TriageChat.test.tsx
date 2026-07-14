@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TriageChat from "./TriageChat";
@@ -19,6 +19,25 @@ const quickReplies = [
   { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", icon: "help", tone: "green", kind: "red_flag" },
 ];
 
+const dizzinessGuidancePlan = {
+  protocolId: "dizziness",
+  protocolLabel: "Dizziness and faintness",
+  stage: "severity",
+  priorityLabel: "Profile-aware",
+  nextQuestionFocus: "Checking whether dizziness is strong enough to make standing or walking unsafe.",
+  confidence: {
+    score: 4,
+    label: "Strong confidence",
+    reasons: ["symptom described", "safety question answered", "health profile considered"],
+    missing: ["optional useful reading"],
+  },
+  profileContextUsed: true,
+  usefulSignals: [
+    { id: "pulse", label: "Pulse", status: "missing" },
+    { id: "blood_pressure", label: "Blood pressure", status: "missing" },
+  ],
+};
+
 const manyQuickReplies = [
   { id: "answer-1", label: "First answer", value: "First answer.", icon: "help", tone: "green", kind: "choice" },
   { id: "answer-2", label: "Second answer", value: "Second answer.", icon: "help", tone: "green", kind: "choice" },
@@ -35,21 +54,29 @@ function triageResponse(body: Record<string, unknown>) {
   });
 }
 
-function renderTriageChat(props: Partial<ComponentProps<typeof TriageChat>> = {}) {
-  return render(
-    <TriageChat
-      bpm={null}
-      respiratoryRate={null}
-      entryMode="without_vitals"
-      initialClue="Feeling anxious"
-      onComplete={vi.fn()}
-      {...props}
-    />,
-  );
+async function renderTriageChat(props: Partial<ComponentProps<typeof TriageChat>> = {}) {
+  let result: ReturnType<typeof render>;
+
+  await act(async () => {
+    result = render(
+      <TriageChat
+        bpm={null}
+        respiratoryRate={null}
+        entryMode="without_vitals"
+        initialClue="Feeling anxious"
+        onComplete={vi.fn()}
+        {...props}
+      />,
+    );
+    await Promise.resolve();
+  });
+
+  return result!;
 }
 
 describe("TriageChat MediSearch follow-ups", () => {
   afterEach(() => {
+    cleanup();
     apiFetchMock.mockReset();
     setLanguage("en");
     vi.useRealTimers();
@@ -64,7 +91,7 @@ describe("TriageChat MediSearch follow-ups", () => {
       evidenceSources: [],
     }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
     const request = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
@@ -80,23 +107,25 @@ describe("TriageChat MediSearch follow-ups", () => {
       evidenceSources: [],
     }));
 
-    const { rerender } = renderTriageChat({ language: "es", languageReady: false });
+    const { rerender } = await renderTriageChat({ language: "es", languageReady: false });
 
     await screen.findByTestId("triage-review-panel");
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(apiFetchMock).not.toHaveBeenCalled();
 
-    rerender(
-      <TriageChat
-        bpm={null}
-        respiratoryRate={null}
-        entryMode="without_vitals"
-        initialClue="Feeling anxious"
-        language="es"
-        languageReady
-        onComplete={vi.fn()}
-      />,
-    );
+    await act(async () => {
+      rerender(
+        <TriageChat
+          bpm={null}
+          respiratoryRate={null}
+          entryMode="without_vitals"
+          initialClue="Feeling anxious"
+          language="es"
+          languageReady
+          onComplete={vi.fn()}
+        />,
+      );
+    });
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
     const request = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
@@ -107,7 +136,7 @@ describe("TriageChat MediSearch follow-ups", () => {
   it("rotates the review headline through VYVA thinking steps", async () => {
     vi.useFakeTimers();
 
-    renderTriageChat({ languageReady: false });
+    await renderTriageChat({ languageReady: false });
 
     expect(screen.getByTestId("triage-review-headline")).toHaveTextContent("Checking your next step");
 
@@ -136,7 +165,7 @@ describe("TriageChat MediSearch follow-ups", () => {
       medisearchConversationId: "conversation-1",
     }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
     await waitFor(() => {
       expect(screen.getByTestId("triage-quick-answers")).toBeInTheDocument();
@@ -165,7 +194,7 @@ describe("TriageChat MediSearch follow-ups", () => {
       evidenceSources: [],
     }));
 
-    renderTriageChat({ bpm: 72, respiratoryRate: 18 });
+    await renderTriageChat({ bpm: 72, respiratoryRate: 18 });
 
     await screen.findByText("How are you feeling now?", {}, { timeout: 5000 });
     expect(screen.queryByTestId("triage-confidence-tracker")).not.toBeInTheDocument();
@@ -191,6 +220,7 @@ describe("TriageChat MediSearch follow-ups", () => {
         wizardStageLabel: "More details",
         questionReason: "How strong it feels helps choose the safest next step.",
         profileContextUsed: true,
+        guidancePlan: dizzinessGuidancePlan,
         vitalsPrompt: {
           title: "If you can, one reading may help",
           body: "Only do this if it is easy and safe. You can keep answering without it.",
@@ -210,6 +240,14 @@ describe("TriageChat MediSearch follow-ups", () => {
         wizardStageLabel: "More details",
         questionReason: "How strong it feels helps choose the safest next step.",
         profileContextUsed: true,
+        guidancePlan: {
+          ...dizzinessGuidancePlan,
+          confidence: { ...dizzinessGuidancePlan.confidence, score: 5, label: "High confidence", missing: [] },
+          usefulSignals: [
+            { id: "pulse", label: "Pulse", status: "available" },
+            { id: "blood_pressure", label: "Blood pressure", status: "missing" },
+          ],
+        },
         vitalsPrompt: null,
         evidenceSources: [],
       }));
@@ -218,12 +256,17 @@ describe("TriageChat MediSearch follow-ups", () => {
 
     await screen.findByText("How strong is the dizziness right now?", {}, { timeout: 5000 });
     expect(screen.queryByTestId("triage-session-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("triage-guidance-confidence")).toHaveTextContent("Strong confidence - 4/5");
+    expect(screen.getByTestId("triage-guidance-focus")).toHaveTextContent("Profile-aware");
+    expect(screen.getByTestId("triage-guidance-focus")).toHaveTextContent("Dizziness and faintness");
     expect(screen.getByTestId("triage-question-reason")).toHaveTextContent("Why VYVA is asking this");
 
     fireEvent.click(screen.getByText("Why VYVA is asking this"));
 
     expect(screen.getByText("How strong it feels helps choose the safest next step.")).toBeVisible();
     expect(screen.getByText("VYVA quietly used your health profile to choose this question.")).toBeVisible();
+    expect(screen.getByTestId("triage-guidance-plan")).toHaveTextContent("Checking whether dizziness is strong enough");
+    expect(screen.getByTestId("triage-guidance-plan")).toHaveTextContent("Confidence improves with: optional useful reading");
     expect(screen.getByTestId("triage-contextual-vitals-prompt")).toHaveTextContent("If you can, one reading may help");
     expect(screen.getByRole("button", { name: "Pulse" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Blood pressure" })).toBeVisible();
@@ -249,9 +292,10 @@ describe("TriageChat MediSearch follow-ups", () => {
       evidenceSources: [],
     }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
-    await screen.findByText("Which one is closest?");
+    await screen.findByRole("button", { name: "First answer" }, { timeout: 5000 });
+    expect(screen.getByText("Which one is closest?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "First answer" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Fourth answer" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Fifth answer" })).not.toBeVisible();
@@ -286,7 +330,7 @@ describe("TriageChat MediSearch follow-ups", () => {
         medisearchConversationId: "conversation-1",
       }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
     await waitFor(() => {
       expect(screen.getByTestId("triage-medical-followups")).toBeInTheDocument();
@@ -327,9 +371,9 @@ describe("TriageChat MediSearch follow-ups", () => {
       medicalFollowups: ["Could this be anxiety?"],
     }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
-    await screen.findByText("Emergency warning");
+    expect(await screen.findAllByText("Emergency warning")).not.toHaveLength(0);
     await waitFor(() => {
       expect(screen.queryByTestId("triage-medical-followups")).not.toBeInTheDocument();
     });
@@ -339,7 +383,7 @@ describe("TriageChat MediSearch follow-ups", () => {
     const onDraftChange = vi.fn();
     setLanguage("es");
 
-    renderTriageChat({
+    await renderTriageChat({
       initialClue: "",
       initialDraft: {
         messages: [{ role: "assistant", content: "How is breathing now?" }],
@@ -401,7 +445,7 @@ describe("TriageChat MediSearch follow-ups", () => {
         wizardSymptomId: "skin",
       }));
 
-    renderTriageChat({
+    await renderTriageChat({
       initialClue: "",
       initialDraft: {
         messages: [{ role: "assistant", content: "Do any skin warning signs apply?" }],

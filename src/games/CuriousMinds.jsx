@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, BrainCircuit, Check, Loader2, PartyPopper, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Check, CircleHelp, Lightbulb, Loader2, MessageCircle, PartyPopper, RefreshCw, Sparkles } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
-import { supabase } from "../lib/supabaseClient";
+import { apiFetch } from "@/lib/queryClient";
 import DualInput from "./shared/DualInput";
-import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -26,6 +25,30 @@ const DEFAULT_STREAK_STATE = {
   last_played_at: null,
 };
 
+const CURIOUS_MINDS_TUTORIAL_KEY = "curiousMinds:tutorialSeen:v1";
+
+function tutorialStorageKey(userId) {
+  return userId ? `${CURIOUS_MINDS_TUTORIAL_KEY}:${userId}` : CURIOUS_MINDS_TUTORIAL_KEY;
+}
+
+function readTutorialSeen(userId) {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(tutorialStorageKey(userId)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeTutorialSeen(userId) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(tutorialStorageKey(userId), "true");
+  } catch {
+    // Local tutorial persistence should never block the game.
+  }
+}
+
 function todayKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -37,13 +60,6 @@ function addDays(date, days) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
-}
-
-function localDayBounds(date = new Date()) {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const end = new Date(start);
-  end.setDate(start.getDate() + 1);
-  return { start, end };
 }
 
 function chooseRandom(items, random = Math.random) {
@@ -108,7 +124,13 @@ function useLatestRef(value) {
   return ref;
 }
 
-export default function CuriousMinds({ userId, onExit }) {
+export default function CuriousMinds({
+  userId,
+  onExit,
+  assessmentPractice = null,
+  onAssessmentPracticeComplete,
+  onAssessmentPracticeReturn,
+}) {
   const { language, t } = useLanguage();
   const gameLanguage = normalizeGameLanguage(language);
   const [screen, setScreen] = useState("loading");
@@ -119,6 +141,8 @@ export default function CuriousMinds({ userId, onExit }) {
   const [loadError, setLoadError] = useState("");
   const [saveWarning, setSaveWarning] = useState("");
   const [saving, setSaving] = useState(false);
+  const [tutorialSeen, setTutorialSeen] = useState(() => readTutorialSeen(userId));
+  const [tutorialReturnScreen, setTutorialReturnScreen] = useState("hook");
 
   const [hookGuessText, setHookGuessText] = useState("");
   const [hookGuessMethod, setHookGuessMethod] = useState(null);
@@ -135,7 +159,6 @@ export default function CuriousMinds({ userId, onExit }) {
   const screenRef = useLatestRef(screen);
   const hookRef = useLatestRef(hook);
   const promptRef = useLatestRef(prompt);
-  const userStateRef = useLatestRef(userState);
   const ideasRef = useLatestRef(ideas);
   const hookGuessTextRef = useLatestRef(hookGuessText);
   const hookGuessMethodRef = useLatestRef(hookGuessMethod);
@@ -151,88 +174,20 @@ export default function CuriousMinds({ userId, onExit }) {
     t("games.curiousMinds.encouragements.five", "Ah, I had not thought of that"),
   ], [t]);
 
-  const loadUserState = useCallback(async () => {
-    if (!userId) return getDefaultCuriousMindsUserState("");
-
-    const { data, error } = await supabase
-      .from("curious_minds_user_state")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (data) return data;
-    if (error) {
-      console.warn("Curious Minds could not load progress state.", error);
-    }
-
-    const fallback = getDefaultCuriousMindsUserState(userId);
-    const saved = await supabase
-      .from("curious_minds_user_state")
-      .upsert(fallback, { onConflict: "user_id" })
-      .select("*")
-      .single();
-
-    if (saved.data) return saved.data;
-    if (saved.error) {
-      console.warn("Curious Minds could not create progress state.", saved.error);
-    }
-    return fallback;
-  }, [userId]);
-
-  const loadActiveContentRows = useCallback(async (tableName) => {
-    const primary = await supabase
-      .from(tableName)
-      .select("*")
-      .eq("is_active", true)
-      .eq("language", gameLanguage);
-
-    if (primary.error) throw primary.error;
-    if ((primary.data ?? []).length > 0 || gameLanguage === "en") return primary.data ?? [];
-
-    const fallback = await supabase
-      .from(tableName)
-      .select("*")
-      .eq("is_active", true)
-      .eq("language", "en");
-
-    if (fallback.error) throw fallback.error;
-    return fallback.data ?? [];
-  }, [gameLanguage]);
-
   const loadTodaysContent = useCallback(async () => {
     if (!userId) throw new Error("Curious Minds needs a signed-in user.");
 
-    const { start, end } = localDayBounds();
-    const [todaySessions, historySessions, hooks, prompts] = await Promise.all([
-      supabase
-        .from("curious_minds_sessions")
-        .select("hook_id,prompt_id,played_at")
-        .eq("user_id", userId)
-        .gte("played_at", start.toISOString())
-        .lt("played_at", end.toISOString()),
-      supabase
-        .from("curious_minds_sessions")
-        .select("hook_id,prompt_id,played_at")
-        .eq("user_id", userId)
-        .order("played_at", { ascending: false })
-        .limit(500),
-      loadActiveContentRows("curious_minds_hooks"),
-      loadActiveContentRows("curious_minds_prompts"),
-    ]);
+    const response = await apiFetch(`/api/games/curious-minds/content?language=${encodeURIComponent(gameLanguage)}`);
+    const payload = await response.json().catch(() => ({}));
 
-    if (todaySessions.error) throw todaySessions.error;
-    if (historySessions.error) throw historySessions.error;
-
-    const selectedHook = pickCuriousMindsContent(hooks, todaySessions.data ?? [], historySessions.data ?? [], "hook_id");
-    const selectedPrompt = pickCuriousMindsContent(prompts, todaySessions.data ?? [], historySessions.data ?? [], "prompt_id");
-
-    if (!selectedHook || !selectedPrompt) {
-      throw new Error(t("games.curiousMinds.contentUnavailable", "There is no reviewed Curious Minds content available yet."));
+    if (!response.ok) {
+      throw new Error(payload?.error ?? t("games.curiousMinds.contentUnavailable", "There is no reviewed Curious Minds content available yet."));
     }
 
-    setHook(selectedHook);
-    setPrompt(selectedPrompt);
-  }, [loadActiveContentRows, t, userId]);
+    setHook(payload.hook);
+    setPrompt(payload.prompt);
+    setUserState(payload.state ?? getDefaultCuriousMindsUserState(userId));
+  }, [gameLanguage, t, userId]);
 
   const loadGame = useCallback(async () => {
     setScreen("loading");
@@ -242,16 +197,15 @@ export default function CuriousMinds({ userId, onExit }) {
     sessionSavedRef.current = false;
 
     try {
-      const state = await loadUserState();
       await loadTodaysContent();
-      setUserState(state);
-      setScreen("hook");
+      setTutorialReturnScreen("hook");
+      setScreen(readTutorialSeen(userId) ? "hook" : "tutorial");
     } catch (error) {
       console.warn("Curious Minds could not load.", error);
       setLoadError(error instanceof Error ? error.message : t("games.curiousMinds.contentUnavailable", "There is no reviewed Curious Minds content available yet."));
       setScreen("error");
     }
-  }, [loadTodaysContent, loadUserState, t]);
+  }, [loadTodaysContent, t]);
 
   useEffect(() => {
     void loadGame();
@@ -264,66 +218,36 @@ export default function CuriousMinds({ userId, onExit }) {
     const currentHook = hookRef.current;
     const currentPrompt = promptRef.current;
     const currentIdeas = ideasRef.current;
-    const playedAt = new Date().toISOString();
     const durationSeconds = Math.max(0, Math.round((Date.now() - sessionStartRef.current) / 1000));
 
     const payload = {
-      user_id: userId,
-      played_at: playedAt,
-      hook_id: currentHook?.id ?? null,
-      hook_guess_text: hookGuessTextRef.current || null,
-      hook_guess_input_method: hookGuessMethodRef.current,
-      prompt_id: currentPrompt?.id ?? null,
-      ideas_generated: currentIdeas,
-      ideas_count: currentIdeas.length,
-      callback_attempted: callbackAttemptedRef.current,
-      callback_response_text: callbackTextRef.current || null,
-      callback_input_method: callbackMethodRef.current,
+      hookId: currentHook?.id ?? null,
+      hookGuessText: hookGuessTextRef.current || null,
+      hookGuessInputMethod: hookGuessMethodRef.current,
+      promptId: currentPrompt?.id ?? null,
+      ideasGenerated: currentIdeas,
+      callbackAttempted: callbackAttemptedRef.current,
+      callbackResponseText: callbackTextRef.current || null,
+      callbackInputMethod: callbackMethodRef.current,
       completed,
       abandoned,
-      duration_seconds: durationSeconds,
+      durationSeconds,
+      language: gameLanguage,
     };
 
-    const saved = await supabase
-      .from("curious_minds_sessions")
-      .insert(payload)
-      .select("*")
-      .single();
+    const response = await apiFetch("/api/games/curious-minds/sessions", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const saved = await response.json().catch(() => ({}));
 
-    if (saved.error) {
+    if (!response.ok) {
       sessionSavedRef.current = false;
-      throw saved.error;
+      throw new Error(saved?.error ?? "Curious Minds session could not be saved.");
     }
 
-    if (completed) {
-      await recordCognitiveSession({
-        userId,
-        activityType: "curious_minds",
-        domain: "divergent_thinking",
-        secondaryDomain: "attention",
-        difficulty: 1,
-        difficultyScale: "none",
-        completed: true,
-        abandoned: false,
-        score: Math.min(100, currentIdeas.length * 10),
-        accuracyPct: callbackAttemptedRef.current ? 100 : 0,
-        speedPct: null,
-        durationSeconds,
-        language: gameLanguage,
-        source: "curious_minds",
-        sourceTable: "curious_minds_sessions",
-        sourceSessionId: saved.data?.id ?? null,
-        metadata: {
-          hookId: currentHook?.id ?? null,
-          promptId: currentPrompt?.id ?? null,
-          promptType: currentPrompt?.prompt_type ?? null,
-          ideasCount: currentIdeas.length,
-          callbackAttempted: callbackAttemptedRef.current,
-        },
-      });
-    }
-
-    return saved.data ?? null;
+    if (saved.state) setUserState(saved.state);
+    return saved.session ?? null;
   }, [
     callbackAttemptedRef,
     callbackMethodRef,
@@ -336,32 +260,6 @@ export default function CuriousMinds({ userId, onExit }) {
     promptRef,
     userId,
   ]);
-
-  const updateUserState = useCallback(async () => {
-    const latestState = userId ? await loadUserState().catch(() => userStateRef.current) : userStateRef.current;
-    const next = {
-      ...getNextCuriousMindsStateAfterSession(latestState),
-      user_id: userId,
-    };
-
-    setUserState(next);
-    if (!userId) return next;
-
-    const saved = await supabase
-      .from("curious_minds_user_state")
-      .upsert(next, { onConflict: "user_id" })
-      .select("*")
-      .single();
-
-    if (saved.data) {
-      setUserState(saved.data);
-      return saved.data;
-    }
-    if (saved.error) {
-      console.warn("Curious Minds could not save progress state.", saved.error);
-    }
-    return next;
-  }, [loadUserState, userId, userStateRef]);
 
   const handleHookSubmit = (text, method) => {
     setHookGuessText(text);
@@ -400,7 +298,10 @@ export default function CuriousMinds({ userId, onExit }) {
     setSaveWarning("");
     try {
       await saveSession({ completed: true, abandoned: false });
-      await updateUserState();
+      onAssessmentPracticeComplete?.({
+        practiceTitle: assessmentPractice?.practiceTitle,
+        ideasGenerated: ideasRef.current.length,
+      });
     } catch (error) {
       console.warn("Curious Minds could not save the completed session.", error);
       setSaveWarning(t("games.curiousMinds.saveWarning", "Your session summary is shown here, but saving may need to be retried."));
@@ -424,6 +325,21 @@ export default function CuriousMinds({ userId, onExit }) {
     onExit?.();
   };
 
+  const markTutorialSeen = () => {
+    writeTutorialSeen(userId);
+    setTutorialSeen(true);
+  };
+
+  const openInstructions = () => {
+    setTutorialReturnScreen(screenRef.current === "tutorial" ? "hook" : screenRef.current || "hook");
+    setScreen("tutorial");
+  };
+
+  const closeTutorial = () => {
+    markTutorialSeen();
+    setScreen(tutorialReturnScreen || "hook");
+  };
+
   if (screen === "loading") {
     return (
       <main className="flex min-h-screen items-center justify-center px-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
@@ -441,17 +357,67 @@ export default function CuriousMinds({ userId, onExit }) {
         <header className="flex items-center justify-between gap-4">
           <img src={vyvaLogo} alt="VYVA" className="h-12 w-12 rounded-2xl" />
           {screen !== "close" ? (
-            <button
-              type="button"
-              onClick={() => void exitGame()}
-              disabled={saving}
-              className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-6 text-[22px] font-extrabold shadow-vyva-card disabled:opacity-50"
-            >
-              <ArrowLeft size={24} aria-hidden="true" />
-              {t("common.exit", "Exit")}
-            </button>
+            <div className="flex items-center gap-3">
+              {tutorialSeen ? (
+                <button
+                  type="button"
+                  onClick={openInstructions}
+                  aria-label={t("games.curiousMinds.instructions", "Instructions")}
+                  title={t("games.curiousMinds.instructions", "Instructions")}
+                  className="flex min-h-[64px] w-[64px] items-center justify-center rounded-full bg-white text-vyva-purple shadow-vyva-card"
+                >
+                  <CircleHelp size={28} aria-hidden="true" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void exitGame()}
+                disabled={saving}
+                className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-6 text-[22px] font-extrabold shadow-vyva-card disabled:opacity-50"
+              >
+                <ArrowLeft size={24} aria-hidden="true" />
+                {t("common.exit", "Exit")}
+              </button>
+            </div>
           ) : null}
         </header>
+
+        {screen === "tutorial" ? (
+          <section className="mt-6 rounded-[28px] border bg-white p-5 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
+            <div className="mx-auto flex h-[84px] w-[84px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
+              <Lightbulb size={46} aria-hidden="true" />
+            </div>
+            <h1 className="mt-5 font-display text-[36px] leading-tight sm:text-[42px]">{t("games.curiousMinds.tutorialTitle", "How it works")}</h1>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {[
+                { Icon: Sparkles, label: t("games.curiousMinds.tutorialGuess", "Guess first"), bg: "#FAF7FF" },
+                { Icon: MessageCircle, label: t("games.curiousMinds.tutorialIdeas", "Share ideas"), bg: "#F0FDFA" },
+                { Icon: RefreshCw, label: t("games.curiousMinds.tutorialRemember", "Remember later"), bg: "#FFF7ED" },
+              ].map(({ Icon, label, bg }, index) => (
+                <div key={label} className="relative rounded-[22px] px-4 py-5" style={{ background: bg }}>
+                  <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-[15px] font-black text-white" style={{ background: BRAND.purple }}>
+                    {index + 1}
+                  </span>
+                  <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-vyva-purple">
+                    <Icon size={28} aria-hidden="true" />
+                  </span>
+                  <p className="mt-3 text-[20px] font-black leading-tight text-vyva-text-1">{label}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mx-auto mt-5 max-w-[28ch] text-[20px] font-bold leading-snug" style={{ color: BRAND.muted }}>
+              {t("games.curiousMinds.tutorialPace", "There are no wrong answers. Take your time.")}
+            </p>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="mt-7 min-h-[72px] w-full rounded-full px-6 text-[24px] font-black text-white shadow-vyva-card"
+              style={{ background: BRAND.purple }}
+            >
+              {t("games.curiousMinds.tutorialUnderstand", "I understand")}
+            </button>
+          </section>
+        ) : null}
 
         {screen === "error" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
@@ -634,6 +600,23 @@ export default function CuriousMinds({ userId, onExit }) {
               {t("games.curiousMinds.streakLabel", "{n} days thinking together", { n: userState?.streak_days ?? 1 })}
             </p>
             {saveWarning ? <p className="mt-4 text-[20px] font-bold text-[#92400E]">{saveWarning}</p> : null}
+            {assessmentPractice ? (
+              <div className="mt-5 rounded-[22px] border px-4 py-4 text-left" style={{ borderColor: "#A7F3D0", background: "#ECFDF5", color: BRAND.teal }}>
+                <p className="text-[18px] font-black uppercase tracking-[0.05em]">{t("brainGames.resultActions.assessmentPractice", "Assessment practice")}</p>
+                <p className="mt-1 text-[21px] font-extrabold leading-snug" style={{ color: BRAND.ink }}>
+                  {t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")}
+                </p>
+                <button
+                  type="button"
+                  onClick={onAssessmentPracticeReturn}
+                  disabled={!onAssessmentPracticeReturn}
+                  className="mt-4 min-h-[62px] w-full rounded-full px-5 text-[21px] font-black text-white shadow-vyva-card disabled:opacity-60"
+                  style={{ background: BRAND.teal }}
+                >
+                  {t("brainGames.resultActions.backToResults", "Back to my results")}
+                </button>
+              </div>
+            ) : null}
             <button
               type="button"
               onClick={onExit}

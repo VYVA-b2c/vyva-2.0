@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import { translate } from "@/i18n";
 import type { LanguageCode } from "@/i18n/languages";
 import attentionBoostersSource from "../AttentionBoostersPage.tsx?raw";
+import breathGardenSource from "../BreathGarden.jsx?raw";
 import categorySortSource from "../CategorySort.jsx?raw";
 import dualTaskSource from "../DualTaskWalk.jsx?raw";
 import executiveFunctionSource from "../ExecutiveFunctionPage.tsx?raw";
 import faceNameSource from "../FaceNameMatch.jsx?raw";
 import languageGamesSource from "../LanguageGamesPage.tsx?raw";
+import listenCloselySource from "../ListenClosely.jsx?raw";
 import numberTrailsSource from "../NumberTrails.jsx?raw";
 import rememberLaterSource from "../RememberLater.jsx?raw";
+import scentMemorySource from "../ScentMemory.jsx?raw";
 import storyRecallSource from "../memory/StoryRecallGame.tsx?raw";
 import { getGameLevel, getVariantContent } from "../memory/memoryGameRegistry";
 import spatialNavigatorSource from "../SpatialNavigator.jsx?raw";
@@ -25,15 +28,51 @@ const requiredKeys = [
   "brainGames.executiveFunction.numberTrails.title",
   "games.numberTrails.title",
   "games.numberTrails.nextTarget",
+  "games.listenClosely.title",
+  "games.listenClosely.cardDescription",
+  "games.listenClosely.introShort",
+  "games.listenClosely.taskLabel",
+  "games.listenClosely.instructionFind",
+  "games.listenClosely.instructionCompare",
+  "games.listenClosely.tutorialSubtitle",
+  "games.listenClosely.tutorialUnderstand",
+  "games.listenClosely.sampleSounds",
+  "games.listenClosely.resultGood",
+  "games.listenClosely.nextRound",
+  "games.listenClosely.levelProgressHint",
+  "games.listenClosely.levelReady",
+  "games.listenClosely.sounds.chime",
   "games.rememberLater.title",
   "games.rememberLater.intentionEvent",
   "games.rememberLater.rules.number_even",
+  "games.scentMemory.title",
+  "games.scentMemory.tutorialSubtitle",
+  "games.scentMemory.tutorialUnderstand",
+  "games.scentMemory.placeholder",
+  "brainGames.senses.scentMemory.badge",
+  "games.breathGarden.title",
+  "games.breathGarden.tutorialSubtitle",
+  "games.breathGarden.tutorialUnderstand",
+  "games.breathGarden.tapPrompt",
+  "brainGames.senses.breathGarden.badge",
+  "cognitiveDomains.arousal_regulation",
   "brainGames.language.title",
   "brainGames.language.storyRecall.ariaLabel",
   "brainGames.faceName.title",
   "brainGames.faceName.f2n",
   "brainGames.dualTask.loading",
   "brainGames.dualTask.mathAnswer",
+  "brainGames.dualTask.instructions",
+  "brainGames.dualTask.tutorialUnderstand",
+  "brainGames.dualTask.tutorialCount",
+  "brainGames.dualTask.tutorialWatch",
+  "brainGames.dualTask.tutorialTap",
+  "memory.instructions",
+  "memory.sequenceTutorialTitle",
+  "memory.sequenceTutorialUnderstand",
+  "games.curiousMinds.instructions",
+  "games.curiousMinds.tutorialTitle",
+  "games.curiousMinds.tutorialUnderstand",
   "brainGames.spatialNav.loading",
   "brainGames.spatialNav.readySoon",
   "storyRecall.readLabel",
@@ -51,12 +90,8 @@ describe("brain game shared infrastructure", () => {
     });
   });
 
-  it("falls back to English for dormant language overrides", () => {
-    expect(translate("cy", "brainGames.dualTask.title")).toBe(translate("en", "brainGames.dualTask.title"));
-  });
-
   it("keeps current games off local copy dictionaries", () => {
-    [attentionBoostersSource, categorySortSource, dualTaskSource, executiveFunctionSource, faceNameSource, languageGamesSource, numberTrailsSource, rememberLaterSource, spatialNavigatorSource, storyRecallSource].forEach((source) => {
+    [attentionBoostersSource, breathGardenSource, categorySortSource, dualTaskSource, executiveFunctionSource, faceNameSource, languageGamesSource, listenCloselySource, numberTrailsSource, rememberLaterSource, scentMemorySource, spatialNavigatorSource, storyRecallSource].forEach((source) => {
       expect(source).not.toContain("const COPY =");
       expect(source).not.toContain("const TEXT =");
       expect(source).not.toContain("COPY[");
@@ -89,8 +124,5 @@ describe("brain game shared infrastructure", () => {
         ]));
       });
     });
-
-    const firstVariant = storyLevel.variants[0];
-    expect(getVariantContent(firstVariant, "cy").title).toBe(getVariantContent(firstVariant, "en").title);
   });
 });

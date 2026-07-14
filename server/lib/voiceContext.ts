@@ -2,10 +2,12 @@ import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "../db.js";
 import {
   activityLogs,
+  checkinSessions,
   companionProfiles,
   users,
   profiles,
   medicationAdherence,
+  scheduledInteractions,
   scheduledEvents,
   socialRoomVisits,
   socialRooms,
@@ -414,6 +416,52 @@ function formatTriageReportDetailed(report: typeof triageReports.$inferSelect) {
     report.bpm ? `heart rate ${report.bpm} bpm` : null,
     report.respiratory_rate ? `respiratory rate ${report.respiratory_rate} breaths/min` : null,
   ], "");
+}
+
+function formatCheckinSession(session: typeof checkinSessions.$inferSelect) {
+  return valueList([
+    session.completed_at ? `completed ${formatDateTime(session.completed_at)}` : null,
+    session.feeling_label ? `feeling ${session.feeling_label}` : null,
+    session.overall_state ? `state ${session.overall_state}` : null,
+    session.energy_level != null ? `energy ${session.energy_level}` : null,
+    session.mood ? `mood ${session.mood}` : null,
+    session.symptoms?.length ? `symptoms ${session.symptoms.join(", ")}` : null,
+    session.safety_flags?.length ? `safety flags ${session.safety_flags.join(", ")}` : null,
+    session.flag_caregiver ? "caregiver flag requested" : null,
+  ], "");
+}
+
+function formatScheduledInteraction(interaction: typeof scheduledInteractions.$inferSelect) {
+  return valueList([
+    interaction.friendly_label || interaction.user_description || interaction.interaction_type,
+    interaction.status ? `status ${interaction.status}` : null,
+    interaction.is_paused ? "paused" : null,
+    interaction.times_of_day?.length ? `times ${interaction.times_of_day.join("/")}` : null,
+    interaction.next_run_at ? `next due ${formatDateTime(interaction.next_run_at)}` : null,
+    interaction.last_completed_at ? `last completed ${formatDateTime(interaction.last_completed_at)}` : null,
+  ], "");
+}
+
+function buildCheckinContext(input: {
+  sessions: Array<typeof checkinSessions.$inferSelect>;
+  schedules: Array<typeof scheduledInteractions.$inferSelect>;
+  now: Date;
+}) {
+  const latestSession = input.sessions[0];
+  const activeSchedule = input.schedules.find((schedule) => schedule.status === "ACTIVE" && !schedule.is_paused);
+  const overdueSchedule = input.schedules.find((schedule) => {
+    if (schedule.status !== "ACTIVE" || schedule.is_paused || !schedule.next_run_at) return false;
+    const nextRunAt = new Date(schedule.next_run_at);
+    if (!Number.isFinite(nextRunAt.getTime()) || nextRunAt.getTime() > input.now.getTime()) return false;
+    if (!schedule.last_completed_at) return true;
+    return new Date(schedule.last_completed_at).getTime() < nextRunAt.getTime();
+  });
+
+  return compactLines([
+    latestSession ? `Latest check-in: ${formatCheckinSession(latestSession)}` : "",
+    activeSchedule ? `Check-in schedule: ${formatScheduledInteraction(activeSchedule)}` : "",
+    overdueSchedule ? `Possible missed check-in: ${formatScheduledInteraction(overdueSchedule)}` : "",
+  ], 1400);
 }
 
 function dosesPerDay(scheduledTimes: string[] | null | undefined) {
@@ -1178,6 +1226,8 @@ export async function buildVoiceContext(
     latestSignalReadings,
     medicationAdherenceRows,
     scheduledEventRows,
+    checkinSessionRows,
+    checkinScheduleRows,
     userRows,
     latestVoiceExchangeRows,
     recentActivityRows,
@@ -1205,6 +1255,23 @@ export async function buildVoiceContext(
       .orderBy(desc(medicationAdherence.created_at))
       .limit(80),
     db.select().from(scheduledEvents).where(eq(scheduledEvents.user_id, userId)).orderBy(desc(scheduledEvents.scheduled_for)).limit(20),
+    db.select().from(checkinSessions).where(eq(checkinSessions.user_id, userId)).orderBy(desc(checkinSessions.completed_at)).limit(5).catch((err) => {
+      console.warn("[voiceContext] check-in sessions unavailable", err);
+      return [];
+    }),
+    db
+      .select()
+      .from(scheduledInteractions)
+      .where(and(
+        eq(scheduledInteractions.user_id, userId),
+        inArray(scheduledInteractions.interaction_type, ["CHECK_IN", "CHECKIN", "DAILY_CHECKIN"]),
+      ))
+      .orderBy(desc(scheduledInteractions.updated_at))
+      .limit(5)
+      .catch((err) => {
+        console.warn("[voiceContext] check-in schedules unavailable", err);
+        return [];
+      }),
     db.select({ last_seen_at: users.last_seen_at }).from(users).where(eq(users.id, userId)).limit(1),
     db.select().from(sessionExchanges).where(eq(sessionExchanges.user_id, userId)).orderBy(desc(sessionExchanges.created_at)).limit(1),
     db
@@ -1290,6 +1357,11 @@ export async function buildVoiceContext(
   const latestMedicalVisit = formatScheduledHealthEvent(latestVisit);
   const upcomingMedicalAppointment = formatScheduledHealthEvent(upcomingAppointment);
   const now = new Date();
+  const checkinContext = buildCheckinContext({
+    sessions: checkinSessionRows,
+    schedules: checkinScheduleRows,
+    now,
+  });
   const todayPlanDate = now.toISOString().slice(0, 10);
   const [brainCoachPlanRow] = domain === "brain_coach"
     ? await db
@@ -1483,7 +1555,7 @@ export async function buildVoiceContext(
     voice_recommendation_feedback_tool:
       "When the user clearly accepts, dismisses, or completes the recommended next step, call record_voice_recommendation_feedback with action accepted, dismissed, or completed. Do not mention the tool to the user.",
     voice_app_action_tool:
-      "When the app should open a relevant page or show visual context, call open_app_action with domain, route or action_type, title, summary, cue, and reason. Use it for medication reports, vitals, symptoms, concierge tasks, safety, brain activities, social rooms, and reports. Do not mention the tool to the user.",
+      "When the app should open a relevant page or show visual context, call open_app_action with domain, route or action_type, title, summary, cue, and reason. Use it for medication reports, vitals, symptoms, concierge tasks, safety, brain activities, social rooms, and reports. For home-service requests such as plumber or electrician, ask the relevant service-specific questions first, then call open_app_action with action_type concierge.home_service and simple fields such as service_type, urgency, problem_summary, problem_type, criteria, and intake_origin=voice. Do not mention the tool to the user.",
     voice_action_result_tool:
       "When the user accepts, dismisses, or completes an app-visible step, call record_action_result with action accepted, dismissed, or completed, plus action_id or recommendation_id when available. Do not mention the tool to the user.",
     voice_specialist_transfer_tool:
@@ -1531,10 +1603,17 @@ export async function buildVoiceContext(
   }
 
   if (domainAllows(domain, "medical")) {
+    const careContext = compactLines([
+      mobilityContext ? `Living/mobility: ${mobilityContext}` : "",
+      careTeam.length ? `Care team: ${joinList(careTeam)}` : "",
+      emergencyContact ? `Emergency contact: ${emergencyContact}` : "",
+      contactSupportModeLabel ? `Support mode: ${contactSupportModeLabel}` : "",
+    ], 1200);
     const healthProfileSummary = compactLines([
       conditions.length ? `Conditions: ${joinList(conditions)}` : "",
       allergies.length ? `Allergies: ${joinList(allergies)}` : "",
       activeMeds.length ? `Active medications: ${joinList(activeMeds)}` : "",
+      careContext,
       valueList([profile?.gp_name, profile?.gp_phone, profile?.gp_email, profile?.gp_address]) ? `GP: ${valueList([profile?.gp_name, profile?.gp_phone, profile?.gp_email, profile?.gp_address])}` : "",
       providers.length ? `Providers: ${joinList(providers)}` : "",
       careTeam.length ? `Care team: ${joinList(careTeam)}` : "",
@@ -1547,6 +1626,7 @@ export async function buildVoiceContext(
       vitalsTrend ? `Vitals trend: ${vitalsTrend}` : "",
       latestSymptomReport ? `Latest symptom report: ${latestSymptomReport}` : "",
       medicationAdherenceSummary ? `Medication adherence: ${medicationAdherenceSummary}` : "",
+      checkinContext ? `Check-in context: ${checkinContext}` : "",
       latestMedicalVisit ? `Latest medical visit: ${latestMedicalVisit}` : "",
       upcomingMedicalAppointment ? `Upcoming medical appointment: ${upcomingMedicalAppointment}` : "",
       medicationInteractionContext ? `Medication interaction context: ${medicationInteractionContext}` : "",
@@ -1556,6 +1636,7 @@ export async function buildVoiceContext(
     variables.health_conditions = joinList(conditions);
     variables.allergies = joinList(allergies);
     variables.medications = joinList(activeMeds);
+    variables.care_context = careContext;
     variables.devices = joinList(devices);
     variables.recent_health_events = joinList(recentHealthEvents);
     variables.latest_vitals_scan = latestVitalsScanSummary;
@@ -1566,9 +1647,11 @@ export async function buildVoiceContext(
     variables.recent_symptom_reports = joinList(recentSymptomReports);
     variables.medication_adherence_summary = medicationAdherenceSummary;
     variables.medication_interaction_context = medicationInteractionContext;
+    variables.checkin_context = checkinContext;
     variables.latest_medical_visit = latestMedicalVisit;
     variables.upcoming_medical_appointment = upcomingMedicalAppointment;
     variables.medical_profile_last_updated = profile?.updated_at ? formatDateTime(profile.updated_at) : "";
+    variables.emergency_contact = emergencyContact;
     variables.health_session_context = healthSessionContext;
     variables.health_context = compactLines([
       healthSessionContext,
