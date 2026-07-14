@@ -543,6 +543,17 @@ type CampaignStudioLaunchStep = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type CampaignPublishKitItem = CampaignReadinessItem & {
+  channel: Channel;
+  contentAsset: ContentAsset | null;
+  recipients: number;
+  scheduledAt: string | null;
+  actionLabel: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
 type AudienceHealthAction = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -6605,6 +6616,77 @@ export default function MarketingAdminPage() {
     : campaignNeedsActionCount > 0
       ? `${campaignNeedsActionCount} item${campaignNeedsActionCount === 1 ? "" : "s"} need action`
       : "Ready";
+  const campaignPublishKitItems: CampaignPublishKitItem[] = editingCampaign ? campaignReadinessChannels.map((channelDraft) => {
+    const capability = sendCapabilityByChannel.get(channelDraft.channel);
+    const sendCapability = capability?.sendCapability ?? (channelDraft.channel === "email" ? "enabled" : "planning_only");
+    const contentAsset = channelDraft.contentAssetId ? content.find((item) => item.id === channelDraft.contentAssetId) ?? null : null;
+    const recipients = savedCampaignRecipients.filter((recipient) => recipient.channel === channelDraft.channel).length;
+    const scheduledAt = channelDraft.scheduledAt || campaignEditDraft.scheduleStartsAt || null;
+    const emailEnabled = channelDraft.channel === "email" && sendCapability === "enabled" && capability?.locked !== true;
+    const futureSendCapable = sendCapability === "future_send_capable";
+    const noContentDetail = `Attach ${channelLabel[channelDraft.channel]} content before this channel can be published or tracked.`;
+    const unsavedDetail = "Save campaign changes so this channel uses the latest content, schedule, and recipients.";
+
+    if (!contentAsset) {
+      return {
+        key: channelDraft.id,
+        channel: channelDraft.channel,
+        title: `${channelLabel[channelDraft.channel]} content`,
+        state: "blocked",
+        detail: noContentDetail,
+        contentAsset,
+        recipients,
+        scheduledAt,
+        actionLabel: "Attach content",
+        icon: FileText,
+        onSelect: () => {
+          setCampaignEmailFeedback(noContentDetail);
+        },
+      };
+    }
+
+    if (emailEnabled) {
+      const blockedReason = campaignEmailBlockedReason || testEmailBlockedReason;
+      return {
+        key: channelDraft.id,
+        channel: channelDraft.channel,
+        title: "VYVA email send",
+        state: campaignEmailDisabled ? "needs_action" : "ready",
+        detail: campaignEmailDisabled
+          ? blockedReason || "Finish campaign setup before sending email."
+          : `${recipients || savedCampaignRecipientCount} saved recipient${(recipients || savedCampaignRecipientCount) === 1 ? "" : "s"} can be sent through VYVA email after confirmation.`,
+        contentAsset,
+        recipients: recipients || savedCampaignRecipientCount,
+        scheduledAt,
+        actionLabel: confirmingCampaignSendId === editingCampaign.id ? "Confirm send" : "Send email",
+        icon: Send,
+        disabled: campaignEmailDisabled,
+        onSelect: () => {
+          void sendCampaignEmails(editingCampaign);
+        },
+      };
+    }
+
+    return {
+      key: channelDraft.id,
+      channel: channelDraft.channel,
+      title: futureSendCapable ? "Provider handoff" : "Manual publishing",
+      state: hasUnsavedCampaignSendChanges ? "needs_action" : futureSendCapable ? "needs_action" : "planning",
+      detail: hasUnsavedCampaignSendChanges
+        ? unsavedDetail
+        : futureSendCapable
+          ? `${channelLabel[channelDraft.channel]} is planned with content ready; provider dispatch controls still need to be enabled.`
+          : `${channelLabel[channelDraft.channel]} is ready as a planning record. Preview the content, then publish or track it in the channel tool.`,
+      contentAsset,
+      recipients,
+      scheduledAt,
+      actionLabel: "Preview content",
+      icon: Eye,
+      onSelect: () => {
+        previewContent(contentAsset);
+      },
+    };
+  }) : [];
   const unmappedAudienceMemberCount = latestSyncRun
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
@@ -7585,6 +7667,54 @@ export default function MarketingAdminPage() {
                             Next step: {campaignEmailBlockedReason || testEmailBlockedReason}
                           </p>
                         ) : null}
+                      </div>
+
+                      <div className="rounded-2xl border border-[#eadfd5] bg-[#fffaf4] p-4" data-testid="marketing-campaign-publish-kit">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Publish kit</p>
+                            <h3 className="mt-1 font-serif text-2xl text-[#241133]">Channel handoff plan</h3>
+                            <p className="mt-1 text-sm font-bold text-[#7d6b65]">One place to see what can be sent in VYVA, what needs a provider later, and what should be published manually.</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignPublishKitItems.length} channel{campaignPublishKitItems.length === 1 ? "" : "s"}</Pill>
+                        </div>
+                        <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                          {campaignPublishKitItems.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-publish-kit-${item.channel}`}>
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                    <h4 className="mt-3 font-black text-[#241133]">{item.title}</h4>
+                                  </div>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </div>
+                                <p className="mt-3 text-sm font-bold leading-relaxed text-[#6f5f59]">{item.detail}</p>
+                                <div className="mt-3 grid gap-2 text-xs font-bold text-[#7d6b65]">
+                                  <div className="rounded-lg bg-white px-3 py-2">
+                                    <span className="font-black text-[#241133]">Content:</span> {item.contentAsset?.title ?? "Missing"}
+                                  </div>
+                                  <div className="rounded-lg bg-white px-3 py-2">
+                                    <span className="font-black text-[#241133]">Recipients:</span> {item.recipients}
+                                  </div>
+                                  <div className="rounded-lg bg-white px-3 py-2">
+                                    <span className="font-black text-[#241133]">Timing:</span> {item.scheduledAt ? formatDate(fromDateTimeLocal(item.scheduledAt)) : "Not scheduled"}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={item.onSelect}
+                                  disabled={item.disabled}
+                                  className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                  data-testid={`button-marketing-campaign-publish-kit-${item.channel}`}
+                                >
+                                  <Icon size={15} /> {item.actionLabel}
+                                </button>
+                              </article>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <div className="grid gap-3 xl:grid-cols-2">

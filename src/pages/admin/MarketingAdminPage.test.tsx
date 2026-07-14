@@ -2368,6 +2368,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-readiness-recipients")).toHaveTextContent("1 saved recipient");
     expect(screen.getByTestId("marketing-campaign-readiness-email")).toHaveTextContent("Email can use the existing VYVA dispatcher");
     expect(screen.getByTestId("marketing-campaign-readiness-other-channels")).toHaveTextContent("Planning");
+    expect(screen.getByTestId("marketing-campaign-publish-kit")).toHaveTextContent("Channel handoff plan");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("VYVA email send");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved recipient can be sent through VYVA email");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Manual publishing");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview the content, then publish or track it in the channel tool.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin"));
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("66 sent");
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("44");
