@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -585,6 +585,14 @@ type CampaignStudioLaunchBriefItem = {
 };
 
 type CampaignStudioLaunchStep = CampaignReadinessItem & {
+  actionLabel: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
+type CampaignPerformanceInsight = CampaignReadinessItem & {
+  value: string;
   actionLabel: string;
   icon: LucideIcon;
   disabled?: boolean;
@@ -3739,6 +3747,15 @@ function sumMarketingMetrics(metrics: MarketingCampaignMetric[]): MarketingAnaly
   }), { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, replied: 0, socialEngagement: 0 });
 }
 
+function metricRate(numerator: number, denominator: number) {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 100);
+}
+
+function metricRateLabel(numerator: number, denominator: number) {
+  return denominator > 0 ? `${metricRate(numerator, denominator)}%` : "No data";
+}
+
 function summarizeCampaignMetrics(metrics: MarketingCampaignMetric[]): CampaignMetricSummary {
   const totals = sumMarketingMetrics(metrics);
   const latestMetricDate = metrics
@@ -5016,6 +5033,111 @@ export default function MarketingAdminPage() {
     }
     return new Map(Array.from(grouped.entries()).map(([campaignId, metrics]) => [campaignId, summarizeCampaignMetrics(metrics)]));
   }, [campaignMetrics]);
+
+  const startCampaignEdit = useCallback((campaign: Campaign) => {
+    setEditingCampaignId(campaign.id);
+    setCampaignEditDraft(campaignEditDraftFromCampaign(campaign, audiences));
+    setConfirmingCampaignDeleteId(null);
+    setConfirmingCampaignSendId(null);
+    setMessage("");
+    setTestEmailFeedback("");
+    setCampaignEmailFeedback("");
+  }, [audiences]);
+
+  const campaignPerformanceInsights = useMemo<CampaignPerformanceInsight[]>(() => {
+    const grouped = new Map<string, MarketingCampaignMetric[]>();
+    for (const metric of visibleCampaignMetrics) {
+      if (!metric.campaignId) continue;
+      grouped.set(metric.campaignId, [...(grouped.get(metric.campaignId) ?? []), metric]);
+    }
+    const campaignRows = Array.from(grouped.entries())
+      .map(([campaignId, metrics]) => {
+        const campaign = campaignById.get(campaignId) ?? null;
+        const summary = summarizeCampaignMetrics(metrics);
+        const reached = summary.delivered || summary.sent;
+        return {
+          campaign,
+          summary,
+          openRate: metricRate(summary.opened, reached),
+          clickRate: metricRate(summary.clicked, summary.opened),
+          reached,
+        };
+      })
+      .filter((item): item is {
+        campaign: Campaign;
+        summary: CampaignMetricSummary;
+        openRate: number;
+        clickRate: number;
+        reached: number;
+      } => Boolean(item.campaign));
+    const insights: CampaignPerformanceInsight[] = [];
+    const bestEngagement = [...campaignRows].sort((a, b) => {
+      if (b.openRate !== a.openRate) return b.openRate - a.openRate;
+      return b.summary.clicked - a.summary.clicked;
+    })[0];
+    if (bestEngagement) {
+      insights.push({
+        key: "best-engagement",
+        title: "Best engagement",
+        value: `${metricRateLabel(bestEngagement.summary.opened, bestEngagement.reached)} open rate`,
+        detail: `${bestEngagement.campaign.name} has ${bestEngagement.summary.opened} opens and ${bestEngagement.summary.clicked} clicks from ${bestEngagement.reached} reached contacts.`,
+        state: bestEngagement.summary.clicked > 0 ? "ready" : "planning",
+        actionLabel: "Open winner",
+        icon: BarChart3,
+        disabled: campaignSaving,
+        onSelect: () => {
+          startCampaignEdit(bestEngagement.campaign);
+          setActiveTab("dashboard");
+          setMessage(`Opened "${bestEngagement.campaign.name}" from performance insight.`);
+        },
+      });
+    }
+    const ctaOpportunity = [...campaignRows]
+      .filter((item) => item.summary.opened > 0)
+      .sort((a, b) => a.clickRate - b.clickRate || b.summary.opened - a.summary.opened)[0];
+    if (ctaOpportunity) {
+      insights.push({
+        key: "cta-opportunity",
+        title: "CTA opportunity",
+        value: `${metricRateLabel(ctaOpportunity.summary.clicked, ctaOpportunity.summary.opened)} click rate`,
+        detail: `${ctaOpportunity.summary.opened} people opened ${ctaOpportunity.campaign.name}, but ${ctaOpportunity.summary.clicked} clicked. Try a clearer CTA or offer.`,
+        state: ctaOpportunity.clickRate < 12 ? "needs_action" : "planning",
+        actionLabel: "Improve CTA",
+        icon: Sparkles,
+        disabled: campaignSaving,
+        onSelect: () => {
+          startCampaignEdit(ctaOpportunity.campaign);
+          setActiveTab("dashboard");
+          setMessage(`Opened "${ctaOpportunity.campaign.name}" to improve the CTA from performance data.`);
+        },
+      });
+    }
+    const visibleTotals = sumMarketingMetrics(visibleCampaignMetrics);
+    if (visibleTotals.sent > 0) {
+      const issueCount = visibleTotals.bounced + visibleTotals.unsubscribed;
+      insights.push({
+        key: "deliverability",
+        title: issueCount > 0 ? "Deliverability review" : "Deliverability clean",
+        value: `${visibleTotals.bounced} bounced / ${visibleTotals.unsubscribed} unsubscribed`,
+        detail: issueCount > 0
+          ? "Review consent and contact quality before the next audience snapshot."
+          : `${metricRateLabel(visibleTotals.delivered, visibleTotals.sent)} delivery across visible performance rows.`,
+        state: issueCount > 0 ? "needs_action" : "ready",
+        actionLabel: issueCount > 0 ? "Review contacts" : "View contacts",
+        icon: UsersRound,
+        disabled: false,
+        onSelect: () => {
+          setActiveTab("contacts");
+          setContactView("contacts");
+          setContactConsentFilter(visibleTotals.unsubscribed > 0 ? "opted_out" : "all");
+          setContactFeedback(issueCount > 0
+            ? "Review contacts with possible consent or deliverability issues."
+            : "Viewing contacts after clean deliverability review.");
+        },
+      });
+    }
+    return insights;
+  }, [visibleCampaignMetrics, campaignById, campaignSaving, startCampaignEdit]);
 
   const visibleContent = useMemo(() => content.filter((item) => {
     const contentMatchesSearch = matchesSearch(search, [
@@ -7385,16 +7507,6 @@ export default function MarketingAdminPage() {
     }
   }
 
-  function startCampaignEdit(campaign: Campaign) {
-    setEditingCampaignId(campaign.id);
-    setCampaignEditDraft(campaignEditDraftFromCampaign(campaign, audiences));
-    setConfirmingCampaignDeleteId(null);
-    setConfirmingCampaignSendId(null);
-    setMessage("");
-    setTestEmailFeedback("");
-    setCampaignEmailFeedback("");
-  }
-
   function openCampaignFromCalendar(campaign: Campaign) {
     startCampaignEdit(campaign);
     setActiveTab("dashboard");
@@ -9471,61 +9583,91 @@ export default function MarketingAdminPage() {
                 {visibleCampaignMetrics.length === 0 ? (
                   <EmptyState text={campaignMetrics.length ? "No imported analytics match the current filters." : "No campaign analytics imported yet."} />
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
-                    <table className="w-full border-collapse text-left text-sm">
-                      <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
-                        <tr>
-                          <th className="px-4 py-3">Campaign</th>
-                          <th className="px-4 py-3">Channel</th>
-                          <th className="px-4 py-3">Sent</th>
-                          <th className="px-4 py-3">Delivered</th>
-                          <th className="px-4 py-3">Opened</th>
-                          <th className="px-4 py-3">Clicked</th>
-                          <th className="px-4 py-3">Source</th>
-                          <th className="px-4 py-3">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visibleCampaignMetrics.map((metric) => {
-                          const linkedCampaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
-                          return (
-                            <tr key={metric.id} className="border-t border-[#f0e7df]">
-                              <td className="px-4 py-3 font-black">
-                                <p>{metric.campaignName || metric.lovableExternalId || "Unlinked campaign"}</p>
-                                {metric.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable metric ID: {metric.lovableExternalId}</p> : null}
-                              </td>
-                              <td className="px-4 py-3 font-bold">{metric.channel}</td>
-                              <td className="px-4 py-3 font-bold">{metric.sent}</td>
-                              <td className="px-4 py-3 font-bold">{metric.delivered}</td>
-                              <td className="px-4 py-3 font-bold">{metric.opened}</td>
-                              <td className="px-4 py-3 font-bold">{metric.clicked}</td>
-                              <td className="px-4 py-3 font-bold">{metric.source}</td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-2">
-                                  {linkedCampaign ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        startCampaignEdit(linkedCampaign);
-                                        setMessage(`Opened campaign "${linkedCampaign.name}" from imported analytics.`);
-                                      }}
-                                      className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
-                                      disabled={campaignSaving}
-                                      data-testid={`button-marketing-open-metric-campaign-${metric.id}`}
-                                    >
-                                      <ExternalLink size={13} /> Open campaign
-                                    </button>
-                                  ) : (
-                                    <Pill className="bg-amber-50 text-amber-800">Unlinked</Pill>
-                                  )}
-                                  <MetadataPanel title="Imported metric metadata" value={metric.metadata} testId={`marketing-analytics-metadata-${metric.id}`} />
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div className="grid gap-4">
+                    <div className="grid gap-3 md:grid-cols-3" data-testid="marketing-performance-insights">
+                      {campaignPerformanceInsights.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={item.onSelect}
+                            disabled={item.disabled}
+                            className={`rounded-xl border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)} ${item.disabled ? "" : "hover:border-purple-300 hover:shadow-sm"}`}
+                            data-testid={`button-marketing-performance-insight-${item.key}`}
+                          >
+                            <span className="flex items-start justify-between gap-2">
+                              <span className="grid h-9 w-9 place-items-center rounded-xl bg-white shadow-sm">
+                                <Icon size={16} aria-hidden="true" />
+                              </span>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </span>
+                            <span className="mt-3 block text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</span>
+                            <span className="mt-1 block text-xl font-black text-[#241133]">{item.value}</span>
+                            <span className="mt-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                            <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                              {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
+                      <table className="w-full border-collapse text-left text-sm">
+                        <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+                          <tr>
+                            <th className="px-4 py-3">Campaign</th>
+                            <th className="px-4 py-3">Channel</th>
+                            <th className="px-4 py-3">Sent</th>
+                            <th className="px-4 py-3">Delivered</th>
+                            <th className="px-4 py-3">Opened</th>
+                            <th className="px-4 py-3">Clicked</th>
+                            <th className="px-4 py-3">Source</th>
+                            <th className="px-4 py-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleCampaignMetrics.map((metric) => {
+                            const linkedCampaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
+                            return (
+                              <tr key={metric.id} className="border-t border-[#f0e7df]">
+                                <td className="px-4 py-3 font-black">
+                                  <p>{metric.campaignName || metric.lovableExternalId || "Unlinked campaign"}</p>
+                                  {metric.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable metric ID: {metric.lovableExternalId}</p> : null}
+                                </td>
+                                <td className="px-4 py-3 font-bold">{metric.channel}</td>
+                                <td className="px-4 py-3 font-bold">{metric.sent}</td>
+                                <td className="px-4 py-3 font-bold">{metric.delivered}</td>
+                                <td className="px-4 py-3 font-bold">{metric.opened}</td>
+                                <td className="px-4 py-3 font-bold">{metric.clicked}</td>
+                                <td className="px-4 py-3 font-bold">{metric.source}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex flex-wrap gap-2">
+                                    {linkedCampaign ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          startCampaignEdit(linkedCampaign);
+                                          setMessage(`Opened campaign "${linkedCampaign.name}" from imported analytics.`);
+                                        }}
+                                        className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                        disabled={campaignSaving}
+                                        data-testid={`button-marketing-open-metric-campaign-${metric.id}`}
+                                      >
+                                        <ExternalLink size={13} /> Open campaign
+                                      </button>
+                                    ) : (
+                                      <Pill className="bg-amber-50 text-amber-800">Unlinked</Pill>
+                                    )}
+                                    <MetadataPanel title="Imported metric metadata" value={metric.metadata} testId={`marketing-analytics-metadata-${metric.id}`} />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </SectionCard>

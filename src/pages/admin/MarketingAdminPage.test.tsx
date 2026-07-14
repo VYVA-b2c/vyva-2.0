@@ -811,6 +811,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Social post: 1");
     expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics snapshots");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Best engagement");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("68% open rate");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("CTA opportunity");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("9% click rate");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Deliverability clean");
+    fireEvent.click(screen.getByTestId("button-marketing-performance-insight-cta-opportunity"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByText('Opened "Caregiver welcome" to improve the CTA from performance data.')).toBeInTheDocument();
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Overflow metric 10");
     expect(openMetadataPanel("marketing-analytics-metadata-metric-1")).toHaveTextContent("metric-provider-1");
