@@ -3841,6 +3841,54 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("panel-provider-reply-confirmed-reply-route-confirmed")).toBeInTheDocument();
   });
 
+  it("shows structured execution details when a pending task needs more information", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "ride-needs-destination",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "Book a ride to the clinic.",
+            action_payload: {
+              pickup_address: "Saved home",
+              requested_time: "tomorrow 09:00",
+              execution_task: {
+                version: 1,
+                flow_reference: "FLOW_TRANSPORT_BOOKING",
+                action_type: "phone_call",
+                requested_tool: "phone_call",
+                active_tool: "phone_call",
+                lifecycle_status: "needs_info",
+                provider_ready: true,
+                missing_requirements: [{
+                  key: "destination",
+                  label_en: "Destination",
+                  label_es: "Destino",
+                }],
+                confirmation_required: true,
+                user_confirmed: false,
+                created_at: "2026-07-14T10:00:00.000Z",
+                updated_at: "2026-07-14T10:00:00.000Z",
+              },
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-concierge-execution-status");
+    expect(panel).toHaveAttribute("data-phase", "needs_info");
+    expect(panel).toHaveTextContent("Needs details");
+    expect(panel).toHaveTextContent("Add Destination to continue.");
+  });
+
   it("opens a replacement transport search when a provider is unavailable", async () => {
     let triggerBody: { use_case?: string; action_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {

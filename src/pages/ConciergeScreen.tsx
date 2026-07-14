@@ -98,6 +98,10 @@ import {
   toolFromAppointmentChannel,
   type ConciergeToolReadinessResult,
 } from "../../shared/conciergeToolReadiness";
+import type {
+  ConciergeExecutionTask,
+  ConciergeExecutionTaskStatus,
+} from "../../shared/conciergeActionExecution";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -5841,17 +5845,112 @@ function canRecordProviderReply(status: ConciergeFollowThroughStatus | null): bo
 type ConciergeExecutionTone = "purple" | "blue" | "green" | "amber" | "red";
 
 type ConciergeExecutionStatusSummary = {
-  phase: "needs_ok" | "being_prepared" | "waiting" | "ready_to_save" | "completed" | "cancelled" | "attention";
+  phase: "needs_ok" | "needs_info" | "being_prepared" | "waiting" | "ready_to_save" | "completed" | "cancelled" | "attention";
   label: string;
   helper: string;
   tone: ConciergeExecutionTone;
 };
 
+function getConciergeExecutionTask(item: ConciergePendingItem): ConciergeExecutionTask | null {
+  const task = item.action_payload?.execution_task;
+  if (!isRecord(task) || task.version !== 1) return null;
+  const lifecycleStatus = typeof task.lifecycle_status === "string"
+    ? task.lifecycle_status
+    : "";
+  if (!["ready", "needs_info", "in_progress", "done", "failed", "cancelled"].includes(lifecycleStatus)) return null;
+  return task as unknown as ConciergeExecutionTask;
+}
+
+function executionActionLabel(actionType: ConciergeExecutionTask["action_type"], isSpanish: boolean): string {
+  switch (actionType) {
+    case "phone_call":
+      return isSpanish ? "llamada" : "call";
+    case "message":
+      return isSpanish ? "mensaje" : "message";
+    case "booking_link":
+      return isSpanish ? "reserva" : "booking";
+    case "provider_search":
+      return isSpanish ? "busqueda de proveedor" : "provider search";
+    case "admin_paperwork":
+      return isSpanish ? "gestion" : "paperwork";
+    case "web_search":
+      return isSpanish ? "busqueda segura" : "safe search";
+    case "shopping_request":
+      return isSpanish ? "compra" : "shopping";
+    case "manual_review":
+    default:
+      return isSpanish ? "revision VYVA" : "VYVA review";
+  }
+}
+
+function executionTaskStatusSummary(task: ConciergeExecutionTask, isSpanish: boolean): ConciergeExecutionStatusSummary {
+  const missing = task.missing_requirements?.[0];
+  const missingLabel = missing ? (isSpanish ? missing.label_es : missing.label_en) : "";
+  const actionLabel = executionActionLabel(task.action_type, isSpanish);
+  const statusCopy: Record<ConciergeExecutionTaskStatus, ConciergeExecutionStatusSummary> = {
+    ready: {
+      phase: "needs_ok",
+      label: isSpanish ? "Lista para tu OK" : "Ready for your OK",
+      helper: isSpanish
+        ? `VYVA tiene lo necesario para preparar la ${actionLabel}.`
+        : `VYVA has what it needs to prepare the ${actionLabel}.`,
+      tone: "purple",
+    },
+    needs_info: {
+      phase: "needs_info",
+      label: isSpanish ? "Faltan datos" : "Needs details",
+      helper: missingLabel
+        ? (isSpanish ? `Anade ${missingLabel} para seguir.` : `Add ${missingLabel} to continue.`)
+        : (isSpanish ? "Anade un detalle para seguir." : "Add one detail to continue."),
+      tone: "amber",
+    },
+    in_progress: {
+      phase: "waiting",
+      label: isSpanish ? "En marcha" : "In progress",
+      helper: isSpanish
+        ? "La tarjeta se queda aqui hasta guardar el resultado."
+        : "This stays here until the result is saved.",
+      tone: "blue",
+    },
+    done: {
+      phase: "completed",
+      label: isSpanish ? "Guardado" : "Saved",
+      helper: isSpanish ? "El resultado esta en el historial." : "The result is in the history.",
+      tone: "green",
+    },
+    failed: {
+      phase: "attention",
+      label: isSpanish ? "Necesita revision" : "Needs review",
+      helper: isSpanish ? "Revisa el siguiente paso antes de continuar." : "Review the next step before continuing.",
+      tone: "red",
+    },
+    cancelled: {
+      phase: "cancelled",
+      label: isSpanish ? "Cancelado" : "Cancelled",
+      helper: isSpanish ? "Esta gestion no seguira adelante." : "This task will not continue.",
+      tone: "amber",
+    },
+  };
+  return statusCopy[task.lifecycle_status] ?? statusCopy.ready;
+}
+
 function buildConciergeExecutionStatus(
   item: ConciergePendingItem,
-  status: ConciergeFollowThroughStatus,
+  status: ConciergeFollowThroughStatus | null,
   isSpanish: boolean,
 ): ConciergeExecutionStatusSummary {
+  const task = getConciergeExecutionTask(item);
+  if (task) return executionTaskStatusSummary(task, isSpanish);
+
+  if (!status) {
+    return {
+      phase: "needs_ok",
+      label: isSpanish ? "Necesita tu OK" : "Needs your OK",
+      helper: isSpanish ? "Confirmas antes de enviar, llamar o reservar." : "You confirm before anything is sent, called, or booked.",
+      tone: "purple",
+    };
+  }
+
   if (item.status === "failed" || status.activeStepId === "attention") {
     return {
       phase: "attention",
@@ -10221,7 +10320,7 @@ const ConciergeScreen = () => {
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
   const activeActionTimeline = activeAction ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
-  const activeActionExecutionStatus = activeAction && activeActionTimeline
+  const activeActionExecutionStatus = activeAction
     ? buildConciergeExecutionStatus(activeAction, activeActionTimeline, isSpanish)
     : null;
   const activeActionCanRecordProviderReply = canRecordProviderReply(activeActionTimeline);
