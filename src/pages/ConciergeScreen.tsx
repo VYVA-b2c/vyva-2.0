@@ -52,6 +52,14 @@ import {
 } from "@/guidedActions/useGuidedAction";
 import type { GuidedFlowRef } from "@/guidedActions/flowCatalog";
 import {
+  buildConciergeHandoffDetail,
+  conciergeHandoffConfirmationItems,
+  conciergeHandoffRouteMeta,
+  conciergeHandoffSearchQuery,
+  isConciergeHandoffFlow,
+  type ConciergeHandoffFlowRef,
+} from "@/concierge/guidedHandoffs";
+import {
   buildHomeServiceIntake,
   homeServiceQuestionsFor,
   homeServiceTypeLabel,
@@ -2384,6 +2392,53 @@ function savedPharmacyName(
   );
 }
 
+function providerSearchText(
+  provider: NonNullable<ConciergeProfileSummary["savedProviders"]>[number],
+) {
+  return [provider.role, provider.category, provider.name]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+}
+
+function profileHasSavedMedicalProvider(
+  profile: ConciergeProfileSummary | null | undefined,
+) {
+  if (profile?.serviceReadiness?.hasSavedDoctor) return true;
+  return (
+    profile?.savedProviders?.some((provider) =>
+      /doctor|gp|clinic|medical|health|medic|medico|salud/.test(
+        providerSearchText(provider),
+      ),
+    ) ?? false
+  );
+}
+
+function savedMedicalProviderName(
+  profile: ConciergeProfileSummary | null | undefined,
+) {
+  return (
+    profile?.savedProviders?.find((provider) =>
+      /doctor|gp|clinic|medical|health|medic|medico|salud/.test(
+        providerSearchText(provider),
+      ),
+    )?.name?.trim() || ""
+  );
+}
+
+function profileHasAnySavedProvider(
+  profile: ConciergeProfileSummary | null | undefined,
+) {
+  return (profile?.savedProviders?.length ?? 0) > 0;
+}
+
+function firstSavedProviderName(
+  profile: ConciergeProfileSummary | null | undefined,
+) {
+  return profile?.savedProviders?.find((provider) => provider.name?.trim())
+    ?.name?.trim() ?? "";
+}
+
 function getFormAutomationPlan(item: ConciergePendingItem): {
   adapterLabel: string | null;
   missingFields: string[];
@@ -2889,6 +2944,26 @@ const ConciergeScreen = () => {
       onAnswersChange: applyMedicalAppointmentGuidedAnswers,
     },
   );
+  const hasSavedMedicalProvider =
+    profileHasSavedMedicalProvider(conciergeProfile);
+  const medicalSavedProviderName = savedMedicalProviderName(conciergeProfile);
+  useEffect(() => {
+    if (
+      !appointmentOpen ||
+      routePrefill?.guidedFlow !== "concierge.book_medical_appointment"
+    )
+      return;
+    if (!hasSavedMedicalProvider) return;
+    if (guidedTextAnswer(medicalAppointmentGuidedAction.answers, "provider"))
+      return;
+    medicalAppointmentGuidedAction.answerStep("provider", "saved_provider");
+  }, [
+    appointmentOpen,
+    hasSavedMedicalProvider,
+    medicalAppointmentGuidedAction,
+    medicalAppointmentGuidedAction.answers,
+    routePrefill?.guidedFlow,
+  ]);
   const applyMedicationHelpGuidedAnswers = useCallback(
     (answers: GuidedActionAnswers) => {
       const detail = buildGuidedMedicationHelpDetail(answers, isSpanish);
@@ -2913,6 +2988,63 @@ const ConciergeScreen = () => {
     guidedTextAnswer(medicationHelpGuidedAction.answers, "need") === "refill";
   const isMedicationPharmacyBlocked =
     isMedicationPharmacyRequest && !hasSavedMedicationPharmacy;
+  const applyPaperworkHandoffAnswers = useCallback(
+    (answers: GuidedActionAnswers) => {
+      const detail = buildConciergeHandoffDetail(
+        "concierge.paperwork_help",
+        answers,
+        isSpanish,
+      );
+      setInput((current) => (current.trim() ? current : detail));
+    },
+    [isSpanish],
+  );
+  const paperworkGuidedAction = useGuidedAction("concierge.paperwork_help", {
+    active: routePrefill?.guidedFlow === "concierge.paperwork_help",
+    persistKey: "vyva_guided_action_concierge_paperwork_help_v1",
+    onAnswersChange: applyPaperworkHandoffAnswers,
+  });
+  const applyProviderComparisonAnswers = useCallback(
+    (answers: GuidedActionAnswers) => {
+      const detail = buildConciergeHandoffDetail(
+        "concierge.provider_comparison",
+        answers,
+        isSpanish,
+      );
+      setInput((current) => (current.trim() ? current : detail));
+    },
+    [isSpanish],
+  );
+  const providerComparisonGuidedAction = useGuidedAction(
+    "concierge.provider_comparison",
+    {
+      active: routePrefill?.guidedFlow === "concierge.provider_comparison",
+      persistKey: "vyva_guided_action_concierge_provider_comparison_v1",
+      onAnswersChange: applyProviderComparisonAnswers,
+    },
+  );
+  const applyCompanyDocumentReviewAnswers = useCallback(
+    (answers: GuidedActionAnswers) => {
+      const detail = buildConciergeHandoffDetail(
+        "concierge.company_document_review",
+        answers,
+        isSpanish,
+      );
+      setInput((current) => (current.trim() ? current : detail));
+    },
+    [isSpanish],
+  );
+  const companyDocumentReviewGuidedAction = useGuidedAction(
+    "concierge.company_document_review",
+    {
+      active:
+        routePrefill?.guidedFlow === "concierge.company_document_review",
+      persistKey: "vyva_guided_action_concierge_company_document_review_v1",
+      onAnswersChange: applyCompanyDocumentReviewAnswers,
+    },
+  );
+  const hasAnySavedProvider = profileHasAnySavedProvider(conciergeProfile);
+  const savedProviderName = firstSavedProviderName(conciergeProfile);
 
   const { data: pendingActions = [], isLoading: pendingLoading } = useQuery({
     queryKey: ["/api/concierge/actions/pending"],
@@ -3791,6 +3923,8 @@ const ConciergeScreen = () => {
           ? ("concierge.book_ride" as const)
           : prefill.kind === "appointment"
             ? ("concierge.book_medical_appointment" as const)
+            : prefill.source === "scam_guard"
+              ? ("concierge.company_document_review" as const)
             : undefined),
       message,
     };
@@ -3946,6 +4080,31 @@ const ConciergeScreen = () => {
     sendMessage(text, nextHistory);
   }
 
+  function sendGuidedHandoffToConcierge(ref: ConciergeHandoffFlowRef) {
+    const action = guidedHandoffActionFor(ref);
+    const text = buildConciergeHandoffDetail(ref, action.answers, isSpanish);
+    if (!text.trim() || chatLoading) return;
+
+    if (ref === "concierge.provider_comparison") {
+      const query =
+        conciergeHandoffSearchQuery(ref, action.answers, isSpanish) ||
+        text.replace(/\s+/g, " ").slice(0, 160);
+      setInput(text);
+      setRoutePrefill(null);
+      openSavingsPanel(query);
+      void handleSearchOffers(query);
+      return;
+    }
+
+    const userMsg: ChatMessage = { role: "user", content: text };
+    const nextHistory = [...messages, userMsg];
+    setMessages(nextHistory);
+    setInput("");
+    setRoutePrefill(null);
+    setAppointmentOpen(false);
+    sendMessage(text, nextHistory);
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -4037,6 +4196,60 @@ const ConciergeScreen = () => {
     setInput((current) => (current.trim() ? current : detail));
   }
 
+  function guidedHandoffActionFor(ref: ConciergeHandoffFlowRef) {
+    if (ref === "concierge.paperwork_help") return paperworkGuidedAction;
+    if (ref === "concierge.provider_comparison")
+      return providerComparisonGuidedAction;
+    return companyDocumentReviewGuidedAction;
+  }
+
+  function openGuidedHandoff(
+    ref: ConciergeHandoffFlowRef,
+    message: string,
+    initialAnswers: GuidedActionAnswers = {},
+  ) {
+    const action = guidedHandoffActionFor(ref);
+    action.reset();
+    Object.entries(initialAnswers).forEach(([slot, value]) => {
+      action.answerStep(slot, value);
+    });
+    setRoutePrefill({
+      kind: "task",
+      guidedFlow: ref,
+      message,
+      source: "home_quick_action",
+    });
+    setInput(message);
+    setAppointmentOpen(false);
+    closeOffersPanel();
+    chatSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  function openPaperworkHandoff(
+    message: string,
+    initialTask?: string,
+  ) {
+    openGuidedHandoff(
+      "concierge.paperwork_help",
+      message,
+      initialTask ? { task: initialTask } : {},
+    );
+  }
+
+  function openProviderComparisonHandoff(
+    message: string,
+    initialCategory?: string,
+  ) {
+    openGuidedHandoff(
+      "concierge.provider_comparison",
+      message,
+      initialCategory ? { category: initialCategory } : {},
+    );
+  }
+
   function resetHomeServiceIntake(
     origin: ServiceIntakeOrigin = "app",
     serviceType: HomeServiceType | null = null,
@@ -4097,7 +4310,7 @@ const ConciergeScreen = () => {
       return;
     }
     if (key === "ride") {
-      prepareConciergeRequest(
+      openProviderComparisonHandoff(
         isSpanish
           ? "Ayudame a encontrar apoyo de cuidado personal, como un especialista o una residencia. Compara opciones seguras, cercanas y faciles. No contactes ni reserves nada sin mi confirmacion."
           : "Help me find personal care support, such as a specialist or residence. Compare safe, nearby, easy options. Do not contact or book anything without my confirmation.",
@@ -4138,7 +4351,7 @@ const ConciergeScreen = () => {
       return;
     }
     if (key === "paperwork") {
-      prepareConciergeRequest(
+      openPaperworkHandoff(
         isSpanish
           ? "Ayudame con papeleo, formularios, cartas, documentos o facturas. Resume lo importante y prepara el siguiente paso sin enviar nada sin mi confirmacion."
           : "Help me with paperwork, forms, letters, documents, or bills. Summarize what matters and prepare the next step without sending anything without my confirmation.",
@@ -4192,18 +4405,20 @@ const ConciergeScreen = () => {
       return;
     }
     if (key === "find-specialist") {
-      prepareConciergeRequest(
+      openProviderComparisonHandoff(
         isSpanish
           ? "Ayudame a encontrar un especialista. Compara opciones seguras, cercanas y faciles, y no contactes ni reserves nada sin mi confirmacion."
           : "Help me find a specialist. Compare safe, nearby, easy options, and do not contact or book anything without my confirmation.",
+        "health_provider",
       );
       return;
     }
     if (key === "find-residence") {
-      prepareConciergeRequest(
+      openProviderComparisonHandoff(
         isSpanish
           ? "Ayudame a encontrar una residencia. Compara seguridad, cercania, coste, accesibilidad y apoyo, y no contactes ni reserves nada sin mi confirmacion."
           : "Help me find a residence. Compare safety, distance, cost, accessibility, and support, and do not contact or book anything without my confirmation.",
+        "residence",
       );
       return;
     }
@@ -4211,10 +4426,11 @@ const ConciergeScreen = () => {
       openMedicalAppointmentGuide();
       return;
     }
-    prepareConciergeRequest(
+    openPaperworkHandoff(
       isSpanish
         ? "Ayudame con un tramite del gobierno. Revisa formularios, oficinas, citas y documentos, y no envies nada sin mi confirmacion."
         : "Help me with a government task. Review forms, offices, appointments, and documents, and do not send anything without my confirmation.",
+      "government_form",
     );
   }
 
@@ -5000,16 +5216,45 @@ const ConciergeScreen = () => {
   const routePrefillHighlights = routePrefill
     ? buildRoutePrefillHighlights(routePrefill.message, isSpanish)
     : [];
+  const activeHandoffRef =
+    routePrefill && isConciergeHandoffFlow(routePrefill.guidedFlow)
+      ? routePrefill.guidedFlow
+      : null;
+  const activeHandoffGuidedAction = activeHandoffRef
+    ? guidedHandoffActionFor(activeHandoffRef)
+    : null;
+  const activeHandoffMeta = activeHandoffRef
+    ? conciergeHandoffRouteMeta(activeHandoffRef, isSpanish)
+    : null;
+  const activeHandoffIcon =
+    activeHandoffRef === "concierge.paperwork_help"
+      ? FileText
+      : activeHandoffRef === "concierge.provider_comparison"
+        ? Search
+        : activeHandoffRef === "concierge.company_document_review"
+          ? ShieldCheck
+          : null;
+  const providerComparisonWantsSavedProvider =
+    activeHandoffRef === "concierge.provider_comparison" &&
+    guidedTextAnswer(
+      activeHandoffGuidedAction?.answers ?? {},
+      "current_provider",
+    ) === "saved_provider";
+  const providerComparisonNeedsSavedProviderSetup =
+    providerComparisonWantsSavedProvider &&
+    !hasAnySavedProvider;
   const routePrefillMeta = routePrefill
     ? {
         Icon:
-          routePrefill.kind === "ride"
+          activeHandoffIcon ??
+          (routePrefill.kind === "ride"
             ? Car
             : routePrefill.kind === "appointment"
               ? Calendar
-              : PencilLine,
+              : PencilLine),
         title:
-          routePrefill.kind === "ride"
+          activeHandoffMeta?.title ??
+          (routePrefill.kind === "ride"
             ? isSpanish
               ? "Opciones de transporte"
               : "Transport options"
@@ -5027,9 +5272,10 @@ const ConciergeScreen = () => {
                   : "Support quote ready"
                 : isSpanish
                   ? "Revisa la solicitud"
-                  : "Review request",
+                  : "Review request"),
         detail:
-          routePrefill.kind === "ride"
+          activeHandoffMeta?.detail ??
+          (routePrefill.kind === "ride"
             ? isSpanish
               ? "Compara formas seguras. Confirmas primero."
               : "Compare safe ways. You confirm first."
@@ -5047,9 +5293,10 @@ const ConciergeScreen = () => {
                   : "VYVA can request home support or companionship with confirmation first."
                 : isSpanish
                   ? "Comprueba los detalles antes de enviarlos."
-                  : "Check the details before sending.",
+                  : "Check the details before sending."),
         primaryLabel:
-          routePrefill.kind === "ride"
+          activeHandoffMeta?.primaryLabel ??
+          (routePrefill.kind === "ride"
             ? isSpanish
               ? "Buscar transporte"
               : "Find ride options"
@@ -5067,15 +5314,16 @@ const ConciergeScreen = () => {
                   : "Request quote"
                 : isSpanish
                   ? "Enviar a Concierge"
-                  : "Send to Concierge",
+                  : "Send to Concierge"),
         secondaryLabel:
-          routePrefill.kind === "appointment"
+          activeHandoffMeta?.secondaryLabel ??
+          (routePrefill.kind === "appointment"
             ? isSpanish
               ? "Anadir detalles"
               : "Add details"
             : isSpanish
               ? "Editar solicitud"
-              : "Edit request",
+              : "Edit request"),
       }
     : null;
 
@@ -5601,6 +5849,105 @@ const ConciergeScreen = () => {
                 ))}
               </div>
             </div>
+            {activeHandoffRef && activeHandoffGuidedAction ? (
+              <div
+                className="mt-4 space-y-3"
+                data-testid={`panel-concierge-guided-handoff-${activeHandoffRef}`}
+              >
+                <GuidedActionPanel
+                  flow={activeHandoffGuidedAction.flow}
+                  answers={activeHandoffGuidedAction.answers}
+                  currentStep={activeHandoffGuidedAction.currentStep}
+                  currentStepIndex={activeHandoffGuidedAction.currentStepIndex}
+                  totalSteps={activeHandoffGuidedAction.totalSteps}
+                  isComplete={activeHandoffGuidedAction.isComplete}
+                  t={t}
+                  onAnswer={activeHandoffGuidedAction.answerStep}
+                  onReset={() => {
+                    activeHandoffGuidedAction.reset();
+                    setInput(routePrefill.message);
+                  }}
+                  className="border-[#D8B4FE] shadow-[0_14px_28px_rgba(107,33,168,0.10)]"
+                />
+
+                {activeHandoffRef === "concierge.provider_comparison" ? (
+                  <div
+                    className="rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-4 py-3 font-body text-[13px] font-black leading-snug text-[#047857]"
+                    data-testid="panel-provider-comparison-saved-status"
+                  >
+                    {providerComparisonWantsSavedProvider
+                      ? hasAnySavedProvider
+                        ? isSpanish
+                          ? `Proveedor guardado disponible${savedProviderName ? `: ${savedProviderName}` : ""}. VYVA lo revisara primero.`
+                          : `Saved provider available${savedProviderName ? `: ${savedProviderName}` : ""}. VYVA will review it first.`
+                        : isSpanish
+                          ? "No hay proveedor guardado todavia. Anade uno o cambia a buscar opciones."
+                          : "No saved provider yet. Add one or choose find options."
+                      : hasAnySavedProvider
+                        ? isSpanish
+                          ? `Puedes usar un proveedor guardado${savedProviderName ? `: ${savedProviderName}` : ""} si encaja.`
+                          : `You can use a saved provider${savedProviderName ? `: ${savedProviderName}` : ""} if it fits.`
+                        : isSpanish
+                          ? "No hay proveedor guardado. VYVA puede comparar opciones fiables."
+                          : "No saved provider yet. VYVA can compare trusted options."}
+                    {providerComparisonNeedsSavedProviderSetup ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate("/onboarding/profile/providers")}
+                        data-testid="button-provider-comparison-add-provider"
+                        className="vyva-tap mt-3 inline-flex min-h-[40px] w-full items-center justify-center rounded-full bg-[#0F766E] px-4 text-[13px] text-white"
+                      >
+                        <Plus size={15} className="mr-2" />
+                        {isSpanish
+                          ? "Anadir proveedor guardado"
+                          : "Add saved provider"}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {activeHandoffGuidedAction.isComplete ? (
+                  <ActionConfirmationCheckpoint
+                    title={
+                      isSpanish
+                        ? "Confirmar antes de preparar"
+                        : "Confirm before preparing"
+                    }
+                    summary={
+                      isSpanish
+                        ? "VYVA preparara el siguiente paso y se detendra antes de cualquier accion externa."
+                        : "VYVA will prepare the next step and stop before any external action."
+                    }
+                    items={conciergeHandoffConfirmationItems(
+                      activeHandoffRef,
+                      activeHandoffGuidedAction.answers,
+                      isSpanish,
+                      hasAnySavedProvider,
+                    )}
+                    primaryLabel={routePrefillMeta.primaryLabel}
+                    onConfirm={() =>
+                      sendGuidedHandoffToConcierge(activeHandoffRef)
+                    }
+                    isPending={chatLoading || offersLoading}
+                    disabled={providerComparisonNeedsSavedProviderSetup}
+                    testId="panel-concierge-guided-handoff-confirmation"
+                    buttonTestId="button-concierge-guided-handoff-confirm"
+                  />
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInput(routePrefill.message);
+                    setRoutePrefill(null);
+                  }}
+                  className="vyva-tap inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full border border-[#D8B4FE] bg-white px-5 font-body text-[15px] font-black text-vyva-purple"
+                >
+                  <PencilLine size={17} />
+                  {routePrefillMeta.secondaryLabel}
+                </button>
+              </div>
+            ) : (
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
@@ -5654,6 +6001,7 @@ const ConciergeScreen = () => {
                 {routePrefillMeta.secondaryLabel}
               </button>
             </div>
+            )}
             <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
               {isSpanish
                 ? "Nada se reserva ni solicita sin tu confirmacion."
@@ -6822,6 +7170,16 @@ const ConciergeScreen = () => {
                       {isSpanish
                         ? "Si esto puede ser urgente, usa SOS o atencion urgente ahora. Esta solicitud es para una cita normal."
                         : "If this may be urgent, use SOS or urgent care now. This request is for a normal appointment."}
+                    </div>
+                  ) : null}
+                  {hasSavedMedicalProvider ? (
+                    <div
+                      className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-4 py-3 font-body text-[13px] font-black leading-snug text-[#047857]"
+                      data-testid="panel-appointment-guided-saved-provider-note"
+                    >
+                      {isSpanish
+                        ? `VYVA usara tu proveedor medico guardado primero${medicalSavedProviderName ? `: ${medicalSavedProviderName}` : ""}.`
+                        : `VYVA will use your saved medical provider first${medicalSavedProviderName ? `: ${medicalSavedProviderName}` : ""}.`}
                     </div>
                   ) : null}
                   {medicalAppointmentGuidedAction.isComplete ? (

@@ -1,6 +1,9 @@
 export type GuidedFlowRef =
   | "concierge.book_ride"
   | "concierge.book_medical_appointment"
+  | "concierge.paperwork_help"
+  | "concierge.provider_comparison"
+  | "concierge.company_document_review"
   | "health.medication_help";
 
 export type GuidedActionInput = "single_choice" | "multi_choice";
@@ -488,6 +491,653 @@ export const guidedActionFlows: Record<GuidedFlowRef, GuidedActionFlow> = {
             labelKey:
               "guidedActions.concierge.bookMedicalAppointment.choices.askVyva",
             labelFallback: "Let VYVA choose",
+          },
+        ],
+      },
+    ],
+  },
+  "concierge.paperwork_help": {
+    ref: "concierge.paperwork_help",
+    titleKey: "guidedActions.concierge.paperworkHelp.title",
+    titleFallback: "Paperwork help",
+    introKey: "guidedActions.concierge.paperworkHelp.intro",
+    introFallback:
+      "Answer only what is missing. VYVA prepares the next step and asks before anything is sent, uploaded, or submitted.",
+    completionKey: "guidedActions.concierge.paperworkHelp.completion",
+    completionFallback: "Paperwork request ready.",
+    confirmationKey: "guidedActions.concierge.paperworkHelp.confirmation",
+    confirmationFallback:
+      "VYVA can summarize, draft, or prepare a form. You confirm before any call, email, upload, application, or shared data.",
+    steps: [
+      {
+        id: "task",
+        slot: "task",
+        input: "single_choice",
+        titleKey: "guidedActions.concierge.paperworkHelp.steps.task.title",
+        titleFallback: "What kind of admin help is this?",
+        helperKey: "guidedActions.concierge.paperworkHelp.steps.task.helper",
+        helperFallback: "Choose the closest match. You can type the exact task.",
+        textPlaceholderKey:
+          "guidedActions.concierge.paperworkHelp.steps.task.placeholder",
+        textPlaceholderFallback: "Passport renewal, benefit form, letter...",
+        allowCustomAnswer: true,
+        customAnswerLabelKey:
+          "guidedActions.concierge.paperworkHelp.customAnswer",
+        customAnswerLabelFallback: "Use typed answer",
+        choices: [
+          {
+            id: "government_form",
+            value: "government_form",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.governmentForm",
+            labelFallback: "Government form",
+          },
+          {
+            id: "health_insurance_admin",
+            value: "health_insurance_admin",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.healthInsurance",
+            labelFallback: "Health or insurance",
+          },
+          {
+            id: "letter_or_document",
+            value: "letter_or_document",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.letterDocument",
+            labelFallback: "Letter or document",
+          },
+          {
+            id: "bill_or_invoice",
+            value: "bill_or_invoice",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.billInvoice",
+            labelFallback: "Bill or invoice",
+          },
+          {
+            id: "application",
+            value: "application",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.application",
+            labelFallback: "Application",
+          },
+        ],
+      },
+      {
+        id: "document_status",
+        slot: "document_status",
+        input: "single_choice",
+        titleKey:
+          "guidedActions.concierge.paperworkHelp.steps.documentStatus.title",
+        titleFallback: "What do you already have?",
+        helperKey:
+          "guidedActions.concierge.paperworkHelp.steps.documentStatus.helper",
+        helperFallback:
+          "VYVA will not ask you to upload or share anything until you confirm.",
+        choices: [
+          {
+            id: "have_document",
+            value: "have_document",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.haveDocument",
+            labelFallback: "I have the document",
+          },
+          {
+            id: "need_form",
+            value: "need_form",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.needForm",
+            labelFallback: "Need the form",
+          },
+          {
+            id: "need_draft",
+            value: "need_draft",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.needDraft",
+            labelFallback: "Need a draft",
+          },
+          {
+            id: "only_question",
+            value: "only_question",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.onlyQuestion",
+            labelFallback: "Just a question",
+          },
+        ],
+      },
+      {
+        id: "deadline",
+        slot: "deadline",
+        input: "single_choice",
+        titleKey: "guidedActions.concierge.paperworkHelp.steps.deadline.title",
+        titleFallback: "Is there a deadline?",
+        helperKey: "guidedActions.concierge.paperworkHelp.steps.deadline.helper",
+        helperFallback: "A rough timing is enough.",
+        textPlaceholderKey:
+          "guidedActions.concierge.paperworkHelp.steps.deadline.placeholder",
+        textPlaceholderFallback: "Date or timing...",
+        allowCustomAnswer: true,
+        customAnswerLabelKey:
+          "guidedActions.concierge.paperworkHelp.customAnswer",
+        customAnswerLabelFallback: "Use typed answer",
+        choices: [
+          {
+            id: "today",
+            value: "today",
+            labelKey: "guidedActions.concierge.paperworkHelp.choices.today",
+            labelFallback: "Today",
+          },
+          {
+            id: "this_week",
+            value: "this_week",
+            labelKey: "guidedActions.concierge.paperworkHelp.choices.thisWeek",
+            labelFallback: "This week",
+          },
+          {
+            id: "specific_date",
+            value: "specific_date",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.specificDate",
+            labelFallback: "Specific date",
+            requiresCustomAnswer: true,
+          },
+          {
+            id: "no_deadline",
+            value: "no_deadline",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.noDeadline",
+            labelFallback: "No deadline",
+          },
+        ],
+      },
+      {
+        id: "next_step",
+        slot: "next_step",
+        input: "single_choice",
+        titleKey: "guidedActions.concierge.paperworkHelp.steps.nextStep.title",
+        titleFallback: "What should VYVA prepare?",
+        helperKey: "guidedActions.concierge.paperworkHelp.steps.nextStep.helper",
+        helperFallback:
+          "This chooses the draft action. You still confirm before it happens.",
+        choices: [
+          {
+            id: "explain",
+            value: "explain",
+            labelKey: "guidedActions.concierge.paperworkHelp.choices.explain",
+            labelFallback: "Explain it",
+          },
+          {
+            id: "checklist",
+            value: "checklist",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.checklist",
+            labelFallback: "Checklist",
+          },
+          {
+            id: "draft_message",
+            value: "draft_message",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.draftMessage",
+            labelFallback: "Draft email/message",
+          },
+          {
+            id: "fill_form",
+            value: "fill_form",
+            labelKey: "guidedActions.concierge.paperworkHelp.choices.fillForm",
+            labelFallback: "Prepare form",
+          },
+          {
+            id: "prepare_call",
+            value: "prepare_call",
+            labelKey:
+              "guidedActions.concierge.paperworkHelp.choices.prepareCall",
+            labelFallback: "Prepare call",
+          },
+        ],
+      },
+    ],
+  },
+  "concierge.provider_comparison": {
+    ref: "concierge.provider_comparison",
+    titleKey: "guidedActions.concierge.providerComparison.title",
+    titleFallback: "Compare options",
+    introKey: "guidedActions.concierge.providerComparison.intro",
+    introFallback:
+      "VYVA compares providers, services, or deals neutrally. No one is contacted without confirmation.",
+    completionKey: "guidedActions.concierge.providerComparison.completion",
+    completionFallback: "Comparison brief ready.",
+    confirmationKey: "guidedActions.concierge.providerComparison.confirmation",
+    confirmationFallback:
+      "VYVA can compare trusted options first. You confirm before any call, email, booking, purchase, or shared data.",
+    steps: [
+      {
+        id: "category",
+        slot: "category",
+        input: "single_choice",
+        titleKey:
+          "guidedActions.concierge.providerComparison.steps.category.title",
+        titleFallback: "What do you want to compare?",
+        helperKey:
+          "guidedActions.concierge.providerComparison.steps.category.helper",
+        helperFallback: "Pick the closest category, or type your own.",
+        textPlaceholderKey:
+          "guidedActions.concierge.providerComparison.steps.category.placeholder",
+        textPlaceholderFallback: "Dentist, insurance, residence, cleaner...",
+        allowCustomAnswer: true,
+        customAnswerLabelKey:
+          "guidedActions.concierge.providerComparison.customAnswer",
+        customAnswerLabelFallback: "Use typed answer",
+        choices: [
+          {
+            id: "health_provider",
+            value: "health_provider",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.healthProvider",
+            labelFallback: "Health provider",
+          },
+          {
+            id: "home_service",
+            value: "home_service",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.homeService",
+            labelFallback: "Home service",
+          },
+          {
+            id: "residence",
+            value: "residence",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.residence",
+            labelFallback: "Residence/care",
+          },
+          {
+            id: "insurance_or_deal",
+            value: "insurance_or_deal",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.insuranceDeal",
+            labelFallback: "Insurance or deal",
+          },
+          {
+            id: "local_business",
+            value: "local_business",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.localBusiness",
+            labelFallback: "Local business",
+          },
+        ],
+      },
+      {
+        id: "goal",
+        slot: "goal",
+        input: "multi_choice",
+        titleKey: "guidedActions.concierge.providerComparison.steps.goal.title",
+        titleFallback: "What matters most?",
+        helperKey: "guidedActions.concierge.providerComparison.steps.goal.helper",
+        helperFallback:
+          "Pick what VYVA should prioritize when comparing options.",
+        choices: [
+          {
+            id: "lowest_cost",
+            value: "lowest_cost",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.lowestCost",
+            labelFallback: "Lower cost",
+          },
+          {
+            id: "most_trusted",
+            value: "most_trusted",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.mostTrusted",
+            labelFallback: "Most trusted",
+          },
+          {
+            id: "closest",
+            value: "closest",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.closest",
+            labelFallback: "Closest",
+          },
+          {
+            id: "accessibility",
+            value: "accessibility",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.accessibility",
+            labelFallback: "Accessibility",
+          },
+          {
+            id: "availability",
+            value: "availability",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.availability",
+            labelFallback: "Availability",
+          },
+          {
+            id: "safest_terms",
+            value: "safest_terms",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.safestTerms",
+            labelFallback: "Safer terms",
+          },
+        ],
+      },
+      {
+        id: "current_provider",
+        slot: "current_provider",
+        input: "single_choice",
+        titleKey:
+          "guidedActions.concierge.providerComparison.steps.currentProvider.title",
+        titleFallback: "Should VYVA use a saved provider?",
+        helperKey:
+          "guidedActions.concierge.providerComparison.steps.currentProvider.helper",
+        helperFallback:
+          "Use a saved provider if relevant, name one, or ask VYVA to find options.",
+        textPlaceholderKey:
+          "guidedActions.concierge.providerComparison.steps.currentProvider.placeholder",
+        textPlaceholderFallback: "Provider or company name...",
+        allowCustomAnswer: true,
+        customAnswerLabelKey:
+          "guidedActions.concierge.providerComparison.customAnswer",
+        customAnswerLabelFallback: "Use typed answer",
+        choices: [
+          {
+            id: "saved_provider",
+            value: "saved_provider",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.savedProvider",
+            labelFallback: "Saved provider",
+          },
+          {
+            id: "named_provider",
+            value: "named_provider",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.namedProvider",
+            labelFallback: "Type a name",
+            requiresCustomAnswer: true,
+          },
+          {
+            id: "find_new",
+            value: "find_new",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.findNew",
+            labelFallback: "Find options",
+          },
+          {
+            id: "not_sure",
+            value: "not_sure",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.notSure",
+            labelFallback: "Not sure",
+          },
+        ],
+      },
+      {
+        id: "next_step",
+        slot: "next_step",
+        input: "single_choice",
+        titleKey:
+          "guidedActions.concierge.providerComparison.steps.nextStep.title",
+        titleFallback: "What should happen next?",
+        helperKey:
+          "guidedActions.concierge.providerComparison.steps.nextStep.helper",
+        helperFallback:
+          "VYVA prepares the next step and waits for confirmation before action.",
+        choices: [
+          {
+            id: "compare_options",
+            value: "compare_options",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.compareOptions",
+            labelFallback: "Compare options",
+          },
+          {
+            id: "review_one",
+            value: "review_one",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.reviewOne",
+            labelFallback: "Review one option",
+          },
+          {
+            id: "prepare_call_email",
+            value: "prepare_call_email",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.prepareCallEmail",
+            labelFallback: "Prepare call/email",
+          },
+          {
+            id: "watch_changes",
+            value: "watch_changes",
+            labelKey:
+              "guidedActions.concierge.providerComparison.choices.watchChanges",
+            labelFallback: "Watch changes",
+          },
+        ],
+      },
+    ],
+  },
+  "concierge.company_document_review": {
+    ref: "concierge.company_document_review",
+    titleKey: "guidedActions.concierge.companyDocumentReview.title",
+    titleFallback: "Review safely",
+    introKey: "guidedActions.concierge.companyDocumentReview.intro",
+    introFallback:
+      "VYVA checks messages, companies, documents, and offers before you reply or share data.",
+    completionKey: "guidedActions.concierge.companyDocumentReview.completion",
+    completionFallback: "Safe review brief ready.",
+    confirmationKey:
+      "guidedActions.concierge.companyDocumentReview.confirmation",
+    confirmationFallback:
+      "VYVA prepares a safe review. You confirm before replies, calls, uploads, applications, payments, or shared personal data.",
+    steps: [
+      {
+        id: "item_type",
+        slot: "item_type",
+        input: "single_choice",
+        titleKey:
+          "guidedActions.concierge.companyDocumentReview.steps.itemType.title",
+        titleFallback: "What should VYVA review?",
+        helperKey:
+          "guidedActions.concierge.companyDocumentReview.steps.itemType.helper",
+        helperFallback: "Choose the closest item, or type your own.",
+        textPlaceholderKey:
+          "guidedActions.concierge.companyDocumentReview.steps.itemType.placeholder",
+        textPlaceholderFallback: "Company, contract, suspicious letter...",
+        allowCustomAnswer: true,
+        customAnswerLabelKey:
+          "guidedActions.concierge.companyDocumentReview.customAnswer",
+        customAnswerLabelFallback: "Use typed answer",
+        choices: [
+          {
+            id: "suspicious_message",
+            value: "suspicious_message",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.suspiciousMessage",
+            labelFallback: "Suspicious message",
+          },
+          {
+            id: "company_offer",
+            value: "company_offer",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.companyOffer",
+            labelFallback: "Company/offer",
+          },
+          {
+            id: "contract_policy",
+            value: "contract_policy",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.contractPolicy",
+            labelFallback: "Contract/policy",
+          },
+          {
+            id: "bill_invoice",
+            value: "bill_invoice",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.billInvoice",
+            labelFallback: "Bill/invoice",
+          },
+          {
+            id: "official_document",
+            value: "official_document",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.officialDocument",
+            labelFallback: "Official document",
+          },
+        ],
+      },
+      {
+        id: "concern",
+        slot: "concern",
+        input: "multi_choice",
+        titleKey:
+          "guidedActions.concierge.companyDocumentReview.steps.concern.title",
+        titleFallback: "What worries you?",
+        helperKey:
+          "guidedActions.concierge.companyDocumentReview.steps.concern.helper",
+        helperFallback: "Pick all that apply.",
+        choices: [
+          {
+            id: "scam_risk",
+            value: "scam_risk",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.scamRisk",
+            labelFallback: "Scam risk",
+          },
+          {
+            id: "price_terms",
+            value: "price_terms",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.priceTerms",
+            labelFallback: "Price or terms",
+          },
+          {
+            id: "deadline",
+            value: "deadline",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.deadline",
+            labelFallback: "Deadline",
+          },
+          {
+            id: "documents_needed",
+            value: "documents_needed",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.documentsNeeded",
+            labelFallback: "Documents needed",
+          },
+          {
+            id: "identity_data",
+            value: "identity_data",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.identityData",
+            labelFallback: "Personal data",
+          },
+          {
+            id: "not_sure",
+            value: "not_sure",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.notSure",
+            labelFallback: "Not sure",
+          },
+        ],
+      },
+      {
+        id: "source",
+        slot: "source",
+        input: "single_choice",
+        titleKey:
+          "guidedActions.concierge.companyDocumentReview.steps.source.title",
+        titleFallback: "Where did it come from?",
+        helperKey:
+          "guidedActions.concierge.companyDocumentReview.steps.source.helper",
+        helperFallback:
+          "This helps VYVA choose safer verification steps.",
+        choices: [
+          {
+            id: "email_sms",
+            value: "email_sms",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.emailSms",
+            labelFallback: "Email or SMS",
+          },
+          {
+            id: "paper_letter",
+            value: "paper_letter",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.paperLetter",
+            labelFallback: "Paper letter",
+          },
+          {
+            id: "phone_call",
+            value: "phone_call",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.phoneCall",
+            labelFallback: "Phone call",
+          },
+          {
+            id: "website_form",
+            value: "website_form",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.websiteForm",
+            labelFallback: "Website/form",
+          },
+          {
+            id: "uploaded_document",
+            value: "uploaded_document",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.uploadedDocument",
+            labelFallback: "Document/photo",
+          },
+          {
+            id: "spoken_summary",
+            value: "spoken_summary",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.spokenSummary",
+            labelFallback: "I will describe it",
+          },
+        ],
+      },
+      {
+        id: "next_step",
+        slot: "next_step",
+        input: "single_choice",
+        titleKey:
+          "guidedActions.concierge.companyDocumentReview.steps.nextStep.title",
+        titleFallback: "What should VYVA prepare?",
+        helperKey:
+          "guidedActions.concierge.companyDocumentReview.steps.nextStep.helper",
+        helperFallback:
+          "Choose a safe next step. VYVA will stop before contacting or sharing anything.",
+        choices: [
+          {
+            id: "summarize_risks",
+            value: "summarize_risks",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.summarizeRisks",
+            labelFallback: "Summarize risks",
+          },
+          {
+            id: "draft_reply",
+            value: "draft_reply",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.draftReply",
+            labelFallback: "Draft reply",
+          },
+          {
+            id: "compare_company",
+            value: "compare_company",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.compareCompany",
+            labelFallback: "Compare company",
+          },
+          {
+            id: "prepare_trusted_contact",
+            value: "prepare_trusted_contact",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.prepareTrustedContact",
+            labelFallback: "Ask trusted contact",
+          },
+          {
+            id: "prepare_form_application",
+            value: "prepare_form_application",
+            labelKey:
+              "guidedActions.concierge.companyDocumentReview.choices.prepareFormApplication",
+            labelFallback: "Prepare form/application",
           },
         ],
       },

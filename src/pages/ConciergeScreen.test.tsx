@@ -317,6 +317,43 @@ async function completeMedicationHelpOtcWithSavedPharmacy() {
   });
 }
 
+async function completePaperworkApplicationGuide() {
+  const guide = await screen.findByTestId(
+    "guided-action-concierge.paperwork_help",
+  );
+  expect(guide).toHaveTextContent("What kind of admin help is this?");
+
+  fireEvent.click(screen.getByTestId("guided-action-choice-task-application"));
+  expect(await screen.findByText("What do you already have?")).toBeVisible();
+
+  fireEvent.click(
+    screen.getByTestId("guided-action-choice-document_status-have_document"),
+  );
+  expect(await screen.findByText("Is there a deadline?")).toBeVisible();
+
+  fireEvent.click(screen.getByTestId("guided-action-choice-deadline-this_week"));
+  expect(await screen.findByText("What should VYVA prepare?")).toBeVisible();
+
+  fireEvent.click(screen.getByTestId("guided-action-choice-next_step-fill_form"));
+  await waitFor(() => {
+    expect(
+      screen.getByTestId("guided-action-concierge.paperwork_help"),
+    ).toHaveTextContent("Paperwork request ready");
+  });
+}
+
+async function chooseProviderComparisonGoal(goal = "most_trusted") {
+  expect(
+    await screen.findByTestId("guided-action-concierge.provider_comparison"),
+  ).toHaveTextContent("What matters most?");
+
+  fireEvent.click(screen.getByTestId(`guided-action-choice-goal-${goal}`));
+  fireEvent.click(screen.getByTestId("guided-action-next-goal"));
+  expect(
+    await screen.findByText("Should VYVA use a saved provider?"),
+  ).toBeVisible();
+}
+
 afterEach(() => {
   apiFetchMock.mockReset();
   voiceHeroMock.mockClear();
@@ -516,6 +553,223 @@ describe("ConciergeScreen action hub", () => {
         "/safe-home",
       );
     });
+  });
+
+  it("guides paperwork help and requires confirmation before preparing a form handoff", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ response: "I will prepare this safely." }) as never,
+    );
+
+    renderScreen();
+    fireEvent.click(
+      await screen.findByTestId("button-concierge-fast-paperwork"),
+    );
+
+    await completePaperworkApplicationGuide();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId("panel-concierge-guided-handoff-confirmation"),
+    ).toHaveTextContent("Confirm before preparing");
+    expect(
+      screen.getByTestId("panel-concierge-guided-handoff-confirmation"),
+    ).toHaveTextContent("upload");
+    expect(
+      screen.getByTestId("panel-concierge-guided-handoff-confirmation"),
+    ).toHaveTextContent("apply");
+
+    fireEvent.click(
+      screen.getByTestId("button-concierge-guided-handoff-confirm"),
+    );
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/concierge",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("Do not call, email, upload"),
+        }),
+      );
+    });
+  });
+
+  it("blocks a saved-provider comparison path until a provider is saved", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(
+      await screen.findByTestId("button-concierge-fast-find-specialist"),
+    );
+
+    await chooseProviderComparisonGoal();
+    fireEvent.click(
+      screen.getByTestId("guided-action-choice-current_provider-saved_provider"),
+    );
+    fireEvent.click(
+      screen.getByTestId("guided-action-choice-next_step-compare_options"),
+    );
+
+    expect(
+      await screen.findByTestId("panel-provider-comparison-saved-status"),
+    ).toHaveTextContent("No saved provider yet");
+    expect(
+      screen.getByTestId("button-concierge-guided-handoff-confirm"),
+    ).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByTestId("button-provider-comparison-add-provider"),
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent(
+        "/onboarding/profile/providers",
+      );
+    });
+  });
+
+  it("compares provider options only after the handoff confirmation", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/offers/search") {
+        return jsonResponse({
+          category: "Vivienda y cuidados",
+          options: [],
+          decision_explanation: "Compared trust, accessibility, and fit.",
+          neutrality_note: "VYVA does not receive commissions.",
+          source_guidance: ["Official sources", "Verified local listings"],
+          next_step: "Review before contacting anyone.",
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(
+      await screen.findByTestId("button-concierge-fast-find-residence"),
+    );
+
+    await chooseProviderComparisonGoal("accessibility");
+    fireEvent.click(
+      screen.getByTestId("guided-action-choice-current_provider-find_new"),
+    );
+    fireEvent.click(
+      screen.getByTestId("guided-action-choice-next_step-compare_options"),
+    );
+
+    expect(
+      apiFetchMock.mock.calls.some(
+        ([url]) => String(url) === "/api/offers/search",
+      ),
+    ).toBe(false);
+    fireEvent.click(
+      screen.getByTestId("button-concierge-guided-handoff-confirm"),
+    );
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/offers/search",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    expect(await screen.findByTestId("panel-offers-search")).toHaveTextContent(
+      "Compared trust",
+    );
+  });
+
+  it("uses saved medical providers without asking the provider question again", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [
+            {
+              name: "Clinica Sana",
+              category: "medical",
+              role: "doctor",
+            },
+          ],
+          serviceReadiness: { hasSavedDoctor: true },
+        });
+      }
+      if (String(url).endsWith("/api/appointments/requests")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.detail).toContain("Provider: Saved doctor first");
+        return jsonResponse({
+          request: {
+            id: "request-saved-doctor",
+            appointment_type: "medical",
+            reason_detail: body.detail,
+            preferences: body.preferences,
+            status: "needs_provider",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([
+      {
+        pathname: "/concierge",
+        state: {
+          conciergePrefill: {
+            kind: "appointment",
+            guidedFlow: "concierge.book_medical_appointment",
+            message: "Help me book a medical appointment.",
+            source: "home_quick_action",
+          },
+        },
+      },
+    ]);
+
+    await dismissAppointmentGuide();
+    fireEvent.click(await screen.findByTestId("guided-action-choice-need-doctor"));
+    fireEvent.click(screen.getByTestId("guided-action-choice-reason-routine"));
+
+    expect(await screen.findByText("When would you like it?")).toBeVisible();
+    expect(
+      screen.queryByText("Which provider should VYVA try first?"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("panel-appointment-guided-saved-provider-note"),
+    ).toHaveTextContent("Clinica Sana");
+
+    fireEvent.click(screen.getByTestId("guided-action-choice-timing-flexible"));
+    fireEvent.click(screen.getByTestId("guided-action-choice-contact-ask_vyva"));
+    fireEvent.click(screen.getByTestId("button-appointment-guided-start"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/appointments/requests",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
+
+  it("routes scam guard prefill into the safe review guided handoff", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen([
+      {
+        pathname: "/concierge",
+        state: {
+          conciergePrefill: {
+            kind: "task",
+            source: "scam_guard",
+            message:
+              "Please help me handle this suspicious message safely.\n\nRisk: suspicious",
+          },
+        },
+      },
+    ]);
+
+    expect(
+      await screen.findByTestId(
+        "guided-action-concierge.company_document_review",
+      ),
+    ).toHaveTextContent("What should VYVA review?");
+    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent(
+      "Safe review",
+    );
   });
 
   it("shows the appointment mission as a one-time popup with a saved hide option", async () => {
