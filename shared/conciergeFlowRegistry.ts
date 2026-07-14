@@ -4,6 +4,7 @@ export const CONCIERGE_FLOW_REFERENCES = {
   medicalAppointment: "FLOW_MEDICAL_APPOINTMENT",
   homeService: "FLOW_HOME_SERVICE",
   scamCheck: "FLOW_SCAM_CHECK",
+  safeHomeSupport: "FLOW_SAFE_HOME_SUPPORT",
   insuranceAdmin: "FLOW_INSURANCE_ADMIN",
   toolGatedTask: "FLOW_TOOL_GATED_TASK",
 } as const;
@@ -155,6 +156,17 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     firstQuestions: ["email_or_document_or_phone_or_company", "what_worries_you"],
     confirmationRule: "Never submit personal details; summarize risk and ask before forwarding, uploading, or searching sensitive information.",
     nextImplementationStep: "Expand direct email forwarding, camera/upload, phone verification, and live reputation lookup integrations.",
+  },
+  {
+    reference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+    actionName: "Safe home / safety support",
+    levels: ["fast_help", "voice_handoff"],
+    status: "ready",
+    savedData: ["home_address", "document_or_media"],
+    tools: ["phone_call", "camera_or_upload", "operator_review"],
+    firstQuestions: ["risk_type", "location", "urgency"],
+    confirmationRule: "Check immediate safety first, then ask before alerting, calling, uploading, or contacting anyone.",
+    nextImplementationStep: "Monitor Safe Home task outcomes and expand direct upload/caregiver integrations.",
   },
   {
     reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,

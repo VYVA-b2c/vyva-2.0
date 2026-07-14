@@ -46,6 +46,7 @@ import {
   homeServiceSearchTerms,
   homeServiceTypeLabel,
 } from "../../shared/serviceIntake.js";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry.js";
 
 const router = Router();
 
@@ -128,6 +129,22 @@ function optionName(option: AppointmentProviderOption | null | undefined): strin
 function snapshotText(snapshot: Record<string, unknown>, key: string): string | null {
   const value = snapshot[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function appointmentRequestFlowReference(request: AppointmentRequest): string {
+  const preferences = recordValue(request.preferences);
+  const flowReference = preferences.flow_reference;
+  if (
+    typeof flowReference === "string"
+    && Object.values(CONCIERGE_FLOW_REFERENCES).includes(
+      flowReference as typeof CONCIERGE_FLOW_REFERENCES[keyof typeof CONCIERGE_FLOW_REFERENCES],
+    )
+  ) {
+    return flowReference;
+  }
+  return request.appointment_type === "home-service"
+    ? CONCIERGE_FLOW_REFERENCES.homeService
+    : CONCIERGE_FLOW_REFERENCES.medicalAppointment;
 }
 
 function appointmentChannelRecipient(channel: AppointmentChannel, snapshot: Record<string, unknown>): string | null {
@@ -820,6 +837,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
     const providerWhatsapp = snapshotText(snapshot, "whatsapp");
     const bookingUrl = snapshotText(snapshot, "booking_url");
     const channel = parsed.data.channel;
+    const flowReference = appointmentRequestFlowReference(request);
     const communicationRecipient = appointmentChannelRecipient(channel, snapshot);
     const preferenceSnapshot = orderAppointmentChannels({
       channels: option.available_channels as AppointmentChannel[],
@@ -880,6 +898,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
             appointment_type: request.appointment_type,
+            flow_reference: flowReference,
             mission_status: "contacting_provider",
             preferred_channel: channel,
             provider_preference_snapshot: preferenceSnapshot,
@@ -942,6 +961,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
             appointment_type: request.appointment_type,
+            flow_reference: flowReference,
             provider_name: providerName,
             provider_phone: providerPhone,
             provider_email: providerEmail,
@@ -1032,6 +1052,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
             appointment_type: request.appointment_type,
+            flow_reference: flowReference,
             mission_status: "form_in_progress",
             preferred_channel: channel,
             provider_preference_snapshot: preferenceSnapshot,
@@ -1090,6 +1111,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           appointment_option_id: option.id,
           appointment_attempt_id: attempt.id,
           appointment_type: request.appointment_type,
+          flow_reference: flowReference,
           mission_status: "awaiting_user_save",
           preferred_channel: channel,
           provider_preference_snapshot: preferenceSnapshot,

@@ -46,7 +46,7 @@ describe("concierge flow registry", () => {
   });
 
   it("documents current implementation state for each tracked flow", () => {
-    expect(CONCIERGE_FLOW_REGISTRY).toHaveLength(7);
+    expect(CONCIERGE_FLOW_REGISTRY).toHaveLength(8);
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.transportBooking)).toMatchObject({
       status: "ready",
       actionName: "Book ride / transport",
@@ -70,6 +70,11 @@ describe("concierge flow registry", () => {
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.scamCheck)).toMatchObject({
       status: "ready",
       tools: expect.arrayContaining(["camera_or_upload", "web_search"]),
+    });
+    expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.safeHomeSupport)).toMatchObject({
+      status: "ready",
+      actionName: "Safe home / safety support",
+      tools: expect.arrayContaining(["phone_call", "camera_or_upload", "operator_review"]),
     });
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.insuranceAdmin)).toMatchObject({
       status: "ready",
@@ -118,6 +123,20 @@ describe("concierge flow registry", () => {
     });
     expect(admin.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.insuranceAdmin);
     expect(admin.firstMissingRequirement?.labelEn).toBe("Deadline");
+
+    const safeHome = evaluateConciergeFlowRequirements({
+      useCase: "book_appointment",
+      payload: {
+        appointment_type: "home-service",
+        flow_reference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+        safety_source: "safe_home_scan",
+        location: "Hallway",
+        urgency: "soon",
+      },
+      summary: "Loose rug in hallway",
+    });
+    expect(safeHome.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
+    expect(safeHome.missingRequirements).toEqual([]);
   });
 
   it("maps pending actions to their reusable flow references", () => {
@@ -154,6 +173,8 @@ describe("concierge flow registry", () => {
         expect(coverage.evidence[stage]).toBeTruthy();
       }
     }
+
+    expect(missingConciergeFlowCoverage(CONCIERGE_FLOW_REFERENCES.safeHomeSupport)).toEqual([]);
 
     for (const reference of [
       CONCIERGE_FLOW_REFERENCES.transportBooking,

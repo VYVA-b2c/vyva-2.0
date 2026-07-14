@@ -16,6 +16,8 @@ export type ConciergeFlowRequirementKey =
   | "home_access"
   | "source"
   | "concern"
+  | "risk_type"
+  | "location"
   | "document_or_task"
   | "recipient"
   | "deadline"
@@ -74,6 +76,11 @@ const REQUIREMENTS_BY_FLOW: Record<ConciergeFlowReference, ConciergeRequirementD
   [CONCIERGE_FLOW_REFERENCES.scamCheck]: [
     { key: "source", labelEn: "Source", labelEs: "Fuente", payloadKeys: ["scam_type", "source_type", "document_url", "uploaded_file", "phone_number", "company_name", "email_body", "message"], summaryFallback: true },
     { key: "concern", labelEn: "Concern", labelEs: "Riesgo", payloadKeys: ["concern", "what_worries_you", "reason", "detail"], summaryFallback: true },
+  ],
+  [CONCIERGE_FLOW_REFERENCES.safeHomeSupport]: [
+    { key: "risk_type", labelEn: "Risk type", labelEs: "Tipo de riesgo", payloadKeys: ["risk_type", "safety_source", "safety_category", "service_type", "appointment_type"], summaryFallback: true },
+    { key: "location", labelEn: "Location", labelEs: "Lugar", payloadKeys: ["location", "home_address", "address", "room", "area"] },
+    { key: "urgency", labelEn: "Urgency", labelEs: "Urgencia", payloadKeys: ["urgency", "priority", "requested_time"] },
   ],
   [CONCIERGE_FLOW_REFERENCES.insuranceAdmin]: [
     { key: "document_or_task", labelEn: "Task", labelEs: "Gestion", payloadKeys: ["document_type", "task_type", "admin_task", "reason", "detail"], summaryFallback: true },

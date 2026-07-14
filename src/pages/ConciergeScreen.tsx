@@ -615,6 +615,14 @@ function routePrefillTaskDetail(prefill: ConciergeRoutePrefill, isSpanish: boole
   return isSpanish ? "Comprueba los detalles antes de enviarlos." : "Check the details before sending.";
 }
 
+function appointmentFlowReferenceFromPreferences(
+  preferences: Record<string, unknown> | null | undefined,
+  fallback: ConciergeFlowReference,
+): ConciergeFlowReference {
+  const value = preferences?.flow_reference;
+  return isConciergeFlowReference(value) ? value : fallback;
+}
+
 interface StoredChatHistory {
   savedAt: string;
   messages: ChatMessage[];
@@ -1678,15 +1686,19 @@ async function createAppointmentRequest(params: {
   appointmentType: AppointmentType;
   detail: string;
   preferences?: Record<string, unknown>;
+  flowReference?: ConciergeFlowReference;
   routePrefillSource?: string;
   locale: string;
 }): Promise<AppointmentRequestResponse> {
+  const preferences = params.flowReference
+    ? { ...(params.preferences ?? {}), flow_reference: params.flowReference }
+    : params.preferences ?? {};
   const res = await apiFetch("/api/appointments/requests", {
     method: "POST",
     body: JSON.stringify({
       appointment_type: params.appointmentType,
       detail: params.detail,
-      preferences: params.preferences ?? {},
+      preferences,
       route_prefill_source: params.routePrefillSource,
       language: params.locale,
     }),
@@ -1866,6 +1878,9 @@ async function saveConfirmedHomeServiceFromProviderReply(params: {
   }
 
   const payload = providerReplyOutcomePayload(item, form);
+  const flowReference = isConciergeFlowReference(payload.flow_reference)
+    ? payload.flow_reference
+    : CONCIERGE_FLOW_REFERENCES.homeService;
   const providerName = String(payload.provider_name || item.provider_name || (params.isSpanish ? "proveedor" : "provider"));
   const serviceType = normalizeHomeServiceType(payloadString(item.action_payload, ["service_type", "service_label", "service_needed"]) || item.action_summary);
   const serviceLabel = payloadString(item.action_payload, ["service_label", "service_needed"]) || homeServiceTypeLabel(serviceType, params.locale);
@@ -1901,7 +1916,7 @@ async function saveConfirmedHomeServiceFromProviderReply(params: {
       source: "concierge",
       metadata: {
         ...payload,
-        flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+        flow_reference: flowReference,
         pending_id: item.id,
         appointment_type: "home-service",
         provider_name: providerName,
@@ -1933,7 +1948,7 @@ async function saveConfirmedHomeServiceFromProviderReply(params: {
       outcomeSummary: `Home service visit confirmed with ${providerName}.`,
       outcomePayload: {
         ...payload,
-        flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+        flow_reference: flowReference,
         appointment_type: "home-service",
         provider_name: providerName,
         service_type: serviceType,
@@ -3764,6 +3779,7 @@ function isHomeServiceCompletedSession(session: ConciergeCompletedSession): bool
 function completedSessionFlowLabel(session: ConciergeCompletedSession, locale = "es"): string {
   const es = locale.startsWith("es");
   const flowReference = payloadString(session.outcome_payload, ["flow_reference"]);
+  if (flowReference === CONCIERGE_FLOW_REFERENCES.safeHomeSupport) return es ? "Casa segura" : "Safe home";
   if (isHomeServiceCompletedSession(session)) return es ? "Servicio en casa" : "Home service";
   if (session.use_case === "book_ride" || flowReference === TRANSPORT_BOOKING_FLOW_REFERENCE) return es ? "Viaje" : "Ride";
   if (session.use_case === "order_medicine" || flowReference === OTC_PHARMACY_FLOW_REFERENCE) return es ? "Farmacia OTC" : "OTC pharmacy";
@@ -6891,7 +6907,7 @@ const ConciergeScreen = () => {
     );
   const appointmentIntentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? null;
   const appointmentFlowReference = appointmentIntentType === "home-service"
-    ? CONCIERGE_FLOW_REFERENCES.homeService
+    ? appointmentFlowReferenceFromPreferences(appointmentRequest?.preferences, CONCIERGE_FLOW_REFERENCES.homeService)
     : CONCIERGE_FLOW_REFERENCES.medicalAppointment;
   const otcToolReadiness = evaluateConciergeToolReadiness({
     flowReference: OTC_PHARMACY_FLOW_REFERENCE,
@@ -8201,6 +8217,28 @@ const ConciergeScreen = () => {
       });
       return;
     }
+    if (routePrefill?.kind === "home_care_quote") {
+      const chip = APPOINTMENT_TYPE_CHIPS.find((item) => item.key === "home-service") ?? APPOINTMENT_TYPE_CHIPS[0];
+      setSelectedAppointmentChip(chip);
+      setAppointmentOpen(true);
+      setAppointmentNote(text);
+      setInput((current) => current.trim() ? current : text);
+      setRoutePrefill(null);
+      createAppointmentMutation.mutate({
+        appointmentType: "home-service",
+        detail: text,
+        preferences: {
+          flow_reference: routePrefill.flowReference ?? CONCIERGE_FLOW_REFERENCES.homeService,
+          safety_source: routePrefill.source ?? "safe_home",
+          action_label: routePrefill.actionLabel ?? null,
+          summary: routePrefill.summary ?? null,
+        },
+        flowReference: routePrefill.flowReference ?? CONCIERGE_FLOW_REFERENCES.homeService,
+        routePrefillSource: routePrefill.source,
+        locale,
+      });
+      return;
+    }
     const userMsg: ChatMessage = { role: "user", content: text };
     const nextHistory = [...messages, userMsg];
     setMessages(nextHistory);
@@ -8441,10 +8479,15 @@ const ConciergeScreen = () => {
     setSelectedAppointmentChip(chip);
     if (chip.key === "home-service") {
       const { intake, preferences } = buildCurrentHomeServiceIntake();
+      const flowReference = routePrefill?.flowReference ?? CONCIERGE_FLOW_REFERENCES.homeService;
       createAppointmentMutation.mutate({
         appointmentType: chip.key,
         detail: intake.research_brief || note || base,
-        preferences,
+        preferences: {
+          ...preferences,
+          flow_reference: flowReference,
+        },
+        flowReference,
         routePrefillSource: routePrefill?.source,
         locale,
       });
@@ -10318,7 +10361,13 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.safeHome", "Safe Home"),
       detail: t("concierge.master.fastHelp.safeHomeDetail", "Safety check"),
       tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => navigate("/safe-home"),
+      onClick: () =>
+        navigate("/safe-home", {
+          state: {
+            source: "concierge_fast_help",
+            flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+          },
+        }),
       testId: "button-concierge-fast-safe-home",
     },
     {
