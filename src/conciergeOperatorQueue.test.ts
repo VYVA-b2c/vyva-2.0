@@ -3,6 +3,7 @@ import {
   buildOperatorConciergeQueueTotals,
   executionTaskFromPayload,
   filterOperatorConciergeQueueItems,
+  isOperatorConciergeQueueAction,
   normalizeOperatorConciergeQueueStatus,
   type OperatorConciergeQueueItem,
 } from "../shared/conciergeOperatorQueue";
@@ -35,6 +36,12 @@ describe("concierge operator queue helpers", () => {
     expect(normalizeOperatorConciergeQueueStatus("completed")).toBe("done");
     expect(normalizeOperatorConciergeQueueStatus("cancelled")).toBeNull();
     expect(normalizeOperatorConciergeQueueStatus("draft")).toBeNull();
+  });
+
+  it("recognizes supported operator queue actions", () => {
+    expect(isOperatorConciergeQueueAction("assign")).toBe(true);
+    expect(isOperatorConciergeQueueAction("done")).toBe(true);
+    expect(isOperatorConciergeQueueAction("delete")).toBe(false);
   });
 
   it("extracts execution tasks from payloads only when present", () => {

@@ -77,8 +77,24 @@ const doneTask: OperatorConciergeQueueItem = {
   active_tool: "whatsapp",
   missing_labels: [],
   user_confirmed: true,
+  operator_assigned_email: "admin@example.com",
+  operator_assigned_to: "admin-1",
+  operator_assigned_at: "2026-07-01T09:02:00.000Z",
   confirmed_at: "2026-07-01T09:00:00.000Z",
   updated_at: "2026-07-01T09:30:00.000Z",
+};
+
+const otherAssignedTask: OperatorConciergeQueueItem = {
+  ...readyTask,
+  id: "pending-other",
+  user_id: "user-4",
+  user_label: "Marta",
+  action_summary: "Confirm home cleaner",
+  use_case: "home_service",
+  provider_name: "Clean Home",
+  operator_assigned_email: "other@example.com",
+  operator_assigned_to: "admin-2",
+  operator_assigned_at: "2026-07-01T10:10:00.000Z",
 };
 
 function jsonResponse(body: unknown) {
@@ -103,6 +119,9 @@ function renderPage(items: OperatorConciergeQueueItem[] = [readyTask, needsInfoT
       }));
     }
     if (path === "/api/admin/concierge/queue/pending-1" && init?.method === "PATCH") {
+      return Promise.resolve(jsonResponse({ ok: true }));
+    }
+    if (path === "/api/admin/concierge/queue/pending-2" && init?.method === "PATCH") {
       return Promise.resolve(jsonResponse({ ok: true }));
     }
     return Promise.resolve(new Response(JSON.stringify({ error: "Unexpected request" }), { status: 500 }));
@@ -134,6 +153,8 @@ describe("ConciergeQueueAdminPage", () => {
     const list = screen.getByTestId("admin-concierge-queue-list");
     expect(within(list).getByText("Carmen - +34 600 000 001")).toBeInTheDocument();
     expect(within(list).getByText("Safe Taxi")).toBeInTheDocument();
+    expect(within(list).getByText("Assigned to me")).toBeInTheDocument();
+    expect(within(list).getAllByText("Unassigned").length).toBeGreaterThan(0);
     expect(within(list).getByText("Provider, Service type")).toBeInTheDocument();
   });
 
@@ -152,6 +173,30 @@ describe("ConciergeQueueAdminPage", () => {
 
     expect(within(list).getByText("Arrange home repair")).toBeInTheDocument();
     expect(within(list).queryByText("Book a ride to the clinic")).not.toBeInTheDocument();
+  });
+
+  it("filters by owner and lets the operator take an unassigned task", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Book a ride to the clinic")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-concierge-owner-filter-mine"));
+
+    const list = screen.getByTestId("admin-concierge-queue-list");
+    expect(within(list).getByText("OTC items confirmed")).toBeInTheDocument();
+    expect(within(list).queryByText("Book a ride to the clinic")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-concierge-owner-filter-unassigned"));
+    expect(within(list).getByText("Book a ride to the clinic")).toBeInTheDocument();
+
+    fireEvent.click(within(list).getAllByRole("button", { name: "Take task" })[0]);
+
+    expect(await screen.findByText("Task assigned to you.")).toBeInTheDocument();
+    const assignCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/concierge/queue/pending-1"
+      && init?.method === "PATCH"
+      && String(init.body).includes('"action":"assign"')
+    ));
+    expect(assignCall).toBeTruthy();
   });
 
   it("opens task details and records an operator outcome", async () => {
@@ -174,5 +219,20 @@ describe("ConciergeQueueAdminPage", () => {
     expect(patchCall).toBeTruthy();
     expect(String(patchCall?.[1]?.body)).toContain('"action":"done"');
     expect(String(patchCall?.[1]?.body)).toContain("Taxi confirmed for 10:30.");
+  });
+
+  it("shows another operator assignment as read-only for the current operator", async () => {
+    renderPage([otherAssignedTask]);
+
+    expect(await screen.findByText("Confirm home cleaner")).toBeInTheDocument();
+    expect(screen.getByText("Assigned to other@example.com")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Take task" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open task" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Confirm home cleaner" });
+    expect(dialog).toHaveTextContent("Assigned to other@example.com");
+    expect(within(dialog).queryByRole("button", { name: "Mark done" })).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/read-only/i)).toBeInTheDocument();
   });
 });

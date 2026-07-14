@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, Clock3, Loader2, RefreshCw, ShieldCheck, Wre
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   OPERATOR_CONCIERGE_QUEUE_STATUSES,
   OPERATOR_CONCIERGE_QUEUE_STATUS_LABELS,
@@ -16,6 +17,7 @@ import {
 
 type QueueFilter = OperatorConciergeQueueStatus | "all";
 type QueueAction = "in_progress" | "done" | "failed";
+type OwnerFilter = "all" | "mine" | "unassigned";
 
 type QueueResponse = {
   items?: OperatorConciergeQueueItem[];
@@ -73,14 +75,17 @@ function mergeTotals(items: OperatorConciergeQueueItem[], responseTotals?: Parti
 }
 
 export default function ConciergeQueueAdminPage() {
+  const { user } = useAuth();
   const [items, setItems] = useState<OperatorConciergeQueueItem[]>([]);
   const [totals, setTotals] = useState<OperatorConciergeQueueTotals>(emptyOperatorConciergeQueueTotals());
   const [filter, setFilter] = useState<QueueFilter>("all");
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [selectedItem, setSelectedItem] = useState<OperatorConciergeQueueItem | null>(null);
   const [outcomeNote, setOutcomeNote] = useState("");
   const [savingAction, setSavingAction] = useState<QueueAction | null>(null);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -105,13 +110,43 @@ export default function ConciergeQueueAdminPage() {
     refresh();
   }, []);
 
-  const visibleItems = useMemo(() => filterOperatorConciergeQueueItems(items, filter), [filter, items]);
+  const currentOperatorId = user?.id?.trim() || "";
+  const currentOperatorEmail = user?.email?.trim().toLowerCase() || "";
+  const isAssignedToCurrentOperator = (item: OperatorConciergeQueueItem) => (
+    Boolean(currentOperatorId && item.operator_assigned_to === currentOperatorId)
+      || Boolean(currentOperatorEmail && item.operator_assigned_email?.trim().toLowerCase() === currentOperatorEmail)
+  );
+  const isUnassigned = (item: OperatorConciergeQueueItem) => !item.operator_assigned_to && !item.operator_assigned_email;
+  const canCurrentOperatorAct = (item: OperatorConciergeQueueItem) => isUnassigned(item) || isAssignedToCurrentOperator(item);
+  const assignmentLabel = (item: OperatorConciergeQueueItem) => {
+    if (isAssignedToCurrentOperator(item)) return "Assigned to me";
+    if (item.operator_assigned_email) return `Assigned to ${item.operator_assigned_email}`;
+    if (item.operator_assigned_to) return `Assigned to ${item.operator_assigned_to}`;
+    return "Unassigned";
+  };
+  const canTakeTask = (item: OperatorConciergeQueueItem) => (
+    item.source === "pending"
+      && item.user_confirmed
+      && item.status !== "done"
+      && item.status !== "failed"
+      && isUnassigned(item)
+  );
+  const visibleItems = useMemo(() => {
+    const statusFiltered = filterOperatorConciergeQueueItems(items, filter);
+    if (ownerFilter === "mine") return statusFiltered.filter(isAssignedToCurrentOperator);
+    if (ownerFilter === "unassigned") return statusFiltered.filter(isUnassigned);
+    return statusFiltered;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, items, ownerFilter, currentOperatorId, currentOperatorEmail]);
   const allCount = useMemo(() => OPERATOR_CONCIERGE_QUEUE_STATUSES.reduce((sum, status) => sum + totals[status], 0), [totals]);
+  const mineCount = useMemo(() => items.filter(isAssignedToCurrentOperator).length, [items, currentOperatorId, currentOperatorEmail]);
+  const unassignedCount = useMemo(() => items.filter(isUnassigned).length, [items]);
   const selectedCanAct = Boolean(
     selectedItem?.source === "pending"
       && selectedItem.user_confirmed
       && selectedItem.status !== "done"
-      && selectedItem.status !== "failed",
+      && selectedItem.status !== "failed"
+      && canCurrentOperatorAct(selectedItem),
   );
 
   async function updateTask(action: QueueAction) {
@@ -136,6 +171,28 @@ export default function ConciergeQueueAdminPage() {
       setMessage(err instanceof Error ? err.message : "Task could not be updated.");
     } finally {
       setSavingAction(null);
+    }
+  }
+
+  async function takeTask(item: OperatorConciergeQueueItem) {
+    setAssigningId(item.id);
+    setMessage("");
+    try {
+      const res = await apiFetch(`/api/admin/concierge/queue/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "assign" }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) throw new Error(data.error || "Task could not be assigned.");
+      await refresh();
+      setMessage("Task assigned to you.");
+      if (selectedItem?.id === item.id) {
+        setSelectedItem(null);
+      }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Task could not be assigned.");
+    } finally {
+      setAssigningId(null);
     }
   }
 
@@ -225,6 +282,33 @@ export default function ConciergeQueueAdminPage() {
               );
             })}
           </div>
+
+          <div className="mt-4 flex flex-wrap gap-2" aria-label="Owner filters">
+            {[
+              { id: "all" as const, label: "All owners", count: allCount },
+              { id: "mine" as const, label: "Assigned to me", count: mineCount },
+              { id: "unassigned" as const, label: "Unassigned", count: unassignedCount },
+            ].map((owner) => {
+              const active = ownerFilter === owner.id;
+              return (
+                <button
+                  key={owner.id}
+                  type="button"
+                  onClick={() => setOwnerFilter(owner.id)}
+                  aria-pressed={active}
+                  className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${
+                    active
+                      ? "border-purple-600 bg-purple-700 text-white"
+                      : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46] hover:border-purple-200 hover:text-purple-700"
+                  }`}
+                  data-testid={`admin-concierge-owner-filter-${owner.id}`}
+                >
+                  {owner.label}
+                  <span className={active ? "text-purple-100" : "text-[#8b7a73]"}>{owner.count}</span>
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         <section className="mt-5 rounded-[24px] border border-[#eadfd5] bg-white p-5 shadow-sm" data-testid="admin-concierge-queue-list">
@@ -265,6 +349,7 @@ export default function ConciergeQueueAdminPage() {
                   </div>
                   <div className="grid gap-1 text-left text-sm font-bold text-[#6b5a53] lg:min-w-[15rem] lg:text-right">
                     <span>Updated {formatDate(item.updated_at)}</span>
+                    <span>{assignmentLabel(item)}</span>
                     <span>{item.user_confirmed ? "User confirmed" : "Awaiting confirmation"}</span>
                   </div>
                 </div>
@@ -287,7 +372,17 @@ export default function ConciergeQueueAdminPage() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  {canTakeTask(item) && (
+                    <button
+                      type="button"
+                      className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-5 text-sm font-black text-emerald-800 transition hover:border-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2"
+                      onClick={() => takeTask(item)}
+                      disabled={assigningId === item.id}
+                    >
+                      {assigningId === item.id ? "Taking..." : "Take task"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-purple-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2"
@@ -358,6 +453,13 @@ export default function ConciergeQueueAdminPage() {
                 <p className="mt-1 font-bold text-[#2f2135]">{selectedItem.user_confirmed ? "User confirmed" : "Awaiting user confirmation"}</p>
                 <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Updated {formatDate(selectedItem.updated_at)}</p>
               </div>
+              <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3 md:col-span-2">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Owner</p>
+                <p className="mt-1 font-bold text-[#2f2135]">{assignmentLabel(selectedItem)}</p>
+                {selectedItem.operator_assigned_at && (
+                  <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Taken {formatDate(selectedItem.operator_assigned_at)}</p>
+                )}
+              </div>
             </div>
 
             <label className="mt-5 block">
@@ -372,6 +474,16 @@ export default function ConciergeQueueAdminPage() {
 
             {selectedCanAct ? (
               <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                {canTakeTask(selectedItem) && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800 transition hover:border-purple-300"
+                    onClick={() => takeTask(selectedItem)}
+                    disabled={Boolean(assigningId)}
+                  >
+                    {assigningId === selectedItem.id ? "Taking..." : "Take task"}
+                  </button>
+                )}
                 {selectedItem.status !== "in_progress" && (
                   <button
                     type="button"
