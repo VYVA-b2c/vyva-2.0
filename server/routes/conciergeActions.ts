@@ -4,6 +4,7 @@ import { z } from "zod";
 import { pool } from "../db.js";
 import { authMiddleware, requireUser } from "../middleware/auth.js";
 import { requireEntitlement } from "../middleware/entitlements.js";
+import { withConciergeExecutionTask } from "../../shared/conciergeActionExecution.js";
 import {
   CONCIERGE_USE_CASES,
   cancelPendingConciergeAction,
@@ -152,7 +153,19 @@ router.get("/pending", async (req: Request, res: Response) => {
       [userId],
     );
 
-    return res.json({ items: result.rows });
+    return res.json({
+      items: result.rows.map((row) => ({
+        ...row,
+        action_payload: withConciergeExecutionTask({
+          useCase: row.use_case,
+          payload: row.action_payload,
+          providerName: row.provider_name,
+          providerPhone: row.provider_phone,
+          summary: row.action_summary,
+          pendingStatus: row.status,
+        }),
+      })),
+    });
   } catch (err) {
     console.error("[concierge/actions GET /pending]", err);
     return res.status(500).json({ error: "Failed to fetch pending concierge actions" });
