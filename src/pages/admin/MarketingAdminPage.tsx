@@ -536,6 +536,13 @@ type CampaignExecutionPlanItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignStudioLaunchStep = CampaignReadinessItem & {
+  actionLabel: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -4857,6 +4864,76 @@ export default function MarketingAdminPage() {
         ? "Create the campaign and review it before sending email."
         : `Create the ${channelLabel[campaignStudio.channel]} planning campaign, then track execution manually until sending is enabled.`;
   const campaignStudioCreateDisabled = campaignStudioSaving || campaignStudioAiRunning || campaignStudioBlockedCount > 0;
+  const campaignStudioManualChannels = campaignStudioSelectedChannels.filter((channel) => channel !== "email");
+  const campaignStudioLaunchSteps: CampaignStudioLaunchStep[] = [
+    {
+      key: "audience",
+      title: selectedCampaignStudioTargetAudience ? "Audience list selected" : "Choose an audience source",
+      state: campaignStudioReadinessItems.find((item) => item.key === "audience")?.state ?? "planning",
+      detail: selectedCampaignStudioTargetAudience
+        ? `${selectedCampaignStudioTargetAudience.name} has ${selectedCampaignStudioTargetAudience.mappedMemberCount}/${selectedCampaignStudioTargetAudience.memberCount} mapped contacts.`
+        : `${campaignStudioAudiencePool.length} eligible contacts match this play without a saved list.`,
+      actionLabel: selectedCampaignStudioTargetAudience ? "Review list" : "Open contacts",
+      icon: UsersRound,
+      onSelect: () => {
+        setActiveTab("contacts");
+        setContactView("lists");
+        setSearch("");
+        setAudienceFeedback(selectedCampaignStudioTargetAudience
+          ? `Reviewing list "${selectedCampaignStudioTargetAudience.name}" before campaign creation.`
+          : "Review contacts before choosing a campaign audience.");
+      },
+    },
+    {
+      key: "copy",
+      title: campaignStudioHasFullAiPack ? "AI copy pack ready" : "Polish the channel copy",
+      state: campaignStudioHasFullAiPack
+        ? "ready"
+        : campaignStudioCreativeIssueCount > 0
+          ? "needs_action"
+          : "planning",
+      detail: campaignStudioHasFullAiPack
+        ? `All ${campaignStudioSelectedChannels.length} selected channel draft${campaignStudioSelectedChannels.length === 1 ? "" : "s"} are AI-polished.`
+        : campaignStudioSelectedChannels.length > 1
+          ? `Improve ${campaignStudioSelectedChannels.length} selected channel drafts in one pass.`
+          : `Improve the ${channelLabel[campaignStudio.channel]} draft before creating campaign records.`,
+      actionLabel: campaignStudioHasFullAiPack ? "Refresh AI" : "Improve with AI",
+      icon: Sparkles,
+      disabled: campaignStudioAiRunning || campaignStudioSaving,
+      onSelect: () => {
+        void generateCampaignStudioAiDraft().catch((error) => setCampaignStudioFeedback(error.message));
+      },
+    },
+    {
+      key: "create",
+      title: "Create campaign records",
+      state: campaignStudioCreateDisabled ? "blocked" : "ready",
+      detail: campaignStudioSelectedChannels.length === 1
+        ? `Create one content asset, one ${channelLabel[campaignStudio.channel]} campaign route, and ${campaignStudioRecipientPreview.length} recipient snapshot${campaignStudioRecipientPreview.length === 1 ? "" : "s"}.`
+        : `Create ${campaignStudioSelectedChannels.length} content assets, linked channel routes, and ${campaignStudioPackRecipientCount} recipient snapshots.`,
+      actionLabel: "Create now",
+      icon: Plus,
+      disabled: campaignStudioCreateDisabled,
+      onSelect: () => {
+        void createCampaignAndContentFromStudio();
+      },
+    },
+    {
+      key: "review",
+      title: campaignStudioHasEmailChannel ? "Review before email send" : "Prepare manual channel handoff",
+      state: campaignStudioHasEmailChannel ? "needs_action" : "planning",
+      detail: campaignStudioHasEmailChannel
+        ? "Email sends are available only after the created campaign is reviewed, saved, and explicitly sent from campaign details."
+        : `${campaignStudioManualChannels.map((channel) => channelLabel[channel]).join(", ") || channelLabel[campaignStudio.channel]} stays as a planning/tracking record until provider dispatch is enabled.`,
+      actionLabel: "Apply to planner",
+      icon: campaignStudioHasEmailChannel ? Send : CalendarDays,
+      disabled: campaignStudioSaving,
+      onSelect: () => {
+        applyCampaignStudioDraft();
+        setMessage("Studio draft applied to planner for review before create/send.");
+      },
+    },
+  ];
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
   const selectedCampaignTargetAudience = useMemo(
@@ -6996,6 +7073,49 @@ export default function MarketingAdminPage() {
                       <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-next-step">
                         Next step: {campaignStudioNextStep}
                       </p>
+                    </div>
+
+                    <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-4" data-testid="marketing-campaign-studio-launch-sequence">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Launch sequence</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Next best actions</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Follow these in order, or jump straight to the step VYVA says needs attention.</p>
+                        </div>
+                        <Pill className={campaignStudioCreateDisabled ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                          {campaignStudioCreateDisabled ? "Fix before create" : "Ready to create"}
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 xl:grid-cols-4" data-testid="marketing-campaign-studio-launch-steps">
+                        {campaignStudioLaunchSteps.map((step, index) => {
+                          const Icon = step.icon;
+                          return (
+                            <button
+                              key={step.key}
+                              type="button"
+                              onClick={step.onSelect}
+                              disabled={step.disabled}
+                              className={`min-h-[156px] rounded-xl border p-3 text-left transition focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(step.state)} ${step.disabled ? "" : "hover:border-purple-300 hover:shadow-sm"}`}
+                              data-testid={`button-marketing-campaign-studio-launch-${step.key}`}
+                            >
+                              <span className="flex items-start justify-between gap-2">
+                                <span className="inline-flex items-center gap-2">
+                                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-white shadow-sm">
+                                    <Icon size={15} aria-hidden="true" />
+                                  </span>
+                                  <span className="text-xs font-black uppercase tracking-[0.1em] opacity-75">Step {index + 1}</span>
+                                </span>
+                                <Pill className={readinessPillClass(step.state)}>{readinessLabel(step.state)}</Pill>
+                              </span>
+                              <span className="mt-3 block font-black text-[#241133]">{step.title}</span>
+                              <span className="mt-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{step.detail}</span>
+                              <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                                {step.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">

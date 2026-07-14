@@ -2068,7 +2068,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-readiness-recipients")).toHaveTextContent("1 eligible recipient will be snapshotted.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-channel")).toHaveTextContent("Planning");
     expect(screen.getByTestId("marketing-campaign-studio-next-step")).toHaveTextContent("Improve with AI");
-    fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
+    expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Launch sequence");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Next best actions");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-audience")).toHaveTextContent("Audience list selected");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-copy")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-create")).toHaveTextContent("Create now");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-copy"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
     });
@@ -2118,7 +2123,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-execution-plan-email")).toHaveTextContent("VYVA email send");
     expect(screen.getByTestId("marketing-campaign-studio-execution-plan-email")).toHaveTextContent("send from the campaign details");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("0/2 selected channels have AI-polished copy.");
-    fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
+    expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Create 2 content assets");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-review")).toHaveTextContent("Review before email send");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-copy"));
 
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI drafts generated for 2 channels");
@@ -2128,7 +2135,8 @@ describe("MarketingAdminPage", () => {
     expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).angle)).toEqual(["balanced", "balanced"]);
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("AI adapted all 2 selected channel drafts.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
-    fireEvent.click(screen.getByTestId("button-marketing-create-studio-campaign"));
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-copy")).toHaveTextContent("Refresh AI");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-create"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
