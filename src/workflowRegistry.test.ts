@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 import { CONCIERGE_FLOW_REFERENCES } from "../shared/conciergeFlowRegistry";
 import {
   APP_WORKFLOW_REFERENCES,
+  WORKFLOW_DEFINITIONS,
   WORKFLOW_ENTRY_POINTS,
+  WORKFLOW_STATUSES,
   deduplicateWorkflowReferences,
+  getWorkflowCoverageSummary,
   getWorkflowDefinition,
   getWorkflowEntryPoint,
+  nextWorkflowImplementationCandidates,
+  resolveWorkflowAction,
   validateWorkflowRegistry,
+  workflowActionForEntryPoint,
+  workflowActionsForTarget,
   workflowEntryPointsFor,
   workflowEntryPointsForSurface,
 } from "../shared/workflowRegistry";
@@ -110,5 +117,71 @@ describe("cross-app workflow registry", () => {
       "/senses/breath-garden",
       "/senses/scent-memory",
     ].forEach((route) => expect(routes.has(route)).toBe(true));
+  });
+
+  it("resolves key UI actions into workflow metadata", () => {
+    const checks = [
+      ["home.fast.book-ride", CONCIERGE_FLOW_REFERENCES.transportBooking],
+      ["health.fast.book-medical", CONCIERGE_FLOW_REFERENCES.medicalAppointment],
+      ["meds.fast.refill-help", CONCIERGE_FLOW_REFERENCES.otcPharmacy],
+      ["learn.action.today-lesson", APP_WORKFLOW_REFERENCES.learningTodayLesson],
+      ["community.card.activities", APP_WORKFLOW_REFERENCES.communityActivities],
+      ["game.listen-closely", APP_WORKFLOW_REFERENCES.gameListenClosely],
+      ["concierge.action.transport", CONCIERGE_FLOW_REFERENCES.transportBooking],
+    ] as const;
+
+    checks.forEach(([entryPointId, workflowReference]) => {
+      const action = workflowActionForEntryPoint(entryPointId);
+      expect(action.workflowReference).toBe(workflowReference);
+      expect(action.workflowTitle.length).toBeGreaterThan(0);
+      expect(action.suggestedFlow.length).toBeGreaterThan(0);
+      expect(action.nextStep.length).toBeGreaterThan(0);
+      expect(action.completionState.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("resolves precise targets and refuses ambiguous matches", () => {
+    expect(resolveWorkflowAction({
+      source: "HomeScreen",
+      surface: "fast_help",
+      label: "Book Ride",
+    })?.workflowReference).toBe(CONCIERGE_FLOW_REFERENCES.transportBooking);
+
+    expect(resolveWorkflowAction({ route: "/concierge" })).toBeNull();
+
+    expect(workflowActionsForTarget({
+      source: "HomeScreen",
+      surface: "fast_help",
+    }).map((action) => action.entryPointId)).toEqual([
+      "home.fast.symptoms",
+      "home.fast.age-well",
+      "home.fast.find-care",
+      "home.fast.book-ride",
+      "home.fast.paperwork-help",
+      "home.fast.safe-home",
+    ]);
+  });
+
+  it("summarizes complete, partial, and missing coverage by area", () => {
+    const summary = getWorkflowCoverageSummary();
+
+    expect(summary.workflows.total).toBe(WORKFLOW_DEFINITIONS.length);
+    expect(summary.entryPoints.total).toBe(WORKFLOW_ENTRY_POINTS.length);
+    expect(summary.workflows.complete + summary.workflows.partial + summary.workflows.missing).toBe(summary.workflows.total);
+    expect(summary.entryPoints.complete + summary.entryPoints.partial + summary.entryPoints.missing).toBe(summary.entryPoints.total);
+    expect(summary.byDomain.health.total).toBeGreaterThan(0);
+    expect(summary.byDomain.concierge.total).toBeGreaterThan(0);
+    expect(summary.bySurface.fast_help.total).toBeGreaterThan(0);
+    expect(summary.bySurface.game_action.total).toBeGreaterThan(0);
+    expect(WORKFLOW_STATUSES.reduce((total, status) => total + summary.byStatus[status], 0)).toBe(summary.workflows.total);
+    expect(summary.partialWorkflows).toEqual(expect.arrayContaining([APP_WORKFLOW_REFERENCES.visualScan]));
+  });
+
+  it("surfaces the next incomplete implementation candidates from the registry", () => {
+    const candidates = nextWorkflowImplementationCandidates(3);
+
+    expect(candidates).toHaveLength(3);
+    expect(candidates.every((candidate) => candidate.coverageState !== "complete")).toBe(true);
+    expect(candidates[0].coverageState).toBe("partial");
   });
 });

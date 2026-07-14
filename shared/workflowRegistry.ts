@@ -87,6 +87,19 @@ export type WorkflowDomain =
   | "concierge"
   | "profile";
 
+export const WORKFLOW_DOMAINS: WorkflowDomain[] = [
+  "home",
+  "health",
+  "medication",
+  "mind_memory",
+  "learning",
+  "community",
+  "room",
+  "game",
+  "concierge",
+  "profile",
+];
+
 export type WorkflowEntrySurface =
   | "main_card"
   | "sub_card"
@@ -98,7 +111,24 @@ export type WorkflowEntrySurface =
   | "voice_action"
   | "profile_setup";
 
+export const WORKFLOW_ENTRY_SURFACES: WorkflowEntrySurface[] = [
+  "main_card",
+  "sub_card",
+  "fast_help",
+  "room_action",
+  "health_action",
+  "learning_action",
+  "game_action",
+  "voice_action",
+  "profile_setup",
+];
+
 export type WorkflowStatus = "ready" | "partial" | "planned" | "deferred";
+
+export const WORKFLOW_STATUSES: WorkflowStatus[] = ["ready", "partial", "planned", "deferred"];
+
+export type WorkflowCoverageState = "complete" | "partial" | "missing";
+
 export type WorkflowFallback =
   | "ask_user"
   | "open_setup"
@@ -130,6 +160,51 @@ export interface WorkflowEntryPoint {
   label: string;
   route?: string;
   suggestedFlow: string;
+}
+
+export interface WorkflowActionLookup {
+  entryPointId: string;
+  workflowReference: WorkflowReference;
+  label: string;
+  source: string;
+  surface: WorkflowEntrySurface;
+  route?: string;
+  suggestedFlow: string;
+  workflowTitle: string;
+  domain: WorkflowDomain;
+  status: WorkflowStatus;
+  coverageState: WorkflowCoverageState;
+  nextStep: string;
+  completionState: string;
+  confirmationRule: string;
+  fallbackIfMissing: WorkflowFallback[];
+  relatedConciergeFlow?: ConciergeFlowReference;
+}
+
+export interface WorkflowActionTarget {
+  entryPointId?: string;
+  workflow?: WorkflowReference;
+  source?: string;
+  surface?: WorkflowEntrySurface;
+  route?: string;
+  label?: string;
+}
+
+export interface WorkflowCoverageCounts {
+  total: number;
+  complete: number;
+  partial: number;
+  missing: number;
+}
+
+export interface WorkflowCoverageSummary {
+  workflows: WorkflowCoverageCounts;
+  entryPoints: WorkflowCoverageCounts;
+  byDomain: Record<WorkflowDomain, WorkflowCoverageCounts>;
+  bySurface: Record<WorkflowEntrySurface, WorkflowCoverageCounts>;
+  byStatus: Record<WorkflowStatus, number>;
+  partialWorkflows: WorkflowReference[];
+  missingWorkflows: WorkflowReference[];
 }
 
 function conciergeWorkflowDefinitions(): WorkflowDefinition[] {
@@ -1113,4 +1188,134 @@ export function workflowEntryPointsForSurface(surface: WorkflowEntrySurface): Wo
 
 export function deduplicateWorkflowReferences(references: WorkflowReference[]): WorkflowReference[] {
   return [...new Set(references)];
+}
+
+export function workflowCoverageState(status: WorkflowStatus): WorkflowCoverageState {
+  if (status === "ready") return "complete";
+  if (status === "partial") return "partial";
+  return "missing";
+}
+
+function emptyCoverageCounts(): WorkflowCoverageCounts {
+  return {
+    total: 0,
+    complete: 0,
+    partial: 0,
+    missing: 0,
+  };
+}
+
+function addCoverageCount(counts: WorkflowCoverageCounts, state: WorkflowCoverageState): void {
+  counts.total += 1;
+  counts[state] += 1;
+}
+
+function emptyDomainCoverage(): Record<WorkflowDomain, WorkflowCoverageCounts> {
+  return Object.fromEntries(
+    WORKFLOW_DOMAINS.map((domain) => [domain, emptyCoverageCounts()]),
+  ) as Record<WorkflowDomain, WorkflowCoverageCounts>;
+}
+
+function emptySurfaceCoverage(): Record<WorkflowEntrySurface, WorkflowCoverageCounts> {
+  return Object.fromEntries(
+    WORKFLOW_ENTRY_SURFACES.map((surface) => [surface, emptyCoverageCounts()]),
+  ) as Record<WorkflowEntrySurface, WorkflowCoverageCounts>;
+}
+
+function emptyStatusCounts(): Record<WorkflowStatus, number> {
+  return Object.fromEntries(WORKFLOW_STATUSES.map((status) => [status, 0])) as Record<WorkflowStatus, number>;
+}
+
+function toWorkflowActionLookup(entry: WorkflowEntryPoint): WorkflowActionLookup {
+  const workflow = getWorkflowDefinition(entry.workflow);
+  return {
+    entryPointId: entry.id,
+    workflowReference: workflow.reference,
+    label: entry.label,
+    source: entry.source,
+    surface: entry.surface,
+    route: entry.route,
+    suggestedFlow: entry.suggestedFlow,
+    workflowTitle: workflow.title,
+    domain: workflow.domain,
+    status: workflow.status,
+    coverageState: workflowCoverageState(workflow.status),
+    nextStep: workflow.nextStep ?? entry.suggestedFlow,
+    completionState: workflow.completionState,
+    confirmationRule: workflow.confirmationRule,
+    fallbackIfMissing: workflow.fallbackIfMissing,
+    relatedConciergeFlow: workflow.relatedConciergeFlow,
+  };
+}
+
+export function workflowActionForEntryPoint(entryPointId: string): WorkflowActionLookup {
+  return toWorkflowActionLookup(getWorkflowEntryPoint(entryPointId));
+}
+
+export function workflowActionsForTarget(target: WorkflowActionTarget): WorkflowActionLookup[] {
+  return WORKFLOW_ENTRY_POINTS
+    .filter((entry) => {
+      if (target.entryPointId && entry.id !== target.entryPointId) return false;
+      if (target.workflow && entry.workflow !== target.workflow) return false;
+      if (target.source && entry.source !== target.source) return false;
+      if (target.surface && entry.surface !== target.surface) return false;
+      if (target.route && entry.route !== target.route) return false;
+      if (target.label && entry.label !== target.label) return false;
+      return true;
+    })
+    .map(toWorkflowActionLookup);
+}
+
+export function resolveWorkflowAction(target: WorkflowActionTarget): WorkflowActionLookup | null {
+  const matches = workflowActionsForTarget(target);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+export function getWorkflowCoverageSummary(): WorkflowCoverageSummary {
+  const workflows = emptyCoverageCounts();
+  const entryPoints = emptyCoverageCounts();
+  const byDomain = emptyDomainCoverage();
+  const bySurface = emptySurfaceCoverage();
+  const byStatus = emptyStatusCounts();
+  const partialWorkflows: WorkflowReference[] = [];
+  const missingWorkflows: WorkflowReference[] = [];
+
+  WORKFLOW_DEFINITIONS.forEach((workflow) => {
+    const state = workflowCoverageState(workflow.status);
+    addCoverageCount(workflows, state);
+    addCoverageCount(byDomain[workflow.domain], state);
+    byStatus[workflow.status] += 1;
+    if (state === "partial") partialWorkflows.push(workflow.reference);
+    if (state === "missing") missingWorkflows.push(workflow.reference);
+  });
+
+  WORKFLOW_ENTRY_POINTS.forEach((entry) => {
+    const workflow = getWorkflowDefinition(entry.workflow);
+    const state = workflowCoverageState(workflow.status);
+    addCoverageCount(entryPoints, state);
+    addCoverageCount(bySurface[entry.surface], state);
+  });
+
+  return {
+    workflows,
+    entryPoints,
+    byDomain,
+    bySurface,
+    byStatus,
+    partialWorkflows,
+    missingWorkflows,
+  };
+}
+
+export function nextWorkflowImplementationCandidates(limit = 5): WorkflowActionLookup[] {
+  return WORKFLOW_ENTRY_POINTS
+    .map(toWorkflowActionLookup)
+    .filter((action) => action.coverageState !== "complete")
+    .sort((left, right) => {
+      if (left.coverageState !== right.coverageState) {
+        return left.coverageState === "partial" ? -1 : 1;
+      }
+      return left.entryPointId.localeCompare(right.entryPointId);
+    })
+    .slice(0, limit);
 }
