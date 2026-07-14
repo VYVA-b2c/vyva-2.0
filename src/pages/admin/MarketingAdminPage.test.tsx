@@ -2521,6 +2521,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved recipient can be sent through VYVA email");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Manual publishing");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview the content, then publish or track it in the channel tool.");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-launch-packet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch packet"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign: Caregiver welcome"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Email channel"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn channel"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign launch packet copied.");
     expect(screen.getByTestId("marketing-campaign-handoff-brief-linkedin")).toHaveTextContent("Manual channel brief");
     const linkedinHandoffBrief = screen.getByTestId("textarea-marketing-campaign-handoff-brief-linkedin") as HTMLTextAreaElement;
     expect(linkedinHandoffBrief.value).toContain("Campaign: Caregiver welcome");

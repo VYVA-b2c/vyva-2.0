@@ -6330,10 +6330,9 @@ export default function MarketingAdminPage() {
     }
   }
 
-  async function copyCampaignHandoffBrief(channel: Channel, brief: string) {
-    const channelName = channelLabel[channel];
-    if (!brief.trim()) {
-      const feedback = `${channelName} handoff brief is empty.`;
+  async function copyCampaignHandoffText(label: string, text: string) {
+    if (!text.trim()) {
+      const feedback = `${label} is empty.`;
       setCampaignHandoffCopyFeedback(feedback);
       setMessage(feedback);
       return;
@@ -6341,10 +6340,10 @@ export default function MarketingAdminPage() {
 
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(brief);
+        await navigator.clipboard.writeText(text);
       } else {
         const fallbackInput = document.createElement("textarea");
-        fallbackInput.value = brief;
+        fallbackInput.value = text;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -6355,14 +6354,18 @@ export default function MarketingAdminPage() {
         if (!copied) throw new Error("Clipboard unavailable");
       }
 
-      const feedback = `${channelName} handoff brief copied.`;
+      const feedback = `${label} copied.`;
       setCampaignHandoffCopyFeedback(feedback);
       setMessage(feedback);
     } catch {
-      const feedback = `Could not copy ${channelName} handoff brief. Select the text and copy it manually.`;
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
       setCampaignHandoffCopyFeedback(feedback);
       setMessage(feedback);
     }
+  }
+
+  async function copyCampaignHandoffBrief(channel: Channel, brief: string) {
+    await copyCampaignHandoffText(`${channelLabel[channel]} handoff brief`, brief);
   }
 
   function startNewJourney() {
@@ -7591,6 +7594,42 @@ export default function MarketingAdminPage() {
     .map((channelDraft) => channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null)
     .find((item): item is ContentAsset => Boolean(item)) ?? null;
   const firstManualPublishKitItem = campaignPublishKitItems.find((item) => item.channel !== "email" && item.contentAsset);
+  const campaignForLaunchPacket: Campaign | null = editingCampaign ? {
+    ...editingCampaign,
+    name: campaignEditDraft.name || editingCampaign.name,
+    audienceType: campaignEditDraft.audienceType,
+    status: campaignEditDraft.status,
+    objective: campaignEditDraft.objective,
+    scheduleStartsAt: fromDateTimeLocal(campaignEditDraft.scheduleStartsAt) || editingCampaign.scheduleStartsAt,
+    scheduleEndsAt: fromDateTimeLocal(campaignEditDraft.scheduleEndsAt) || editingCampaign.scheduleEndsAt,
+    timezone: campaignEditDraft.timezone || editingCampaign.timezone,
+  } : null;
+  const campaignLaunchPacketBrief = campaignForLaunchPacket ? [
+    "VYVA campaign launch packet",
+    `Campaign: ${campaignForLaunchPacket.name}`,
+    `Audience: ${campaignForLaunchPacket.audienceType.toUpperCase()}`,
+    `Status: ${campaignForLaunchPacket.status}`,
+    `Schedule: ${formatDate(campaignForLaunchPacket.scheduleStartsAt)}`,
+    `Timezone: ${campaignForLaunchPacket.timezone}`,
+    `Channels: ${campaignPublishKitItems.map((item) => channelLabel[item.channel]).join(", ") || "None"}`,
+    campaignForLaunchPacket.objective ? `Objective: ${campaignForLaunchPacket.objective}` : "",
+    ...campaignPublishKitItems.map((item) => {
+      if (!item.contentAsset) {
+        return [
+          "---",
+          `${channelLabel[item.channel]} channel`,
+          "Status: Missing content",
+          `Next: Attach ${channelLabel[item.channel]} content before this channel can be published or tracked.`,
+        ].join("\n");
+      }
+      const linkedMediaAssets = mediaAssets.filter((asset) => asset.contentAssetId === item.contentAsset?.id);
+      return [
+        "---",
+        `${channelLabel[item.channel]} channel`,
+        campaignChannelHandoffBrief(campaignForLaunchPacket, item.channel, item.contentAsset, linkedMediaAssets, item.recipients, item.scheduledAt),
+      ].join("\n\n");
+    }),
+  ].filter(Boolean).join("\n\n") : "";
   const campaignTestNeedsSave = Boolean(draftEmailChannel?.contentAssetId && hasUnsavedCampaignSendChanges);
   const campaignLaunchSequenceSteps: CampaignLaunchSequenceStep[] = editingCampaign ? [
     {
@@ -8909,7 +8948,18 @@ export default function MarketingAdminPage() {
                             <h3 className="mt-1 font-serif text-2xl text-[#241133]">Channel handoff plan</h3>
                             <p className="mt-1 text-sm font-bold text-[#7d6b65]">One place to see what can be sent in VYVA, what needs a provider later, and what should be published manually.</p>
                           </div>
-                          <Pill className="bg-purple-50 text-purple-800">{campaignPublishKitItems.length} channel{campaignPublishKitItems.length === 1 ? "" : "s"}</Pill>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill className="bg-purple-50 text-purple-800">{campaignPublishKitItems.length} channel{campaignPublishKitItems.length === 1 ? "" : "s"}</Pill>
+                            <button
+                              type="button"
+                              onClick={() => void copyCampaignHandoffText("Campaign launch packet", campaignLaunchPacketBrief)}
+                              disabled={!campaignLaunchPacketBrief.trim()}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-copy-launch-packet"
+                            >
+                              <Copy size={15} /> Copy launch packet
+                            </button>
+                          </div>
                         </div>
                         {campaignHandoffCopyFeedback ? (
                           <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800" data-testid="marketing-campaign-handoff-copy-feedback">
