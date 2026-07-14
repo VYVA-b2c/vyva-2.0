@@ -656,6 +656,33 @@ type AudienceHealthAction = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type ContactWorkQueueFilterPatch = {
+  search?: string;
+  audience?: Audience | "all";
+  source?: string;
+  consent?: ConsentStatus | "all";
+  language?: string;
+  category?: string;
+  vertical?: string;
+  market?: string;
+  list?: string;
+};
+
+type ContactRelationshipWorkQueue = CampaignReadinessItem & {
+  count: number;
+  countLabel: string;
+  contacts: MarketingContact[];
+  channels: Channel[];
+  playId: CampaignStudioPlayId;
+  toneId: CampaignStudioToneId;
+  angleId: CampaignStudioAngleId;
+  filterPatch: ContactWorkQueueFilterPatch;
+  sampleContact: MarketingContact | null;
+  icon: LucideIcon;
+  showLabel: string;
+  studioLabel: string;
+};
+
 type ContentTemplateRecommendation = {
   template: ContentTemplate;
   score: number;
@@ -4768,6 +4795,7 @@ export default function MarketingAdminPage() {
   const [contactVerticalFilter, setContactVerticalFilter] = useState("all");
   const [contactMarketFilter, setContactMarketFilter] = useState("all");
   const [contactListFilter, setContactListFilter] = useState("all");
+  const [contactWorkQueueContactIds, setContactWorkQueueContactIds] = useState<string[] | null>(null);
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>(() => emptyCampaignDraft());
   const [campaignStudio, setCampaignStudio] = useState<CampaignStudioState>(() => ({
     playId: "caregiver-onboarding",
@@ -5152,7 +5180,7 @@ export default function MarketingAdminPage() {
     contactVerticalFilter,
     contactMarketFilter,
     contactListFilter,
-  ].some((value) => value !== "all");
+  ].some((value) => value !== "all") || Boolean(contactWorkQueueContactIds?.length);
 
   const visibleContacts = useMemo(() => contacts.filter((contact) => {
     const matchesSearch = !search || contactSearchText(contact).includes(search.toLowerCase());
@@ -5164,8 +5192,9 @@ export default function MarketingAdminPage() {
     const matchesVertical = valueMatchesFilter(contact.vertical, contactVerticalFilter);
     const matchesMarket = valueMatchesFilter(contact.market, contactMarketFilter);
     const matchesList = contactListFilter === "all" || contact.lists.some((list) => valueMatchesFilter(list, contactListFilter));
-    return matchesSearch && matchesAudience && matchesSource && matchesConsent && matchesLanguage && matchesCategory && matchesVertical && matchesMarket && matchesList;
-  }), [contacts, search, audienceFilter, contactSourceFilter, contactConsentFilter, contactLanguageFilter, contactCategoryFilter, contactVerticalFilter, contactMarketFilter, contactListFilter]);
+    const matchesWorkQueue = !contactWorkQueueContactIds?.length || contactWorkQueueContactIds.includes(contact.id);
+    return matchesSearch && matchesAudience && matchesSource && matchesConsent && matchesLanguage && matchesCategory && matchesVertical && matchesMarket && matchesList && matchesWorkQueue;
+  }), [contacts, search, audienceFilter, contactSourceFilter, contactConsentFilter, contactLanguageFilter, contactCategoryFilter, contactVerticalFilter, contactMarketFilter, contactListFilter, contactWorkQueueContactIds]);
 
   const selectedRelationshipContact = useMemo(() => {
     if (selectedRelationshipContactId) return contactById.get(selectedRelationshipContactId) ?? null;
@@ -5414,6 +5443,137 @@ export default function MarketingAdminPage() {
       : contactHealthOptedOut > 0
         ? "opted_out"
         : null;
+  const contactRelationshipWorkQueues = useMemo<ContactRelationshipWorkQueue[]>(() => {
+    const directReachable = (contact: MarketingContact) => Boolean(recipientForChannel(contact, "email") || recipientForChannel(contact, "whatsapp"));
+    const segmented = (contact: MarketingContact) => Boolean(
+      contact.language
+      || contact.category
+      || contact.vertical
+      || contact.market
+      || contact.tags.length > 0
+      || contact.lists.length > 0,
+    );
+    const isB2bContact = (contact: MarketingContact) => (
+      contact.audienceType === "b2b"
+      || contact.audienceType === "both"
+      || Boolean(contact.companyName || contact.roleLabel)
+    );
+    const isB2cContact = (contact: MarketingContact) => contact.audienceType === "b2c" || contact.audienceType === "both";
+    const hasPartnerSignal = (contact: MarketingContact) => {
+      const haystack = lower([
+        contact.fullName,
+        contact.email,
+        contact.roleLabel,
+        contact.companyName,
+        contact.category,
+        contact.vertical,
+        contact.market,
+        ...(contact.tags ?? []),
+        ...(contact.lists ?? []),
+      ].filter(Boolean).join(" "));
+      return ["partner", "provider", "referral", "b2b", "organization"].some((signal) => haystack.includes(signal));
+    };
+    const consentContacts = contacts.filter((contact) => contact.consentStatus !== "opted_in");
+    const partnerContacts = contacts.filter((contact) => isB2bContact(contact) && hasPartnerSignal(contact) && directReachable(contact));
+    const familyContacts = contacts.filter((contact) => isB2cContact(contact) && directReachable(contact));
+    const localMarketContacts = contacts.filter((contact) => Boolean(contact.market) && directReachable(contact));
+    const segmentationGapContacts = contacts.filter((contact) => !segmented(contact));
+
+    return [
+      {
+        key: "consent-cleanup",
+        title: "Consent cleanup",
+        detail: consentContacts.length
+          ? "Review people who should not enter automated outreach until consent is clear."
+          : "Everyone has opted in, so consent is not blocking relationship work.",
+        state: consentContacts.length ? "needs_action" : "ready",
+        count: consentContacts.length,
+        countLabel: `${consentContacts.length} contact${consentContacts.length === 1 ? "" : "s"}`,
+        contacts: consentContacts,
+        channels: ["email", "whatsapp"],
+        playId: "reactivation",
+        toneId: "direct",
+        angleId: "action",
+        filterPatch: {},
+        sampleContact: consentContacts[0] ?? null,
+        icon: CheckCircle2,
+        showLabel: "Review consent",
+        studioLabel: "Prepare win-back",
+      },
+      {
+        key: "partner-nurture",
+        title: "B2B partner nurture",
+        detail: "Use partner/list/company signals to start a credible outreach sequence.",
+        state: partnerContacts.length ? "ready" : "planning",
+        count: partnerContacts.length,
+        countLabel: `${partnerContacts.length} partner${partnerContacts.length === 1 ? "" : "s"}`,
+        contacts: partnerContacts,
+        channels: ["email", "linkedin", "whatsapp"],
+        playId: "b2b-partner-outreach",
+        toneId: "expert",
+        angleId: "proof",
+        filterPatch: {},
+        sampleContact: partnerContacts[0] ?? null,
+        icon: Megaphone,
+        showLabel: "Show partners",
+        studioLabel: "Open partner play",
+      },
+      {
+        key: "family-onboarding",
+        title: "Family onboarding",
+        detail: "Find B2C or shared-audience contacts who can receive a warm onboarding campaign.",
+        state: familyContacts.length ? "ready" : "planning",
+        count: familyContacts.length,
+        countLabel: `${familyContacts.length} contact${familyContacts.length === 1 ? "" : "s"}`,
+        contacts: familyContacts,
+        channels: ["email", "whatsapp"],
+        playId: "caregiver-onboarding",
+        toneId: "warm",
+        angleId: "action",
+        filterPatch: {},
+        sampleContact: familyContacts[0] ?? null,
+        icon: UsersRound,
+        showLabel: "Show families",
+        studioLabel: "Open onboarding",
+      },
+      {
+        key: "local-market",
+        title: "Local market outreach",
+        detail: "Group contacts with market data into localised campaigns instead of broad blasts.",
+        state: localMarketContacts.length ? "ready" : "planning",
+        count: localMarketContacts.length,
+        countLabel: `${localMarketContacts.length} localised`,
+        contacts: localMarketContacts,
+        channels: ["email", "facebook", "instagram"],
+        playId: "local-event",
+        toneId: "warm",
+        angleId: "local",
+        filterPatch: {},
+        sampleContact: localMarketContacts[0] ?? null,
+        icon: Waypoints,
+        showLabel: "Show markets",
+        studioLabel: "Open local play",
+      },
+      {
+        key: "segmentation-gaps",
+        title: "Segmentation gaps",
+        detail: "Contacts without list, tag, market, language, category, or vertical data need cleanup before smart campaigns.",
+        state: segmentationGapContacts.length ? "needs_action" : "ready",
+        count: segmentationGapContacts.length,
+        countLabel: `${segmentationGapContacts.length} gap${segmentationGapContacts.length === 1 ? "" : "s"}`,
+        contacts: segmentationGapContacts,
+        channels: ["email"],
+        playId: "caregiver-onboarding",
+        toneId: "direct",
+        angleId: "balanced",
+        filterPatch: { search: segmentationGapContacts[0]?.fullName ?? "" },
+        sampleContact: segmentationGapContacts[0] ?? null,
+        icon: Sparkles,
+        showLabel: "Review gaps",
+        studioLabel: "Draft cleanup ask",
+      },
+    ];
+  }, [contacts]);
   const audienceHealthActions: AudienceHealthAction[] = [
     {
       key: "reach",
@@ -5445,6 +5605,7 @@ export default function MarketingAdminPage() {
         setContactView("contacts");
         setSearch("");
         setAudienceFilter("all");
+        setContactWorkQueueContactIds(null);
         setContactConsentFilter(contactConsentReviewFilter);
         setContactFeedback(`Showing ${contactConsentReviewFilter} contacts for consent cleanup.`);
       },
@@ -5460,6 +5621,7 @@ export default function MarketingAdminPage() {
       disabled: contactHealthTotal === 0,
       onSelect: () => {
         setContactView("contacts");
+        setContactWorkQueueContactIds(null);
         setContactFeedback(`Reviewing segmentation for ${contactHealthTotal} visible contact${contactHealthTotal === 1 ? "" : "s"}.`);
       },
     },
@@ -5476,6 +5638,7 @@ export default function MarketingAdminPage() {
       onSelect: () => {
         setContactView("lists");
         setSearch(contactHealthFirstListGap?.name ?? "");
+        setContactWorkQueueContactIds(null);
         setAudienceFeedback(contactHealthFirstListGap
           ? `Reviewing unmapped members in "${contactHealthFirstListGap.name}".`
           : "Reviewing marketing lists and audience membership.");
@@ -8220,6 +8383,74 @@ export default function MarketingAdminPage() {
     setSelectedRelationshipContactId(contact.id);
     setConfirmingContactDeleteId(null);
     setContactFeedback(`Viewing relationship for "${contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}".`);
+  }
+
+  function showContactWorkQueue(queue: ContactRelationshipWorkQueue) {
+    const filter = queue.filterPatch;
+    setActiveTab("contacts");
+    setContactView("contacts");
+    setContactWorkQueueContactIds(queue.contacts.map((contact) => contact.id));
+    setSelectedRelationshipContactId(queue.sampleContact?.id ?? null);
+    setSearch(filter.search ?? "");
+    setAudienceFilter(filter.audience ?? "all");
+    setContactSourceFilter(filter.source ?? "all");
+    setContactConsentFilter(filter.consent ?? "all");
+    setContactLanguageFilter(filter.language ?? "all");
+    setContactCategoryFilter(filter.category ?? "all");
+    setContactVerticalFilter(filter.vertical ?? "all");
+    setContactMarketFilter(filter.market ?? "all");
+    setContactListFilter(filter.list ?? "all");
+    setConfirmingContactDeleteId(null);
+    setContactFeedback(`Showing "${queue.title}" queue: ${queue.countLabel}.`);
+  }
+
+  function loadContactWorkQueueInStudio(queue: ContactRelationshipWorkQueue) {
+    const play = campaignStudioPlays.find((item) => item.id === queue.playId) ?? campaignStudioPlays[0];
+    const relatedAudience = queue.filterPatch.list
+      ? audiences.find((audience) => lower(audience.name) === queue.filterPatch.list) ?? bestCampaignStudioAudience(play, audiences)
+      : bestCampaignStudioAudience(play, audiences);
+    const primaryChannel = queue.channels.find((channel) => recipientForChannel(queue.sampleContact ?? {
+      id: "",
+      audienceType: play.audienceType,
+      fullName: "",
+      email: null,
+      phoneNumber: null,
+      whatsappNumber: null,
+      roleLabel: null,
+      companyName: null,
+      consentStatus: "unknown",
+      source: "vyva",
+      tags: [],
+      language: null,
+      category: null,
+      vertical: null,
+      market: null,
+      lists: [],
+      lovableExternalId: null,
+    }, channel)) ?? queue.channels[0] ?? play.defaultChannel;
+    const selectedChannels = uniqueChannels([primaryChannel, ...queue.channels]);
+
+    setActiveTab("dashboard");
+    setCampaignStudioCategory(play.categoryId);
+    updateCampaignStudio({
+      playId: play.id,
+      channel: primaryChannel,
+      selectedChannels,
+      targetAudienceId: relatedAudience?.id ?? "",
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+      toneId: queue.toneId,
+      angleId: queue.angleId,
+    });
+    setCampaignDraft((draft) => ({
+      ...draft,
+      audienceType: play.audienceType,
+      channel: primaryChannel,
+      targetAudienceId: relatedAudience?.id ?? "",
+      recipientFilter: queue.sampleContact?.email || queue.sampleContact?.fullName || queue.filterPatch.search || "",
+      snapshotRecipients: queue.count > 0,
+    }));
+    setCampaignStudioFeedback(`Relationship queue loaded: ${queue.title}. ${queue.countLabel} are ready for ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")} planning.`);
+    setMessage(`Relationship queue loaded: ${queue.title}. Generate AI copy, review the templates, then create the campaign.`);
   }
 
   function buildCampaignForRelationshipContact(contact: MarketingContact) {
@@ -12748,6 +12979,68 @@ export default function MarketingAdminPage() {
                 </div>
               </div>
 
+              <div className="rounded-2xl border border-[#eadfd5] bg-[#fffaf4] p-4 shadow-sm" data-testid="marketing-contact-work-queues">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Relationship work queues</p>
+                    <h3 className="mt-1 text-lg font-black text-[#241133]">What should we do next?</h3>
+                    <p className="mt-1 max-w-3xl text-xs font-bold leading-relaxed text-[#7d6b65]">
+                      Turn imported contacts into concrete follow-up lists, then open the right campaign play with channels and AI context pre-selected.
+                    </p>
+                  </div>
+                  <Pill className="bg-purple-50 text-purple-800">{contactRelationshipWorkQueues.filter((queue) => queue.count > 0).length} active queues</Pill>
+                </div>
+                <div className="mt-3 grid gap-3 xl:grid-cols-5">
+                  {contactRelationshipWorkQueues.map((queue) => {
+                    const Icon = queue.icon;
+                    return (
+                      <article
+                        key={queue.key}
+                        className={`flex min-h-[210px] flex-col rounded-xl border p-3 ${readinessClass(queue.state)}`}
+                        data-testid={`marketing-contact-work-queue-${queue.key}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="grid h-9 w-9 place-items-center rounded-xl bg-white shadow-sm">
+                            <Icon size={16} aria-hidden="true" />
+                          </span>
+                          <Pill className={readinessPillClass(queue.state)}>{readinessLabel(queue.state)}</Pill>
+                        </div>
+                        <p className="mt-3 text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{queue.title}</p>
+                        <p className="mt-1 text-2xl font-black text-[#241133]">{queue.countLabel}</p>
+                        <p className="mt-2 flex-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{queue.detail}</p>
+                        <div className="mt-3 flex flex-wrap gap-1">
+                          {queue.channels.map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                        </div>
+                        {queue.sampleContact ? (
+                          <p className="mt-2 truncate text-xs font-bold text-[#7d6b65]">Sample: {queue.sampleContact.fullName || queue.sampleContact.email || queue.sampleContact.phoneNumber}</p>
+                        ) : (
+                          <p className="mt-2 text-xs font-bold text-[#8b7a73]">No matching contacts yet.</p>
+                        )}
+                        <div className="mt-3 grid gap-2">
+                          <button
+                            type="button"
+                            onClick={() => showContactWorkQueue(queue)}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                            data-testid={`button-marketing-contact-work-queue-show-${queue.key}`}
+                          >
+                            <Eye size={13} /> {queue.showLabel}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => loadContactWorkQueueInStudio(queue)}
+                            disabled={queue.count === 0}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid={`button-marketing-contact-work-queue-studio-${queue.key}`}
+                          >
+                            <Sparkles size={13} /> {queue.studioLabel}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+
               {contactView === "contacts" ? (
                 <>
                   <SectionCard title="Contact draft" subtitle="Create B2B contacts or planning records before sync/cutover.">
@@ -13049,6 +13342,7 @@ export default function MarketingAdminPage() {
                             setContactVerticalFilter("all");
                             setContactMarketFilter("all");
                             setContactListFilter("all");
+                            setContactWorkQueueContactIds(null);
                           }}
                           disabled={!search && audienceFilter === "all" && !contactFiltersActive}
                           className="inline-flex min-h-9 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
