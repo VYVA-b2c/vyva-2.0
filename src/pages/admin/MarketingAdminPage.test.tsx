@@ -2100,6 +2100,83 @@ describe("MarketingAdminPage", () => {
     expect(patchPayload.designJson.aiPolish).toMatchObject({ generator: "marketing_content_ai_polish", tone: "direct" });
   });
 
+  it("creates a localized content variant with AI without changing the imported original", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+
+    fireEvent.change(screen.getByTestId("select-marketing-content-localize-language"), { target: { value: "es" } });
+    fireEvent.click(screen.getByTestId("button-marketing-localize-content-ai"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const aiCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiCall?.[1]?.body))).toMatchObject({
+      playLabel: "Content localization",
+      playCategory: "content_localization",
+      audienceType: "both",
+      channel: "linkedin",
+      tone: "warm",
+      campaignName: "Partner post",
+      contentTitle: "Partner post (Spanish)",
+      subjectSeed: "Partner post",
+      bodySeed: "Partner update",
+      ctaLabel: "Read more",
+      ctaUrl: "https://v2.vyva.life/partners",
+      language: "es",
+    });
+
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const postPayload = JSON.parse(String(postCall?.[1]?.body));
+    expect(postPayload).toMatchObject({
+      title: "Content localization AI content",
+      channel: "linkedin",
+      language: "es",
+      status: "draft",
+      subject: "AI subject line",
+      body: "AI body copy with stronger channel direction.",
+      ctaLabel: "AI CTA",
+      ctaUrl: "https://v2.vyva.life/ai",
+      source: "vyva",
+      lovableExternalId: null,
+      mediaAssets: [{ url: "https://cdn.example.test/partner.png" }],
+      metadata: {
+        extraLovableOnlyField: "kept",
+        localizedFromContentId: "content-2",
+        localizedFromLovableExternalId: "lovable-content-2",
+        localization: {
+          sourceLanguage: "en",
+          targetLanguage: "es",
+          targetLanguageLabel: "Spanish",
+          source: "openai",
+        },
+      },
+    });
+    expect(postPayload.designJson).toMatchObject({
+      blocks: [{ type: "hero" }],
+      aiLocalization: {
+        generator: "marketing_content_ai_localization",
+        source: "openai",
+        sourceContentId: "content-2",
+        sourceLanguage: "en",
+        targetLanguage: "es",
+        targetLanguageLabel: "Spanish",
+        modelHints: { generator: "test-ai" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Spanish draft created.");
+    });
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Content localization AI content");
+    expect(screen.getByTestId("input-marketing-edit-content-language")).toHaveValue("es");
+    expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("AI body copy with stronger channel direction.");
+    expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH")).toBe(false);
+  });
+
   it("edits and deletes imported media references", async () => {
     renderPage();
 

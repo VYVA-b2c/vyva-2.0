@@ -40,6 +40,14 @@ const CAMPAIGN_STATUSES = ["draft", "scheduled", "published", "paused", "archive
 const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const CONTENT_STATUSES = ["draft", "review", "approved", "published", "archived"] as const;
 const CONSENT_STATUSES = ["unknown", "pending", "opted_in", "opted_out"] as const;
+const CONTENT_LOCALIZATION_LANGUAGES = [
+  { value: "es", label: "Spanish" },
+  { value: "en", label: "English" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "it", label: "Italian" },
+  { value: "pt", label: "Portuguese" },
+] as const;
 const TEMPLATE_GAP_BATCH_LIMIT = 4;
 
 type Channel = typeof CHANNELS[number];
@@ -50,6 +58,7 @@ type CampaignStatus = typeof CAMPAIGN_STATUSES[number];
 type JourneyStatus = typeof JOURNEY_STATUSES[number];
 type ContentStatus = typeof CONTENT_STATUSES[number];
 type ConsentStatus = typeof CONSENT_STATUSES[number];
+type ContentLocalizationLanguage = typeof CONTENT_LOCALIZATION_LANGUAGES[number]["value"];
 type CountOption = { value: string; label: string; count: number };
 
 type MarketingSummary = {
@@ -932,6 +941,10 @@ const channelLabel: Record<Channel, string> = {
   tiktok: "TikTok",
 };
 
+const contentLocalizationLanguageLabel: Record<ContentLocalizationLanguage, string> = Object.fromEntries(
+  CONTENT_LOCALIZATION_LANGUAGES.map((language) => [language.value, language.label]),
+) as Record<ContentLocalizationLanguage, string>;
+
 const campaignStudioToneLabel: Record<CampaignStudioToneId, string> = {
   warm: "Warm",
   expert: "Expert",
@@ -1597,6 +1610,11 @@ function emailHtmlFromPlainCopy(body: string) {
   const paragraphs = body.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
   if (!paragraphs.length) return "";
   return paragraphs.map((paragraph) => `<p>${escapeHtmlText(paragraph).replace(/\n/g, "<br />")}</p>`).join("");
+}
+
+function localizedContentTitle(title: string, languageLabel: string) {
+  const trimmedTitle = title.trim() || "Marketing content";
+  return /\([^)]+\)$/.test(trimmedTitle) ? `${trimmedTitle} ${languageLabel}` : `${trimmedTitle} (${languageLabel})`;
 }
 
 function designShapeSummary(value: unknown) {
@@ -5026,6 +5044,8 @@ export default function MarketingAdminPage() {
   const [contentActionFeedback, setContentActionFeedback] = useState("");
   const [contentPolishTone, setContentPolishTone] = useState<CampaignStudioToneId>("warm");
   const [contentPolishRunning, setContentPolishRunning] = useState(false);
+  const [contentLocalizationLanguage, setContentLocalizationLanguage] = useState<ContentLocalizationLanguage>("es");
+  const [contentLocalizationRunning, setContentLocalizationRunning] = useState(false);
   const [templateGapAiRunningId, setTemplateGapAiRunningId] = useState<string | null>(null);
   const [templateGapPackRunning, setTemplateGapPackRunning] = useState(false);
   const [templateGapPackProgress, setTemplateGapPackProgress] = useState("");
@@ -6332,6 +6352,7 @@ export default function MarketingAdminPage() {
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
   const selectedContent = useMemo(() => selectedContentId ? content.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, content]);
+  const contentEditorBusy = contentSaving || contentPolishRunning || contentLocalizationRunning;
   const selectedContentUsage = useMemo(
     () => selectedContent ? contentUsageById.get(selectedContent.id) ?? [] : [],
     [contentUsageById, selectedContent],
@@ -9121,6 +9142,123 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setContentPolishRunning(false);
+    }
+  }
+
+  async function createLocalizedContentVariant() {
+    if (!editingContentId || !contentEditDraft) return;
+    const currentDraft = contentEditDraft;
+    const bodySeed = currentDraft.body.trim() || currentDraft.htmlBody.trim();
+    const subjectSeed = currentDraft.subject.trim() || currentDraft.title.trim();
+    if (!subjectSeed && !bodySeed) {
+      setContentFeedback("Add a subject or copy before creating a localized variant.");
+      return;
+    }
+
+    const targetLanguage = contentLocalizationLanguage;
+    const targetLanguageLabel = contentLocalizationLanguageLabel[targetLanguage];
+    setContentLocalizationRunning(true);
+    setContentFeedback(`Creating ${targetLanguageLabel} variant with AI...`);
+    setContentActionFeedback(`AI is localizing "${currentDraft.title}" for ${targetLanguageLabel}.`);
+    try {
+      const sourceLanguage = currentDraft.language.trim() || "unknown";
+      const objective = [
+        "Create a localized variant of this existing VYVA marketing content.",
+        `Source language: ${sourceLanguage}. Target language: ${targetLanguageLabel} (${targetLanguage}).`,
+        `Channel: ${channelLabel[currentDraft.channel]}.`,
+        "Preserve the intent, audience promise, CTA destination, and compliance meaning. Make it feel native, not literal.",
+        "Return polished copy that is ready for admin review before sending or publishing.",
+        currentDraft.subject ? `Current subject: ${currentDraft.subject}` : "",
+        currentDraft.body ? `Current plain copy:\n${currentDraft.body}` : "",
+        currentDraft.htmlBody && !currentDraft.body ? `Current HTML copy:\n${currentDraft.htmlBody}` : "",
+        currentDraft.ctaLabel ? `Current CTA label: ${currentDraft.ctaLabel}` : "",
+        currentDraft.ctaUrl ? `Current CTA URL: ${currentDraft.ctaUrl}` : "",
+      ].filter(Boolean).join("\n\n");
+      const result = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
+        method: "POST",
+        body: JSON.stringify({
+          playLabel: "Content localization",
+          playCategory: "content_localization",
+          audienceType: "both",
+          channel: currentDraft.channel,
+          tone: contentPolishTone,
+          targetAudienceName: "Current marketing audience",
+          campaignName: currentDraft.title,
+          contentTitle: localizedContentTitle(currentDraft.title, targetLanguageLabel),
+          objective,
+          subjectSeed,
+          bodySeed,
+          ctaLabel: currentDraft.ctaLabel || "Learn more",
+          ctaUrl: currentDraft.ctaUrl || "https://v2.vyva.life",
+          language: targetLanguage,
+        }),
+      });
+
+      const localized = result.draft;
+      const localizedBody = localized.body.trim() || currentDraft.body;
+      const existingDesign = optionalJsonRecordText(currentDraft.designJsonText);
+      const existingMetadata = optionalJsonRecordText(currentDraft.metadataText);
+      const createdAt = new Date().toISOString();
+      const payload = {
+        title: localized.contentTitle.trim() || localizedContentTitle(currentDraft.title, targetLanguageLabel),
+        channel: currentDraft.channel,
+        language: targetLanguage,
+        status: "draft" as const,
+        subject: localized.subject.trim() || currentDraft.subject || null,
+        body: localizedBody,
+        htmlBody: currentDraft.channel === "email" && localizedBody ? emailHtmlFromPlainCopy(localizedBody) : currentDraft.htmlBody || null,
+        ctaLabel: localized.ctaLabel.trim() || currentDraft.ctaLabel || null,
+        ctaUrl: localized.ctaUrl.trim() || currentDraft.ctaUrl || null,
+        source: "vyva",
+        lovableExternalId: null,
+        designJson: {
+          ...existingDesign,
+          aiLocalization: {
+            generator: "marketing_content_ai_localization",
+            source: result.source,
+            sourceContentId: editingContentId,
+            sourceLanguage,
+            targetLanguage,
+            targetLanguageLabel,
+            createdAt,
+            modelHints: localized.designJson ?? null,
+          },
+        },
+        mediaAssets: parseJsonArrayText(currentDraft.mediaAssetsText, "Media assets"),
+        metadata: {
+          ...existingMetadata,
+          localizedFromContentId: editingContentId,
+          localizedFromLovableExternalId: currentDraft.lovableExternalId || null,
+          localization: {
+            source: result.source,
+            sourceLanguage,
+            targetLanguage,
+            targetLanguageLabel,
+            createdAt,
+            note: result.note ?? null,
+          },
+        },
+      };
+      const created = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setContent((current) => [created.content, ...current.filter((item) => item.id !== created.content.id)]);
+      setSelectedContentId(created.content.id);
+      setEditingContentId(created.content.id);
+      setContentEditDraft(contentEditDraftFromContent(created.content));
+      setContentDrawerMode("edit");
+      setConfirmingContentDeleteId(null);
+      setContentFeedback(`${targetLanguageLabel} draft created. Review it in the editor.`);
+      setContentActionFeedback(`Created ${targetLanguageLabel} variant "${created.content.title}".`);
+      setMessage(`${targetLanguageLabel} content variant created.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Localized variant could not be created.";
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentLocalizationRunning(false);
     }
   }
 
@@ -13761,45 +13899,77 @@ export default function MarketingAdminPage() {
                       <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={contentEditDraft.metadataText} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, metadataText: event.target.value }) : draft)} placeholder="{ }" disabled={contentSaving} data-testid="textarea-marketing-edit-content-metadata" />
                     </Field>
                     <div className="rounded-2xl border border-purple-100 bg-purple-50 p-4" data-testid="marketing-content-ai-polish-panel">
-                      <div className="flex flex-wrap items-end justify-between gap-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-black text-[#241133]">AI polish</p>
-                          <p className="mt-1 text-xs font-bold text-[#7c6f83]">Rewrite the subject, copy, and CTA in place. Review the draft before saving.</p>
+                          <p className="text-sm font-black text-[#241133]">AI polish and localization</p>
+                          <p className="mt-1 text-xs font-bold text-[#7c6f83]">Improve this draft in place, or create a new localized copy without touching the original.</p>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                        <div className="rounded-xl border border-purple-100 bg-white p-3">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Polish current draft</p>
+                          <p className="mt-1 text-xs font-bold text-[#7c6f83]">Rewrites subject, body, and CTA in this editor. Save after review.</p>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <select
+                              className="min-h-10 rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#241133]"
+                              value={contentPolishTone}
+                              onChange={(event) => setContentPolishTone(event.target.value as CampaignStudioToneId)}
+                              disabled={contentEditorBusy}
+                              data-testid="select-marketing-content-polish-tone"
+                            >
+                              {(Object.keys(campaignStudioToneLabel) as CampaignStudioToneId[]).map((tone) => (
+                                <option key={tone} value={tone}>{campaignStudioToneLabel[tone]}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => void polishContentEditDraft()}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              disabled={contentEditorBusy || (!contentEditDraft.subject.trim() && !contentEditDraft.body.trim() && !contentEditDraft.htmlBody.trim())}
+                              data-testid="button-marketing-polish-content-ai"
+                            >
+                              <Sparkles size={15} /> {contentPolishRunning ? "Polishing..." : "Polish with AI"}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-purple-100 bg-white p-3">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Create localized copy</p>
+                          <p className="mt-1 text-xs font-bold text-[#7c6f83]">Saves a new draft content asset and opens it for review.</p>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
                           <select
                             className="min-h-10 rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#241133]"
-                            value={contentPolishTone}
-                            onChange={(event) => setContentPolishTone(event.target.value as CampaignStudioToneId)}
-                            disabled={contentSaving || contentPolishRunning}
-                            data-testid="select-marketing-content-polish-tone"
+                            value={contentLocalizationLanguage}
+                            onChange={(event) => setContentLocalizationLanguage(event.target.value as ContentLocalizationLanguage)}
+                            disabled={contentEditorBusy}
+                            data-testid="select-marketing-content-localize-language"
                           >
-                            {(Object.keys(campaignStudioToneLabel) as CampaignStudioToneId[]).map((tone) => (
-                              <option key={tone} value={tone}>{campaignStudioToneLabel[tone]}</option>
+                            {CONTENT_LOCALIZATION_LANGUAGES.map((language) => (
+                              <option key={language.value} value={language.value}>{language.label}</option>
                             ))}
                           </select>
                           <button
                             type="button"
-                            onClick={() => void polishContentEditDraft()}
+                            onClick={() => void createLocalizedContentVariant()}
                             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                            disabled={contentSaving || contentPolishRunning || (!contentEditDraft.subject.trim() && !contentEditDraft.body.trim() && !contentEditDraft.htmlBody.trim())}
-                            data-testid="button-marketing-polish-content-ai"
+                            disabled={contentEditorBusy || (!contentEditDraft.subject.trim() && !contentEditDraft.body.trim() && !contentEditDraft.htmlBody.trim())}
+                            data-testid="button-marketing-localize-content-ai"
                           >
-                            <Sparkles size={15} /> {contentPolishRunning ? "Polishing..." : "Polish with AI"}
+                            <Sparkles size={15} /> {contentLocalizationRunning ? "Creating..." : "Create localized copy"}
                           </button>
+                          </div>
                         </div>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contentSaving || contentPolishRunning} data-testid="button-marketing-save-content">
+                      <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contentEditorBusy} data-testid="button-marketing-save-content">
                         <Save size={16} /> {contentSaving ? "Saving..." : "Save content"}
                       </button>
                       {editingContent ? (
-                        <button type="button" onClick={() => void deleteContent(editingContent)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === editingContent.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving || contentPolishRunning} data-testid="button-marketing-delete-editing-content">
+                        <button type="button" onClick={() => void deleteContent(editingContent)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === editingContent.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentEditorBusy} data-testid="button-marketing-delete-editing-content">
                           <Trash2 size={16} /> {confirmingContentDeleteId === editingContent.id ? "Confirm delete" : "Delete"}
                         </button>
                       ) : null}
-                      <button type="button" onClick={cancelContentEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133]" disabled={contentSaving || contentPolishRunning}>
+                      <button type="button" onClick={cancelContentEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133]" disabled={contentEditorBusy}>
                         <X size={16} /> Close
                       </button>
                     </div>
