@@ -4279,6 +4279,35 @@ export default function MarketingAdminPage() {
     || contentTemplateAudienceFilter !== "all"
     || contentTemplateCategoryFilter !== "all",
   );
+  const contentTemplateChannelCoverage = useMemo(() => CHANNELS.map((channel) => {
+    const templates = contentTemplateGallery.filter((template) => template.channel === channel);
+    const coveredAudiences = AUDIENCES.filter((audience) => templates.some((template) => (
+      template.audienceType === audience
+      || template.audienceType === "both"
+      || audience === "both"
+    )));
+    const categories = Array.from(new Set(templates.map((template) => template.category))).sort();
+    return {
+      channel,
+      count: templates.length,
+      coveredAudiences,
+      categories,
+      state: templates.length >= 4 ? "ready" as CampaignReadinessState : templates.length >= 2 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+    };
+  }), []);
+  const contentTemplateAudienceCoverage = useMemo(() => AUDIENCES.map((audience) => {
+    const templates = contentTemplateGallery.filter((template) => (
+      template.audienceType === audience
+      || (audience !== "both" && template.audienceType === "both")
+    ));
+    const channels = CHANNELS.filter((channel) => templates.some((template) => template.channel === channel));
+    return {
+      audience,
+      count: templates.length,
+      channels,
+      state: channels.length >= 5 ? "ready" as CampaignReadinessState : channels.length >= 3 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+    };
+  }), []);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
   const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
@@ -8933,6 +8962,75 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               ) : null}
+
+              <SectionCard
+                title="Template coverage"
+                subtitle="Channel and audience coverage for the reusable campaign library."
+                action={<Pill className="bg-purple-50 text-purple-800">{contentTemplateGallery.length} templates</Pill>}
+              >
+                <div className="grid gap-4 xl:grid-cols-[1fr_0.65fr]" data-testid="marketing-template-coverage">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {contentTemplateChannelCoverage.map((item) => (
+                      <button
+                        key={item.channel}
+                        type="button"
+                        className={`rounded-2xl border p-4 text-left transition hover:border-purple-300 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                        onClick={() => {
+                          setContentTemplateSearch("");
+                          setContentTemplateChannelFilter(item.channel);
+                          setContentTemplateAudienceFilter("all");
+                          setContentTemplateCategoryFilter("all");
+                          setContentActionFeedback(`Showing ${channelLabel[item.channel]} templates.`);
+                        }}
+                        data-testid={`button-marketing-template-filter-channel-${item.channel}`}
+                      >
+                        <span className="flex items-start justify-between gap-3">
+                          <span>
+                            <span className="block text-sm font-black uppercase tracking-[0.12em] opacity-70">{channelLabel[item.channel]}</span>
+                            <span className="mt-2 block text-3xl font-black">{item.count}</span>
+                          </span>
+                          <Pill className={readinessPillClass(item.state)}>{item.count >= 4 ? "Strong" : item.count >= 2 ? "Usable" : "Gap"}</Pill>
+                        </span>
+                        <span className="mt-3 block text-xs font-bold leading-relaxed">
+                          {item.coveredAudiences.length ? `${item.coveredAudiences.map((audience) => audience.toUpperCase()).join(", ")} coverage` : "No audience coverage yet"}
+                        </span>
+                        <span className="mt-3 flex flex-wrap gap-1.5">
+                          {item.categories.slice(0, 3).map((category) => <Pill key={category} className="bg-white text-[#5b4a46]">{category}</Pill>)}
+                          {item.categories.length > 3 ? <Pill className="bg-white text-[#5b4a46]">+{item.categories.length - 3}</Pill> : null}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid gap-3">
+                    {contentTemplateAudienceCoverage.map((item) => (
+                      <button
+                        key={item.audience}
+                        type="button"
+                        className={`rounded-2xl border p-4 text-left transition hover:border-purple-300 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                        onClick={() => {
+                          setContentTemplateSearch("");
+                          setContentTemplateChannelFilter("all");
+                          setContentTemplateAudienceFilter(item.audience);
+                          setContentTemplateCategoryFilter("all");
+                          setContentActionFeedback(`Showing ${item.audience.toUpperCase()} templates.`);
+                        }}
+                        data-testid={`button-marketing-template-filter-audience-${item.audience}`}
+                      >
+                        <span className="flex items-start justify-between gap-3">
+                          <span>
+                            <span className="block text-sm font-black uppercase tracking-[0.12em] opacity-70">{item.audience.toUpperCase()}</span>
+                            <span className="mt-2 block text-2xl font-black">{item.count} templates</span>
+                          </span>
+                          <Pill className={readinessPillClass(item.state)}>{item.channels.length} channels</Pill>
+                        </span>
+                        <span className="mt-3 flex flex-wrap gap-1.5">
+                          {item.channels.map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </SectionCard>
 
               <SectionCard
                 title="Template matchmaker"

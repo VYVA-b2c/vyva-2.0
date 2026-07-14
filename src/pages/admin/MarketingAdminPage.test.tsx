@@ -1448,6 +1448,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Referral ask email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok feature demo script");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("24 templates");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("2");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-filter-channel-tiktok"));
+    expect(screen.getByTestId("select-marketing-template-channel")).toHaveValue("tiktok");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok feature demo script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     fireEvent.change(screen.getByTestId("input-marketing-template-search"), { target: { value: "profile" } });
     fireEvent.change(screen.getByTestId("select-marketing-template-channel"), { target: { value: "whatsapp" } });
     fireEvent.change(screen.getByTestId("select-marketing-template-audience"), { target: { value: "b2c" } });
