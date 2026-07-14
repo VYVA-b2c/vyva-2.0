@@ -3304,6 +3304,17 @@ function parseJsonArrayText(value: string, label: string) {
   }
 }
 
+function optionalJsonRecordText(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return {};
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
 function contentCreatePayloadFromDraft(draft: ContentDraft) {
   return {
     title: draft.title,
@@ -4984,6 +4995,7 @@ export default function MarketingAdminPage() {
   const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>(() => emptyJourneyEditDraft());
   const [journeySaving, setJourneySaving] = useState(false);
   const [journeyFeedback, setJourneyFeedback] = useState("");
+  const [journeyStepContentRunning, setJourneyStepContentRunning] = useState(false);
   const [confirmingJourneyDeleteId, setConfirmingJourneyDeleteId] = useState<string | null>(null);
   const [contentDraft, setContentDraft] = useState<ContentDraft>(() => emptyContentDraft());
   const [contentTemplateSearch, setContentTemplateSearch] = useState("");
@@ -7337,6 +7349,10 @@ export default function MarketingAdminPage() {
     () => audiences.find((audience) => audience.id === journeyEditDraft.targetAudienceId) ?? null,
     [audiences, journeyEditDraft.targetAudienceId],
   );
+  const missingJourneyStepContentCount = useMemo(
+    () => journeyEditDraft.steps.filter((step) => !step.contentAssetId).length,
+    [journeyEditDraft.steps],
+  );
 
   const campaignDraftRecipientPreview = useMemo(() => {
     if (!campaignDraft.snapshotRecipients) return [];
@@ -8282,6 +8298,145 @@ export default function MarketingAdminPage() {
       return { ...draft, steps };
     });
     setJourneyFeedback("");
+  }
+
+  function journeyStepContentTitle(step: JourneyStepDraft, index: number) {
+    const config = optionalJsonRecordText(step.configText);
+    const configTitle = objectValue(config, "sequenceTitle") || objectValue(config, "templateTitle");
+    const noteTitle = step.notes.split(/[.\n]/)[0]?.replace(/^(day|week)\s*-?\d+\s*:\s*/i, "").trim() ?? "";
+    return configTitle || noteTitle || `Step ${index + 1} ${channelLabel[step.channel]}`;
+  }
+
+  async function draftMissingJourneyStepContent() {
+    const missingSteps = journeyEditDraft.steps
+      .map((step, index) => ({ step, index }))
+      .filter(({ step }) => !step.contentAssetId);
+
+    if (!missingSteps.length) {
+      setJourneyFeedback("Every journey step already has linked content.");
+      return;
+    }
+
+    setJourneyStepContentRunning(true);
+    setJourneyFeedback(`Drafting content for ${missingSteps.length} journey step${missingSteps.length === 1 ? "" : "s"}...`);
+    setMessage("Drafting journey step content...");
+    try {
+      const targetAudienceSnapshot = audienceSnapshot(selectedJourneyTargetAudience);
+      const journeyName = journeyEditDraft.name.trim() || "Untitled journey";
+      const created: Array<{ stepId: string; content: ContentAsset }> = [];
+
+      for (const { step, index } of missingSteps) {
+        const stepTitle = journeyStepContentTitle(step, index);
+        const seedBody = [
+          journeyEditDraft.objective.trim() || "Create one useful communication for this journey step.",
+          step.notes.trim(),
+          step.templateRef ? `Template reference: ${step.templateRef}` : "",
+          step.configText.trim() ? `Step config: ${step.configText.trim()}` : "",
+        ].filter(Boolean).join("\n\n");
+        const aiResult = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
+          method: "POST",
+          body: JSON.stringify({
+            playLabel: journeyName,
+            playCategory: "journey",
+            audienceType: journeyEditDraft.audienceType,
+            channel: step.channel,
+            tone: "warm",
+            angle: "action",
+            angleGuidance: campaignStudioAngleGuidance.action,
+            targetAudienceName: selectedJourneyTargetAudience?.name ?? journeyEditDraft.audienceType.toUpperCase(),
+            targetAudienceSize: selectedJourneyTargetAudience?.mappedMemberCount ?? null,
+            campaignName: journeyName,
+            contentTitle: `${journeyName} - ${stepTitle}`,
+            objective: seedBody,
+            subjectSeed: step.channel === "email" ? stepTitle : `${channelLabel[step.channel]}: ${stepTitle}`,
+            bodySeed: seedBody,
+            ctaLabel: "Take the next step",
+            ctaUrl: "https://v2.vyva.life",
+            language: "en",
+          }),
+        });
+        const draft = aiResult.draft;
+        const body = draft.body || seedBody;
+        const contentResult = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+          method: "POST",
+          body: JSON.stringify({
+            title: draft.contentTitle || `${journeyName} - ${stepTitle}`,
+            channel: step.channel,
+            language: draft.language || "en",
+            status: "draft",
+            subject: draft.subject || null,
+            body,
+            htmlBody: step.channel === "email" ? `<p>${body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br />")}</p>` : null,
+            ctaLabel: draft.ctaLabel || null,
+            ctaUrl: draft.ctaUrl || null,
+            source: "vyva",
+            designJson: {
+              ...(draft.designJson ?? {}),
+              generator: "marketing_journey_step_ai",
+              aiSource: aiResult.source,
+              journeyName,
+              stepIndex: index,
+              stepId: step.id,
+              channel: step.channel,
+              templateKind: step.templateKind || null,
+              templateRef: step.templateRef || null,
+              targetAudience: targetAudienceSnapshot,
+            },
+            mediaAssets: [],
+            metadata: {
+              generatedFrom: "journey_step_ai",
+              aiSource: aiResult.source,
+              journeyName,
+              stepIndex: index,
+              stepId: step.id,
+              stepNotes: step.notes,
+              templateKind: step.templateKind || null,
+              templateRef: step.templateRef || null,
+              targetAudience: targetAudienceSnapshot,
+            },
+          }),
+        });
+        created.push({ stepId: step.id, content: contentResult.content });
+      }
+
+      const createdByStepId = new Map(created.map((item) => [item.stepId, item.content]));
+      const createdContent = created.map((item) => item.content);
+      setContent((current) => [...createdContent, ...current.filter((item) => !createdContent.some((createdItem) => createdItem.id === item.id))]);
+      setJourneyEditDraft((draft) => ({
+        ...draft,
+        steps: draft.steps.map((step) => {
+          const generatedContent = createdByStepId.get(step.id);
+          if (!generatedContent) return step;
+          const existingConfig = optionalJsonRecordText(step.configText);
+          return {
+            ...step,
+            contentAssetId: generatedContent.id,
+            templateKind: "content_asset",
+            templateRef: generatedContent.lovableExternalId ?? generatedContent.id,
+            configText: jsonText({
+              ...existingConfig,
+              generatedContentAssetId: generatedContent.id,
+              generatedContentTitle: generatedContent.title,
+            }),
+          };
+        }),
+      }));
+      const firstCreated = createdContent[0] ?? null;
+      if (firstCreated) {
+        setSelectedContentId(firstCreated.id);
+        setEditingContentId(firstCreated.id);
+        setContentEditDraft(contentEditDraftFromContent(firstCreated));
+        setContentDrawerMode("edit");
+      }
+      setJourneyFeedback(`Drafted and linked ${createdContent.length} content asset${createdContent.length === 1 ? "" : "s"}. Save the journey to keep the links.`);
+      setMessage(`Journey content drafted for ${createdContent.length} step${createdContent.length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Journey step content could not be drafted.";
+      setJourneyFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setJourneyStepContentRunning(false);
+    }
   }
 
   async function saveJourneyEdit(event: FormEvent) {
@@ -12252,15 +12407,26 @@ export default function MarketingAdminPage() {
                             <h4 className="font-black text-[#241133]">Journey steps</h4>
                             <p className="mt-1 text-xs font-bold text-[#7d6b65]">Each step owns its channel, delay, content, and planning config.</p>
                           </div>
-                          <button type="button" onClick={addJourneyStep} disabled={journeySaving} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-add-journey-step">
-                            <Plus size={14} /> Add step
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void draftMissingJourneyStepContent()}
+                              disabled={journeySaving || journeyStepContentRunning || missingJourneyStepContentCount === 0}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f1e8f5] disabled:text-[#9d8ba3]"
+                              data-testid="button-marketing-draft-journey-step-content"
+                            >
+                              <Sparkles size={14} /> {journeyStepContentRunning ? "Drafting..." : missingJourneyStepContentCount ? `Draft ${missingJourneyStepContentCount} missing content` : "All content linked"}
+                            </button>
+                            <button type="button" onClick={addJourneyStep} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-add-journey-step">
+                              <Plus size={14} /> Add step
+                            </button>
+                          </div>
                         </div>
 
                         {journeyEditDraft.steps.length === 0 ? (
                           <div className="rounded-xl border border-dashed border-[#eadfd5] bg-white p-4 text-center">
                             <p className="text-sm font-bold text-[#8b7a73]">No steps yet.</p>
-                            <button type="button" onClick={addJourneyStep} disabled={journeySaving} className="mt-3 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-add-first-journey-step">
+                            <button type="button" onClick={addJourneyStep} disabled={journeySaving || journeyStepContentRunning} className="mt-3 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-add-first-journey-step">
                               <Plus size={14} /> Add step
                             </button>
                           </div>
@@ -12278,13 +12444,13 @@ export default function MarketingAdminPage() {
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <p className="text-sm font-black text-[#241133]">Step {index + 1}</p>
                                     <div className="flex flex-wrap gap-1.5">
-                                      <button type="button" onClick={() => moveJourneyStep(step.id, -1)} disabled={journeySaving || index === 0} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-up-${index}`}>
+                                      <button type="button" onClick={() => moveJourneyStep(step.id, -1)} disabled={journeySaving || journeyStepContentRunning || index === 0} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-up-${index}`}>
                                         <ArrowUp size={13} />
                                       </button>
-                                      <button type="button" onClick={() => moveJourneyStep(step.id, 1)} disabled={journeySaving || index === journeyEditDraft.steps.length - 1} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-down-${index}`}>
+                                      <button type="button" onClick={() => moveJourneyStep(step.id, 1)} disabled={journeySaving || journeyStepContentRunning || index === journeyEditDraft.steps.length - 1} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-down-${index}`}>
                                         <ArrowDown size={13} />
                                       </button>
-                                      <button type="button" onClick={() => removeJourneyStep(step.id)} disabled={journeySaving} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-remove-journey-step-${index}`}>
+                                      <button type="button" onClick={() => removeJourneyStep(step.id)} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-remove-journey-step-${index}`}>
                                         <Trash2 size={13} /> Remove
                                       </button>
                                     </div>
@@ -12350,10 +12516,10 @@ export default function MarketingAdminPage() {
                       ) : null}
 
                       <div className="flex flex-wrap gap-2">
-                        <button type="submit" disabled={journeySaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-save-journey">
+                        <button type="submit" disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-save-journey">
                           <Save size={15} /> {journeySaving ? "Saving..." : editingJourneyId === "new" ? "Create journey" : "Save journey"}
                         </button>
-                        <button type="button" onClick={cancelJourneyEdit} disabled={journeySaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-cancel-journey">
+                        <button type="button" onClick={cancelJourneyEdit} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-cancel-journey">
                           <X size={15} /> Close details
                         </button>
                       </div>

@@ -1664,6 +1664,33 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-edit-journey-metadata") as HTMLTextAreaElement).value).toContain("partner-growth");
     expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("template_pack");
     expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("linkedin-partner-demo");
+    expect(screen.getByTestId("button-marketing-draft-journey-step-content")).toHaveTextContent("Draft 3 missing content");
+
+    fireEvent.click(screen.getByTestId("button-marketing-draft-journey-step-content"));
+    expect(screen.getByTestId("button-marketing-draft-journey-step-content")).toHaveTextContent("Drafting");
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Drafted and linked 3 content assets");
+    });
+    expect(screen.getByTestId("button-marketing-draft-journey-step-content")).toHaveTextContent("All content linked");
+    const journeyStepAiCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    const journeyStepContentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(journeyStepAiCalls).toHaveLength(3);
+    expect(journeyStepContentPosts).toHaveLength(3);
+    expect(JSON.parse(String(journeyStepAiCalls[0]?.[1]?.body ?? "{}"))).toMatchObject({
+      playLabel: "Partner growth journey",
+      playCategory: "journey",
+      audienceType: "b2b",
+      channel: "linkedin",
+      targetAudienceName: "Partners",
+    });
+    expect(JSON.parse(String(journeyStepContentPosts[0]?.[1]?.body ?? "{}"))).toMatchObject({
+      channel: "linkedin",
+      status: "draft",
+      source: "vyva",
+      metadata: { generatedFrom: "journey_step_ai", journeyName: "Partner growth journey", stepIndex: 0 },
+    });
+    expect(screen.getByTestId("select-marketing-journey-step-content-0")).toHaveValue("content-created");
+    expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("generatedContentAssetId");
 
     fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
 
@@ -1693,14 +1720,15 @@ describe("MarketingAdminPage", () => {
     expect(payload.steps[0]).toMatchObject({
       stepOrder: 0,
       channel: "linkedin",
+      contentAssetId: "content-created",
       delayHours: 0,
       dayOffset: 0,
-      templateKind: "template_gallery",
-      templateRef: "linkedin-partner-demo",
-      config: { source: "template_pack", packId: "partner-growth", sequenceOffset: "Day 0" },
+      templateKind: "content_asset",
+      templateRef: "content-created",
+      config: { source: "template_pack", packId: "partner-growth", sequenceOffset: "Day 0", generatedContentAssetId: "content-created" },
     });
-    expect(payload.steps[1]).toMatchObject({ channel: "whatsapp", delayHours: 48, dayOffset: 2, templateRef: "whatsapp-partner-proof-nudge" });
-    expect(payload.steps[2]).toMatchObject({ channel: "email", delayHours: 120, dayOffset: 5, templateRef: "email-referral-ask" });
+    expect(payload.steps[1]).toMatchObject({ channel: "whatsapp", contentAssetId: "content-created", delayHours: 48, dayOffset: 2, templateRef: "content-created" });
+    expect(payload.steps[2]).toMatchObject({ channel: "email", contentAssetId: "content-created", delayHours: 120, dayOffset: 5, templateRef: "content-created" });
   });
 
   it("recommends best-fit templates and starts a campaign from the matchmaker", async () => {
