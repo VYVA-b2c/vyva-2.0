@@ -449,6 +449,15 @@ type CampaignStudioState = {
   targetAudienceId: string;
 };
 
+type CampaignIntentMatch = {
+  play: CampaignStudioPlay;
+  toneId: CampaignStudioToneId;
+  angleId: CampaignStudioAngleId;
+  channels: Channel[];
+  targetAudience: MarketingAudience | null;
+  reasons: string[];
+};
+
 type CampaignStudioPlay = {
   id: CampaignStudioPlayId;
   categoryId: Exclude<CampaignStudioCategoryId, "all">;
@@ -3779,6 +3788,110 @@ function bestCampaignStudioAudience(play: CampaignStudioPlay, audiences: Marketi
   }) ?? audiences.find((audience) => audience.memberCount > 0) ?? null;
 }
 
+function campaignIntentHasAny(text: string, words: string[]) {
+  return words.some((word) => text.includes(word));
+}
+
+function campaignStudioPlayById(id: CampaignStudioPlayId) {
+  return campaignStudioPlays.find((play) => play.id === id) ?? campaignStudioPlays[0];
+}
+
+function campaignIntentPlay(brief: string) {
+  const text = lower(brief);
+  if (campaignIntentHasAny(text, ["webinar", "session", "demo", "professional session"])) return campaignStudioPlayById("partner-webinar");
+  if (campaignIntentHasAny(text, ["referral", "refer", "provider", "partner follow", "partner nurture"])) return campaignStudioPlayById("referral-partner-nurture");
+  if (campaignIntentHasAny(text, ["partner", "b2b", "care home", "clinic", "pharmacy", "provider"])) return campaignStudioPlayById("b2b-partner-outreach");
+  if (campaignIntentHasAny(text, ["event", "activity", "workshop", "community", "madrid", "barcelona", "valencia", "local"])) return campaignStudioPlayById("local-event");
+  if (campaignIntentHasAny(text, ["caregiver", "family", "invite", "welcome", "onboard", "onboarding"])) return campaignStudioPlayById("caregiver-onboarding");
+  if (campaignIntentHasAny(text, ["profile", "complete", "setup", "account"])) return campaignStudioPlayById("profile-completion");
+  if (campaignIntentHasAny(text, ["medication", "medicine", "routine", "pill"])) return campaignStudioPlayById("medication-routine-education");
+  if (campaignIntentHasAny(text, ["feedback", "survey", "questionnaire"])) return campaignStudioPlayById("feedback-survey");
+  if (campaignIntentHasAny(text, ["inactive", "quiet", "winback", "win back", "reactivate", "reactivation"])) return campaignStudioPlayById("reactivation");
+  if (campaignIntentHasAny(text, ["newsletter", "digest", "roundup"])) return campaignStudioPlayById("newsletter-digest");
+  if (campaignIntentHasAny(text, ["instagram", "visual", "story", "reel"])) return campaignStudioPlayById("instagram-proof-point");
+  if (campaignIntentHasAny(text, ["tiktok", "short video", "myth"])) return campaignStudioPlayById("tiktok-myth-buster");
+  return campaignStudioPlayById("product-education");
+}
+
+function campaignIntentChannels(brief: string, play: CampaignStudioPlay) {
+  const text = lower(brief);
+  const channels: Channel[] = [];
+  if (campaignIntentHasAny(text, ["email", "newsletter"])) channels.push("email");
+  if (campaignIntentHasAny(text, ["whatsapp", "whats app", "sms", "text message"])) channels.push("whatsapp");
+  if (campaignIntentHasAny(text, ["facebook", "fb"])) channels.push("facebook");
+  if (campaignIntentHasAny(text, ["instagram", "insta", "reel", "story"])) channels.push("instagram");
+  if (campaignIntentHasAny(text, ["linkedin", "linked in"])) channels.push("linkedin");
+  if (campaignIntentHasAny(text, ["tiktok", "short video"])) channels.push("tiktok");
+  return channels.length ? uniqueChannels(channels) : recommendedCampaignStudioChannels(play);
+}
+
+function campaignIntentTone(brief: string, play: CampaignStudioPlay): CampaignStudioToneId {
+  const text = lower(brief);
+  if (campaignIntentHasAny(text, ["urgent", "direct", "clear", "quick", "now"])) return "direct";
+  if (campaignIntentHasAny(text, ["partner", "provider", "professional", "expert", "b2b", "demo", "webinar"]) || play.audienceType === "b2b") return "expert";
+  if (campaignIntentHasAny(text, ["inspiring", "positive", "community", "celebrate", "social", "story"])) return "uplifting";
+  return "warm";
+}
+
+function campaignIntentAngle(brief: string): CampaignStudioAngleId {
+  const text = lower(brief);
+  if (campaignIntentHasAny(text, ["proof", "result", "case", "evidence", "trust", "credibility"])) return "proof";
+  if (campaignIntentHasAny(text, ["local", "madrid", "barcelona", "valencia", "community", "nearby"])) return "local";
+  if (campaignIntentHasAny(text, ["join", "book", "reserve", "start", "signup", "sign up", "register", "invite"])) return "action";
+  return "balanced";
+}
+
+function campaignIntentAudience(brief: string, play: CampaignStudioPlay, audiences: MarketingAudience[]) {
+  const text = lower(brief);
+  const tokens = Array.from(new Set(text.split(/[^a-z0-9]+/).filter((token) => token.length >= 3)));
+  const scored = audiences
+    .map((audience) => {
+      const haystack = lower([
+        audience.name,
+        audience.description ?? "",
+        audience.listType,
+        audience.source,
+        audience.lovableExternalId ?? "",
+        jsonText(audience.rules),
+      ].join(" "));
+      let score = 0;
+      if (audience.memberCount > 0) score += 1;
+      if (play.audienceType !== "both" && haystack.includes(play.audienceType)) score += 2;
+      for (const hint of play.targetListHints) {
+        if (haystack.includes(lower(hint))) score += 3;
+      }
+      for (const token of tokens) {
+        if (haystack.includes(token)) score += 1;
+      }
+      if (text.includes(lower(audience.name))) score += 6;
+      return { audience, score };
+    })
+    .sort((a, b) => b.score - a.score || b.audience.mappedMemberCount - a.audience.mappedMemberCount);
+
+  return scored[0]?.score ? scored[0].audience : bestCampaignStudioAudience(play, audiences);
+}
+
+function campaignIntentMatch(brief: string, audiences: MarketingAudience[]): CampaignIntentMatch {
+  const play = campaignIntentPlay(brief);
+  const channels = campaignIntentChannels(brief, play);
+  const toneId = campaignIntentTone(brief, play);
+  const angleId = campaignIntentAngle(brief);
+  const targetAudience = campaignIntentAudience(brief, play, audiences);
+  return {
+    play,
+    channels,
+    toneId,
+    angleId,
+    targetAudience,
+    reasons: [
+      `${play.label} play`,
+      targetAudience ? `${targetAudience.name} list` : "best matching list",
+      `${channels.map((channel) => channelLabel[channel]).join(" + ")} channels`,
+      `${campaignStudioToneLabel[toneId]} tone`,
+    ],
+  };
+}
+
 function contentMatchesCampaignPlay(play: CampaignStudioPlay, channel: Channel, item: ContentAsset) {
   if (item.channel !== channel || item.status === "archived") return false;
   const haystack = lower([
@@ -5076,6 +5189,7 @@ export default function MarketingAdminPage() {
   const [campaignStudioAiRunning, setCampaignStudioAiRunning] = useState(false);
   const [campaignStudioSaving, setCampaignStudioSaving] = useState(false);
   const [campaignStudioFeedback, setCampaignStudioFeedback] = useState("");
+  const [campaignIntentBrief, setCampaignIntentBrief] = useState("");
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
@@ -7704,6 +7818,44 @@ export default function MarketingAdminPage() {
     });
     setCampaignStudioFeedback(`Playbook loaded: ${recommendation.play.label}. ${recommendation.reachableContacts} reachable contact${recommendation.reachableContacts === 1 ? "" : "s"} and ${recommendation.templateMatches} starter template${recommendation.templateMatches === 1 ? "" : "s"} are ready.`);
     setMessage(`Playbook loaded: ${recommendation.play.label}. Review the channel pack, then improve with AI or create the campaign.`);
+  }
+
+  function applyCampaignIntentBrief() {
+    const brief = campaignIntentBrief.trim();
+    if (!brief) {
+      setCampaignStudioFeedback("Add a short campaign brief first.");
+      return;
+    }
+
+    const match = campaignIntentMatch(brief, audiences);
+    const primaryChannel = match.channels[0] ?? match.play.defaultChannel;
+    const scheduleStartsAt = campaignStudioDefaultSchedule(match.play);
+    setCampaignStudioCategory(match.play.categoryId);
+    updateCampaignStudio({
+      playId: match.play.id,
+      toneId: match.toneId,
+      angleId: match.angleId,
+      channel: primaryChannel,
+      selectedChannels: match.channels,
+      scheduleStartsAt,
+      targetAudienceId: match.targetAudience?.id ?? "",
+    });
+    setCampaignDraft((draft) => ({
+      ...draft,
+      name: match.play.campaignName,
+      audienceType: match.play.audienceType,
+      channel: primaryChannel,
+      contentAssetId: "",
+      status: scheduleStartsAt ? "scheduled" : "draft",
+      scheduleStartsAt,
+      scheduleEndsAt: "",
+      objective: [match.play.objective, "", `Campaign brief: ${brief}`].join("\n"),
+      targetAudienceId: match.targetAudience?.id ?? "",
+      recipientFilter: match.targetAudience?.name ?? "",
+      snapshotRecipients: Boolean(match.targetAudience?.mappedMemberCount || match.targetAudience?.memberCount),
+    }));
+    setCampaignStudioFeedback(`Brief matched to ${match.play.label}: ${match.reasons.join(", ")}.`);
+    setMessage(`Campaign brief matched to ${match.play.label}. Review the studio plan, then improve with AI or create the campaign.`);
   }
 
   function focusCampaignStudioChannel(channel: Channel) {
@@ -11307,7 +11459,58 @@ export default function MarketingAdminPage() {
               >
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]" data-testid="marketing-campaign-studio">
                   <div>
-                    <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-studio-categories">
+                    <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-4" data-testid="marketing-campaign-intent-brief">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">AI campaign brief</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Tell VYVA what you want to run</h3>
+                          <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">VYVA will match the play, list, channels, tone, and starter schedule before you polish or create.</p>
+                        </div>
+                        <Pill className="bg-white text-purple-800">Smart match</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_190px]">
+                        <textarea
+                          className={`${inputClass} min-h-[108px] resize-y`}
+                          value={campaignIntentBrief}
+                          onChange={(event) => setCampaignIntentBrief(event.target.value)}
+                          placeholder="Invite Madrid partners to a practical webinar by email and LinkedIn."
+                          data-testid="textarea-marketing-campaign-intent"
+                        />
+                        <div className="grid gap-2">
+                          <button
+                            type="button"
+                            onClick={applyCampaignIntentBrief}
+                            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-purple-200"
+                            disabled={!campaignIntentBrief.trim()}
+                            data-testid="button-marketing-apply-campaign-intent"
+                          >
+                            <Sparkles size={16} /> Match plan
+                          </button>
+                          <div className="grid gap-1.5 text-[11px] font-black text-[#7d6b65]" data-testid="marketing-campaign-intent-examples">
+                            {[
+                              "Partner webinar",
+                              "Local event",
+                              "Caregiver onboarding",
+                            ].map((example) => (
+                              <button
+                                key={example}
+                                type="button"
+                                onClick={() => setCampaignIntentBrief(example === "Partner webinar"
+                                  ? "Invite Madrid partners to a practical webinar by email and LinkedIn."
+                                  : example === "Local event"
+                                    ? "Promote a local Madrid activity for families on Facebook and WhatsApp."
+                                    : "Welcome new caregivers with a warm email and WhatsApp onboarding campaign.")}
+                                className="rounded-lg border border-purple-100 bg-white px-2 py-1.5 text-left hover:border-purple-300"
+                              >
+                                {example}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-studio-categories">
                       <div className="flex flex-wrap gap-2">
                         {campaignStudioCategories.map((category) => {
                           const count = category.id === "all"

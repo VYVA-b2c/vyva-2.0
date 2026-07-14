@@ -3011,6 +3011,33 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("\"angle\": \"proof\"");
   });
 
+  it("matches a plain-language campaign intent into a studio plan", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-intent-brief")).toHaveTextContent("Tell VYVA what you want to run");
+
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-intent"), {
+      target: { value: "Invite Madrid partners to a practical webinar by email and LinkedIn." },
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-apply-campaign-intent"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Brief matched to Partner webinar");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-campaign-studio-category-hint")).toHaveTextContent("B2B outreach");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner webinar invitation");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("Partners");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Campaign brief: Invite Madrid partners");
+  });
+
   it("creates linked campaign and content directly from the smart studio", async () => {
     renderPage();
 
