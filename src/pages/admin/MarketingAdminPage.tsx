@@ -599,6 +599,15 @@ type CampaignPerformanceInsight = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type CampaignExperimentSuggestion = CampaignReadinessItem & {
+  value: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  campaignId: string;
+  contentAssetId: string | null;
+  experimentType: "cta" | "subject" | "follow_up" | "deliverability";
+};
+
 type CampaignStudioOfflineHandoffItem = {
   key: string;
   title: string;
@@ -2721,6 +2730,60 @@ function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
     ctaUrl: template.ctaUrl,
     designJsonText: JSON.stringify(template.designJson, null, 2),
     mediaAssetsText: JSON.stringify(template.mediaAssets ?? [], null, 2),
+  };
+}
+
+function experimentCtaLabel(content: ContentAsset | null, campaign: Campaign) {
+  const current = lower(content?.ctaLabel ?? "");
+  if (current.includes("demo") || campaign.audienceType === "b2b") return "Book a VYVA demo";
+  if (current.includes("open")) return "Open VYVA now";
+  if (current.includes("read")) return "See the next step";
+  return "Take the next step";
+}
+
+function contentDraftFromCampaignExperiment(
+  campaign: Campaign,
+  content: ContentAsset,
+  suggestion: CampaignExperimentSuggestion,
+): ContentDraft {
+  const experimentName = suggestion.experimentType === "subject"
+    ? "subject line test"
+    : suggestion.experimentType === "cta"
+      ? "CTA test"
+      : "follow-up test";
+  const ctaLabel = suggestion.experimentType === "cta" ? experimentCtaLabel(content, campaign) : content.ctaLabel ?? "";
+  const subject = suggestion.experimentType === "subject"
+    ? `${content.subject || campaign.name}: one clear next step`
+    : content.subject ?? "";
+  const bodyNote = suggestion.experimentType === "cta"
+    ? "\n\nExperiment note: Use one direct call to action and remove secondary asks."
+    : suggestion.experimentType === "follow_up"
+      ? "\n\nExperiment note: Follow up with the same audience using the winning angle and one fresh proof point."
+      : "\n\nExperiment note: Test a clearer subject line against the imported baseline.";
+
+  return {
+    title: `${content.title} - ${experimentName}`,
+    channel: content.channel,
+    language: content.language || "en",
+    status: "draft",
+    subject,
+    body: `${content.body}${bodyNote}`,
+    htmlBody: content.htmlBody ?? "",
+    ctaLabel,
+    ctaUrl: content.ctaUrl ?? "",
+    designJsonText: jsonText({
+      ...(content.designJson ?? {}),
+      experiment: {
+        type: suggestion.experimentType,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        sourceMetric: suggestion.key,
+        recommendation: suggestion.title,
+        reason: suggestion.detail,
+      },
+      generator: "marketing_performance_experiment",
+    }),
+    mediaAssetsText: jsonArrayText(content.mediaAssets),
   };
 }
 
@@ -5138,6 +5201,117 @@ export default function MarketingAdminPage() {
     }
     return insights;
   }, [visibleCampaignMetrics, campaignById, campaignSaving, startCampaignEdit]);
+
+  const campaignExperimentSuggestions = useMemo<CampaignExperimentSuggestion[]>(() => {
+    const grouped = new Map<string, MarketingCampaignMetric[]>();
+    for (const metric of visibleCampaignMetrics) {
+      if (!metric.campaignId) continue;
+      grouped.set(metric.campaignId, [...(grouped.get(metric.campaignId) ?? []), metric]);
+    }
+    const campaignRows = Array.from(grouped.entries())
+      .map(([campaignId, metrics]) => {
+        const campaign = campaignById.get(campaignId) ?? null;
+        if (!campaign) return null;
+        const summary = summarizeCampaignMetrics(metrics);
+        const reached = summary.delivered || summary.sent;
+        const contentAsset = campaign.channels
+          .map((channel) => channel.contentAssetId ? contentById.get(channel.contentAssetId) ?? null : null)
+          .find((item): item is ContentAsset => Boolean(item)) ?? null;
+        return {
+          campaign,
+          summary,
+          reached,
+          contentAsset,
+          openRate: metricRate(summary.opened, reached),
+          clickRate: metricRate(summary.clicked, summary.opened),
+          issueCount: summary.bounced + summary.unsubscribed,
+        };
+      })
+      .filter((item): item is {
+        campaign: Campaign;
+        summary: CampaignMetricSummary;
+        reached: number;
+        contentAsset: ContentAsset | null;
+        openRate: number;
+        clickRate: number;
+        issueCount: number;
+      } => Boolean(item));
+
+    const suggestions: CampaignExperimentSuggestion[] = [];
+    const ctaOpportunity = [...campaignRows]
+      .filter((item) => item.contentAsset && item.summary.opened >= 10 && item.clickRate < 12)
+      .sort((a, b) => a.clickRate - b.clickRate || b.summary.opened - a.summary.opened)[0];
+    if (ctaOpportunity) {
+      suggestions.push({
+        key: `cta-${ctaOpportunity.campaign.id}`,
+        title: "Draft a CTA experiment",
+        value: `${metricRateLabel(ctaOpportunity.summary.clicked, ctaOpportunity.summary.opened)} click rate`,
+        detail: `${ctaOpportunity.campaign.name} has ${ctaOpportunity.summary.opened} opens but only ${ctaOpportunity.summary.clicked} clicks. Create a variant with one sharper next step.`,
+        state: "needs_action",
+        actionLabel: "Draft CTA test",
+        icon: Sparkles,
+        campaignId: ctaOpportunity.campaign.id,
+        contentAssetId: ctaOpportunity.contentAsset?.id ?? null,
+        experimentType: "cta",
+      });
+    }
+
+    const subjectOpportunity = [...campaignRows]
+      .filter((item) => item.contentAsset && item.reached >= 20 && item.openRate < 35)
+      .sort((a, b) => a.openRate - b.openRate || b.reached - a.reached)[0];
+    if (subjectOpportunity) {
+      suggestions.push({
+        key: `subject-${subjectOpportunity.campaign.id}`,
+        title: "Test the subject line",
+        value: `${metricRateLabel(subjectOpportunity.summary.opened, subjectOpportunity.reached)} open rate`,
+        detail: `${subjectOpportunity.campaign.name} reached ${subjectOpportunity.reached} contacts. Try a clearer subject before scaling this audience.`,
+        state: "needs_action",
+        actionLabel: "Draft subject test",
+        icon: Pencil,
+        campaignId: subjectOpportunity.campaign.id,
+        contentAssetId: subjectOpportunity.contentAsset?.id ?? null,
+        experimentType: "subject",
+      });
+    }
+
+    const followUpOpportunity = [...campaignRows]
+      .filter((item) => item.contentAsset && item.openRate >= 50 && item.summary.clicked > 0)
+      .sort((a, b) => b.summary.clicked - a.summary.clicked || b.openRate - a.openRate)[0];
+    if (followUpOpportunity) {
+      suggestions.push({
+        key: `follow-up-${followUpOpportunity.campaign.id}`,
+        title: "Build a follow-up from the winner",
+        value: `${metricRateLabel(followUpOpportunity.summary.opened, followUpOpportunity.reached)} open rate`,
+        detail: `${followUpOpportunity.campaign.name} is getting attention. Reuse the winning angle for a follow-up touch while the audience is warm.`,
+        state: "ready",
+        actionLabel: "Draft follow-up",
+        icon: Megaphone,
+        campaignId: followUpOpportunity.campaign.id,
+        contentAssetId: followUpOpportunity.contentAsset?.id ?? null,
+        experimentType: "follow_up",
+      });
+    }
+
+    const deliverabilityOpportunity = [...campaignRows]
+      .filter((item) => item.issueCount > 0)
+      .sort((a, b) => b.issueCount - a.issueCount)[0];
+    if (deliverabilityOpportunity) {
+      suggestions.push({
+        key: `deliverability-${deliverabilityOpportunity.campaign.id}`,
+        title: "Clean the audience before scaling",
+        value: `${deliverabilityOpportunity.issueCount} issues`,
+        detail: `${deliverabilityOpportunity.campaign.name} has bounces or unsubscribes. Review contact quality before sending another variant.`,
+        state: "blocked",
+        actionLabel: "Review contacts",
+        icon: UsersRound,
+        campaignId: deliverabilityOpportunity.campaign.id,
+        contentAssetId: deliverabilityOpportunity.contentAsset?.id ?? null,
+        experimentType: "deliverability",
+      });
+    }
+
+    return suggestions.slice(0, 3);
+  }, [visibleCampaignMetrics, campaignById, contentById]);
 
   const visibleContent = useMemo(() => content.filter((item) => {
     const contentMatchesSearch = matchesSearch(search, [
@@ -8262,6 +8436,42 @@ export default function MarketingAdminPage() {
     scrollToContentActionRow(contentAsset.id);
   }
 
+  function applyCampaignExperimentSuggestion(suggestion: CampaignExperimentSuggestion) {
+    const campaign = campaignById.get(suggestion.campaignId);
+    if (!campaign) {
+      setMessage("Campaign experiment could not be opened.");
+      return;
+    }
+    if (suggestion.experimentType === "deliverability") {
+      setActiveTab("contacts");
+      setContactView("contacts");
+      setContactConsentFilter("opted_out");
+      setContactFeedback(`Review contacts before scaling "${campaign.name}".`);
+      return;
+    }
+    const contentAsset = suggestion.contentAssetId ? contentById.get(suggestion.contentAssetId) ?? null : null;
+    if (!contentAsset) {
+      startCampaignEdit(campaign);
+      setMessage(`Opened "${campaign.name}". Attach content before drafting a performance experiment.`);
+      return;
+    }
+    const draft = contentDraftFromCampaignExperiment(campaign, contentAsset, suggestion);
+    setActiveTab("content");
+    setSelectedContentId(null);
+    setEditingContentId(null);
+    setContentEditDraft(null);
+    setContentDrawerMode(null);
+    setConfirmingContentDeleteId(null);
+    setContentDraft(draft);
+    setContentTemplateSearch("");
+    setContentTemplateChannelFilter("all");
+    setContentTemplateAudienceFilter("all");
+    setContentTemplateCategoryFilter("all");
+    setContentSourceFilter("all");
+    setContentActionFeedback(`Drafted ${suggestion.experimentType === "cta" ? "CTA" : suggestion.experimentType === "subject" ? "subject line" : "follow-up"} experiment from "${campaign.name}". Save it as new content, then link it to a campaign channel.`);
+    setMessage(`Performance experiment drafted from "${campaign.name}".`);
+  }
+
   function cancelContentEdit() {
     setEditingContentId(null);
     setContentEditDraft(null);
@@ -9612,6 +9822,45 @@ export default function MarketingAdminPage() {
                         );
                       })}
                     </div>
+                    {campaignExperimentSuggestions.length ? (
+                      <div className="rounded-2xl border border-purple-100 bg-purple-50/50 p-4" data-testid="marketing-experiment-planner">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Experiment planner</p>
+                            <h3 className="mt-1 text-lg font-black text-[#241133]">Turn performance into the next test</h3>
+                            <p className="mt-1 text-xs font-bold text-[#6b5b54]">Draft variants from real campaign signals before sending or scaling the next touch.</p>
+                          </div>
+                          <Pill className="bg-white text-purple-800">{campaignExperimentSuggestions.length} suggested</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                          {campaignExperimentSuggestions.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <button
+                                key={item.key}
+                                type="button"
+                                onClick={() => applyCampaignExperimentSuggestion(item)}
+                                className={`rounded-xl border p-4 text-left shadow-sm transition hover:border-purple-300 hover:bg-white focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                                data-testid={`button-marketing-experiment-${item.key}`}
+                              >
+                                <span className="flex items-start justify-between gap-2">
+                                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-white shadow-sm">
+                                    <Icon size={16} aria-hidden="true" />
+                                  </span>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </span>
+                                <span className="mt-3 block text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</span>
+                                <span className="mt-1 block text-xl font-black text-[#241133]">{item.value}</span>
+                                <span className="mt-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                                <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                                  {item.actionLabel} <Sparkles size={12} aria-hidden="true" />
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
                       <table className="w-full border-collapse text-left text-sm">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">

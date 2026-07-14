@@ -1079,6 +1079,24 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
   });
 
+  it("turns imported campaign performance into editable experiment drafts", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-experiment-planner")).toHaveTextContent("Draft a CTA experiment");
+    expect(screen.getByTestId("marketing-experiment-planner")).toHaveTextContent("9% click rate");
+    expect(screen.getByTestId("marketing-experiment-planner")).toHaveTextContent("Build a follow-up from the winner");
+
+    fireEvent.click(screen.getByTestId("button-marketing-experiment-cta-campaign-1"));
+
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Content draft");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Drafted CTA experiment from "Caregiver welcome"');
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Welcome email - CTA test");
+    expect(screen.getByTestId("input-marketing-content-subject")).toHaveValue("Welcome to VYVA");
+    expect(screen.getByTestId("input-marketing-content-cta-label")).toHaveValue("Take the next step");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Experiment note: Use one direct call to action");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_performance_experiment");
+  });
+
   it("surfaces recommended next actions and routes to the right work area", async () => {
     renderPage();
 
