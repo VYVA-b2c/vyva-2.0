@@ -4412,6 +4412,93 @@ export default function MarketingAdminPage() {
       contactRelationshipAudiences.length === 0 ? "Add this contact to a list or audience." : "",
     ].filter(Boolean)
     : [];
+  const contactRelationshipTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
+    if (!selectedRelationshipContact) return [];
+    const isB2bContact = selectedRelationshipContact.audienceType === "b2b" || Boolean(selectedRelationshipContact.companyName || selectedRelationshipContact.roleLabel);
+    const contactTerms = [
+      selectedRelationshipContact.fullName,
+      selectedRelationshipContact.email,
+      selectedRelationshipContact.roleLabel,
+      selectedRelationshipContact.companyName,
+      selectedRelationshipContact.language,
+      selectedRelationshipContact.category,
+      selectedRelationshipContact.vertical,
+      selectedRelationshipContact.market,
+      selectedRelationshipContact.consentStatus,
+      selectedRelationshipContact.source,
+      ...(selectedRelationshipContact.tags ?? []),
+      ...(selectedRelationshipContact.lists ?? []),
+      ...contactRelationshipAudiences.flatMap((audience) => [audience.name, audience.description, audience.listType]),
+    ].filter(Boolean).map((value) => lower(String(value)));
+
+    return contentTemplateGallery
+      .map((template) => {
+        let score = 0;
+        const reasons: string[] = [];
+        const addReason = (reason: string) => {
+          if (!reasons.includes(reason)) reasons.push(reason);
+        };
+        const templateText = lower([
+          template.title,
+          template.description,
+          template.category,
+          template.subject,
+          template.body,
+          template.ctaLabel,
+        ].join(" "));
+
+        if (template.audienceType === selectedRelationshipContact.audienceType) {
+          score += 30;
+          addReason(`${template.audienceType.toUpperCase()} relationship match`);
+        } else if (template.audienceType === "both" || selectedRelationshipContact.audienceType === "both") {
+          score += 18;
+          addReason("Flexible audience fit");
+        }
+
+        const directChannelReach = template.channel === "email"
+          ? Boolean(selectedRelationshipContact.email)
+          : template.channel === "whatsapp"
+            ? Boolean(selectedRelationshipContact.whatsappNumber || selectedRelationshipContact.phoneNumber)
+            : false;
+        const planningChannelReach = !directChannelReach && isB2bContact && template.channel === "linkedin";
+        const reachable = directChannelReach || planningChannelReach || Boolean(recipientForChannel(selectedRelationshipContact, template.channel));
+        if (reachable) {
+          score += directChannelReach ? 24 : 16;
+          addReason(`${channelLabel[template.channel]} ${directChannelReach ? "ready" : "planning"}`);
+        }
+
+        if (contactTerms.some((term) => term && templateText.includes(term))) {
+          score += 18;
+          addReason("Uses relationship signals");
+        }
+        if (lower(template.category).includes("partner") && isB2bContact) {
+          score += 14;
+          addReason("Partner-ready");
+        }
+        if (selectedRelationshipContact.market && templateText.includes(lower(selectedRelationshipContact.market))) {
+          score += 8;
+          addReason("Market context");
+        }
+        if (template.ctaLabel && template.ctaUrl) {
+          score += 5;
+          addReason("CTA ready");
+        }
+
+        return {
+          template,
+          score: Math.min(score, 99),
+          reachable: reachable ? 1 : 0,
+          reasons: reasons.slice(0, 3),
+        };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.reachable !== a.reachable) return b.reachable - a.reachable;
+        return a.template.title.localeCompare(b.template.title);
+      })
+      .slice(0, 3);
+  }, [contactRelationshipAudiences, selectedRelationshipContact]);
 
   const visibleAudiences = useMemo(() => audiences.filter((audience) => {
     return matchesSearch(search, [
@@ -6437,6 +6524,24 @@ export default function MarketingAdminPage() {
     }));
     setCampaignStudioFeedback(`Studio focused on ${contact.fullName || contact.email || "this contact"} with ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")}.`);
     setMessage(`Campaign studio is ready for ${contact.fullName || contact.email || "this contact"}. Generate AI copy or use the recommended channel pack.`);
+  }
+
+  function startRelationshipCampaignFromTemplate(contact: MarketingContact, template: ContentTemplate) {
+    const relatedAudience = contactRelationshipAudiences[0] ?? bestCampaignStudioAudience(
+      campaignStudioPlays.find((item) => item.audienceType === template.audienceType) ?? campaignStudioPlays[0],
+      audiences,
+    );
+    startCampaignFromContentTemplate(template);
+    setCampaignDraft((draft) => ({
+      ...draft,
+      audienceType: template.audienceType,
+      channel: template.channel,
+      targetAudienceId: relatedAudience?.id ?? "",
+      recipientFilter: contact.email || contact.fullName || contact.whatsappNumber || contact.phoneNumber || "",
+      snapshotRecipients: Boolean(recipientForChannel(contact, template.channel)),
+    }));
+    setCampaignStudioFeedback(`Template "${template.title}" applied for ${contact.fullName || contact.email || "this contact"}.`);
+    setMessage(`Template "${template.title}" is ready for ${contact.fullName || contact.email || "this contact"}. Save the content draft, then add the campaign.`);
   }
 
   async function saveContactEdit(event: FormEvent) {
@@ -10036,6 +10141,49 @@ export default function MarketingAdminPage() {
                                 </div>
                               ) : (
                                 <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800" data-testid="marketing-contact-next-actions">Ready for relationship-aware campaign planning.</p>
+                              )}
+                            </div>
+                            <div className="grid gap-2 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-contact-template-recommendations">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Suggested templates</p>
+                                  <p className="text-xs font-bold text-[#7d6b65]">Ranked from this contact's channel, list, and relationship signals.</p>
+                                </div>
+                                <Pill className="bg-purple-50 text-purple-800">{contactRelationshipTemplateRecommendations.length} picks</Pill>
+                              </div>
+                              {contactRelationshipTemplateRecommendations.length ? (
+                                <div className="grid gap-2">
+                                  {contactRelationshipTemplateRecommendations.map((recommendation) => {
+                                    const { template } = recommendation;
+                                    return (
+                                      <article key={template.id} className="rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-contact-template-${template.id}`}>
+                                        <div className="flex flex-wrap items-start justify-between gap-2">
+                                          <div>
+                                            <p className="font-black text-[#241133]">{template.title}</p>
+                                            <p className="mt-1 text-xs font-semibold text-[#7d6b65]">{template.description}</p>
+                                          </div>
+                                          <div className="flex flex-wrap gap-1">
+                                            <Pill className={channelClass(template.channel)}>{channelLabel[template.channel]}</Pill>
+                                            <Pill className="bg-emerald-50 text-emerald-800">{recommendation.score}% fit</Pill>
+                                          </div>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                          {recommendation.reasons.map((reason) => <Pill key={reason} className="bg-white text-[#5b4a46]">{reason}</Pill>)}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => startRelationshipCampaignFromTemplate(selectedRelationshipContact, template)}
+                                          className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white"
+                                          data-testid={`button-marketing-use-contact-template-${template.id}`}
+                                        >
+                                          <Sparkles size={13} /> Use starter
+                                        </button>
+                                      </article>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="text-xs font-bold text-[#8b7a73]">No template recommendation yet. Add audience, channel, or segmentation details to improve matches.</p>
                               )}
                             </div>
                             <div className="flex flex-wrap gap-2">

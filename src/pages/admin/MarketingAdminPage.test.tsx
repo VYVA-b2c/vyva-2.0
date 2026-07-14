@@ -959,6 +959,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-relationship-context")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-contact-relationship-context")).toHaveTextContent("B2B nurture");
     expect(screen.getByTestId("marketing-contact-next-actions")).toHaveTextContent("Review consent: pending.");
+    expect(screen.getByTestId("marketing-contact-template-recommendations")).toHaveTextContent("Suggested templates");
+    expect(screen.getByTestId("marketing-contact-template-linkedin-partner-demo")).toHaveTextContent("Partner demo LinkedIn post");
+    expect(screen.getByTestId("marketing-contact-template-linkedin-partner-demo")).toHaveTextContent("LinkedIn planning");
+    fireEvent.click(screen.getByTestId("button-marketing-use-contact-template-linkedin-partner-demo"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Template "Partner demo LinkedIn post" applied for Hassan Partner.');
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner demo LinkedIn post campaign");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("hassan@example.com");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-view-contact-contact-2"));
     fireEvent.click(screen.getByTestId("button-marketing-build-contact-campaign-contact-2"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Studio focused on Hassan Partner");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
