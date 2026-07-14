@@ -505,6 +505,12 @@ type CampaignReadinessItem = {
   state: CampaignReadinessState;
 };
 
+type MarketingActionCenterItem = CampaignReadinessItem & {
+  actionLabel: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+};
+
 type CampaignAudienceInsightItem = {
   key: string;
   title: string;
@@ -6298,6 +6304,107 @@ export default function MarketingAdminPage() {
     : campaignNeedsActionCount > 0
       ? `${campaignNeedsActionCount} item${campaignNeedsActionCount === 1 ? "" : "s"} need action`
       : "Ready";
+  const unmappedAudienceMemberCount = latestSyncRun
+    ? syncUnmappedCount(latestSyncRun.summary)
+    : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
+  const unmappedCampaignRecipientCount = latestSyncRun ? syncUnmappedCampaignRecipientCount(latestSyncRun.summary) : 0;
+  const campaignMissingChannelContent = campaigns.find((campaign) => campaign.channels.some((channel) => !channel.contentAssetId));
+  const scheduledEmailCampaignWithoutRecipients = campaigns.find((campaign) => (
+    campaign.status === "scheduled"
+    && campaign.recipientCount <= 0
+    && campaign.channels.some((channel) => channel.channel === "email" && Boolean(channel.contentAssetId))
+  ));
+  const starterTemplate = contentTemplateGallery[0] ?? null;
+  const marketingActionCenterItems: MarketingActionCenterItem[] = [
+    ...(!syncState.configured ? [{
+      key: "sync-config",
+      title: "Finish Lovable sync setup",
+      detail: "The export endpoint is ready, but the server still needs a bearer token before admins can run a sync.",
+      state: "blocked" as CampaignReadinessState,
+      actionLabel: "Open settings",
+      icon: Settings,
+      onSelect: () => {
+        setActiveTab("settings");
+        setMessage("Open Settings to finish Lovable sync configuration.");
+      },
+    }] : latestSyncRun?.status === "failed" ? [{
+      key: "sync-failed",
+      title: "Fix the last Lovable sync",
+      detail: latestSyncRun.error || "The last import failed. Review the latest run before creating new campaigns from stale data.",
+      state: "blocked" as CampaignReadinessState,
+      actionLabel: "Review sync",
+      icon: Settings,
+      onSelect: () => {
+        setActiveTab("settings");
+        setMessage("Review the failed Lovable sync run.");
+      },
+    }] : []),
+    ...(missingLovableReferenceCount > 0 ? [{
+      key: "missing-content",
+      title: "Replace missing Lovable content",
+      detail: `${missingLovableReferenceCount} campaign or journey reference still needs real copy, HTML, design, or media.`,
+      state: "blocked" as CampaignReadinessState,
+      actionLabel: "Show placeholders",
+      icon: FileText,
+      onSelect: () => {
+        setActiveTab("content");
+        setSearch("");
+        setChannelFilter("all");
+        setContentSourceFilter("missing_lovable_reference");
+        setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
+      },
+    }] : []),
+    ...(unmappedAudienceMemberCount > 0 || unmappedCampaignRecipientCount > 0 ? [{
+      key: "audience-mapping",
+      title: "Review audience mapping",
+      detail: `${unmappedAudienceMemberCount} list member${unmappedAudienceMemberCount === 1 ? "" : "s"} and ${unmappedCampaignRecipientCount} campaign recipient${unmappedCampaignRecipientCount === 1 ? "" : "s"} need contact matches.`,
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Open lists",
+      icon: UsersRound,
+      onSelect: () => {
+        setActiveTab("contacts");
+        setContactView("lists");
+        setSearch("");
+        setContactListFilter("all");
+        setAudienceFeedback("Review imported lists with unmapped Lovable members.");
+      },
+    }] : []),
+    ...(campaignMissingChannelContent ? [{
+      key: "campaign-content",
+      title: "Attach campaign content",
+      detail: `"${campaignMissingChannelContent.name}" has at least one channel without linked content.`,
+      state: "blocked" as CampaignReadinessState,
+      actionLabel: "Open campaign",
+      icon: Megaphone,
+      onSelect: () => {
+        startCampaignEdit(campaignMissingChannelContent);
+        setActiveTab("dashboard");
+        setMessage(`Opened "${campaignMissingChannelContent.name}" to attach missing channel content.`);
+      },
+    }] : []),
+    ...(scheduledEmailCampaignWithoutRecipients ? [{
+      key: "campaign-recipients",
+      title: "Snapshot scheduled recipients",
+      detail: `"${scheduledEmailCampaignWithoutRecipients.name}" is scheduled but has no saved email recipients.`,
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Open campaign",
+      icon: CalendarDays,
+      onSelect: () => {
+        startCampaignEdit(scheduledEmailCampaignWithoutRecipients);
+        setActiveTab("dashboard");
+        setMessage(`Opened "${scheduledEmailCampaignWithoutRecipients.name}" to snapshot recipients before sending.`);
+      },
+    }] : []),
+    ...(starterTemplate ? [{
+      key: "template-starter",
+      title: "Start from a proven template",
+      detail: `Use "${starterTemplate.title}" as a fast campaign starter, then adapt the copy and channel.`,
+      state: "planning" as CampaignReadinessState,
+      actionLabel: "Start campaign",
+      icon: Sparkles,
+      onSelect: () => startCampaignFromContentTemplate(starterTemplate),
+    }] : []),
+  ].slice(0, 5);
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
@@ -6384,6 +6491,44 @@ export default function MarketingAdminPage() {
                 run={latestSyncRun}
                 onOpenSettings={() => setActiveTab("settings")}
               />
+
+              <SectionCard
+                title="Recommended next actions"
+                subtitle="The fastest route from imported marketing data to a usable campaign."
+                action={<Pill className={marketingActionCenterItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}>{marketingActionCenterItems.length ? `${marketingActionCenterItems.length} actions` : "Clear"}</Pill>}
+              >
+                <div className="grid gap-3 xl:grid-cols-5" data-testid="marketing-action-center">
+                  {marketingActionCenterItems.length ? marketingActionCenterItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={item.onSelect}
+                        className="group min-h-[154px] rounded-2xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-left shadow-sm transition hover:border-purple-200 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                        data-testid={`button-marketing-action-${item.key}`}
+                      >
+                        <span className="flex items-start justify-between gap-3">
+                          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                            <Icon size={18} aria-hidden="true" />
+                          </span>
+                          <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                        </span>
+                        <span className="mt-3 block font-black text-[#241133]">{item.title}</span>
+                        <span className="mt-2 block text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</span>
+                        <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                          {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                        </span>
+                      </button>
+                    );
+                  }) : (
+                    <div className="rounded-2xl border border-dashed border-[#d9c9bd] bg-[#fffaf4] p-5 xl:col-span-5">
+                      <p className="font-black text-[#241133]">No urgent marketing setup actions.</p>
+                      <p className="mt-2 text-sm font-bold text-[#7d6b65]">Use the Smart campaign studio below to plan the next campaign, adapt a template, or build a channel pack.</p>
+                    </div>
+                  )}
+                </div>
+              </SectionCard>
 
               <div className="grid gap-4 xl:grid-cols-[1fr_0.75fr]">
                 <SectionCard title="By channel" subtitle="Planning coverage across campaign channels.">

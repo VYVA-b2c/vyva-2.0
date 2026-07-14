@@ -1014,6 +1014,33 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
   });
 
+  it("surfaces recommended next actions and routes to the right work area", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Finish Lovable sync setup");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Replace missing Lovable content");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review audience mapping");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Attach campaign content");
+
+    fireEvent.click(screen.getByTestId("button-marketing-action-missing-content"));
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable content coverage");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Lovable content placeholders");
+    expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("Content is loaded, but hidden by filters.");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-action-audience-mapping"));
+    expect(screen.getByTestId("button-marketing-lists-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
+    expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-action-campaign-content"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
+    expect(screen.getByText('Opened "Partner outreach" to attach missing channel content.')).toBeInTheDocument();
+  });
+
   it("shows all imported Lovable details instead of hiding rows behind preview caps", async () => {
     const manyRecipients = Array.from({ length: 105 }, (_, index) => {
       const recipientNumber = index + 1;
