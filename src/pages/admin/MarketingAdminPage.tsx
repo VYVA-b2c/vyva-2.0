@@ -4074,6 +4074,7 @@ export default function MarketingAdminPage() {
     tags: "",
   });
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [selectedRelationshipContactId, setSelectedRelationshipContactId] = useState<string | null>(null);
   const [contactEditDraft, setContactEditDraft] = useState<ContactEditDraft | null>(null);
   const [contactSaving, setContactSaving] = useState(false);
   const [confirmingContactDeleteId, setConfirmingContactDeleteId] = useState<string | null>(null);
@@ -4329,6 +4330,88 @@ export default function MarketingAdminPage() {
     const matchesList = contactListFilter === "all" || contact.lists.some((list) => valueMatchesFilter(list, contactListFilter));
     return matchesSearch && matchesAudience && matchesSource && matchesConsent && matchesLanguage && matchesCategory && matchesVertical && matchesMarket && matchesList;
   }), [contacts, search, audienceFilter, contactSourceFilter, contactConsentFilter, contactLanguageFilter, contactCategoryFilter, contactVerticalFilter, contactMarketFilter, contactListFilter]);
+
+  const selectedRelationshipContact = useMemo(() => {
+    if (selectedRelationshipContactId) return contactById.get(selectedRelationshipContactId) ?? null;
+    return visibleContacts[0] ?? null;
+  }, [contactById, selectedRelationshipContactId, visibleContacts]);
+
+  const selectedRelationshipContactKeys = useMemo(() => {
+    if (!selectedRelationshipContact) return new Set<string>();
+    return new Set([
+      ...lookupKeysForExternalId(selectedRelationshipContact.id, ["contact"]),
+      ...lookupKeysForExternalId(selectedRelationshipContact.lovableExternalId, ["contact"]),
+    ]);
+  }, [selectedRelationshipContact]);
+
+  const contactRelationshipAudiences = useMemo(() => {
+    if (!selectedRelationshipContact) return [];
+    return audiences.filter((audience) => {
+      if (contactMatchesAudienceList(selectedRelationshipContact, audience)) return true;
+      return audience.memberPreview.some((member) => {
+        if (member.id === selectedRelationshipContact.id) return true;
+        return lookupKeysForExternalId(member.contactExternalId || member.lovableExternalId, ["contact"])
+          .some((key) => selectedRelationshipContactKeys.has(key));
+      });
+    });
+  }, [audiences, selectedRelationshipContact, selectedRelationshipContactKeys]);
+
+  const contactRelationshipEnrollments = useMemo(() => {
+    if (!selectedRelationshipContact) return [];
+    return journeyEnrollments.filter((enrollment) => {
+      if (enrollment.contactId && enrollment.contactId === selectedRelationshipContact.id) return true;
+      return lookupKeysForExternalId(enrollment.contactExternalId, ["contact"])
+        .some((key) => selectedRelationshipContactKeys.has(key));
+    });
+  }, [journeyEnrollments, selectedRelationshipContact, selectedRelationshipContactKeys]);
+
+  const contactRelationshipCampaigns = useMemo(() => {
+    if (!selectedRelationshipContact) return [];
+    return campaigns
+      .filter((campaign) => campaignAllowsContact(campaign.audienceType, selectedRelationshipContact.audienceType))
+      .slice(0, 4);
+  }, [campaigns, selectedRelationshipContact]);
+
+  const contactRelationshipChannels = useMemo(() => {
+    if (!selectedRelationshipContact) return [];
+    return CHANNELS.map((channel) => {
+      const recipient = recipientForChannel(selectedRelationshipContact, channel);
+      const directChannel = channel === "email" || channel === "whatsapp";
+      return {
+        channel,
+        recipient,
+        state: directChannel
+          ? (recipient ? "ready" : "blocked")
+          : (recipient ? "planning" : "blocked"),
+        label: directChannel
+          ? (recipient ? "Reachable" : "Missing")
+          : (recipient ? "Planning target" : "No handle"),
+      };
+    });
+  }, [selectedRelationshipContact]);
+
+  const contactRelationshipDirectReachable = selectedRelationshipContact
+    ? Boolean(recipientForChannel(selectedRelationshipContact, "email") || recipientForChannel(selectedRelationshipContact, "whatsapp"))
+    : false;
+  const contactRelationshipSegmented = selectedRelationshipContact
+    ? Boolean(selectedRelationshipContact.language || selectedRelationshipContact.category || selectedRelationshipContact.vertical || selectedRelationshipContact.market || selectedRelationshipContact.tags.length || selectedRelationshipContact.lists.length)
+    : false;
+  const selectedContactRelationshipScore = selectedRelationshipContact
+    ? [
+      contactRelationshipDirectReachable,
+      selectedRelationshipContact.consentStatus === "opted_in",
+      contactRelationshipSegmented,
+      contactRelationshipAudiences.length > 0,
+    ].filter(Boolean).length * 25
+    : 0;
+  const contactRelationshipNextActions = selectedRelationshipContact
+    ? [
+      !contactRelationshipDirectReachable ? "Add email or WhatsApp before direct outreach." : "",
+      selectedRelationshipContact.consentStatus !== "opted_in" ? `Review consent: ${selectedRelationshipContact.consentStatus}.` : "",
+      !contactRelationshipSegmented ? "Add market, language, tags, or lifecycle details." : "",
+      contactRelationshipAudiences.length === 0 ? "Add this contact to a list or audience." : "",
+    ].filter(Boolean)
+    : [];
 
   const visibleAudiences = useMemo(() => audiences.filter((audience) => {
     return matchesSearch(search, [
@@ -6297,6 +6380,63 @@ export default function MarketingAdminPage() {
     setContactEditDraft(null);
     setConfirmingContactDeleteId(null);
     setContactFeedback("");
+  }
+
+  function selectRelationshipContact(contact: MarketingContact) {
+    setActiveTab("contacts");
+    setContactView("contacts");
+    setSelectedRelationshipContactId(contact.id);
+    setConfirmingContactDeleteId(null);
+    setContactFeedback(`Viewing relationship for "${contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}".`);
+  }
+
+  function buildCampaignForRelationshipContact(contact: MarketingContact) {
+    const isB2bContact = contact.audienceType === "b2b" || Boolean(contact.companyName || contact.roleLabel);
+    const play = campaignStudioPlays.find((item) => item.id === (isB2bContact ? "b2b-partner-outreach" : "family-confidence")) ?? campaignStudioPlays[0];
+    const contactKeys = new Set([
+      ...lookupKeysForExternalId(contact.id, ["contact"]),
+      ...lookupKeysForExternalId(contact.lovableExternalId, ["contact"]),
+    ]);
+    const relatedAudience = audiences.find((audience) => {
+      if (contactMatchesAudienceList(contact, audience)) return true;
+      return audience.memberPreview.some((member) => {
+        if (member.id === contact.id) return true;
+        return lookupKeysForExternalId(member.contactExternalId || member.lovableExternalId, ["contact"])
+          .some((key) => contactKeys.has(key));
+      });
+    }) ?? bestCampaignStudioAudience(play, audiences);
+    const primaryChannel: Channel = contact.email
+      ? "email"
+      : (contact.whatsappNumber || contact.phoneNumber)
+        ? "whatsapp"
+        : isB2bContact
+          ? "linkedin"
+          : play.defaultChannel;
+    const selectedChannels = uniqueChannels([
+      primaryChannel,
+      ...(isB2bContact ? ["email", "linkedin"] as Channel[] : ["email", "whatsapp"] as Channel[]),
+    ]);
+    setActiveTab("dashboard");
+    setCampaignStudioCategory(play.categoryId);
+    updateCampaignStudio({
+      playId: play.id,
+      channel: primaryChannel,
+      selectedChannels,
+      targetAudienceId: relatedAudience?.id ?? "",
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+      toneId: isB2bContact ? "expert" : "warm",
+      angleId: contact.market ? "local" : "balanced",
+    });
+    setCampaignDraft((draft) => ({
+      ...draft,
+      audienceType: play.audienceType,
+      channel: primaryChannel,
+      targetAudienceId: relatedAudience?.id ?? "",
+      recipientFilter: contact.email || contact.fullName || contact.whatsappNumber || contact.phoneNumber || "",
+      snapshotRecipients: Boolean(recipientForChannel(contact, primaryChannel)),
+    }));
+    setCampaignStudioFeedback(`Studio focused on ${contact.fullName || contact.email || "this contact"} with ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")}.`);
+    setMessage(`Campaign studio is ready for ${contact.fullName || contact.email || "this contact"}. Generate AI copy or use the recommended channel pack.`);
   }
 
   async function saveContactEdit(event: FormEvent) {
@@ -9846,6 +9986,81 @@ export default function MarketingAdminPage() {
                     </div>
                   ) : null}
                   <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
+                    <div className="mb-3 rounded-xl border border-purple-100 bg-purple-50 p-4" data-testid="marketing-contact-relationship-panel">
+                      {selectedRelationshipContact ? (
+                        <div className="grid gap-4 xl:grid-cols-[1.15fr_1fr]">
+                          <div>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Relationship view</p>
+                                <h3 className="mt-1 font-serif text-2xl text-[#241133]">{selectedRelationshipContact.fullName || selectedRelationshipContact.email || selectedRelationshipContact.phoneNumber || "Unnamed contact"}</h3>
+                                <p className="mt-1 text-sm font-bold text-[#6f5f59]">
+                                  {[selectedRelationshipContact.roleLabel, selectedRelationshipContact.companyName, selectedRelationshipContact.market].filter(Boolean).join(" - ") || selectedRelationshipContact.audienceType.toUpperCase()}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <span data-testid="marketing-contact-relationship-score">
+                                  <Pill className={selectedContactRelationshipScore >= 75 ? "bg-emerald-100 text-emerald-800" : selectedContactRelationshipScore >= 50 ? "bg-amber-100 text-amber-900" : "bg-red-50 text-red-800"}>
+                                    {selectedContactRelationshipScore}% ready
+                                  </Pill>
+                                </span>
+                                <Pill className={statusClass(selectedRelationshipContact.consentStatus)}>{selectedRelationshipContact.consentStatus}</Pill>
+                                <Pill className="bg-white text-purple-800">{selectedRelationshipContact.audienceType.toUpperCase()}</Pill>
+                              </div>
+                            </div>
+                            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="marketing-contact-relationship-channels">
+                              {contactRelationshipChannels.map((item) => (
+                                <div key={item.channel} className={`rounded-xl border px-3 py-2 ${item.state === "ready" ? "border-emerald-100 bg-white text-emerald-900" : item.state === "planning" ? "border-blue-100 bg-white text-blue-900" : "border-red-100 bg-white text-red-800"}`}>
+                                  <p className="text-xs font-black uppercase tracking-[0.1em]">{channelLabel[item.channel]}</p>
+                                  <p className="mt-1 text-sm font-black">{item.label}</p>
+                                  <p className="mt-1 break-all text-xs font-semibold text-[#6f5f59]">{item.recipient || "Add contact detail"}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="grid gap-3">
+                            <div className="grid gap-2 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-contact-relationship-context">
+                              <div className="flex flex-wrap gap-2">
+                                <Pill className="bg-purple-50 text-purple-800">{contactRelationshipAudiences.length} list match{contactRelationshipAudiences.length === 1 ? "" : "es"}</Pill>
+                                <Pill className="bg-blue-50 text-blue-800">{contactRelationshipCampaigns.length} eligible campaign{contactRelationshipCampaigns.length === 1 ? "" : "s"}</Pill>
+                                <Pill className="bg-[#f5eee8] text-[#5b4a46]">{contactRelationshipEnrollments.length} journey enrollment{contactRelationshipEnrollments.length === 1 ? "" : "s"}</Pill>
+                              </div>
+                              <div className="grid gap-1 text-xs font-bold text-[#5b4a46]">
+                                <p>Lists: {contactRelationshipAudiences.map((audience) => audience.name).slice(0, 3).join(", ") || "No list match yet"}</p>
+                                <p>Campaigns: {contactRelationshipCampaigns.map((campaign) => campaign.name).slice(0, 3).join(", ") || "No matching campaign yet"}</p>
+                                <p>Journey activity: {contactRelationshipEnrollments.map((enrollment) => enrollment.journeyName || enrollment.status).slice(0, 2).join(", ") || "No journey activity yet"}</p>
+                              </div>
+                              {contactRelationshipNextActions.length ? (
+                                <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-black text-amber-900" data-testid="marketing-contact-next-actions">
+                                  {contactRelationshipNextActions.map((action) => <p key={action}>{action}</p>)}
+                                </div>
+                              ) : (
+                                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800" data-testid="marketing-contact-next-actions">Ready for relationship-aware campaign planning.</p>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button type="button" onClick={() => buildCampaignForRelationshipContact(selectedRelationshipContact)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white" data-testid={`button-marketing-build-contact-campaign-${selectedRelationshipContact.id}`}>
+                                <Sparkles size={15} /> Build campaign
+                              </button>
+                              <button type="button" onClick={() => startContactEdit(selectedRelationshipContact)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700" data-testid={`button-marketing-edit-relationship-contact-${selectedRelationshipContact.id}`}>
+                                <Pencil size={15} /> Edit contact
+                              </button>
+                              <button type="button" onClick={() => setSelectedRelationshipContactId(null)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#241133]" data-testid="button-marketing-clear-relationship-contact">
+                                <X size={15} /> Show first visible
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-black text-[#241133]">No contact selected.</p>
+                            <p className="text-xs font-bold text-[#7d6b65]">Select a contact below to see channel readiness, list membership, journey activity, and campaign actions.</p>
+                          </div>
+                          <Pill className="bg-[#f5eee8] text-[#7d6b65]">Relationship tools waiting</Pill>
+                        </div>
+                      )}
+                    </div>
                     <div className="mb-3 grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-contact-segmentation-filters">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -10018,6 +10233,9 @@ export default function MarketingAdminPage() {
                                 </td>
                                 <td className={`sticky right-0 z-10 w-[210px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${editingContactId === contact.id || confirmingContactDeleteId === contact.id ? "bg-purple-50" : "bg-white"}`}>
                                   <div className="flex w-[170px] flex-wrap gap-2">
+                                    <button type="button" onClick={() => selectRelationshipContact(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid={`button-marketing-view-contact-${contact.id}`}>
+                                      <Eye size={13} /> View
+                                    </button>
                                     <button type="button" onClick={() => startContactEdit(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid={`button-marketing-edit-contact-${contact.id}`}>
                                       <Pencil size={13} /> Edit
                                     </button>
