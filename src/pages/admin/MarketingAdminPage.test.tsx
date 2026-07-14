@@ -1452,6 +1452,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("2");
+    expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("LinkedIn B2C starter");
+    expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("WhatsApp B2B starter");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-gap-whatsapp-b2b"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("WhatsApp B2B starter");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("whatsapp");
+    expect(screen.getByTestId("input-marketing-content-cta-label")).toHaveValue("Book a demo");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Help care teams");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_template_gap_suggestion");
+    expect(screen.getByTestId("select-marketing-template-channel")).toHaveValue("whatsapp");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Gap starter drafted: WhatsApp B2B starter");
 
     fireEvent.click(screen.getByTestId("button-marketing-template-filter-channel-tiktok"));
     expect(screen.getByTestId("select-marketing-template-channel")).toHaveValue("tiktok");

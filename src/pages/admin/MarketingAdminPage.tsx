@@ -629,6 +629,11 @@ type ContentTemplate = {
   mediaAssets?: unknown[];
 };
 
+type ContentTemplateGapSuggestion = ContentTemplate & {
+  existingCount: number;
+  channelCount: number;
+};
+
 type ContentEditDraft = {
   title: string;
   channel: Channel;
@@ -2253,6 +2258,78 @@ function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
     designJsonText: JSON.stringify(template.designJson, null, 2),
     mediaAssetsText: JSON.stringify(template.mediaAssets ?? [], null, 2),
   };
+}
+
+function templateGapSuggestionFor(channel: Channel, audienceType: Audience, existingCount: number, channelCount: number): ContentTemplateGapSuggestion {
+  const audienceLabel = audienceType === "b2b" ? "B2B" : audienceType === "b2c" ? "B2C" : "Mixed";
+  const channelName = channelLabel[channel];
+  const category = audienceType === "b2b"
+    ? "B2B partner"
+    : channel === "tiktok" || channel === "instagram"
+      ? "Product education"
+      : "Engagement";
+  const subject = channel === "email" ? `${audienceLabel} VYVA update for {{first_name}}` : "";
+  const ctaLabel = audienceType === "b2b" ? "Book a demo" : "Explore VYVA";
+  const ctaUrl = audienceType === "b2b" ? "https://v2.vyva.life/demo" : "https://v2.vyva.life";
+  const bodyLead = audienceType === "b2b"
+    ? "Help care teams see the signal, not the noise."
+    : "Make daily care feel clearer, calmer, and easier to act on.";
+  const body = channel === "whatsapp"
+    ? `${bodyLead} VYVA turns check-ins, reminders, and care context into one practical next step. ${ctaLabel}: ${ctaUrl}`
+    : channel === "tiktok"
+      ? `${bodyLead}\n\nShow the before: scattered updates, missed context, uncertain next steps.\nShow the after: VYVA brings the care signal together so families and teams know what to do next.\n\nCTA: ${ctaLabel}.`
+      : channel === "linkedin"
+        ? `${bodyLead}\n\nVYVA connects daily signals, consent-aware communication, and care-team workflows so relationships can move from scattered messages to clear action.\n\n${ctaLabel}: ${ctaUrl}`
+        : `${bodyLead}\n\nUse this starter to explain one problem, one VYVA capability, and one clear next action for ${audienceLabel} contacts.`;
+  return {
+    id: `gap-${channel}-${audienceType}`,
+    title: `${channelName} ${audienceLabel} starter`,
+    category,
+    audienceType,
+    channel,
+    description: `Suggested because ${channelName} has ${channelCount} template${channelCount === 1 ? "" : "s"} and only ${existingCount} ${audienceLabel} fit${existingCount === 1 ? "" : "s"}.`,
+    subject,
+    body,
+    htmlBody: channel === "email" ? `<h1>${bodyLead}</h1><p>Use this starter to explain one problem, one VYVA capability, and one clear next action.</p>` : "",
+    ctaLabel,
+    ctaUrl,
+    designJson: {
+      generator: "marketing_template_gap_suggestion",
+      channel,
+      audienceType,
+      category,
+      prompt: `${channelName} ${audienceLabel} campaign starter for VYVA communications.`,
+      blocks: [
+        { type: "problem", text: audienceType === "b2b" ? "Care teams need cleaner operational signals." : "Families need calmer care context." },
+        { type: "solution", text: "VYVA turns daily signals into practical next steps." },
+        { type: "cta", label: ctaLabel },
+      ],
+    },
+    mediaAssets: [],
+    existingCount,
+    channelCount,
+  };
+}
+
+function templateGapSuggestionsFor(templates: ContentTemplate[]) {
+  return CHANNELS.flatMap((channel) => {
+    const channelCount = templates.filter((template) => template.channel === channel).length;
+    return (["b2c", "b2b"] as Audience[]).map((audienceType) => {
+      const existingCount = templates.filter((template) => (
+        template.channel === channel
+        && (template.audienceType === audienceType || template.audienceType === "both")
+      )).length;
+      return templateGapSuggestionFor(channel, audienceType, existingCount, channelCount);
+    });
+  })
+    .filter((suggestion) => suggestion.existingCount < 3)
+    .sort((a, b) => {
+      if (a.existingCount !== b.existingCount) return a.existingCount - b.existingCount;
+      if (a.channelCount !== b.channelCount) return a.channelCount - b.channelCount;
+      if (a.audienceType !== b.audienceType) return a.audienceType === "b2c" ? -1 : 1;
+      return channelLabel[a.channel].localeCompare(channelLabel[b.channel]);
+    })
+    .slice(0, 4);
 }
 
 function campaignDraftFromContentTemplate(template: ContentTemplate): CampaignDraft {
@@ -4308,6 +4385,7 @@ export default function MarketingAdminPage() {
       state: channels.length >= 5 ? "ready" as CampaignReadinessState : channels.length >= 3 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
     };
   }), []);
+  const contentTemplateGapSuggestions = useMemo(() => templateGapSuggestionsFor(contentTemplateGallery), []);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
   const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
@@ -6178,6 +6256,21 @@ export default function MarketingAdminPage() {
     setContentFeedback(`Template applied: ${template.title}. Edit it, then add content.`);
     setContentActionFeedback(`Template applied: ${template.title}.`);
     setMessage(`Template applied: ${template.title}.`);
+  }
+
+  function applyTemplateGapSuggestion(suggestion: ContentTemplateGapSuggestion) {
+    setContentDraft(contentDraftFromTemplate(suggestion));
+    setSelectedContentId(null);
+    setEditingContentId(null);
+    setContentEditDraft(null);
+    setContentDrawerMode(null);
+    setContentTemplateSearch("");
+    setContentTemplateChannelFilter(suggestion.channel);
+    setContentTemplateAudienceFilter("all");
+    setContentTemplateCategoryFilter("all");
+    setContentFeedback(`Gap starter drafted: ${suggestion.title}. Edit it, then add content.`);
+    setContentActionFeedback(`Gap starter drafted: ${suggestion.title}.`);
+    setMessage(`Gap starter drafted: ${suggestion.title}.`);
   }
 
   function startCampaignFromContentTemplate(template: ContentTemplate) {
@@ -9029,6 +9122,42 @@ export default function MarketingAdminPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                title="Template gaps to fill"
+                subtitle="Suggested starter drafts for weak channel or audience coverage."
+                action={<Pill className="bg-amber-50 text-amber-800">{contentTemplateGapSuggestions.length} suggestions</Pill>}
+              >
+                <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-template-gap-suggestions">
+                  {contentTemplateGapSuggestions.length ? contentTemplateGapSuggestions.map((suggestion) => (
+                    <article key={suggestion.id} className="flex min-h-[220px] flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm" data-testid={`marketing-template-gap-${suggestion.channel}-${suggestion.audienceType}`}>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className={channelClass(suggestion.channel)}>{channelLabel[suggestion.channel]}</Pill>
+                          <Pill className="bg-white text-[#5b4a46]">{suggestion.audienceType.toUpperCase()}</Pill>
+                          <Pill className="bg-amber-100 text-amber-900">{suggestion.existingCount} existing</Pill>
+                        </div>
+                        <h3 className="mt-3 font-serif text-xl text-[#241133]">{suggestion.title}</h3>
+                        <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{suggestion.description}</p>
+                        <p className="mt-3 line-clamp-3 rounded-xl bg-white px-3 py-2 text-xs font-bold text-[#6f5f59]">{suggestion.body}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => applyTemplateGapSuggestion(suggestion)}
+                        className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        disabled={contentSaving}
+                        data-testid={`button-marketing-template-gap-${suggestion.channel}-${suggestion.audienceType}`}
+                      >
+                        <Sparkles size={14} /> Draft template
+                      </button>
+                    </article>
+                  )) : (
+                    <div className="rounded-2xl border border-dashed border-[#d9c9bd] bg-[#fffaf4] p-5 text-sm font-bold text-[#6f5f59] xl:col-span-4">
+                      Template coverage is balanced. Use the matchmaker below to adapt the best starter for the next campaign.
+                    </div>
+                  )}
                 </div>
               </SectionCard>
 
