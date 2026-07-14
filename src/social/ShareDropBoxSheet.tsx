@@ -11,7 +11,7 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import { BottomSheet } from "@/components/vyva-ui";
 import type {
@@ -194,7 +194,7 @@ export function ShareDropBoxCapture({
     setState("idle");
   };
 
-  const uploadAudio = async (blob: Blob, durationMs: number) => {
+  const uploadAudio = useCallback(async (blob: Blob, durationMs: number) => {
     setState("transcribing");
     setError("");
 
@@ -223,9 +223,9 @@ export function ShareDropBoxCapture({
       setState("error");
       setTypedMode(true);
     }
-  };
+  }, [language, noteType, onSaved, prompt]);
 
-  const startRecording = async () => {
+  const startRecording = useCallback(async () => {
     if (!canRecordVoice()) {
       setTypedMode(true);
       setError("Voice recording is not available here. You can type the note instead.");
@@ -276,13 +276,13 @@ export function ShareDropBoxCapture({
       setState("idle");
       stopStream(streamRef.current);
     }
-  };
+  }, [uploadAudio]);
 
   useEffect(() => {
     if (!autoStartVoice || autoStartedRef.current || initialTypedMode || typedMode || note || state !== "idle") return;
     autoStartedRef.current = true;
     void startRecording();
-  }, [autoStartVoice, initialTypedMode, note, state, typedMode]);
+  }, [autoStartVoice, initialTypedMode, note, startRecording, state, typedMode]);
 
   const stopRecording = () => {
     if (recorderRef.current?.state === "recording") {

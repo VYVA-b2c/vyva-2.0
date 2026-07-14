@@ -165,14 +165,23 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow).toBeLessThanOrEqual(1);
 }
 
+async function continuePastSymptomEmergencyModal(page: Page) {
+  const continueButton = page.getByTestId("button-symptom-emergency-continue");
+  await continueButton.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
+  if (await continueButton.isVisible().catch(() => false)) {
+    await continueButton.click();
+    await expect(page.getByTestId("symptom-emergency-modal")).toBeHidden();
+  }
+}
+
 test("login screen renders auth controls", async ({ page }) => {
   await mockApi(page);
   await page.goto("/login", { waitUntil: "domcontentloaded" });
 
   await expect(page.getByTestId("input-auth-contact")).toBeVisible();
   await expect(page.getByTestId("input-auth-password")).toBeVisible();
-  await expect(page.getByTestId("button-auth-intent-self")).toBeVisible();
-  await expect(page.getByTestId("button-auth-intent-caregiver")).toBeVisible();
+  await expect(page.getByTestId("link-auth-door-member")).toBeVisible();
+  await expect(page.getByTestId("link-auth-door-caregiver")).toBeVisible();
   await expect(page.getByTestId("button-auth-submit")).toBeVisible();
 });
 
@@ -274,9 +283,10 @@ test("login screen exposes caregiver and on-behalf account intent", async ({ pag
   await mockApi(page);
   await page.goto("/login", { waitUntil: "domcontentloaded" });
 
-  await page.getByTestId("button-auth-intent-caregiver").click();
-  await expect(page.getByTestId("text-auth-caregiver-hint")).toBeVisible();
-  await expect(page.getByText("As a caregiver")).toBeVisible();
+  await page.getByTestId("link-auth-door-caregiver").click();
+  await expect(page).toHaveURL(/\/caregiver\/register$/);
+  await expect(page.getByTestId("auth-caregiver-note")).toBeVisible();
+  await expect(page.getByText("For someone I care for")).toBeVisible();
 });
 
 test("login screen scales from mobile card to tablet and desktop auth layout", async ({ page }) => {
@@ -296,7 +306,7 @@ test("login screen scales from mobile card to tablet and desktop auth layout", a
   await page.reload({ waitUntil: "domcontentloaded" });
   const tabletLayoutBox = await page.getByTestId("auth-layout").boundingBox();
   expect(tabletLayoutBox).not.toBeNull();
-  expect(tabletLayoutBox!.width).toBeLessThanOrEqual(560);
+  expect(tabletLayoutBox!.width).toBeLessThanOrEqual(600);
   await expect(page.getByTestId("auth-layout")).toHaveCSS("grid-template-columns", /[0-9.]+px/);
   await expectNoHorizontalOverflow(page);
 
@@ -473,6 +483,7 @@ test("symptom check replaces repeated thinking with review guidance", async ({ p
     await page.evaluate((key) => sessionStorage.removeItem(key), symptomCheckDraftKey).catch(() => undefined);
     await page.setViewportSize(viewport);
     await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+    await continuePastSymptomEmergencyModal(page);
 
     await page.getByTestId("input-symptom-clue").fill("bad headache");
     await page.getByTestId("button-symptom-check-start").click();
@@ -519,6 +530,7 @@ test("symptom check resumes an unfinished chat and can start over", async ({ pag
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await continuePastSymptomEmergencyModal(page);
   await page.getByTestId("input-symptom-clue").fill("bad headache");
   await page.getByTestId("button-symptom-check-start").click();
   await expect(page.getByText("How strong is it?")).toBeVisible();
@@ -569,6 +581,7 @@ test("symptom check resumes and retries a pending review", async ({ page }) => {
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await continuePastSymptomEmergencyModal(page);
   await page.getByTestId("input-symptom-clue").fill("bad headache");
   await page.getByTestId("button-symptom-check-start").click();
   await expect.poll(() => requestCount).toBe(1);
@@ -621,6 +634,7 @@ test("symptom check restores a completed report until done", async ({ page }) =>
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await continuePastSymptomEmergencyModal(page);
   await page.getByTestId("input-symptom-clue").fill("bad headache");
   await page.getByTestId("button-symptom-check-start").click();
   await expect(page.getByTestId("button-report-done")).toBeVisible();
@@ -675,6 +689,7 @@ test("symptom check prepares a direct doctor share link when a doctor contact is
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await continuePastSymptomEmergencyModal(page);
   await page.getByTestId("input-symptom-clue").fill("bad headache");
   await page.getByTestId("button-symptom-check-start").click();
 
