@@ -35,6 +35,14 @@ describe("AdminMenu", () => {
       .toHaveAttribute("href", "/admin/cognitive-assessment");
   });
 
+  it("links admins to workflow coverage", () => {
+    renderMenu("/admin/workflows");
+
+    const workflowLink = screen.getByRole("link", { name: /workflows.*coverage and next steps/i });
+    expect(workflowLink).toHaveAttribute("href", "/admin/workflows");
+    expect(workflowLink).toHaveAttribute("aria-current", "page");
+  });
+
   it("keeps the Admins tab super-admin only", () => {
     const regularAdmin = renderMenu();
 
