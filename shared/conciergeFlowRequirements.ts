@@ -131,10 +131,13 @@ export function conciergeFlowReferenceForPendingAction(input: ConciergeFlowRequi
   if (input.useCase === "book_ride") return CONCIERGE_FLOW_REFERENCES.transportBooking;
   if (input.useCase === "order_medicine") return CONCIERGE_FLOW_REFERENCES.otcPharmacy;
   if (input.useCase === "home_service" || appointmentType === "home-service") return CONCIERGE_FLOW_REFERENCES.homeService;
+  if (input.useCase === "find_provider") return CONCIERGE_FLOW_REFERENCES.careNavigation;
   if (input.useCase === "shopping_request") return CONCIERGE_FLOW_REFERENCES.shoppingSupport;
   if (input.useCase === "book_appointment") return CONCIERGE_FLOW_REFERENCES.medicalAppointment;
   if (input.useCase === "scam_check") return CONCIERGE_FLOW_REFERENCES.scamCheck;
-  if (input.useCase === "admin_task" || input.useCase === "paperwork") return CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
+  if (input.useCase === "insurance_admin" || input.useCase === "admin_task" || input.useCase === "paperwork") {
+    return CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
+  }
   return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
 }
 

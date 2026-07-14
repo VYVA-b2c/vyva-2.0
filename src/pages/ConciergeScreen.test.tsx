@@ -3842,7 +3842,8 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("opens a replacement transport search when a provider is unavailable", async () => {
-    apiFetchMock.mockImplementation(async (url) => {
+    let triggerBody: { use_case?: string; action_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
           items: [{
@@ -3862,6 +3863,45 @@ describe("ConciergeScreen route prefill", () => {
           }],
         });
       }
+      if (String(url).includes("/api/offers/search")) {
+        return jsonResponse({
+          category: "Transport",
+          decision_explanation: "Ranked by proximity, reputation, and availability.",
+          neutrality_note: "No provider paid for placement.",
+          source_guidance: ["local directories"],
+          protection_summary: {
+            title: "Protected search",
+            checkpoints: ["No contact without confirmation."],
+            notification_triggers: [],
+            action_guardrail: "VYVA asks before contacting anyone.",
+          },
+          options: [{
+            label: "Opcion recomendada",
+            name: "City Taxi",
+            category: "Transport",
+            what_it_offers: "Local taxi service",
+            price_or_advantage: "Clear local taxi pricing",
+            why_good_option: "Nearby and available soon",
+            distance_or_availability: "10 minutes away",
+            contact_method: "Phone",
+            phone: "+34 600 999 111",
+            trust_note: "Public listing with phone contact.",
+            score: 84,
+            score_breakdown: {
+              distance: 90,
+              price_value: 70,
+              trust: 80,
+              simplicity: 85,
+              preference_match: 95,
+            },
+          }],
+          next_step: "Confirm before contacting any provider.",
+        });
+      }
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "replacement-transport-1", status: "pending" });
+      }
       return jsonResponse({ items: [] });
     });
 
@@ -3878,6 +3918,22 @@ describe("ConciergeScreen route prefill", () => {
     expect(transportQuery).toContain("Avoid this provider: Radio Taxi");
     expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("Soon");
     expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Transport search prepared with the same details.");
+
+    fireEvent.click(screen.getByTestId("button-offers-search"));
+    const prepareButton = await screen.findByTestId("button-provider-prepare-contact-opcion-recomendada-city-taxi");
+    fireEvent.click(prepareButton);
+    fireEvent.click(await screen.findByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(triggerBody).toMatchObject({
+        use_case: "find_provider",
+        action_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+          provider_search_mode: "transport",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
   });
 
   it("opens a replacement pharmacy search when an OTC provider is unavailable", async () => {
