@@ -543,6 +543,14 @@ type CampaignStudioLaunchStep = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type AudienceHealthAction = CampaignReadinessItem & {
+  value: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -4328,6 +4336,114 @@ export default function MarketingAdminPage() {
       ]),
     ]);
   }), [audiences, search]);
+  const contactHealthTotal = visibleContacts.length;
+  const contactHealthEmailReachable = visibleContacts.filter((contact) => Boolean(recipientForChannel(contact, "email"))).length;
+  const contactHealthWhatsappReachable = visibleContacts.filter((contact) => Boolean(recipientForChannel(contact, "whatsapp"))).length;
+  const contactHealthDirectReachable = visibleContacts.filter((contact) => Boolean(recipientForChannel(contact, "email") || recipientForChannel(contact, "whatsapp"))).length;
+  const contactHealthOptedIn = visibleContacts.filter((contact) => contact.consentStatus === "opted_in").length;
+  const contactHealthPending = visibleContacts.filter((contact) => contact.consentStatus === "pending").length;
+  const contactHealthUnknown = visibleContacts.filter((contact) => contact.consentStatus === "unknown").length;
+  const contactHealthOptedOut = visibleContacts.filter((contact) => contact.consentStatus === "opted_out").length;
+  const contactHealthNeedsConsent = contactHealthPending + contactHealthUnknown + contactHealthOptedOut;
+  const contactHealthSegmented = visibleContacts.filter((contact) => Boolean(
+    contact.language
+    || contact.category
+    || contact.vertical
+    || contact.market
+    || contact.tags.length > 0,
+  )).length;
+  const contactHealthListed = visibleContacts.filter((contact) => contact.lists.length > 0).length;
+  const contactHealthB2b = visibleContacts.filter((contact) => contact.audienceType === "b2b" || contact.audienceType === "both").length;
+  const contactHealthB2c = visibleContacts.filter((contact) => contact.audienceType === "b2c" || contact.audienceType === "both").length;
+  const contactHealthUnmappedListMembers = audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
+  const contactHealthFirstListGap = audiences.find((audience) => audience.unmappedContactExternalIds.length > 0) ?? null;
+  const contactHealthTopMarkets = topCountLabels(visibleContacts.map((contact) => contact.market), "Unknown", 2);
+  const contactHealthTopVerticals = topCountLabels(visibleContacts.map((contact) => contact.vertical), "Unknown", 2);
+  const contactHealthTopLanguages = topCountLabels(visibleContacts.map((contact) => contact.language), "Unknown", 2);
+  const contactHealthPercent = (value: number) => contactHealthTotal ? Math.round((value / contactHealthTotal) * 100) : 0;
+  const contactRelationshipScore = contactHealthTotal
+    ? Math.round((
+      contactHealthPercent(contactHealthDirectReachable)
+      + contactHealthPercent(contactHealthOptedIn)
+      + contactHealthPercent(contactHealthSegmented)
+      + contactHealthPercent(contactHealthListed)
+    ) / 4)
+    : 0;
+  const contactConsentReviewFilter: ConsentStatus | null = contactHealthPending > 0
+    ? "pending"
+    : contactHealthUnknown > 0
+      ? "unknown"
+      : contactHealthOptedOut > 0
+        ? "opted_out"
+        : null;
+  const audienceHealthActions: AudienceHealthAction[] = [
+    {
+      key: "reach",
+      title: "Reachable contacts",
+      value: `${contactHealthDirectReachable}/${contactHealthTotal}`,
+      state: contactHealthTotal === 0 ? "blocked" : contactHealthDirectReachable === contactHealthTotal ? "ready" : "needs_action",
+      detail: `${contactHealthEmailReachable} email-ready, ${contactHealthWhatsappReachable} WhatsApp-ready in the current view.`,
+      actionLabel: "Build campaign",
+      icon: Send,
+      disabled: contactHealthDirectReachable === 0,
+      onSelect: () => {
+        setActiveTab("dashboard");
+        setMessage(`Use the Smart campaign studio with ${contactHealthDirectReachable} reachable contact${contactHealthDirectReachable === 1 ? "" : "s"} from this audience view.`);
+      },
+    },
+    {
+      key: "consent",
+      title: "Consent cleanup",
+      value: `${contactHealthOptedIn}/${contactHealthTotal}`,
+      state: contactHealthTotal === 0 ? "blocked" : contactHealthNeedsConsent > 0 ? "needs_action" : "ready",
+      detail: contactHealthNeedsConsent
+        ? `${contactHealthNeedsConsent} contact${contactHealthNeedsConsent === 1 ? "" : "s"} need review: ${contactHealthPending} pending, ${contactHealthUnknown} unknown, ${contactHealthOptedOut} opted out.`
+        : "All visible contacts are opted in.",
+      actionLabel: contactConsentReviewFilter ? "Review consent" : "Consent ready",
+      icon: CheckCircle2,
+      disabled: !contactConsentReviewFilter,
+      onSelect: () => {
+        if (!contactConsentReviewFilter) return;
+        setContactView("contacts");
+        setSearch("");
+        setAudienceFilter("all");
+        setContactConsentFilter(contactConsentReviewFilter);
+        setContactFeedback(`Showing ${contactConsentReviewFilter} contacts for consent cleanup.`);
+      },
+    },
+    {
+      key: "segmentation",
+      title: "Relationship depth",
+      value: `${contactHealthSegmented}/${contactHealthTotal}`,
+      state: contactHealthTotal === 0 ? "blocked" : contactHealthSegmented === contactHealthTotal ? "ready" : "needs_action",
+      detail: `Markets: ${contactHealthTopMarkets.join(" / ") || "Unknown"}. Verticals: ${contactHealthTopVerticals.join(" / ") || "Unknown"}. Languages: ${contactHealthTopLanguages.join(" / ") || "Unknown"}.`,
+      actionLabel: "Review fields",
+      icon: Waypoints,
+      disabled: contactHealthTotal === 0,
+      onSelect: () => {
+        setContactView("contacts");
+        setContactFeedback(`Reviewing segmentation for ${contactHealthTotal} visible contact${contactHealthTotal === 1 ? "" : "s"}.`);
+      },
+    },
+    {
+      key: "lists",
+      title: "List mapping",
+      value: `${audiences.length} list${audiences.length === 1 ? "" : "s"}`,
+      state: audiences.length === 0 ? "planning" : contactHealthUnmappedListMembers > 0 ? "needs_action" : "ready",
+      detail: contactHealthUnmappedListMembers
+        ? `${contactHealthUnmappedListMembers} imported list member ID${contactHealthUnmappedListMembers === 1 ? "" : "s"} are not mapped to contacts yet.`
+        : `${contactHealthListed}/${contactHealthTotal} visible contacts already belong to at least one list.`,
+      actionLabel: "Open lists",
+      icon: UsersRound,
+      onSelect: () => {
+        setContactView("lists");
+        setSearch(contactHealthFirstListGap?.name ?? "");
+        setAudienceFeedback(contactHealthFirstListGap
+          ? `Reviewing unmapped members in "${contactHealthFirstListGap.name}".`
+          : "Reviewing marketing lists and audience membership.");
+      },
+    },
+  ];
   const audienceDraftMemberIds = useMemo(() => parseAudienceMemberIds(audienceDraft), [audienceDraft]);
   const audienceEditMemberIds = useMemo(() => parseAudienceMemberIds(audienceEditDraft), [audienceEditDraft]);
   const audienceDraftMemberContacts = useMemo(
@@ -9124,6 +9240,52 @@ export default function MarketingAdminPage() {
                 >
                   <UsersRound size={15} /> Lists ({audiences.length})
                 </button>
+              </div>
+
+              <div className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm" data-testid="marketing-audience-health-panel">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Audience health</p>
+                    <h3 className="mt-1 text-lg font-black text-[#241133]">Relationship readiness</h3>
+                    <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                      Current view: {contactHealthTotal} contact{contactHealthTotal === 1 ? "" : "s"} - B2C {contactHealthB2c} - B2B {contactHealthB2b}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-purple-100 bg-purple-50 px-4 py-3 text-right" data-testid="marketing-audience-health-score">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Relationship score</p>
+                    <p className="text-3xl font-black text-[#241133]">{contactRelationshipScore}%</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 xl:grid-cols-4">
+                  {audienceHealthActions.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={item.onSelect}
+                        disabled={item.disabled}
+                        className={`min-h-[146px] rounded-xl border p-3 text-left transition focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)} ${item.disabled ? "" : "hover:border-purple-300 hover:shadow-sm"}`}
+                        data-testid={`button-marketing-audience-health-${item.key}`}
+                      >
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="inline-flex items-center gap-2">
+                            <span className="grid h-8 w-8 place-items-center rounded-lg bg-white shadow-sm">
+                              <Icon size={15} aria-hidden="true" />
+                            </span>
+                            <span className="text-xs font-black uppercase tracking-[0.1em] opacity-75">{item.title}</span>
+                          </span>
+                          <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                        </span>
+                        <span className="mt-3 block text-2xl font-black text-[#241133]">{item.value}</span>
+                        <span className="mt-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                        <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                          {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {contactView === "contacts" ? (

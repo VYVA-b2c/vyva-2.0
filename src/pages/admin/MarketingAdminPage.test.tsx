@@ -918,6 +918,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    expect(screen.getByTestId("marketing-audience-health-panel")).toHaveTextContent("Audience health");
+    expect(screen.getByTestId("marketing-audience-health-panel")).toHaveTextContent("Relationship readiness");
+    expect(screen.getByTestId("marketing-audience-health-score")).toHaveTextContent("50%");
+    expect(screen.getByTestId("button-marketing-audience-health-reach")).toHaveTextContent("2/2");
+    expect(screen.getByTestId("button-marketing-audience-health-consent")).toHaveTextContent("2 contacts need review");
+    expect(screen.getByTestId("button-marketing-audience-health-segmentation")).toHaveTextContent("1/2");
+    expect(screen.getByTestId("button-marketing-audience-health-lists")).toHaveTextContent("1 imported list member ID");
+    fireEvent.click(screen.getByTestId("button-marketing-audience-health-consent"));
+    expect(screen.getByTestId("select-marketing-contact-consent-filter")).toHaveValue("pending");
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Showing pending contacts for consent cleanup.");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-contact-filters"));
     expect(screen.getByTestId("marketing-contacts-table")).toHaveClass("overflow-x-auto");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("hassan@example.com");
@@ -941,7 +953,9 @@ describe("MarketingAdminPage", () => {
     expect(openMetadataPanel("marketing-contact-metadata-contact-2")).toHaveTextContent("partner-lead");
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Contacts (2)");
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Lists (1)");
-    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
+    fireEvent.click(screen.getByTestId("button-marketing-audience-health-lists"));
+    expect(screen.getByTestId("button-marketing-lists-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent('Reviewing unmapped members in "Partners".');
     expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("1 unmapped");
