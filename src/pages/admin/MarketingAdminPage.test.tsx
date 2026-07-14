@@ -1454,6 +1454,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("2");
     expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("LinkedIn B2C starter");
     expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("WhatsApp B2B starter");
+    expect(screen.getByTestId("marketing-template-gap-whatsapp-b2b")).toHaveTextContent("AI starter prompt");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-gap-studio-whatsapp-b2b"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("whatsapp");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template gap loaded: WhatsApp B2B starter");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Studio loaded from gap: WhatsApp B2B starter");
 
     fireEvent.click(screen.getByTestId("button-marketing-template-gap-whatsapp-b2b"));
     expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("WhatsApp B2B starter");

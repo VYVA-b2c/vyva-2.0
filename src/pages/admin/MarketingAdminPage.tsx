@@ -26,6 +26,7 @@ import {
   X,
   ArrowDown,
   ArrowUp,
+  Zap,
 } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -651,6 +652,12 @@ type ContentTemplate = {
 type ContentTemplateGapSuggestion = ContentTemplate & {
   existingCount: number;
   channelCount: number;
+  coverageTarget: number;
+  priorityLabel: string;
+  aiPrompt: string;
+  studioPlayId: CampaignStudioPlayId;
+  studioToneId: CampaignStudioToneId;
+  studioAngleId: CampaignStudioAngleId;
 };
 
 type ContentEditDraft = {
@@ -2279,9 +2286,42 @@ function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
   };
 }
 
+function templateGapStudioPlayId(channel: Channel, audienceType: Audience): CampaignStudioPlayId {
+  if (audienceType === "b2b") {
+    if (channel === "email") return "referral-partner-nurture";
+    if (channel === "whatsapp" || channel === "facebook" || channel === "instagram") return "community-cohost";
+    return "b2b-partner-outreach";
+  }
+  if (channel === "instagram") return "instagram-proof-point";
+  if (channel === "tiktok") return "tiktok-myth-buster";
+  if (channel === "facebook") return "local-event";
+  if (channel === "linkedin") return "product-education";
+  if (channel === "whatsapp") return "seasonal-check-in";
+  return "profile-completion";
+}
+
+function templateGapToneId(channel: Channel, audienceType: Audience): CampaignStudioToneId {
+  if (audienceType === "b2b" || channel === "linkedin") return "expert";
+  if (channel === "instagram" || channel === "tiktok") return "uplifting";
+  if (channel === "whatsapp") return "warm";
+  return "direct";
+}
+
+function templateGapAngleId(channel: Channel, audienceType: Audience): CampaignStudioAngleId {
+  if (audienceType === "b2b") return "proof";
+  if (channel === "facebook" || channel === "instagram") return "local";
+  if (channel === "whatsapp" || channel === "tiktok") return "action";
+  return "balanced";
+}
+
 function templateGapSuggestionFor(channel: Channel, audienceType: Audience, existingCount: number, channelCount: number): ContentTemplateGapSuggestion {
   const audienceLabel = audienceType === "b2b" ? "B2B" : audienceType === "b2c" ? "B2C" : "Mixed";
   const channelName = channelLabel[channel];
+  const coverageTarget = 3;
+  const missingCount = Math.max(coverageTarget - existingCount, 0);
+  const studioPlayId = templateGapStudioPlayId(channel, audienceType);
+  const studioToneId = templateGapToneId(channel, audienceType);
+  const studioAngleId = templateGapAngleId(channel, audienceType);
   const category = audienceType === "b2b"
     ? "B2B partner"
     : channel === "tiktok" || channel === "instagram"
@@ -2293,6 +2333,11 @@ function templateGapSuggestionFor(channel: Channel, audienceType: Audience, exis
   const bodyLead = audienceType === "b2b"
     ? "Help care teams see the signal, not the noise."
     : "Make daily care feel clearer, calmer, and easier to act on.";
+  const aiPrompt = [
+    `Create ${missingCount || 1} attractive ${channelName} ${audienceLabel} marketing template${missingCount === 1 ? "" : "s"} for VYVA.`,
+    `Use a ${campaignStudioToneLabel[studioToneId].toLowerCase()} tone and a ${campaignStudioAngleOptions.find((angle) => angle.id === studioAngleId)?.label.toLowerCase() ?? studioAngleId} angle.`,
+    "Include one clear CTA, a plain-language benefit, and a version that can be adapted across channels.",
+  ].join(" ");
   const body = channel === "whatsapp"
     ? `${bodyLead} VYVA turns check-ins, reminders, and care context into one practical next step. ${ctaLabel}: ${ctaUrl}`
     : channel === "tiktok"
@@ -2327,6 +2372,12 @@ function templateGapSuggestionFor(channel: Channel, audienceType: Audience, exis
     mediaAssets: [],
     existingCount,
     channelCount,
+    coverageTarget,
+    priorityLabel: existingCount === 0 ? "High priority" : existingCount === 1 ? "Medium priority" : "Fill next",
+    aiPrompt,
+    studioPlayId,
+    studioToneId,
+    studioAngleId,
   };
 }
 
@@ -6415,6 +6466,30 @@ export default function MarketingAdminPage() {
     setMessage(`Gap starter drafted: ${suggestion.title}.`);
   }
 
+  function openTemplateGapInCampaignStudio(suggestion: ContentTemplateGapSuggestion) {
+    const play = campaignStudioPlays.find((item) => item.id === suggestion.studioPlayId)
+      ?? campaignStudioPlays.find((item) => item.defaultChannel === suggestion.channel)
+      ?? campaignStudioPlays[0];
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const selectedChannels = uniqueChannels([suggestion.channel, ...recommendedCampaignStudioChannels(play)]);
+
+    setCampaignStudioCategory(play.categoryId);
+    setCampaignStudioAiDrafts({});
+    setCampaignStudio({
+      playId: play.id,
+      toneId: suggestion.studioToneId,
+      angleId: suggestion.studioAngleId,
+      channel: suggestion.channel,
+      selectedChannels,
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+      targetAudienceId: targetAudience?.id ?? "",
+    });
+    setCampaignStudioFeedback(`Template gap loaded: ${suggestion.title}. Use AI to create a stronger ${channelLabel[suggestion.channel]} pack, then create the campaign and content.`);
+    setContentActionFeedback(`Studio loaded from gap: ${suggestion.title}.`);
+    setMessage(`Studio loaded from template gap: ${suggestion.title}. Review the playbook, improve with AI, then create the campaign.`);
+    setActiveTab("dashboard");
+  }
+
   function startCampaignFromContentTemplate(template: ContentTemplate) {
     setContentDraft(contentDraftFromTemplate(template));
     setCampaignDraft(campaignDraftFromContentTemplate(template));
@@ -9346,26 +9421,41 @@ export default function MarketingAdminPage() {
               >
                 <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-template-gap-suggestions">
                   {contentTemplateGapSuggestions.length ? contentTemplateGapSuggestions.map((suggestion) => (
-                    <article key={suggestion.id} className="flex min-h-[220px] flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm" data-testid={`marketing-template-gap-${suggestion.channel}-${suggestion.audienceType}`}>
+                    <article key={suggestion.id} className="flex min-h-[300px] flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm" data-testid={`marketing-template-gap-${suggestion.channel}-${suggestion.audienceType}`}>
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <Pill className={channelClass(suggestion.channel)}>{channelLabel[suggestion.channel]}</Pill>
                           <Pill className="bg-white text-[#5b4a46]">{suggestion.audienceType.toUpperCase()}</Pill>
-                          <Pill className="bg-amber-100 text-amber-900">{suggestion.existingCount} existing</Pill>
+                          <Pill className="bg-amber-100 text-amber-900">{suggestion.existingCount}/{suggestion.coverageTarget} covered</Pill>
+                          <Pill className={suggestion.existingCount === 0 ? "bg-red-50 text-red-800" : "bg-white text-amber-900"}>{suggestion.priorityLabel}</Pill>
                         </div>
                         <h3 className="mt-3 font-serif text-xl text-[#241133]">{suggestion.title}</h3>
                         <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{suggestion.description}</p>
                         <p className="mt-3 line-clamp-3 rounded-xl bg-white px-3 py-2 text-xs font-bold text-[#6f5f59]">{suggestion.body}</p>
+                        <p className="mt-3 rounded-xl border border-amber-200 bg-white/80 px-3 py-2 text-xs font-bold leading-relaxed text-[#5b4a46]">
+                          <span className="text-[#241133]">AI starter prompt:</span> {suggestion.aiPrompt}
+                        </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => applyTemplateGapSuggestion(suggestion)}
-                        className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                        disabled={contentSaving}
-                        data-testid={`button-marketing-template-gap-${suggestion.channel}-${suggestion.audienceType}`}
-                      >
-                        <Sparkles size={14} /> Draft template
-                      </button>
+                      <div className="mt-4 grid gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openTemplateGapInCampaignStudio(suggestion)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          disabled={contentSaving}
+                          data-testid={`button-marketing-template-gap-studio-${suggestion.channel}-${suggestion.audienceType}`}
+                        >
+                          <Zap size={14} /> Open in studio
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyTemplateGapSuggestion(suggestion)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f2edf2] disabled:text-[#8d7d8d]"
+                          disabled={contentSaving}
+                          data-testid={`button-marketing-template-gap-${suggestion.channel}-${suggestion.audienceType}`}
+                        >
+                          <Sparkles size={14} /> Draft template
+                        </button>
+                      </div>
                     </article>
                   )) : (
                     <div className="rounded-2xl border border-dashed border-[#d9c9bd] bg-[#fffaf4] p-5 text-sm font-bold text-[#6f5f59] xl:col-span-4">
