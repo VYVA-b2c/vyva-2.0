@@ -45,6 +45,7 @@ import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
+import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -60,6 +61,12 @@ import {
   VITALS_SIGNAL_CATALOG,
   type VitalsSignalKey,
 } from "../../shared/vitalsSignalCatalog";
+import {
+  SHOW_VYVA_USE_CASE_IDS,
+  buildShowVyvaConciergePrefill,
+  type ShowVyvaCaptureSource,
+  type ShowVyvaPastePayload,
+} from "../../shared/showVyvaFlow";
 
 type WoundScan = {
   id: string;
@@ -628,37 +635,30 @@ export function visualScanDoctorContext(result: VisualScanResult) {
 export function VisualHealthScanCardContent({
   t,
   analyzing,
-  onScan,
+  onScanSource,
+  onPasteReview,
 }: {
   t: TFunction;
   analyzing: boolean;
-  onScan: () => void;
+  onScanSource: (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => void;
+  onPasteReview?: (payload: ShowVyvaPastePayload) => void;
 }) {
   return (
     <>
-      <div className="flex flex-col gap-4 px-[18px] py-[18px] sm:flex-row sm:items-center">
-        <div className="flex items-center gap-4">
-          <div className="w-[58px] h-[58px] rounded-[20px] flex items-center justify-center flex-shrink-0" style={{ background: "#FFFBEB" }}>
-            <Camera size={30} style={{ color: "#C9890A" }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1">
-              {t("health.scanWound.title", "Visual Health Scan")}
-            </p>
-            <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2">
-              {t("health.scanWound.subtitle", "Upload wounds, bruises, stool, urine, fluids, skin changes, or X-rays for an assistive review.")}
-            </p>
-          </div>
-        </div>
-        <button
-          data-testid="button-scan-wound"
-          onClick={onScan}
-          disabled={analyzing}
-          className="vyva-tap flex-shrink-0 rounded-full px-[16px] py-[8px] font-body text-[14px] font-semibold transition-all"
-          style={{ background: "#FFFBEB", color: "#C9890A", border: "1px solid #FDE68A" }}
-        >
-          {analyzing ? t("health.scanWound.analyzing", "Analysing...") : t("health.scanWound.cta", "Take or upload image")}
-        </button>
+      <div className="px-[18px] py-[18px]">
+        <ShowVyvaChooser
+          title={t("showVyva.healthTitle", "Show VYVA")}
+          subtitle={t("showVyva.healthSubtitle", "Use a photo, file, text, or link. VYVA helps decide the safest next step.")}
+          defaultUseCaseId={SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto}
+          useCaseIds={[
+            SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+            SHOW_VYVA_USE_CASE_IDS.medicineOrOtc,
+            SHOW_VYVA_USE_CASE_IDS.documentHelp,
+          ]}
+          busy={analyzing}
+          onChooseFileSource={(source) => onScanSource(source)}
+          onPaste={onPasteReview ? (payload) => onPasteReview(payload) : undefined}
+        />
       </div>
       <div className="flex flex-wrap gap-2 px-[18px] pb-[16px]">
         {VISUAL_SCAN_CATEGORY_KEYS.map((item) => (
@@ -1624,6 +1624,7 @@ const HealthScreen = () => {
   const [fullScreenScan,   setFullScreenScan]   = useState<WoundScan | null>(null);
   const [woundAnalyzing,   setWoundAnalyzing]   = useState(false);
   const [woundResult,      setWoundResult]      = useState<VisualScanResult | null>(null);
+  const [visualScanCaptureSource, setVisualScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
@@ -2261,6 +2262,19 @@ const HealthScreen = () => {
         setWoundResult(errorFallback);
       })
       .finally(() => setWoundAnalyzing(false));
+  };
+
+  const openVisualScanFilePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+    setVisualScanCaptureSource(source);
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const openShowVyvaConciergeReview = (payload: ShowVyvaPastePayload) => {
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: buildShowVyvaConciergePrefill(payload, appLanguage),
+      },
+    });
   };
 
   const latestVitalsReadings = latestVitalsData?.recent_readings ?? [];
@@ -3427,7 +3441,8 @@ const HealthScreen = () => {
             <VisualHealthScanCardContent
               t={t}
               analyzing={woundAnalyzing}
-              onScan={() => fileInputRef.current?.click()}
+              onScanSource={openVisualScanFilePicker}
+              onPasteReview={openShowVyvaConciergeReview}
             />
 
             {woundResult && (
@@ -3794,7 +3809,8 @@ const HealthScreen = () => {
               <VisualHealthScanCardContent
                 t={t}
                 analyzing={woundAnalyzing}
-                onScan={() => fileInputRef.current?.click()}
+                onScanSource={openVisualScanFilePicker}
+                onPasteReview={openShowVyvaConciergeReview}
               />
 
               {woundResult && (
@@ -4275,7 +4291,7 @@ const HealthScreen = () => {
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
+        capture={visualScanCaptureSource === "camera" ? "environment" : undefined}
         className="hidden"
         onChange={handleWoundSelect}
         data-testid="input-wound-photo"
