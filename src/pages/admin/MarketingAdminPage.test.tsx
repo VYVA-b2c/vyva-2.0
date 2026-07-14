@@ -2012,6 +2012,94 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("polishes imported content with AI before saving the same content record", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+
+    expect(screen.getByTestId("marketing-content-ai-polish-panel")).toHaveTextContent("AI polish");
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
+    expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("Partner update");
+
+    fireEvent.change(screen.getByTestId("select-marketing-content-polish-tone"), { target: { value: "direct" } });
+    fireEvent.click(screen.getByTestId("button-marketing-polish-content-ai"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
+    });
+    const aiCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiCall?.[1]?.body))).toMatchObject({
+      playLabel: "Content polish",
+      playCategory: "content_editor",
+      audienceType: "both",
+      channel: "linkedin",
+      tone: "direct",
+      campaignName: "Partner post",
+      contentTitle: "Partner post",
+      subjectSeed: "Partner post",
+      bodySeed: "Partner update",
+      ctaLabel: "Read more",
+      ctaUrl: "https://v2.vyva.life/partners",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("AI polish applied.");
+    });
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
+    expect(screen.getByTestId("input-marketing-edit-content-subject")).toHaveValue("AI subject line");
+    expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("AI body copy with stronger channel direction.");
+    expect(screen.getByTestId("input-marketing-edit-content-cta-label")).toHaveValue("AI CTA");
+    expect(screen.getByTestId("input-marketing-edit-content-cta-url")).toHaveValue("https://v2.vyva.life/ai");
+
+    const polishedDesign = JSON.parse((screen.getByTestId("textarea-marketing-edit-content-design-json") as HTMLTextAreaElement).value);
+    expect(polishedDesign).toMatchObject({
+      blocks: [{ type: "hero" }],
+      aiPolish: {
+        generator: "marketing_content_ai_polish",
+        source: "openai",
+        tone: "direct",
+        modelHints: { generator: "test-ai" },
+      },
+    });
+    const polishedMetadata = JSON.parse((screen.getByTestId("textarea-marketing-edit-content-metadata") as HTMLTextAreaElement).value);
+    expect(polishedMetadata).toMatchObject({
+      extraLovableOnlyField: "kept",
+      aiPolishHistory: [{
+        source: "openai",
+        tone: "direct",
+        previousSubject: null,
+        previousBodyPreview: "Partner update",
+      }],
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-content"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH");
+    const patchPayload = JSON.parse(String(patchCall?.[1]?.body));
+    expect(patchPayload).toMatchObject({
+      title: "Partner post",
+      channel: "linkedin",
+      subject: "AI subject line",
+      body: "AI body copy with stronger channel direction.",
+      ctaLabel: "AI CTA",
+      ctaUrl: "https://v2.vyva.life/ai",
+      source: "lovable",
+      lovableExternalId: "lovable-content-2",
+      metadata: {
+        extraLovableOnlyField: "kept",
+        aiPolishHistory: [{
+          source: "openai",
+          tone: "direct",
+        }],
+      },
+    });
+    expect(patchPayload.designJson.aiPolish).toMatchObject({ generator: "marketing_content_ai_polish", tone: "direct" });
+  });
+
   it("edits and deletes imported media references", async () => {
     renderPage();
 

@@ -1585,6 +1585,20 @@ function jsonArrayText(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
+function escapeHtmlText(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function emailHtmlFromPlainCopy(body: string) {
+  const paragraphs = body.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+  if (!paragraphs.length) return "";
+  return paragraphs.map((paragraph) => `<p>${escapeHtmlText(paragraph).replace(/\n/g, "<br />")}</p>`).join("");
+}
+
 function designShapeSummary(value: unknown) {
   const record = recordValue(value);
   const topLevelKeys = Object.keys(record);
@@ -5010,6 +5024,8 @@ export default function MarketingAdminPage() {
   const [contentSaving, setContentSaving] = useState(false);
   const [contentFeedback, setContentFeedback] = useState("");
   const [contentActionFeedback, setContentActionFeedback] = useState("");
+  const [contentPolishTone, setContentPolishTone] = useState<CampaignStudioToneId>("warm");
+  const [contentPolishRunning, setContentPolishRunning] = useState(false);
   const [templateGapAiRunningId, setTemplateGapAiRunningId] = useState<string | null>(null);
   const [templateGapPackRunning, setTemplateGapPackRunning] = useState(false);
   const [templateGapPackProgress, setTemplateGapPackProgress] = useState("");
@@ -9009,6 +9025,103 @@ export default function MarketingAdminPage() {
     closeContentDrawer();
     startJourneyEdit(journey);
     setActiveTab("journeys");
+  }
+
+  async function polishContentEditDraft() {
+    if (!contentEditDraft) return;
+    const currentDraft = contentEditDraft;
+    const subjectSeed = currentDraft.subject.trim() || currentDraft.title.trim();
+    const bodySeed = currentDraft.body.trim() || currentDraft.htmlBody.trim();
+    if (!subjectSeed && !bodySeed) {
+      setContentFeedback("Add a subject or copy before asking AI to polish this content.");
+      return;
+    }
+
+    const toneLabel = campaignStudioToneLabel[contentPolishTone];
+    setContentPolishRunning(true);
+    setContentFeedback(`Polishing with AI in a ${toneLabel.toLowerCase()} tone...`);
+    setContentActionFeedback(`AI is polishing "${currentDraft.title}".`);
+    try {
+      const objective = [
+        "Polish this existing VYVA marketing content without changing its strategic intent.",
+        `Channel: ${channelLabel[currentDraft.channel]}.`,
+        `Tone: ${toneLabel}. ${campaignStudioToneGuidance[contentPolishTone]}`,
+        "Keep it practical, attractive, non-clinical, and ready for an admin to review before sending.",
+        currentDraft.subject ? `Current subject: ${currentDraft.subject}` : "",
+        currentDraft.body ? `Current plain copy:\n${currentDraft.body}` : "",
+        currentDraft.htmlBody && !currentDraft.body ? `Current HTML copy:\n${currentDraft.htmlBody}` : "",
+        currentDraft.ctaLabel ? `Current CTA label: ${currentDraft.ctaLabel}` : "",
+        currentDraft.ctaUrl ? `Current CTA URL: ${currentDraft.ctaUrl}` : "",
+      ].filter(Boolean).join("\n\n");
+      const result = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
+        method: "POST",
+        body: JSON.stringify({
+          playLabel: "Content polish",
+          playCategory: "content_editor",
+          audienceType: "both",
+          channel: currentDraft.channel,
+          tone: contentPolishTone,
+          targetAudienceName: "Current marketing audience",
+          campaignName: currentDraft.title,
+          contentTitle: currentDraft.title,
+          objective,
+          subjectSeed,
+          bodySeed,
+          ctaLabel: currentDraft.ctaLabel || "Learn more",
+          ctaUrl: currentDraft.ctaUrl || "https://v2.vyva.life",
+          language: currentDraft.language || "en",
+        }),
+      });
+
+      const polished = result.draft;
+      const polishedBody = polished.body.trim() || currentDraft.body;
+      const existingDesign = optionalJsonRecordText(currentDraft.designJsonText);
+      const existingMetadata = optionalJsonRecordText(currentDraft.metadataText);
+      const polishEntry = {
+        source: result.source,
+        tone: contentPolishTone,
+        toneLabel,
+        polishedAt: new Date().toISOString(),
+        previousSubject: currentDraft.subject || null,
+        previousBodyPreview: currentDraft.body.slice(0, 240) || null,
+        note: result.note ?? null,
+      };
+      const previousHistory = Array.isArray(existingMetadata.aiPolishHistory) ? existingMetadata.aiPolishHistory.slice(-4) : [];
+
+      setContentEditDraft((draft) => draft ? ({
+        ...draft,
+        subject: polished.subject.trim() || draft.subject,
+        body: polishedBody,
+        htmlBody: draft.channel === "email" && polishedBody ? emailHtmlFromPlainCopy(polishedBody) : draft.htmlBody,
+        ctaLabel: polished.ctaLabel.trim() || draft.ctaLabel,
+        ctaUrl: polished.ctaUrl.trim() || draft.ctaUrl,
+        designJsonText: jsonText({
+          ...existingDesign,
+          aiPolish: {
+            generator: "marketing_content_ai_polish",
+            source: result.source,
+            tone: contentPolishTone,
+            polishedAt: polishEntry.polishedAt,
+            modelHints: polished.designJson ?? null,
+          },
+        }),
+        metadataText: jsonText({
+          ...existingMetadata,
+          aiPolishHistory: [...previousHistory, polishEntry],
+        }),
+      }) : draft);
+      const note = result.note ? ` ${result.note}` : "";
+      setContentFeedback(`AI polish applied. Review the draft, then save content.${note}`);
+      setContentActionFeedback(`AI polish applied to "${currentDraft.title}". Review and save it.`);
+      setMessage("AI polish applied.");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "AI polish could not be applied.";
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentPolishRunning(false);
+    }
   }
 
   async function saveContentEdit(event: FormEvent) {
@@ -13647,16 +13760,46 @@ export default function MarketingAdminPage() {
                     <Field label="Content metadata JSON">
                       <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={contentEditDraft.metadataText} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, metadataText: event.target.value }) : draft)} placeholder="{ }" disabled={contentSaving} data-testid="textarea-marketing-edit-content-metadata" />
                     </Field>
+                    <div className="rounded-2xl border border-purple-100 bg-purple-50 p-4" data-testid="marketing-content-ai-polish-panel">
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-[#241133]">AI polish</p>
+                          <p className="mt-1 text-xs font-bold text-[#7c6f83]">Rewrite the subject, copy, and CTA in place. Review the draft before saving.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            className="min-h-10 rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#241133]"
+                            value={contentPolishTone}
+                            onChange={(event) => setContentPolishTone(event.target.value as CampaignStudioToneId)}
+                            disabled={contentSaving || contentPolishRunning}
+                            data-testid="select-marketing-content-polish-tone"
+                          >
+                            {(Object.keys(campaignStudioToneLabel) as CampaignStudioToneId[]).map((tone) => (
+                              <option key={tone} value={tone}>{campaignStudioToneLabel[tone]}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => void polishContentEditDraft()}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            disabled={contentSaving || contentPolishRunning || (!contentEditDraft.subject.trim() && !contentEditDraft.body.trim() && !contentEditDraft.htmlBody.trim())}
+                            data-testid="button-marketing-polish-content-ai"
+                          >
+                            <Sparkles size={15} /> {contentPolishRunning ? "Polishing..." : "Polish with AI"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contentSaving} data-testid="button-marketing-save-content">
+                      <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contentSaving || contentPolishRunning} data-testid="button-marketing-save-content">
                         <Save size={16} /> {contentSaving ? "Saving..." : "Save content"}
                       </button>
                       {editingContent ? (
-                        <button type="button" onClick={() => void deleteContent(editingContent)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === editingContent.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid="button-marketing-delete-editing-content">
+                        <button type="button" onClick={() => void deleteContent(editingContent)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === editingContent.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving || contentPolishRunning} data-testid="button-marketing-delete-editing-content">
                           <Trash2 size={16} /> {confirmingContentDeleteId === editingContent.id ? "Confirm delete" : "Delete"}
                         </button>
                       ) : null}
-                      <button type="button" onClick={cancelContentEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133]" disabled={contentSaving}>
+                      <button type="button" onClick={cancelContentEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133]" disabled={contentSaving || contentPolishRunning}>
                         <X size={16} /> Close
                       </button>
                     </div>
