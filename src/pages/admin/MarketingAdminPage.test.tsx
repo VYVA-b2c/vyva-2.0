@@ -2406,6 +2406,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-readiness-recipients")).toHaveTextContent("1 eligible recipient will be snapshotted.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-channel")).toHaveTextContent("Planning");
     expect(screen.getByTestId("marketing-campaign-studio-next-step")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-assistant")).toHaveTextContent("Recommended now");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-assistant")).toHaveTextContent("Polish this into a stronger campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-assistant-output")).toHaveTextContent("1 content asset");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-assistant-output")).toHaveTextContent("1 LinkedIn campaign route");
+    expect(screen.getByTestId("button-marketing-campaign-studio-assistant-primary")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("button-marketing-campaign-studio-assistant-secondary")).toHaveTextContent("Create now");
     expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Launch sequence");
     expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Next best actions");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-audience")).toHaveTextContent("Audience list selected");

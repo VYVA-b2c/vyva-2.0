@@ -6594,6 +6594,36 @@ export default function MarketingAdminPage() {
       },
     },
   ];
+  const campaignStudioPrimaryLaunchStep = campaignStudioBlockedCount > 0
+    ? campaignStudioLaunchSteps.find((step) => step.state === "blocked" && step.key !== "create" && !step.disabled)
+      ?? campaignStudioLaunchSteps.find((step) => step.key === "audience")
+      ?? campaignStudioLaunchSteps[0]
+    : !campaignStudioHasFullAiPack
+      ? campaignStudioLaunchSteps.find((step) => step.key === "copy") ?? campaignStudioLaunchSteps[0]
+      : campaignStudioLaunchSteps.find((step) => step.key === "create") ?? campaignStudioLaunchSteps[0];
+  const campaignStudioSecondaryLaunchStep = campaignStudioPrimaryLaunchStep.key === "create"
+    ? campaignStudioLaunchSteps.find((step) => step.key === "review")
+    : campaignStudioLaunchSteps.find((step) => step.key === "create" && !step.disabled)
+      ?? campaignStudioLaunchSteps.find((step) => step.key === "review");
+  const campaignStudioLaunchAssistantTitle = campaignStudioBlockedCount > 0
+    ? "Fix the campaign blocker"
+    : campaignStudioPrimaryLaunchStep.key === "copy"
+      ? "Polish this into a stronger campaign"
+      : campaignStudioHasEmailChannel
+        ? "Create, then review email send"
+        : "Create the planning record";
+  const campaignStudioLaunchAssistantDetail = campaignStudioBlockedCount > 0
+    ? "VYVA found a blocker before campaign records can be created. Start with the highlighted action, then return here."
+    : campaignStudioPrimaryLaunchStep.key === "copy"
+      ? `AI can adapt the ${campaignStudioSelectedChannels.length === 1 ? channelLabel[campaignStudio.channel] : `${campaignStudioSelectedChannels.length}-channel`} draft for the selected audience, tone, and angle.`
+      : campaignStudioHasEmailChannel
+        ? "This will create the campaign and recipient snapshots. Email still needs an explicit review/send action from campaign details."
+        : "This will create planning records and handoff material for manual publishing or tracking outside VYVA.";
+  const campaignStudioLaunchAssistantOutcome = campaignStudioSelectedChannels.length === 1
+    ? `Output: 1 content asset, 1 ${channelLabel[campaignStudio.channel]} campaign route, ${campaignStudioRecipientPreview.length} recipient snapshot${campaignStudioRecipientPreview.length === 1 ? "" : "s"}.`
+    : `Output: ${campaignStudioSelectedChannels.length} content assets, ${campaignStudioSelectedChannels.length} channel routes, ${campaignStudioPackRecipientCount} recipient snapshots.`;
+  const CampaignStudioPrimaryLaunchIcon = campaignStudioPrimaryLaunchStep.icon;
+  const CampaignStudioSecondaryLaunchIcon = campaignStudioSecondaryLaunchStep?.icon;
   const campaignStudioApprovalBriefText = [
     "Campaign approval brief",
     `Campaign: ${campaignStudioGenerated.campaignName}`,
@@ -10137,6 +10167,48 @@ export default function MarketingAdminPage() {
                       <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-next-step">
                         Next step: {campaignStudioNextStep}
                       </p>
+                    </div>
+
+                    <div className={`rounded-xl border p-4 ${readinessClass(campaignStudioPrimaryLaunchStep.state)}`} data-testid="marketing-campaign-studio-launch-assistant">
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-center">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill className="bg-white text-purple-800">Recommended now</Pill>
+                            <Pill className={readinessPillClass(campaignStudioPrimaryLaunchStep.state)}>
+                              {readinessLabel(campaignStudioPrimaryLaunchStep.state)}
+                            </Pill>
+                          </div>
+                          <h3 className="mt-2 text-lg font-black text-[#241133]">{campaignStudioLaunchAssistantTitle}</h3>
+                          <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">{campaignStudioLaunchAssistantDetail}</p>
+                          <p className="mt-2 text-xs font-black uppercase tracking-[0.08em] text-[#8a7168]" data-testid="marketing-campaign-studio-launch-assistant-output">
+                            {campaignStudioLaunchAssistantOutcome}
+                          </p>
+                        </div>
+                        <div className="grid gap-2">
+                          <button
+                            type="button"
+                            onClick={campaignStudioPrimaryLaunchStep.onSelect}
+                            disabled={campaignStudioPrimaryLaunchStep.disabled}
+                            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            data-testid="button-marketing-campaign-studio-assistant-primary"
+                          >
+                            <CampaignStudioPrimaryLaunchIcon size={16} aria-hidden="true" />
+                            {campaignStudioPrimaryLaunchStep.actionLabel}
+                          </button>
+                          {campaignStudioSecondaryLaunchStep && CampaignStudioSecondaryLaunchIcon && campaignStudioSecondaryLaunchStep.key !== campaignStudioPrimaryLaunchStep.key ? (
+                            <button
+                              type="button"
+                              onClick={campaignStudioSecondaryLaunchStep.onSelect}
+                              disabled={campaignStudioSecondaryLaunchStep.disabled}
+                              className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 py-2 text-sm font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              data-testid="button-marketing-campaign-studio-assistant-secondary"
+                            >
+                              <CampaignStudioSecondaryLaunchIcon size={15} aria-hidden="true" />
+                              {campaignStudioSecondaryLaunchStep.actionLabel}
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-4" data-testid="marketing-campaign-studio-launch-sequence">
