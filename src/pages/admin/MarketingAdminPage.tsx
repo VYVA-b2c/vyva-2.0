@@ -16167,11 +16167,77 @@ function MarketingCalendarView({
     else result.push({ key, campaigns: [campaign] });
     return result;
   }, []);
+  const channelHasCalendarContent = (channel: CampaignChannel) => Boolean(channel.contentAssetId && contentById.has(channel.contentAssetId));
+  const now = Date.now();
+  const dueEmailCampaigns = scheduledCampaigns.filter((campaign) => (
+    campaign.status === "scheduled"
+    && campaign.scheduleStartsAt
+    && new Date(campaign.scheduleStartsAt).getTime() <= now
+    && campaign.recipientCount > 0
+    && campaign.channels.some((channel) => channel.channel === "email" && channelHasCalendarContent(channel))
+  ));
+  const manualHandoffCampaigns = campaigns.filter((campaign) => campaign.channels.some((channel) => (
+    channel.channel !== "email"
+    && channelHasCalendarContent(channel)
+  )));
+  const missingContentCampaigns = campaigns.filter((campaign) => campaign.channels.some((channel) => !channelHasCalendarContent(channel)));
+  const calendarCommandItems = [
+    {
+      key: "due-email",
+      title: "Due email",
+      value: dueEmailCampaigns.length,
+      detail: dueEmailCampaigns[0] ? dueEmailCampaigns[0].name : "No scheduled email is due with saved recipients.",
+      campaign: dueEmailCampaigns[0] ?? null,
+      tone: dueEmailCampaigns.length ? "bg-emerald-50 text-emerald-900 border-emerald-100" : "bg-white text-[#5b4a46] border-[#eadfd5]",
+    },
+    {
+      key: "unscheduled",
+      title: "Unscheduled",
+      value: unscheduledCampaigns.length,
+      detail: unscheduledCampaigns[0] ? unscheduledCampaigns[0].name : "Every visible campaign has a planned time.",
+      campaign: unscheduledCampaigns[0] ?? null,
+      tone: unscheduledCampaigns.length ? "bg-amber-50 text-amber-900 border-amber-100" : "bg-white text-[#5b4a46] border-[#eadfd5]",
+    },
+    {
+      key: "handoff",
+      title: "Manual handoff",
+      value: manualHandoffCampaigns.length,
+      detail: manualHandoffCampaigns[0] ? manualHandoffCampaigns[0].name : "No social/offline handoffs need review.",
+      campaign: manualHandoffCampaigns[0] ?? null,
+      tone: manualHandoffCampaigns.length ? "bg-blue-50 text-blue-900 border-blue-100" : "bg-white text-[#5b4a46] border-[#eadfd5]",
+    },
+    {
+      key: "content-gaps",
+      title: "Content gaps",
+      value: missingContentCampaigns.length,
+      detail: missingContentCampaigns[0] ? missingContentCampaigns[0].name : "All visible campaign channels have linked content.",
+      campaign: missingContentCampaigns[0] ?? null,
+      tone: missingContentCampaigns.length ? "bg-red-50 text-red-900 border-red-100" : "bg-white text-[#5b4a46] border-[#eadfd5]",
+    },
+  ];
 
   if (!campaigns.length) return <EmptyState text="No campaigns match the filters." />;
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]" data-testid="marketing-calendar-scheduler">
+    <div className="grid gap-4" data-testid="marketing-calendar-scheduler">
+      <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-calendar-command-strip">
+        {calendarCommandItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => item.campaign ? onEdit(item.campaign) : undefined}
+            disabled={!item.campaign}
+            className={`rounded-xl border p-3 text-left shadow-sm transition enabled:hover:border-purple-300 enabled:hover:bg-purple-50 disabled:cursor-default ${item.tone}`}
+            data-testid={`button-marketing-calendar-command-${item.key}`}
+          >
+            <span className="block text-xs font-black uppercase tracking-[0.12em] opacity-70">{item.title}</span>
+            <span className="mt-1 block text-2xl font-black">{item.value}</span>
+            <span className="mt-1 block line-clamp-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</span>
+            {item.campaign ? <span className="mt-2 inline-flex text-xs font-black text-purple-700">Open campaign</span> : null}
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="grid content-start gap-3" data-testid="marketing-calendar-timeline">
         {days.length === 0 ? (
           <EmptyState text="No scheduled campaigns match the filters." />
@@ -16320,6 +16386,7 @@ function MarketingCalendarView({
           );
         })}
       </aside>
+      </div>
     </div>
   );
 }
