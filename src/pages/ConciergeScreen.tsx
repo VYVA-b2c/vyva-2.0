@@ -111,8 +111,8 @@ type ConciergeRoutePrefill = {
   requestedTool?: ConciergeToolRequirement;
   actionLabel?: string;
   summary?: string;
-  useCase?: "scam_check" | "admin_task" | "paperwork" | "send_message" | "find_offers" | "find_provider";
-  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
+  useCase?: "scam_check" | "admin_task" | "paperwork" | "send_message" | "find_offers" | "find_provider" | "shopping_request";
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "shopping_helper" | "shopping_recommendation" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
 };
 
 type ConciergeLocationState = {
@@ -226,6 +226,7 @@ const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote",
 const OTC_PHARMACY_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.otcPharmacy;
 const TRANSPORT_BOOKING_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.transportBooking;
 const MEDICAL_APPOINTMENT_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.medicalAppointment;
+const SHOPPING_SUPPORT_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.shoppingSupport;
 const SCAM_CHECK_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.scamCheck;
 const INSURANCE_ADMIN_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
 const OTC_PHARMACY_SETUP_FOCUS = providerSetupFocusForFlow(OTC_PHARMACY_FLOW_REFERENCE) ?? "pharmacy";
@@ -240,7 +241,7 @@ const CONCIERGE_TOOL_REQUIREMENTS: ConciergeToolRequirement[] = [
   "web_search",
   "operator_review",
 ];
-const CONCIERGE_PREPARED_USE_CASES = ["scam_check", "admin_task", "paperwork", "send_message", "find_offers", "find_provider"] as const;
+const CONCIERGE_PREPARED_USE_CASES = ["scam_check", "admin_task", "paperwork", "send_message", "find_offers", "find_provider", "shopping_request"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -589,6 +590,9 @@ function routePrefillTaskTitle(prefill: ConciergeRoutePrefill, isSpanish: boolea
   if (prefill.flowReference === INSURANCE_ADMIN_FLOW_REFERENCE) {
     return isSpanish ? "Gestion preparada" : "Paperwork task ready";
   }
+  if (prefill.flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) {
+    return isSpanish ? "Compra preparada" : "Shopping request ready";
+  }
   if (prefill.useCase === "find_provider") {
     return isSpanish ? "Busqueda preparada" : "Provider search ready";
   }
@@ -606,6 +610,11 @@ function routePrefillTaskDetail(prefill: ConciergeRoutePrefill, isSpanish: boole
     return isSpanish
       ? "VYVA organiza el documento, destinatario y proximo paso."
       : "VYVA organizes the document, recipient, and next step.";
+  }
+  if (prefill.flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) {
+    return isSpanish
+      ? "VYVA prepara la solicitud de compra. No se pide, paga ni contacta a nadie sin confirmacion."
+      : "VYVA prepares the shopping request. Nothing is ordered, paid, or sent without confirmation.";
   }
   if (prefill.useCase === "find_provider") {
     return isSpanish
@@ -3767,6 +3776,7 @@ function completedSessionFlowLabel(session: ConciergeCompletedSession, locale = 
   if (isHomeServiceCompletedSession(session)) return es ? "Servicio en casa" : "Home service";
   if (session.use_case === "book_ride" || flowReference === TRANSPORT_BOOKING_FLOW_REFERENCE) return es ? "Viaje" : "Ride";
   if (session.use_case === "order_medicine" || flowReference === OTC_PHARMACY_FLOW_REFERENCE) return es ? "Farmacia OTC" : "OTC pharmacy";
+  if (session.use_case === "shopping_request" || flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) return es ? "Compra" : "Shopping";
   if (session.use_case === "book_appointment" || flowReference === MEDICAL_APPOINTMENT_FLOW_REFERENCE) return es ? "Cita" : "Appointment";
   return getUseCaseLabel(session.use_case, locale);
 }
@@ -6459,6 +6469,8 @@ function getUseCaseLabel(useCase: string, locale = "es"): string {
       return es ? "Papeleo" : "Paperwork";
     case "send_message":
       return es ? "Mensaje" : "Message";
+    case "shopping_request":
+      return es ? "Compra" : "Shopping";
     default:
       return useCase.replace(/_/g, " ");
   }

@@ -46,7 +46,7 @@ describe("concierge flow registry", () => {
   });
 
   it("documents current implementation state for each tracked flow", () => {
-    expect(CONCIERGE_FLOW_REGISTRY).toHaveLength(7);
+    expect(CONCIERGE_FLOW_REGISTRY).toHaveLength(8);
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.transportBooking)).toMatchObject({
       status: "ready",
       actionName: "Book ride / transport",
@@ -67,6 +67,12 @@ describe("concierge flow registry", () => {
       actionName: "Home service",
       providerCategory: "home_service",
     });
+    expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.shoppingSupport)).toMatchObject({
+      status: "ready",
+      actionName: "Shopping / groceries / meals",
+      providerCategory: "food",
+      tools: expect.arrayContaining(["operator_review", "web_search"]),
+    });
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.scamCheck)).toMatchObject({
       status: "ready",
       tools: expect.arrayContaining(["camera_or_upload", "web_search"]),
@@ -80,6 +86,7 @@ describe("concierge flow registry", () => {
       tools: expect.arrayContaining(["phone_call", "email", "camera_or_upload"]),
     });
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.transportBooking)).toBe(true);
+    expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.shoppingSupport)).toBe(false);
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.scamCheck)).toBe(false);
   });
 
@@ -118,6 +125,14 @@ describe("concierge flow registry", () => {
     });
     expect(admin.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.insuranceAdmin);
     expect(admin.firstMissingRequirement?.labelEn).toBe("Deadline");
+
+    const shopping = evaluateConciergeFlowRequirements({
+      useCase: "shopping_request",
+      payload: { draft_message: "Help me prepare groceries", category: "groceries" },
+    });
+    expect(shopping.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
+    expect(shopping.needsProvider).toBe(false);
+    expect(shopping.missingRequirements).toEqual([]);
   });
 
   it("maps pending actions to their reusable flow references", () => {
@@ -129,6 +144,10 @@ describe("concierge flow registry", () => {
       useCase: "anything_else",
       payload: { flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck },
     })).toBe(CONCIERGE_FLOW_REFERENCES.scamCheck);
+    expect(conciergeFlowReferenceForPendingAction({
+      useCase: "shopping_request",
+      payload: {},
+    })).toBe(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
   });
 
   it("keeps a complete lifecycle coverage map for tracked flows", () => {

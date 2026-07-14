@@ -1793,6 +1793,66 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
   }, 60000);
 
+  it("turns shopping prefills into confirmed concierge review tasks", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.use_case).toBe("shopping_request");
+        expect(body.auto_start).toBe(false);
+        expect(body.provider_name).toBe("VYVA review");
+        expect(body.action_summary).toBe("VYVA prepares a shopping request. Nothing is ordered, paid, or sent without confirmation.");
+        expect(body.action_payload).toMatchObject({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          requested_tool: "operator_review",
+          active_tool: "operator_review",
+          readiness_status: "ready",
+          execution_channel: "manual",
+          action_label: "Prepare request",
+          confirmation_required_before_action: true,
+          review_fallback: true,
+          no_external_action_without_confirmation: true,
+          source: "shopping_helper",
+        });
+        expect(body.action_payload.draft_message).toContain("Help me prepare a safe shopping request");
+        expect(body.action_payload.draft_message).toContain("Do not start checkout");
+        return jsonResponse({ pendingId: "shopping-request-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "task",
+          message: "Help me prepare a safe shopping request.\nNeed: groceries for the week.\nDo not start checkout, payment, or contact anyone without my confirmation.",
+          flowReference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          requestedTool: "operator_review",
+          actionLabel: "Prepare request",
+          summary: "VYVA prepares a shopping request. Nothing is ordered, paid, or sent without confirmation.",
+          useCase: "shopping_request",
+          source: "shopping_helper",
+        },
+      },
+    }]);
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Shopping request ready");
+    expect(prefill).toHaveTextContent("Nothing is ordered, paid, or sent without confirmation.");
+    expect(prefill).toHaveTextContent("Prepare request");
+    expect(prefill).toHaveTextContent("Add to Right now");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+    expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
+  }, 60000);
+
   it("opens a scam check router and prepares a safe review request", async () => {
     vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url, init) => {
@@ -3161,6 +3221,52 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
     expect(screen.getByTestId("panel-home-service-intake")).toBeVisible();
     expect(screen.getByTestId("button-home-service-type-plumber")).toBeInTheDocument();
+  });
+
+  it("labels completed shopping support sessions in history", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [],
+          serviceReadiness: {},
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({ items: [] });
+      }
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({
+          items: [{
+            id: "session-shopping",
+            pending_id: "old-shopping",
+            use_case: "shopping_request",
+            provider_name: "VYVA review",
+            outcome: "completed",
+            outcome_summary: "Shopping request prepared safely.",
+            completed_at: "2026-08-05T12:00:00.000Z",
+            outcome_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+              item_text: "easy meals",
+            },
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const history = await screen.findByTestId("section-concierge-completed-history");
+    expect(history).toHaveTextContent("Done recently");
+    expect(screen.getByTestId("card-concierge-completed-session-shopping")).toHaveTextContent("Shopping");
+    expect(screen.getByTestId("card-concierge-completed-session-shopping")).toHaveTextContent("VYVA review");
+
+    fireEvent.click(screen.getByTestId("card-concierge-completed-session-shopping"));
+    const receipt = await screen.findByTestId("panel-concierge-completed-receipt");
+    expect(receipt).toHaveTextContent("Receipt");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Type");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Shopping");
   });
 
   it("shows completed appointment history as a reusable appointment template", async () => {

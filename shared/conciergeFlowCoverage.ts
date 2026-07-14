@@ -117,6 +117,19 @@ export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
     },
   },
   {
+    reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+    requiredStages: REVIEW_FLOW_STAGES,
+    coveredStages: REVIEW_FLOW_STAGES,
+    evidence: {
+      start_action: "routes Order In and shopping helper requests into the Shopping assistant",
+      detail_collection: "collects need, category, priorities, constraints, saved shortlist, or product/seller check details",
+      final_user_confirmation: "turns shopping results into a prepared Concierge task with no checkout, payment, contact, or data sharing before confirmation",
+      action_handoff: "sends shopping review requests through the existing Concierge task trigger with FLOW_SHOPPING_SUPPORT",
+      outcome_capture: "uses the existing Concierge task completion endpoint for shopping support outcomes",
+      completed_history: "labels completed shopping support sessions in Concierge history",
+    },
+  },
+  {
     reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
     requiredStages: REVIEW_FLOW_STAGES,
     coveredStages: REVIEW_FLOW_STAGES,

@@ -19,6 +19,8 @@ export type ConciergeFlowRequirementKey =
   | "document_or_task"
   | "recipient"
   | "deadline"
+  | "shopping_need"
+  | "shopping_context"
   | "goal"
   | "website_or_contact";
 
@@ -71,6 +73,10 @@ const REQUIREMENTS_BY_FLOW: Record<ConciergeFlowReference, ConciergeRequirementD
     { key: "urgency", labelEn: "Urgency", labelEs: "Urgencia", payloadKeys: ["urgency", "priority", "requested_time"] },
     { key: "home_access", labelEn: "Address or access", labelEs: "Direccion o acceso", payloadKeys: ["home_access_or_safety_notes", "access_notes", "home_address", "address", "location"] },
   ],
+  [CONCIERGE_FLOW_REFERENCES.shoppingSupport]: [
+    { key: "shopping_need", labelEn: "Shopping need", labelEs: "Necesidad de compra", payloadKeys: ["shopping_need", "item_text", "items", "draft_message", "message"], summaryFallback: true },
+    { key: "shopping_context", labelEn: "Context", labelEs: "Contexto", payloadKeys: ["category", "seller", "seller_site", "priority", "concern", "comparison_summary", "detail"], summaryFallback: true },
+  ],
   [CONCIERGE_FLOW_REFERENCES.scamCheck]: [
     { key: "source", labelEn: "Source", labelEs: "Fuente", payloadKeys: ["scam_type", "source_type", "document_url", "uploaded_file", "phone_number", "company_name", "email_body", "message"], summaryFallback: true },
     { key: "concern", labelEn: "Concern", labelEs: "Riesgo", payloadKeys: ["concern", "what_worries_you", "reason", "detail"], summaryFallback: true },
@@ -110,6 +116,7 @@ export function conciergeFlowReferenceForPendingAction(input: ConciergeFlowRequi
   if (input.useCase === "book_ride") return CONCIERGE_FLOW_REFERENCES.transportBooking;
   if (input.useCase === "order_medicine") return CONCIERGE_FLOW_REFERENCES.otcPharmacy;
   if (input.useCase === "home_service" || appointmentType === "home-service") return CONCIERGE_FLOW_REFERENCES.homeService;
+  if (input.useCase === "shopping_request") return CONCIERGE_FLOW_REFERENCES.shoppingSupport;
   if (input.useCase === "book_appointment") return CONCIERGE_FLOW_REFERENCES.medicalAppointment;
   if (input.useCase === "scam_check") return CONCIERGE_FLOW_REFERENCES.scamCheck;
   if (input.useCase === "admin_task" || input.useCase === "paperwork") return CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
