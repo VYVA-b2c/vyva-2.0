@@ -2505,6 +2505,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-readiness-recipients")).toHaveTextContent("1 saved recipient");
     expect(screen.getByTestId("marketing-campaign-readiness-email")).toHaveTextContent("Email can use the existing VYVA dispatcher");
     expect(screen.getByTestId("marketing-campaign-readiness-other-channels")).toHaveTextContent("Planning");
+    expect(screen.getByTestId("marketing-campaign-launch-sequence")).toHaveTextContent("Next steps for this campaign");
+    expect(screen.getByTestId("marketing-campaign-launch-step-content")).toHaveTextContent("Preview content");
+    expect(screen.getByTestId("marketing-campaign-launch-step-audience")).toHaveTextContent("Partners: 1/2 contacts mapped");
+    expect(screen.getByTestId("marketing-campaign-launch-step-recipients")).toHaveTextContent("1 saved recipient");
+    expect(screen.getByTestId("marketing-campaign-launch-step-test")).toHaveTextContent("Send test email");
+    expect(screen.getByTestId("marketing-campaign-launch-step-launch")).toHaveTextContent("Send campaign email");
     expect(screen.getByTestId("marketing-campaign-publish-kit")).toHaveTextContent("Channel handoff plan");
     expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("VYVA email send");
     expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved recipient can be sent through VYVA email");
@@ -2560,6 +2566,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-recipient-preview")).toHaveTextContent("1");
     expect(screen.getByTestId("button-marketing-readiness-save-campaign")).toHaveTextContent("Save + snapshot recipients");
     expect(screen.getByTestId("marketing-campaign-readiness-email")).toHaveTextContent("Save campaign changes before test/live email send.");
+    expect(screen.getByTestId("marketing-campaign-launch-step-test")).toHaveTextContent("Save before test");
+    expect(screen.getByTestId("marketing-campaign-launch-step-launch")).toHaveTextContent("Save campaign changes before sending.");
     fireEvent.click(screen.getByTestId("button-marketing-readiness-save-campaign"));
 
     await waitFor(() => {

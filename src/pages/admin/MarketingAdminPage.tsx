@@ -582,6 +582,15 @@ type CampaignPublishKitItem = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type CampaignLaunchSequenceStep = CampaignReadinessItem & {
+  step: number;
+  actionLabel: string;
+  icon: LucideIcon;
+  buttonType?: "button" | "submit";
+  disabled?: boolean;
+  onSelect?: () => void;
+};
+
 type AudienceHealthAction = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -7509,6 +7518,126 @@ export default function MarketingAdminPage() {
       },
     };
   }) : [];
+  const firstCampaignContentAsset = campaignReadinessChannels
+    .map((channelDraft) => channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null)
+    .find((item): item is ContentAsset => Boolean(item)) ?? null;
+  const firstManualPublishKitItem = campaignPublishKitItems.find((item) => item.channel !== "email" && item.contentAsset);
+  const campaignTestNeedsSave = Boolean(draftEmailChannel?.contentAssetId && hasUnsavedCampaignSendChanges);
+  const campaignLaunchSequenceSteps: CampaignLaunchSequenceStep[] = editingCampaign ? [
+    {
+      step: 1,
+      key: "content",
+      title: "Choose the creative",
+      state: missingCampaignContentChannels.length === 0 ? "ready" : "blocked",
+      detail: missingCampaignContentChannels.length === 0
+        ? `${campaignReadinessChannels.length} channel${campaignReadinessChannels.length === 1 ? "" : "s"} have linked content.`
+        : `Attach content for ${missingCampaignContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")} before launch.`,
+      actionLabel: firstCampaignContentAsset ? "Preview content" : "Attach content",
+      icon: FileText,
+      disabled: !firstCampaignContentAsset,
+      onSelect: () => {
+        if (firstCampaignContentAsset) {
+          previewContent(firstCampaignContentAsset);
+          return;
+        }
+        setCampaignEmailFeedback("Attach content in the channel rows below before launching this campaign.");
+      },
+    },
+    {
+      step: 2,
+      key: "audience",
+      title: "Confirm the audience",
+      state: selectedCampaignTargetAudience && selectedCampaignTargetAudience.mappedMemberCount === 0 ? "needs_action" : "ready",
+      detail: selectedCampaignTargetAudience
+        ? `${selectedCampaignTargetAudience.name}: ${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} contacts mapped.`
+        : "No saved list selected; the campaign will use all eligible contacts for this audience.",
+      actionLabel: selectedCampaignTargetAudience ? "Open list" : "Audience OK",
+      icon: UsersRound,
+      disabled: !selectedCampaignTargetAudience,
+      onSelect: () => {
+        if (!selectedCampaignTargetAudience) return;
+        startAudienceEdit(selectedCampaignTargetAudience);
+      },
+    },
+    {
+      step: 3,
+      key: "recipients",
+      title: "Snapshot recipients",
+      state: savedCampaignRecipientCount > 0 ? "ready" : pendingCampaignSnapshotCount > 0 ? "needs_action" : "blocked",
+      detail: savedCampaignRecipientCount > 0
+        ? `${savedCampaignRecipientCount} saved recipient${savedCampaignRecipientCount === 1 ? "" : "s"} are locked for this campaign.`
+        : pendingCampaignSnapshotCount > 0
+          ? `Save now to snapshot ${pendingCampaignSnapshotCount} eligible recipient${pendingCampaignSnapshotCount === 1 ? "" : "s"}.`
+          : "Turn on recipient snapshot or adjust the filters until eligible contacts appear.",
+      actionLabel: savedCampaignRecipientCount > 0 ? "Review recipients" : pendingCampaignSnapshotCount > 0 ? "Save + snapshot" : "Enable snapshot",
+      icon: UsersRound,
+      buttonType: pendingCampaignSnapshotCount > 0 ? "submit" : "button",
+      disabled: campaignSaving,
+      onSelect: pendingCampaignSnapshotCount > 0 ? undefined : () => {
+        setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: true }));
+        setCampaignEmailFeedback("Recipient snapshot enabled. Review the preview, then save the campaign.");
+      },
+    },
+    {
+      step: 4,
+      key: "test",
+      title: "Send a test",
+      state: !draftEmailChannel
+        ? "planning"
+        : !draftEmailChannel.contentAssetId
+          ? "blocked"
+          : campaignTestNeedsSave
+            ? "needs_action"
+            : "ready",
+      detail: !draftEmailChannel
+        ? "No email channel is attached, so there is no VYVA test email for this campaign."
+        : !draftEmailChannel.contentAssetId
+          ? "Attach email content before sending a test."
+          : campaignTestNeedsSave
+            ? "Save campaign changes first so the test uses the final content and channel setup."
+            : selectedEmailContent
+              ? `Send yourself a test using "${selectedEmailContent.title}".`
+              : "Send yourself a test before any live email launch.",
+      actionLabel: campaignTestNeedsSave ? "Save before test" : "Send test email",
+      icon: Send,
+      buttonType: campaignTestNeedsSave ? "submit" : "button",
+      disabled: (!draftEmailChannel || !draftEmailChannel.contentAssetId || testEmailSending || campaignSaving) && !campaignTestNeedsSave,
+      onSelect: campaignTestNeedsSave ? undefined : () => {
+        void sendTestCampaignEmail(editingCampaign.id);
+      },
+    },
+    {
+      step: 5,
+      key: "launch",
+      title: draftEmailChannel ? "Launch email" : "Publish channel handoff",
+      state: draftEmailChannel
+        ? campaignEmailDisabled
+          ? campaignEmailBlockedReason ? "needs_action" : "blocked"
+          : "ready"
+        : firstManualPublishKitItem ? "planning" : "blocked",
+      detail: draftEmailChannel
+        ? campaignEmailDisabled
+          ? campaignEmailBlockedReason || "Finish campaign setup before live email send."
+          : `${savedCampaignRecipientCount} recipient${savedCampaignRecipientCount === 1 ? "" : "s"} can receive the email after confirmation.`
+        : firstManualPublishKitItem
+          ? `${channelLabel[firstManualPublishKitItem.channel]} is ready for manual publishing review.`
+          : "Add a channel with content before launch or handoff.",
+      actionLabel: draftEmailChannel
+        ? confirmingCampaignSendId === editingCampaign.id ? "Confirm send" : "Send campaign email"
+        : "Review handoff",
+      icon: draftEmailChannel ? Send : ExternalLink,
+      disabled: draftEmailChannel ? campaignEmailDisabled : !firstManualPublishKitItem,
+      onSelect: () => {
+        if (draftEmailChannel) {
+          void sendCampaignEmails(editingCampaign);
+          return;
+        }
+        if (firstManualPublishKitItem?.contentAsset) {
+          previewContent(firstManualPublishKitItem.contentAsset);
+        }
+      },
+    },
+  ] : [];
   const unmappedAudienceMemberCount = latestSyncRun
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
@@ -8598,6 +8727,48 @@ export default function MarketingAdminPage() {
                         {editingCampaign.lovableExternalId ? (
                           <p className="mt-3 break-all rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">Lovable ID: {editingCampaign.lovableExternalId}</p>
                         ) : null}
+                      </div>
+
+                      <div className="rounded-2xl border border-purple-200 bg-purple-50/60 p-4 shadow-sm" data-testid="marketing-campaign-launch-sequence">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Launch sequence</p>
+                            <h3 className="mt-1 font-serif text-2xl text-[#241133]">Next steps for this campaign</h3>
+                            <p className="mt-1 text-sm font-bold text-[#7d6b65]">Follow these in order: creative, audience, recipients, test, then launch or handoff.</p>
+                          </div>
+                          <Pill className={campaignBlockedCount > 0 ? "bg-red-50 text-red-800" : campaignNeedsActionCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                            {campaignReadinessSummary}
+                          </Pill>
+                        </div>
+                        <div className="mt-4 grid gap-3">
+                          {campaignLaunchSequenceSteps.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <article key={item.key} className={`grid gap-3 rounded-xl border bg-white p-3 shadow-sm xl:grid-cols-[42px_minmax(0,1fr)_170px] xl:items-center ${readinessClass(item.state)}`} data-testid={`marketing-campaign-launch-step-${item.key}`}>
+                                <div className="grid h-10 w-10 place-items-center rounded-xl bg-purple-700 text-sm font-black text-white">
+                                  {item.step}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Icon size={15} aria-hidden="true" />
+                                    <h4 className="font-black text-[#241133]">{item.title}</h4>
+                                    <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                  </div>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.detail}</p>
+                                </div>
+                                <button
+                                  type={item.buttonType ?? "button"}
+                                  onClick={item.onSelect}
+                                  disabled={item.disabled}
+                                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-sm font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:text-[#b8abb8]"
+                                  data-testid={`button-marketing-launch-step-${item.key}`}
+                                >
+                                  {item.actionLabel}
+                                </button>
+                              </article>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <div className="rounded-2xl border border-purple-200 bg-white p-4 shadow-sm" data-testid="marketing-campaign-readiness-panel">
