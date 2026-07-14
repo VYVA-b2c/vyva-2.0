@@ -2177,6 +2177,83 @@ describe("MarketingAdminPage", () => {
     expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH")).toBe(false);
   });
 
+  it("creates an AI channel variant from existing content", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+
+    expect(screen.getByTestId("select-marketing-content-variant-channel")).toHaveValue("email");
+    fireEvent.click(screen.getByTestId("button-marketing-channel-variant-content-ai"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const aiCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiCall?.[1]?.body))).toMatchObject({
+      playLabel: "Channel variant",
+      playCategory: "content_channel_variant",
+      audienceType: "both",
+      channel: "email",
+      tone: "warm",
+      campaignName: "Partner post",
+      contentTitle: "Partner post - Email",
+      subjectSeed: "Partner post",
+      bodySeed: "Partner update",
+      ctaLabel: "Read more",
+      ctaUrl: "https://v2.vyva.life/partners",
+      language: "en",
+    });
+
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const postPayload = JSON.parse(String(postCall?.[1]?.body));
+    expect(postPayload).toMatchObject({
+      title: "Channel variant email AI content",
+      channel: "email",
+      language: "en",
+      status: "draft",
+      subject: "AI email subject line",
+      body: "AI email body copy with stronger channel direction.",
+      htmlBody: "<p>AI email body copy with stronger channel direction.</p>",
+      ctaLabel: "AI CTA",
+      ctaUrl: "https://v2.vyva.life/ai",
+      source: "vyva",
+      lovableExternalId: null,
+      mediaAssets: [{ url: "https://cdn.example.test/partner.png" }],
+      metadata: {
+        extraLovableOnlyField: "kept",
+        channelVariantFromContentId: "content-2",
+        channelVariantFromLovableExternalId: "lovable-content-2",
+        channelVariant: {
+          source: "openai",
+          sourceChannel: "linkedin",
+          targetChannel: "email",
+          sourceLanguage: "en",
+        },
+      },
+    });
+    expect(postPayload.designJson).toMatchObject({
+      blocks: [{ type: "hero" }],
+      aiChannelVariant: {
+        generator: "marketing_content_ai_channel_variant",
+        source: "openai",
+        sourceContentId: "content-2",
+        sourceChannel: "linkedin",
+        targetChannel: "email",
+        modelHints: { generator: "test-ai" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Email draft created.");
+    });
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Channel variant email AI content");
+    expect(screen.getByTestId("select-marketing-edit-content-channel")).toHaveValue("email");
+    expect(screen.getByTestId("textarea-marketing-edit-content-html")).toHaveValue("<p>AI email body copy with stronger channel direction.</p>");
+    expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH")).toBe(false);
+  });
+
   it("edits and deletes imported media references", async () => {
     renderPage();
 

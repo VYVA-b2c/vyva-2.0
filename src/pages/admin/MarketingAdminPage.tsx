@@ -1617,6 +1617,15 @@ function localizedContentTitle(title: string, languageLabel: string) {
   return /\([^)]+\)$/.test(trimmedTitle) ? `${trimmedTitle} ${languageLabel}` : `${trimmedTitle} (${languageLabel})`;
 }
 
+function channelVariantContentTitle(title: string, channelName: string) {
+  const trimmedTitle = title.trim() || "Marketing content";
+  return `${trimmedTitle} - ${channelName}`;
+}
+
+function nextContentVariantChannel(sourceChannel: Channel) {
+  return CHANNELS.find((channel) => channel !== sourceChannel) ?? "email";
+}
+
 function designShapeSummary(value: unknown) {
   const record = recordValue(value);
   const topLevelKeys = Object.keys(record);
@@ -5046,6 +5055,8 @@ export default function MarketingAdminPage() {
   const [contentPolishRunning, setContentPolishRunning] = useState(false);
   const [contentLocalizationLanguage, setContentLocalizationLanguage] = useState<ContentLocalizationLanguage>("es");
   const [contentLocalizationRunning, setContentLocalizationRunning] = useState(false);
+  const [contentVariantChannel, setContentVariantChannel] = useState<Channel>("email");
+  const [contentVariantRunning, setContentVariantRunning] = useState(false);
   const [templateGapAiRunningId, setTemplateGapAiRunningId] = useState<string | null>(null);
   const [templateGapPackRunning, setTemplateGapPackRunning] = useState(false);
   const [templateGapPackProgress, setTemplateGapPackProgress] = useState("");
@@ -6352,7 +6363,7 @@ export default function MarketingAdminPage() {
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
   const selectedContent = useMemo(() => selectedContentId ? content.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, content]);
-  const contentEditorBusy = contentSaving || contentPolishRunning || contentLocalizationRunning;
+  const contentEditorBusy = contentSaving || contentPolishRunning || contentLocalizationRunning || contentVariantRunning;
   const selectedContentUsage = useMemo(
     () => selectedContent ? contentUsageById.get(selectedContent.id) ?? [] : [],
     [contentUsageById, selectedContent],
@@ -8965,6 +8976,7 @@ export default function MarketingAdminPage() {
     setSelectedContentId(contentAsset.id);
     setEditingContentId(contentAsset.id);
     setContentEditDraft(contentEditDraftFromContent(contentAsset));
+    setContentVariantChannel(nextContentVariantChannel(contentAsset.channel));
     setContentDrawerMode("edit");
     setConfirmingContentDeleteId(null);
     setContentFeedback("");
@@ -9247,6 +9259,7 @@ export default function MarketingAdminPage() {
       setSelectedContentId(created.content.id);
       setEditingContentId(created.content.id);
       setContentEditDraft(contentEditDraftFromContent(created.content));
+      setContentVariantChannel(nextContentVariantChannel(created.content.channel));
       setContentDrawerMode("edit");
       setConfirmingContentDeleteId(null);
       setContentFeedback(`${targetLanguageLabel} draft created. Review it in the editor.`);
@@ -9259,6 +9272,128 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setContentLocalizationRunning(false);
+    }
+  }
+
+  async function createChannelContentVariant() {
+    if (!editingContentId || !contentEditDraft) return;
+    const currentDraft = contentEditDraft;
+    const targetChannel = contentVariantChannel;
+    if (targetChannel === currentDraft.channel) {
+      setContentFeedback("Choose a different channel before creating a channel variant.");
+      return;
+    }
+    const bodySeed = currentDraft.body.trim() || currentDraft.htmlBody.trim();
+    const subjectSeed = currentDraft.subject.trim() || currentDraft.title.trim();
+    if (!subjectSeed && !bodySeed) {
+      setContentFeedback("Add a subject or copy before creating a channel variant.");
+      return;
+    }
+
+    const targetChannelLabel = channelLabel[targetChannel];
+    const sourceChannelLabel = channelLabel[currentDraft.channel];
+    setContentVariantRunning(true);
+    setContentFeedback(`Creating ${targetChannelLabel} variant with AI...`);
+    setContentActionFeedback(`AI is adapting "${currentDraft.title}" from ${sourceChannelLabel} to ${targetChannelLabel}.`);
+    try {
+      const sourceLanguage = currentDraft.language.trim() || "en";
+      const objective = [
+        "Adapt this existing VYVA marketing content into a new channel-specific variant.",
+        `Source channel: ${sourceChannelLabel}. Target channel: ${targetChannelLabel}.`,
+        `Language: ${sourceLanguage}.`,
+        "Preserve the strategic intent, audience promise, CTA destination, and compliance meaning.",
+        "Optimize length, formatting, and call-to-action style for the target channel. Do not mention that it was adapted.",
+        currentDraft.subject ? `Current subject: ${currentDraft.subject}` : "",
+        currentDraft.body ? `Current plain copy:\n${currentDraft.body}` : "",
+        currentDraft.htmlBody && !currentDraft.body ? `Current HTML copy:\n${currentDraft.htmlBody}` : "",
+        currentDraft.ctaLabel ? `Current CTA label: ${currentDraft.ctaLabel}` : "",
+        currentDraft.ctaUrl ? `Current CTA URL: ${currentDraft.ctaUrl}` : "",
+      ].filter(Boolean).join("\n\n");
+      const result = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
+        method: "POST",
+        body: JSON.stringify({
+          playLabel: "Channel variant",
+          playCategory: "content_channel_variant",
+          audienceType: "both",
+          channel: targetChannel,
+          tone: contentPolishTone,
+          targetAudienceName: "Current marketing audience",
+          campaignName: currentDraft.title,
+          contentTitle: channelVariantContentTitle(currentDraft.title, targetChannelLabel),
+          objective,
+          subjectSeed,
+          bodySeed,
+          ctaLabel: currentDraft.ctaLabel || "Learn more",
+          ctaUrl: currentDraft.ctaUrl || "https://v2.vyva.life",
+          language: sourceLanguage,
+        }),
+      });
+
+      const variant = result.draft;
+      const variantBody = variant.body.trim() || currentDraft.body;
+      const existingDesign = optionalJsonRecordText(currentDraft.designJsonText);
+      const existingMetadata = optionalJsonRecordText(currentDraft.metadataText);
+      const createdAt = new Date().toISOString();
+      const payload = {
+        title: variant.contentTitle.trim() || channelVariantContentTitle(currentDraft.title, targetChannelLabel),
+        channel: targetChannel,
+        language: sourceLanguage,
+        status: "draft" as const,
+        subject: variant.subject.trim() || currentDraft.subject || null,
+        body: variantBody,
+        htmlBody: targetChannel === "email" && variantBody ? emailHtmlFromPlainCopy(variantBody) : null,
+        ctaLabel: variant.ctaLabel.trim() || currentDraft.ctaLabel || null,
+        ctaUrl: variant.ctaUrl.trim() || currentDraft.ctaUrl || null,
+        source: "vyva",
+        lovableExternalId: null,
+        designJson: {
+          ...existingDesign,
+          aiChannelVariant: {
+            generator: "marketing_content_ai_channel_variant",
+            source: result.source,
+            sourceContentId: editingContentId,
+            sourceChannel: currentDraft.channel,
+            targetChannel,
+            createdAt,
+            modelHints: variant.designJson ?? null,
+          },
+        },
+        mediaAssets: parseJsonArrayText(currentDraft.mediaAssetsText, "Media assets"),
+        metadata: {
+          ...existingMetadata,
+          channelVariantFromContentId: editingContentId,
+          channelVariantFromLovableExternalId: currentDraft.lovableExternalId || null,
+          channelVariant: {
+            source: result.source,
+            sourceChannel: currentDraft.channel,
+            targetChannel,
+            sourceLanguage,
+            createdAt,
+            note: result.note ?? null,
+          },
+        },
+      };
+      const created = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setContent((current) => [created.content, ...current.filter((item) => item.id !== created.content.id)]);
+      setSelectedContentId(created.content.id);
+      setEditingContentId(created.content.id);
+      setContentEditDraft(contentEditDraftFromContent(created.content));
+      setContentVariantChannel(nextContentVariantChannel(created.content.channel));
+      setContentDrawerMode("edit");
+      setConfirmingContentDeleteId(null);
+      setContentFeedback(`${targetChannelLabel} draft created. Review it in the editor.`);
+      setContentActionFeedback(`Created ${targetChannelLabel} variant "${created.content.title}".`);
+      setMessage(`${targetChannelLabel} content variant created.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Channel variant could not be created.";
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentVariantRunning(false);
     }
   }
 
@@ -13905,7 +14040,7 @@ export default function MarketingAdminPage() {
                           <p className="mt-1 text-xs font-bold text-[#7c6f83]">Improve this draft in place, or create a new localized copy without touching the original.</p>
                         </div>
                       </div>
-                      <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3">
                         <div className="rounded-xl border border-purple-100 bg-white p-3">
                           <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Polish current draft</p>
                           <p className="mt-1 text-xs font-bold text-[#7c6f83]">Rewrites subject, body, and CTA in this editor. Save after review.</p>
@@ -13956,6 +14091,34 @@ export default function MarketingAdminPage() {
                           >
                             <Sparkles size={15} /> {contentLocalizationRunning ? "Creating..." : "Create localized copy"}
                           </button>
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-purple-100 bg-white p-3">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Create channel copy</p>
+                          <p className="mt-1 text-xs font-bold text-[#7c6f83]">Adapts this copy for another channel and saves it as a new draft.</p>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <select
+                              className="min-h-10 rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#241133]"
+                              value={contentVariantChannel}
+                              onChange={(event) => setContentVariantChannel(event.target.value as Channel)}
+                              disabled={contentEditorBusy}
+                              data-testid="select-marketing-content-variant-channel"
+                            >
+                              {CHANNELS.map((channel) => (
+                                <option key={channel} value={channel} disabled={channel === contentEditDraft.channel}>
+                                  {channelLabel[channel]}{channel === contentEditDraft.channel ? " (current)" : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => void createChannelContentVariant()}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              disabled={contentEditorBusy || contentVariantChannel === contentEditDraft.channel || (!contentEditDraft.subject.trim() && !contentEditDraft.body.trim() && !contentEditDraft.htmlBody.trim())}
+                              data-testid="button-marketing-channel-variant-content-ai"
+                            >
+                              <Sparkles size={15} /> {contentVariantRunning ? "Creating..." : "Create channel copy"}
+                            </button>
                           </div>
                         </div>
                       </div>
