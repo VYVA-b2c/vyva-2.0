@@ -66,6 +66,20 @@ import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import {
+  buildConciergeHandoffConfirmationItems,
+  buildConciergeHandoffHighlights,
+  buildConciergeHandoffMessage,
+  conciergeHandoffDetail,
+  conciergeHandoffOptionText,
+  conciergeHandoffPrimaryLabel,
+  conciergeHandoffQuestionHelper,
+  conciergeHandoffQuestionText,
+  conciergeHandoffTitle,
+  nextMissingHandoffQuestion,
+  type ConciergeHandoffAnswers,
+  type ConciergeHandoffKind,
+} from "@/concierge/handoffWorkflows";
+import {
   buildHomeServiceIntake,
   homeServiceQuestionsFor,
   homeServiceTypeLabel,
@@ -1564,6 +1578,22 @@ function profileHasSavedPharmacy(profile: ConciergeProfileSummary | null | undef
   return Boolean(savedPharmacyName(profile));
 }
 
+function firstSavedProviderName(profile: ConciergeProfileSummary | null | undefined): string {
+  const provider = profile?.savedProviders?.find((item) => item.name?.trim());
+  return provider?.name?.trim() || "";
+}
+
+function savedMedicalProviderName(profile: ConciergeProfileSummary | null | undefined): string {
+  const provider = profile?.savedProviders?.find((item) => {
+    const searchable = [item.role, item.category, item.name]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ")
+      .toLowerCase();
+    return /doctor|physician|clinic|medical|medic|specialist|dermat|cardio|clinica|medico|especialista/.test(searchable);
+  });
+  return provider?.name?.trim() || "";
+}
+
 function appointmentMissionStatusLabel(status: AppointmentMissionState["status"], isSpanish: boolean): string {
   const labels: Record<AppointmentMissionState["status"], { en: string; es: string }> = {
     collecting_details: { en: "Details needed", es: "Faltan detalles" },
@@ -1801,6 +1831,9 @@ const ConciergeScreen = () => {
     notes: "",
   });
   const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
+  const [handoffKind, setHandoffKind] = useState<ConciergeHandoffKind | null>(null);
+  const [handoffAnswers, setHandoffAnswers] = useState<ConciergeHandoffAnswers>({});
+  const [handoffTextDrafts, setHandoffTextDrafts] = useState<Record<string, string>>({});
   const [transportPickup, setTransportPickup] = useState("");
   const [transportDestination, setTransportDestination] = useState("");
   const [transportTime, setTransportTime] = useState("now");
@@ -1913,6 +1946,15 @@ const ConciergeScreen = () => {
     },
     staleTime: 30 * 1000,
   });
+
+  const handoffSavedProviderName = firstSavedProviderName(conciergeProfile);
+  const appointmentSavedMedicalProviderName = savedMedicalProviderName(conciergeProfile);
+  const activeHandoffQuestion = handoffKind ? nextMissingHandoffQuestion(handoffKind, handoffAnswers) : null;
+  const handoffNeedsProviderSetup = Boolean(
+    handoffKind === "provider_deal_comparison"
+    && handoffAnswers.provider_path === "saved_provider"
+    && !handoffSavedProviderName,
+  );
 
   const selectedAppointmentOption = useMemo(() => {
     if (selectedAppointmentOptionId) {
@@ -2371,6 +2413,12 @@ const ConciergeScreen = () => {
     setHomeServiceTextDrafts({});
   }, []);
 
+  const clearHandoffState = useCallback(() => {
+    setHandoffKind(null);
+    setHandoffAnswers({});
+    setHandoffTextDrafts({});
+  }, []);
+
   const clearAppointmentAssistantState = useCallback(() => {
     setAppointmentOpen(false);
     setSelectedAppointmentChip(null);
@@ -2415,6 +2463,7 @@ const ConciergeScreen = () => {
 
     if (isRideVoiceRequest) {
       setRoutePrefill({ kind: "ride", message: conciergeVoiceDraft, source: "voice_action" });
+      clearHandoffState();
       clearAppointmentAssistantState();
       setTransportPickup((current) => current.trim() ? current : conciergeVoicePickup || savedTransportPickupLabel);
       setTransportDestination((current) => current.trim() ? current : conciergeVoiceDestination);
@@ -2433,9 +2482,11 @@ const ConciergeScreen = () => {
       setOffersOpen(false);
     } else if (isReminderVoiceRequest) {
       setRoutePrefill({ kind: "task", message: conciergeVoiceDraft, source: "voice_action" });
+      clearHandoffState();
       clearAppointmentAssistantState();
       setOffersOpen(false);
     } else if (isAppointmentRequest || isHomeServiceVoiceRequest) {
+      clearHandoffState();
       setAppointmentOpen(true);
       setOffersOpen(false);
       if (isHomeServiceVoiceRequest) {
@@ -2464,6 +2515,7 @@ const ConciergeScreen = () => {
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }, [
     conciergePayloadValue,
+    clearHandoffState,
     clearAppointmentAssistantState,
     conciergeVoiceAction,
     conciergeVoiceCriteria,
@@ -2500,6 +2552,17 @@ const ConciergeScreen = () => {
     setOffersOpen(false);
     setAppointmentOpen(prefill.kind === "appointment");
     setAppointmentNote((current) => current.trim() ? current : message);
+    if (prefill.source === "scam_guard") {
+      setHandoffKind("safe_review");
+      setHandoffAnswers((current) => ({
+        ...current,
+        item_type: current.item_type || "message",
+        concern: current.concern || "scam_risk",
+      }));
+      setHandoffTextDrafts({});
+    } else {
+      clearHandoffState();
+    }
     if (prefill.kind === "ride") {
       const routePickup = routePayloadString(routeState, "pickup");
       const routeDestination = routePayloadString(routeState, "destination") || inferRideDestinationFromMessage(message);
@@ -2519,7 +2582,7 @@ const ConciergeScreen = () => {
 
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-  }, [location.pathname, location.search, location.state, navigate, savedTransportPickupLabel]);
+  }, [clearHandoffState, location.pathname, location.search, location.state, navigate, savedTransportPickupLabel]);
 
   useEffect(() => {
     try {
@@ -2598,7 +2661,16 @@ const ConciergeScreen = () => {
   }
 
   function sendPrefillToConcierge() {
-    const text = routePrefill?.message.trim() || input.trim();
+    if (handoffNeedsProviderSetup) return;
+    const text = handoffKind && routePrefill
+      ? buildConciergeHandoffMessage({
+        kind: handoffKind,
+        answers: handoffAnswers,
+        originalMessage: routePrefill.message,
+        isSpanish,
+        savedProviderName: handoffSavedProviderName,
+      })
+      : routePrefill?.message.trim() || input.trim();
     if (!text || chatLoading) return;
     if (routePrefill?.kind === "appointment") {
       const chip = APPOINTMENT_TYPE_CHIPS[0];
@@ -2620,6 +2692,7 @@ const ConciergeScreen = () => {
     setMessages(nextHistory);
     setInput("");
     setRoutePrefill(null);
+    clearHandoffState();
     setAppointmentOpen(false);
     sendMessage(text, nextHistory);
   }
@@ -2632,6 +2705,7 @@ const ConciergeScreen = () => {
   }
 
   function openSavingsPanel(query?: string) {
+    clearHandoffState();
     setOffersOpen(true);
     setSavingsPanelView("overview");
     setAppointmentOpen(false);
@@ -2648,6 +2722,7 @@ const ConciergeScreen = () => {
   }
 
   function openAppointmentAssistant() {
+    clearHandoffState();
     setAppointmentOpen(true);
     setOffersOpen(false);
     setAppointmentError(null);
@@ -2679,6 +2754,7 @@ const ConciergeScreen = () => {
 
   function openScheduleAssistant(chipKey?: AppointmentType) {
     const chip = chipKey ? APPOINTMENT_TYPE_CHIPS.find((item) => item.key === chipKey) ?? null : null;
+    clearHandoffState();
     setAppointmentOpen(true);
     setOffersOpen(false);
     setAppointmentError(null);
@@ -2706,6 +2782,7 @@ const ConciergeScreen = () => {
       "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
     );
     setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
+    clearHandoffState();
     setInput((current) => current.trim() ? current : message);
     clearAppointmentAssistantState();
     setTransportPickup(savedTransportPickupLabel);
@@ -2723,6 +2800,7 @@ const ConciergeScreen = () => {
   function openHomeServiceAssistant() {
     const homeServiceChip = APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "home-service") ?? APPOINTMENT_TYPE_CHIPS[0];
     openAppointmentAssistant();
+    clearHandoffState();
     setSelectedAppointmentChip(homeServiceChip);
     setAppointmentNote("");
     resetHomeServiceIntake("app", null);
@@ -2770,9 +2848,10 @@ const ConciergeScreen = () => {
 
   function handleFastHelpAction(key: (typeof CONCIERGE_FAST_HELP_ACTIONS)[number]["key"]) {
     if (key === "legal-advice") {
-      prepareConciergeRequest(isSpanish
+      prepareHandoffRequest("paperwork_admin", isSpanish
         ? "Ayudame a entender mis opciones legales. Resume los puntos importantes, prepara preguntas o documentos, y no contactes ni envies nada sin mi confirmacion."
-        : "Help me understand my legal options. Summarize what matters, prepare questions or documents, and do not contact or send anything without my confirmation.");
+        : "Help me understand my legal options. Summarize what matters, prepare questions or documents, and do not contact or send anything without my confirmation.",
+        { task_type: "benefits" });
       return;
     }
     if (key === "trip") {
@@ -2782,21 +2861,24 @@ const ConciergeScreen = () => {
       return;
     }
     if (key === "care") {
-      prepareConciergeRequest(isSpanish
+      prepareHandoffRequest("provider_deal_comparison", isSpanish
         ? "Ayudame a encontrar la mejor atencion para mi. Compara proveedores, seguridad, accesibilidad, precio y cercania. No contactes ni reserves nada sin mi confirmacion."
-        : "Help me find the best care for me. Compare providers, safety, accessibility, price, and distance. Do not contact or book anything without my confirmation.");
+        : "Help me find the best care for me. Compare providers, safety, accessibility, price, and distance. Do not contact or book anything without my confirmation.",
+        { comparison_type: "medical_provider" });
       return;
     }
     if (key === "form") {
-      prepareConciergeRequest(isSpanish
+      prepareHandoffRequest("paperwork_admin", isSpanish
         ? "Ayudame a rellenar un formulario. Prepara respuestas, marca lo que falte y deten antes de enviar para que yo confirme."
-        : "Help me fill a form. Prepare answers, flag anything missing, and stop before submitting so I can confirm.");
+        : "Help me fill a form. Prepare answers, flag anything missing, and stop before submitting so I can confirm.",
+        { task_type: "form" });
       return;
     }
     if (key === "research") {
-      prepareConciergeRequest(isSpanish
+      prepareHandoffRequest("safe_review", isSpanish
         ? "Ayudame a investigar un tema. Resume fuentes fiables, riesgos, opciones y proximos pasos. Preguntame antes de actuar."
-        : "Help me research a topic. Summarize reliable sources, risks, options, and next steps. Ask before taking action.");
+        : "Help me research a topic. Summarize reliable sources, risks, options, and next steps. Ask before taking action.",
+        { item_type: "company" });
       return;
     }
     if (key === "best-deal") {
@@ -3266,7 +3348,24 @@ const ConciergeScreen = () => {
   }
 
   function prepareConciergeRequest(message: string) {
+    clearHandoffState();
     setRoutePrefill({ kind: "task", message });
+    setInput(message);
+    closeOffersPanel();
+    chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function prepareHandoffRequest(
+    kind: ConciergeHandoffKind,
+    message: string,
+    answers: ConciergeHandoffAnswers = {},
+    source: ConciergeRoutePrefill["source"] = "home_quick_action",
+  ) {
+    clearAppointmentAssistantState();
+    setHandoffKind(kind);
+    setHandoffAnswers(answers);
+    setHandoffTextDrafts({});
+    setRoutePrefill({ kind: "task", message, source });
     setInput(message);
     closeOffersPanel();
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -3287,7 +3386,10 @@ const ConciergeScreen = () => {
         `Available contact: ${contact}.`,
         "Check terms, real price, commitment, reviews, and risks. Do not call, book, switch, or share details without asking me to confirm.",
       ].join("\n");
-    prepareConciergeRequest(message);
+    prepareHandoffRequest("provider_deal_comparison", message, {
+      comparison_type: "deal",
+      provider_path: "compare_names",
+    });
   }
 
   function handleOfferWatch(option: OfferOption) {
@@ -3321,18 +3423,35 @@ const ConciergeScreen = () => {
   const activeActionPreferredChannel = activeActionIsAppointment && typeof activeAction?.action_payload?.preferred_channel === "string"
     ? activeAction.action_payload.preferred_channel as AppointmentChannel
     : null;
+  const handoffHighlights = handoffKind
+    ? buildConciergeHandoffHighlights(handoffKind, handoffAnswers, isSpanish)
+    : [];
   const routePrefillHighlights = routePrefill
-    ? buildRoutePrefillHighlights(routePrefill.message, isSpanish)
+    ? handoffHighlights.length > 0
+      ? handoffHighlights
+      : buildRoutePrefillHighlights(routePrefill.message, isSpanish)
     : [];
   const routePrefillMeta = routePrefill
     ? {
-        Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
+        Icon: routePrefill.kind === "ride"
+          ? Car
+          : routePrefill.kind === "appointment"
+            ? Calendar
+            : handoffKind === "paperwork_admin"
+              ? FileText
+              : handoffKind === "provider_deal_comparison"
+                ? Search
+                : handoffKind === "safe_review"
+                  ? ShieldCheck
+                  : PencilLine,
         title: routePrefill.kind === "ride"
           ? (isSpanish ? "Opciones de transporte" : "Transport options")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready")
+              : handoffKind
+                ? conciergeHandoffTitle(handoffKind, isSpanish)
               : (isSpanish ? "Revisa la solicitud" : "Review request"),
         detail: routePrefill.kind === "ride"
           ? (isSpanish ? "Compara formas seguras. Confirmas primero." : "Compare safe ways. You confirm first.")
@@ -3340,6 +3459,8 @@ const ConciergeScreen = () => {
             ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first.")
+              : handoffKind
+                ? conciergeHandoffDetail(handoffKind, isSpanish)
               : (isSpanish ? "Comprueba los detalles antes de enviarlos." : "Check the details before sending."),
         primaryLabel: routePrefill.kind === "ride"
           ? (isSpanish ? "Buscar transporte" : "Find ride options")
@@ -3347,9 +3468,13 @@ const ConciergeScreen = () => {
             ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Pedir presupuesto" : "Request quote")
+              : handoffKind
+                ? conciergeHandoffPrimaryLabel(handoffKind, isSpanish)
               : (isSpanish ? "Enviar a Concierge" : "Send to Concierge"),
         secondaryLabel: routePrefill.kind === "appointment"
           ? (isSpanish ? "Anadir detalles" : "Add details")
+          : handoffKind
+            ? (isSpanish ? "Editar detalles" : "Edit details")
           : (isSpanish ? "Editar solicitud" : "Edit request"),
       }
     : null;
@@ -3504,9 +3629,10 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.paperworkHelp", "Paperwork Help"),
       detail: t("concierge.master.fastHelp.paperworkHelpDetail", "Forms and admin"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => prepareConciergeRequest(isSpanish
+      onClick: () => prepareHandoffRequest("paperwork_admin", isSpanish
         ? "Ayudame a rellenar un formulario. Prepara respuestas, marca lo que falte y deten antes de enviar para que yo confirme."
-        : "Help me fill a form. Prepare answers, flag anything missing, and stop before submitting so I can confirm."),
+        : "Help me fill a form. Prepare answers, flag anything missing, and stop before submitting so I can confirm.",
+        { task_type: "form" }),
       testId: "button-concierge-fast-fill-form",
     },
     {
@@ -3542,7 +3668,10 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.findSpecialist", "Find Specialist"),
       detail: t("concierge.master.fastHelp.findSpecialistDetail", "Care options"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => openSavingsPanel(isSpanish ? "buscar especialista" : "find a specialist"),
+      onClick: () => prepareHandoffRequest("provider_deal_comparison", isSpanish
+        ? "Ayudame a comparar especialistas. Usa mi perfil si hay un proveedor guardado, busca opciones si falta, y no contactes ni reserves nada sin mi confirmacion."
+        : "Help me compare specialists. Use my profile if a saved provider exists, search options if needed, and do not contact or book anything without my confirmation.",
+        { comparison_type: "medical_provider" }),
       testId: "button-concierge-fast-find-care",
     },
     {
@@ -3551,7 +3680,10 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.findResidence", "Find Residence"),
       detail: t("concierge.master.fastHelp.findResidenceDetail", "Compare support"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
-      onClick: () => openSavingsPanel(isSpanish ? "comparar residencias o centros de cuidado" : "compare residences or care homes"),
+      onClick: () => prepareHandoffRequest("provider_deal_comparison", isSpanish
+        ? "Ayudame a comparar residencias o centros de cuidado. Revisa confianza, coste, cercania y seguridad antes de contactar con nadie."
+        : "Help me compare residences or care homes. Review trust, cost, distance, and safety before anyone is contacted.",
+        { comparison_type: "care_residence" }),
       testId: "button-concierge-fast-find-residence",
     },
     {
@@ -3940,7 +4072,10 @@ const ConciergeScreen = () => {
             kicker={isSpanish ? "Revisar primero" : "Review first"}
             title={routePrefillMeta.title}
             subtitle={routePrefillMeta.detail}
-            onClose={() => setRoutePrefill(null)}
+            onClose={() => {
+              setRoutePrefill(null);
+              clearHandoffState();
+            }}
             closeLabel={isSpanish ? "Cerrar" : "Close"}
           />
           <div className="p-4">
@@ -3961,33 +4096,172 @@ const ConciergeScreen = () => {
                 ))}
               </div>
             </div>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={sendPrefillToConcierge}
-                disabled={chatLoading}
-                data-testid="button-concierge-prefill-send"
-                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)] disabled:opacity-60"
+
+            {handoffKind && (
+              <div
+                className="mt-4 rounded-[22px] border border-[#D8B4FE] bg-white p-3 shadow-[0_12px_28px_rgba(107,33,168,0.10)]"
+                data-testid={`panel-concierge-handoff-${handoffKind}`}
               >
-                {chatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                {routePrefillMeta.primaryLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (routePrefill.kind === "appointment") {
-                    openAppointmentAssistant();
-                    return;
-                  }
-                  setInput(routePrefill.message);
-                  setRoutePrefill(null);
-                }}
-                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full border border-[#D8B4FE] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
-              >
-                <PencilLine size={18} />
-                {routePrefillMeta.secondaryLabel}
-              </button>
-            </div>
+                {activeHandoffQuestion ? (
+                  <div data-testid="panel-concierge-handoff-question">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
+                        <Sparkles size={18} aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                          {conciergeHandoffQuestionText(activeHandoffQuestion, isSpanish)}
+                        </p>
+                        <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                          {conciergeHandoffQuestionHelper(activeHandoffQuestion, isSpanish)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {activeHandoffQuestion.kind === "choice" ? (
+                      <div className="mt-3 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
+                        {activeHandoffQuestion.options?.map((option) => (
+                          <PurpleModalOption
+                            key={option.key}
+                            onClick={() => setHandoffAnswers((current) => ({
+                              ...current,
+                              [activeHandoffQuestion.key]: option.key,
+                            }))}
+                            data-testid={`button-concierge-handoff-answer-${option.key}`}
+                            align="center"
+                            className="min-h-[50px] px-3 text-[15px]"
+                          >
+                            {conciergeHandoffOptionText(option, isSpanish)}
+                          </PurpleModalOption>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-4">
+                        <textarea
+                          value={handoffTextDrafts[activeHandoffQuestion.key] ?? handoffAnswers[activeHandoffQuestion.key] ?? ""}
+                          onChange={(event) => setHandoffTextDrafts((current) => ({
+                            ...current,
+                            [activeHandoffQuestion.key]: event.target.value,
+                          }))}
+                          placeholder={isSpanish ? activeHandoffQuestion.placeholderEs : activeHandoffQuestion.placeholderEn}
+                          rows={3}
+                          className="min-h-[104px] w-full resize-none rounded-[18px] border border-[#D8B4FE] bg-[#FBF8FF] px-4 py-3 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-1 outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/15"
+                        />
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const draft = (handoffTextDrafts[activeHandoffQuestion.key] ?? "").trim();
+                              setHandoffAnswers((current) => ({
+                                ...current,
+                                [activeHandoffQuestion.key]: draft || "not_sure",
+                              }));
+                            }}
+                            data-testid={`button-concierge-handoff-save-${activeHandoffQuestion.key}`}
+                            className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+                          >
+                            {isSpanish ? "Guardar" : "Save"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setHandoffAnswers((current) => ({
+                              ...current,
+                              [activeHandoffQuestion.key]: "not_sure",
+                            }))}
+                            data-testid={`button-concierge-handoff-skip-${activeHandoffQuestion.key}`}
+                            className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
+                          >
+                            {isSpanish ? "No lo se" : "Not sure"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    {handoffNeedsProviderSetup && (
+                      <div
+                        className="mb-3 rounded-[18px] border border-[#FCD34D] bg-[#FFFBEB] p-3"
+                        data-testid="panel-concierge-handoff-provider-setup"
+                      >
+                        <p className="font-body text-[14px] font-black text-[#92400E]">
+                          {isSpanish ? "Anade primero un proveedor guardado." : "Add a saved provider first."}
+                        </p>
+                        <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-[#92400E]">
+                          {isSpanish
+                            ? "Asi VYVA puede usar tu perfil sin pedirte datos que ya deberian estar guardados."
+                            : "That lets VYVA use your profile without asking for details that should already be saved."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => navigate("/onboarding/profile/providers", {
+                            state: {
+                              returnTo: "/concierge",
+                              notice: isSpanish
+                                ? "Anade un proveedor guardado para continuar con la comparacion."
+                                : "Add a saved provider to continue the comparison.",
+                            },
+                          })}
+                          data-testid="button-concierge-handoff-provider-setup"
+                          className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} mt-3 border-[#FCD34D] text-[#92400E]`}
+                        >
+                          {isSpanish ? "Anadir proveedor" : "Add provider"}
+                        </button>
+                      </div>
+                    )}
+                    <ActionConfirmationCheckpoint
+                      title={isSpanish ? "Confirma antes de preparar" : "Confirm before preparing"}
+                      summary={isSpanish
+                        ? "VYVA preparara el siguiente paso. Nada se llama, envia, sube, compra ni comparte sin tu confirmacion final."
+                        : "VYVA will prepare the next step. Nothing is called, sent, uploaded, purchased, or shared without your final confirmation."}
+                      items={buildConciergeHandoffConfirmationItems({
+                        kind: handoffKind,
+                        answers: handoffAnswers,
+                        isSpanish,
+                        savedProviderName: handoffSavedProviderName,
+                        needsProviderSetup: handoffNeedsProviderSetup,
+                      })}
+                      primaryLabel={routePrefillMeta.primaryLabel}
+                      onConfirm={sendPrefillToConcierge}
+                      isPending={chatLoading}
+                      disabled={chatLoading || handoffNeedsProviderSetup}
+                      testId="panel-concierge-handoff-confirmation"
+                      buttonTestId="button-concierge-handoff-confirm"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!handoffKind && (
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={sendPrefillToConcierge}
+                  disabled={chatLoading}
+                  data-testid="button-concierge-prefill-send"
+                  className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)] disabled:opacity-60"
+                >
+                  {chatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  {routePrefillMeta.primaryLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (routePrefill.kind === "appointment") {
+                      openAppointmentAssistant();
+                      return;
+                    }
+                    setInput(routePrefill.message);
+                    setRoutePrefill(null);
+                  }}
+                  className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full border border-[#D8B4FE] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
+                >
+                  <PencilLine size={18} />
+                  {routePrefillMeta.secondaryLabel}
+                </button>
+              </div>
+            )}
             <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
               {isSpanish ? "Nada se reserva ni solicita sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
             </p>
@@ -4669,6 +4943,23 @@ const ConciergeScreen = () => {
 
             {!isHomeServiceAppointment && (
               <div className="mt-1 rounded-[20px] bg-white p-1">
+                  <div
+                    className="mb-3 rounded-[18px] border border-[#E9D5FF] bg-[#FBF8FF] px-3 py-2"
+                    data-testid="panel-appointment-medical-readiness"
+                  >
+                    <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-purple">
+                      {isSpanish ? "Perfil revisado" : "Profile checked"}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                      {appointmentSavedMedicalProviderName
+                        ? (isSpanish
+                          ? `Proveedor medico guardado: ${appointmentSavedMedicalProviderName}.`
+                          : `Saved medical provider ready: ${appointmentSavedMedicalProviderName}.`)
+                        : (isSpanish
+                          ? "Sin proveedor medico guardado. VYVA puede buscar opciones antes de contactar."
+                          : "No saved medical provider yet. VYVA can search options before contacting anyone.")}
+                    </p>
+                  </div>
                   <PurpleModalSectionLabel>
                     {isSpanish ? "Tipo de cita" : "Appointment type"}
                   </PurpleModalSectionLabel>

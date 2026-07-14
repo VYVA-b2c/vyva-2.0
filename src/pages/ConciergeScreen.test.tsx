@@ -143,6 +143,14 @@ function showBookRideFastHelp() {
   return screen.getByTestId("button-concierge-fast-book-ride");
 }
 
+function showFindCareFastHelp() {
+  screen.getByTestId("button-concierge-fast-home-service");
+  act(() => {
+    vi.advanceTimersByTime(9000);
+  });
+  return screen.getByTestId("button-concierge-fast-find-care");
+}
+
 afterEach(() => {
   vi.useRealTimers();
   apiFetchMock.mockReset();
@@ -1075,6 +1083,107 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-home-service-intake")).not.toBeInTheDocument();
   });
 
+  it("guides paperwork help through missing details before sending to Concierge", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ response: "I can prepare that." }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-fast-fill-form"));
+
+    const handoff = await screen.findByTestId("panel-concierge-handoff-paperwork_admin");
+    expect(handoff).toHaveTextContent("Which form, document, or office?");
+    expect(handoff).not.toHaveTextContent("What kind of help is this?");
+    expect(screen.queryByTestId("button-concierge-prefill-send")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("E.g. insurance claim, council form, tax notice"), {
+      target: { value: "insurance claim" },
+    });
+    fireEvent.click(screen.getByTestId("button-concierge-handoff-save-target"));
+    fireEvent.click(await screen.findByTestId("button-concierge-handoff-answer-prepare_answers"));
+
+    expect(await screen.findByTestId("panel-concierge-handoff-confirmation")).toHaveTextContent("Final confirmation required");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("button-concierge-handoff-confirm"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/concierge", expect.objectContaining({ method: "POST" }));
+    });
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(String(init?.body));
+    expect(body.prompt).toContain("insurance claim");
+    expect(body.prompt).toContain("Before calling, emailing, filling forms");
+  });
+
+  it("blocks saved-provider comparison setup when no provider is saved", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await showFindCareFastHelp());
+    vi.useRealTimers();
+
+    expect(await screen.findByTestId("panel-concierge-handoff-provider_deal_comparison")).toHaveTextContent("Where should VYVA start?");
+    fireEvent.click(screen.getByTestId("button-concierge-handoff-answer-saved_provider"));
+    fireEvent.click(await screen.findByTestId("button-concierge-handoff-answer-trust"));
+
+    expect(await screen.findByTestId("panel-concierge-handoff-provider-setup")).toHaveTextContent("Add a saved provider first");
+    expect(screen.getByTestId("button-concierge-handoff-confirm")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-concierge-handoff-provider-setup"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+  });
+
+  it("uses a saved provider in comparison handoffs without asking for it again", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{ name: "Clinica Lopez", role: "medical", category: "doctor" }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ response: "Comparison ready." }));
+
+    renderScreen();
+    fireEvent.click(await showFindCareFastHelp());
+    vi.useRealTimers();
+
+    fireEvent.click(await screen.findByTestId("button-concierge-handoff-answer-saved_provider"));
+    fireEvent.click(await screen.findByTestId("button-concierge-handoff-answer-cost"));
+
+    const confirmation = await screen.findByTestId("panel-concierge-handoff-confirmation");
+    expect(confirmation).toHaveTextContent("Use Clinica Lopez");
+    expect(screen.queryByTestId("panel-concierge-handoff-provider-setup")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-concierge-handoff-confirm")).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-concierge-handoff-confirm"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/concierge", expect.objectContaining({ method: "POST" }));
+    });
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(String(init?.body));
+    expect(body.prompt).toContain("Saved provider: Clinica Lopez");
+  });
+
+  it("shows saved medical provider readiness without repeating profile facts", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{ name: "Clinica Lopez", role: "medical", category: "doctor" }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+
+    expect(await screen.findByTestId("panel-appointment-medical-readiness")).toHaveTextContent("Saved medical provider ready: Clinica Lopez.");
+  });
+
   it("finds transport options and prepares a provider without starting a booking", async () => {
     vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url, init) => {
@@ -1208,6 +1317,42 @@ describe("ConciergeScreen route prefill", () => {
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(String(init?.body));
     expect(body.prompt).toContain("easy outing");
+  });
+
+  it("routes ScamGuard prefill through a safe review confirmation", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ response: "Safe review ready." }));
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "task",
+          message: "Review this suspicious company message before I reply.",
+          source: "scam_guard",
+        },
+      },
+    }]);
+
+    const panel = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(panel).toHaveTextContent("Safe review ready");
+    expect(screen.getByTestId("panel-concierge-handoff-safe_review")).toHaveTextContent("What should happen next?");
+    expect(screen.getByTestId("panel-concierge-handoff-safe_review")).not.toHaveTextContent("What should VYVA review?");
+
+    fireEvent.click(screen.getByTestId("button-concierge-handoff-answer-risk_check"));
+
+    expect(await screen.findByTestId("panel-concierge-handoff-confirmation")).toHaveTextContent("Final confirmation required");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("button-concierge-handoff-confirm"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/concierge", expect.objectContaining({ method: "POST" }));
+    });
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(String(init?.body));
+    expect(body.prompt).toContain("Scam risk");
+    expect(body.prompt).toContain("Before calling, emailing, filling forms");
   });
 
   it("renders prepared provider phone actions as direct call links", async () => {
