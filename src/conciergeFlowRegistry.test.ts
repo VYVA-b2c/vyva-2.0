@@ -72,7 +72,7 @@ describe("concierge flow registry", () => {
       tools: expect.arrayContaining(["camera_or_upload", "web_search"]),
     });
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.safeHomeSupport)).toMatchObject({
-      status: "partial",
+      status: "ready",
       actionName: "Safe home / safety support",
       tools: expect.arrayContaining(["phone_call", "camera_or_upload", "operator_review"]),
     });
@@ -175,11 +175,7 @@ describe("concierge flow registry", () => {
       }
     }
 
-    expect(missingConciergeFlowCoverage(CONCIERGE_FLOW_REFERENCES.safeHomeSupport)).toEqual([
-      "action_handoff",
-      "outcome_capture",
-      "completed_history",
-    ]);
+    expect(missingConciergeFlowCoverage(CONCIERGE_FLOW_REFERENCES.safeHomeSupport)).toEqual([]);
 
     for (const reference of [
       CONCIERGE_FLOW_REFERENCES.transportBooking,

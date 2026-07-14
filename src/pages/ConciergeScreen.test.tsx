@@ -232,6 +232,75 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
+  it("turns Safe Home quote prefill into a tagged home-service concierge request", async () => {
+    let requestBody: {
+      appointment_type?: string;
+      detail?: string;
+      route_prefill_source?: string;
+      preferences?: Record<string, unknown>;
+    } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/appointments/requests")) {
+        requestBody = JSON.parse(String(init?.body));
+        return jsonResponse({
+          request: {
+            id: "request-safe-home",
+            appointment_type: "home-service",
+            reason_detail: requestBody?.detail,
+            preferences: requestBody?.preferences,
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "option-safe-home",
+            provider_id: "provider-safe-home",
+            provider_source: "saved",
+            provider_snapshot: { name: "Trusted Handyman", phone: "+34 600 555 111" },
+            match_reason: "Saved home support provider",
+            available_channels: ["phone"],
+            rank: 1,
+            status: "recommended",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "home_care_quote",
+          source: "safe_home_scan",
+          flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+          actionLabel: "Request safety quote",
+          summary: "Loose rug in hallway.",
+          message: "Help me request a home safety quote for a loose rug in the hallway.",
+        },
+      },
+    }]);
+
+    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Support quote ready");
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(requestBody).toMatchObject({
+        appointment_type: "home-service",
+        route_prefill_source: "safe_home_scan",
+        preferences: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+          safety_source: "safe_home_scan",
+          action_label: "Request safety quote",
+          summary: "Loose rug in hallway.",
+        }),
+      });
+    });
+    expect(requestBody?.detail).toContain("home safety quote");
+    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
+  });
+
   it("opens appointment, service, savings, trip, and research flows in place", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
@@ -3074,9 +3143,10 @@ describe("ConciergeScreen route prefill", () => {
               use_case: "book_appointment",
               provider_name: "Saved Plumber",
               outcome: "completed",
-              outcome_summary: "Home service visit confirmed.",
+              outcome_summary: "Safe Home visit confirmed.",
               completed_at: "2026-08-02T10:00:00.000Z",
               outcome_payload: {
+                flow_reference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
                 appointment_type: "home-service",
                 service_type: "plumber",
                 problem_summary: "Leak under the kitchen sink",
@@ -3138,7 +3208,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("card-concierge-completed-session-ride")).toHaveTextContent("Radio Taxi");
     expect(screen.getByTestId("card-concierge-completed-session-ride")).toHaveTextContent("Cost: EUR18");
     expect(screen.getByTestId("card-concierge-completed-session-otc")).toHaveTextContent("OTC pharmacy");
-    expect(screen.getByTestId("card-concierge-completed-session-home")).toHaveTextContent("Home service");
+    expect(screen.getByTestId("card-concierge-completed-session-home")).toHaveTextContent("Safe home");
     expect(screen.queryByTestId("card-concierge-completed-session-hidden")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("card-concierge-completed-session-ride"));
@@ -3415,7 +3485,7 @@ describe("ConciergeScreen route prefill", () => {
     });
   });
 
-  it("saves a confirmed home-service reply into Scheduled Support before closing the task", async () => {
+  it("saves a confirmed Safe Home service reply before closing the task", async () => {
     let scheduledBody: Record<string, unknown> | null = null;
     let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
@@ -3438,6 +3508,7 @@ describe("ConciergeScreen route prefill", () => {
             action_summary: "Plumber is checking the leak repair slot.",
             action_payload: {
               appointment_type: "home-service",
+              flow_reference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
               service_type: "plumber",
               problem_summary: "Leak under kitchen sink",
               urgency: "tomorrow",
@@ -3482,7 +3553,7 @@ describe("ConciergeScreen route prefill", () => {
         status: "upcoming",
         source: "concierge",
         metadata: expect.objectContaining({
-          flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+          flow_reference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
           pending_id: "reply-home-service-1",
           appointment_type: "home-service",
           provider_name: "Saved Plumber",
@@ -3502,7 +3573,7 @@ describe("ConciergeScreen route prefill", () => {
       expect(completeBody).toMatchObject({
         outcome_summary: "Home service visit confirmed with Saved Plumber.",
         outcome_payload: expect.objectContaining({
-          flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+          flow_reference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
           appointment_type: "home-service",
           provider_name: "Saved Plumber",
           service_type: "plumber",

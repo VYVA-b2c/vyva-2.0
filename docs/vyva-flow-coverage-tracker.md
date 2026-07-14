@@ -22,7 +22,7 @@ This tracker keeps the product flow map centralized while implementation stays i
 | Scam / fraud check | Check Scam, scam voice handoff | `FLOW_SCAM_CHECK` | covered | Add direct email forwarding, camera/upload, phone verification, and live reputation lookup integrations. |
 | Insurance / admin help | Insurance/admin, paperwork handoffs | `FLOW_INSURANCE_ADMIN` | covered | Expand direct email/call/upload execution behind confirmation. |
 | Call, email, form, or application | Tool-gated voice handoffs | `FLOW_TOOL_GATED_TASK` | covered | Expand confirmed phone, email, WhatsApp, and external form tools. |
-| Safe home / safety support | Safe Home, safety voice handoff | `FLOW_SAFE_HOME_SUPPORT` | partial | Connect Safe Home outcomes to Concierge completion and recent-history recovery. |
+| Safe home / safety support | Safe Home, safety voice handoff | `FLOW_SAFE_HOME_SUPPORT` | covered | Monitor Safe Home task outcomes and expand direct upload/caregiver integrations. |
 | Shopping / groceries / meals | Order In, Groceries, Prepared Meals | none yet | partial | Split groceries/meals from OTC pharmacy and add confirmation/outcome coverage. |
 | Find care / residence | Find Care, Personal Care, Find Residence | `FLOW_TOOL_GATED_TASK` today | partial | Decide if this needs its own canonical flow or remains provider-search/tool-gated. |
 | Government help | Government appointment/forms | `FLOW_INSURANCE_ADMIN` today | partial | Separate routine government bookings from insurance/admin documents if needed. |
@@ -69,6 +69,6 @@ This tracker keeps the product flow map centralized while implementation stays i
 
 ## Next Suggested Slices
 
-1. Safe Home completion bridge: connect `/safe-home` outcomes into Concierge task completion/history where appropriate.
-2. Shopping split: define groceries/meals as separate from OTC pharmacy, with provider/search criteria and final confirmation.
-3. Health flow audit: map Medication, Vitals, Reports, Visual Scan, and Doctor Support to the same coverage model.
+1. Shopping split: define groceries/meals as separate from OTC pharmacy, with provider/search criteria and final confirmation.
+2. Health flow audit: map Medication, Vitals, Reports, Visual Scan, and Doctor Support to the same coverage model.
+3. Safe Home upload/caregiver expansion: add direct media/caregiver integrations behind confirmation.
