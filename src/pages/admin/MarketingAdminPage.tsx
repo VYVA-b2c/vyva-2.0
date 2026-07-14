@@ -551,6 +551,13 @@ type AudienceHealthAction = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type ContentTemplateRecommendation = {
+  template: ContentTemplate;
+  score: number;
+  reachable: number;
+  reasons: string[];
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -5050,6 +5057,107 @@ export default function MarketingAdminPage() {
       },
     },
   ];
+  const contentTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
+    const candidateTemplates = contentTemplateFiltersActive ? visibleContentTemplates : contentTemplateGallery;
+    const playCategoryLabel = campaignStudioCategories.find((category) => category.id === selectedCampaignStudioPlay.categoryId)?.label ?? selectedCampaignStudioPlay.categoryId;
+    const playText = lower([
+      selectedCampaignStudioPlay.label,
+      selectedCampaignStudioPlay.brief,
+      selectedCampaignStudioPlay.objective,
+      selectedCampaignStudioPlay.categoryId,
+      playCategoryLabel,
+      selectedCampaignStudioPlay.targetListHints.join(" "),
+      selectedCampaignStudioTargetAudience?.name,
+      selectedCampaignStudioTargetAudience?.description,
+      selectedCampaignStudioTargetAudience?.listType,
+    ].filter(Boolean).join(" "));
+
+    return candidateTemplates
+      .map((template) => {
+        let score = 0;
+        const reasons: string[] = [];
+        const addReason = (reason: string) => {
+          if (!reasons.includes(reason)) reasons.push(reason);
+        };
+        const templateCategory = lower(template.category);
+        const templateText = lower([
+          template.title,
+          template.description,
+          template.category,
+          template.subject,
+          template.body,
+          template.ctaLabel,
+        ].join(" "));
+
+        if (campaignStudioSelectedChannels.includes(template.channel)) {
+          score += 30;
+          addReason(`${channelLabel[template.channel]} is selected`);
+        } else if (template.channel === selectedCampaignStudioPlay.defaultChannel) {
+          score += 18;
+          addReason(`${channelLabel[template.channel]} fits the play`);
+        }
+
+        if (template.audienceType === selectedCampaignStudioPlay.audienceType) {
+          score += 24;
+          addReason(`${template.audienceType.toUpperCase()} audience match`);
+        } else if (template.audienceType === "both" || selectedCampaignStudioPlay.audienceType === "both") {
+          score += 14;
+          addReason("Flexible audience fit");
+        }
+
+        if (
+          templateCategory.includes(lower(playCategoryLabel))
+          || templateCategory.includes(selectedCampaignStudioPlay.categoryId)
+          || playText.includes(templateCategory)
+          || selectedCampaignStudioPlay.targetListHints.some((hint) => templateText.includes(lower(hint)))
+        ) {
+          score += 18;
+          addReason("Goal/category match");
+        }
+
+        const audiencePoolForTemplate = campaignStudioAudiencePool.length
+          ? campaignStudioAudiencePool
+          : contacts.filter((contact) => campaignAllowsContact(template.audienceType, contact.audienceType));
+        const reachable = audiencePoolForTemplate.filter((contact) => (
+          campaignAllowsContact(template.audienceType, contact.audienceType)
+          && Boolean(recipientForChannel(contact, template.channel))
+        )).length;
+        if (reachable > 0) {
+          score += Math.min(24, 10 + reachable * 4);
+          addReason(`${reachable} reachable contact${reachable === 1 ? "" : "s"}`);
+        } else if (contacts.length > 0) {
+          addReason("Needs reachable contacts");
+        }
+
+        if (template.ctaLabel && template.ctaUrl) {
+          score += 5;
+          addReason("CTA ready");
+        }
+        if (template.subject || template.channel !== "email") score += 3;
+        if (template.mediaAssets?.length) score += 2;
+
+        return {
+          template,
+          score: Math.min(score, 99),
+          reachable,
+          reasons: reasons.slice(0, 3),
+        };
+      })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.reachable !== a.reachable) return b.reachable - a.reachable;
+        return a.template.title.localeCompare(b.template.title);
+      })
+      .slice(0, 4);
+  }, [
+    campaignStudioAudiencePool,
+    campaignStudioSelectedChannels,
+    contacts,
+    contentTemplateFiltersActive,
+    selectedCampaignStudioPlay,
+    selectedCampaignStudioTargetAudience,
+    visibleContentTemplates,
+  ]);
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
   const selectedCampaignTargetAudience = useMemo(
@@ -8292,6 +8400,63 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               ) : null}
+
+              <SectionCard
+                title="Template matchmaker"
+                subtitle="Best-fit starters based on the current studio play, selected channels, audience reach, and active template filters."
+                action={<Pill className="bg-emerald-50 text-emerald-800">{contentTemplateRecommendations.length} recommended</Pill>}
+              >
+                <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-template-matchmaker">
+                  {contentTemplateRecommendations.length ? contentTemplateRecommendations.map((recommendation, index) => {
+                    const { template } = recommendation;
+                    return (
+                      <article key={template.id} className="flex min-h-[220px] flex-col justify-between rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid={`marketing-template-match-${template.id}`}>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill className={index === 0 ? "bg-emerald-50 text-emerald-800" : "bg-purple-50 text-purple-800"}>{index === 0 ? "Best fit" : `Fit ${recommendation.score}`}</Pill>
+                            <Pill className={channelClass(template.channel)}>{channelLabel[template.channel]}</Pill>
+                            <Pill className="bg-[#f5eee8] text-[#5b4a46]">{template.audienceType.toUpperCase()}</Pill>
+                          </div>
+                          <h3 className="mt-3 font-serif text-xl text-[#241133]">{template.title}</h3>
+                          <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{template.description}</p>
+                          <div className="mt-3 rounded-xl bg-[#fbf7f2] px-3 py-2 text-xs font-black text-[#6f5f59]">
+                            {recommendation.reachable} reachable via {channelLabel[template.channel]}
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {recommendation.reasons.map((reason) => (
+                              <Pill key={reason} className="bg-white text-[#5b4a46]">{reason}</Pill>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="mt-4 grid gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startCampaignFromContentTemplate(template)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            disabled={contentSaving}
+                            data-testid={`button-marketing-match-start-${template.id}`}
+                          >
+                            <Megaphone size={14} /> Start campaign
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyContentTemplate(template)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                            disabled={contentSaving}
+                            data-testid={`button-marketing-match-use-${template.id}`}
+                          >
+                            <Sparkles size={14} /> Use content
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  }) : (
+                    <div className="rounded-2xl border border-dashed border-[#d9c9bd] bg-[#fffaf4] p-5 text-sm font-bold text-[#6f5f59] xl:col-span-4" data-testid="marketing-template-matchmaker-empty">
+                      No recommended templates match this view. Clear the template filters or choose another studio play.
+                    </div>
+                  )}
+                </div>
+              </SectionCard>
 
               <SectionCard
                 title="Template gallery"

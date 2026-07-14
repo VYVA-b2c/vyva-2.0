@@ -1431,6 +1431,32 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: Profile completion WhatsApp nudge");
   });
 
+  it("recommends best-fit templates and starts a campaign from the matchmaker", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    const matchmaker = within(screen.getByTestId("marketing-template-matchmaker"));
+    expect(matchmaker.getByText("Caregiver welcome email")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-template-match-caregiver-email-welcome")).toHaveTextContent("1 reachable via Email");
+
+    fireEvent.change(screen.getByTestId("select-marketing-template-channel"), { target: { value: "linkedin" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-audience"), { target: { value: "b2b" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-category"), { target: { value: "B2B partner" } });
+
+    const filteredMatchmaker = within(screen.getByTestId("marketing-template-matchmaker"));
+    expect(filteredMatchmaker.getByText("Partner demo LinkedIn post")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-template-match-linkedin-partner-demo")).toHaveTextContent("1 reachable via LinkedIn");
+
+    fireEvent.click(screen.getByTestId("button-marketing-match-start-linkedin-partner-demo"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner demo LinkedIn post campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign starter applied from \"Partner demo LinkedIn post\"");
+  });
+
   it("starts a campaign planner draft from a content template", async () => {
     renderPage();
 
