@@ -18,7 +18,7 @@ import {
 const router = Router();
 
 const updateSchema = z.object({
-  action: z.enum(["in_progress", "done", "failed"]),
+  action: z.enum(["assign", "in_progress", "done", "failed"]),
   outcome_note: z.string().trim().max(1000).optional().nullable(),
 });
 
@@ -91,6 +91,59 @@ function operatorNote(note: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
+function objectPayload(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function operatorAssignmentFromPayload(payload: unknown) {
+  const data = objectPayload(payload);
+  return {
+    operator_assigned_to: stringValue(data.operator_assigned_to),
+    operator_assigned_email: stringValue(data.operator_assigned_email),
+    operator_assigned_at: stringValue(data.operator_assigned_at),
+  };
+}
+
+function operatorIdentity(req: Request) {
+  const email = req.user?.email?.trim() || null;
+  const id = req.user?.id?.trim() || email || null;
+  return { id, email };
+}
+
+function assignmentBelongsToOperator(
+  assignment: ReturnType<typeof operatorAssignmentFromPayload>,
+  req: Request,
+): boolean {
+  const operator = operatorIdentity(req);
+  return Boolean(
+    (operator.id && assignment.operator_assigned_to === operator.id)
+      || (operator.email && assignment.operator_assigned_email?.toLowerCase() === operator.email.toLowerCase()),
+  );
+}
+
+function assignmentIsTaken(assignment: ReturnType<typeof operatorAssignmentFromPayload>): boolean {
+  return Boolean(assignment.operator_assigned_to || assignment.operator_assigned_email);
+}
+
+function withAssignment(payload: Record<string, unknown>, req: Request, force = false): Record<string, unknown> {
+  const existing = operatorAssignmentFromPayload(payload);
+  if (!force && existing.operator_assigned_to) return payload;
+  const operator = operatorIdentity(req);
+  const assignedTo = operator.id ?? "admin";
+  return {
+    ...payload,
+    operator_assigned_to: assignedTo,
+    operator_assigned_email: operator.email ?? assignedTo,
+    operator_assigned_at: new Date().toISOString(),
+  };
+}
+
 function currentPendingPayload(row: PendingQueueRow): Record<string, unknown> {
   return withConciergeExecutionTask({
     useCase: row.use_case,
@@ -108,6 +161,7 @@ function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
   if (!task?.user_confirmed) return null;
   const status = normalizeOperatorConciergeQueueStatus(task?.lifecycle_status ?? row.status);
   if (!status) return null;
+  const assignment = operatorAssignmentFromPayload(payload);
 
   return {
     id: row.id,
@@ -124,6 +178,7 @@ function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
     flow_reference: task?.flow_reference ?? null,
     action_type: task?.action_type ?? null,
     active_tool: task?.active_tool ?? null,
+    ...assignment,
     missing_labels: taskMissingLabels(task),
     user_confirmed: Boolean(task?.user_confirmed),
     confirmed_at: isoDate(task?.confirmed_at ?? row.confirmed_at),
@@ -166,13 +221,14 @@ function buildUpdatedPendingPayload(
   row: PendingQueueRow,
   action: OperatorConciergeQueueAction,
   note: string | null,
+  req: Request,
 ): Record<string, unknown> {
   const nextStatus = action === "done" ? "completed" : action === "failed" ? "failed" : "calling";
-  const basePayload = {
+  const basePayload = withAssignment({
     ...(row.action_payload ?? {}),
     operator_note: note,
     operator_updated_at: new Date().toISOString(),
-  };
+  }, req);
 
   return withConciergeExecutionTask({
     useCase: row.use_case,
@@ -189,8 +245,29 @@ function buildUpdatedPendingPayload(
   });
 }
 
-async function updatePendingInProgress(row: PendingQueueRow, note: string | null): Promise<void> {
-  const payload = buildUpdatedPendingPayload(row, "in_progress", note);
+async function updatePendingAssignment(row: PendingQueueRow, req: Request): Promise<void> {
+  const payload = withConciergeExecutionTask({
+    useCase: row.use_case,
+    payload: withAssignment(row.action_payload ?? {}, req, true),
+    providerName: row.provider_name,
+    providerPhone: row.provider_phone,
+    summary: row.action_summary,
+    pendingStatus: row.status,
+    userConfirmed: true,
+    confirmationSource: "operator_queue",
+  });
+  await pool.query(
+    `
+      update concierge_pending
+      set action_payload = $2::jsonb, updated_at = now()
+      where id = $1::uuid
+    `,
+    [row.id, JSON.stringify(payload)],
+  );
+}
+
+async function updatePendingInProgress(row: PendingQueueRow, note: string | null, req: Request): Promise<void> {
+  const payload = buildUpdatedPendingPayload(row, "in_progress", note, req);
   await pool.query(
     `
       update concierge_pending
@@ -201,14 +278,16 @@ async function updatePendingInProgress(row: PendingQueueRow, note: string | null
   );
 }
 
-async function closePending(row: PendingQueueRow, action: "done" | "failed", note: string | null, actor: string | null): Promise<void> {
+async function closePending(row: PendingQueueRow, action: "done" | "failed", note: string | null, req: Request): Promise<void> {
   const pendingStatus = action === "done" ? "completed" : "failed";
   const sessionOutcome = action === "done" ? "completed" : "failed";
-  const payload = buildUpdatedPendingPayload(row, action, note);
+  const payload = buildUpdatedPendingPayload(row, action, note, req);
+  const assignment = operatorAssignmentFromPayload(payload);
   const outcomePayload = {
     ...(row.action_payload ?? {}),
     operator_note: note,
-    operator_actor: actor,
+    operator_actor: req.user?.email ?? req.user?.id ?? null,
+    ...assignment,
     operator_completed_at: new Date().toISOString(),
     execution_task: executionTaskFromPayload(payload),
   };
@@ -298,6 +377,7 @@ function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
   const task = executionTaskFromPayload(payloadWithTask);
   const status = normalizeOperatorConciergeQueueStatus(task?.lifecycle_status ?? row.outcome);
   if (!status) return null;
+  const assignment = operatorAssignmentFromPayload(payloadWithTask);
 
   return {
     id: row.id,
@@ -314,6 +394,7 @@ function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
     flow_reference: task?.flow_reference ?? null,
     action_type: task?.action_type ?? null,
     active_tool: task?.active_tool ?? null,
+    ...assignment,
     missing_labels: taskMissingLabels(task),
     user_confirmed: Boolean(task?.user_confirmed ?? true),
     confirmed_at: isoDate(task?.confirmed_at ?? row.started_at),
@@ -435,12 +516,19 @@ router.patch("/:id", async (req: Request, res: Response) => {
     if (!currentTask?.user_confirmed) {
       return res.status(409).json({ error: "User confirmation is required before an operator can handle this task." });
     }
+    const currentAssignment = operatorAssignmentFromPayload(currentPendingPayload(row));
+    const assignedToAnotherOperator = assignmentIsTaken(currentAssignment) && !assignmentBelongsToOperator(currentAssignment, req);
+    if (assignedToAnotherOperator) {
+      return res.status(409).json({ error: "This Concierge task is assigned to another operator." });
+    }
 
     const note = operatorNote(parsed.data.outcome_note);
-    if (parsed.data.action === "in_progress") {
-      await updatePendingInProgress(row, note);
+    if (parsed.data.action === "assign") {
+      await updatePendingAssignment(row, req);
+    } else if (parsed.data.action === "in_progress") {
+      await updatePendingInProgress(row, note, req);
     } else {
-      await closePending(row, parsed.data.action, note, req.user?.email ?? req.user?.id ?? null);
+      await closePending(row, parsed.data.action, note, req);
     }
 
     return res.json({ ok: true });

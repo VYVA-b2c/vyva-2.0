@@ -11,6 +11,7 @@ export const OPERATOR_CONCIERGE_QUEUE_STATUSES = [
 export type OperatorConciergeQueueStatus = typeof OPERATOR_CONCIERGE_QUEUE_STATUSES[number];
 
 export const OPERATOR_CONCIERGE_QUEUE_ACTIONS = [
+  "assign",
   "in_progress",
   "done",
   "failed",
@@ -33,6 +34,9 @@ export type OperatorConciergeQueueItem = {
   flow_reference?: string | null;
   action_type?: string | null;
   active_tool?: string | null;
+  operator_assigned_to?: string | null;
+  operator_assigned_email?: string | null;
+  operator_assigned_at?: string | null;
   missing_labels: string[];
   user_confirmed: boolean;
   confirmed_at?: string | null;
