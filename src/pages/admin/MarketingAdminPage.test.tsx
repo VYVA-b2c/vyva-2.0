@@ -2516,6 +2516,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved recipient can be sent through VYVA email");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Manual publishing");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview the content, then publish or track it in the channel tool.");
+    expect(screen.getByTestId("marketing-campaign-handoff-brief-linkedin")).toHaveTextContent("Manual channel brief");
+    const linkedinHandoffBrief = screen.getByTestId("textarea-marketing-campaign-handoff-brief-linkedin") as HTMLTextAreaElement;
+    expect(linkedinHandoffBrief.value).toContain("Campaign: Caregiver welcome");
+    expect(linkedinHandoffBrief.value).toContain("Channel: LinkedIn");
+    expect(linkedinHandoffBrief.value).toContain("Copy:\nPartner update");
+    expect(linkedinHandoffBrief.value).toContain("CTA: Read more - https://v2.vyva.life/partners");
+    expect(linkedinHandoffBrief.value).toContain("Media:\n- https://cdn.example.test/partner.png");
+    expect(linkedinHandoffBrief.value).toContain("Lovable content ID: lovable-content-2");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin"));
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));

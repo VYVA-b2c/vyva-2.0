@@ -1427,6 +1427,38 @@ function contentMediaPreviewUrls(content: ContentAsset, linkedAssets: MarketingM
   return Array.from(new Set([...embedded, ...linked].map((url) => url.trim()).filter(Boolean)));
 }
 
+function campaignChannelHandoffBrief(
+  campaign: Campaign,
+  channel: Channel,
+  contentAsset: ContentAsset,
+  linkedAssets: MarketingMediaAsset[],
+  recipients: number,
+  scheduledAt: string | null,
+) {
+  const designBlocks = collectDesignPreviewBlocks(contentAsset.designJson ?? {});
+  const leadBlock = designBlocks.find((block) => block.title || block.body || block.ctaLabel || block.ctaUrl) ?? null;
+  const mediaUrls = contentMediaPreviewUrls(contentAsset, linkedAssets);
+  const hook = contentAsset.subject || leadBlock?.title || contentAsset.title;
+  const body = contentAsset.body || leadBlock?.body || "";
+  const ctaLabel = contentAsset.ctaLabel || leadBlock?.ctaLabel || "";
+  const ctaUrl = contentAsset.ctaUrl || leadBlock?.ctaUrl || "";
+  const lines = [
+    `Campaign: ${campaign.name}`,
+    `Channel: ${channelLabel[channel]}`,
+    `Audience: ${campaign.audienceType.toUpperCase()}`,
+    `Status: ${campaign.status}`,
+    `Schedule: ${formatDate(scheduledAt || campaign.scheduleStartsAt)}`,
+    `Recipients/list size: ${recipients}`,
+    campaign.objective ? `Objective: ${campaign.objective}` : "",
+    hook ? `Hook/subject: ${hook}` : "",
+    body ? `Copy:\n${body}` : "",
+    ctaLabel || ctaUrl ? `CTA: ${[ctaLabel, ctaUrl].filter(Boolean).join(" - ")}` : "",
+    mediaUrls.length ? `Media:\n${mediaUrls.map((url) => `- ${url}`).join("\n")}` : "",
+    contentAsset.lovableExternalId ? `Lovable content ID: ${contentAsset.lovableExternalId}` : "",
+  ];
+  return lines.filter(Boolean).join("\n\n");
+}
+
 function isPreviewableImageUrl(url: string) {
   return /^data:image\//i.test(url) || /\.(png|jpe?g|gif|webp|avif|svg)(?:[?#].*)?$/i.test(url);
 }
@@ -8845,6 +8877,10 @@ export default function MarketingAdminPage() {
                         <div className="mt-4 grid gap-3 xl:grid-cols-3">
                           {campaignPublishKitItems.map((item) => {
                             const Icon = item.icon;
+                            const linkedMediaAssets = item.contentAsset ? mediaAssets.filter((asset) => asset.contentAssetId === item.contentAsset?.id) : [];
+                            const handoffBrief = item.contentAsset
+                              ? campaignChannelHandoffBrief(editingCampaign, item.channel, item.contentAsset, linkedMediaAssets, item.recipients, item.scheduledAt)
+                              : "";
                             return (
                               <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-publish-kit-${item.channel}`}>
                                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -8866,6 +8902,22 @@ export default function MarketingAdminPage() {
                                     <span className="font-black text-[#241133]">Timing:</span> {item.scheduledAt ? formatDate(fromDateTimeLocal(item.scheduledAt)) : "Not scheduled"}
                                   </div>
                                 </div>
+                                {handoffBrief ? (
+                                  <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid={`marketing-campaign-handoff-brief-${item.channel}`}>
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+                                        {item.channel === "email" ? "VYVA send brief" : "Manual channel brief"}
+                                      </p>
+                                      <Pill className="bg-purple-50 text-purple-800">Copy-ready</Pill>
+                                    </div>
+                                    <textarea
+                                      readOnly
+                                      className="mt-2 min-h-[180px] w-full resize-y rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 font-mono text-xs font-bold leading-relaxed text-[#4b394f]"
+                                      value={handoffBrief}
+                                      data-testid={`textarea-marketing-campaign-handoff-brief-${item.channel}`}
+                                    />
+                                  </div>
+                                ) : null}
                                 <button
                                   type="button"
                                   onClick={item.onSelect}
