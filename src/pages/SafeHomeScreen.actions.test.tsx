@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SafeHomeScreen, { safeHomeQuoteState, safeHomeShoppingState } from "./SafeHomeScreen";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 
 const queryResultMock = vi.fn();
 let profileMock = {
@@ -128,6 +129,9 @@ describe("Safe-home scan service actions", () => {
       conciergePrefill: {
         kind: "home_care_quote",
         source: "safe_home_scan",
+        flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+        actionLabel: "Request safety quote",
+        summary: "VYVA prepares home-safety help and keeps it pending for confirmation.",
         message: expect.stringContaining("home safety quote"),
       },
     });
@@ -175,5 +179,7 @@ describe("Safe-home scan service actions", () => {
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"source\":\"safe_home_scan\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"home_care_quote\"");
+    expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Request safety quote");
   });
 });
