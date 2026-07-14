@@ -103,7 +103,6 @@ export default function ConciergeQueueAdminPage() {
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const visibleItems = useMemo(() => filterOperatorConciergeQueueItems(items, filter), [filter, items]);
