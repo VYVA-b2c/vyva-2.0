@@ -2068,6 +2068,11 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-recommended-pack"));
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan")).toHaveTextContent("What happens after create");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan-linkedin")).toHaveTextContent("Manual publishing");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan-linkedin")).toHaveTextContent("publish or track it outside VYVA");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan-email")).toHaveTextContent("VYVA email send");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan-email")).toHaveTextContent("send from the campaign details");
     fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
 
     await waitFor(() => {

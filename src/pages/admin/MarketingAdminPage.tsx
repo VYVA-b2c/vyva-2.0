@@ -510,6 +510,16 @@ type CampaignAudienceInsightItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignExecutionPlanItem = {
+  channel: Channel;
+  title: string;
+  sendMode: string;
+  nextAction: string;
+  detail: string;
+  recipients: number;
+  state: CampaignReadinessState;
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -4552,9 +4562,38 @@ export default function MarketingAdminPage() {
     draft: campaignStudioAiDrafts[channel]
       ?? (channel === campaignStudio.channel
         ? campaignStudioGenerated
-        : campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, channel, selectedCampaignStudioTargetAudience)),
+      : campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, channel, selectedCampaignStudioTargetAudience)),
     recipients: campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0,
   }));
+  const sendCapabilityByChannel = useMemo(
+    () => new Map(syncState.lockedSendCapabilities.map((item) => [item.channel, item])),
+    [syncState.lockedSendCapabilities],
+  );
+  const campaignStudioExecutionPlan: CampaignExecutionPlanItem[] = campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {
+    const capability = sendCapabilityByChannel.get(channel);
+    const sendCapability = capability?.sendCapability ?? (channel === "email" ? "enabled" : "planning_only");
+    const emailEnabled = channel === "email" && sendCapability === "enabled" && capability?.locked !== true;
+    const futureSendCapable = sendCapability === "future_send_capable";
+    return {
+      channel,
+      title: draft.contentTitle,
+      recipients,
+      state: emailEnabled ? "ready" : futureSendCapable ? "needs_action" : "planning",
+      sendMode: emailEnabled
+        ? "VYVA email send"
+        : futureSendCapable
+          ? "Provider-ready later"
+          : "Manual publishing",
+      nextAction: emailEnabled
+        ? "Create, review, then send from the campaign details."
+        : futureSendCapable
+          ? `Create the ${channelLabel[channel]} plan; provider dispatch still needs final controls.`
+          : `Create the ${channelLabel[channel]} plan, then publish or track it outside VYVA.`,
+      detail: capability?.note || (emailEnabled
+        ? "Email uses the existing VYVA communications dispatcher."
+        : "VYVA stores the plan, content, schedule, and recipient snapshot."),
+    };
+  });
   const campaignStudioBestChannelReach = [...campaignStudioChannelReach].sort((a, b) => {
     if (b.count !== a.count) return b.count - a.count;
     if (a.channel === campaignStudio.channel) return -1;
@@ -6490,6 +6529,38 @@ export default function MarketingAdminPage() {
                             </div>
                             <p className="mt-2 line-clamp-1 text-xs font-black text-[#241133]">{draft.contentTitle}</p>
                             <p className="mt-1 line-clamp-2 text-xs font-bold text-[#7d6b65]">{draft.subject}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-execution-plan">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Execution plan</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">What happens after create</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Each channel gets a clear handoff: VYVA send, provider-ready later, or manual publishing.</p>
+                        </div>
+                        <Pill className="bg-purple-50 text-purple-800">{campaignStudioExecutionPlan.length} channel{campaignStudioExecutionPlan.length === 1 ? "" : "s"}</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2" data-testid="marketing-campaign-studio-execution-plan-items">
+                        {campaignStudioExecutionPlan.map((item) => (
+                          <div key={item.channel} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-execution-plan-${item.channel}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                  <span className="text-xs font-black">{item.recipients} recipient{item.recipients === 1 ? "" : "s"}</span>
+                                </div>
+                                <p className="mt-2 text-sm font-black">{item.sendMode}</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed">{item.nextAction}</p>
+                                <p className="mt-1 text-xs font-semibold opacity-80">{item.detail}</p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2 text-xs font-black">
+                                <CalendarDays size={15} /> {formatDate(fromDateTimeLocal(campaignStudioSchedule))}
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>
