@@ -2034,6 +2034,35 @@
       provider_or_deal: "VYVA compares options and asks before contacting, booking, buying, or sharing details.",
       health_or_home_photo: "VYVA gives an assistive review only and asks before sharing or escalating.",
     },
+    contract: {
+      finalConfirmation: "VYVA prepares first. You confirm before anything is sent, bought, booked, called, uploaded, submitted, or shared.",
+      sections: {
+        summary: "Summary",
+        noticed: "What VYVA noticed",
+        nextSteps: "Safe next steps",
+      },
+      risk: {
+        low: "Low",
+        medium: "Needs care",
+        high: "High risk",
+        unknown: "Not sure yet",
+      },
+      confidence: {
+        low: "Early read",
+        medium: "Useful read",
+        high: "Strong read",
+      },
+      input: {
+        camera_photo: "Camera photo",
+        uploaded_image: "Uploaded image",
+        uploaded_document: "Uploaded document",
+        pasted_text: "Pasted text",
+        pasted_link: "Pasted link",
+        phone_number: "Phone number",
+        company_name: "Company name",
+        document_text: "Document text",
+      },
+    },
     followUp: {
       kicker: "Next safe step",
       title: {
@@ -2063,6 +2092,7 @@
         doctor_help: { label: "Doctor help", detail: "Review the next step." },
         schedule_appointment: { label: "Appointment", detail: "Prepare before booking." },
         book_ride: { label: "Find transport", detail: "Plan a safe ride." },
+        save_note: { label: "Save note", detail: "Keep this for later." },
         buy_safety_aid: { label: "Buy safety aid", detail: "Compare simple items first." },
         request_quote: { label: "Request quote", detail: "Prepare home help." },
         call_care_team: { label: "Call care team", detail: "Share the concern." },

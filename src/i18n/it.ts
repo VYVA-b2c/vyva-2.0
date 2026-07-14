@@ -1385,6 +1385,35 @@ const it = {
       provider_or_deal: "VYVA confronta opzioni e chiede prima di contattare, prenotare, comprare o condividere dati.",
       health_or_home_photo: "VYVA offre solo una revisione di supporto e chiede prima di condividere o inoltrare.",
     },
+    contract: {
+      finalConfirmation: "VYVA prepara prima. Confermi prima che qualcosa sia inviato, comprato, prenotato, chiamato, caricato, presentato o condiviso.",
+      sections: {
+        summary: "Riepilogo",
+        noticed: "Cosa ha notato VYVA",
+        nextSteps: "Prossimi passi sicuri",
+      },
+      risk: {
+        low: "Basso",
+        medium: "Da verificare",
+        high: "Rischio alto",
+        unknown: "Non ancora chiaro",
+      },
+      confidence: {
+        low: "Prima lettura",
+        medium: "Lettura utile",
+        high: "Lettura forte",
+      },
+      input: {
+        camera_photo: "Foto da camera",
+        uploaded_image: "Immagine caricata",
+        uploaded_document: "Documento caricato",
+        pasted_text: "Testo incollato",
+        pasted_link: "Link incollato",
+        phone_number: "Numero di telefono",
+        company_name: "Nome azienda",
+        document_text: "Testo documento",
+      },
+    },
     followUp: {
       kicker: "Prossimo passo sicuro",
       title: {
@@ -1414,6 +1443,7 @@ const it = {
         doctor_help: { label: "Aiuto medico", detail: "Rivedi il prossimo passo." },
         schedule_appointment: { label: "Appuntamento", detail: "Prepara prima di prenotare." },
         book_ride: { label: "Trova trasporto", detail: "Pianifica un viaggio sicuro." },
+        save_note: { label: "Salva nota", detail: "Conservala per dopo." },
         buy_safety_aid: { label: "Compra aiuto", detail: "Confronta oggetti semplici." },
         request_quote: { label: "Chiedi preventivo", detail: "Prepara aiuto in casa." },
         call_care_team: { label: "Chiama team", detail: "Condividi il dubbio." },

@@ -39,7 +39,7 @@ import {
   type ShowVyvaCaptureSource,
   type ShowVyvaPastePayload,
 } from "../../shared/showVyvaFlow";
-import { showVyvaFollowUpActionsFor } from "../../shared/showVyvaFollowUp";
+import { showVyvaReviewContractFromScamResult } from "../../shared/showVyvaReviewContract";
 
 type ScamCheck = {
   id: string;
@@ -217,7 +217,11 @@ export function ScamGuardActionButtons({
 }: ScamGuardActionButtonsProps) {
   const { t } = useTranslation();
   const contactName = trustedContactName?.trim() || t("scamGuard.actions.trustedFallback", "trusted person");
-  const actions = showVyvaFollowUpActionsFor("scam").map((action) => {
+  const reviewContract = showVyvaReviewContractFromScamResult({
+    useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+    source: "upload",
+  }, context);
+  const actions = reviewContract.followUpActions.map((action) => {
     if (action.id !== "call_trusted_contact") return action;
     if (trustedContactHref) {
       return {
@@ -243,6 +247,7 @@ export function ScamGuardActionButtons({
         testIdSuffix={testIdSuffix}
         title={t("showVyva.followUp.title.scam", "Next scam-safe step")}
         subtitle={t("showVyva.followUp.subtitle.scam", "Check before you reply, pay, call back, or share anything.")}
+        confirmation={t("showVyva.contract.finalConfirmation", reviewContract.finalConfirmationRule)}
         actions={actions}
         onSelect={(action) => {
           if (action.id === "call_trusted_contact") {
