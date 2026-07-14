@@ -3924,7 +3924,7 @@ export default function MarketingAdminPage() {
     targetAudienceId: "",
   }));
   const [campaignStudioCategory, setCampaignStudioCategory] = useState<CampaignStudioCategoryId>("all");
-  const [campaignStudioAiDraft, setCampaignStudioAiDraft] = useState<CampaignStudioGeneratedDraft | null>(null);
+  const [campaignStudioAiDrafts, setCampaignStudioAiDrafts] = useState<Partial<Record<Channel, CampaignStudioGeneratedDraft>>>({});
   const [campaignStudioAiRunning, setCampaignStudioAiRunning] = useState(false);
   const [campaignStudioSaving, setCampaignStudioSaving] = useState(false);
   const [campaignStudioFeedback, setCampaignStudioFeedback] = useState("");
@@ -4520,7 +4520,6 @@ export default function MarketingAdminPage() {
     campaignStudio.channel,
     selectedCampaignStudioTargetAudience,
   );
-  const campaignStudioGenerated = campaignStudioAiDraft ?? campaignStudioTemplateDraft;
   const campaignStudioSelectedChannels = useMemo(
     () => normalizeCampaignStudioChannels(campaignStudio.channel, campaignStudio.selectedChannels),
     [campaignStudio.channel, campaignStudio.selectedChannels],
@@ -4529,6 +4528,8 @@ export default function MarketingAdminPage() {
     () => recommendedCampaignStudioChannels(selectedCampaignStudioPlay),
     [selectedCampaignStudioPlay],
   );
+  const campaignStudioPrimaryAiDraft = campaignStudioAiDrafts[campaignStudio.channel] ?? null;
+  const campaignStudioGenerated = campaignStudioPrimaryAiDraft ?? campaignStudioTemplateDraft;
   const campaignStudioAudiencePool = useMemo(() => contacts.filter((contact) => {
     if (!campaignAllowsContact(selectedCampaignStudioPlay.audienceType, contact.audienceType)) return false;
     if (!contactMatchesAudienceList(contact, selectedCampaignStudioTargetAudience)) return false;
@@ -4548,9 +4549,10 @@ export default function MarketingAdminPage() {
   const campaignStudioPackRecipientCount = Array.from(campaignStudioRecipientPreviewByChannel.values()).reduce((count, recipients) => count + recipients.length, 0);
   const campaignStudioChannelDrafts = campaignStudioSelectedChannels.map((channel) => ({
     channel,
-    draft: channel === campaignStudio.channel
-      ? campaignStudioGenerated
-      : campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, channel, selectedCampaignStudioTargetAudience),
+    draft: campaignStudioAiDrafts[channel]
+      ?? (channel === campaignStudio.channel
+        ? campaignStudioGenerated
+        : campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, channel, selectedCampaignStudioTargetAudience)),
     recipients: campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0,
   }));
   const campaignStudioBestChannelReach = [...campaignStudioChannelReach].sort((a, b) => {
@@ -4566,6 +4568,8 @@ export default function MarketingAdminPage() {
     optedOut: campaignStudioAudiencePool.filter((contact) => contact.consentStatus === "opted_out").length,
     review: campaignStudioAudiencePool.filter((contact) => contact.consentStatus !== "opted_in" && contact.consentStatus !== "opted_out").length,
   };
+  const campaignStudioAiDraftCount = campaignStudioSelectedChannels.filter((channel) => campaignStudioAiDrafts[channel]?.source === "openai").length;
+  const campaignStudioHasFullAiPack = campaignStudioSelectedChannels.length > 0 && campaignStudioAiDraftCount === campaignStudioSelectedChannels.length;
   const campaignStudioLanguageLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.language), "Unknown", 2);
   const campaignStudioMarketLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.market), "Unknown", 2);
   const campaignStudioAudienceTypeLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.audienceType.toUpperCase()), "Unknown", 2);
@@ -4662,10 +4666,12 @@ export default function MarketingAdminPage() {
     {
       key: "ai",
       title: "AI polish",
-      state: campaignStudioGenerated.source === "openai" ? "ready" : "planning",
-      detail: campaignStudioGenerated.source === "openai"
-        ? "This draft was tailored by AI from the selected play, channel, and list."
-        : "Use Improve with AI for a tailored draft, or create now from the proven template.",
+      state: campaignStudioHasFullAiPack ? "ready" : "planning",
+      detail: campaignStudioHasFullAiPack
+        ? `AI tailored all ${campaignStudioSelectedChannels.length} selected channel draft${campaignStudioSelectedChannels.length === 1 ? "" : "s"} from this play and list.`
+        : campaignStudioAiDraftCount > 0
+          ? `${campaignStudioAiDraftCount}/${campaignStudioSelectedChannels.length} selected channels have AI-polished drafts.`
+          : "Use Improve with AI for tailored channel drafts, or create now from proven templates.",
     },
   ];
   const campaignStudioReadyCount = campaignStudioReadinessItems.filter((item) => item.state === "ready").length;
@@ -4678,8 +4684,10 @@ export default function MarketingAdminPage() {
       : "Ready to create";
   const campaignStudioNextStep = campaignStudioBlockedCount > 0
     ? "Add or sync eligible contacts, choose a different list, or change the channel before creating."
-    : campaignStudioGenerated.source !== "openai"
-      ? "Improve with AI if you want a more tailored draft, or create the campaign now."
+    : !campaignStudioHasFullAiPack
+      ? campaignStudioSelectedChannels.length > 1
+        ? "Improve the full channel pack with AI, or create the campaign now from proven templates."
+        : "Improve with AI if you want a more tailored draft, or create the campaign now."
       : campaignStudio.channel === "email"
         ? "Create the campaign and review it before sending email."
         : `Create the ${channelLabel[campaignStudio.channel]} planning campaign, then track execution manually until sending is enabled.`;
@@ -4719,7 +4727,7 @@ export default function MarketingAdminPage() {
 
   function updateCampaignStudio(patch: Partial<CampaignStudioState>) {
     setCampaignStudio((current) => ({ ...current, ...patch }));
-    setCampaignStudioAiDraft(null);
+    setCampaignStudioAiDrafts({});
     setCampaignStudioFeedback("");
   }
 
@@ -4735,7 +4743,7 @@ export default function MarketingAdminPage() {
           : uniqueChannels([...selectedChannels, channel]),
       };
     });
-    setCampaignStudioAiDraft(null);
+    setCampaignStudioAiDrafts({});
     setCampaignStudioFeedback("");
   }
 
@@ -4752,7 +4760,7 @@ export default function MarketingAdminPage() {
       ? campaignStudioPlays
       : campaignStudioPlays.filter((play) => play.categoryId === categoryId);
     if (categoryPlays.some((play) => play.id === selectedCampaignStudioPlay.id)) {
-      setCampaignStudioAiDraft(null);
+      setCampaignStudioAiDrafts({});
       setCampaignStudioFeedback("");
       return;
     }
@@ -4770,39 +4778,53 @@ export default function MarketingAdminPage() {
 
   async function generateCampaignStudioAiDraft() {
     setCampaignStudioAiRunning(true);
-    setCampaignStudioFeedback("Generating AI campaign draft...");
+    setCampaignStudioFeedback(campaignStudioSelectedChannels.length > 1 ? "Generating AI drafts for the selected channel pack..." : "Generating AI campaign draft...");
     try {
-      const result = await api<{
-        configured: boolean;
-        source: "openai" | "fallback";
-        draft: CampaignStudioGeneratedDraft;
-        note?: string | null;
-      }>("/api/admin/marketing/ai/campaign-draft", {
-        method: "POST",
-        body: JSON.stringify({
-          playLabel: selectedCampaignStudioPlay.label,
-          playCategory: selectedCampaignStudioPlay.categoryId,
-          audienceType: selectedCampaignStudioPlay.audienceType,
-          channel: campaignStudio.channel,
-          tone: campaignStudio.toneId,
-          targetAudienceName: selectedCampaignStudioTargetAudience?.name ?? "",
-          targetAudienceSize: selectedCampaignStudioTargetAudience?.mappedMemberCount ?? campaignStudioRecipientPreview.length,
-          campaignName: campaignStudioTemplateDraft.campaignName,
-          contentTitle: campaignStudioTemplateDraft.contentTitle,
-          objective: campaignStudioTemplateDraft.objective,
-          subjectSeed: campaignStudioTemplateDraft.subject,
-          bodySeed: campaignStudioTemplateDraft.body,
-          ctaLabel: campaignStudioTemplateDraft.ctaLabel,
-          ctaUrl: campaignStudioTemplateDraft.ctaUrl,
-          language: "en",
-        }),
-      });
-      setCampaignStudioAiDraft({
-        ...result.draft,
-        source: result.source,
-        note: result.note ?? null,
-      });
-      setCampaignStudioFeedback(result.source === "openai" ? "AI draft generated." : result.note || "Fallback draft generated.");
+      const results = await Promise.all(campaignStudioSelectedChannels.map(async (channel) => {
+        const seed = campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, channel, selectedCampaignStudioTargetAudience);
+        const recipientsForChannel = campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0;
+        const result = await api<{
+          configured: boolean;
+          source: "openai" | "fallback";
+          draft: CampaignStudioGeneratedDraft;
+          note?: string | null;
+        }>("/api/admin/marketing/ai/campaign-draft", {
+          method: "POST",
+          body: JSON.stringify({
+            playLabel: selectedCampaignStudioPlay.label,
+            playCategory: selectedCampaignStudioPlay.categoryId,
+            audienceType: selectedCampaignStudioPlay.audienceType,
+            channel,
+            tone: campaignStudio.toneId,
+            targetAudienceName: selectedCampaignStudioTargetAudience?.name ?? "",
+            targetAudienceSize: selectedCampaignStudioTargetAudience?.mappedMemberCount ?? recipientsForChannel,
+            campaignName: seed.campaignName,
+            contentTitle: seed.contentTitle,
+            objective: seed.objective,
+            subjectSeed: seed.subject,
+            bodySeed: seed.body,
+            ctaLabel: seed.ctaLabel,
+            ctaUrl: seed.ctaUrl,
+            language: "en",
+          }),
+        });
+        return {
+          channel,
+          source: result.source,
+          draft: {
+            ...result.draft,
+            source: result.source,
+            note: result.note ?? null,
+          },
+          note: result.note ?? null,
+        };
+      }));
+      setCampaignStudioAiDrafts(Object.fromEntries(results.map((result) => [result.channel, result.draft])) as Partial<Record<Channel, CampaignStudioGeneratedDraft>>);
+      const openAiCount = results.filter((result) => result.source === "openai").length;
+      const fallbackNote = results.find((result) => result.source !== "openai")?.note;
+      setCampaignStudioFeedback(openAiCount === results.length
+        ? results.length === 1 ? "AI draft generated." : `AI drafts generated for ${results.length} channels.`
+        : fallbackNote || `Fallback drafts generated for ${results.length - openAiCount} channel${results.length - openAiCount === 1 ? "" : "s"}.`);
     } catch (error) {
       setCampaignStudioFeedback(error instanceof Error ? error.message : "AI draft could not be generated.");
     } finally {
@@ -6459,7 +6481,12 @@ export default function MarketingAdminPage() {
                           <div key={channel} className="rounded-xl border border-[#eadfd5] bg-white px-3 py-2">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <Pill className={channelClass(channel)}>{channelLabel[channel]}</Pill>
-                              <span className="text-xs font-black text-[#7d6b65]">{recipients} recipient{recipients === 1 ? "" : "s"}</span>
+                              <span className="flex flex-wrap items-center justify-end gap-1.5">
+                                <Pill className={draft.source === "openai" ? "bg-emerald-50 text-emerald-800" : draft.source === "fallback" ? "bg-amber-50 text-amber-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
+                                  {draft.source === "openai" ? "AI" : draft.source === "fallback" ? "Fallback" : "Template"}
+                                </Pill>
+                                <span className="text-xs font-black text-[#7d6b65]">{recipients} recipient{recipients === 1 ? "" : "s"}</span>
+                              </span>
                             </div>
                             <p className="mt-2 line-clamp-1 text-xs font-black text-[#241133]">{draft.contentTitle}</p>
                             <p className="mt-1 line-clamp-2 text-xs font-bold text-[#7d6b65]">{draft.subject}</p>
@@ -6566,7 +6593,7 @@ export default function MarketingAdminPage() {
                         disabled={campaignStudioAiRunning || campaignStudioSaving}
                         data-testid="button-marketing-generate-ai-campaign-draft"
                       >
-                        <Sparkles size={16} /> {campaignStudioAiRunning ? "Generating..." : "Improve with AI"}
+                        <Sparkles size={16} /> {campaignStudioAiRunning ? "Generating..." : campaignStudioSelectedChannels.length > 1 ? "Improve pack with AI" : "Improve with AI"}
                       </button>
                       <button
                         type="button"

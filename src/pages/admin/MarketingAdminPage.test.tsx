@@ -749,10 +749,10 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
         note: null,
         draft: {
           campaignName: `${body.playLabel} AI campaign`,
-          contentTitle: `${body.playLabel} AI content`,
+          contentTitle: body.channel === "linkedin" ? `${body.playLabel} AI content` : `${body.playLabel} ${body.channel} AI content`,
           objective: `AI objective for ${body.targetAudienceName}`,
-          subject: "AI subject line",
-          body: "AI body copy with stronger channel direction.",
+          subject: body.channel === "linkedin" ? "AI subject line" : `AI ${body.channel} subject line`,
+          body: body.channel === "linkedin" ? "AI body copy with stronger channel direction." : `AI ${body.channel} body copy with stronger channel direction.`,
           ctaLabel: "AI CTA",
           ctaUrl: "https://v2.vyva.life/ai",
           language: "en",
@@ -2071,8 +2071,11 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI draft generated");
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI drafts generated for 2 channels");
     });
+    const aiDraftCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel)).toEqual(["linkedin", "email"]);
+    expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
     fireEvent.click(screen.getByTestId("button-marketing-create-studio-campaign"));
 
     await waitFor(() => {
@@ -2104,9 +2107,12 @@ describe("MarketingAdminPage", () => {
     const emailContentBody = JSON.parse(String(contentPosts.find(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel === "email")?.[1]?.body));
     expect(emailContentBody).toMatchObject({
       channel: "email",
-      title: "B2B partner introduction - Email",
+      title: "Partner outreach email AI content",
+      subject: "AI email subject line",
+      body: "AI email body copy with stronger channel direction.",
       designJson: {
         generator: "marketing_campaign_studio",
+        source: "openai",
         channel: "email",
         primaryChannel: "linkedin",
       },
