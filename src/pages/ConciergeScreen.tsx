@@ -5744,14 +5744,20 @@ function buildConciergeFollowThroughStatus(item: ConciergePendingItem, isSpanish
   const formPlan = getFormAutomationPlan(item);
   const formReady = executionChannel === "booking_url" && Boolean(bookingUrl) && (formPlan?.missingFields.length ?? 0) === 0;
   const isVyvaTask = executionChannel === "manual" || (executionChannel === "booking_url" && !formReady);
+  const userConfirmed = conciergeActionAlreadyConfirmed(item);
+  const operatorAssigned = conciergeOperatorAssigned(item);
   const stepIds = ["review", "requested", "waiting", "confirmed", "done"];
 
-  let activeId = isVyvaTask ? "requested" : "review";
+  let activeId = isVyvaTask || userConfirmed ? "requested" : "review";
   const eyebrow = isSpanish ? "Seguimiento" : "Follow-through";
-  let title = isVyvaTask
-    ? (isSpanish ? "VYVA lo esta preparando" : "VYVA is preparing it")
+  let title = isVyvaTask || userConfirmed
+    ? (
+      operatorAssigned
+        ? (isSpanish ? "Un operador VYVA lo prepara" : "A VYVA operator is preparing it")
+        : (isSpanish ? "VYVA lo esta preparando" : "VYVA is preparing it")
+    )
     : (isSpanish ? "Listo para tu OK" : "Ready for your OK");
-  let helper = isVyvaTask
+  let helper = isVyvaTask || userConfirmed
     ? (isSpanish ? "La tarea se queda aqui mientras VYVA reune lo necesario." : "This stays here while VYVA gathers what is needed.")
     : (isSpanish ? "Nada se envia, llama o reserva hasta que confirmes." : "Nothing is sent, called, or booked until you confirm.");
 
@@ -5851,6 +5857,11 @@ type ConciergeExecutionStatusSummary = {
   tone: ConciergeExecutionTone;
 };
 
+type ConciergeUserUpdateSummary = ConciergeExecutionStatusSummary & {
+  detail: string;
+  chips: string[];
+};
+
 function getConciergeExecutionTask(item: ConciergePendingItem): ConciergeExecutionTask | null {
   const task = item.action_payload?.execution_task;
   if (!isRecord(task) || task.version !== 1) return null;
@@ -5859,6 +5870,22 @@ function getConciergeExecutionTask(item: ConciergePendingItem): ConciergeExecuti
     : "";
   if (!["ready", "needs_info", "in_progress", "done", "failed", "cancelled"].includes(lifecycleStatus)) return null;
   return task as unknown as ConciergeExecutionTask;
+}
+
+function conciergeOperatorAssigned(item: ConciergePendingItem): boolean {
+  return Boolean(
+    payloadString(item.action_payload, ["operator_assigned_to"])
+      || payloadString(item.action_payload, ["operator_assigned_email"]),
+  );
+}
+
+function conciergeActionAlreadyConfirmed(item: ConciergePendingItem): boolean {
+  const task = getConciergeExecutionTask(item);
+  return Boolean(
+    task?.user_confirmed
+      || item.confirmed_at
+      || payloadString(item.action_payload, ["operator_assigned_at", "confirmed_at"]),
+  );
 }
 
 function executionActionLabel(actionType: ConciergeExecutionTask["action_type"], isSpanish: boolean): string {
@@ -6008,6 +6035,92 @@ function buildConciergeExecutionStatus(
     label: isSpanish ? "Necesita tu OK" : "Needs your OK",
     helper: isSpanish ? "Confirmas antes de enviar, llamar o reservar." : "You confirm before anything is sent, called, or booked.",
     tone: "purple",
+  };
+}
+
+function buildConciergeUserUpdateSummary(
+  item: ConciergePendingItem,
+  fallback: ConciergeExecutionStatusSummary,
+  isSpanish: boolean,
+): ConciergeUserUpdateSummary {
+  const task = getConciergeExecutionTask(item);
+  const missing = task?.missing_requirements?.[0];
+  const missingLabel = missing ? (isSpanish ? missing.label_es : missing.label_en) : "";
+  const alreadyConfirmed = conciergeActionAlreadyConfirmed(item);
+  const operatorAssigned = conciergeOperatorAssigned(item);
+  const baseSafeChip = isSpanish ? "Tu confirmas" : "You confirm";
+
+  if (fallback.phase === "needs_info") {
+    return {
+      ...fallback,
+      detail: missingLabel
+        ? (isSpanish ? `VYVA necesita: ${missingLabel}.` : `VYVA needs: ${missingLabel}.`)
+        : (isSpanish ? "Anade el dato que falta y VYVA sigue." : "Add the missing detail and VYVA will continue."),
+      chips: [isSpanish ? "Falta un dato" : "One detail needed", baseSafeChip],
+    };
+  }
+
+  if (item.status === "calling" || fallback.phase === "waiting") {
+    return {
+      ...fallback,
+      label: isSpanish ? "VYVA esta con ello" : "VYVA is working on it",
+      helper: isSpanish
+        ? "Puedes volver mas tarde; la tarea seguira aqui."
+        : "You can come back later; this task stays here.",
+      detail: isSpanish
+        ? "Cuando haya respuesta, aparecera aqui para guardar o revisar."
+        : "When there is a reply, it will appear here to save or review.",
+      chips: [isSpanish ? "En marcha" : "In progress", baseSafeChip],
+    };
+  }
+
+  if (alreadyConfirmed && item.status === "pending") {
+    return {
+      phase: "being_prepared",
+      label: operatorAssigned
+        ? (isSpanish ? "Un operador VYVA lo prepara" : "A VYVA operator is preparing this")
+        : (isSpanish ? "VYVA lo esta preparando" : "VYVA is preparing this"),
+      helper: isSpanish
+        ? "Ya diste tu OK. VYVA te pedira confirmacion antes del paso final."
+        : "You already gave your OK. VYVA will ask again before any final step.",
+      detail: isSpanish
+        ? "Mira esta tarjeta para la siguiente actualizacion."
+        : "Watch this card for the next update.",
+      tone: operatorAssigned ? "blue" : "purple",
+      chips: [
+        isSpanish ? "OK recibido" : "OK received",
+        operatorAssigned ? (isSpanish ? "Operador asignado" : "Operator assigned") : (isSpanish ? "Preparando" : "Preparing"),
+      ],
+    };
+  }
+
+  if (fallback.phase === "ready_to_save") {
+    return {
+      ...fallback,
+      detail: isSpanish
+        ? "Guarda el detalle final para cerrar la gestion."
+        : "Save the final detail to close the task.",
+      chips: [isSpanish ? "Listo para cerrar" : "Ready to close", baseSafeChip],
+    };
+  }
+
+  if (fallback.phase === "attention") {
+    return {
+      ...fallback,
+      label: isSpanish ? "No se pudo completar aun" : "Could not complete yet",
+      detail: isSpanish
+        ? "Revisa el siguiente paso o pide a VYVA que pruebe otra opcion."
+        : "Review the next step or ask VYVA to try another option.",
+      chips: [isSpanish ? "Necesita revision" : "Needs review", baseSafeChip],
+    };
+  }
+
+  return {
+    ...fallback,
+    detail: isSpanish
+      ? "Nada se envia, llama ni reserva sin tu permiso."
+      : "Nothing is sent, called, or booked without your permission.",
+    chips: [baseSafeChip, isSpanish ? "Sin sorpresas" : "No surprises"],
   };
 }
 
@@ -6715,7 +6828,18 @@ function ConciergeActionTimeline({ status }: { status: ConciergeFollowThroughSta
   );
 }
 
-function ConciergeExecutionStatusPanel({ summary }: { summary: ConciergeExecutionStatusSummary }) {
+function ConciergeExecutionStatusPanel({
+  summary,
+  update,
+}: {
+  summary: ConciergeExecutionStatusSummary;
+  update?: ConciergeUserUpdateSummary | null;
+}) {
+  const display = update ?? {
+    ...summary,
+    detail: "",
+    chips: [] as string[],
+  };
   const toneClasses: Record<ConciergeExecutionTone, string> = {
     purple: "border-[#E9D5FF] bg-[#FBF8FF] text-vyva-purple",
     blue: "border-[#BAE6FD] bg-[#F0F9FF] text-[#0369A1]",
@@ -6723,31 +6847,48 @@ function ConciergeExecutionStatusPanel({ summary }: { summary: ConciergeExecutio
     amber: "border-[#FED7AA] bg-[#FFFBEB] text-[#A16207]",
     red: "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]",
   };
-  const Icon = summary.tone === "green"
+  const Icon = display.tone === "green"
     ? CircleCheck
-    : summary.tone === "red"
+    : display.tone === "red"
       ? AlertTriangle
       : PackageCheck;
 
   return (
     <div
-      className={`mt-4 rounded-[18px] border px-3 py-2.5 ${toneClasses[summary.tone]}`}
-      data-phase={summary.phase}
+      className={`mt-4 rounded-[18px] border px-3 py-2.5 ${toneClasses[display.tone]}`}
+      data-phase={display.phase}
       data-testid="panel-concierge-execution-status"
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3" data-testid="panel-concierge-user-update">
         <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/80">
           <Icon size={16} aria-hidden="true" />
         </span>
         <span className="min-w-0">
           <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">
-            {summary.label}
+            {display.label}
           </span>
           <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
-            {summary.helper}
+            {display.helper}
           </span>
+          {display.detail ? (
+            <span className="mt-1 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+              {display.detail}
+            </span>
+          ) : null}
         </span>
       </div>
+      {display.chips.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {display.chips.map((chip) => (
+            <span
+              key={chip}
+              className="rounded-full bg-white/80 px-3 py-1 font-body text-[11px] font-black text-current shadow-sm"
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -10323,6 +10464,9 @@ const ConciergeScreen = () => {
   const activeActionExecutionStatus = activeAction
     ? buildConciergeExecutionStatus(activeAction, activeActionTimeline, isSpanish)
     : null;
+  const activeActionUserUpdate = activeAction && activeActionExecutionStatus
+    ? buildConciergeUserUpdateSummary(activeAction, activeActionExecutionStatus, isSpanish)
+    : null;
   const activeActionCanRecordProviderReply = canRecordProviderReply(activeActionTimeline);
   const activeActionProviderSearchDetails = isProviderSearchPendingAction(activeAction)
     ? providerSearchActionDetails(activeAction, isSpanish)
@@ -10409,6 +10553,8 @@ const ConciergeScreen = () => {
     (!activeAction?.provider_phone && !activeActionBookingUrl)
   ));
   const activeActionExecutionChannel = activeAction ? getExecutionChannel(activeAction) : "";
+  const activeActionAlreadyConfirmed = activeAction ? conciergeActionAlreadyConfirmed(activeAction) : false;
+  const activeActionNeedsUserConfirmation = Boolean(activeAction?.status === "pending" && !activeActionAlreadyConfirmed);
   const activeActionFormPlan = activeAction ? getFormAutomationPlan(activeAction) : null;
   const activeActionFormMissingFields = activeActionFormPlan?.missingFields ?? [];
   const activeActionCanOpenForm = Boolean(
@@ -10421,18 +10567,18 @@ const ConciergeScreen = () => {
     activeActionBookingUrl,
   );
   const activeActionNeedsWhatsAppOutcome = Boolean(
-    activeAction?.status === "pending" &&
+    activeActionNeedsUserConfirmation &&
     activeActionWhatsAppDraft &&
     activeActionOpensWhatsApp &&
     !activeActionHasBookingFormSupport,
   );
   const activeActionNeedsEmailOutcome = Boolean(
-    activeAction?.status === "pending" &&
+    activeActionNeedsUserConfirmation &&
     activeActionEmailDraft &&
     activeActionOpensEmail &&
     !activeActionHasBookingFormSupport,
   );
-  const activeActionIsVyvaTask = activeActionExecutionChannel === "manual" || (
+  const activeActionIsVyvaTask = activeActionAlreadyConfirmed || activeActionExecutionChannel === "manual" || (
     activeActionExecutionChannel === "booking_url" &&
     !activeActionCanOpenForm
   );
@@ -10442,7 +10588,7 @@ const ConciergeScreen = () => {
     !activeActionOpensEmail &&
     (activeActionCanOpenForm || (!activeAction?.provider_phone && activeActionExecutionChannel !== "booking_url"))
   );
-  const activeActionNeedsPhoneOutcome = activeAction ? isPhoneCallPendingAction(activeAction) : false;
+  const activeActionNeedsPhoneOutcome = activeActionNeedsUserConfirmation && activeAction ? isPhoneCallPendingAction(activeAction) : false;
   const activeActionIsAppointment = activeAction?.use_case === "book_appointment";
   const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
     ? activeAction.action_payload.mission_status
@@ -12241,7 +12387,12 @@ const ConciergeScreen = () => {
               {activeAction.action_summary}
             </p>
 
-            {activeActionExecutionStatus ? <ConciergeExecutionStatusPanel summary={activeActionExecutionStatus} /> : null}
+            {activeActionExecutionStatus ? (
+              <ConciergeExecutionStatusPanel
+                summary={activeActionExecutionStatus}
+                update={activeActionUserUpdate}
+              />
+            ) : null}
 
             {activeActionTimeline ? <ConciergeActionTimeline status={activeActionTimeline} /> : null}
 
@@ -12252,7 +12403,7 @@ const ConciergeScreen = () => {
               />
             ) : null}
 
-            {activeAction.status === "pending" && activeActionReviewSummary ? (
+            {activeActionNeedsUserConfirmation && activeActionReviewSummary ? (
               <PendingActionReviewCard
                 review={activeActionReviewSummary}
                 primaryLabel={activeActionPrimaryLabel}
