@@ -5148,6 +5148,10 @@ export default function MarketingAdminPage() {
     () => audiences.find((audience) => audience.id === campaignDraft.targetAudienceId) ?? null,
     [audiences, campaignDraft.targetAudienceId],
   );
+  const selectedCampaignDraftContent = useMemo(
+    () => campaignDraft.contentAssetId ? contentById.get(campaignDraft.contentAssetId) ?? null : null,
+    [campaignDraft.contentAssetId, contentById],
+  );
   const visibleCampaignStudioPlays = useMemo(
     () => campaignStudioCategory === "all"
       ? campaignStudioPlays
@@ -5764,6 +5768,84 @@ export default function MarketingAdminPage() {
       return !filter || contactSearchText(contact).includes(filter);
     });
   }, [campaignDraft, contacts, selectedCampaignDraftTargetAudience]);
+  const campaignDraftReadinessItems = useMemo<CampaignReadinessItem[]>(() => {
+    const channelCapability = sendCapabilityByChannel.get(campaignDraft.channel);
+    const emailSendEnabled = campaignDraft.channel === "email" && channelCapability?.sendCapability === "enabled" && !channelCapability.locked;
+    return [
+      {
+        key: "name",
+        title: "Name",
+        state: campaignDraft.name.trim() ? "ready" : "blocked",
+        detail: campaignDraft.name.trim() ? `Saved as "${campaignDraft.name.trim()}".` : "Name the campaign before adding it.",
+      },
+      {
+        key: "content",
+        title: "Content",
+        state: selectedCampaignDraftContent ? "ready" : campaignDraftContentOptions.length ? "needs_action" : "blocked",
+        detail: selectedCampaignDraftContent
+          ? `${selectedCampaignDraftContent.title} is linked for ${channelLabel[campaignDraft.channel]}.`
+          : campaignDraftContentOptions.length
+            ? `${campaignDraftContentOptions.length} ${channelLabel[campaignDraft.channel]} asset${campaignDraftContentOptions.length === 1 ? "" : "s"} available. Pick one before launch.`
+            : `No active ${channelLabel[campaignDraft.channel]} content assets yet.`,
+      },
+      {
+        key: "audience",
+        title: "Audience",
+        state: selectedCampaignDraftTargetAudience && selectedCampaignDraftTargetAudience.mappedMemberCount === 0 ? "needs_action" : "ready",
+        detail: selectedCampaignDraftTargetAudience
+          ? `${selectedCampaignDraftTargetAudience.name}: ${selectedCampaignDraftTargetAudience.mappedMemberCount}/${selectedCampaignDraftTargetAudience.memberCount} mapped.`
+          : `All eligible ${campaignDraft.audienceType.toUpperCase()} contacts will be considered.`,
+      },
+      {
+        key: "recipients",
+        title: "Recipients",
+        state: campaignDraft.snapshotRecipients
+          ? campaignDraftRecipientPreview.length > 0 ? "ready" : "blocked"
+          : "planning",
+        detail: campaignDraft.snapshotRecipients
+          ? campaignDraftRecipientPreview.length > 0
+            ? `${campaignDraftRecipientPreview.length} recipient${campaignDraftRecipientPreview.length === 1 ? "" : "s"} will be snapshotted.`
+            : "No eligible recipients match this channel, list, and filter."
+          : "Snapshot is off; recipients can be saved later.",
+      },
+      {
+        key: "schedule",
+        title: "Schedule",
+        state: campaignDraft.scheduleStartsAt ? "ready" : "planning",
+        detail: campaignDraft.scheduleStartsAt
+          ? `Starts ${formatDate(fromDateTimeLocal(campaignDraft.scheduleStartsAt))}.`
+          : "No start time yet; this can remain a draft.",
+      },
+      {
+        key: "channel",
+        title: "Channel mode",
+        state: emailSendEnabled ? "ready" : "planning",
+        detail: emailSendEnabled
+          ? "Email sending is enabled through Resend after save."
+          : `${channelLabel[campaignDraft.channel]} will be saved for planning or manual handoff.`,
+      },
+    ];
+  }, [
+    campaignDraft,
+    campaignDraftContentOptions.length,
+    campaignDraftRecipientPreview.length,
+    selectedCampaignDraftContent,
+    selectedCampaignDraftTargetAudience,
+    sendCapabilityByChannel,
+  ]);
+  const campaignDraftBlockedCount = campaignDraftReadinessItems.filter((item) => item.state === "blocked").length;
+  const campaignDraftNeedsActionCount = campaignDraftReadinessItems.filter((item) => item.state === "needs_action").length;
+  const campaignDraftReadinessState: CampaignReadinessState = campaignDraftBlockedCount > 0
+    ? "blocked"
+    : campaignDraftNeedsActionCount > 0 ? "needs_action" : "ready";
+  const campaignDraftReadinessLabel = campaignDraftBlockedCount > 0
+    ? `${campaignDraftBlockedCount} blocked`
+    : campaignDraftNeedsActionCount > 0 ? `${campaignDraftNeedsActionCount} needs review` : "Ready to add";
+  const campaignDraftReadinessDetail = campaignDraftBlockedCount > 0
+    ? "Fix the blocked items before this campaign can be saved cleanly."
+    : campaignDraftNeedsActionCount > 0
+      ? "This can be saved as a draft, but review the highlighted items before launch."
+      : "This draft has the core pieces needed to create a campaign record.";
 
   const campaignRecipientPreview = useMemo(() => {
     if (!editingCampaignId || !campaignEditDraft.snapshotRecipients) return [];
@@ -8882,6 +8964,27 @@ export default function MarketingAdminPage() {
                       {selectedCampaignDraftTargetAudience.name}: {selectedCampaignDraftTargetAudience.mappedMemberCount} mapped / {selectedCampaignDraftTargetAudience.unmappedContactExternalIds.length} unmapped contacts.
                     </p>
                   ) : null}
+                  <div className={`rounded-xl border p-4 ${readinessClass(campaignDraftReadinessState)}`} data-testid="marketing-campaign-draft-readiness">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] opacity-70">Draft readiness</p>
+                        <h3 className="mt-1 text-base font-black">{campaignDraftReadinessLabel}</h3>
+                        <p className="mt-1 text-xs font-bold opacity-80">{campaignDraftReadinessDetail}</p>
+                      </div>
+                      <Pill className={readinessPillClass(campaignDraftReadinessState)}>{readinessLabel(campaignDraftReadinessState)}</Pill>
+                    </div>
+                    <div className="mt-3 grid gap-2 xl:grid-cols-3">
+                      {campaignDraftReadinessItems.map((item) => (
+                        <div key={item.key} className="rounded-lg border border-white/70 bg-white/80 p-3" data-testid={`marketing-campaign-draft-readiness-${item.key}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">{item.title}</p>
+                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                          </div>
+                          <p className="mt-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <textarea className={textareaClass} value={campaignDraft.objective} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))} placeholder="Objective or internal notes" data-testid="textarea-marketing-campaign-objective" />
                   </form>
                 </div>

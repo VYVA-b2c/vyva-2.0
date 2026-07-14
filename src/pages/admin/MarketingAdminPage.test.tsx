@@ -1601,6 +1601,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
     expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Start a partner conversation");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Starter loaded: Partner outreach with Partner post");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("Ready to add");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("Partner post is linked for LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-channel")).toHaveTextContent("LinkedIn will be saved for planning or manual handoff");
   });
 
   it("creates rich marketing content drafts", async () => {
