@@ -87,7 +87,7 @@ export default function ConciergeQueueAdminPage() {
   const [savingAction, setSavingAction] = useState<QueueAction | null>(null);
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setMessage("");
     try {
@@ -104,11 +104,11 @@ export default function ConciergeQueueAdminPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    refresh();
-  }, []);
+    void refresh();
+  }, [refresh]);
 
   const currentOperatorId = user?.id?.trim() || "";
   const currentOperatorEmail = user?.email?.trim().toLowerCase() || "";
@@ -116,7 +116,7 @@ export default function ConciergeQueueAdminPage() {
     Boolean(currentOperatorId && item.operator_assigned_to === currentOperatorId)
       || Boolean(currentOperatorEmail && item.operator_assigned_email?.trim().toLowerCase() === currentOperatorEmail)
   ), [currentOperatorEmail, currentOperatorId]);
-  const isUnassigned = (item: OperatorConciergeQueueItem) => !item.operator_assigned_to && !item.operator_assigned_email;
+  const isUnassigned = useCallback((item: OperatorConciergeQueueItem) => !item.operator_assigned_to && !item.operator_assigned_email, []);
   const canCurrentOperatorAct = (item: OperatorConciergeQueueItem) => isUnassigned(item) || isAssignedToCurrentOperator(item);
   const assignmentLabel = (item: OperatorConciergeQueueItem) => {
     if (isAssignedToCurrentOperator(item)) return "Assigned to me";
@@ -136,10 +136,10 @@ export default function ConciergeQueueAdminPage() {
     if (ownerFilter === "mine") return statusFiltered.filter(isAssignedToCurrentOperator);
     if (ownerFilter === "unassigned") return statusFiltered.filter(isUnassigned);
     return statusFiltered;
-  }, [filter, isAssignedToCurrentOperator, items, ownerFilter]);
+  }, [filter, isAssignedToCurrentOperator, isUnassigned, items, ownerFilter]);
   const allCount = useMemo(() => OPERATOR_CONCIERGE_QUEUE_STATUSES.reduce((sum, status) => sum + totals[status], 0), [totals]);
   const mineCount = useMemo(() => items.filter(isAssignedToCurrentOperator).length, [isAssignedToCurrentOperator, items]);
-  const unassignedCount = useMemo(() => items.filter(isUnassigned).length, [items]);
+  const unassignedCount = useMemo(() => items.filter(isUnassigned).length, [isUnassigned, items]);
   const selectedCanAct = Boolean(
     selectedItem?.source === "pending"
       && selectedItem.user_confirmed

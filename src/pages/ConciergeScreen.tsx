@@ -8519,7 +8519,7 @@ const ConciergeScreen = () => {
     lastCompletedTemplateKeyRef.current = templateKey;
     handleCompletedSessionUseTemplate(template);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
@@ -9787,21 +9787,21 @@ const ConciergeScreen = () => {
     window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
-  function openProviderReplyMode(item: ConciergePendingItem, mode: ProviderReplyMode) {
+  const openProviderReplyMode = useCallback((item: ConciergePendingItem, mode: ProviderReplyMode) => {
     setProviderReplyMode(mode);
     setProviderReplyError(null);
     setProviderReplyNotice(null);
     setProviderReplyForm(providerReplyInitialForm(item, isSpanish));
-  }
+  }, [isSpanish]);
 
-  function handleProviderFollowUp(item: ConciergePendingItem) {
+  const handleProviderFollowUp = useCallback((item: ConciergePendingItem) => {
     setProviderReplyMode(null);
     setProviderReplyForm(providerReplyInitialForm(item, isSpanish));
     setProviderReplyError(null);
     setProviderReplyNotice(isSpanish ? "Seguimiento preparado en el chat." : "Follow-up prepared in chat.");
     setInput(providerFollowUpPrompt(item, isSpanish, locale));
     window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
-  }
+  }, [isSpanish, locale]);
 
   function handleSaveProviderReply(item: ConciergePendingItem) {
     providerReplyCompletionMutation.mutate({ item, form: providerReplyForm });
@@ -10536,14 +10536,15 @@ const ConciergeScreen = () => {
       openProviderReplyMode(targetAction, "confirmed");
     }
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeAction?.id,
     activeActionCanRecordProviderReply,
+    handleProviderFollowUp,
     location.pathname,
     location.search,
     location.state,
     navigate,
+    openProviderReplyMode,
     pendingActions,
   ]);
   const activeActionPreferredHandoffChannel = activeAction ? getPreferredHandoffChannel(activeAction) : "";

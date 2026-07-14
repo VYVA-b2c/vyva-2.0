@@ -141,7 +141,7 @@ describe("Safe-home scan service actions", () => {
     renderSafeHome();
 
     fireEvent.click(screen.getByText("Loose rug in hallway"));
-    fireEvent.click(screen.getByTestId("button-safe-home-order-aids-scan-1"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-buy_safety_aid-scan-1"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge/shopping"));
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"safe_home\"");
@@ -153,8 +153,9 @@ describe("Safe-home scan service actions", () => {
 
     fireEvent.click(screen.getByText("Loose rug in hallway"));
 
-    expect(screen.getByTestId("button-safe-home-call-caregiver-scan-1")).toHaveAttribute("href", "tel:+34612345678");
-    expect(screen.getByTestId("button-safe-home-call-caregiver-scan-1")).toHaveTextContent("Call Maria");
+    expect(screen.getByTestId("show-vyva-follow-up-scan-1")).toBeInTheDocument();
+    expect(screen.getByText("Next home-safety step")).toBeInTheDocument();
+    expect(screen.getByTestId("button-show-vyva-follow-up-call_care_team-scan-1")).toHaveTextContent("Call Maria");
   });
 
   it("routes to care-team setup when no caregiver contact is saved", async () => {
@@ -165,7 +166,7 @@ describe("Safe-home scan service actions", () => {
     renderSafeHome();
 
     fireEvent.click(screen.getByText("Loose rug in hallway"));
-    fireEvent.click(screen.getByTestId("button-safe-home-add-caregiver-scan-1"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-call_care_team-scan-1"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/care-team"));
   });
@@ -174,12 +175,27 @@ describe("Safe-home scan service actions", () => {
     renderSafeHome();
 
     fireEvent.click(screen.getByText("Loose rug in hallway"));
-    fireEvent.click(screen.getByTestId("button-safe-home-request-quote-scan-1"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-request_quote-scan-1"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"source\":\"safe_home_scan\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"home_care_quote\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
     expect(screen.getByTestId("route-state")).toHaveTextContent("Request safety quote");
+  });
+
+  it("routes pasted home-safety concerns through Show VYVA", async () => {
+    renderSafeHome();
+
+    fireEvent.click(screen.getByTestId("button-show-vyva-source-paste"));
+    fireEvent.change(screen.getByTestId("textarea-show-vyva-paste"), {
+      target: { value: "Loose rug near the stairs" },
+    });
+    fireEvent.click(screen.getByTestId("button-show-vyva-submit-paste"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"source\":\"safe_home_scan\"");
+    expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Loose rug near the stairs");
   });
 });

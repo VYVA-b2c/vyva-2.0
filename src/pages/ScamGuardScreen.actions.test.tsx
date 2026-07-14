@@ -45,7 +45,7 @@ describe("Scam Guard service actions", () => {
     expect(scamGuardContextSummary(suspiciousContext)).toContain("Recommended steps");
   });
 
-  it("renders direct trusted-contact, concierge, and call-guidance actions", () => {
+  it("renders direct trusted-contact plus scam-safe follow-up actions", () => {
     const onOpenConcierge = vi.fn();
     const onStartGuidance = vi.fn();
     const onAddTrustedContact = vi.fn();
@@ -62,14 +62,17 @@ describe("Scam Guard service actions", () => {
       />,
     );
 
-    expect(screen.getByTestId("button-scam-call-trusted-current")).toHaveAttribute("href", "tel:+34612345678");
-    expect(screen.getByTestId("button-scam-call-trusted-current")).toHaveTextContent("Call Maria");
+    expect(screen.getByTestId("show-vyva-follow-up-current")).toBeInTheDocument();
+    expect(screen.getByText("Next scam-safe step")).toBeInTheDocument();
+    expect(screen.getByText("Check company")).toBeInTheDocument();
+    expect(screen.getByText("Call Maria")).toBeInTheDocument();
+    expect(screen.getByText("Save or report")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-scam-safe-help-current"));
-    expect(onOpenConcierge).toHaveBeenCalledWith(suspiciousContext);
-
-    fireEvent.click(screen.getByTestId("button-scam-call-guidance-current"));
-    expect(onStartGuidance).toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-check_company-current"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-scam_concierge-current"));
+    expect(onOpenConcierge).toHaveBeenCalledTimes(2);
+    expect(onOpenConcierge).toHaveBeenLastCalledWith(suspiciousContext);
+    expect(onStartGuidance).not.toHaveBeenCalled();
     expect(onAddTrustedContact).not.toHaveBeenCalled();
   });
 
@@ -86,7 +89,7 @@ describe("Scam Guard service actions", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("button-scam-add-trusted-saved"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-call_trusted_contact-saved"));
     expect(onAddTrustedContact).toHaveBeenCalled();
   });
 });

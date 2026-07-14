@@ -170,7 +170,7 @@ async function continuePastSymptomEmergencyModal(page: Page) {
   await continueButton.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
   if (await continueButton.isVisible().catch(() => false)) {
     await continueButton.click();
-    await expect(page.getByTestId("symptom-emergency-modal")).toHaveCount(0);
+    await expect(page.getByTestId("symptom-emergency-modal")).toBeHidden();
   }
 }
 
