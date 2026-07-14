@@ -960,12 +960,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-relationship-context")).toHaveTextContent("B2B nurture");
     expect(screen.getByTestId("marketing-contact-next-actions")).toHaveTextContent("Review consent: pending.");
     expect(screen.getByTestId("marketing-contact-template-recommendations")).toHaveTextContent("Suggested templates");
-    expect(screen.getByTestId("marketing-contact-template-linkedin-partner-demo")).toHaveTextContent("Partner demo LinkedIn post");
-    expect(screen.getByTestId("marketing-contact-template-linkedin-partner-demo")).toHaveTextContent("LinkedIn planning");
-    fireEvent.click(screen.getByTestId("button-marketing-use-contact-template-linkedin-partner-demo"));
-    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Template "Partner demo LinkedIn post" applied for Hassan Partner.');
-    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner demo LinkedIn post campaign");
-    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp partner proof nudge");
+    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp ready");
+    fireEvent.click(screen.getByTestId("button-marketing-use-contact-template-whatsapp-partner-proof-nudge"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Template "WhatsApp partner proof nudge" applied for Hassan Partner.');
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("WhatsApp partner proof nudge campaign");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("whatsapp");
     expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("hassan@example.com");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     fireEvent.click(screen.getByTestId("button-marketing-view-contact-contact-2"));
@@ -1447,29 +1447,31 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver welcome email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Referral ask email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok feature demo script");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("24 templates");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn family proof article");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("29 templates");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("2");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("3");
     expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("LinkedIn B2C starter");
     expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("WhatsApp B2B starter");
     expect(screen.getByTestId("marketing-template-gap-whatsapp-b2b")).toHaveTextContent("AI starter prompt");
     expect(screen.getByTestId("marketing-template-gap-pack")).toHaveTextContent("Build a starter pack");
-    expect(screen.getByTestId("button-marketing-template-gap-pack-ai")).toHaveTextContent("Draft top 4 with AI");
+    expect(screen.getByTestId("button-marketing-template-gap-pack-ai")).toHaveTextContent("Draft top 2 with AI");
 
     fireEvent.click(screen.getByTestId("button-marketing-template-gap-pack-ai"));
     expect(screen.getByTestId("button-marketing-template-gap-pack-ai")).toHaveTextContent("Creating pack...");
     expect(screen.getByTestId("marketing-template-gap-pack-progress")).toHaveTextContent("Creating");
     await waitFor(() => {
-      expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI gap pack created: 4 template drafts");
+      expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI gap pack created: 2 template drafts");
     });
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
     expect((screen.getByTestId("input-marketing-edit-content-title") as HTMLInputElement).value).toContain("AI content");
     const gapPackAiCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
     const gapPackContentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
-    expect(gapPackAiCalls).toHaveLength(4);
-    expect(gapPackContentPosts).toHaveLength(4);
+    expect(gapPackAiCalls).toHaveLength(2);
+    expect(gapPackContentPosts).toHaveLength(2);
     expect(JSON.parse(String(gapPackContentPosts[0]?.[1]?.body ?? "{}"))).toMatchObject({
       status: "draft",
       source: "vyva",
@@ -1517,6 +1519,20 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("select-marketing-template-channel")).toHaveValue("tiktok");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok feature demo script");
     expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+    fireEvent.change(screen.getByTestId("input-marketing-template-search"), { target: { value: "family proof" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-channel"), { target: { value: "linkedin" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-audience"), { target: { value: "b2c" } });
+
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn family proof article");
+    fireEvent.click(screen.getByTestId("button-marketing-use-content-template-linkedin-family-proof-article"));
+
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("LinkedIn family proof article");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Families rarely need more messages");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("linkedin-family-article");
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: LinkedIn family proof article");
 
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     fireEvent.change(screen.getByTestId("input-marketing-template-search"), { target: { value: "profile" } });
