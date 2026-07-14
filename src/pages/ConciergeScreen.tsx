@@ -8439,6 +8439,17 @@ const ConciergeScreen = () => {
     const base = isSpanish ? chip.promptEs : chip.promptEn;
     const note = appointmentNote.trim();
     setSelectedAppointmentChip(chip);
+    if (chip.key === "government") {
+      setAppointmentOpen(false);
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+      setAppointmentRequest(null);
+      setAppointmentOptions([]);
+      setAppointmentDiscovery(null);
+      setAppointmentAttemptResult(null);
+      openInsuranceAdminAssistant("government-form", { subject: note });
+      return;
+    }
     if (chip.key === "home-service") {
       const { intake, preferences } = buildCurrentHomeServiceIntake();
       createAppointmentMutation.mutate({
@@ -9568,12 +9579,15 @@ const ConciergeScreen = () => {
     setScamCheckDetail("");
   }
 
-  function openInsuranceAdminAssistant() {
+  function openInsuranceAdminAssistant(
+    initialKind: InsuranceAdminKind | null = null,
+    initialDetails: Partial<typeof insuranceAdminDetails> = {},
+  ) {
     setInsuranceAdminOpen(true);
     setScamCheckOpen(false);
     setOtcPharmacyOpen(false);
-    setSelectedInsuranceAdminKind(null);
-    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "" });
+    setSelectedInsuranceAdminKind(initialKind);
+    setInsuranceAdminDetails({ subject: "", recipient: "", deadline: "", notes: "", ...initialDetails });
     setRoutePrefill(null);
     closeOffersPanel();
     window.setTimeout(() => {
@@ -10408,7 +10422,7 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.governmentHelp", "Government Help"),
       detail: t("concierge.master.fastHelp.governmentHelpDetail", "Official tasks"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => openScheduleAssistant("government"),
+      onClick: () => openInsuranceAdminAssistant("government-form"),
       testId: "button-concierge-fast-government-help",
     },
     {

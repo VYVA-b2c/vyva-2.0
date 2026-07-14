@@ -219,6 +219,24 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
+  it("opens Government from Book Now directly in the admin form flow", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
+      target: { value: "Passport renewal" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Government" }));
+
+    expect(await screen.findByTestId("panel-insurance-admin")).toHaveTextContent("Paperwork help");
+    const fields = await screen.findByTestId("panel-insurance-admin-guided-fields");
+    expect(fields).toHaveTextContent("Government/admin form");
+    expect(fields).toHaveTextContent("Fill only what you know");
+    expect(screen.getByTestId("input-insurance-admin-subject")).toHaveValue("Passport renewal");
+    expect(screen.queryByTestId("panel-appointment-assistant")).not.toBeInTheDocument();
+  });
+
   it("opens appointment, service, savings, trip, and research flows in place", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
@@ -1404,18 +1422,11 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByText("Could not verify feature access")).not.toBeInTheDocument();
   });
 
-  it("prepares a review request instead of showing access errors for other appointment types", async () => {
+  it("keeps government tasks in the admin flow instead of creating appointment requests", async () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.endsWith("/api/appointments/requests")) {
-        expect(init?.method).toBe("POST");
-        const body = JSON.parse(String(init?.body));
-        expect(body.appointment_type).toBe("government");
-        expect(body.detail).toContain("passport renewal");
-        return errorResponse(503, {
-          error: "Could not verify feature access",
-          code: "FEATURE_ACCESS_UNAVAILABLE",
-        });
+        throw new Error("Government tasks should not create appointment requests");
       }
       return jsonResponse({ items: [] });
     });
@@ -1427,12 +1438,10 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Government" }));
 
-    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
-    expect(prefill).toHaveTextContent("Review request");
-    expect(prefill).toHaveTextContent("Government");
-    expect(prefill).toHaveTextContent("passport renewal");
-    expect(prefill).toHaveTextContent("Nothing is booked");
-    expect(prefill).not.toHaveTextContent("verify access");
+    const fields = await screen.findByTestId("panel-insurance-admin-guided-fields");
+    expect(fields).toHaveTextContent("Government/admin form");
+    expect(screen.getByTestId("input-insurance-admin-subject")).toHaveValue("Please help me schedule a passport renewal appointment");
+    expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
     expect(screen.queryByText("I could not verify access right now. Please try again.")).not.toBeInTheDocument();
     expect(screen.queryByText("Could not verify feature access")).not.toBeInTheDocument();
   });
