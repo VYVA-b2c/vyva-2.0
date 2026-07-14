@@ -2935,6 +2935,60 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("input-transport-destination")).toBeVisible();
   });
 
+  it("shows an operator-preparing update after the user has already confirmed", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "assigned-ride",
+        use_case: "book_ride",
+        provider_name: "Radio Taxi",
+        provider_phone: "+34 612 345 678",
+        action_summary: "Taxi option prepared for the health appointment.",
+        action_payload: {
+          pickup_address: "Saved home",
+          destination_address: "City Clinic",
+          requested_time: "tomorrow 09:00",
+          operator_assigned_to: "operator-1",
+          operator_assigned_email: "ops@vyva.life",
+          operator_assigned_at: "2026-07-14T10:15:00.000Z",
+          execution_task: {
+            version: 1,
+            flow_reference: "FLOW_TRANSPORT_BOOKING",
+            action_type: "phone_call",
+            requested_tool: "phone_call",
+            active_tool: "phone_call",
+            lifecycle_status: "ready",
+            provider_ready: true,
+            missing_requirements: [],
+            confirmation_required: true,
+            user_confirmed: true,
+            confirmation_source: "operator_queue",
+            confirmed_at: "2026-07-14T10:10:00.000Z",
+            created_at: "2026-07-14T10:00:00.000Z",
+            updated_at: "2026-07-14T10:15:00.000Z",
+          },
+        },
+        status: "pending",
+        language: "en",
+        confirmed_at: "2026-07-14T10:10:00.000Z",
+      }],
+    }));
+
+    renderScreen();
+
+    const update = await screen.findByTestId("panel-concierge-user-update");
+    expect(update).toHaveTextContent("A VYVA operator is preparing this");
+    expect(update).toHaveTextContent("You already gave your OK.");
+    const statusPanel = screen.getByTestId("panel-concierge-execution-status");
+    expect(statusPanel).toHaveTextContent("Operator assigned");
+    expect(statusPanel).toHaveAttribute("data-phase", "being_prepared");
+    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("A VYVA operator is preparing it");
+    expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "done");
+    expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("VYVA is preparing this");
+    expect(screen.queryByTestId("button-concierge-confirm-assigned-ride")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-concierge-phone-call")).not.toBeInTheDocument();
+  });
+
   it("records a user phone call outcome through the existing completion endpoint", async () => {
     let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
@@ -3460,8 +3514,8 @@ describe("ConciergeScreen route prefill", () => {
 
     expect(await screen.findByTestId("panel-concierge-action-timeline")).toHaveTextContent("Request started");
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveAttribute("data-phase", "waiting");
-    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Waiting for reply");
-    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("This stays here until the result is saved.");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("VYVA is working on it");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("You can come back later; this task stays here.");
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "done");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-waiting")).toHaveAttribute("data-state", "upcoming");
@@ -3887,6 +3941,8 @@ describe("ConciergeScreen route prefill", () => {
     expect(panel).toHaveAttribute("data-phase", "needs_info");
     expect(panel).toHaveTextContent("Needs details");
     expect(panel).toHaveTextContent("Add Destination to continue.");
+    expect(screen.getByTestId("panel-concierge-user-update")).toHaveTextContent("VYVA needs: Destination.");
+    expect(panel).toHaveTextContent("One detail needed");
   });
 
   it("opens a replacement transport search when a provider is unavailable", async () => {
