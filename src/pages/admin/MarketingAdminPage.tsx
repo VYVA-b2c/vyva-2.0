@@ -591,6 +591,15 @@ type CampaignStudioLaunchStep = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type CampaignStudioOfflineHandoffItem = {
+  key: string;
+  title: string;
+  format: string;
+  detail: string;
+  text: string;
+  icon: LucideIcon;
+};
+
 type CampaignPublishKitItem = CampaignReadinessItem & {
   channel: Channel;
   contentAsset: ContentAsset | null;
@@ -1320,6 +1329,11 @@ function personalizePreview(value: string, contact: MarketingContact) {
 
 function firstPreviewLine(value: string) {
   return value.split(/\n+/).map((line) => line.trim()).find(Boolean) || "No preview line yet.";
+}
+
+function firstMeaningfulPreviewLine(value: string) {
+  const lines = value.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  return lines.find((line) => !/^(hi|hello|dear)\b/i.test(line)) ?? lines[0] ?? "No preview line yet.";
 }
 
 function recordTimelineParts(record: { createdAt?: string | null; updatedAt?: string | null; lastSyncedAt?: string | null }) {
@@ -5662,6 +5676,98 @@ export default function MarketingAdminPage() {
   const campaignStudioPersonalizedLine = campaignStudioPersonalizationContact
     ? firstPreviewLine(personalizePreview(campaignStudioGenerated.body, campaignStudioPersonalizationContact))
     : firstPreviewLine(campaignStudioGenerated.body);
+  const campaignStudioOfflineBody = campaignStudioPersonalizationContact
+    ? personalizePreview(campaignStudioGenerated.body, campaignStudioPersonalizationContact)
+    : campaignStudioGenerated.body;
+  const campaignStudioOfflineMessageLine = firstMeaningfulPreviewLine(campaignStudioOfflineBody);
+  const campaignStudioOfflineSampleLabel = campaignStudioPersonalizationContact?.fullName
+    || campaignStudioPersonalizationContact?.email
+    || "a representative contact";
+  const campaignStudioOfflineFirstName = campaignStudioPersonalizationContact
+    ? contactTokenValue(campaignStudioPersonalizationContact, "first_name") || campaignStudioOfflineSampleLabel.split(/\s+/)[0]
+    : "there";
+  const campaignStudioOfflineAudienceName = selectedCampaignStudioTargetAudience?.name
+    ?? `${selectedCampaignStudioPlay.audienceType.toUpperCase()} contacts`;
+  const campaignStudioOfflineScheduleLabel = campaignStudioSchedule
+    ? formatDate(fromDateTimeLocal(campaignStudioSchedule))
+    : "No schedule selected";
+  const campaignStudioOfflineCta = campaignStudioGenerated.ctaLabel.trim()
+    ? `${campaignStudioGenerated.ctaLabel}${campaignStudioGenerated.ctaUrl.trim() ? ` - ${campaignStudioGenerated.ctaUrl.trim()}` : ""}`
+    : "Ask whether they want the next step or more details";
+  const campaignStudioOfflineHandoffs: CampaignStudioOfflineHandoffItem[] = [
+    {
+      key: "phone",
+      title: "Phone call script",
+      format: "Call",
+      detail: "Use for concierge, sales, caregiver, or partner follow-up when a human touch is better than another message.",
+      icon: UsersRound,
+      text: [
+        "Phone call script",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Suggested timing: ${campaignStudioOfflineScheduleLabel}`,
+        `Sample contact: ${campaignStudioOfflineSampleLabel}`,
+        "",
+        `Opening: Hi ${campaignStudioOfflineFirstName}, this is VYVA. I wanted to quickly share ${campaignStudioPersonalizedSubject}.`,
+        `Key message: ${campaignStudioOfflineMessageLine}`,
+        `Ask: ${campaignStudioOfflineCta}`,
+        "Log outcome: interested / follow-up / not now / wrong contact / needs caregiver.",
+      ].join("\n"),
+    },
+    {
+      key: "event",
+      title: "Event talking points",
+      format: "In person",
+      detail: "Use for community events, partner meetings, webinars, receptions, or local outreach tables.",
+      icon: CalendarDays,
+      text: [
+        "Event talking points",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Main hook: ${campaignStudioPersonalizedSubject}`,
+        "",
+        `1. Start with the need: ${selectedCampaignStudioPlay.brief}`,
+        `2. Share the message: ${campaignStudioOfflineMessageLine}`,
+        `3. Invite action: ${campaignStudioOfflineCta}`,
+        "4. Capture interest: name, role, email/WhatsApp, consent, and preferred follow-up time.",
+      ].join("\n"),
+    },
+    {
+      key: "print",
+      title: "Flyer / poster brief",
+      format: "Print or QR",
+      detail: "Use when the campaign needs a handout, QR poster, waiting-room card, or community notice.",
+      icon: FileText,
+      text: [
+        "Flyer / poster brief",
+        `Headline: ${campaignStudioPersonalizedSubject}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Body copy: ${campaignStudioOfflineMessageLine}`,
+        `CTA: ${campaignStudioOfflineCta}`,
+        "Design notes: make the CTA and QR/link the largest visual action; keep body copy to one short paragraph.",
+        "Tracking note: use a dedicated QR/link if possible so offline interest can be attributed back to this campaign.",
+      ].join("\n"),
+    },
+    {
+      key: "partner",
+      title: "Partner handoff note",
+      format: "Team brief",
+      detail: "Use when another organization, clinic, venue, or internal team needs to publish or follow up manually.",
+      icon: Megaphone,
+      text: [
+        "Partner handoff note",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience/list: ${campaignStudioOfflineAudienceName}`,
+        `Channels planned in VYVA: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
+        `Timing: ${campaignStudioOfflineScheduleLabel}`,
+        "",
+        `What to say: ${campaignStudioOfflineMessageLine}`,
+        `Primary action: ${campaignStudioOfflineCta}`,
+        "What to report back: who was contacted, who replied, who wants follow-up, and any objections or missing data.",
+      ].join("\n"),
+    },
+  ];
+  const campaignStudioOfflineHandoffPacket = campaignStudioOfflineHandoffs.map((item) => item.text).join("\n\n---\n\n");
   const campaignStudioCreativeQualityItems: CampaignCreativeQualityItem[] = [
     {
       key: "subject",
@@ -6916,6 +7022,40 @@ export default function MarketingAdminPage() {
 
   async function copyCampaignHandoffBrief(channel: Channel, brief: string) {
     await copyCampaignHandoffText(`${channelLabel[channel]} handoff brief`, brief);
+  }
+
+  async function copyCampaignStudioOfflineHandoff(label: string, text: string) {
+    if (!text.trim()) {
+      const feedback = `${label} is empty.`;
+      setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+    }
   }
 
   function startNewJourney() {
@@ -9300,6 +9440,59 @@ export default function MarketingAdminPage() {
                                 {step.actionLabel} <ExternalLink size={12} aria-hidden="true" />
                               </span>
                             </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-offline-kit">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Offline and human handoff</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Make this campaign usable beyond the app</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                            Copy-ready scripts for phone calls, in-person events, print/QR, and partner teams.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Offline handoff kit", campaignStudioOfflineHandoffPacket)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-sm font-black text-purple-700 hover:bg-purple-50"
+                          data-testid="button-marketing-campaign-studio-copy-offline-kit"
+                        >
+                          <Copy size={14} /> Copy full kit
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-4" data-testid="marketing-campaign-studio-offline-items">
+                        {campaignStudioOfflineHandoffs.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <article key={item.key} className="flex min-h-[320px] flex-col rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-campaign-studio-offline-${item.key}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-purple-700 shadow-sm">
+                                    <Icon size={15} aria-hidden="true" />
+                                  </span>
+                                  <h4 className="mt-2 font-black text-[#241133]">{item.title}</h4>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
+                                </div>
+                                <Pill className="bg-white text-[#5b4a46]">{item.format}</Pill>
+                              </div>
+                              <textarea
+                                className="mt-3 min-h-[170px] flex-1 rounded-xl border border-[#eadfd5] bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#5b4a46]"
+                                value={item.text}
+                                readOnly
+                                data-testid={`textarea-marketing-campaign-studio-offline-${item.key}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignStudioOfflineHandoff(item.title, item.text)}
+                                className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-sm font-black text-white hover:bg-purple-800"
+                                data-testid={`button-marketing-campaign-studio-copy-offline-${item.key}`}
+                              >
+                                <Copy size={14} /> Copy
+                              </button>
+                            </article>
                           );
                         })}
                       </div>

@@ -2286,6 +2286,11 @@ describe("MarketingAdminPage", () => {
   });
 
   it("generates a smart campaign brief into the planner and content draft", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
     renderPage();
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
@@ -2352,6 +2357,23 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-audience")).toHaveTextContent("Audience list selected");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-copy")).toHaveTextContent("Improve with AI");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-create")).toHaveTextContent("Create now");
+    expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Offline and human handoff");
+    expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Phone call script");
+    expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Flyer / poster brief");
+    const phoneScript = screen.getByTestId("textarea-marketing-campaign-studio-offline-phone") as HTMLTextAreaElement;
+    expect(phoneScript.value).toContain("Sample contact: Hassan Partner");
+    expect(phoneScript.value).toContain("Opening: Hi Hassan");
+    expect(phoneScript.value).toContain("Key message:");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-offline-phone"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Phone call script"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Phone call script copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-offline-kit"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Partner handoff note"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Offline handoff kit copied.");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-copy"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
