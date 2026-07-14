@@ -2305,6 +2305,11 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-category-all"));
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
     fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
+    expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Pick a practical publish window");
+    expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Partner morning");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-schedule-relationship"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Schedule set: Follow-up afternoon");
+    expect(screen.getByTestId("button-marketing-campaign-studio-schedule-relationship")).toHaveTextContent("Selected");
 
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partners");

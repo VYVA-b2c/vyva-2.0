@@ -494,6 +494,14 @@ type CampaignStudioGeneratedDraft = {
   note?: string | null;
 };
 
+type CampaignStudioScheduleSuggestion = {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  reason: string;
+};
+
 type CampaignStudioAiDraftResponse = {
   configured: boolean;
   source: "openai" | "fallback";
@@ -3207,6 +3215,61 @@ function campaignStudioDefaultSchedule(play: CampaignStudioPlay) {
   return toDateTimeLocal(date.toISOString());
 }
 
+function scheduleDateTimeLocal(daysFromNow: number, hour: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + Math.max(0, daysFromNow));
+  date.setHours(hour, 0, 0, 0);
+  return toDateTimeLocal(date.toISOString());
+}
+
+function campaignStudioScheduleSuggestions(
+  play: CampaignStudioPlay,
+  selectedChannels: Channel[],
+  audience: MarketingAudience | null,
+): CampaignStudioScheduleSuggestion[] {
+  const channels = normalizeCampaignStudioChannels(play.defaultChannel, selectedChannels);
+  const hasSocial = channels.some((channel) => ["facebook", "instagram", "linkedin", "tiktok"].includes(channel));
+  const hasWhatsApp = channels.includes("whatsapp");
+  const hasEmail = channels.includes("email");
+  const audienceText = lower(`${audience?.name ?? ""} ${audience?.description ?? ""} ${audience?.listType ?? ""}`);
+  const partnerAudience = play.audienceType === "b2b" || audienceText.includes("partner") || audienceText.includes("provider");
+  const primaryHour = partnerAudience ? 9 : hasWhatsApp ? 11 : 10;
+  const relationshipHour = partnerAudience ? 15 : 18;
+  const socialHour = hasSocial ? 19 : hasEmail ? 10 : 12;
+
+  return [
+    {
+      id: "primary",
+      label: partnerAudience ? "Partner morning" : hasWhatsApp ? "WhatsApp late morning" : "Email morning",
+      value: scheduleDateTimeLocal(play.scheduleDaysFromNow, primaryHour),
+      detail: partnerAudience
+        ? "Good for B2B inboxes before the day gets noisy."
+        : hasWhatsApp
+          ? "Useful for short practical nudges after the morning rush."
+          : "A reliable default for email opens and review.",
+      reason: `${channelLabel[channels[0] ?? play.defaultChannel]} primary window`,
+    },
+    {
+      id: "relationship",
+      label: partnerAudience ? "Follow-up afternoon" : "Family evening",
+      value: scheduleDateTimeLocal(play.scheduleDaysFromNow + 1, relationshipHour),
+      detail: partnerAudience
+        ? "A second slot for partner follow-up, demos, and LinkedIn review."
+        : "Better for caregivers and family members checking messages after work.",
+      reason: partnerAudience ? "B2B response window" : "Caregiver attention window",
+    },
+    {
+      id: "social",
+      label: hasSocial ? "Social prime slot" : "Reminder slot",
+      value: scheduleDateTimeLocal(play.scheduleDaysFromNow + 2, socialHour),
+      detail: hasSocial
+        ? "Use for Facebook, Instagram, LinkedIn, or TikTok manual publishing."
+        : "A backup schedule for a follow-up or unsent planning draft.",
+      reason: hasSocial ? "Social publishing window" : "Fallback timing",
+    },
+  ];
+}
+
 function uniqueChannels(values: Channel[]) {
   return Array.from(new Set(values.filter((value): value is Channel => CHANNELS.includes(value))));
 }
@@ -5382,6 +5445,10 @@ export default function MarketingAdminPage() {
   const campaignStudioSelectedChannels = useMemo(
     () => normalizeCampaignStudioChannels(campaignStudio.channel, campaignStudio.selectedChannels),
     [campaignStudio.channel, campaignStudio.selectedChannels],
+  );
+  const campaignStudioSmartSchedules = useMemo(
+    () => campaignStudioScheduleSuggestions(selectedCampaignStudioPlay, campaignStudioSelectedChannels, selectedCampaignStudioTargetAudience),
+    [selectedCampaignStudioPlay, campaignStudioSelectedChannels, selectedCampaignStudioTargetAudience],
   );
   const campaignStudioRecommendedChannels = useMemo(
     () => recommendedCampaignStudioChannels(selectedCampaignStudioPlay),
@@ -8696,6 +8763,42 @@ export default function MarketingAdminPage() {
                           data-testid="input-marketing-campaign-studio-schedule"
                         />
                       </Field>
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-smart-schedule">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Smart schedule</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Pick a practical publish window</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Suggestions adapt to the selected audience and channel pack so scheduling is not just a blank date field.</p>
+                        </div>
+                        <Pill className="bg-purple-50 text-purple-800">{formatDate(fromDateTimeLocal(campaignStudioSchedule))}</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-3">
+                        {campaignStudioSmartSchedules.map((suggestion) => {
+                          const selected = suggestion.value === campaignStudioSchedule;
+                          return (
+                            <button
+                              key={suggestion.id}
+                              type="button"
+                              onClick={() => {
+                                updateCampaignStudio({ scheduleStartsAt: suggestion.value });
+                                setCampaignStudioFeedback(`Schedule set: ${suggestion.label} (${formatDate(fromDateTimeLocal(suggestion.value))}).`);
+                              }}
+                              className={`min-h-[118px] rounded-xl border p-3 text-left transition focus:outline-none focus:ring-4 focus:ring-purple-100 ${selected ? "border-purple-400 bg-purple-50 shadow-[0_8px_18px_rgba(126,34,206,0.14)]" : "border-[#eadfd5] bg-[#fffaf4] hover:border-purple-200 hover:bg-white"}`}
+                              data-testid={`button-marketing-campaign-studio-schedule-${suggestion.id}`}
+                            >
+                              <span className="flex items-start justify-between gap-2">
+                                <span className="font-black text-[#241133]">{suggestion.label}</span>
+                                {selected ? <Pill className="bg-purple-700 text-white">Selected</Pill> : null}
+                              </span>
+                              <span className="mt-2 block text-sm font-black text-purple-800">{formatDate(fromDateTimeLocal(suggestion.value))}</span>
+                              <span className="mt-2 block text-xs font-bold leading-relaxed text-[#6f5f59]">{suggestion.detail}</span>
+                              <span className="mt-2 block text-[11px] font-black uppercase tracking-[0.08em] text-[#8b7a73]">{suggestion.reason}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-angles">
