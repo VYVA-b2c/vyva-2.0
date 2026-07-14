@@ -2325,6 +2325,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-consent")).toHaveTextContent("1 pending/unknown and 0 opted out");
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-localization")).toHaveTextContent("Spain 1");
     expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Review 1 unmapped list member from Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample")).toHaveTextContent("Reachable contact sample");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample")).toHaveTextContent("1/1 shown");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample-contact-2")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample-contact-2")).toHaveTextContent("Moka Digital / Partner / Spain");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample-contact-2")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-studio-launch-brief")).toHaveTextContent("Campaign plan at a glance");
     expect(screen.getByTestId("marketing-campaign-studio-launch-brief-play")).toHaveTextContent("B2B partner introduction");
     expect(screen.getByTestId("marketing-campaign-studio-launch-brief-hook")).toHaveTextContent("Partner outreach: proof point");

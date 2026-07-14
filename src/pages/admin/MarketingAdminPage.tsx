@@ -5535,6 +5535,19 @@ export default function MarketingAdminPage() {
     channel,
     campaignStudioAudiencePool.filter((contact) => Boolean(recipientForChannel(contact, channel))),
   ])), [campaignStudioAudiencePool, campaignStudioSelectedChannels]);
+  const campaignStudioRecipientSample = useMemo(() => {
+    const samples: Array<{ contact: MarketingContact; channels: Channel[] }> = [];
+    const seen = new Set<string>();
+    campaignStudioAudiencePool.forEach((contact) => {
+      const channels = campaignStudioSelectedChannels.filter((channel) => Boolean(recipientForChannel(contact, channel)));
+      if (!channels.length) return;
+      const key = contact.id || contact.email || contact.whatsappNumber || contact.phoneNumber || contact.fullName;
+      if (seen.has(key)) return;
+      seen.add(key);
+      samples.push({ contact, channels });
+    });
+    return samples.slice(0, 5);
+  }, [campaignStudioAudiencePool, campaignStudioSelectedChannels]);
   const campaignStudioPackRecipientCount = Array.from(campaignStudioRecipientPreviewByChannel.values()).reduce((count, recipients) => count + recipients.length, 0);
   const campaignStudioChannelDrafts = campaignStudioSelectedChannels.map((channel) => ({
     channel,
@@ -8991,6 +9004,47 @@ export default function MarketingAdminPage() {
                       <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-audience-recommendation">
                         Recommendation: {campaignStudioAudienceRecommendation}
                       </p>
+                      <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-studio-recipient-sample">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Reachable contact sample</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">A quick look at who this setup can actually reach before you create the campaign.</p>
+                          </div>
+                          <Pill className="bg-white text-[#5b4a46]">
+                            {campaignStudioRecipientSample.length}/{campaignStudioAudiencePool.length} shown
+                          </Pill>
+                        </div>
+                        {campaignStudioRecipientSample.length ? (
+                          <div className="mt-3 grid gap-2" data-testid="marketing-campaign-studio-recipient-sample-list">
+                            {campaignStudioRecipientSample.map(({ contact, channels }) => (
+                              <div key={contact.id} className="rounded-xl border border-[#eadfd5] bg-white p-3" data-testid={`marketing-campaign-studio-recipient-sample-${contact.id}`}>
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="font-black text-[#241133]">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
+                                    <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                                      {[contact.companyName, contact.roleLabel, contact.market].filter(Boolean).join(" / ") || contact.email || contact.phoneNumber || "No contact detail yet"}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-wrap justify-end gap-1">
+                                    {channels.map((channel) => (
+                                      <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-[#8a7168]">
+                                  <span>{contact.consentStatus.replace("_", " ")}</span>
+                                  <span>{contact.audienceType.toUpperCase()}</span>
+                                  {contact.lists.slice(0, 2).map((list) => <span key={list}>{list}</span>)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 rounded-xl border border-dashed border-[#eadfd5] bg-white px-3 py-3 text-sm font-bold text-[#7d6b65]">
+                            No reachable contacts for the selected play, audience, and channel pack. Switch the channel pack or audience before creating.
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-4" data-testid="marketing-campaign-studio-launch-brief">
