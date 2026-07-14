@@ -1455,6 +1455,26 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("LinkedIn B2C starter");
     expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("WhatsApp B2B starter");
     expect(screen.getByTestId("marketing-template-gap-whatsapp-b2b")).toHaveTextContent("AI starter prompt");
+    expect(screen.getByTestId("marketing-template-gap-pack")).toHaveTextContent("Build a starter pack");
+    expect(screen.getByTestId("button-marketing-template-gap-pack-ai")).toHaveTextContent("Draft top 4 with AI");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-gap-pack-ai"));
+    expect(screen.getByTestId("button-marketing-template-gap-pack-ai")).toHaveTextContent("Creating pack...");
+    expect(screen.getByTestId("marketing-template-gap-pack-progress")).toHaveTextContent("Creating");
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI gap pack created: 4 template drafts");
+    });
+    expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
+    expect((screen.getByTestId("input-marketing-edit-content-title") as HTMLInputElement).value).toContain("AI content");
+    const gapPackAiCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    const gapPackContentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(gapPackAiCalls).toHaveLength(4);
+    expect(gapPackContentPosts).toHaveLength(4);
+    expect(JSON.parse(String(gapPackContentPosts[0]?.[1]?.body ?? "{}"))).toMatchObject({
+      status: "draft",
+      source: "vyva",
+      metadata: { generatedFrom: "template_gap_pack" },
+    });
 
     fireEvent.click(screen.getByTestId("button-marketing-template-gap-studio-whatsapp-b2b"));
     expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("whatsapp");
@@ -1472,8 +1492,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI draft generated from gap: WhatsApp B2B starter");
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI whatsapp body copy");
     expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_template_gap_ai");
-    const gapAiCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
-    expect(JSON.parse(String(gapAiCall?.[1]?.body ?? "{}"))).toMatchObject({
+    const gapAiCallBody = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")))
+      .find((body) => body.contentTitle === "WhatsApp B2B starter");
+    expect(gapAiCallBody).toMatchObject({
       audienceType: "b2b",
       channel: "whatsapp",
       tone: "expert",

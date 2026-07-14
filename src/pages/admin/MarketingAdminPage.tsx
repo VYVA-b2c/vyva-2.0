@@ -39,6 +39,7 @@ const CAMPAIGN_STATUSES = ["draft", "scheduled", "published", "paused", "archive
 const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const CONTENT_STATUSES = ["draft", "review", "approved", "published", "archived"] as const;
 const CONSENT_STATUSES = ["unknown", "pending", "opted_in", "opted_out"] as const;
+const TEMPLATE_GAP_BATCH_LIMIT = 4;
 
 type Channel = typeof CHANNELS[number];
 type Audience = typeof AUDIENCES[number];
@@ -478,6 +479,13 @@ type CampaignStudioGeneratedDraft = {
   language?: string;
   designJson?: Record<string, unknown>;
   source?: "template" | "openai" | "fallback";
+  note?: string | null;
+};
+
+type CampaignStudioAiDraftResponse = {
+  configured: boolean;
+  source: "openai" | "fallback";
+  draft: CampaignStudioGeneratedDraft;
   note?: string | null;
 };
 
@@ -4198,6 +4206,8 @@ export default function MarketingAdminPage() {
   const [contentFeedback, setContentFeedback] = useState("");
   const [contentActionFeedback, setContentActionFeedback] = useState("");
   const [templateGapAiRunningId, setTemplateGapAiRunningId] = useState<string | null>(null);
+  const [templateGapPackRunning, setTemplateGapPackRunning] = useState(false);
+  const [templateGapPackProgress, setTemplateGapPackProgress] = useState("");
   const [confirmingContentDeleteId, setConfirmingContentDeleteId] = useState<string | null>(null);
   const contentEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const contentPreviewPanelRef = useRef<HTMLDivElement | null>(null);
@@ -5791,12 +5801,7 @@ export default function MarketingAdminPage() {
       const results = await Promise.all(campaignStudioSelectedChannels.map(async (channel) => {
         const seed = campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, campaignStudio.angleId, channel, selectedCampaignStudioTargetAudience);
         const recipientsForChannel = campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0;
-        const result = await api<{
-          configured: boolean;
-          source: "openai" | "fallback";
-          draft: CampaignStudioGeneratedDraft;
-          note?: string | null;
-        }>("/api/admin/marketing/ai/campaign-draft", {
+        const result = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
           method: "POST",
           body: JSON.stringify({
             playLabel: selectedCampaignStudioPlay.label,
@@ -6467,67 +6472,106 @@ export default function MarketingAdminPage() {
     setMessage(`Gap starter drafted: ${suggestion.title}.`);
   }
 
-  async function generateTemplateGapAiDraft(suggestion: ContentTemplateGapSuggestion) {
+  function templateGapAiContext(suggestion: ContentTemplateGapSuggestion) {
     const play = campaignStudioPlays.find((item) => item.id === suggestion.studioPlayId)
       ?? campaignStudioPlays.find((item) => item.defaultChannel === suggestion.channel)
       ?? campaignStudioPlays[0];
     const targetAudience = bestCampaignStudioAudience(play, audiences);
     const seed = campaignStudioBrief(play, suggestion.studioToneId, suggestion.studioAngleId, suggestion.channel, targetAudience);
+    return { play, targetAudience, seed };
+  }
 
-    setTemplateGapAiRunningId(suggestion.id);
-    setContentActionFeedback(`Generating AI draft for ${suggestion.title}...`);
-    setContentFeedback("");
-    try {
-      const result = await api<{
-        configured: boolean;
-        source: "openai" | "fallback";
-        draft: CampaignStudioGeneratedDraft;
-        note?: string | null;
-      }>("/api/admin/marketing/ai/campaign-draft", {
-        method: "POST",
-        body: JSON.stringify({
-          playLabel: play.label,
-          playCategory: play.categoryId,
-          audienceType: suggestion.audienceType,
-          channel: suggestion.channel,
-          tone: suggestion.studioToneId,
-          angle: suggestion.studioAngleId,
-          angleGuidance: campaignStudioAngleGuidance[suggestion.studioAngleId],
-          targetAudienceName: targetAudience?.name ?? suggestion.audienceType.toUpperCase(),
-          targetAudienceSize: targetAudience?.mappedMemberCount ?? null,
-          campaignName: `${suggestion.title} campaign`,
-          contentTitle: suggestion.title,
-          objective: suggestion.aiPrompt,
-          subjectSeed: suggestion.subject || seed.subject,
-          bodySeed: suggestion.body,
-          ctaLabel: suggestion.ctaLabel,
-          ctaUrl: suggestion.ctaUrl,
-          language: "en",
-        }),
-      });
-
-      setContentDraft({
-        title: result.draft.contentTitle || suggestion.title,
+  async function requestTemplateGapAiDraft(suggestion: ContentTemplateGapSuggestion) {
+    const { play, targetAudience, seed } = templateGapAiContext(suggestion);
+    const result = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
+      method: "POST",
+      body: JSON.stringify({
+        playLabel: play.label,
+        playCategory: play.categoryId,
+        audienceType: suggestion.audienceType,
         channel: suggestion.channel,
-        language: result.draft.language || "en",
-        status: "draft",
-        subject: result.draft.subject,
-        body: result.draft.body,
-        htmlBody: suggestion.channel === "email" ? `<p>${result.draft.body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br />")}</p>` : "",
-        ctaLabel: result.draft.ctaLabel || suggestion.ctaLabel,
-        ctaUrl: result.draft.ctaUrl || suggestion.ctaUrl,
-        designJsonText: JSON.stringify({
-          ...(result.draft.designJson ?? {}),
-          source: result.source,
-          generator: result.source === "openai" ? "marketing_template_gap_ai" : "marketing_template_gap_ai_fallback",
+        tone: suggestion.studioToneId,
+        angle: suggestion.studioAngleId,
+        angleGuidance: campaignStudioAngleGuidance[suggestion.studioAngleId],
+        targetAudienceName: targetAudience?.name ?? suggestion.audienceType.toUpperCase(),
+        targetAudienceSize: targetAudience?.mappedMemberCount ?? null,
+        campaignName: `${suggestion.title} campaign`,
+        contentTitle: suggestion.title,
+        objective: suggestion.aiPrompt,
+        subjectSeed: suggestion.subject || seed.subject,
+        bodySeed: suggestion.body,
+        ctaLabel: suggestion.ctaLabel,
+        ctaUrl: suggestion.ctaUrl,
+        language: "en",
+      }),
+    });
+    return { play, targetAudience, result };
+  }
+
+  function contentDraftFromTemplateGapAi(suggestion: ContentTemplateGapSuggestion, result: CampaignStudioAiDraftResponse, play: CampaignStudioPlay): ContentDraft {
+    return {
+      title: result.draft.contentTitle || suggestion.title,
+      channel: suggestion.channel,
+      language: result.draft.language || "en",
+      status: "draft",
+      subject: result.draft.subject,
+      body: result.draft.body,
+      htmlBody: suggestion.channel === "email" ? `<p>${result.draft.body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br />")}</p>` : "",
+      ctaLabel: result.draft.ctaLabel || suggestion.ctaLabel,
+      ctaUrl: result.draft.ctaUrl || suggestion.ctaUrl,
+      designJsonText: JSON.stringify({
+        ...(result.draft.designJson ?? {}),
+        source: result.source,
+        generator: result.source === "openai" ? "marketing_template_gap_ai" : "marketing_template_gap_ai_fallback",
+        templateGapId: suggestion.id,
+        templateGapPrompt: suggestion.aiPrompt,
+        studioPlayId: play.id,
+        tone: suggestion.studioToneId,
+        angle: suggestion.studioAngleId,
+      }, null, 2),
+      mediaAssetsText: "[]",
+    };
+  }
+
+  async function createTemplateGapAiContent(suggestion: ContentTemplateGapSuggestion) {
+    const { play, result } = await requestTemplateGapAiDraft(suggestion);
+    const draft = contentDraftFromTemplateGapAi(suggestion, result, play);
+    const response = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+      method: "POST",
+      body: JSON.stringify({
+        title: draft.title,
+        channel: draft.channel,
+        language: draft.language.trim() || "en",
+        status: draft.status,
+        subject: draft.subject || null,
+        body: draft.body,
+        htmlBody: draft.htmlBody.trim() || null,
+        ctaLabel: draft.ctaLabel.trim() || null,
+        ctaUrl: draft.ctaUrl.trim() || null,
+        designJson: parseJsonText(draft.designJsonText, "Design JSON"),
+        mediaAssets: parseJsonArrayText(draft.mediaAssetsText, "Media assets"),
+        source: "vyva",
+        metadata: {
+          generatedFrom: "template_gap_pack",
           templateGapId: suggestion.id,
           templateGapPrompt: suggestion.aiPrompt,
           studioPlayId: play.id,
           tone: suggestion.studioToneId,
           angle: suggestion.studioAngleId,
-        }, null, 2),
-        mediaAssetsText: "[]",
-      });
+          aiSource: result.source,
+        },
+      }),
+    });
+    return { content: response.content, draft, result };
+  }
+
+  async function generateTemplateGapAiDraft(suggestion: ContentTemplateGapSuggestion) {
+    setTemplateGapAiRunningId(suggestion.id);
+    setContentActionFeedback(`Generating AI draft for ${suggestion.title}...`);
+    setContentFeedback("");
+    try {
+      const { play, result } = await requestTemplateGapAiDraft(suggestion);
+      setContentDraft(contentDraftFromTemplateGapAi(suggestion, result, play));
       setSelectedContentId(null);
       setEditingContentId(null);
       setContentEditDraft(null);
@@ -6550,6 +6594,54 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setTemplateGapAiRunningId(null);
+    }
+  }
+
+  async function generateTemplateGapPack() {
+    const suggestions = contentTemplateGapSuggestions.slice(0, TEMPLATE_GAP_BATCH_LIMIT);
+    if (!suggestions.length) {
+      setContentActionFeedback("Template coverage is balanced. No gap pack needed right now.");
+      return;
+    }
+
+    setTemplateGapPackRunning(true);
+    setTemplateGapPackProgress(`Preparing 0/${suggestions.length} gap templates`);
+    setContentFeedback("");
+    setContentActionFeedback(`Creating ${suggestions.length} AI template gap draft${suggestions.length === 1 ? "" : "s"}...`);
+    try {
+      const created: ContentAsset[] = [];
+      for (let index = 0; index < suggestions.length; index += 1) {
+        const suggestion = suggestions[index];
+        setTemplateGapPackProgress(`Creating ${index + 1}/${suggestions.length}: ${suggestion.title}`);
+        const { content: contentAsset } = await createTemplateGapAiContent(suggestion);
+        created.push(contentAsset);
+      }
+
+      const firstCreated = created[0] ?? null;
+      if (firstCreated) {
+        setSelectedContentId(firstCreated.id);
+        setEditingContentId(firstCreated.id);
+        setContentEditDraft(contentEditDraftFromContent(firstCreated));
+        setContentDrawerMode("edit");
+      }
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+      const feedback = `AI gap pack created: ${created.length} template draft${created.length === 1 ? "" : "s"}. ${firstCreated ? "First draft opened for review." : ""}`;
+      setContentFeedback(feedback);
+      setContentActionFeedback(feedback);
+      setMessage(feedback);
+      await refreshAll();
+      scrollToContentPanel(contentEditorPanelRef);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "AI template gap pack could not be created.";
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setTemplateGapPackProgress("");
+      setTemplateGapPackRunning(false);
     }
   }
 
@@ -9506,6 +9598,30 @@ export default function MarketingAdminPage() {
                 subtitle="Suggested starter drafts for weak channel or audience coverage."
                 action={<Pill className="bg-amber-50 text-amber-800">{contentTemplateGapSuggestions.length} suggestions</Pill>}
               >
+                {contentTemplateGapSuggestions.length ? (
+                  <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-purple-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between" data-testid="marketing-template-gap-pack">
+                    <div>
+                      <h3 className="font-serif text-xl text-[#241133]">Build a starter pack</h3>
+                      <p className="mt-1 max-w-3xl text-sm font-bold leading-relaxed text-[#6f5f59]">
+                        Generate and save up to {Math.min(TEMPLATE_GAP_BATCH_LIMIT, contentTemplateGapSuggestions.length)} missing template drafts at once. Review the first draft, then repeat when you want to fill the next coverage gap.
+                      </p>
+                      {templateGapPackProgress ? (
+                        <p className="mt-2 rounded-xl bg-purple-50 px-3 py-2 text-xs font-black text-purple-800" data-testid="marketing-template-gap-pack-progress">
+                          {templateGapPackProgress}
+                        </p>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void generateTemplateGapPack()}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                      disabled={contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
+                      data-testid="button-marketing-template-gap-pack-ai"
+                    >
+                      <Sparkles size={16} /> {templateGapPackRunning ? "Creating pack..." : `Draft top ${Math.min(TEMPLATE_GAP_BATCH_LIMIT, contentTemplateGapSuggestions.length)} with AI`}
+                    </button>
+                  </div>
+                ) : null}
                 <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-template-gap-suggestions">
                   {contentTemplateGapSuggestions.length ? contentTemplateGapSuggestions.map((suggestion) => (
                     <article key={suggestion.id} className="flex min-h-[300px] flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm" data-testid={`marketing-template-gap-${suggestion.channel}-${suggestion.audienceType}`}>
@@ -9528,7 +9644,7 @@ export default function MarketingAdminPage() {
                           type="button"
                           onClick={() => openTemplateGapInCampaignStudio(suggestion)}
                           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                          disabled={contentSaving || Boolean(templateGapAiRunningId)}
+                          disabled={contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
                           data-testid={`button-marketing-template-gap-studio-${suggestion.channel}-${suggestion.audienceType}`}
                         >
                           <Zap size={14} /> Open in studio
@@ -9537,7 +9653,7 @@ export default function MarketingAdminPage() {
                           type="button"
                           onClick={() => void generateTemplateGapAiDraft(suggestion)}
                           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                          disabled={contentSaving || Boolean(templateGapAiRunningId)}
+                          disabled={contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
                           data-testid={`button-marketing-template-gap-ai-${suggestion.channel}-${suggestion.audienceType}`}
                         >
                           <Sparkles size={14} /> {templateGapAiRunningId === suggestion.id ? "Generating..." : "Draft with AI"}
@@ -9546,7 +9662,7 @@ export default function MarketingAdminPage() {
                           type="button"
                           onClick={() => applyTemplateGapSuggestion(suggestion)}
                           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f2edf2] disabled:text-[#8d7d8d]"
-                          disabled={contentSaving || Boolean(templateGapAiRunningId)}
+                          disabled={contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
                           data-testid={`button-marketing-template-gap-${suggestion.channel}-${suggestion.audienceType}`}
                         >
                           <FileText size={14} /> Draft template
