@@ -112,10 +112,15 @@ CREATE TABLE concierge_sessions (
 
   outcome          text NOT NULL DEFAULT 'pending'
                    CHECK (outcome IN (
+                     'pending',
+                     'completed',
                      'confirmed',
                      'no_answer',
+                     'unavailable',
                      'cant_fulfil',
+                     'needs_more_info',
                      'user_cancelled',
+                     'cancelled',
                      'error'
                    )),
 
@@ -221,7 +226,7 @@ CREATE INDEX idx_cr_user_active
 -- [x] concierge_sessions.location_type column exists (text, nullable)
 -- [x] concierge_pending.expires_at defaults to now() + interval '30 minutes'
 -- [x] concierge_pending.status CHECK covers all five values
--- [x] concierge_sessions.outcome defaults to 'pending'
+-- [x] concierge_sessions.outcome defaults to 'pending' and allows completed follow-up saves
 -- [x] user_providers allows insert with only user_id, category, name
 -- [x] concierge_reminders allows insert with only user_id, reminder_type, title, reminder_date
 -- [x] All six indexes created successfully

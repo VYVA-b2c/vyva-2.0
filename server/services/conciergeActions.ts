@@ -14,6 +14,7 @@ export const CONCIERGE_USE_CASES = [
   "admin_task",
   "scam_check",
   "shopping_request",
+  "insurance_admin",
   "travel",
   "send_message",
   "order_food",
