@@ -68,6 +68,7 @@ import {
   type ShowVyvaCaptureSource,
   type ShowVyvaPastePayload,
 } from "../../shared/showVyvaFlow";
+import { showVyvaReviewContractFromHealthResult } from "../../shared/showVyvaReviewContract";
 
 type WoundScan = {
   id: string;
@@ -706,6 +707,11 @@ export function VisualScanResultPanel({
   const potentialConcerns = visualScanList(result.potentialConcerns);
   const uncertainty = visualScanList(result.uncertainty);
   const hasStructuredReview = visibleObservations.length || potentialConcerns.length || uncertainty.length || result.recommendedNextStep;
+  const reviewContract = showVyvaReviewContractFromHealthResult({
+    useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+    source: "camera",
+    followUpContext: "health_visual",
+  }, result);
   const tone =
     result.severity === "Serious"
       ? { bg: "#FEF2F2", border: "#FECACA", badgeBg: "#FEE2E2", badgeText: "#991B1B" }
@@ -778,12 +784,14 @@ export function VisualScanResultPanel({
           testIdSuffix="health-current"
           title={t("showVyva.followUp.title.health_visual", "Next health step")}
           subtitle={t("showVyva.followUp.subtitle.health_visual", "Choose how to use this review. VYVA asks before sharing or booking.")}
+          confirmation={t("showVyva.contract.finalConfirmation", reviewContract.finalConfirmationRule)}
           actions={actions.map((action) => ({
             id: action.kind,
             label: action.label,
             detail: t(`showVyva.followUp.action.${action.kind}.detail`, "Prepare before acting."),
             icon: VISUAL_SCAN_FOLLOW_UP_ICONS[action.kind],
             tone: VISUAL_SCAN_FOLLOW_UP_TONES[action.kind],
+            externalAction: action.kind === "call_gp" || action.kind === "email_gp" || action.kind === "schedule_appointment" || action.kind === "book_ride",
             requiresConfirmation: true,
           }))}
           onSelect={(selected) => {

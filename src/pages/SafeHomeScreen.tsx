@@ -33,7 +33,7 @@ import {
   type ShowVyvaCaptureSource,
   type ShowVyvaPastePayload,
 } from "../../shared/showVyvaFlow";
-import { showVyvaFollowUpActionsFor } from "../../shared/showVyvaFollowUp";
+import { showVyvaReviewContractFromSafeHomeResult } from "../../shared/showVyvaReviewContract";
 
 type HomeScan = {
   id: string;
@@ -428,7 +428,12 @@ const SafeHomeScreen = () => {
   const caregiverHref = sanitizePhoneHref(profile?.caregiverContact);
 
   const renderServiceActions = (scan: SafeHomeActionScan, testIdSuffix: string) => {
-    const actions = showVyvaFollowUpActionsFor("home_safety").map((action) => {
+    const reviewContract = showVyvaReviewContractFromSafeHomeResult({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+      source: "camera",
+      followUpContext: "home_safety",
+    }, scan);
+    const actions = reviewContract.followUpActions.map((action) => {
       if (action.id !== "call_care_team") return action;
       if (caregiverHref) {
         return {
@@ -451,6 +456,7 @@ const SafeHomeScreen = () => {
           testIdSuffix={testIdSuffix}
           title={t("showVyva.followUp.title.home_safety", "Next home-safety step")}
           subtitle={t("showVyva.followUp.subtitle.home_safety", "Choose one practical step. VYVA asks before buying, booking, or calling.")}
+          confirmation={t("showVyva.contract.finalConfirmation", reviewContract.finalConfirmationRule)}
           actions={actions}
           onSelect={(action) => {
             if (action.id === "buy_safety_aid") {
