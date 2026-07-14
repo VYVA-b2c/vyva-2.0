@@ -2165,6 +2165,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-consent")).toHaveTextContent("1 pending/unknown and 0 opted out");
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-localization")).toHaveTextContent("Spain 1");
     expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Review 1 unmapped list member from Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief")).toHaveTextContent("Campaign plan at a glance");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-play")).toHaveTextContent("B2B partner introduction");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-hook")).toHaveTextContent("Partner outreach: proof point");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-audience")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-channels")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality")).toHaveTextContent("Copy checks before create");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-subject")).toHaveTextContent("Opening hook");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-cta")).toHaveTextContent("Ready");
@@ -2193,6 +2198,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach AI campaign");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("AI draft");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("AI adapted all 1 selected channel draft.");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-creative")).toHaveTextContent("AI-polished pack");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
     expect(screen.getByTestId("marketing-campaign-studio-next-step")).toHaveTextContent("Create the LinkedIn planning campaign");
     fireEvent.click(screen.getByTestId("button-marketing-apply-studio-draft"));

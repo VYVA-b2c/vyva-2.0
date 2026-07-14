@@ -547,6 +547,14 @@ type CampaignExecutionPlanItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignStudioLaunchBriefItem = {
+  key: string;
+  title: string;
+  value: string;
+  detail: string;
+  state: CampaignReadinessState;
+};
+
 type CampaignStudioLaunchStep = CampaignReadinessItem & {
   actionLabel: string;
   icon: LucideIcon;
@@ -5203,6 +5211,76 @@ export default function MarketingAdminPage() {
     : campaignStudioHasFullAiPack
       ? "AI-polished pack"
       : "Review-ready draft";
+  const selectedCampaignStudioPlayCategoryLabel = campaignStudioCategories.find((category) => category.id === selectedCampaignStudioPlay.categoryId)?.label ?? selectedCampaignStudioPlay.categoryId;
+  const campaignStudioLaunchBriefItems: CampaignStudioLaunchBriefItem[] = [
+    {
+      key: "play",
+      title: "Campaign idea",
+      value: campaignStudioGenerated.campaignName,
+      detail: `${selectedCampaignStudioPlayCategoryLabel} play for ${selectedCampaignStudioPlay.audienceType.toUpperCase()} audiences, in a ${campaignStudioToneLabel[campaignStudio.toneId].toLowerCase()} tone.`,
+      state: "ready",
+    },
+    {
+      key: "hook",
+      title: campaignStudioHasEmailChannel ? "Subject / hook" : "Opening hook",
+      value: campaignStudioGenerated.subject || "No hook yet",
+      detail: `${campaignStudioBodyWordCount} body word${campaignStudioBodyWordCount === 1 ? "" : "s"} with ${campaignStudioAngleOptions.find((item) => item.id === campaignStudio.angleId)?.label.toLowerCase() ?? campaignStudio.angleId} framing.`,
+      state: campaignStudioSubjectLength > 0 && campaignStudioBodyWordCount > 0 ? "ready" : "needs_action",
+    },
+    {
+      key: "audience",
+      title: "Audience",
+      value: selectedCampaignStudioTargetAudience?.name ?? "All eligible contacts",
+      detail: selectedCampaignStudioTargetAudience
+        ? `${selectedCampaignStudioTargetAudience.mappedMemberCount}/${selectedCampaignStudioTargetAudience.memberCount} list members are mapped to marketing contacts.`
+        : `${campaignStudioAudiencePool.length} contacts match this play without a saved list.`,
+      state: selectedCampaignStudioTargetAudience
+        ? selectedCampaignStudioTargetAudience.mappedMemberCount > 0 ? "ready" : "needs_action"
+        : campaignStudioAudiencePool.length > 0 ? "planning" : "blocked",
+    },
+    {
+      key: "reach",
+      title: "Reach",
+      value: campaignStudioSelectedChannels.length === 1
+        ? `${campaignStudioRecipientPreview.length} recipient${campaignStudioRecipientPreview.length === 1 ? "" : "s"}`
+        : `${campaignStudioPackRecipientCount} snapshots`,
+      detail: campaignStudioSelectedChannels.length === 1
+        ? `${channelLabel[campaignStudio.channel]} can reach ${campaignStudioRecipientPreview.length} of ${campaignStudioAudiencePool.length} matching contacts.`
+        : `Recipient snapshots will be prepared across ${campaignStudioSelectedChannels.length} selected channels.`,
+      state: campaignStudioPackRecipientCount > 0 ? "ready" : "blocked",
+    },
+    {
+      key: "channels",
+      title: "Channels",
+      value: campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(" + "),
+      detail: campaignStudioExecutionPlan.some((item) => item.state === "ready")
+        ? "At least one selected channel can use the VYVA dispatcher after campaign review."
+        : "Selected channels will be saved for planning and manual handoff.",
+      state: campaignStudioExecutionPlan.some((item) => item.state === "ready") ? "ready" : "planning",
+    },
+    {
+      key: "schedule",
+      title: "Schedule",
+      value: formatDate(fromDateTimeLocal(campaignStudioSchedule)),
+      detail: campaignStudioSchedule
+        ? "The campaign will be created with this planned start time."
+        : "Apply this as a draft if timing is not decided yet.",
+      state: campaignStudioSchedule ? "ready" : "needs_action",
+    },
+    {
+      key: "creative",
+      title: "Creative",
+      value: campaignStudioHasFullAiPack
+        ? "AI-polished pack"
+        : campaignStudioAiDraftCount > 0
+          ? `${campaignStudioAiDraftCount}/${campaignStudioSelectedChannels.length} AI drafts`
+          : "Template draft",
+      detail: campaignStudioCreativeIssueCount > 0
+        ? campaignStudioCreativeSummary
+        : "Copy is clear enough to create content records, with AI polish available when needed.",
+      state: campaignStudioCreativeIssueCount > 0 ? "needs_action" : campaignStudioHasFullAiPack ? "ready" : "planning",
+    },
+  ];
   const campaignStudioLanguageLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.language), "Unknown", 2);
   const campaignStudioMarketLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.market), "Unknown", 2);
   const campaignStudioAudienceTypeLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.audienceType.toUpperCase()), "Unknown", 2);
@@ -7916,6 +7994,33 @@ export default function MarketingAdminPage() {
                       <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-audience-recommendation">
                         Recommendation: {campaignStudioAudienceRecommendation}
                       </p>
+                    </div>
+
+                    <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-4" data-testid="marketing-campaign-studio-launch-brief">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Launch brief</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Campaign plan at a glance</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">A live summary of the plan VYVA will create from this studio setup.</p>
+                        </div>
+                        <Pill className={campaignStudioCreateDisabled ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                          {campaignStudioCreateDisabled ? "Review needed" : "Creation ready"}
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2" data-testid="marketing-campaign-studio-launch-brief-items">
+                        {campaignStudioLaunchBriefItems.map((item) => (
+                          <div key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-launch-brief-${item.key}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs font-black uppercase tracking-[0.08em] opacity-80">{item.title}</p>
+                                <p className="mt-1 text-sm font-black text-[#241133]">{item.value}</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
+                              </div>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4" data-testid="marketing-campaign-studio-preview">
