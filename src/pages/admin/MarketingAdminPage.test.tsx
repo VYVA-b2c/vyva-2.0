@@ -2027,6 +2027,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-consent")).toHaveTextContent("1 pending/unknown and 0 opted out");
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-localization")).toHaveTextContent("Spain 1");
     expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Review 1 unmapped list member from Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality")).toHaveTextContent("Copy checks before create");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-subject")).toHaveTextContent("Opening hook");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-cta")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("LinkedIn has one focused draft ready for review.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness")).toHaveTextContent("Studio readiness");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-recipients")).toHaveTextContent("1 eligible recipient will be snapshotted.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-channel")).toHaveTextContent("Planning");
@@ -2040,6 +2044,7 @@ describe("MarketingAdminPage", () => {
     });
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach AI campaign");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("AI draft");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("AI adapted all 1 selected channel draft.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
     expect(screen.getByTestId("marketing-campaign-studio-next-step")).toHaveTextContent("Create the LinkedIn planning campaign");
     fireEvent.click(screen.getByTestId("button-marketing-apply-studio-draft"));
@@ -2073,6 +2078,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-execution-plan-linkedin")).toHaveTextContent("publish or track it outside VYVA");
     expect(screen.getByTestId("marketing-campaign-studio-execution-plan-email")).toHaveTextContent("VYVA email send");
     expect(screen.getByTestId("marketing-campaign-studio-execution-plan-email")).toHaveTextContent("send from the campaign details");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("0/2 selected channels have AI-polished copy.");
     fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
 
     await waitFor(() => {
@@ -2080,6 +2086,7 @@ describe("MarketingAdminPage", () => {
     });
     const aiDraftCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
     expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel)).toEqual(["linkedin", "email"]);
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("AI adapted all 2 selected channel drafts.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
     fireEvent.click(screen.getByTestId("button-marketing-create-studio-campaign"));
 

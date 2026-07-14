@@ -510,6 +510,13 @@ type CampaignAudienceInsightItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignCreativeQualityItem = {
+  key: string;
+  title: string;
+  detail: string;
+  state: CampaignReadinessState;
+};
+
 type CampaignExecutionPlanItem = {
   channel: Channel;
   title: string;
@@ -1138,6 +1145,14 @@ function formatCalendarTime(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown";
   return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function wordCount(value: string) {
+  return value.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function hasPersonalizationToken(value: string) {
+  return /\{\{\s*(first_name|name|full_name)\s*\}\}/i.test(value);
 }
 
 function recordTimelineParts(record: { createdAt?: string | null; updatedAt?: string | null; lastSyncedAt?: string | null }) {
@@ -4609,6 +4624,74 @@ export default function MarketingAdminPage() {
   };
   const campaignStudioAiDraftCount = campaignStudioSelectedChannels.filter((channel) => campaignStudioAiDrafts[channel]?.source === "openai").length;
   const campaignStudioHasFullAiPack = campaignStudioSelectedChannels.length > 0 && campaignStudioAiDraftCount === campaignStudioSelectedChannels.length;
+  const campaignStudioSubjectLength = campaignStudioGenerated.subject.trim().length;
+  const campaignStudioBodyWordCount = wordCount(campaignStudioGenerated.body);
+  const campaignStudioHasEmailChannel = campaignStudioSelectedChannels.includes("email");
+  const campaignStudioHasCta = Boolean(campaignStudioGenerated.ctaLabel.trim() && campaignStudioGenerated.ctaUrl.trim());
+  const campaignStudioHasPersonalization = hasPersonalizationToken(`${campaignStudioGenerated.subject}\n${campaignStudioGenerated.body}`);
+  const campaignStudioCreativeQualityItems: CampaignCreativeQualityItem[] = [
+    {
+      key: "subject",
+      title: campaignStudioHasEmailChannel ? "Subject line" : "Opening hook",
+      state: campaignStudioSubjectLength === 0
+        ? campaignStudioHasEmailChannel ? "blocked" : "needs_action"
+        : campaignStudioSubjectLength > 90 ? "needs_action" : "ready",
+      detail: campaignStudioSubjectLength === 0
+        ? campaignStudioHasEmailChannel
+          ? "Email needs a subject before this should be sent."
+          : "Add a short hook so the plan is easy to recognize."
+        : campaignStudioSubjectLength > 90
+          ? `${campaignStudioSubjectLength} characters. Shorten it so it scans cleanly in inboxes and social previews.`
+          : `${campaignStudioSubjectLength} characters. Clear enough for review and channel adaptation.`,
+    },
+    {
+      key: "message-length",
+      title: "Message length",
+      state: campaignStudioBodyWordCount === 0
+        ? "blocked"
+        : campaignStudioBodyWordCount < 12 || campaignStudioBodyWordCount > 180 ? "needs_action" : "ready",
+      detail: campaignStudioBodyWordCount === 0
+        ? "Add message copy before creating content."
+        : campaignStudioBodyWordCount < 12
+          ? `${campaignStudioBodyWordCount} words. Add a little more context before publishing.`
+          : campaignStudioBodyWordCount > 180
+            ? `${campaignStudioBodyWordCount} words. Consider splitting or trimming for easier reading.`
+            : `${campaignStudioBodyWordCount} words. Good length for a reviewable campaign draft.`,
+    },
+    {
+      key: "cta",
+      title: "Call to action",
+      state: campaignStudioHasCta ? "ready" : "needs_action",
+      detail: campaignStudioHasCta
+        ? `${campaignStudioGenerated.ctaLabel} points to ${campaignStudioGenerated.ctaUrl}.`
+        : "Add a CTA label and link so the campaign has a clear next step.",
+    },
+    {
+      key: "personalization",
+      title: "Personalization",
+      state: campaignStudioHasPersonalization ? "ready" : "planning",
+      detail: campaignStudioHasPersonalization
+        ? "Uses a contact token so the message can feel personal at send time."
+        : "Consider adding {{first_name}} where the channel supports personalization.",
+    },
+    {
+      key: "channel-fit",
+      title: "Channel fit",
+      state: campaignStudioHasFullAiPack || campaignStudioSelectedChannels.length === 1 ? "ready" : "planning",
+      detail: campaignStudioHasFullAiPack
+        ? `AI adapted all ${campaignStudioSelectedChannels.length} selected channel draft${campaignStudioSelectedChannels.length === 1 ? "" : "s"}.`
+        : campaignStudioSelectedChannels.length === 1
+          ? `${channelLabel[campaignStudioSelectedChannels[0]]} has one focused draft ready for review.`
+          : `${campaignStudioAiDraftCount}/${campaignStudioSelectedChannels.length} selected channels have AI-polished copy. Improve the pack with AI for stronger channel fit.`,
+    },
+  ];
+  const campaignStudioCreativeReadyCount = campaignStudioCreativeQualityItems.filter((item) => item.state === "ready").length;
+  const campaignStudioCreativeIssueCount = campaignStudioCreativeQualityItems.filter((item) => item.state === "blocked" || item.state === "needs_action").length;
+  const campaignStudioCreativeSummary = campaignStudioCreativeIssueCount > 0
+    ? `${campaignStudioCreativeIssueCount} copy issue${campaignStudioCreativeIssueCount === 1 ? "" : "s"}`
+    : campaignStudioHasFullAiPack
+      ? "AI-polished pack"
+      : "Review-ready draft";
   const campaignStudioLanguageLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.language), "Unknown", 2);
   const campaignStudioMarketLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.market), "Unknown", 2);
   const campaignStudioAudienceTypeLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.audienceType.toUpperCase()), "Unknown", 2);
@@ -6617,6 +6700,40 @@ export default function MarketingAdminPage() {
                         <Pill className="bg-white text-[#5b4a46]">{campaignStudioRecipientPreview.length} eligible recipients</Pill>
                       </div>
                       {campaignStudioGenerated.note ? <p className="mt-2 text-xs font-bold text-amber-800">{campaignStudioGenerated.note}</p> : null}
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-creative-quality">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Creative quality</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Copy checks before create</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Quick signals for message clarity, action, personalization, and fit across the selected channels.</p>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Pill className={campaignStudioCreativeIssueCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                            {campaignStudioCreativeSummary}
+                          </Pill>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignStudioCreativeReadyCount}/{campaignStudioCreativeQualityItems.length} ready</Pill>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2" data-testid="marketing-campaign-studio-creative-quality-items">
+                        {campaignStudioCreativeQualityItems.map((item) => (
+                          <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-creative-quality-${item.key}`}>
+                            <div className="flex items-start gap-2">
+                              <span className="mt-0.5 shrink-0">
+                                {item.state === "ready" ? <CheckCircle2 size={16} /> : item.state === "blocked" ? <X size={16} /> : <Clock size={16} />}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span className="font-black">{item.title}</span>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </span>
+                                <span className="mt-1 block text-xs font-bold leading-relaxed">{item.detail}</span>
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-purple-200 bg-white p-4" data-testid="marketing-campaign-studio-readiness">
