@@ -46,6 +46,7 @@ import MasterDashboardLayout, {
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
+import ShowVyvaFollowUpPanel, { type ShowVyvaFollowUpAction } from "@/components/ShowVyvaFollowUpPanel";
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -555,6 +556,22 @@ type VisualScanAction = {
   onClick?: () => void;
 };
 
+const VISUAL_SCAN_FOLLOW_UP_ICONS: Record<VisualScanActionKind, ShowVyvaFollowUpAction["icon"]> = {
+  call_gp: "phone",
+  email_gp: "reply",
+  doctor_help: "shield",
+  schedule_appointment: "quote",
+  book_ride: "map",
+};
+
+const VISUAL_SCAN_FOLLOW_UP_TONES: Record<VisualScanActionKind, ShowVyvaFollowUpAction["tone"]> = {
+  call_gp: "safe",
+  email_gp: "quiet",
+  doctor_help: "primary",
+  schedule_appointment: "warm",
+  book_ride: "quiet",
+};
+
 type SpecialistProviderServiceActionKind = "call_provider" | "book_appointment" | "book_ride" | "open_map";
 
 type SpecialistProviderServiceAction = {
@@ -756,41 +773,29 @@ export function VisualScanResultPanel({
       )}
 
       {actions.length ? (
-        <div className="mt-3 grid gap-2 sm:grid-cols-3" data-testid="visual-scan-service-actions">
-          {actions.map((action) => {
-            const ActionIcon = action.Icon;
-            const content = (
-              <>
-                <ActionIcon size={17} />
-                <span>{action.label}</span>
-              </>
-            );
-            const className = "vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] bg-white px-3 text-center font-body text-[13px] font-extrabold text-vyva-purple shadow-[0_8px_20px_rgba(63,45,35,0.07)]";
+        <ShowVyvaFollowUpPanel
+          context="health_visual"
+          testIdSuffix="health-current"
+          title={t("showVyva.followUp.title.health_visual", "Next health step")}
+          subtitle={t("showVyva.followUp.subtitle.health_visual", "Choose how to use this review. VYVA asks before sharing or booking.")}
+          actions={actions.map((action) => ({
+            id: action.kind,
+            label: action.label,
+            detail: t(`showVyva.followUp.action.${action.kind}.detail`, "Prepare before acting."),
+            icon: VISUAL_SCAN_FOLLOW_UP_ICONS[action.kind],
+            tone: VISUAL_SCAN_FOLLOW_UP_TONES[action.kind],
+            requiresConfirmation: true,
+          }))}
+          onSelect={(selected) => {
+            const action = actions.find((item) => item.kind === selected.id);
+            if (!action) return;
             if (action.href) {
-              return (
-                <a
-                  key={action.kind}
-                  href={action.href}
-                  className={className}
-                  data-testid={`button-visual-scan-action-${action.kind}`}
-                >
-                  {content}
-                </a>
-              );
+              window.location.href = action.href;
+              return;
             }
-            return (
-              <button
-                key={action.kind}
-                type="button"
-                onClick={action.onClick}
-                className={className}
-                data-testid={`button-visual-scan-action-${action.kind}`}
-              >
-                {content}
-              </button>
-            );
-          })}
-        </div>
+            action.onClick?.();
+          }}
+        />
       ) : null}
 
       <p className="mt-3 rounded-[12px] bg-white/72 px-3 py-2 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
