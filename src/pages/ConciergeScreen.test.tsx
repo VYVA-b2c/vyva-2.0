@@ -2896,6 +2896,9 @@ describe("ConciergeScreen route prefill", () => {
 
     const callLink = await screen.findByTestId("link-concierge-phone-call-ride-1");
     expect(callLink).toHaveAttribute("href", "tel:+34612345678");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveAttribute("data-phase", "needs_ok");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Needs your OK");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("You confirm before anything is sent, called, or booked.");
     expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Call step");
     expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Call now, then save what happened.");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Follow-through");
@@ -3305,6 +3308,8 @@ describe("ConciergeScreen route prefill", () => {
     const receipt = await screen.findByTestId("panel-concierge-completed-receipt");
     expect(receipt).toHaveTextContent("Receipt");
     expect(receipt).toHaveTextContent("Ride saved with Radio Taxi.");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Result");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Completed");
     expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Reference");
     expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("RT-123");
     expect(within(receipt).getByTestId("link-concierge-receipt-contact")).toHaveAttribute("href", "tel:+34612345678");
@@ -3454,6 +3459,9 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     expect(await screen.findByTestId("panel-concierge-action-timeline")).toHaveTextContent("Request started");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveAttribute("data-phase", "waiting");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Waiting for reply");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("This stays here until the result is saved.");
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "done");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-waiting")).toHaveAttribute("data-state", "upcoming");

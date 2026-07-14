@@ -3848,6 +3848,43 @@ function formatConciergeCompletedAt(value: string | null | undefined, locale = "
   }).format(date);
 }
 
+function completedSessionOutcomeLabel(session: ConciergeCompletedSession, isSpanish: boolean): string {
+  const payload = session.outcome_payload;
+  const rawOutcome = payloadString(payload, [
+    "call_outcome",
+    "provider_reply_status",
+    "form_outcome",
+    "email_outcome",
+    "whatsapp_outcome",
+  ]) || session.outcome || "completed";
+  const outcome = rawOutcome.toLowerCase().replace(/\s+/g, "_");
+
+  switch (outcome) {
+    case "confirmed":
+      return isSpanish ? "Confirmado" : "Confirmed";
+    case "submitted":
+      return isSpanish ? "Enviado" : "Submitted";
+    case "sent":
+      return isSpanish ? "Enviado" : "Sent";
+    case "no_answer":
+      return isSpanish ? "Sin respuesta" : "No answer";
+    case "needs_info":
+    case "needs_more_info":
+      return isSpanish ? "Necesita mas datos" : "Needs more details";
+    case "unavailable":
+    case "cant_fulfil":
+      return isSpanish ? "No disponible" : "Unavailable";
+    case "cancelled":
+    case "user_cancelled":
+      return isSpanish ? "Cancelado" : "Cancelled";
+    case "error":
+      return isSpanish ? "Necesita revision" : "Needs review";
+    case "completed":
+    default:
+      return isSpanish ? "Completado" : "Completed";
+  }
+}
+
 function completedSessionDetails(session: ConciergeCompletedSession, isSpanish: boolean): Array<{ label: string; value: string }> {
   const payload = session.outcome_payload;
   const entries = [
@@ -3901,6 +3938,10 @@ function completedSessionReceiptDetails(
     {
       label: isSpanish ? "Tipo" : "Type",
       value: completedSessionFlowLabel(session, locale),
+    },
+    {
+      label: isSpanish ? "Resultado" : "Result",
+      value: completedSessionOutcomeLabel(session, isSpanish),
     },
     {
       label: isSpanish ? "Proveedor" : "Provider",
@@ -5794,6 +5835,80 @@ function canRecordProviderReply(status: ConciergeFollowThroughStatus | null): bo
   return Boolean(status && ["requested", "waiting", "confirmed"].includes(status.activeStepId));
 }
 
+type ConciergeExecutionTone = "purple" | "blue" | "green" | "amber" | "red";
+
+type ConciergeExecutionStatusSummary = {
+  phase: "needs_ok" | "being_prepared" | "waiting" | "ready_to_save" | "completed" | "cancelled" | "attention";
+  label: string;
+  helper: string;
+  tone: ConciergeExecutionTone;
+};
+
+function buildConciergeExecutionStatus(
+  item: ConciergePendingItem,
+  status: ConciergeFollowThroughStatus,
+  isSpanish: boolean,
+): ConciergeExecutionStatusSummary {
+  if (item.status === "failed" || status.activeStepId === "attention") {
+    return {
+      phase: "attention",
+      label: isSpanish ? "Necesita revision" : "Needs review",
+      helper: isSpanish ? "Revisa el siguiente paso antes de continuar." : "Review the next step before continuing.",
+      tone: "red",
+    };
+  }
+  if (item.status === "cancelled" || status.activeStepId === "cancelled") {
+    return {
+      phase: "cancelled",
+      label: isSpanish ? "Cancelado" : "Cancelled",
+      helper: isSpanish ? "Esta gestion no seguira adelante." : "This task will not continue.",
+      tone: "amber",
+    };
+  }
+  if (item.status === "completed" || status.activeStepId === "done") {
+    return {
+      phase: "completed",
+      label: isSpanish ? "Guardado" : "Saved",
+      helper: isSpanish ? "El resultado esta en el historial." : "The result is in the history.",
+      tone: "green",
+    };
+  }
+  if (status.activeStepId === "confirmed") {
+    return {
+      phase: "ready_to_save",
+      label: isSpanish ? "Listo para guardar" : "Ready to save",
+      helper: isSpanish ? "Guarda la hora, referencia o respuesta final." : "Save the time, reference, or final reply.",
+      tone: "green",
+    };
+  }
+  if (status.activeStepId === "waiting") {
+    return {
+      phase: "waiting",
+      label: isSpanish ? "Esperando respuesta" : "Waiting for reply",
+      helper: isSpanish ? "Cuando llegue, guardala aqui para cerrar la tarea." : "When it arrives, save it here to close the task.",
+      tone: "blue",
+    };
+  }
+  if (status.activeStepId === "requested" || item.status === "calling") {
+    return {
+      phase: item.status === "calling" ? "waiting" : "being_prepared",
+      label: item.status === "calling"
+        ? (isSpanish ? "Esperando respuesta" : "Waiting for reply")
+        : (isSpanish ? "VYVA lo prepara" : "VYVA is preparing it"),
+      helper: item.status === "calling"
+        ? (isSpanish ? "La tarjeta se queda aqui hasta guardar el resultado." : "This stays here until the result is saved.")
+        : (isSpanish ? "VYVA reunira lo necesario antes de pedir tu OK." : "VYVA gathers what is needed before asking for your OK."),
+      tone: item.status === "calling" ? "blue" : "purple",
+    };
+  }
+  return {
+    phase: "needs_ok",
+    label: isSpanish ? "Necesita tu OK" : "Needs your OK",
+    helper: isSpanish ? "Confirmas antes de enviar, llamar o reservar." : "You confirm before anything is sent, called, or booked.",
+    tone: "purple",
+  };
+}
+
 const EMPTY_PROVIDER_REPLY_FORM: ProviderReplyForm = {
   scheduledFor: "",
   reference: "",
@@ -6494,6 +6609,43 @@ function ConciergeActionTimeline({ status }: { status: ConciergeFollowThroughSta
           );
         })}
       </ol>
+    </div>
+  );
+}
+
+function ConciergeExecutionStatusPanel({ summary }: { summary: ConciergeExecutionStatusSummary }) {
+  const toneClasses: Record<ConciergeExecutionTone, string> = {
+    purple: "border-[#E9D5FF] bg-[#FBF8FF] text-vyva-purple",
+    blue: "border-[#BAE6FD] bg-[#F0F9FF] text-[#0369A1]",
+    green: "border-[#BBF7D0] bg-[#F8FFFC] text-[#047857]",
+    amber: "border-[#FED7AA] bg-[#FFFBEB] text-[#A16207]",
+    red: "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]",
+  };
+  const Icon = summary.tone === "green"
+    ? CircleCheck
+    : summary.tone === "red"
+      ? AlertTriangle
+      : PackageCheck;
+
+  return (
+    <div
+      className={`mt-4 rounded-[18px] border px-3 py-2.5 ${toneClasses[summary.tone]}`}
+      data-phase={summary.phase}
+      data-testid="panel-concierge-execution-status"
+    >
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/80">
+          <Icon size={16} aria-hidden="true" />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">
+            {summary.label}
+          </span>
+          <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {summary.helper}
+          </span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -10066,6 +10218,9 @@ const ConciergeScreen = () => {
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
   const activeActionTimeline = activeAction ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
+  const activeActionExecutionStatus = activeAction && activeActionTimeline
+    ? buildConciergeExecutionStatus(activeAction, activeActionTimeline, isSpanish)
+    : null;
   const activeActionCanRecordProviderReply = canRecordProviderReply(activeActionTimeline);
   const activeActionProviderSearchDetails = isProviderSearchPendingAction(activeAction)
     ? providerSearchActionDetails(activeAction, isSpanish)
@@ -11983,6 +12138,8 @@ const ConciergeScreen = () => {
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
               {activeAction.action_summary}
             </p>
+
+            {activeActionExecutionStatus ? <ConciergeExecutionStatusPanel summary={activeActionExecutionStatus} /> : null}
 
             {activeActionTimeline ? <ConciergeActionTimeline status={activeActionTimeline} /> : null}
 
