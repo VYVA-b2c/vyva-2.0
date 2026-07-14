@@ -609,6 +609,15 @@ type CampaignStudioVisualAssetItem = {
   icon: LucideIcon;
 };
 
+type CampaignStudioApprovalPackItem = {
+  key: string;
+  title: string;
+  format: string;
+  detail: string;
+  text: string;
+  icon: LucideIcon;
+};
+
 type CampaignStudioCreativeVariant = {
   key: string;
   label: string;
@@ -6253,6 +6262,80 @@ export default function MarketingAdminPage() {
       },
     },
   ];
+  const campaignStudioApprovalBriefText = [
+    "Campaign approval brief",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${campaignStudioOfflineAudienceName}`,
+    `Audience type: ${selectedCampaignStudioPlay.audienceType.toUpperCase()}`,
+    `Channels: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
+    `Schedule: ${campaignStudioOfflineScheduleLabel}`,
+    `Objective: ${campaignStudioGenerated.objective || selectedCampaignStudioPlay.objective}`,
+    `Hook: ${campaignStudioPersonalizedSubject}`,
+    `CTA: ${campaignStudioOfflineCta}`,
+    `Reach: ${campaignStudioSelectedChannels.length === 1
+      ? `${campaignStudioRecipientPreview.length} eligible recipient${campaignStudioRecipientPreview.length === 1 ? "" : "s"}`
+      : `${campaignStudioPackRecipientCount} recipient snapshots across ${campaignStudioSelectedChannels.length} channels`}`,
+    "",
+    "Draft message:",
+    campaignStudioOfflineMessageLine || campaignStudioGenerated.body || "No body copy yet.",
+    "",
+    "Approval checks:",
+    ...campaignStudioLaunchBriefItems.map((item) => `- ${item.title}: ${item.value} (${readinessLabel(item.state)}) - ${item.detail}`),
+    "",
+    "Copy review:",
+    ...campaignStudioCreativeQualityItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Channel execution:",
+    ...campaignStudioExecutionPlan.map((item) => `- ${channelLabel[item.channel]}: ${item.sendMode}; ${item.nextAction} ${item.recipients} recipient${item.recipients === 1 ? "" : "s"}.`),
+    "",
+    `Recommended next step: ${campaignStudioNextStep}`,
+  ].join("\n");
+  const campaignStudioPublishingChecklistText = [
+    "Campaign publishing checklist",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Prepared in VYVA: ${new Date().toISOString().slice(0, 10)}`,
+    "",
+    "Before publishing:",
+    "1. Confirm the audience/list and remove any contacts without consent.",
+    "2. Confirm schedule, timezone, and whether this is draft, scheduled, or manual handoff.",
+    "3. Review subject/hook, body copy, CTA, and personalization token sample.",
+    "4. Review image, video, print, and partner handoff assets where relevant.",
+    "5. Create the campaign and content records in VYVA.",
+    "6. For email, send only from campaign details after final review. For social/offline, publish manually and record outcomes.",
+    "",
+    "Channel plan:",
+    ...campaignStudioExecutionPlan.map((item) => `- ${channelLabel[item.channel]}: ${item.sendMode}; ${item.nextAction}; planned recipients: ${item.recipients}.`),
+    "",
+    "Assets to prepare:",
+    ...campaignStudioVisualAssets.map((item) => `- ${item.title} (${item.format}): ${item.detail}`),
+    "",
+    "Human/offline handoffs:",
+    ...campaignStudioOfflineHandoffs.map((item) => `- ${item.title} (${item.format}): ${item.detail}`),
+    "",
+    "Final sign-off:",
+    "- Owner:",
+    "- Approved at:",
+    "- Publishing notes:",
+  ].join("\n");
+  const campaignStudioApprovalPack: CampaignStudioApprovalPackItem[] = [
+    {
+      key: "approval-brief",
+      title: "Approval brief",
+      format: "Review",
+      detail: "Send this to whoever approves campaign copy, audience, channel plan, and next step.",
+      icon: CheckCircle2,
+      text: campaignStudioApprovalBriefText,
+    },
+    {
+      key: "publishing-checklist",
+      title: "Publishing checklist",
+      format: "Launch",
+      detail: "Use this as the operating checklist before creating, sending, posting, printing, or handing off.",
+      icon: Send,
+      text: campaignStudioPublishingChecklistText,
+    },
+  ];
+  const campaignStudioApprovalPackText = campaignStudioApprovalPack.map((item) => item.text).join("\n\n---\n\n");
   const contentTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
     const candidateTemplates = contentTemplateFiltersActive ? visibleContentTemplates : contentTemplateGallery;
     const playCategoryLabel = campaignStudioCategories.find((category) => category.id === selectedCampaignStudioPlay.categoryId)?.label ?? selectedCampaignStudioPlay.categoryId;
@@ -9761,6 +9844,59 @@ export default function MarketingAdminPage() {
                                 onClick={() => void copyCampaignStudioOfflineHandoff(item.title, item.text)}
                                 className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-sm font-black text-white hover:bg-purple-800"
                                 data-testid={`button-marketing-campaign-studio-copy-visual-${item.key}`}
+                              >
+                                <Copy size={14} /> Copy
+                              </button>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4" data-testid="marketing-campaign-studio-approval-pack">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#3f7d62]">Approval and publishing</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Turn the draft into a launch-ready handoff</h3>
+                          <p className="mt-1 text-xs font-bold text-[#5d7569]">
+                            Copy-ready review notes and an execution checklist for email, social, partner, phone, event, print, and QR follow-up.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Approval and publishing pack", campaignStudioApprovalPackText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-black text-emerald-700 hover:bg-emerald-50"
+                          data-testid="button-marketing-campaign-studio-copy-approval-pack"
+                        >
+                          <Copy size={14} /> Copy approval pack
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-2" data-testid="marketing-campaign-studio-approval-items">
+                        {campaignStudioApprovalPack.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <article key={item.key} className="flex min-h-[360px] flex-col rounded-xl border border-emerald-100 bg-white p-3" data-testid={`marketing-campaign-studio-approval-${item.key}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 shadow-sm">
+                                    <Icon size={15} aria-hidden="true" />
+                                  </span>
+                                  <h4 className="mt-2 font-black text-[#241133]">{item.title}</h4>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed text-[#5d7569]">{item.detail}</p>
+                                </div>
+                                <Pill className="bg-emerald-50 text-emerald-800">{item.format}</Pill>
+                              </div>
+                              <textarea
+                                className="mt-3 min-h-[230px] flex-1 rounded-xl border border-emerald-100 bg-[#fbfffc] px-3 py-2 text-xs font-semibold leading-relaxed text-[#365545]"
+                                value={item.text}
+                                readOnly
+                                data-testid={`textarea-marketing-campaign-studio-approval-${item.key}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignStudioOfflineHandoff(item.title, item.text)}
+                                className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white hover:bg-emerald-700"
+                                data-testid={`button-marketing-campaign-studio-copy-approval-${item.key}`}
                               >
                                 <Copy size={14} /> Copy
                               </button>

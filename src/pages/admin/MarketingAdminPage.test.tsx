@@ -2397,6 +2397,24 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Print / QR layout brief"));
     });
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Visual asset kit copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-approval-pack")).toHaveTextContent("Approval and publishing");
+    expect(screen.getByTestId("marketing-campaign-studio-approval-pack")).toHaveTextContent("Approval brief");
+    expect(screen.getByTestId("marketing-campaign-studio-approval-pack")).toHaveTextContent("Publishing checklist");
+    const approvalBrief = screen.getByTestId("textarea-marketing-campaign-studio-approval-approval-brief") as HTMLTextAreaElement;
+    expect(approvalBrief.value).toContain("Campaign approval brief");
+    expect(approvalBrief.value).toContain("Audience: Partners");
+    expect(approvalBrief.value).toContain("CTA: I want the details");
+    expect(approvalBrief.value).toContain("Channel execution:");
+    const publishingChecklist = screen.getByTestId("textarea-marketing-campaign-studio-approval-publishing-checklist") as HTMLTextAreaElement;
+    expect(publishingChecklist.value).toContain("Campaign publishing checklist");
+    expect(publishingChecklist.value).toContain("Channel plan:");
+    expect(publishingChecklist.value).toContain("LinkedIn: Manual publishing");
+    expect(publishingChecklist.value).toContain("Human/offline handoffs:");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-approval-pack"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign publishing checklist"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Approval and publishing pack copied.");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-copy"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
