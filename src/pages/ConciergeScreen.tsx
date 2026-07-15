@@ -2943,27 +2943,20 @@ async function confirmPendingAction(item: ConciergePendingItem) {
   const emailDraft = getActionEmailDraft(item);
   const whatsAppDraft = getActionWhatsAppDraft(item);
   const preferredHandoffChannel = getPreferredHandoffChannel(item);
-
-  if (whatsAppDraft && (preferredHandoffChannel === "whatsapp" || (!item.provider_phone && !emailDraft && !bookingUrl))) {
-    window.open(whatsAppDraftHref(whatsAppDraft), "_blank", "noopener,noreferrer");
-    return;
-  }
-
-  if (emailDraft && (preferredHandoffChannel === "email" || (!item.provider_phone && !bookingUrl))) {
-    window.open(emailDraftHref(emailDraft), "_blank", "noopener,noreferrer");
-    return;
-  }
-
-  if (!item.provider_phone && bookingUrl) {
-    window.open(bookingUrl, "_blank", "noopener,noreferrer");
-    return;
-  }
+  const followUpUrl = whatsAppDraft && (preferredHandoffChannel === "whatsapp" || (!item.provider_phone && !emailDraft && !bookingUrl))
+    ? whatsAppDraftHref(whatsAppDraft)
+    : emailDraft && (preferredHandoffChannel === "email" || (!item.provider_phone && !bookingUrl))
+      ? emailDraftHref(emailDraft)
+      : !item.provider_phone && bookingUrl
+        ? bookingUrl
+        : "";
 
   const res = await apiFetch(`/api/concierge/actions/${item.id}/confirm`, { method: "POST" });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Failed to confirm concierge action");
   }
+  if (followUpUrl) window.open(followUpUrl, "_blank", "noopener,noreferrer");
 }
 
 async function cancelPendingAction(id: string) {
@@ -4471,7 +4464,7 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
         : !detailsReady
           ? (isSpanish ? "Completar detalles" : "Complete details")
         : isVyvaTask
-          ? (isSpanish ? "Cuando este listo" : "When ready")
+          ? (isSpanish ? "Tu OK primero" : "Your OK first")
           : nextStepLabel || (isSpanish ? "Tu OK primero" : "Your OK first"),
     state: item.status === "failed"
       ? "warning"
@@ -4482,17 +4475,17 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
         : !detailsReady
           ? "needed"
       : isVyvaTask
-        ? "waiting"
+        ? "active"
         : "active",
     action: isWaitingForProvider
       ? "reply"
       : item.status === "pending"
-      ? (!providerReady ? "provider" : !detailsReady || isVyvaTask ? "details" : "confirm")
+      ? (!providerReady ? "provider" : !detailsReady ? "details" : "confirm")
       : undefined,
     actionLabel: isWaitingForProvider
       ? (isSpanish ? "Registrar" : "Record")
       : item.status === "pending"
-      ? (!providerReady || !detailsReady || isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
+      ? (!providerReady || !detailsReady ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
       : undefined,
   });
 
@@ -5773,7 +5766,13 @@ function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "it
 function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string {
   const { item, isSpanish, opensWhatsApp, opensEmail, opensBooking, needsPhoneOutcome, needsWhatsAppOutcome, needsEmailOutcome, canOpenForm, isVyvaTask, formMissingFields } = params;
   if (needsPhoneOutcome) return isSpanish ? "Revisar guion de llamada" : "Review call script";
-  if (isVyvaTask) return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
+  if (isVyvaTask) {
+    const task = getConciergeExecutionTask(item);
+    if (task && !task.user_confirmed && task.missing_requirements.length === 0 && formMissingFields.length === 0) {
+      return isSpanish ? "Confirmar revision VYVA" : "Confirm VYVA review";
+    }
+    return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
+  }
   if (needsWhatsAppOutcome) return isSpanish ? "Abrir borrador de WhatsApp" : "Open WhatsApp draft";
   if (needsEmailOutcome) return isSpanish ? "Abrir borrador de email" : "Open email draft";
 
@@ -5833,7 +5832,7 @@ function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
 }
 
 function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
-  const { item, isSpanish, isVyvaTask, needsPhoneOutcome, needsWhatsAppOutcome, needsEmailOutcome } = params;
+  const { item, isSpanish, isVyvaTask, needsPhoneOutcome, needsWhatsAppOutcome, needsEmailOutcome, formMissingFields } = params;
   if (item.status === "calling") {
     return isSpanish ? "Puedes volver mas tarde; la tarea seguira aqui." : "You can come back later; this task stays here.";
   }
@@ -5856,6 +5855,12 @@ function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
       : "VYVA does not send it for you. Open the draft and save that it went out.";
   }
   if (isVyvaTask) {
+    const task = getConciergeExecutionTask(item);
+    if (task && !task.user_confirmed && task.missing_requirements.length === 0 && formMissingFields.length === 0) {
+      return isSpanish
+        ? "Confirma para ponerlo en la cola de VYVA. Nada se envia sin ese OK."
+        : "Confirm to place it in the VYVA queue. Nothing is sent without that OK.";
+    }
     return isSpanish ? "VYVA lo mantiene aqui hasta que este listo para confirmar." : "VYVA keeps it here until it is ready to confirm.";
   }
   return isSpanish ? "Tu confirmas antes de enviar, llamar o reservar." : "You confirm before anything is sent, called, or booked.";
@@ -6102,7 +6107,7 @@ function getConciergeExecutionTask(item: ConciergePendingItem): ConciergeExecuti
   const lifecycleStatus = typeof task.lifecycle_status === "string"
     ? task.lifecycle_status
     : "";
-  if (!["ready", "needs_info", "in_progress", "done", "failed", "cancelled"].includes(lifecycleStatus)) return null;
+  if (!["ready", "needs_info", "confirmed", "in_progress", "done", "failed", "cancelled"].includes(lifecycleStatus)) return null;
   return task as unknown as ConciergeExecutionTask;
 }
 
@@ -6164,6 +6169,14 @@ function executionTaskStatusSummary(task: ConciergeExecutionTask, isSpanish: boo
         ? (isSpanish ? `Anade ${missingLabel} para seguir.` : `Add ${missingLabel} to continue.`)
         : (isSpanish ? "Anade un detalle para seguir." : "Add one detail to continue."),
       tone: "amber",
+    },
+    confirmed: {
+      phase: "waiting",
+      label: isSpanish ? "Confirmado" : "Confirmed",
+      helper: isSpanish
+        ? "VYVA ya tiene tu OK y mantiene la tarea en cola."
+        : "VYVA has your OK and is keeping this task queued.",
+      tone: "blue",
     },
     in_progress: {
       phase: "waiting",
@@ -12782,7 +12795,7 @@ const ConciergeScreen = () => {
                   whatsAppDraftOutcomeMutation.isPending
                 }
                 cancelPending={cancelMutation.isPending}
-                primaryDisabled={activeActionIsVyvaTask}
+                primaryDisabled={activeActionReviewSummary.missingDetails.length > 0 || Boolean(activeActionWebSearch)}
                 confirmTestId={`button-concierge-confirm-${activeAction.id}`}
                 changeTestId={`button-concierge-change-${activeAction.id}`}
                 cancelTestId={`button-concierge-cancel-${activeAction.id}`}

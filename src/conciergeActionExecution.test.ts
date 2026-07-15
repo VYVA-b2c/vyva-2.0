@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendConciergeExecutionAudit,
   buildConciergeExecutionTask,
+  planConciergeConfirmedExecution,
   withConciergeExecutionTask,
 } from "../shared/conciergeActionExecution";
 import { CONCIERGE_FLOW_REFERENCES } from "../shared/conciergeFlowRegistry";
@@ -102,6 +104,99 @@ describe("concierge action execution task", () => {
       lifecycle_status: "done",
       outcome: "Claim email prepared and saved.",
     });
+  });
+
+  it("plans a direct phone call only after details and provider phone are ready", () => {
+    const plan = planConciergeConfirmedExecution({
+      useCase: "book_ride",
+      providerName: "Radio Taxi",
+      providerPhone: "+34 600 111 222",
+      payload: {
+        pickup_address: "Home",
+        destination_address: "Clinic",
+        requested_time: "tomorrow 09:00",
+        execution_channel: "phone",
+      },
+      summary: "Call Radio Taxi",
+      pendingStatus: "pending",
+      now: "2026-07-14T10:00:00.000Z",
+    });
+
+    expect(plan).toMatchObject({
+      mode: "direct_phone_call",
+      pending_status: "calling",
+      lifecycle_status: "in_progress",
+      active_tool: "phone_call",
+      external_action_allowed: true,
+      missing_requirements: [],
+    });
+  });
+
+  it("blocks confirmation when a phone call is missing the number", () => {
+    const plan = planConciergeConfirmedExecution({
+      useCase: "book_appointment",
+      providerName: "Marbella Clinic",
+      payload: {
+        reason: "Follow-up",
+        requested_time: "Friday morning",
+        execution_channel: "phone",
+      },
+      summary: "Call clinic",
+      pendingStatus: "pending",
+      now: "2026-07-14T10:00:00.000Z",
+    });
+
+    expect(plan).toMatchObject({
+      mode: "needs_info",
+      lifecycle_status: "needs_info",
+      external_action_allowed: false,
+    });
+    expect(plan.missing_requirements).toContainEqual({
+      key: "tool_setup",
+      label_en: "Phone number",
+      label_es: "Telefono",
+    });
+  });
+
+  it("plans non-direct tools as confirmed operator handoffs", () => {
+    const plan = planConciergeConfirmedExecution({
+      useCase: "paperwork",
+      providerName: "VYVA review",
+      payload: {
+        document_type: "government form",
+        recipient: "Town hall",
+        deadline: "Friday",
+        execution_channel: "manual",
+        requested_tool: "operator_review",
+      },
+      summary: "Prepare government form help",
+      pendingStatus: "pending",
+      now: "2026-07-14T10:00:00.000Z",
+    });
+
+    expect(plan).toMatchObject({
+      mode: "operator_queue",
+      pending_status: "pending",
+      lifecycle_status: "confirmed",
+      active_tool: "operator_review",
+      external_action_allowed: false,
+      missing_requirements: [],
+    });
+  });
+
+  it("keeps a compact execution audit trail", () => {
+    const payload = Array.from({ length: 25 }).reduce<Record<string, unknown>>((current, _item, index) => (
+      appendConciergeExecutionAudit(current, {
+        event: "created",
+        at: `2026-07-14T10:${String(index).padStart(2, "0")}:00.000Z`,
+        source: "test",
+      })
+    ), {});
+
+    const audit = payload.execution_audit as unknown[];
+    expect(audit).toHaveLength(20);
+    expect(audit[0]).toMatchObject({ at: "2026-07-14T10:05:00.000Z" });
+    expect(audit[19]).toMatchObject({ version: 1, event: "created" });
   });
 
   it("asks for the scam review source without treating the canned summary as enough", () => {

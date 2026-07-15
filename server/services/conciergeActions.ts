@@ -2,7 +2,14 @@ import { eq } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import { profiles } from "../../shared/schema.js";
 import { normalizeAppLanguage } from "../../shared/language.js";
-import { withConciergeExecutionTask, type ConciergeExecutionTaskStatus } from "../../shared/conciergeActionExecution.js";
+import {
+  appendConciergeExecutionAudit,
+  planConciergeConfirmedExecution,
+  withConciergeExecutionTask,
+  type ConciergeConfirmedExecutionPlan,
+  type ConciergeExecutionAuditEvent,
+  type ConciergeExecutionTaskStatus,
+} from "../../shared/conciergeActionExecution.js";
 
 export const CONCIERGE_USE_CASES = [
   "book_ride",
@@ -128,6 +135,21 @@ function formatList(value: unknown): string | undefined {
   return asString(value);
 }
 
+function missingLabels(plan: ConciergeConfirmedExecutionPlan): string {
+  return plan.missing_requirements
+    .map((requirement) => requirement.label_en)
+    .filter(Boolean)
+    .join(", ");
+}
+
+function outboundCallerReadiness(pending: PendingRow): { ready: true } | { ready: false; reason: string } {
+  if (!process.env.ELEVENLABS_API_KEY?.trim()) return { ready: false, reason: "missing_elevenlabs_api_key" };
+  if (!readEnv(OUTBOUND_AGENT_ENV_KEYS)) return { ready: false, reason: "missing_concierge_agent_id" };
+  if (!readEnv(OUTBOUND_PHONE_ENV_KEYS)) return { ready: false, reason: "missing_concierge_phone_number_id" };
+  if (!pending.provider_phone?.trim()) return { ready: false, reason: "missing_provider_phone" };
+  return { ready: true };
+}
+
 function normalizeLanguage(language?: string | null, fallback = "es"): string {
   return normalizeAppLanguage(language, normalizeAppLanguage(fallback, "es"));
 }
@@ -229,14 +251,23 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
       created_via: "concierge_trigger_api",
     },
   };
+  const now = new Date().toISOString();
   const actionPayload = withConciergeExecutionTask({
     useCase: input.useCase,
-    payload: basePayload,
+    payload: appendConciergeExecutionAudit(basePayload, {
+      event: "created",
+      at: now,
+      source: input.triggerSource ?? "user_request",
+      pending_status: "pending",
+      user_confirmed: false,
+      external_action_allowed: false,
+    }),
     providerName: input.providerName,
     providerPhone: input.providerPhone,
     summary: input.actionSummary,
     pendingStatus: "pending",
     userConfirmed: false,
+    now,
   });
 
   const result = await pool.query<PendingRow>(
@@ -284,18 +315,41 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
 
 async function updatePendingStatus(
   pending: PendingRow,
-  status: "calling" | "completed" | "failed" | "cancelled",
+  status: "pending" | "calling" | "completed" | "failed" | "cancelled",
   options: {
     lifecycleStatus?: ConciergeExecutionTaskStatus;
     userConfirmed?: boolean;
     confirmationSource?: string;
     failureReason?: string;
     outcome?: string;
+    auditEvent?: ConciergeExecutionAuditEvent;
+    auditMode?: ConciergeConfirmedExecutionPlan["mode"];
+    auditReason?: string;
+    auditPlan?: ConciergeConfirmedExecutionPlan;
+    externalActionAllowed?: boolean;
   } = {},
 ) {
+  const now = new Date().toISOString();
+  const basePayload = options.auditEvent
+    ? appendConciergeExecutionAudit(pending.action_payload ?? {}, {
+        event: options.auditEvent,
+        at: now,
+        source: options.confirmationSource ?? "concierge_actions_service",
+        pending_status: status,
+        lifecycle_status: options.lifecycleStatus,
+        mode: options.auditMode,
+        requested_tool: options.auditPlan?.requested_tool,
+        active_tool: options.auditPlan?.active_tool,
+        action_type: options.auditPlan?.action_type,
+        user_confirmed: options.userConfirmed,
+        external_action_allowed: options.externalActionAllowed ?? false,
+        reason: options.auditReason ?? options.failureReason,
+        missing_requirements: options.auditPlan?.missing_requirements,
+      })
+    : pending.action_payload ?? {};
   const actionPayload = withConciergeExecutionTask({
     useCase: pending.use_case,
-    payload: pending.action_payload ?? {},
+    payload: basePayload,
     providerName: pending.provider_name,
     providerPhone: pending.provider_phone,
     summary: pending.action_summary,
@@ -305,6 +359,7 @@ async function updatePendingStatus(
     confirmationSource: options.confirmationSource,
     failureReason: options.failureReason,
     outcome: options.outcome,
+    now,
   });
 
   await pool.query(
@@ -348,6 +403,7 @@ async function startOutboundCall(
   pending: PendingRow,
   profile: BasicProfile,
   confirmationSource = "confirm_endpoint",
+  plan?: ConciergeConfirmedExecutionPlan,
 ): Promise<TriggerResult> {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
   const agentId = readEnv(OUTBOUND_AGENT_ENV_KEYS);
@@ -392,7 +448,15 @@ async function startOutboundCall(
 
   if (!response.ok) {
     const detail = await response.text();
-    await updatePendingStatus(pending, "failed", { failureReason: "outbound_call_failed" });
+    await updatePendingStatus(pending, "failed", {
+      userConfirmed: true,
+      confirmationSource,
+      failureReason: "outbound_call_failed",
+      auditEvent: "failed",
+      auditMode: "direct_phone_call",
+      auditPlan: plan,
+      externalActionAllowed: true,
+    });
     throw new Error(`ElevenLabs outbound call failed: ${detail}`);
   }
 
@@ -401,6 +465,10 @@ async function startOutboundCall(
     lifecycleStatus: "in_progress",
     userConfirmed: true,
     confirmationSource,
+    auditEvent: "direct_call_started",
+    auditMode: "direct_phone_call",
+    auditPlan: plan,
+    externalActionAllowed: true,
   });
 
   return {
@@ -428,10 +496,92 @@ export async function triggerConciergeAction(input: ConciergeTriggerInput): Prom
   }
 
   const profile = await loadProfile(input.userId);
-  return startOutboundCall(pending, profile, input.triggerSource ?? "auto_start");
+  return confirmLoadedPendingConciergeAction(pending, profile, input.triggerSource ?? "auto_start");
 }
 
-export async function startPendingConciergeAction(pendingId: string, userId: string): Promise<TriggerResult> {
+async function queueConfirmedConciergeAction(
+  pending: PendingRow,
+  confirmationSource: string,
+  plan: ConciergeConfirmedExecutionPlan,
+  reason?: string,
+): Promise<TriggerResult> {
+  await updatePendingStatus(pending, "pending", {
+    lifecycleStatus: "confirmed",
+    userConfirmed: true,
+    confirmationSource,
+    outcome: pending.action_summary,
+    auditEvent: "operator_handoff_queued",
+    auditMode: "operator_queue",
+    auditReason: reason,
+    auditPlan: plan,
+    externalActionAllowed: false,
+  });
+
+  return {
+    pendingId: pending.id,
+    status: "pending",
+    conversationId: null,
+    callSid: null,
+    message: reason
+      ? `Concierge action confirmed and queued for VYVA review (${reason}).`
+      : plan.message,
+  };
+}
+
+async function markPendingNeedsInfo(
+  pending: PendingRow,
+  confirmationSource: string,
+  plan: ConciergeConfirmedExecutionPlan,
+): Promise<void> {
+  await updatePendingStatus(pending, "pending", {
+    lifecycleStatus: "needs_info",
+    userConfirmed: false,
+    confirmationSource,
+    failureReason: "missing_requirements",
+    auditEvent: "blocked_missing_info",
+    auditMode: "needs_info",
+    auditReason: missingLabels(plan) || "missing_requirements",
+    auditPlan: plan,
+    externalActionAllowed: false,
+  });
+}
+
+async function confirmLoadedPendingConciergeAction(
+  pending: PendingRow,
+  profile: BasicProfile,
+  confirmationSource = "confirm_endpoint",
+): Promise<TriggerResult> {
+  const plan = planConciergeConfirmedExecution({
+    useCase: pending.use_case,
+    payload: pending.action_payload ?? {},
+    providerName: pending.provider_name,
+    providerPhone: pending.provider_phone,
+    summary: pending.action_summary,
+    pendingStatus: pending.status,
+  });
+
+  if (plan.mode === "needs_info") {
+    await markPendingNeedsInfo(pending, confirmationSource, plan);
+    const labels = missingLabels(plan);
+    throw new Error(labels ? `Complete before confirming: ${labels}.` : plan.message);
+  }
+
+  if (plan.mode === "direct_phone_call") {
+    const callerReadiness = outboundCallerReadiness(pending);
+    if (callerReadiness.ready) {
+      return startOutboundCall(pending, profile, confirmationSource, plan);
+    }
+    return queueConfirmedConciergeAction(pending, confirmationSource, plan, callerReadiness.reason);
+  }
+
+  return queueConfirmedConciergeAction(pending, confirmationSource, plan);
+}
+
+export async function startPendingConciergeAction(
+  pendingId: string,
+  userId: string,
+  confirmationSource = "confirm_endpoint",
+): Promise<TriggerResult> {
   const pending = await loadPendingById(pendingId);
   if (!pending) {
     throw new Error("Concierge action not found.");
@@ -453,7 +603,7 @@ export async function startPendingConciergeAction(pendingId: string, userId: str
   }
 
   const profile = await loadProfile(userId);
-  return startOutboundCall(pending, profile, "confirm_endpoint");
+  return confirmLoadedPendingConciergeAction(pending, profile, confirmationSource);
 }
 
 export async function cancelPendingConciergeAction(pendingId: string, userId: string): Promise<void> {
@@ -468,7 +618,11 @@ export async function cancelPendingConciergeAction(pendingId: string, userId: st
     return;
   }
 
-  await updatePendingStatus(pending, "cancelled", { lifecycleStatus: "cancelled" });
+  await updatePendingStatus(pending, "cancelled", {
+    lifecycleStatus: "cancelled",
+    auditEvent: "cancelled",
+    auditMode: "operator_queue",
+  });
 }
 
 export async function completePendingConciergeAction(
@@ -505,7 +659,15 @@ export async function completePendingConciergeAction(
 
   const finalActionPayload = withConciergeExecutionTask({
     useCase: pending.use_case,
-    payload: pending.action_payload ?? {},
+    payload: appendConciergeExecutionAudit(pending.action_payload ?? {}, {
+      event: "completed",
+      at: new Date().toISOString(),
+      source: "completion_endpoint",
+      pending_status: "completed",
+      lifecycle_status: "done",
+      user_confirmed: true,
+      external_action_allowed: false,
+    }),
     providerName: pending.provider_name,
     providerPhone: pending.provider_phone,
     summary: pending.action_summary,
