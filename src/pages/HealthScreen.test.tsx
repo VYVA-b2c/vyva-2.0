@@ -59,12 +59,27 @@ describe("DailyCheckinCard", () => {
 });
 
 describe("VisualHealthScanCardContent", () => {
-  it("uses broader visual health scan copy and category chips", () => {
-    render(<VisualHealthScanCardContent t={englishT} analyzing={false} onScan={vi.fn()} />);
+  it("uses the shared Show VYVA review chooser and category chips", () => {
+    const onScanSource = vi.fn();
+    const onPasteReview = vi.fn();
 
-    expect(screen.getByText("Visual Health Scan")).toBeInTheDocument();
+    render(
+      <VisualHealthScanCardContent
+        t={englishT}
+        analyzing={false}
+        onScanSource={onScanSource}
+        onPasteReview={onPasteReview}
+      />,
+    );
+
+    expect(screen.getByText("Show VYVA")).toBeInTheDocument();
     expect(screen.queryByText("Scan My Wound")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Take or upload image" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Camera" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Upload" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Paste text or link" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Upload" }));
+    expect(onScanSource).toHaveBeenCalledWith("upload");
 
     for (const label of ["Wounds", "Bruises", "Fluids", "Stool", "Urine", "X-rays"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
@@ -145,11 +160,12 @@ describe("VisualScanResultPanel", () => {
       />,
     );
 
-    expect(screen.getByTestId("button-visual-scan-action-call_gp")).toHaveAttribute("href", "tel:+34612345678");
-    expect(screen.getByTestId("button-visual-scan-action-email_gp")).toHaveAttribute("href", "mailto:gp@example.com");
-    fireEvent.click(screen.getByTestId("button-visual-scan-action-doctor_help"));
-    fireEvent.click(screen.getByTestId("button-visual-scan-action-schedule_appointment"));
-    fireEvent.click(screen.getByTestId("button-visual-scan-action-book_ride"));
+    expect(screen.getByTestId("show-vyva-follow-up-health-current")).toBeInTheDocument();
+    expect(screen.getByText("Next health step")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-doctor_help-health-current"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-schedule_appointment-health-current"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-book_ride-health-current"));
 
     expect(doctorHelp).toHaveBeenCalledTimes(1);
     expect(appointment).toHaveBeenCalledTimes(1);

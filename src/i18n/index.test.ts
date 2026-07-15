@@ -543,6 +543,26 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps Show VYVA follow-up actions localized for supported account languages", () => {
+    const expected = {
+      en: ["Next safe step", "Next scam-safe step", "Check company", "Compare nearby"],
+      es: ["Siguiente paso seguro", "Siguiente paso contra estafas", "Revisar empresa", "Comparar cerca"],
+      fr: ["Prochaine etape sure", "Prochaine etape anti-arnaque", "Verifier entreprise", "Comparer proche"],
+      de: ["Nachster sicherer Schritt", "Nachster Betrugsschutz-Schritt", "Firma prufen", "Nahe vergleichen"],
+      it: ["Prossimo passo sicuro", "Prossimo passo anti-truffa", "Controlla azienda", "Confronta vicino"],
+      pt: ["Proximo passo seguro", "Proximo passo anti-burla", "Verificar empresa", "Comparar perto"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "showVyva.followUp.kicker"),
+        translate(language as keyof typeof expected, "showVyva.followUp.title.scam"),
+        translate(language as keyof typeof expected, "showVyva.followUp.action.check_company.label"),
+        translate(language as keyof typeof expected, "showVyva.followUp.action.compare_proximity.label"),
+      ]).toEqual(labels);
+    }
+  });
+
   it("keeps concierge card mobile labels compact across supported account languages", () => {
     const expected = {
       en: ["Help", "Ride", "Order", "Schedule"],

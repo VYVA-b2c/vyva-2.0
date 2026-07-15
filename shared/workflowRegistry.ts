@@ -407,7 +407,7 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
     completionState: "photo reviewed or scan panel opened",
     primaryRoute: "/health",
     relatedConciergeFlow: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
-    nextStep: "Unify image review paths across health, Safe Home, and scam/document checks.",
+    nextStep: "Extend the shared Show VYVA chooser to every screen that accepts photos, documents, text, or links.",
   },
   {
     reference: APP_WORKFLOW_REFERENCES.doctorNextStep,
@@ -1035,6 +1035,7 @@ export const WORKFLOW_ENTRY_POINTS: WorkflowEntryPoint[] = [
   { id: "health.action.symptoms", workflow: APP_WORKFLOW_REFERENCES.symptomCheck, surface: "health_action", source: "HealthScreen", label: "Symptoms", route: "/health/symptom-check", suggestedFlow: "Open latest symptom advice or start a check." },
   { id: "health.fast.reports", workflow: APP_WORKFLOW_REFERENCES.healthReports, surface: "fast_help", source: "HealthScreen", label: "My Reports", route: "/informes", suggestedFlow: "Open latest report." },
   { id: "health.fast.visual-scan", workflow: APP_WORKFLOW_REFERENCES.visualScan, surface: "fast_help", source: "HealthScreen", label: "Visual Scan", route: "/health", suggestedFlow: "Open photo review panel." },
+  { id: "health.action.show-vyva", workflow: APP_WORKFLOW_REFERENCES.visualScan, surface: "health_action", source: "HealthScreen", label: "Show VYVA", route: "/health", suggestedFlow: "Choose camera, upload, or pasted text, then route to visual scan or Concierge review with confirmation." },
   { id: "health.fast.find-specialist", workflow: CONCIERGE_FLOW_REFERENCES.careNavigation, surface: "fast_help", source: "HealthScreen", label: "Find Specialist", route: "/health", suggestedFlow: "Ask specialty, proximity, reputation, coverage, then prepare options." },
   { id: "health.fast.book-medical", workflow: CONCIERGE_FLOW_REFERENCES.medicalAppointment, surface: "fast_help", source: "HealthScreen", label: "Book Medical", route: "/concierge", suggestedFlow: "Ask reason and time, use saved doctor/clinic if present, then confirm before booking." },
   { id: "health.fast.check-vitals", workflow: APP_WORKFLOW_REFERENCES.vitalsTracking, surface: "fast_help", source: "HealthScreen", label: "Check Vitals", route: "/health/vitals", suggestedFlow: "Open vitals capture." },
@@ -1128,7 +1129,9 @@ export const WORKFLOW_ENTRY_POINTS: WorkflowEntryPoint[] = [
   { id: "concierge.action.shopping", workflow: CONCIERGE_FLOW_REFERENCES.shoppingSupport, surface: "voice_action", source: "ConciergeScreen", label: "Shopping support", route: "/concierge/shopping", suggestedFlow: "Prepare options and ask before ordering or contacting." },
   { id: "concierge.action.care-navigation", workflow: CONCIERGE_FLOW_REFERENCES.careNavigation, surface: "voice_action", source: "ConciergeScreen", label: "Care navigation", route: "/concierge", suggestedFlow: "Collect care need and search criteria, then prepare options." },
   { id: "concierge.action.scam-check", workflow: CONCIERGE_FLOW_REFERENCES.scamCheck, surface: "voice_action", source: "ConciergeScreen", label: "Scam check", route: "/concierge", suggestedFlow: "Route by email, document, phone, or company reputation check." },
+  { id: "scam.action.show-vyva", workflow: CONCIERGE_FLOW_REFERENCES.scamCheck, surface: "fast_help", source: "ScamGuardScreen", label: "Show VYVA", route: "/scam-guard", suggestedFlow: "Choose camera, upload, pasted message, phone number, company, or link review; ask before forwarding, searching, contacting, or sharing details." },
   { id: "concierge.action.safe-home", workflow: CONCIERGE_FLOW_REFERENCES.safeHomeSupport, surface: "voice_action", source: "ConciergeScreen", label: "Safe home", route: "/safe-home", suggestedFlow: "Assess safety concern and confirm before any escalation." },
+  { id: "safe-home.action.show-vyva", workflow: CONCIERGE_FLOW_REFERENCES.safeHomeSupport, surface: "fast_help", source: "SafeHomeScreen", label: "Show VYVA", route: "/safe-home", suggestedFlow: "Choose camera, upload, or pasted home-safety concern; scan photos directly or prepare Concierge review before any service action." },
   { id: "concierge.action.insurance-admin", workflow: CONCIERGE_FLOW_REFERENCES.insuranceAdmin, surface: "voice_action", source: "ConciergeScreen", label: "Insurance admin", route: "/concierge", suggestedFlow: "Collect document/task, deadline, and recipient before any send." },
   { id: "concierge.action.tool-gated-task", workflow: CONCIERGE_FLOW_REFERENCES.toolGatedTask, surface: "voice_action", source: "ConciergeScreen", label: "Call, email, form, application", route: "/concierge", suggestedFlow: "Check tool readiness, prepare draft/action, then confirm." },
 ];

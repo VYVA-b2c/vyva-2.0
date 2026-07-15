@@ -571,6 +571,49 @@ function journeyFromRequestBody(id: string, init?: RequestInit) {
   };
 }
 
+function campaignFromRequestBody(id: string, init?: RequestInit) {
+  const body = JSON.parse(String(init?.body ?? "{}"));
+  const channels = Array.isArray(body.channels) ? body.channels : [];
+  const recipients = Array.isArray(body.recipients) ? body.recipients : [];
+  return {
+    id,
+    name: body.name ?? "Untitled campaign",
+    status: body.status ?? "draft",
+    audienceType: body.audienceType ?? "b2c",
+    objective: body.objective ?? "",
+    scheduleStartsAt: body.scheduleStartsAt ?? null,
+    scheduleEndsAt: body.scheduleEndsAt ?? null,
+    timezone: body.timezone ?? "Europe/Madrid",
+    source: body.source ?? "vyva",
+    lovableExternalId: body.lovableExternalId ?? null,
+    metadata: body.metadata ?? {},
+    channels: channels.map((channel: Record<string, unknown>, index: number) => ({
+      id: `${id}-channel-${index + 1}`,
+      campaignId: id,
+      channel: channel.channel ?? "email",
+      contentAssetId: channel.contentAssetId ?? null,
+      scheduledAt: channel.scheduledAt ?? body.scheduleStartsAt ?? null,
+      status: channel.status ?? body.status ?? "draft",
+      sendCapability: channel.channel === "email" ? "enabled" : channel.channel === "whatsapp" ? "future_send_capable" : "planning_only",
+    })),
+    recipientCount: recipients.length,
+    recipients: recipients.map((recipient: Record<string, unknown>, index: number) => ({
+      id: `${id}-recipient-${index + 1}`,
+      campaignId: id,
+      contactId: recipient.contactId ?? null,
+      profileId: recipient.profileId ?? null,
+      channel: recipient.channel ?? "email",
+      recipient: recipient.recipient ?? "",
+      status: recipient.status ?? "planned",
+      scheduledAt: recipient.scheduledAt ?? body.scheduleStartsAt ?? null,
+      snapshot: recipient.snapshot ?? {},
+      communicationLogId: null,
+      createdAt: "2026-07-05T09:00:00.000Z",
+      updatedAt: "2026-07-05T09:00:00.000Z",
+    })),
+  };
+}
+
 function contentFromRequestBody(id: string, init?: RequestInit) {
   const body = JSON.parse(String(init?.body ?? "{}"));
   return {
@@ -697,7 +740,27 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
     if (path === "/api/admin/marketing/sync/lovable/preview" && method === "GET") return jsonResponse(exportPreview);
     if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
-    if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
+    if (path === "/api/admin/marketing/ai/campaign-draft" && method === "POST") {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      return jsonResponse({
+        ok: true,
+        configured: true,
+        source: "openai",
+        note: null,
+        draft: {
+          campaignName: `${body.playLabel} AI campaign`,
+          contentTitle: body.channel === "linkedin" ? `${body.playLabel} AI content` : `${body.playLabel} ${body.channel} AI content`,
+          objective: `AI objective for ${body.targetAudienceName}`,
+          subject: body.channel === "linkedin" ? "AI subject line" : `AI ${body.channel} subject line`,
+          body: body.channel === "linkedin" ? "AI body copy with stronger channel direction." : `AI ${body.channel} body copy with stronger channel direction.`,
+          ctaLabel: "AI CTA",
+          ctaUrl: "https://v2.vyva.life/ai",
+          language: "en",
+          designJson: { generator: "test-ai" },
+        },
+      });
+    }
+    if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaignFromRequestBody("campaign-created", init) }, { status: 201 });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
     if (path === "/api/admin/marketing/campaigns/campaign-2" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[1] });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
@@ -748,6 +811,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Social post: 1");
     expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics snapshots");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Best engagement");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("68% open rate");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("CTA opportunity");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("9% click rate");
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Deliverability clean");
+    fireEvent.click(screen.getByTestId("button-marketing-performance-insight-cta-opportunity"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByText('Opened "Caregiver welcome" to improve the CTA from performance data.')).toBeInTheDocument();
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Overflow metric 10");
     expect(openMetadataPanel("marketing-analytics-metadata-metric-1")).toHaveTextContent("metric-provider-1");
@@ -855,6 +926,50 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    expect(screen.getByTestId("marketing-audience-health-panel")).toHaveTextContent("Audience health");
+    expect(screen.getByTestId("marketing-audience-health-panel")).toHaveTextContent("Relationship readiness");
+    expect(screen.getByTestId("marketing-audience-health-score")).toHaveTextContent("50%");
+    expect(screen.getByTestId("button-marketing-audience-health-reach")).toHaveTextContent("2/2");
+    expect(screen.getByTestId("button-marketing-audience-health-consent")).toHaveTextContent("2 contacts need review");
+    expect(screen.getByTestId("button-marketing-audience-health-segmentation")).toHaveTextContent("1/2");
+    expect(screen.getByTestId("button-marketing-audience-health-lists")).toHaveTextContent("1 imported list member ID");
+    fireEvent.click(screen.getByTestId("button-marketing-audience-health-consent"));
+    expect(screen.getByTestId("select-marketing-contact-consent-filter")).toHaveValue("pending");
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Showing pending contacts for consent cleanup.");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-contact-filters"));
+    expect(screen.getByTestId("marketing-contact-work-queues")).toHaveTextContent("Relationship work queues");
+    expect(screen.getByTestId("marketing-contact-work-queue-consent-cleanup")).toHaveTextContent("2 contacts");
+    expect(screen.getByTestId("marketing-contact-work-queue-partner-nurture")).toHaveTextContent("1 partner");
+    expect(screen.getByTestId("marketing-contact-work-queue-family-onboarding")).toHaveTextContent("1 contact");
+    expect(screen.getByTestId("marketing-contact-work-queue-local-market")).toHaveTextContent("1 localised");
+    expect(screen.getByTestId("marketing-contact-work-queue-segmentation-gaps")).toHaveTextContent("1 gap");
+    expect(screen.getByTestId("marketing-contact-command-brief")).toHaveTextContent("Relationship command brief");
+    expect(screen.getByTestId("marketing-contact-command-brief")).toHaveTextContent("One weekly operating plan");
+    const commandBrief = screen.getByTestId("textarea-marketing-contact-command-brief") as HTMLTextAreaElement;
+    expect(commandBrief.value).toContain("Relationship command brief");
+    expect(commandBrief.value).toContain("B2B partner nurture: 1 partner");
+    expect(commandBrief.value).toContain("AI planning prompt");
+    const commandClipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: commandClipboardWriteText },
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-copy-contact-command-brief"));
+    await waitFor(() => {
+      expect(commandClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Relationship command brief"));
+    });
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Relationship command brief copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-contact-work-queue-show-partner-nurture"));
+    expect(screen.getByTestId("select-marketing-contact-list-filter")).toHaveValue("all");
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Showing "B2B partner nurture" queue: 1 partner.');
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-contact-filters"));
+    fireEvent.click(screen.getByTestId("button-marketing-contact-work-queue-studio-partner-nurture"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Relationship queue loaded: B2B partner nurture.");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-table")).toHaveClass("overflow-x-auto");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("hassan@example.com");
@@ -876,9 +991,67 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Profile: profile-2");
     expect(screen.getByTestId("marketing-contact-timeline-contact-2")).toHaveTextContent("Synced");
     expect(openMetadataPanel("marketing-contact-metadata-contact-2")).toHaveTextContent("partner-lead");
+    fireEvent.click(screen.getByTestId("button-marketing-view-contact-contact-2"));
+    expect(screen.getByTestId("marketing-contact-relationship-panel")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-contact-relationship-score")).toHaveTextContent("75% ready");
+    expect(screen.getByTestId("marketing-contact-relationship-channels")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-contact-relationship-context")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-contact-relationship-context")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-contact-relationship-context")).toHaveTextContent("B2B nurture");
+    expect(screen.getByTestId("marketing-contact-next-actions")).toHaveTextContent("Review consent: pending.");
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Consent review first");
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Primary route: Email");
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Start with "WhatsApp partner proof nudge" on WhatsApp.');
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Partner outreach for Partner at Moka Digital with Spain / healthcare / lead.");
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Connect it to "Partner outreach" or create a focused Partners follow-up.');
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Review consent: pending.");
+    expect(screen.getByTestId("marketing-contact-follow-up-kit")).toHaveTextContent("Relationship follow-up kit");
+    expect(screen.getByTestId("marketing-contact-follow-up-step-first-touch")).toHaveTextContent("First touch");
+    expect(screen.getByTestId("marketing-contact-follow-up-step-first-touch")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-contact-follow-up-step-second-touch")).toHaveTextContent("Second touch");
+    expect(screen.getByTestId("marketing-contact-follow-up-step-relationship-note")).toHaveTextContent("Relationship note");
+    expect((screen.getByTestId("textarea-marketing-contact-follow-up-kit") as HTMLTextAreaElement).value).toContain("Consent-safe AI prompt");
+    const relationshipClipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: relationshipClipboardWriteText },
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-copy-contact-follow-up-kit"));
+    await waitFor(() => {
+      expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Relationship follow-up kit: Hassan Partner"));
+    });
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Relationship follow-up kit copied.");
+    expect(screen.getByTestId("marketing-contact-template-recommendations")).toHaveTextContent("Suggested templates");
+    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp partner proof nudge");
+    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp ready");
+    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("B2B relationship match");
+    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("Partner-ready");
+    expect(screen.queryByTestId("marketing-contact-template-linkedin-family-proof-article")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-use-contact-template-whatsapp-partner-proof-nudge"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Template "WhatsApp partner proof nudge" applied for Hassan Partner.');
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("WhatsApp partner proof nudge campaign");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("whatsapp");
+    expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("hassan@example.com");
+    let relationshipCampaignIntent = (screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value;
+    expect(relationshipCampaignIntent).toContain("Relationship campaign for Hassan Partner.");
+    expect(relationshipCampaignIntent).toContain('Starter template: "WhatsApp partner proof nudge" on WhatsApp.');
+    expect(relationshipCampaignIntent).toContain("Consent status: pending.");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-view-contact-contact-2"));
+    fireEvent.click(screen.getByTestId("button-marketing-build-contact-campaign-contact-2"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Studio focused on Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("hassan@example.com");
+    relationshipCampaignIntent = (screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value;
+    expect(relationshipCampaignIntent).toContain("Channels: Email + LinkedIn.");
+    expect(relationshipCampaignIntent).toContain("Goal: open a partner conversation, reply, or demo request.");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Contacts (2)");
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Lists (1)");
-    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
+    fireEvent.click(screen.getByTestId("button-marketing-audience-health-lists"));
+    expect(screen.getByTestId("button-marketing-lists-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent('Reviewing unmapped members in "Partners".');
     expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("1 unmapped");
@@ -949,6 +1122,91 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
+  });
+
+  it("turns imported campaign performance into editable experiment drafts", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-experiment-planner")).toHaveTextContent("Draft a CTA experiment");
+    expect(screen.getByTestId("marketing-experiment-planner")).toHaveTextContent("9% click rate");
+    expect(screen.getByTestId("marketing-experiment-planner")).toHaveTextContent("Build a follow-up from the winner");
+
+    fireEvent.click(screen.getByTestId("button-marketing-experiment-cta-campaign-1"));
+
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Content draft");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Drafted CTA experiment from "Caregiver welcome"');
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Welcome email - CTA test");
+    expect(screen.getByTestId("input-marketing-content-subject")).toHaveValue("Welcome to VYVA");
+    expect(screen.getByTestId("input-marketing-content-cta-label")).toHaveValue("Take the next step");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Experiment note: Use one direct call to action");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_performance_experiment");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign AI brief also updated");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Performance brief loaded from "Caregiver welcome"');
+    const campaignExperimentBrief = screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement;
+    expect(campaignExperimentBrief.value).toContain('Performance experiment from "Caregiver welcome".');
+    expect(campaignExperimentBrief.value).toContain("Signal: 9% click rate");
+    expect(campaignExperimentBrief.value).toContain("Experiment: CTA clarity test.");
+    expect(campaignExperimentBrief.value).toContain("AI direction: Write a variant with one direct call to action");
+    expect(campaignExperimentBrief.value).toContain("Goal: create the next campaign/content variant");
+  });
+
+  it("surfaces recommended next actions and routes to the right work area", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Next best move");
+    expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Finish Lovable sync setup");
+    expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("The export endpoint is ready");
+    fireEvent.click(screen.getByTestId("button-marketing-priority-action-sync-config"));
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Lovable sync");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Shortest path to a publishable campaign");
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Import");
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Audience");
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Creative");
+    expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Launch");
+
+    fireEvent.click(screen.getByTestId("button-marketing-launch-lane-creative"));
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable content coverage");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Lovable content placeholders");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Finish Lovable sync setup");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review ready email send");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Replace missing Lovable content");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review audience mapping");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Attach campaign content");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Prepare manual channel handoff");
+
+    fireEvent.click(screen.getByTestId("button-marketing-action-ready-email"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Email send");
+    expect(screen.getByText('Opened "Caregiver welcome" for final email review.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-marketing-action-missing-content"));
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable content coverage");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Lovable content placeholders");
+    expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("Content is loaded, but hidden by filters.");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-action-audience-mapping"));
+    expect(screen.getByTestId("button-marketing-lists-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
+    expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-action-campaign-content"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
+    expect(screen.getByText('Opened "Partner outreach" to attach missing channel content.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-action-manual-handoff"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByText('Opened "Caregiver welcome" to prepare non-email channel handoff.')).toBeInTheDocument();
   });
 
   it("shows all imported Lovable details instead of hiding rows behind preview caps", async () => {
@@ -1110,6 +1368,33 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("Hassan Partner");
   });
 
+  it("loads smart audience recipes into the list builder and campaign studio", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
+
+    expect(screen.getByTestId("marketing-audience-recipes")).toHaveTextContent("Partner prospects");
+    expect(screen.getByTestId("marketing-audience-recipe-partner-prospects")).toHaveTextContent("1 partner");
+    expect(screen.getByTestId("marketing-audience-recipe-caregiver-onboarding")).toHaveTextContent("1 contact");
+    expect(screen.getByTestId("marketing-audience-recipe-consent-cleanup")).toHaveTextContent("2 contacts");
+
+    fireEvent.click(screen.getByTestId("button-marketing-audience-recipe-fill-partner-prospects"));
+    expect(screen.getByTestId("input-marketing-audience-name")).toHaveValue("Partner prospects");
+    expect(screen.getByTestId("select-marketing-audience-type")).toHaveValue("static");
+    expect(screen.getByTestId("input-marketing-audience-description")).toHaveValue("B2B leads, providers, and partner contacts with a reachable channel.");
+    expect(screen.getByTestId("input-marketing-audience-rules")).toHaveValue(JSON.stringify({ audienceType: "b2b", category: ["partner", "lead", "provider"], consent: "not_opted_out" }, null, 2));
+    expect(screen.getByTestId("input-marketing-audience-contact-ids")).toHaveValue("lovable-contact-2");
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent("Partner prospects recipe loaded with 1 partner.");
+
+    fireEvent.click(screen.getByTestId("button-marketing-audience-recipe-studio-partner-prospects"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Partner prospects recipe loaded: 1 partner.");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("Partners");
+  });
+
   it("filters the content library by imported Lovable source type", async () => {
     renderPage();
 
@@ -1176,6 +1461,12 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
 
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-calendar-command-strip")).toHaveTextContent("Due email");
+    expect(screen.getByTestId("button-marketing-calendar-command-due-email")).toHaveTextContent("1");
+    expect(screen.getByTestId("button-marketing-calendar-command-due-email")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("button-marketing-calendar-command-unscheduled")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("button-marketing-calendar-command-handoff")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("button-marketing-calendar-command-content-gaps")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-calendar-timeline")).toHaveTextContent("1 scheduled");
     expect(screen.getByTestId("marketing-calendar-channel-link-channel-1")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-calendar-performance-campaign-1")).toHaveTextContent("66 sent");
@@ -1184,7 +1475,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-calendar-unscheduled-channel-link-channel-2")).toHaveTextContent("No content linked");
     expect(screen.getByTestId("marketing-calendar-unscheduled-performance-campaign-2")).toHaveTextContent("No imported metrics");
 
-    fireEvent.click(screen.getByTestId("button-marketing-calendar-edit-campaign-1"));
+    fireEvent.click(screen.getByTestId("button-marketing-calendar-command-due-email"));
 
     expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
@@ -1296,6 +1587,515 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("Recognized sample rows");
     expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("template_name");
     expect(screen.getByTestId("marketing-export-preview-raw-samples")).toHaveTextContent("social_posts");
+  });
+
+  it("applies content templates into the draft form", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Referral ask email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok feature demo script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn family proof article");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Trust review request email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event invite email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok event day script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care confidence reactivation email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Clinic referral intro email");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("53 templates");
+    expect(screen.getByTestId("marketing-template-packs")).toHaveTextContent("Family onboarding");
+    expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("Trust and review");
+    expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-trust-and-review"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Trust and review template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Trust review request email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Instagram trust carousel");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-trust-and-review")).toHaveTextContent("Ask for one moment");
+    expect(screen.getByTestId("marketing-template-pack-sequence-trust-and-review")).toHaveTextContent("Partner proof");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-trust-and-review"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Trust and review");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Trust and review pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+    expect(screen.getByTestId("marketing-template-pack-local-event-relationship")).toHaveTextContent("Local event relationship");
+    expect(screen.getByTestId("marketing-template-pack-local-event-relationship")).toHaveTextContent("6 templates");
+    expect(screen.getByTestId("marketing-template-pack-local-event-relationship")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-local-event-relationship"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Local event relationship template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event invite email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn community partner invite");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok event day script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-local-event-relationship")).toHaveTextContent("Public local invite");
+    expect(screen.getByTestId("marketing-template-pack-sequence-local-event-relationship")).toHaveTextContent("Partner handoff");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-local-event-relationship"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("uplifting");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Local event relationship");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Local event relationship pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
+    expect(screen.getByTestId("marketing-template-pack-care-confidence-reactivation")).toHaveTextContent("Care confidence reactivation");
+    expect(screen.getByTestId("marketing-template-pack-care-confidence-reactivation")).toHaveTextContent("6 templates");
+    expect(screen.getByTestId("marketing-template-pack-care-confidence-reactivation")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-care-confidence-reactivation"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Care confidence reactivation template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care confidence reactivation email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn care confidence partner note");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok care confidence reset script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-care-confidence-reactivation")).toHaveTextContent("Restart routine");
+    expect(screen.getByTestId("marketing-template-pack-sequence-care-confidence-reactivation")).toHaveTextContent("Partner workflow note");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-care-confidence-reactivation"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Care confidence reactivation");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Care confidence reactivation pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
+    expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("Clinic and pharmacy referral");
+    expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("6 templates");
+    expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-clinic-pharmacy-referral"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Clinic and pharmacy referral template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Clinic referral intro email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp pharmacy care pathway nudge");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok referral pathway explainer script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-clinic-pharmacy-referral")).toHaveTextContent("Referral intro");
+    expect(screen.getByTestId("marketing-template-pack-sequence-clinic-pharmacy-referral")).toHaveTextContent("Pharmacy nudge");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-clinic-pharmacy-referral"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Clinic and pharmacy referral");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Clinic and pharmacy referral pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
+    expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("Partner growth");
+    expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-partner-growth"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Partner growth template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Partner demo LinkedIn post");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-partner-growth")).toHaveTextContent("Partner proof post");
+    expect(screen.getByTestId("marketing-template-pack-sequence-partner-growth")).toHaveTextContent("Proof nudge");
+    expect(screen.getByTestId("marketing-template-pack-sequence-partner-growth")).toHaveTextContent("Referral ask");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-partner-growth"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Partner growth");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Partner growth pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-start-partner-growth"));
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner demo LinkedIn post campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign starter applied from \"Partner demo LinkedIn post\"");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("11");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
+    expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
+    expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Target: 3 per pack");
+    fireEvent.click(screen.getByTestId("button-marketing-template-matrix-whatsapp-b2b"));
+    expect(screen.getByTestId("select-marketing-template-channel")).toHaveValue("whatsapp");
+    expect(screen.getByTestId("select-marketing-template-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing WhatsApp B2B template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
+    expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("LinkedIn B2C starter");
+    expect(screen.getByTestId("marketing-template-gap-linkedin-b2c")).toHaveTextContent("AI starter prompt");
+    expect(screen.getByTestId("marketing-template-gap-pack")).toHaveTextContent("Build a starter pack");
+    expect(screen.getByTestId("button-marketing-template-gap-pack-ai")).toHaveTextContent("Draft top 1 with AI");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-gap-pack-ai"));
+    expect(screen.getByTestId("button-marketing-template-gap-pack-ai")).toHaveTextContent("Creating pack...");
+    expect(screen.getByTestId("marketing-template-gap-pack-progress")).toHaveTextContent("Creating");
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI gap pack created: 1 template draft");
+    });
+    expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
+    expect((screen.getByTestId("input-marketing-edit-content-title") as HTMLInputElement).value).toContain("AI content");
+    const gapPackAiCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    const gapPackContentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(gapPackAiCalls).toHaveLength(1);
+    expect(gapPackContentPosts).toHaveLength(1);
+    expect(JSON.parse(String(gapPackContentPosts[0]?.[1]?.body ?? "{}"))).toMatchObject({
+      status: "draft",
+      source: "vyva",
+      metadata: { generatedFrom: "template_gap_pack" },
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-gap-studio-linkedin-b2c"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template gap loaded: LinkedIn B2C starter");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Studio loaded from gap: LinkedIn B2C starter");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-gap-ai-linkedin-b2c"));
+    expect(screen.getByTestId("button-marketing-template-gap-ai-linkedin-b2c")).toHaveTextContent("Generating...");
+    await waitFor(() => {
+      expect((screen.getByTestId("input-marketing-content-title") as HTMLInputElement).value).toContain("AI content");
+    });
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI draft generated from gap: LinkedIn B2C starter");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI body copy");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_template_gap_ai");
+    const gapAiCallBody = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")))
+      .find((body) => body.contentTitle === "LinkedIn B2C starter");
+    expect(gapAiCallBody).toMatchObject({
+      audienceType: "b2c",
+      channel: "linkedin",
+      tone: "expert",
+      angle: "balanced",
+      contentTitle: "LinkedIn B2C starter",
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-gap-linkedin-b2c"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("LinkedIn B2C starter");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("input-marketing-content-cta-label")).toHaveValue("Explore VYVA");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Make daily care feel clearer");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_template_gap_suggestion");
+    expect(screen.getByTestId("select-marketing-template-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Gap starter drafted: LinkedIn B2C starter");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-filter-channel-tiktok"));
+    expect(screen.getByTestId("select-marketing-template-channel")).toHaveValue("tiktok");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok feature demo script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+    fireEvent.change(screen.getByTestId("input-marketing-template-search"), { target: { value: "family proof" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-channel"), { target: { value: "linkedin" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-audience"), { target: { value: "b2c" } });
+
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn family proof article");
+    fireEvent.click(screen.getByTestId("button-marketing-use-content-template-linkedin-family-proof-article"));
+
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("LinkedIn family proof article");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Families rarely need more messages");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("linkedin-family-article");
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: LinkedIn family proof article");
+
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+    fireEvent.change(screen.getByTestId("input-marketing-template-search"), { target: { value: "profile" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-channel"), { target: { value: "whatsapp" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-audience"), { target: { value: "b2c" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-category"), { target: { value: "Onboarding" } });
+
+    const filteredGallery = within(screen.getByTestId("marketing-content-template-gallery"));
+    expect(filteredGallery.getByText("Profile completion WhatsApp nudge")).toBeInTheDocument();
+    expect(filteredGallery.queryByText("Caregiver welcome email")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-use-content-template-whatsapp-profile-nudge"));
+
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Profile completion WhatsApp nudge");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("whatsapp");
+    expect(screen.getByTestId("input-marketing-content-cta-label")).toHaveValue("Complete profile");
+    expect(screen.getByTestId("input-marketing-content-cta-url")).toHaveValue("https://v2.vyva.life/profile");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Hi {{first_name}}");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_content_template_gallery");
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: Profile completion WhatsApp nudge");
+  });
+
+  it("loads template packs into editable journey drafts with visible sequence steps", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-journey-partner-growth"));
+
+    expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-journey-name")).toHaveValue("Partner growth journey");
+    expect(screen.getByTestId("select-marketing-edit-journey-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-edit-journey-status")).toHaveValue("draft");
+    expect(screen.getByTestId("select-marketing-edit-journey-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("input-marketing-edit-journey-trigger")).toHaveValue("list_joined");
+    expect(screen.getByTestId("input-marketing-edit-journey-goal")).toHaveValue("reply");
+    expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Loaded Partner growth journey");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Partner proof post");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Proof nudge");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Referral ask");
+    expect(screen.getByTestId("select-marketing-journey-step-channel-0")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-journey-step-channel-1")).toHaveValue("whatsapp");
+    expect(screen.getByTestId("select-marketing-journey-step-channel-2")).toHaveValue("email");
+    expect(screen.getByTestId("input-marketing-journey-step-delay-0")).toHaveValue(0);
+    expect(screen.getByTestId("input-marketing-journey-step-delay-1")).toHaveValue(48);
+    expect(screen.getByTestId("input-marketing-journey-step-delay-2")).toHaveValue(120);
+    expect((screen.getByTestId("textarea-marketing-edit-journey-metadata") as HTMLTextAreaElement).value).toContain("partner-growth");
+    expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("template_pack");
+    expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("linkedin-partner-demo");
+    expect(screen.getByTestId("button-marketing-draft-journey-step-content")).toHaveTextContent("Draft 3 missing content");
+
+    fireEvent.click(screen.getByTestId("button-marketing-draft-journey-step-content"));
+    expect(screen.getByTestId("button-marketing-draft-journey-step-content")).toHaveTextContent("Drafting");
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Drafted and linked 3 content assets");
+    });
+    expect(screen.getByTestId("button-marketing-draft-journey-step-content")).toHaveTextContent("All content linked");
+    const journeyStepAiCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    const journeyStepContentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(journeyStepAiCalls).toHaveLength(3);
+    expect(journeyStepContentPosts).toHaveLength(3);
+    expect(JSON.parse(String(journeyStepAiCalls[0]?.[1]?.body ?? "{}"))).toMatchObject({
+      playLabel: "Partner growth journey",
+      playCategory: "journey",
+      audienceType: "b2b",
+      channel: "linkedin",
+      targetAudienceName: "Partners",
+    });
+    expect(JSON.parse(String(journeyStepContentPosts[0]?.[1]?.body ?? "{}"))).toMatchObject({
+      channel: "linkedin",
+      status: "draft",
+      source: "vyva",
+      metadata: { generatedFrom: "journey_step_ai", journeyName: "Partner growth journey", stepIndex: 0 },
+    });
+    expect(screen.getByTestId("select-marketing-journey-step-content-0")).toHaveValue("content-created");
+    expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("generatedContentAssetId");
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/journeys" && init?.method === "POST");
+    const payload = JSON.parse(String(postCall?.[1]?.body));
+    expect(payload).toMatchObject({
+      name: "Partner growth journey",
+      audienceType: "b2b",
+      status: "draft",
+      triggerType: "list_joined",
+      triggerConfig: {
+        source: "template_pack",
+        packId: "partner-growth",
+        targetAudienceId: "audience-1",
+      },
+      goalType: "reply",
+      goalConfig: {
+        source: "template_pack",
+        packId: "partner-growth",
+        suggestedReviewDays: 14,
+      },
+    });
+    expect(payload.steps).toHaveLength(3);
+    expect(payload.steps[0]).toMatchObject({
+      stepOrder: 0,
+      channel: "linkedin",
+      contentAssetId: "content-created",
+      delayHours: 0,
+      dayOffset: 0,
+      templateKind: "content_asset",
+      templateRef: "content-created",
+      config: { source: "template_pack", packId: "partner-growth", sequenceOffset: "Day 0", generatedContentAssetId: "content-created" },
+    });
+    expect(payload.steps[1]).toMatchObject({ channel: "whatsapp", contentAssetId: "content-created", delayHours: 48, dayOffset: 2, templateRef: "content-created" });
+    expect(payload.steps[2]).toMatchObject({ channel: "email", contentAssetId: "content-created", delayHours: 120, dayOffset: 5, templateRef: "content-created" });
+  });
+
+  it("recommends best-fit templates and starts a campaign from the matchmaker", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    const matchmaker = within(screen.getByTestId("marketing-template-matchmaker"));
+    expect(matchmaker.getByText("Caregiver welcome email")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-template-match-caregiver-email-welcome")).toHaveTextContent("1 reachable via Email");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Recommended starter");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Caregiver education mini-guide");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("1 reachable via Email");
+    fireEvent.click(screen.getByTestId("button-marketing-matchmaker-use-best"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Caregiver education mini-guide");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Template applied: Caregiver education mini-guide");
+
+    fireEvent.change(screen.getByTestId("select-marketing-template-channel"), { target: { value: "linkedin" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-audience"), { target: { value: "b2b" } });
+    fireEvent.change(screen.getByTestId("select-marketing-template-category"), { target: { value: "B2B partner" } });
+
+    const filteredMatchmaker = within(screen.getByTestId("marketing-template-matchmaker"));
+    expect(filteredMatchmaker.getByText("Partner demo LinkedIn post")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-template-match-linkedin-partner-demo")).toHaveTextContent("1 reachable via LinkedIn");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Partner demo LinkedIn post");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Pack: Partner growth");
+
+    fireEvent.click(screen.getByTestId("button-marketing-matchmaker-start-best"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner demo LinkedIn post campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign starter applied from \"Partner demo LinkedIn post\"");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI brief and channel pack are ready");
+    const partnerTemplateBrief = screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement;
+    expect(partnerTemplateBrief.value).toContain('Template campaign from "Partner demo LinkedIn post".');
+    expect(partnerTemplateBrief.value).toContain("Audience/list: Partners.");
+    expect(partnerTemplateBrief.value).toContain("Channels: LinkedIn");
+    expect(partnerTemplateBrief.value).toContain("AI direction: adapt this into a polished campaign pack");
+  });
+
+  it("starts a campaign planner draft from a content template", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-start-campaign-template-caregiver-email-welcome"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Caregiver welcome email campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2c");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    const templateCampaignObjective = screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement;
+    expect(templateCampaignObjective.value).toContain('Template campaign from "Caregiver welcome email".');
+    expect(templateCampaignObjective.value).toContain("A warm first email for a family caregiver");
+    expect(templateCampaignObjective.value).toContain("AI direction: adapt this into a polished campaign pack");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign starter applied from \"Caregiver welcome email\"");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI brief and channel pack are ready");
+    const templateCampaignBrief = screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement;
+    expect(templateCampaignBrief.value).toContain('Template campaign from "Caregiver welcome email".');
+    expect(templateCampaignBrief.value).toContain("Starting hook: \"Welcome to VYVA, {{first_name}}\".");
+    expect(templateCampaignBrief.value).toContain("Goal: create the saved content asset");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Caregiver welcome email");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("email");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("You are now connected to {{elder_name}}'s care circle");
+  });
+
+  it("starts a campaign planner draft from a saved content asset", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-start-campaign-content-content-2"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner post campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-2");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("checkbox-marketing-campaign-snapshot")).toBeChecked();
+    expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain('Campaign starter created from saved content asset "Partner post".');
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("CTA: Read more (https://v2.vyva.life/partners).");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Campaign starter loaded from "Partner post".');
+  });
+
+  it("loads a smart campaign planner starter with audience, content, and recipients", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    const starterPanel = within(screen.getByTestId("marketing-campaign-planner-recipes"));
+    expect(starterPanel.getByText("Partner outreach")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-recipe-b2b-partner-outreach"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("B2B partner introduction");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-2");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("checkbox-marketing-campaign-snapshot")).toBeChecked();
+    expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Start a partner conversation");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Starter loaded: Partner outreach with Partner post");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("Ready to add");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("Partner post is linked for LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-channel")).toHaveTextContent("LinkedIn will be saved for planning or manual handoff");
+  });
+
+  it("drafts missing campaign content directly from the planner", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Community proof post" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-audience"), { target: { value: "b2c" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-channel"), { target: { value: "facebook" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-objective"), {
+      target: { value: "Show families how VYVA turns daily check-ins into calmer care decisions." },
+    });
+
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("No active Facebook content assets yet.");
+    fireEvent.click(screen.getByTestId("button-marketing-draft-content-from-campaign"));
+
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Community proof post Facebook content");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("facebook");
+    expect(screen.getByTestId("input-marketing-content-subject")).toHaveValue("");
+    expect(screen.getByTestId("textarea-marketing-content-body")).toHaveTextContent("Show families how VYVA turns daily check-ins into calmer care decisions.");
+    expect(screen.getByTestId("textarea-marketing-content-design-json")).toHaveTextContent("\"generator\": \"marketing_campaign_planner\"");
+    expect(screen.getByTestId("textarea-marketing-content-design-json")).toHaveTextContent("\"channel\": \"facebook\"");
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Drafted Facebook content from the campaign planner.");
+  });
+
+  it("creates and links missing campaign content from the planner", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Community proof post" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-channel"), { target: { value: "facebook" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-objective"), {
+      target: { value: "Show families how VYVA turns daily check-ins into calmer care decisions." },
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-create-link-content-from-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(JSON.parse(String(postCall?.[1]?.body))).toMatchObject({
+      title: "Community proof post Facebook content",
+      channel: "facebook",
+      status: "draft",
+      body: expect.stringContaining("Show families how VYVA turns daily check-ins into calmer care decisions."),
+      designJson: expect.objectContaining({
+        generator: "marketing_campaign_planner",
+        channel: "facebook",
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-created");
+    });
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("Community proof post Facebook content is linked for Facebook");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created and linked Community proof post Facebook content");
   });
 
   it("creates rich marketing content drafts", async () => {
@@ -1452,6 +2252,286 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
     });
+  });
+
+  it("polishes imported content with AI before saving the same content record", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+
+    expect(screen.getByTestId("marketing-content-ai-polish-panel")).toHaveTextContent("AI polish");
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
+    expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("Partner update");
+
+    fireEvent.change(screen.getByTestId("select-marketing-content-polish-tone"), { target: { value: "direct" } });
+    fireEvent.click(screen.getByTestId("button-marketing-polish-content-ai"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
+    });
+    const aiCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiCall?.[1]?.body))).toMatchObject({
+      playLabel: "Content polish",
+      playCategory: "content_editor",
+      audienceType: "both",
+      channel: "linkedin",
+      tone: "direct",
+      campaignName: "Partner post",
+      contentTitle: "Partner post",
+      subjectSeed: "Partner post",
+      bodySeed: "Partner update",
+      ctaLabel: "Read more",
+      ctaUrl: "https://v2.vyva.life/partners",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("AI polish applied.");
+    });
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
+    expect(screen.getByTestId("input-marketing-edit-content-subject")).toHaveValue("AI subject line");
+    expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("AI body copy with stronger channel direction.");
+    expect(screen.getByTestId("input-marketing-edit-content-cta-label")).toHaveValue("AI CTA");
+    expect(screen.getByTestId("input-marketing-edit-content-cta-url")).toHaveValue("https://v2.vyva.life/ai");
+
+    const polishedDesign = JSON.parse((screen.getByTestId("textarea-marketing-edit-content-design-json") as HTMLTextAreaElement).value);
+    expect(polishedDesign).toMatchObject({
+      blocks: [{ type: "hero" }],
+      aiPolish: {
+        generator: "marketing_content_ai_polish",
+        source: "openai",
+        tone: "direct",
+        modelHints: { generator: "test-ai" },
+      },
+    });
+    const polishedMetadata = JSON.parse((screen.getByTestId("textarea-marketing-edit-content-metadata") as HTMLTextAreaElement).value);
+    expect(polishedMetadata).toMatchObject({
+      extraLovableOnlyField: "kept",
+      aiPolishHistory: [{
+        source: "openai",
+        tone: "direct",
+        previousSubject: null,
+        previousBodyPreview: "Partner update",
+      }],
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-content"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH");
+    const patchPayload = JSON.parse(String(patchCall?.[1]?.body));
+    expect(patchPayload).toMatchObject({
+      title: "Partner post",
+      channel: "linkedin",
+      subject: "AI subject line",
+      body: "AI body copy with stronger channel direction.",
+      ctaLabel: "AI CTA",
+      ctaUrl: "https://v2.vyva.life/ai",
+      source: "lovable",
+      lovableExternalId: "lovable-content-2",
+      metadata: {
+        extraLovableOnlyField: "kept",
+        aiPolishHistory: [{
+          source: "openai",
+          tone: "direct",
+        }],
+      },
+    });
+    expect(patchPayload.designJson.aiPolish).toMatchObject({ generator: "marketing_content_ai_polish", tone: "direct" });
+  });
+
+  it("creates a localized content variant with AI without changing the imported original", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+
+    fireEvent.change(screen.getByTestId("select-marketing-content-localize-language"), { target: { value: "es" } });
+    fireEvent.click(screen.getByTestId("button-marketing-localize-content-ai"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const aiCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiCall?.[1]?.body))).toMatchObject({
+      playLabel: "Content localization",
+      playCategory: "content_localization",
+      audienceType: "both",
+      channel: "linkedin",
+      tone: "warm",
+      campaignName: "Partner post",
+      contentTitle: "Partner post (Spanish)",
+      subjectSeed: "Partner post",
+      bodySeed: "Partner update",
+      ctaLabel: "Read more",
+      ctaUrl: "https://v2.vyva.life/partners",
+      language: "es",
+    });
+
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const postPayload = JSON.parse(String(postCall?.[1]?.body));
+    expect(postPayload).toMatchObject({
+      title: "Content localization AI content",
+      channel: "linkedin",
+      language: "es",
+      status: "draft",
+      subject: "AI subject line",
+      body: "AI body copy with stronger channel direction.",
+      ctaLabel: "AI CTA",
+      ctaUrl: "https://v2.vyva.life/ai",
+      source: "vyva",
+      lovableExternalId: null,
+      mediaAssets: [{ url: "https://cdn.example.test/partner.png" }],
+      metadata: {
+        extraLovableOnlyField: "kept",
+        localizedFromContentId: "content-2",
+        localizedFromLovableExternalId: "lovable-content-2",
+        localization: {
+          sourceLanguage: "en",
+          targetLanguage: "es",
+          targetLanguageLabel: "Spanish",
+          source: "openai",
+        },
+      },
+    });
+    expect(postPayload.designJson).toMatchObject({
+      blocks: [{ type: "hero" }],
+      aiLocalization: {
+        generator: "marketing_content_ai_localization",
+        source: "openai",
+        sourceContentId: "content-2",
+        sourceLanguage: "en",
+        targetLanguage: "es",
+        targetLanguageLabel: "Spanish",
+        modelHints: { generator: "test-ai" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Spanish draft created.");
+    });
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Content localization AI content");
+    expect(screen.getByTestId("input-marketing-edit-content-language")).toHaveValue("es");
+    expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("AI body copy with stronger channel direction.");
+    expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH")).toBe(false);
+  });
+
+  it("creates an AI channel variant from existing content", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+
+    expect(screen.getByTestId("select-marketing-content-variant-channel")).toHaveValue("email");
+    fireEvent.click(screen.getByTestId("button-marketing-channel-variant-content-ai"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const aiCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiCall?.[1]?.body))).toMatchObject({
+      playLabel: "Channel variant",
+      playCategory: "content_channel_variant",
+      audienceType: "both",
+      channel: "email",
+      tone: "warm",
+      campaignName: "Partner post",
+      contentTitle: "Partner post - Email",
+      subjectSeed: "Partner post",
+      bodySeed: "Partner update",
+      ctaLabel: "Read more",
+      ctaUrl: "https://v2.vyva.life/partners",
+      language: "en",
+    });
+
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const postPayload = JSON.parse(String(postCall?.[1]?.body));
+    expect(postPayload).toMatchObject({
+      title: "Channel variant email AI content",
+      channel: "email",
+      language: "en",
+      status: "draft",
+      subject: "AI email subject line",
+      body: "AI email body copy with stronger channel direction.",
+      htmlBody: "<p>AI email body copy with stronger channel direction.</p>",
+      ctaLabel: "AI CTA",
+      ctaUrl: "https://v2.vyva.life/ai",
+      source: "vyva",
+      lovableExternalId: null,
+      mediaAssets: [{ url: "https://cdn.example.test/partner.png" }],
+      metadata: {
+        extraLovableOnlyField: "kept",
+        channelVariantFromContentId: "content-2",
+        channelVariantFromLovableExternalId: "lovable-content-2",
+        channelVariant: {
+          source: "openai",
+          sourceChannel: "linkedin",
+          targetChannel: "email",
+          sourceLanguage: "en",
+        },
+      },
+    });
+    expect(postPayload.designJson).toMatchObject({
+      blocks: [{ type: "hero" }],
+      aiChannelVariant: {
+        generator: "marketing_content_ai_channel_variant",
+        source: "openai",
+        sourceContentId: "content-2",
+        sourceChannel: "linkedin",
+        targetChannel: "email",
+        modelHints: { generator: "test-ai" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Email draft created.");
+    });
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Channel variant email AI content");
+    expect(screen.getByTestId("select-marketing-edit-content-channel")).toHaveValue("email");
+    expect(screen.getByTestId("textarea-marketing-edit-content-html")).toHaveValue("<p>AI email body copy with stronger channel direction.</p>");
+    expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH")).toBe(false);
+  });
+
+  it("creates a full AI channel pack from existing content", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+    fireEvent.click(screen.getByTestId("button-marketing-channel-pack-content-ai"));
+
+    await waitFor(() => {
+      const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+      expect(contentPosts).toHaveLength(5);
+    });
+
+    const aiCalls = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")));
+    expect(aiCalls.map((payload) => payload.channel)).toEqual(["email", "whatsapp", "facebook", "instagram", "tiktok"]);
+    expect(aiCalls.every((payload) => payload.playCategory === "content_channel_variant")).toBe(true);
+    expect(aiCalls.every((payload) => payload.campaignName === "Partner post")).toBe(true);
+
+    const postPayloads = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")));
+    expect(postPayloads.map((payload) => payload.channel)).toEqual(["email", "whatsapp", "facebook", "instagram", "tiktok"]);
+    expect(postPayloads.every((payload) => payload.source === "vyva" && payload.lovableExternalId === null)).toBe(true);
+    expect(postPayloads.every((payload) => payload.metadata.channelVariantFromContentId === "content-2")).toBe(true);
+    expect(postPayloads.every((payload) => payload.designJson.aiChannelVariant.sourceChannel === "linkedin")).toBe(true);
+    expect(postPayloads.find((payload) => payload.channel === "email")?.htmlBody).toBe("<p>AI email body copy with stronger channel direction.</p>");
+    expect(postPayloads.find((payload) => payload.channel === "whatsapp")?.htmlBody).toBeNull();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("5 channel drafts created.");
+    });
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Channel variant email AI content");
+    expect(screen.getByTestId("select-marketing-edit-content-channel")).toHaveValue("email");
+    expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH")).toBe(false);
   });
 
   it("edits and deletes imported media references", async () => {
@@ -1752,6 +2832,51 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("loads smart journey starters into editable journey details", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+
+    expect(screen.getByTestId("marketing-journey-starters")).toHaveTextContent("Partner nurture journey");
+    expect(screen.getByTestId("marketing-journey-starters")).toHaveTextContent("Caregiver activation journey");
+
+    fireEvent.click(screen.getByTestId("button-marketing-journey-starter-partner-nurture"));
+
+    expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-journey-name")).toHaveValue("Partner nurture journey");
+    expect(screen.getByTestId("select-marketing-edit-journey-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-edit-journey-status")).toHaveValue("draft");
+    expect(screen.getByTestId("select-marketing-edit-journey-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("input-marketing-edit-journey-trigger")).toHaveValue("list_joined");
+    expect(screen.getByTestId("input-marketing-edit-journey-goal")).toHaveValue("reply");
+    expect(screen.getByTestId("marketing-journey-target-audience-summary")).toHaveTextContent("Partners: 1 mapped of 2 members");
+    expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Loaded Partner nurture journey");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-journey-steps-builder")).toHaveTextContent("Welcome email");
+    expect((screen.getByTestId("textarea-marketing-edit-journey-trigger-config") as HTMLTextAreaElement).value).toContain("journey_starter");
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/journeys" && init?.method === "POST");
+    const payload = JSON.parse(String(postCall?.[1]?.body));
+    expect(payload).toMatchObject({
+      name: "Partner nurture journey",
+      audienceType: "b2b",
+      status: "draft",
+      triggerType: "list_joined",
+      triggerConfig: { source: "journey_starter", targetAudienceId: "audience-1" },
+      goalType: "reply",
+      goalConfig: { withinDays: 14 },
+    });
+    expect(payload.steps).toHaveLength(2);
+    expect(payload.steps[0]).toMatchObject({ channel: "linkedin", contentAssetId: "content-2", delayHours: 0 });
+    expect(payload.steps[1]).toMatchObject({ channel: "email", contentAssetId: "content-1", delayHours: 72 });
+  });
+
   it("creates a blank journey draft and keeps the editor open", async () => {
     renderPage();
 
@@ -1894,6 +3019,490 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("generates a smart campaign brief into the planner and content draft", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("All plays");
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("22");
+    expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Best next campaigns from your data");
+    expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Event reminder");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-playbook-event-reminder"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Playbook loaded: Event reminder");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-category-social"));
+    expect(screen.getByTestId("marketing-campaign-studio-category-hint")).toHaveTextContent("Facebook, Instagram, LinkedIn, and TikTok");
+    expect(screen.getByTestId("button-marketing-campaign-studio-play-instagram-proof-point")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-category-all"));
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
+    expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Pick a practical publish window");
+    expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Partner morning");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-schedule-relationship"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Schedule set: Follow-up afternoon");
+    expect(screen.getByTestId("button-marketing-campaign-studio-schedule-relationship")).toHaveTextContent("Selected");
+
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-angles")).toHaveTextContent("Choose how the campaign leads");
+    expect(screen.getByTestId("marketing-campaign-studio-angles")).toHaveTextContent("Proof-led");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-angle-proof"));
+    expect(screen.getByTestId("button-marketing-campaign-studio-angle-proof")).toHaveTextContent("Selected");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach: proof point");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Proof-led");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel")).toHaveTextContent("Reach and fit");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel-reach")).toHaveTextContent("1/1");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel-best-channel")).toHaveTextContent("LinkedIn 1");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel-consent")).toHaveTextContent("1 pending/unknown and 0 opted out");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-intel-localization")).toHaveTextContent("Spain 1");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Review 1 unmapped list member from Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample")).toHaveTextContent("Reachable contact sample");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample")).toHaveTextContent("1/1 shown");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample-contact-2")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample-contact-2")).toHaveTextContent("Moka Digital / Partner / Spain");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-sample-contact-2")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief")).toHaveTextContent("Campaign plan at a glance");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-play")).toHaveTextContent("B2B partner introduction");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-hook")).toHaveTextContent("Partner outreach: proof point");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-audience")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-channels")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-variants")).toHaveTextContent("Smart creative variants");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-variant-proof-led")).toHaveTextContent("Proof-led");
+    expect(screen.getByTestId("button-marketing-campaign-studio-variant-soft-invite")).toHaveTextContent("I want the details");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-variant-soft-invite"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Creative variant applied: Soft invite.");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("A gentle invite:");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("CTA: I want the details");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality")).toHaveTextContent("Copy checks before create");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-subject")).toHaveTextContent("Opening hook");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-cta")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("LinkedIn has one focused draft ready for review.");
+    expect(screen.getByTestId("marketing-campaign-studio-personalization-preview")).toHaveTextContent("Merge field preview");
+    expect(screen.getByTestId("marketing-campaign-studio-personalization-tokens")).toHaveTextContent("{{first_name}} 1/1");
+    expect(screen.getByTestId("marketing-campaign-studio-personalization-sample")).toHaveTextContent("Sample for Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-studio-personalization-sample")).toHaveTextContent("Hi Hassan,");
+    expect(screen.getByTestId("marketing-campaign-studio-readiness")).toHaveTextContent("Studio readiness");
+    expect(screen.getByTestId("marketing-campaign-studio-readiness-recipients")).toHaveTextContent("1 eligible recipient will be snapshotted.");
+    expect(screen.getByTestId("marketing-campaign-studio-readiness-channel")).toHaveTextContent("Planning");
+    expect(screen.getByTestId("marketing-campaign-studio-next-step")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-assistant")).toHaveTextContent("Recommended now");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-assistant")).toHaveTextContent("Polish this into a stronger campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-assistant-output")).toHaveTextContent("1 content asset");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-assistant-output")).toHaveTextContent("1 LinkedIn campaign route");
+    expect(screen.getByTestId("button-marketing-campaign-studio-assistant-primary")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("button-marketing-campaign-studio-assistant-secondary")).toHaveTextContent("Create now");
+    expect(screen.getByTestId("marketing-campaign-studio-command-center")).toHaveTextContent("Launch command center");
+    expect(screen.getByTestId("marketing-campaign-studio-command-title")).toHaveTextContent("Polish this into a stronger campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-command-detail")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("marketing-campaign-studio-command-channels")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-command-channels")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-command-stat-readiness")).toHaveTextContent("4/6");
+    expect(screen.getByTestId("marketing-campaign-studio-command-stat-channels")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-studio-command-stat-reach")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-studio-command-stat-ai")).toHaveTextContent("0/1");
+    expect(screen.getByTestId("button-marketing-campaign-studio-command-primary")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("button-marketing-campaign-studio-command-secondary")).toHaveTextContent("Create now");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-command-copy-packet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch packet"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("One-page launch packet copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Launch sequence");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Next best actions");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-audience")).toHaveTextContent("Audience list selected");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-copy")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-create")).toHaveTextContent("Create now");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-packet")).toHaveTextContent("One-page launch packet");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-packet")).toHaveTextContent("Copy the whole campaign handoff");
+    const launchPacket = screen.getByTestId("textarea-marketing-campaign-studio-launch-packet") as HTMLTextAreaElement;
+    expect(launchPacket.value).toContain("VYVA campaign launch packet");
+    expect(launchPacket.value).toContain("Campaign: B2B partner introduction");
+    expect(launchPacket.value).toContain("Hook: A gentle invite: Partner outreach: proof point");
+    expect(launchPacket.value).toContain("Audience: Partners (B2B)");
+    expect(launchPacket.value).toContain("Channel plan:");
+    expect(launchPacket.value).toContain("LinkedIn: Manual publishing");
+    expect(launchPacket.value).toContain("Relationship follow-up:");
+    expect(launchPacket.value).toContain("Outcome tracking:");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-launch-packet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch packet"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("One-page launch packet copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-publishing-assistant")).toHaveTextContent("Channel publishing assistant");
+    expect(screen.getByTestId("marketing-campaign-studio-publishing-route-linkedin")).toHaveTextContent("LinkedIn publish and track");
+    expect(screen.getByTestId("marketing-campaign-studio-publishing-route-linkedin")).toHaveTextContent("Social publish");
+    const linkedinRunSheet = screen.getByTestId("textarea-marketing-campaign-studio-publishing-linkedin") as HTMLTextAreaElement;
+    expect(linkedinRunSheet.value).toContain("LinkedIn publishing run sheet");
+    expect(linkedinRunSheet.value).toContain("Platform URL or message batch");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-publishing-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn publishing run sheet"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("LinkedIn publishing run sheet copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-publishing-guide"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Track after publish"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Channel publishing guide copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-follow-up-loop")).toHaveTextContent("Relationship follow-up loop");
+    expect(screen.getByTestId("marketing-campaign-studio-follow-up-warm-reply")).toHaveTextContent("Warm reply or demo request");
+    expect(screen.getByTestId("marketing-campaign-studio-follow-up-clicked-no-reply")).toHaveTextContent("Clicked or opened, no reply");
+    const warmReplyPlay = screen.getByTestId("textarea-marketing-campaign-studio-follow-up-warm-reply") as HTMLTextAreaElement;
+    expect(warmReplyPlay.value).toContain("Warm reply follow-up");
+    expect(warmReplyPlay.value).toContain("Relationship notes to capture");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-follow-up-warm-reply"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Warm reply follow-up"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Warm reply or demo request copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-follow-up-playbook"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Consent and relationship cleanup"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Relationship follow-up playbook copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-outcome-tracker")).toHaveTextContent("Outcome tracker");
+    expect(screen.getByTestId("marketing-campaign-studio-outcome-human-response")).toHaveTextContent("Human responses");
+    expect(screen.getByTestId("marketing-campaign-studio-outcome-next-campaign")).toHaveTextContent("Next campaign move");
+    const outcomeTracker = screen.getByTestId("textarea-marketing-campaign-studio-outcome-human-response") as HTMLTextAreaElement;
+    expect(outcomeTracker.value).toContain("Human response outcome log");
+    expect(outcomeTracker.value).toContain("Relationship goal");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-outcome-human-response"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Human response outcome log"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Human responses copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-outcome-tracker"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Next campaign decision sheet"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Outcome tracker pack copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Offline and human handoff");
+    expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Phone call script");
+    expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Flyer / poster brief");
+    const phoneScript = screen.getByTestId("textarea-marketing-campaign-studio-offline-phone") as HTMLTextAreaElement;
+    expect(phoneScript.value).toContain("Sample contact: Hassan Partner");
+    expect(phoneScript.value).toContain("Opening: Hi Hassan");
+    expect(phoneScript.value).toContain("Key message:");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-offline-phone"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Phone call script"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Phone call script copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-offline-kit"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Partner handoff note"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Offline handoff kit copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-visual-kit")).toHaveTextContent("AI visual production pack");
+    expect(screen.getByTestId("marketing-campaign-studio-visual-kit")).toHaveTextContent("Email hero image prompt");
+    expect(screen.getByTestId("marketing-campaign-studio-visual-kit")).toHaveTextContent("Short video / story storyboard");
+    const heroPrompt = screen.getByTestId("textarea-marketing-campaign-studio-visual-email-hero") as HTMLTextAreaElement;
+    expect(heroPrompt.value).toContain("Audience: Partners");
+    expect(heroPrompt.value).toContain("no readable text inside the image");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-visual-social-square"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Social square image prompt"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Social square image prompt copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-visual-kit"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Print / QR layout brief"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Visual asset kit copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-approval-pack")).toHaveTextContent("Approval and publishing");
+    expect(screen.getByTestId("marketing-campaign-studio-approval-pack")).toHaveTextContent("Approval brief");
+    expect(screen.getByTestId("marketing-campaign-studio-approval-pack")).toHaveTextContent("Publishing checklist");
+    const approvalBrief = screen.getByTestId("textarea-marketing-campaign-studio-approval-approval-brief") as HTMLTextAreaElement;
+    expect(approvalBrief.value).toContain("Campaign approval brief");
+    expect(approvalBrief.value).toContain("Audience: Partners");
+    expect(approvalBrief.value).toContain("CTA: I want the details");
+    expect(approvalBrief.value).toContain("Channel execution:");
+    const publishingChecklist = screen.getByTestId("textarea-marketing-campaign-studio-approval-publishing-checklist") as HTMLTextAreaElement;
+    expect(publishingChecklist.value).toContain("Campaign publishing checklist");
+    expect(publishingChecklist.value).toContain("Channel plan:");
+    expect(publishingChecklist.value).toContain("LinkedIn: Manual publishing");
+    expect(publishingChecklist.value).toContain("Human/offline handoffs:");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-approval-pack"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign publishing checklist"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Approval and publishing pack copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-copy"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
+    });
+    const aiDraftCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiDraftCall?.[1]?.body ?? "{}"))).toMatchObject({
+      angle: "proof",
+      angleGuidance: expect.stringContaining("Lead with proof"),
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI draft generated");
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach AI campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("AI draft");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("AI adapted all 1 selected channel draft.");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-brief-creative")).toHaveTextContent("AI-polished pack");
+    expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("marketing-campaign-studio-next-step")).toHaveTextContent("Create the LinkedIn planning campaign");
+    fireEvent.click(screen.getByTestId("button-marketing-apply-studio-draft"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner outreach AI campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("AI objective for Partners");
+    expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Draft applied");
+
+    fireEvent.click(screen.getByTestId("button-marketing-open-studio-content-draft"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Partner outreach AI content");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI body copy");
+    expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("\"angle\": \"proof\"");
+  });
+
+  it("recommends and loads template packs directly inside the campaign studio", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-recommendations")).toHaveTextContent("Best-fit template packs");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-partner-growth")).toHaveTextContent("Partner growth");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-partner-growth")).toHaveTextContent("7 templates");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-partner-growth")).toHaveTextContent("Built for Partner outreach");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-template-pack-partner-growth"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Partner growth");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline")).toHaveTextContent("Channel launch timeline");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-linkedin")).toHaveTextContent("Partner proof post");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-linkedin")).toHaveTextContent("Partner owner");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-email")).toHaveTextContent("Primary email send");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-whatsapp")).toHaveTextContent("Direct reply nudge");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-channel-timeline"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign launch timeline"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Channel launch timeline copied.");
+  });
+
+  it("turns relationship opportunities into campaign studio setup", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-opportunities")).toHaveTextContent("Turn audience signals into campaigns");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-queue-partner-nurture")).toHaveTextContent("B2B partner nurture");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-queue-partner-nurture")).toHaveTextContent("1 partner");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-queue-partner-nurture")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-queue-partner-nurture")).toHaveTextContent("LinkedIn");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-relationship-use-partner-nurture"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Relationship queue loaded: B2B partner nurture");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
+    expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("hassan@example.com");
+  });
+
+  it("matches a plain-language campaign intent into a studio plan", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-intent-brief")).toHaveTextContent("Tell VYVA what you want to run");
+
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-intent"), {
+      target: { value: "Invite Madrid partners to a practical webinar by email and LinkedIn." },
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-apply-campaign-intent"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Brief matched to Partner webinar");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-campaign-studio-category-hint")).toHaveTextContent("B2B outreach");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner webinar invitation");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("Partners");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Campaign brief: Invite Madrid partners");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-copy"));
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI drafts generated for 2 channels");
+    });
+    const aiDraftCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel)).toEqual(["email", "linkedin"]);
+    expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).campaignBrief)).toEqual([
+      "Invite Madrid partners to a practical webinar by email and LinkedIn.",
+      "Invite Madrid partners to a practical webinar by email and LinkedIn.",
+    ]);
+  });
+
+  it("creates linked campaign and content directly from the smart studio", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack")).toHaveTextContent("Plan once, adapt by channel");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-recommended-pack"));
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan")).toHaveTextContent("What happens after create");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan-linkedin")).toHaveTextContent("Manual publishing");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan-linkedin")).toHaveTextContent("publish or track it outside VYVA");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan-email")).toHaveTextContent("VYVA email send");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-plan-email")).toHaveTextContent("send from the campaign details");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("0/2 selected channels have AI-polished copy.");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Create 2 content assets");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-review")).toHaveTextContent("Review before email send");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-copy"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI drafts generated for 2 channels");
+    });
+    const aiDraftCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel)).toEqual(["linkedin", "email"]);
+    expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).angle)).toEqual(["balanced", "balanced"]);
+    expect(screen.getByTestId("marketing-campaign-studio-creative-quality-channel-fit")).toHaveTextContent("AI adapted all 2 selected channel drafts.");
+    expect(screen.getByTestId("marketing-campaign-studio-readiness-ai")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-copy")).toHaveTextContent("Refresh AI");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-copy-email")).toHaveTextContent("Partner outreach email AI content");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-copy-email")).toHaveTextContent("VYVA email send");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-focus-channel-email"));
+    expect(screen.getByTestId("marketing-campaign-studio-channel-copy-email")).toHaveTextContent("Focused");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach AI campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("AI email subject line");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-use-channel-email"));
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner outreach AI campaign");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Email draft applied to the planner and content draft.");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Partner outreach email AI content");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("email");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI email body copy");
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-focus-channel-linkedin"));
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("Partner outreach AI campaign");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-create"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
+    });
+
+    const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(contentPosts).toHaveLength(2);
+    const contentPost = contentPosts.find(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel === "linkedin");
+    const contentBody = JSON.parse(String(contentPost?.[1]?.body));
+    expect(contentBody).toMatchObject({
+      title: "Partner outreach AI content",
+      channel: "linkedin",
+      language: "en",
+      status: "draft",
+      subject: "AI subject line",
+      body: "AI body copy with stronger channel direction.",
+      ctaLabel: "AI CTA",
+      ctaUrl: "https://v2.vyva.life/ai",
+      designJson: {
+        generator: "marketing_campaign_studio",
+        playId: "b2b-partner-outreach",
+        source: "openai",
+        angle: "balanced",
+      },
+    });
+    const emailContentBody = JSON.parse(String(contentPosts.find(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel === "email")?.[1]?.body));
+    expect(emailContentBody).toMatchObject({
+      channel: "email",
+      title: "Partner outreach email AI content",
+      subject: "AI email subject line",
+      body: "AI email body copy with stronger channel direction.",
+      designJson: {
+        generator: "marketing_campaign_studio",
+        source: "openai",
+        angle: "balanced",
+        channel: "email",
+        primaryChannel: "linkedin",
+      },
+    });
+
+    const campaignPost = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns" && init?.method === "POST");
+    const campaignBody = JSON.parse(String(campaignPost?.[1]?.body));
+    expect(campaignBody).toMatchObject({
+      name: "Partner outreach AI campaign",
+      audienceType: "b2b",
+      status: "scheduled",
+      objective: "AI objective for Partners",
+      channels: [
+        { channel: "linkedin", contentAssetId: "content-created", status: "scheduled", sendCapability: "planning_only" },
+        { channel: "email", contentAssetId: "content-created", status: "scheduled", sendCapability: "enabled" },
+      ],
+      recipients: [{
+        contactId: "contact-2",
+        channel: "linkedin",
+        recipient: "hassan@example.com",
+        status: "planned",
+      }, {
+        contactId: "contact-2",
+        channel: "email",
+        recipient: "hassan@example.com",
+        status: "planned",
+      }],
+      metadata: {
+        generatedContentAssetId: "content-created",
+        generatedContentAssetIds: {
+          linkedin: "content-created",
+          email: "content-created",
+        },
+        studio: {
+          playId: "b2b-partner-outreach",
+          angle: "balanced",
+          generatedSource: "openai",
+          selectedChannels: ["linkedin", "email"],
+        },
+        targetAudience: {
+          name: "Partners",
+          lovableExternalId: "lovable-audience-1",
+        },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Created "Partner outreach AI campaign" across 2 channels with 2 recipient snapshots ready.');
+    });
+    expect(screen.getByTestId("marketing-campaign-edit-form")).toHaveTextContent("Partner outreach AI campaign");
+  });
+
   it("creates campaign metadata without auto-dispatching", async () => {
     renderPage();
 
@@ -1977,6 +3586,11 @@ describe("MarketingAdminPage", () => {
   });
 
   it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -1990,12 +3604,66 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-campaign-schedule-end")).toHaveValue(toLocalInput("2026-07-06T11:00:00.000Z"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Ends");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-operator-brief")).toHaveTextContent("Next best action");
+    expect(screen.getByTestId("marketing-campaign-operator-brief-next")).toHaveTextContent("Launch email");
+    expect(screen.getByTestId("marketing-campaign-operator-brief-reach")).toHaveTextContent("1 saved");
+    expect(screen.getByTestId("marketing-campaign-operator-brief-creative")).toHaveTextContent("2/2 linked");
+    expect(screen.getByTestId("marketing-campaign-operator-brief-channels")).toHaveTextContent("Email can send in VYVA; LinkedIn stay as manual handoff.");
+    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Campaign readiness");
+    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("5/6 ready");
+    expect(screen.getByTestId("marketing-campaign-readiness-content")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("marketing-campaign-readiness-recipients")).toHaveTextContent("1 saved recipient");
+    expect(screen.getByTestId("marketing-campaign-readiness-email")).toHaveTextContent("Email can use the existing VYVA dispatcher");
+    expect(screen.getByTestId("marketing-campaign-readiness-other-channels")).toHaveTextContent("Planning");
+    expect(screen.getByTestId("marketing-campaign-launch-sequence")).toHaveTextContent("Next steps for this campaign");
+    expect(screen.getByTestId("marketing-campaign-launch-step-content")).toHaveTextContent("Preview content");
+    expect(screen.getByTestId("marketing-campaign-launch-step-audience")).toHaveTextContent("Partners: 1/2 contacts mapped");
+    expect(screen.getByTestId("marketing-campaign-launch-step-recipients")).toHaveTextContent("1 saved recipient");
+    expect(screen.getByTestId("marketing-campaign-launch-step-test")).toHaveTextContent("Send test email");
+    expect(screen.getByTestId("marketing-campaign-launch-step-launch")).toHaveTextContent("Send campaign email");
+    expect(screen.getByTestId("marketing-campaign-publish-kit")).toHaveTextContent("Channel handoff plan");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("VYVA email send");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved recipient can be sent through VYVA email");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Manual publishing");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview the content, then publish or track it in the channel tool.");
+    expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toHaveTextContent("Mark published");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-launch-packet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch packet"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign: Caregiver welcome"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Email channel"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn channel"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign launch packet copied.");
+    expect(screen.getByTestId("marketing-campaign-handoff-brief-linkedin")).toHaveTextContent("Manual channel brief");
+    const linkedinHandoffBrief = screen.getByTestId("textarea-marketing-campaign-handoff-brief-linkedin") as HTMLTextAreaElement;
+    expect(linkedinHandoffBrief.value).toContain("Campaign: Caregiver welcome");
+    expect(linkedinHandoffBrief.value).toContain("Channel: LinkedIn");
+    expect(linkedinHandoffBrief.value).toContain("Copy:\nPartner update");
+    expect(linkedinHandoffBrief.value).toContain("CTA: Read more - https://v2.vyva.life/partners");
+    expect(linkedinHandoffBrief.value).toContain("Media:\n- https://cdn.example.test/partner.png");
+    expect(linkedinHandoffBrief.value).toContain("Lovable content ID: lovable-content-2");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-handoff-brief-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Channel: LinkedIn"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Copy:\nPartner update"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("LinkedIn handoff brief copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin"));
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("66 sent");
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("44");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
     expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("LinkedIn marked as published.");
+    expect(screen.getByTestId("select-marketing-campaign-channel-status-1")).toHaveValue("published");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Save campaign changes so this channel uses the latest content");
+    expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toBeDisabled();
     const emailContentPreview = screen.getByTestId("marketing-campaign-channel-content-preview-0");
     expect(emailContentPreview).toHaveTextContent("Linked content");
     expect(emailContentPreview).toHaveTextContent("Welcome email");
@@ -2034,7 +3702,11 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-recipient-filter"), { target: { value: "Hassan" } });
 
     expect(screen.getByTestId("marketing-campaign-recipient-preview")).toHaveTextContent("1");
-    fireEvent.click(screen.getByTestId("button-marketing-save-campaign"));
+    expect(screen.getByTestId("button-marketing-readiness-save-campaign")).toHaveTextContent("Save + snapshot recipients");
+    expect(screen.getByTestId("marketing-campaign-readiness-email")).toHaveTextContent("Save campaign changes before test/live email send.");
+    expect(screen.getByTestId("marketing-campaign-launch-step-test")).toHaveTextContent("Save before test");
+    expect(screen.getByTestId("marketing-campaign-launch-step-launch")).toHaveTextContent("Save campaign changes before sending.");
+    fireEvent.click(screen.getByTestId("button-marketing-readiness-save-campaign"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "PATCH" }));
@@ -2061,7 +3733,7 @@ describe("MarketingAdminPage", () => {
       },
       channels: [
         { channel: "email", contentAssetId: "content-1", status: "scheduled" },
-        { channel: "linkedin", contentAssetId: "content-2", status: "draft" },
+        { channel: "linkedin", contentAssetId: "content-2", status: "published" },
       ],
     });
     expect(patchBody.recipients).toHaveLength(1);

@@ -54,6 +54,7 @@ describe("cross-app workflow registry", () => {
 
     [
       "health.card.symptoms",
+      "health.action.show-vyva",
       "health.fast.book-medical",
       "meds.card.my-medicines",
       "meds.fast.refill-help",
@@ -69,6 +70,8 @@ describe("cross-app workflow registry", () => {
     ].forEach((id) => expect(getWorkflowEntryPoint(id).id).toBe(id));
 
     expect(getWorkflowEntryPoint("room.list.open").route).toBe("/social-rooms/join-in");
+    expect(getWorkflowEntryPoint("scam.action.show-vyva").route).toBe("/scam-guard");
+    expect(getWorkflowEntryPoint("safe-home.action.show-vyva").route).toBe("/safe-home");
   });
 
   it("deduplicates repeated entry points that lead to the same underlying flow", () => {

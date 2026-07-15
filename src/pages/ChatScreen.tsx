@@ -1,18 +1,18 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Settings, ArrowUp } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { useVyvaVoice, type TranscriptEntry } from "@/hooks/useVyvaVoice";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import { apiFetch } from "@/lib/queryClient";
+import { useAppLanguage } from "@/i18n";
 
 type LiveChatHistoryTurn = { role: "user" | "assistant"; content: string };
 
 const ChatScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, i18n } = useTranslation();
+  const { language, t } = useAppLanguage();
   const [searchParams] = useSearchParams();
   const {
     startVoice,
@@ -63,7 +63,7 @@ const ChatScreen = () => {
 
   const localFallbackReply = useCallback((message: string) => {
     const lower = message.toLowerCase();
-    if (i18n.language?.startsWith("es")) {
+    if (language.startsWith("es")) {
       if (lower.includes("medico") || lower.includes("doctor")) {
         return "Puedo ayudarte a preparar el siguiente paso. Dime que necesitas y VYVA lo dejara listo para que confirmes antes de contactar a nadie.";
       }
@@ -73,7 +73,7 @@ const ChatScreen = () => {
       return "I can help prepare the next step. Tell me what you need, and VYVA will keep it ready for you to confirm before anyone is contacted.";
     }
     return "I am here with you. Tell me a little more, and I will help you choose the next simple step.";
-  }, [i18n.language]);
+  }, [language]);
 
   const sendTypedMessage = useCallback(async (rawMessage: string) => {
     const message = rawMessage.trim();
@@ -96,7 +96,7 @@ const ChatScreen = () => {
         body: JSON.stringify({
           message,
           history,
-          locale: i18n.language,
+          locale: language,
         }),
       });
 
@@ -118,7 +118,7 @@ const ChatScreen = () => {
     } finally {
       setIsTextSending(false);
     }
-  }, [i18n.language, isTextSending, localFallbackReply, typedTranscript]);
+  }, [isTextSending, language, localFallbackReply, typedTranscript]);
 
   useEffect(() => {
     if (!pendingRef.current) return;

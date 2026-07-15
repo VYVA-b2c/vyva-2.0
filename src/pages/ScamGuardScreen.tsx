@@ -6,8 +6,6 @@ import {
   Headset,
   Camera,
   Phone,
-  ClipboardList,
-  Users,
   X,
   Clock,
   Trash2,
@@ -28,11 +26,22 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import ShowVyvaChooser from "@/components/ShowVyvaChooser";
+import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
+import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { languageText } from "../../shared/language";
+import {
+  SHOW_VYVA_USE_CASE_IDS,
+  buildShowVyvaConciergePrefill,
+  type ShowVyvaCaptureSource,
+  type ShowVyvaPastePayload,
+} from "../../shared/showVyvaFlow";
+import { showVyvaReviewContractFromScamResult } from "../../shared/showVyvaReviewContract";
+import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
 
 type ScamCheck = {
   id: string;
@@ -188,6 +197,7 @@ const SCAM_CALL_SYSTEM_PROMPT =
 type ScamGuardActionButtonsProps = {
   context: ScamGuardActionContext;
   trustedContactName?: string;
+  trustedContactPhone?: string;
   trustedContactHref?: string;
   isCallActive?: boolean;
   onOpenConcierge: (context: ScamGuardActionContext) => void;
@@ -200,6 +210,7 @@ type ScamGuardActionButtonsProps = {
 export function ScamGuardActionButtons({
   context,
   trustedContactName,
+  trustedContactPhone,
   trustedContactHref,
   isCallActive,
   onOpenConcierge,
@@ -209,65 +220,68 @@ export function ScamGuardActionButtons({
   testIdSuffix,
 }: ScamGuardActionButtonsProps) {
   const { t } = useTranslation();
+  const { language } = useLanguage();
+  const { toast } = useToast();
   const contactName = trustedContactName?.trim() || t("scamGuard.actions.trustedFallback", "trusted person");
-  const buttonClass = compact
-    ? "vyva-tap inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-[12px] px-3 py-2 font-body text-[12px] font-black leading-tight transition active:scale-[0.98]"
-    : "vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] px-4 py-3 font-body text-[15px] font-black leading-tight transition active:scale-[0.98]";
+  const reviewContract = showVyvaReviewContractFromScamResult({
+    useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+    source: "upload",
+  }, context);
+  const actions = reviewContract.followUpActions.map((action) => {
+    if (action.id !== "call_trusted_contact") return action;
+    if (trustedContactHref) {
+      return {
+        ...action,
+        label: t("scamGuard.actions.callTrusted", "Call {{name}}", { name: contactName }),
+        detail: t("scamGuard.actions.callTrustedSub", "Ask someone you trust."),
+      };
+    }
+    return {
+      ...action,
+      label: t("scamGuard.actions.addTrusted", "Add trusted person"),
+      detail: t("scamGuard.actions.addTrustedSub", "Save someone to call."),
+    };
+  });
 
   return (
     <div
       data-testid={`scam-service-actions-${testIdSuffix}`}
-      className={compact ? "mt-3 border-t border-[#EDE5DB] pt-3" : "mt-4 rounded-[18px] bg-white/75 p-3"}
+      className={compact ? "mt-3 border-t border-[#EDE5DB] pt-3" : "mt-4"}
     >
-      <p className="mb-2 font-body text-[11px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-        {t("scamGuard.actions.title", "Quick safe actions")}
-      </p>
-      <div className={compact ? "flex flex-wrap gap-2" : "grid grid-cols-1 gap-2 sm:grid-cols-3"}>
-        {trustedContactHref ? (
-          <a
-            href={trustedContactHref}
-            data-testid={`button-scam-call-trusted-${testIdSuffix}`}
-            aria-label={t("scamGuard.actions.callTrustedAria", "Call {{name}} about this scam check", { name: contactName })}
-            className={`${buttonClass} bg-[#F5F3FF] text-vyva-purple`}
-          >
-            <Phone size={compact ? 15 : 18} />
-            <span>{t("scamGuard.actions.callTrusted", "Call {{name}}", { name: contactName })}</span>
-          </a>
-        ) : (
-          <button
-            type="button"
-            onClick={onAddTrustedContact}
-            data-testid={`button-scam-add-trusted-${testIdSuffix}`}
-            className={`${buttonClass} bg-[#F5F3FF] text-vyva-purple`}
-          >
-            <Users size={compact ? 15 : 18} />
-            <span>{t("scamGuard.actions.addTrusted", "Add trusted person")}</span>
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onOpenConcierge(context)}
-          data-testid={`button-scam-safe-help-${testIdSuffix}`}
-          aria-label={t("scamGuard.actions.safeHelpAria", "Open VYVA concierge with this scam check")}
-          className={`${buttonClass} bg-vyva-purple text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)]`}
-        >
-          <ClipboardList size={compact ? 15 : 18} />
-          <span>{t("scamGuard.actions.safeHelp", "Get safe help")}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onStartGuidance}
-          data-testid={`button-scam-call-guidance-${testIdSuffix}`}
-          className={`${buttonClass} bg-[#ECFDF5] text-[#047857]`}
-        >
-          <Phone size={compact ? 15 : 18} />
-          <span>
-            {isCallActive
-              ? t("scamGuard.actions.pauseGuidance", "Pause guidance")
-              : t("scamGuard.actions.callGuidance", "Call guidance")}
-          </span>
-        </button>
-      </div>
+      <ShowVyvaFollowUpPanel
+        context="scam"
+        testIdSuffix={testIdSuffix}
+        title={t("showVyva.followUp.title.scam", "Next scam-safe step")}
+        subtitle={t("showVyva.followUp.subtitle.scam", "Check before you reply, pay, call back, or share anything.")}
+        confirmation={t("showVyva.contract.finalConfirmation", reviewContract.finalConfirmationRule)}
+        actions={actions}
+        onSelect={(action) => {
+          if (action.id === "call_trusted_contact") {
+            if (!trustedContactHref) {
+              onAddTrustedContact();
+              return;
+            }
+          }
+          const plan = buildShowVyvaActionExecutionPlan({
+            contract: reviewContract,
+            action,
+            language,
+            sourceRoute: "/scam-guard",
+            target: action.id === "call_trusted_contact"
+              ? { name: contactName, phone: trustedContactPhone ?? trustedContactHref?.replace(/^tel:/, ""), relationship: "trusted_contact" }
+              : undefined,
+          });
+          void saveShowVyvaActionExecutionPlan(plan)
+            .then(async () => {
+              await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+              toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+              onOpenConcierge(context);
+            })
+            .catch(() => {
+              toast({ description: t("showVyva.executor.error", "I could not save that step. Please try again.") });
+            });
+        }}
+      />
     </div>
   );
 }
@@ -401,6 +415,7 @@ const ScamGuardScreen = () => {
   const [result, setResult] = useState<ScamCheckResult | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [fullScreenCheck, setFullScreenCheck] = useState<ScamCheck | null>(null);
+  const [scamCaptureSource, setScamCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { startVoice, stopVoice, status, isConnecting } = useVyvaVoice();
@@ -490,6 +505,19 @@ const ScamGuardScreen = () => {
       })
       .catch(() => setResult(errorFallback))
       .finally(() => setAnalyzing(false));
+  };
+
+  const openScamFilePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+    setScamCaptureSource(source);
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const openPastedScamReview = (payload: ShowVyvaPastePayload) => {
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: buildShowVyvaConciergePrefill(payload, language),
+      },
+    });
   };
 
   const handleCallCompanion = () => {
@@ -711,19 +739,33 @@ const ScamGuardScreen = () => {
             </div>
             <div className="flex-1">
               <p className="font-body text-[14px] font-semibold text-vyva-text-1">
-                {t("scamGuard.scanTitle", "Check a Document")}
+                {t("showVyva.title", "Show VYVA")}
               </p>
               <p className="font-body text-[12px] text-vyva-text-2">
-                {t("scamGuard.scanSubtitle", "Photo a letter, email printout, screenshot, or PDF")}
+                {t("showVyva.scamSubtitle", "Show a message, link, document, number, or company concern.")}
               </p>
             </div>
           </div>
 
           <div className="p-[18px]">
+            <ShowVyvaChooser
+              title={t("showVyva.scamTitle", "Show VYVA")}
+              subtitle={t("showVyva.scamChooserSubtitle", "Camera, upload, or paste. VYVA checks safely before any next step.")}
+              defaultUseCaseId={SHOW_VYVA_USE_CASE_IDS.scamCheck}
+              useCaseIds={[
+                SHOW_VYVA_USE_CASE_IDS.scamCheck,
+                SHOW_VYVA_USE_CASE_IDS.documentHelp,
+                SHOW_VYVA_USE_CASE_IDS.providerOrDeal,
+              ]}
+              busy={analyzing}
+              onChooseFileSource={(source) => openScamFilePicker(source)}
+              onPaste={(payload) => openPastedScamReview(payload)}
+            />
+
             {analyzing && (
               <div
                 data-testid="section-scam-analyzing"
-                className="rounded-[14px] p-[20px] flex flex-col items-center gap-3 mb-[14px]"
+                className="mt-[14px] rounded-[14px] p-[20px] flex flex-col items-center gap-3 mb-[14px]"
                 style={{ background: "#F5F3FF" }}
               >
                 <div
@@ -744,7 +786,7 @@ const ScamGuardScreen = () => {
               return (
                 <div
                   data-testid="section-scam-result"
-                  className="rounded-[14px] p-[16px] mb-[14px]"
+                  className="mt-[14px] rounded-[14px] p-[16px] mb-[14px]"
                   style={{ background: rc.bg, border: `1px solid ${rc.border}` }}
                 >
                   <div className="flex items-center justify-between gap-[8px] mb-[8px]">
@@ -817,6 +859,7 @@ const ScamGuardScreen = () => {
                   <ScamGuardActionButtons
                     context={resultToActionContext(result)}
                     trustedContactName={trustedContactName}
+                    trustedContactPhone={profile?.caregiverContact}
                     trustedContactHref={trustedContactHref}
                     isCallActive={isCallActive}
                     onOpenConcierge={openScamConcierge}
@@ -832,27 +875,11 @@ const ScamGuardScreen = () => {
               ref={fileInputRef}
               type="file"
               accept="image/*,application/pdf,.pdf"
-              capture="environment"
+              capture={scamCaptureSource === "camera" ? "environment" : undefined}
               className="hidden"
               onChange={handleFileSelect}
               data-testid="input-scam-check-file"
             />
-            <button
-              data-testid="button-scam-check-take-photo"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={analyzing}
-              className="w-full flex items-center justify-center gap-2 rounded-[14px] py-[14px] font-body text-[15px] font-semibold transition-all active:scale-[0.97] disabled:opacity-50"
-              style={{
-                background: "linear-gradient(135deg, #6B21A8 0%, #9333EA 100%)",
-                color: "#FFFFFF",
-                boxShadow: "0 4px 16px rgba(107,33,168,0.30)",
-              }}
-            >
-              <Camera size={18} />
-              {result
-                ? t("scamGuard.checkAnother", "Check Another Document")
-                : t("scamGuard.takePhoto", "Take, Upload or Select PDF")}
-            </button>
           </div>
         </div>
 
@@ -980,6 +1007,7 @@ const ScamGuardScreen = () => {
                           <ScamGuardActionButtons
                             context={scamCheckToActionContext(check)}
                             trustedContactName={trustedContactName}
+                            trustedContactPhone={profile?.caregiverContact}
                             trustedContactHref={trustedContactHref}
                             isCallActive={isCallActive}
                             onOpenConcierge={openScamConcierge}
