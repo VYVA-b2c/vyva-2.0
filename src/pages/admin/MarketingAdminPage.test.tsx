@@ -831,12 +831,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("66 sent");
     expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("44 opened");
     expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("4 clicked");
+    expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("Ready to send");
+    expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("1 saved recipient");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1-linkedin")).toHaveTextContent("Partner post");
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "Warm B2B" } });
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Partner outreach")).toBeInTheDocument();
     expect(within(screen.getByTestId("marketing-campaign-table")).queryByText("Caregiver welcome")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-2")).toHaveTextContent("Needs content");
+    expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-2")).toHaveTextContent("Attach content for LinkedIn");
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner" } });
     fireEvent.click(screen.getByTestId("tab-marketing-journeys"));

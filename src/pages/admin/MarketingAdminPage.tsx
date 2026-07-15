@@ -129,6 +129,14 @@ type CampaignRecipient = {
   communicationLogId: string | null;
 };
 
+type CampaignRowReadiness = {
+  state: CampaignReadinessState;
+  label: string;
+  detail: string;
+  readyCount: number;
+  totalCount: number;
+};
+
 type ContentUsage = {
   key: string;
   kind: "campaign" | "journey";
@@ -3961,6 +3969,105 @@ function campaignTargetAudience(campaign: Campaign, audiences: MarketingAudience
     ...(campaign.recipients ?? []).flatMap((recipient) => audienceReferencesFromRecord(recipient.snapshot)),
   ];
   return audiences.find((audience) => refs.some((reference) => audienceMatchesReference(audience, reference))) ?? null;
+}
+
+function campaignRowReadiness(campaign: Campaign, contentById: ReadonlyMap<string, ContentAsset>, audiences: MarketingAudience[]): CampaignRowReadiness {
+  const targetAudience = campaignTargetAudience(campaign, audiences);
+  const channels = campaign.channels;
+  const missingContentChannels = channels.filter((channel) => !channel.contentAssetId || !contentById.has(channel.contentAssetId));
+  const emailChannels = channels.filter((channel) => channel.channel === "email");
+  const hasEmailSendPath = emailChannels.some((channel) => Boolean(channel.contentAssetId && contentById.has(channel.contentAssetId)));
+  const hasPlanningOnlyChannels = channels.some((channel) => channel.channel !== "email");
+  const targetAudienceNeedsMapping = Boolean(targetAudience && targetAudience.memberCount > 0 && targetAudience.mappedMemberCount === 0);
+  const needsSchedule = ["scheduled", "published"].includes(campaign.status) && !campaign.scheduleStartsAt;
+  const needsRecipients = hasEmailSendPath && campaign.recipientCount <= 0;
+  const checks = [
+    channels.length > 0,
+    missingContentChannels.length === 0,
+    !targetAudienceNeedsMapping,
+    !needsSchedule,
+    !needsRecipients,
+  ];
+  const readyCount = checks.filter(Boolean).length;
+  const totalCount = checks.length;
+
+  if (channels.length === 0) {
+    return {
+      state: "blocked",
+      label: "No channels",
+      detail: "Add at least one channel before this can move forward.",
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (missingContentChannels.length > 0) {
+    return {
+      state: "blocked",
+      label: "Needs content",
+      detail: `Attach content for ${missingContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")}.`,
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (needsRecipients) {
+    return {
+      state: "blocked",
+      label: "Snapshot recipients",
+      detail: "Email has content, but no saved recipients yet.",
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (targetAudienceNeedsMapping) {
+    return {
+      state: "needs_action",
+      label: "Map audience",
+      detail: `${targetAudience?.name ?? "Audience"} has no mapped contacts yet.`,
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (needsSchedule) {
+    return {
+      state: "needs_action",
+      label: "Add schedule",
+      detail: "Scheduled or published campaigns need a start time.",
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (hasEmailSendPath) {
+    return {
+      state: "ready",
+      label: "Ready to send",
+      detail: `${campaign.recipientCount} saved recipient${campaign.recipientCount === 1 ? "" : "s"} and email content linked.`,
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (hasPlanningOnlyChannels) {
+    return {
+      state: "planning",
+      label: "Manual handoff",
+      detail: "Content is linked for planning/tracking channels.",
+      readyCount,
+      totalCount,
+    };
+  }
+
+  return {
+    state: "needs_action",
+    label: "Review",
+    detail: "Open details to finish campaign setup.",
+    readyCount,
+    totalCount,
+  };
 }
 
 function campaignMetadataWithTarget(existingMetadata: unknown, targetAudience: MarketingAudience | null) {
@@ -19115,6 +19222,7 @@ function CampaignTable({
             <th className="px-4 py-3">Channels</th>
             <th className="px-4 py-3">Schedule</th>
             <th className="px-4 py-3">Performance</th>
+            <th className="px-4 py-3">Launch readiness</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Recipients</th>
             {showActions ? <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th> : null}
@@ -19122,12 +19230,13 @@ function CampaignTable({
         </thead>
         <tbody>
           {campaigns.length === 0 ? (
-            <tr><td colSpan={showActions ? 8 : 7} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
+            <tr><td colSpan={showActions ? 9 : 8} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
           ) : campaigns.map((campaign) => {
             const isActive = activeCampaignId === campaign.id;
             const deleteIsArmed = confirmingDeleteId === campaign.id;
             const targetAudience = campaignTargetAudience(campaign, audiences);
             const metricSummary = metricsByCampaignId.get(campaign.id);
+            const rowReadiness = campaignRowReadiness(campaign, contentById, audiences);
             return (
             <tr
               key={campaign.id}
@@ -19208,6 +19317,15 @@ function CampaignTable({
               </td>
               <td className="px-4 py-3">
                 <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-campaign-performance-${campaign.id}`} />
+              </td>
+              <td className="px-4 py-3">
+                <div className={`min-w-[190px] rounded-xl border p-2 ${readinessClass(rowReadiness.state)}`} data-testid={`marketing-campaign-row-readiness-${campaign.id}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill className={readinessPillClass(rowReadiness.state)}>{rowReadiness.label}</Pill>
+                    <span className="text-xs font-black">{rowReadiness.readyCount}/{rowReadiness.totalCount}</span>
+                  </div>
+                  <p className="mt-1 text-xs font-bold leading-relaxed">{rowReadiness.detail}</p>
+                </div>
               </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
               <td className="px-4 py-3 font-black">{campaign.recipientCount}</td>
