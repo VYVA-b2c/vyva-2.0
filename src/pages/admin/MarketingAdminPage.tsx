@@ -33,7 +33,7 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 
-const CHANNELS = ["email", "whatsapp", "facebook", "instagram", "linkedin", "tiktok"] as const;
+const CHANNELS = ["email", "whatsapp", "sms", "phone", "print", "event", "facebook", "instagram", "linkedin", "tiktok"] as const;
 const AUDIENCES = ["b2c", "b2b", "both"] as const;
 const TABS = ["dashboard", "journeys", "content", "calendar", "contacts", "settings"] as const;
 const CAMPAIGN_STATUSES = ["draft", "scheduled", "published", "paused", "archived"] as const;
@@ -1041,7 +1041,11 @@ const emptySummary: MarketingSummary = {
     channel,
     sendCapability: channel === "email" ? "enabled" : channel === "whatsapp" ? "future_send_capable" : "planning_only",
     locked: channel !== "email",
-    note: channel === "email" ? "Email sends use VYVA communications." : "Marketing sends are locked in this foundation.",
+    note: channel === "email"
+      ? "Email sends use VYVA communications."
+      : ["sms", "phone", "print", "event"].includes(channel)
+        ? "Direct/offline channels are planning and handoff only."
+        : "Marketing sends are locked in this foundation.",
   })),
   emailScheduler: {
     enabled: false,
@@ -1068,6 +1072,10 @@ const emptySync: SyncState = {
 const channelLabel: Record<Channel, string> = {
   email: "Email",
   whatsapp: "WhatsApp",
+  sms: "SMS",
+  phone: "Phone call",
+  print: "Print / direct mail",
+  event: "Local event",
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
@@ -1109,6 +1117,10 @@ const campaignStudioAngleGuidance: Record<CampaignStudioAngleId, string> = {
 const campaignStudioChannelGuidance: Record<Channel, string> = {
   email: "Use a clear subject, one message, and one primary call to action.",
   whatsapp: "Keep it conversational, short, and easy to reply to.",
+  sms: "Keep it under 160 characters with one concrete reply or link action.",
+  phone: "Write a calm call script with an opener, qualifying question, and follow-up note.",
+  print: "Make the headline, offer, and handoff readable without app context.",
+  event: "Anchor the message around place, time, access needs, and the post-event next step.",
   facebook: "Frame it as a community update with a shareable hook.",
   instagram: "Use a visual-first caption with one crisp takeaway.",
   linkedin: "Make the professional value and outcome explicit.",
@@ -1156,6 +1168,30 @@ const campaignStudioLaunchTimingByChannel: Record<Channel, {
     title: "Direct reply nudge",
     owner: "Relationship owner",
     action: "Use the approved short copy as the close follow-up and log replies.",
+  },
+  sms: {
+    offsetHours: 3,
+    title: "SMS reminder",
+    owner: "Relationship owner",
+    action: "Send the short reminder from the approved contact tool and log replies or opt-outs.",
+  },
+  phone: {
+    offsetHours: 24,
+    title: "Phone follow-up",
+    owner: "Relationship owner",
+    action: "Use the call script, capture outcome notes, and schedule the next touch.",
+  },
+  print: {
+    offsetHours: -168,
+    title: "Print/direct mail handoff",
+    owner: "Operations owner",
+    action: "Export the copy/design brief, confirm delivery area, and track distribution status.",
+  },
+  event: {
+    offsetHours: -72,
+    title: "Local event handoff",
+    owner: "Community owner",
+    action: "Confirm venue, accessibility notes, RSVP route, and post-event follow-up owner.",
   },
 };
 
@@ -1672,6 +1708,9 @@ function statusClass(status: string) {
 
 function channelClass(channel: Channel) {
   if (channel === "whatsapp") return "bg-emerald-50 text-emerald-700 border-emerald-100";
+  if (channel === "sms" || channel === "phone") return "bg-teal-50 text-teal-700 border-teal-100";
+  if (channel === "print") return "bg-orange-50 text-orange-700 border-orange-100";
+  if (channel === "event") return "bg-amber-50 text-amber-800 border-amber-100";
   if (channel === "email") return "bg-blue-50 text-blue-700 border-blue-100";
   if (channel === "instagram" || channel === "tiktok") return "bg-pink-50 text-pink-700 border-pink-100";
   if (channel === "linkedin" || channel === "facebook") return "bg-sky-50 text-sky-700 border-sky-100";
@@ -3062,6 +3101,91 @@ const contentTemplateGallery: ContentTemplate[] = [
     mediaAssets: [],
   },
   {
+    id: "sms-local-event-reminder",
+    title: "SMS local event reminder",
+    category: "Offline and direct",
+    audienceType: "both",
+    channel: "sms",
+    description: "A concise SMS reminder for people who need a simple local event prompt.",
+    subject: "",
+    body: "{{event_name}} is near {{area_name}} on {{event_date}}. Reply YES for a reminder or HELP if you want VYVA to plan the next step.",
+    ctaLabel: "Reply YES",
+    ctaUrl: "https://v2.vyva.life/social",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "sms-local-event-reminder",
+      category: "Offline and direct",
+      layout: "sms-reminder",
+      characterTarget: 160,
+      mergeFields: ["event_name", "area_name", "event_date"],
+      complianceNotes: ["Use only for opted-in direct contacts.", "Include opt-out wording when required by market."],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "phone-partner-followup-script",
+    title: "Phone partner follow-up script",
+    category: "Offline and direct",
+    audienceType: "b2b",
+    channel: "phone",
+    description: "A short call script for following up with clinics, pharmacies, venues, or local partners.",
+    subject: "Partner follow-up call",
+    body: "Opener: Hi {{first_name}}, this is {{owner_name}} from VYVA. I am following up on the idea of making daily care updates easier for families and local care partners.\n\nQuestion: Is there one group of families or clients where reminders, care-team updates, or post-visit follow-up are currently hard to coordinate?\n\nOffer: We can show a simple workflow and agree whether a referral or local event handoff makes sense.\n\nClose: Would it be useful to schedule a 15-minute review this week?",
+    ctaLabel: "Book review",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "phone-partner-followup-script",
+      category: "Offline and direct",
+      layout: "call-script",
+      callStages: ["opener", "qualifying question", "offer", "close", "outcome note"],
+      mergeFields: ["first_name", "owner_name"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "print-community-flyer",
+    title: "Community flyer copy",
+    category: "Offline and direct",
+    audienceType: "both",
+    channel: "print",
+    description: "A print/direct-mail starter for pharmacies, clinics, libraries, venues, and community boards.",
+    subject: "A calmer way for families to stay close to care",
+    body: "Headline: A calmer way for families to stay close to care.\n\nBody: VYVA helps older adults and families keep reminders, check-ins, useful local activities, and care-team updates in one clear place.\n\nUse it when you want fewer scattered messages and one practical next step.\n\nHandoff: Scan the code, visit v2.vyva.life, or ask the local partner for help getting started.",
+    ctaLabel: "Scan to start",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "print-community-flyer",
+      category: "Offline and direct",
+      layout: "a5-flyer",
+      printSpecs: { size: "A5", sides: 1, qr: true, largeType: true },
+      visualPrompt: "warm accessible community flyer for older adults and families, VYVA purple, large readable type",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "event-host-handoff-brief",
+    title: "Local event host handoff brief",
+    category: "Offline and direct",
+    audienceType: "both",
+    channel: "event",
+    description: "A practical event handoff for the person hosting, attending, or following up after a local activity.",
+    subject: "{{event_name}} host handoff",
+    body: "Event: {{event_name}}\nArea: {{area_name}}\nDate/time: {{event_date}}\n\nBefore: Confirm accessibility notes, meeting point, and who should receive the reminder.\nDuring: Capture attendance, questions, and any family/caregiver follow-up requests.\nAfter: Log outcomes, send the promised resource, and create the next contact task within 24 hours.",
+    ctaLabel: "Log event outcome",
+    ctaUrl: "https://v2.vyva.life/admin/marketing",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "event-host-handoff-brief",
+      category: "Offline and direct",
+      layout: "event-handoff-brief",
+      checklist: ["accessibility", "meeting point", "attendance", "questions", "follow-up owner"],
+      mergeFields: ["event_name", "area_name", "event_date"],
+    },
+    mediaAssets: [],
+  },
+  {
     id: "email-care-confidence-reactivation",
     title: "Care confidence reactivation email",
     category: "Care confidence",
@@ -3445,6 +3569,29 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day 1", channel: "linkedin", title: "Partner handoff", detail: "Share the partner angle and invite a community pathway conversation.", templateId: "linkedin-community-partner-invite" },
     ],
     aiPrompt: "Adapt this local event relationship pack for a specific country, city, neighbourhood, event type, audience, and care-team next step. Keep the online campaign, partner handoff, and post-event follow-up aligned.",
+  },
+  {
+    id: "offline-direct-outreach",
+    title: "Offline and direct outreach",
+    focus: "Coordinate SMS, phone, print, and in-person event handoffs with the online campaign.",
+    description: "Planning templates for real-world outreach: SMS reminders, partner call scripts, printable flyers, and local event host handoffs.",
+    templateIds: [
+      "sms-local-event-reminder",
+      "phone-partner-followup-script",
+      "print-community-flyer",
+      "event-host-handoff-brief",
+    ],
+    heroTemplateId: "event-host-handoff-brief",
+    studioPlayId: "local-event",
+    toneId: "direct",
+    angleId: "local",
+    sequence: [
+      { offset: "Week -2", channel: "print", title: "Print handoff", detail: "Prepare flyer or direct-mail copy for the local partner or venue.", templateId: "print-community-flyer" },
+      { offset: "Week -1", channel: "phone", title: "Partner call", detail: "Call the host or referral partner and agree the handoff route.", templateId: "phone-partner-followup-script" },
+      { offset: "Day -1", channel: "sms", title: "Direct reminder", detail: "Send the short reminder to opted-in direct contacts.", templateId: "sms-local-event-reminder" },
+      { offset: "Day 0", channel: "event", title: "Host handoff", detail: "Run the event checklist and log follow-up owners.", templateId: "event-host-handoff-brief" },
+    ],
+    aiPrompt: "Turn this offline/direct pack into an operational local outreach plan with owner, timing, consent checks, print handoff, call script, SMS reminder, and post-event follow-up.",
   },
   {
     id: "retention-feedback",

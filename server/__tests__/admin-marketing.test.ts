@@ -524,6 +524,33 @@ describe("admin marketing router", () => {
     expect(table("communications_log")).toHaveLength(0);
   });
 
+  it("stores direct and offline campaign channels as planning records only", async () => {
+    const response = await request(buildApp())
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Local outreach handoff",
+        status: "scheduled",
+        audienceType: "both",
+        scheduleStartsAt: "2026-07-08T10:00:00.000Z",
+        channels: [
+          { channel: "sms", status: "scheduled", scheduledAt: "2026-07-08T09:00:00.000Z" },
+          { channel: "phone", status: "scheduled", scheduledAt: "2026-07-08T11:00:00.000Z" },
+          { channel: "print", status: "draft" },
+          { channel: "event", status: "scheduled", scheduledAt: "2026-07-09T10:00:00.000Z" },
+        ],
+        recipients: [
+          { channel: "sms", recipient: "+34600000001", snapshot: { consentStatus: "opted_in" } },
+          { channel: "phone", recipient: "+34600000001", snapshot: { owner: "Partner lead" } },
+        ],
+      })
+      .expect(201);
+
+    expect(response.body.campaign.channels.map((channel: { channel: string }) => channel.channel)).toEqual(["sms", "phone", "print", "event"]);
+    expect(table("marketing_campaign_channels").map((row) => row.send_capability)).toEqual(["planning_only", "planning_only", "planning_only", "planning_only"]);
+    expect(table("marketing_campaign_recipients").map((row) => row.channel)).toEqual(["sms", "phone"]);
+    expect(table("communications_log")).toHaveLength(0);
+  });
+
   it("returns all campaign recipient snapshots beyond the old preview cap", async () => {
     const recipients = Array.from({ length: 105 }, (_, index) => ({
       channel: "email",
