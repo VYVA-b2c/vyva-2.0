@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CONCIERGE_FLOW_REFERENCES, CONCIERGE_FLOW_REGISTRY } from "../shared/conciergeFlowRegistry";
+import { buildConciergeLaunchSmokeAudit } from "../shared/conciergeLaunchSmokeAudit";
 import {
   buildConciergeReadinessRows,
   summarizeConciergeReadiness,
@@ -15,6 +16,9 @@ describe("concierge readiness dashboard model", () => {
     expect(summary.needsAttention).toBe(0);
     expect(summary.ready).toBe(CONCIERGE_FLOW_REGISTRY.length);
     expect(summary.entryPoints).toBeGreaterThan(CONCIERGE_FLOW_REGISTRY.length);
+    expect(summary.launchAuditPassed).toBe(CONCIERGE_FLOW_REGISTRY.length);
+    expect(summary.launchAuditNeedsAttention).toBe(0);
+    expect(summary.launchAuditChecks).toBe(CONCIERGE_FLOW_REGISTRY.length * 5);
   });
 
   it("marks every current launch flow as covered and reachable", () => {
@@ -27,6 +31,10 @@ describe("concierge readiness dashboard model", () => {
       expect(row.missingStages, row.reference).toHaveLength(0);
       expect(row.entryGaps, row.reference).toHaveLength(0);
       expect(row.readinessNotes).toContain("Launch gates covered.");
+      expect(row.launchAudit.passed, row.reference).toBe(true);
+      expect(row.launchAudit.checkCount, row.reference).toBe(5);
+      expect(row.finalConfirmation.covered, row.reference).toBe(true);
+      expect(row.handoffHistory.every((stage) => stage.covered), row.reference).toBe(true);
     }
   });
 
@@ -70,5 +78,32 @@ describe("concierge readiness dashboard model", () => {
       "Web search",
       "Operator review",
     ]);
+  });
+
+  it("surfaces smoke audit failures as needs-attention rows", () => {
+    const launchAudit = buildConciergeLaunchSmokeAudit().map((audit) => {
+      if (audit.reference !== CONCIERGE_FLOW_REFERENCES.transportBooking) return audit;
+      return {
+        ...audit,
+        checks: audit.checks.map((check, index) => (
+          index === 0
+            ? { ...check, passed: false, details: ["Book ride entry point lost its route."] }
+            : check
+        )),
+        failures: ["Book ride entry point lost its route."],
+      };
+    });
+    const rows = buildConciergeReadinessRows({ launchAudit });
+    const summary = summarizeConciergeReadiness(rows);
+    const transport = rows.find((row) => row.reference === CONCIERGE_FLOW_REFERENCES.transportBooking);
+
+    expect(summary.ready).toBe(CONCIERGE_FLOW_REGISTRY.length - 1);
+    expect(summary.needsAttention).toBe(1);
+    expect(summary.launchAuditNeedsAttention).toBe(1);
+    expect(transport?.readyForUsers).toBe(false);
+    expect(transport?.readinessStatus).toBe("needs_attention");
+    expect(transport?.launchAudit.passed).toBe(false);
+    expect(transport?.launchAudit.failures).toEqual(["Book ride entry point lost its route."]);
+    expect(transport?.readinessNotes.join(" ")).toContain("Smoke audit needs attention");
   });
 });
