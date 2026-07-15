@@ -75,6 +75,10 @@ describe("Show VYVA action executor", () => {
       show_vyva_action_id: "request_quote",
       requested_tool: "operator_review",
       review_summary: "Loose bathroom rail",
+      show_vyva_execution_flow: "safe_home_quote_request",
+      show_vyva_next_question: "What home help is needed, and where?",
+      service_needed: "Loose bathroom rail",
+      problem_summary: "Loose bathroom rail",
     });
     expect(plan.resumeSurfaces).toContain("home");
   });
@@ -103,8 +107,80 @@ describe("Show VYVA action executor", () => {
       flow_reference: "FLOW_MEDICAL_APPOINTMENT",
       show_vyva_action_id: "doctor_help",
       requested_tool: "operator_review",
+      show_vyva_execution_flow: "guided_show_vyva_follow_up",
       no_external_action_without_confirmation: true,
     });
+  });
+
+  it("turns scam number and link checks into safe web-search tasks", () => {
+    const phoneContract = buildShowVyvaReviewContract({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+      source: "paste_text",
+      value: "+34 600 111 222",
+    });
+    const phonePlan = buildShowVyvaActionExecutionPlan({
+      contract: phoneContract,
+      action: getShowVyvaFollowUpAction("check_number"),
+      language: "en",
+      sourceRoute: "/scam-guard",
+    });
+
+    expect(phonePlan.triggerRequest.use_case).toBe("scam_check");
+    expect(phonePlan.triggerRequest.action_payload).toMatchObject({
+      flow_reference: "FLOW_SCAM_CHECK",
+      show_vyva_action_id: "check_number",
+      requested_tool: "web_search",
+      execution_channel: "web_search",
+      phone_number: "+34 600 111 222",
+      scam_check_type: "phone_number",
+      show_vyva_execution_flow: "scam_phone_number_check",
+    });
+    expect(String(phonePlan.triggerRequest.action_payload.search_query)).toContain("scam warning");
+
+    const linkContract = buildShowVyvaReviewContract({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+      source: "paste_text",
+      value: "https://suspicious.example/pay",
+    });
+    const linkPlan = buildShowVyvaActionExecutionPlan({
+      contract: linkContract,
+      action: getShowVyvaFollowUpAction("check_link"),
+      language: "en",
+      sourceRoute: "/scam-guard",
+    });
+
+    expect(linkPlan.triggerRequest.action_payload).toMatchObject({
+      flow_reference: "FLOW_SCAM_CHECK",
+      show_vyva_action_id: "check_link",
+      requested_tool: "web_search",
+      url: "https://suspicious.example/pay",
+      scam_check_type: "link",
+      show_vyva_execution_flow: "scam_link_check",
+    });
+  });
+
+  it("turns scam forward-email into a prepared draft without sending it", () => {
+    const plan = buildShowVyvaActionExecutionPlan({
+      contract: baseContract,
+      action: getShowVyvaFollowUpAction("forward_email"),
+      language: "en",
+      sourceRoute: "/scam-guard",
+      target: { email: "support@example.com" },
+    });
+
+    expect(plan.triggerRequest.use_case).toBe("scam_check");
+    expect(plan.triggerRequest.action_payload).toMatchObject({
+      flow_reference: "FLOW_SCAM_CHECK",
+      show_vyva_action_id: "forward_email",
+      requested_tool: "email",
+      execution_channel: "email",
+      recipient_email: "support@example.com",
+      provider_email: "support@example.com",
+      show_vyva_execution_flow: "scam_email_forward_review",
+      user_confirmed: false,
+    });
+    expect(String(plan.triggerRequest.action_payload.email_body)).toContain("Do not send");
+    expect(showVyvaActionPlanBlocksExternalAction(plan)).toBe(true);
   });
 
   it("turns Continue with Concierge into a resumable pending task", () => {
