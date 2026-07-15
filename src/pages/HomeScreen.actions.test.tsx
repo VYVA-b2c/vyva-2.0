@@ -333,6 +333,55 @@ describe("Home fast service actions", () => {
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
   });
 
+  it("surfaces saved Show VYVA tasks as prepared work from Home", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "show-vyva-scam-1",
+              use_case: "scam_check",
+              status: "pending",
+              provider_name: "Trusted contact",
+              action_summary: "Ask before replying to this bank message.",
+              action_payload: {
+                show_vyva_action_id: "call_trusted_contact",
+                show_vyva_follow_up_context: "scam",
+                show_vyva_source: "paste_text",
+                source_route: "/scam-guard",
+                review_summary: "Suspicious bank message",
+                requested_tool: "phone_call",
+                confirmation_required_before_action: true,
+                no_external_action_without_confirmation: true,
+                executor_version: 1,
+              },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const nudge = screen.getByTestId("card-home-concierge-resume");
+    expect(nudge).toHaveTextContent("VYVA prepared this");
+    expect(nudge).toHaveTextContent("Scam Guard");
+    expect(nudge).toHaveTextContent("Call");
+    expect(nudge).toHaveTextContent("Suspicious bank message");
+    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Review first");
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
+  });
+
   it("labels home-service appointment tasks as home service on Home", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;

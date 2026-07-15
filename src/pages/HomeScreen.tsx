@@ -14,6 +14,12 @@ import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { displayFirstName } from "@/lib/displayIdentity";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import {
+  isShowVyvaPreparedTask,
+  showVyvaResumeActionLabel,
+  showVyvaResumeSourceLabel,
+  showVyvaResumeSummary,
+} from "../../shared/showVyvaResume";
 
 type HomeAgentCard = {
   id: "health" | "cognitive" | "social" | "concierge";
@@ -418,6 +424,9 @@ function conciergeHomeIsWaitingOnProvider(item: ConciergePendingHomeItem) {
 }
 
 function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+  if (isShowVyvaPreparedTask(item.action_payload)) {
+    return t("home.showVyvaResume.step", "Review first");
+  }
   const missionStatus = conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]).toLowerCase();
   if (conciergeHomeIsWaitingOnProvider(item)) return t("home.conciergeResume.step.waiting", "Waiting for reply");
   if (missionStatus.includes("form")) return t("home.conciergeResume.step.form", "Preparing form");
@@ -427,6 +436,7 @@ function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate
 }
 
 function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+  if (isShowVyvaPreparedTask(item.action_payload)) return t("home.showVyvaResume.kicker", "VYVA prepared this");
   const status = conciergeHomeStatus(item);
   if (status === "failed") return t("home.conciergeResume.kickerReview", "Needs review");
   if (status === "pending") return t("home.conciergeResume.kickerConfirm", "Needs your OK");
@@ -933,14 +943,27 @@ const HomeScreen = () => {
 
   const activeConciergeHomeTask = conciergeHomeItems(conciergePendingHomeSignal)[0] ?? null;
   const reusableConciergeHomeTask = conciergeCompletedHomeItems(conciergeCompletedHomeSignal)[0] ?? null;
-  const activeConciergeTaskText = activeConciergeHomeTask ? conciergeHomeTaskLabel(activeConciergeHomeTask, t) : "";
+  const activeConciergeShowVyvaTask = activeConciergeHomeTask ? isShowVyvaPreparedTask(activeConciergeHomeTask.action_payload) : false;
+  const activeConciergeTaskText = activeConciergeHomeTask
+    ? activeConciergeShowVyvaTask
+      ? showVyvaResumeActionLabel(activeConciergeHomeTask.action_payload, i18n.language)
+      : conciergeHomeTaskLabel(activeConciergeHomeTask, t)
+    : "";
   const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t) : "";
   const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t) : "";
   const conciergeHomeTitlePrefixText = activeConciergeHomeTask ? conciergeHomeTitlePrefix(activeConciergeHomeTask, t) : "";
   const activeConciergeWaitingOnProvider = activeConciergeHomeTask ? conciergeHomeIsWaitingOnProvider(activeConciergeHomeTask) : false;
   const activeConciergeProviderText = activeConciergeHomeTask ? conciergeHomeProviderLabel(activeConciergeHomeTask, t) : "";
+  const activeConciergeShowVyvaSourceText = activeConciergeHomeTask && activeConciergeShowVyvaTask
+    ? showVyvaResumeSourceLabel(activeConciergeHomeTask.action_payload, i18n.language)
+    : "";
+  const activeConciergeShowVyvaSummary = activeConciergeHomeTask && activeConciergeShowVyvaTask
+    ? showVyvaResumeSummary(activeConciergeHomeTask.action_payload, activeConciergeHomeTask.action_summary)
+    : "";
   const activeConciergeTitleText = activeConciergeHomeTask
-    ? activeConciergeWaitingOnProvider
+    ? activeConciergeShowVyvaTask
+      ? t("home.showVyvaResume.title", "VYVA prepared this")
+      : activeConciergeWaitingOnProvider
       ? t("home.conciergeResume.waitingTitle", "Waiting for {{provider}}", { provider: activeConciergeProviderText })
       : `${conciergeHomeTitlePrefixText} ${activeConciergeTaskText}`
     : "";
@@ -975,7 +998,7 @@ const HomeScreen = () => {
     <div
       data-testid="card-home-concierge-resume"
       className="w-full min-w-0 rounded-[22px] border border-[#BBF7D0] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_52%,#F4FDF8_100%)] p-3 text-left shadow-[0_12px_28px_rgba(4,120,87,0.08)] min-[390px]:p-4"
-      aria-label={`${conciergeHomeKickerText}: ${activeConciergeTitleText}. ${conciergeHomeStepText}`}
+      aria-label={`${conciergeHomeKickerText}: ${activeConciergeTitleText}. ${activeConciergeShowVyvaTask ? activeConciergeTaskText : conciergeHomeStepText}`}
     >
       <div className="flex min-w-0 items-center gap-3 min-[390px]:gap-4">
         <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#ECFDF5] text-[#047857] min-[390px]:h-[54px] min-[390px]:w-[54px]">
@@ -989,8 +1012,15 @@ const HomeScreen = () => {
             {activeConciergeTitleText}
           </span>
           <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
-            {conciergeHomeStepText}
+            {activeConciergeShowVyvaTask
+              ? `${activeConciergeShowVyvaSourceText} · ${activeConciergeTaskText}`
+              : conciergeHomeStepText}
           </span>
+          {activeConciergeShowVyvaSummary ? (
+            <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-vyva-text-3">
+              {activeConciergeShowVyvaSummary}
+            </span>
+          ) : null}
         </span>
       </div>
       <div className={`mt-3 grid gap-2 ${activeConciergeWaitingOnProvider ? "grid-cols-3" : "grid-cols-1"}`}>
