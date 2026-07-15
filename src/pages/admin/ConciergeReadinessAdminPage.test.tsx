@@ -40,6 +40,8 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(table).getByText("Book ride / transport")).toBeInTheDocument();
     expect(within(table).getAllByText("OTC pharmacy help").length).toBeGreaterThan(0);
     expect(within(table).getByText("Scam or safety check")).toBeInTheDocument();
+    expect(screen.getByTestId("section-manual-qa-script")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/manual-qa-script-/)).toHaveLength(10);
   });
 
   it("shows provider setup, entry points, and tool dependencies for launch review", () => {
@@ -62,6 +64,51 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(scamRow).getByText("Not required")).toBeInTheDocument();
     expect(within(scamRow).getByText("Camera / upload")).toBeInTheDocument();
     expect(within(scamRow).getByText("Web search")).toBeInTheDocument();
+  });
+
+  it("renders generated manual QA scripts with provider paths, confirmation, and history checks", () => {
+    renderPage();
+
+    const manualSection = screen.getByTestId("section-manual-qa-script");
+    expect(within(manualSection).getByRole("heading", { name: /flow-by-flow test guide/i })).toBeInTheDocument();
+
+    const transportScript = screen.getByTestId("manual-qa-script-flow-transport-booking");
+    expect(within(transportScript).getByText("Provider path")).toBeInTheDocument();
+    expect(within(transportScript).getByText("Missing provider path")).toBeInTheDocument();
+    expect(within(transportScript).getByText("Saved provider path")).toBeInTheDocument();
+    expect(within(transportScript).getByText(/confirm pickup, destination, time/i)).toBeInTheDocument();
+    expect(within(transportScript).getByText("Completed history")).toBeInTheDocument();
+
+    const scamScript = screen.getByTestId("manual-qa-script-flow-scam-check");
+    expect(within(scamScript).getByText("No provider setup required")).toBeInTheDocument();
+    expect(within(scamScript).queryByText("Missing provider path")).not.toBeInTheDocument();
+    expect(within(scamScript).queryByText("Saved provider path")).not.toBeInTheDocument();
+    expect(within(scamScript).getByText("Camera / upload")).toBeInTheDocument();
+    expect(within(scamScript).getByText("Final user confirmation")).toBeInTheDocument();
+    expect(within(scamScript).getByText("Outcome capture")).toBeInTheDocument();
+  });
+
+  it("keeps manual QA scripts aligned with an injected smoke-audit failure", () => {
+    const launchAudit = buildConciergeLaunchSmokeAudit().map((audit) => {
+      if (audit.reference !== CONCIERGE_FLOW_REFERENCES.transportBooking) return audit;
+      return {
+        ...audit,
+        checks: audit.checks.map((check, index) => (
+          index === 0
+            ? { ...check, passed: false, details: ["Book ride entry point lost its route."] }
+            : check
+        )),
+        failures: ["Book ride entry point lost its route."],
+      };
+    });
+    const rows = buildConciergeReadinessRows({ launchAudit });
+
+    renderPage(rows);
+
+    const transportScript = screen.getByTestId("manual-qa-script-flow-transport-booking");
+    expect(within(transportScript).getByText("Smoke issue")).toBeInTheDocument();
+    const scamScript = screen.getByTestId("manual-qa-script-flow-scam-check");
+    expect(within(scamScript).getByText("Smoke pass")).toBeInTheDocument();
   });
 
   it("surfaces smoke audit failures as a clear needs-attention state", () => {

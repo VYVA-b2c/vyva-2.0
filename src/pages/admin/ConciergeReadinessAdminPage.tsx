@@ -132,6 +132,113 @@ function HandoffHistory({ row }: { row: ConciergeReadinessRow }) {
   );
 }
 
+function ManualQaScriptCard({ row }: { row: ConciergeReadinessRow }) {
+  const script = row.manualQaScript;
+
+  return (
+    <article
+      className="rounded-[14px] border border-[#eadfd5] bg-[#fffaf4] p-4 shadow-sm"
+      data-testid={`manual-qa-script-${row.reference.toLowerCase().replace(/_/g, "-")}`}
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b7a73]">{row.reference}</p>
+          <h3 className="mt-1 text-lg font-black text-[#2f2135]">{script.actionName}</h3>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Pill tone={script.smokeAudit.passed ? "good" : "warn"}>
+            {script.smokeAudit.passed ? "Smoke pass" : "Smoke issue"}
+          </Pill>
+          <Pill tone={script.providerPath.required ? "warn" : "good"}>
+            {script.providerPath.required ? "Provider path" : "No provider setup required"}
+          </Pill>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-[0.8fr_1.2fr]">
+        <div className="rounded-[12px] border border-[#f0e7df] bg-white p-3">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Start entry points</p>
+          <div className="mt-2 flex flex-col gap-2">
+            {script.entryPoints.map((entry) => (
+              <div key={entry.id} className="rounded-[10px] bg-[#fbf8f5] px-2.5 py-2">
+                <p className="text-sm font-black text-[#2f2135]">{entry.label}</p>
+                <p className="mt-1 text-xs font-semibold text-[#8b7a73]">
+                  {entry.source}{entry.route ? ` -> ${entry.route}` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-purple-700">Ask for</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {script.detailsToAsk.map((detail) => (
+              <Pill key={detail}>{detail.replace(/_/g, " ")}</Pill>
+            ))}
+          </div>
+          <p className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-purple-700">Tools</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {row.toolDependencies.map((tool) => (
+              <Pill key={tool.id}>{tool.label}</Pill>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[12px] border border-[#f0e7df] bg-white p-3">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Manual QA script</p>
+          <ol className="mt-2 flex flex-col gap-2">
+            {script.steps.map((step, index) => (
+              <li key={step.id} className="grid grid-cols-[28px_1fr] gap-2 rounded-[10px] bg-[#fbf8f5] px-2.5 py-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#f5f0ff] text-xs font-black text-purple-700">
+                  {index + 1}
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-sm font-black text-[#2f2135]">{step.title}</p>
+                    <Pill>{step.source.replace(/_/g, " ")}</Pill>
+                  </div>
+                  <p className="mt-1 text-xs font-semibold leading-relaxed text-[#5b4a46]">{step.instruction}</p>
+                  <p className="mt-1 text-xs font-semibold leading-relaxed text-[#8b7a73]">{step.expectedResult}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ManualQaScriptSection({ rows }: { rows: ConciergeReadinessRow[] }) {
+  return (
+    <section
+      className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
+      data-testid="section-manual-qa-script"
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#f5f0ff] px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-purple-700">
+            <ClipboardCheck size={14} aria-hidden="true" />
+            Manual QA script
+          </div>
+          <h2 className="mt-2 font-serif text-2xl text-[#2f2135]">Flow-by-flow test guide</h2>
+          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
+            Generated from the Concierge registry, coverage map, and launch smoke audit.
+          </p>
+        </div>
+        <div className="inline-flex items-center gap-2 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-black text-[#5b4a46]">
+          <ListChecks size={16} aria-hidden="true" />
+          {rows.reduce((total, row) => total + row.manualQaScript.steps.length, 0)} scripted checks
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        {rows.map((row) => (
+          <ManualQaScriptCard key={row.reference} row={row} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function LaunchAuditState({ row }: { row: ConciergeReadinessRow }) {
   const failedChecks = row.launchAudit.checks.filter((check) => !check.passed);
 
@@ -303,6 +410,8 @@ export default function ConciergeReadinessAdminPage({ rowsOverride }: { rowsOver
             </table>
           </div>
         </section>
+
+        <ManualQaScriptSection rows={rows} />
       </div>
     </div>
   );

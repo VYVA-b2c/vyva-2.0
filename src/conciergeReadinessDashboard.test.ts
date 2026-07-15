@@ -35,6 +35,25 @@ describe("concierge readiness dashboard model", () => {
       expect(row.launchAudit.checkCount, row.reference).toBe(5);
       expect(row.finalConfirmation.covered, row.reference).toBe(true);
       expect(row.handoffHistory.every((stage) => stage.covered), row.reference).toBe(true);
+      expect(row.manualQaScript.reference, row.reference).toBe(row.reference);
+      expect(row.manualQaScript.steps.length, row.reference).toBeGreaterThan(row.entryPoints.length);
+    }
+  });
+
+  it("attaches generated manual QA scripts to every readiness row", () => {
+    const rows = buildConciergeReadinessRows();
+
+    expect(rows.map((row) => row.manualQaScript.reference)).toEqual(
+      CONCIERGE_FLOW_REGISTRY.map((flow) => flow.reference),
+    );
+
+    for (const row of rows) {
+      expect(row.manualQaScript.finalConfirmationStep.instruction, row.reference).toBe(row.confirmationRule);
+      expect(row.manualQaScript.handoffHistorySteps.map((step) => step.title), row.reference).toEqual([
+        "Action handoff",
+        "Outcome capture",
+        "Completed history",
+      ]);
     }
   });
 

@@ -24,6 +24,10 @@ import {
   type ConciergeLaunchSmokeCheckId,
   type ConciergeLaunchSmokeFlowAudit,
 } from "./conciergeLaunchSmokeAudit";
+import {
+  buildConciergeManualQaScripts,
+  type ConciergeManualQaScript,
+} from "./conciergeManualQaScripts";
 import type { WorkflowEntryPoint, WorkflowEntrySurface } from "./workflowRegistry";
 
 export type ConciergeReadinessStatus = "ready" | "needs_attention";
@@ -90,6 +94,7 @@ export interface ConciergeReadinessRow {
   savedProviderPath: ConciergeReadinessStageStatus;
   handoffHistory: ConciergeReadinessStageStatus[];
   launchAudit: ConciergeReadinessLaunchAudit;
+  manualQaScript: ConciergeManualQaScript;
   requiredStageCount: number;
   coveredStageCount: number;
   missingStages: Array<ConciergeReadinessChip<ConciergeFlowCoverageStage>>;
@@ -249,14 +254,21 @@ function launchAuditSummary(audit: ConciergeLaunchSmokeFlowAudit | undefined): C
 
 export function buildConciergeReadinessRows(options?: {
   launchAudit?: ConciergeLaunchSmokeFlowAudit[];
+  manualQaScripts?: ConciergeManualQaScript[];
 }): ConciergeReadinessRow[] {
+  const launchAudits = options?.launchAudit ?? buildConciergeLaunchSmokeAudit();
   const auditByReference = new Map(
-    (options?.launchAudit ?? buildConciergeLaunchSmokeAudit()).map((audit) => [audit.reference, audit]),
+    launchAudits.map((audit) => [audit.reference, audit]),
+  );
+  const manualScriptByReference = new Map(
+    (options?.manualQaScripts ?? buildConciergeManualQaScripts({ launchAudit: launchAudits })).map((script) => [script.reference, script]),
   );
 
   return CONCIERGE_FLOW_REGISTRY.map((flow) => {
     const coverage = getConciergeFlowCoverage(flow.reference);
     const launchAudit = launchAuditSummary(auditByReference.get(flow.reference));
+    const manualQaScript = manualScriptByReference.get(flow.reference);
+    if (!manualQaScript) throw new Error(`No Concierge manual QA script found for ${flow.reference}`);
     const missingStages = missingConciergeFlowCoverage(flow.reference).map((stage) => ({
       id: stage,
       label: CONCIERGE_FLOW_COVERAGE_STAGE_LABELS[stage],
@@ -294,6 +306,7 @@ export function buildConciergeReadinessRows(options?: {
         stageStatus(coverage, "completed_history"),
       ],
       launchAudit,
+      manualQaScript,
       requiredStageCount: coverage.requiredStages.length,
       coveredStageCount: coverage.coveredStages.length,
       missingStages,
