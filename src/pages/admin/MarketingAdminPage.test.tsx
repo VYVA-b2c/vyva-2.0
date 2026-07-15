@@ -3143,6 +3143,11 @@ describe("MarketingAdminPage", () => {
   });
 
   it("recommends and loads template packs directly inside the campaign studio", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
     renderPage();
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
@@ -3161,6 +3166,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline")).toHaveTextContent("Channel launch timeline");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-linkedin")).toHaveTextContent("Partner proof post");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-linkedin")).toHaveTextContent("Partner owner");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-email")).toHaveTextContent("Primary email send");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-whatsapp")).toHaveTextContent("Direct reply nudge");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-channel-timeline"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign launch timeline"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Channel launch timeline copied.");
   });
 
   it("turns relationship opportunities into campaign studio setup", async () => {

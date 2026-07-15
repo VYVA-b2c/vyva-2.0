@@ -601,6 +601,21 @@ type CampaignExecutionPlanItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignStudioLaunchTimelineItem = {
+  key: Channel;
+  channel: Channel;
+  title: string;
+  offsetHours: number;
+  timingLabel: string;
+  plannedAt: string | null;
+  owner: string;
+  action: string;
+  detail: string;
+  recipients: number;
+  route: string;
+  state: CampaignReadinessState;
+};
+
 type CampaignStudioLaunchBriefItem = {
   key: string;
   title: string;
@@ -1058,6 +1073,50 @@ const campaignStudioChannelGuidance: Record<Channel, string> = {
   tiktok: "Write a short creator-style prompt with a strong opening line.",
 };
 
+const campaignStudioLaunchTimingByChannel: Record<Channel, {
+  offsetHours: number;
+  title: string;
+  owner: string;
+  action: string;
+}> = {
+  facebook: {
+    offsetHours: -48,
+    title: "Public awareness post",
+    owner: "Marketing owner",
+    action: "Publish the community hook, pin the CTA, and save the post URL.",
+  },
+  instagram: {
+    offsetHours: -36,
+    title: "Visual reminder",
+    owner: "Social owner",
+    action: "Publish the story/carousel, keep the CTA visible, and capture replies.",
+  },
+  linkedin: {
+    offsetHours: -24,
+    title: "Partner proof post",
+    owner: "Partner owner",
+    action: "Publish the professional angle and route comments or DMs to a follow-up owner.",
+  },
+  tiktok: {
+    offsetHours: -12,
+    title: "Short-form hook",
+    owner: "Social owner",
+    action: "Publish the short video/script and track profile visits or comments.",
+  },
+  email: {
+    offsetHours: 0,
+    title: "Primary email send",
+    owner: "Campaign owner",
+    action: "Create the campaign, review recipients, then send from the campaign details.",
+  },
+  whatsapp: {
+    offsetHours: 2,
+    title: "Direct reply nudge",
+    owner: "Relationship owner",
+    action: "Use the approved short copy as the close follow-up and log replies.",
+  },
+};
+
 const campaignStudioCategories: Array<{ id: CampaignStudioCategoryId; label: string; hint: string }> = [
   { id: "all", label: "All plays", hint: "Every ready-to-adapt campaign pattern." },
   { id: "onboarding", label: "Onboarding", hint: "Get people to their first useful action." },
@@ -1460,6 +1519,21 @@ function formatDate(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown";
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function offsetSchedule(value: string, offsetHours: number) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(date.getHours() + offsetHours);
+  return date.toISOString();
+}
+
+function launchTimingLabel(offsetHours: number) {
+  if (offsetHours === 0) return "Main window";
+  const absoluteHours = Math.abs(offsetHours);
+  const unit = absoluteHours % 24 === 0 ? `${absoluteHours / 24} day${absoluteHours === 24 ? "" : "s"}` : `${absoluteHours}h`;
+  return offsetHours < 0 ? `${unit} before` : `${unit} after`;
 }
 
 function formatCalendarDay(value: string) {
@@ -7469,6 +7543,42 @@ export default function MarketingAdminPage() {
         : "VYVA stores the plan, content, schedule, and recipient snapshot."),
     };
   });
+  const campaignStudioLaunchTimeline: CampaignStudioLaunchTimelineItem[] = campaignStudioChannelDrafts
+    .map(({ channel, draft, recipients }) => {
+      const timing = campaignStudioLaunchTimingByChannel[channel];
+      const execution = campaignStudioExecutionPlan.find((item) => item.channel === channel);
+      return {
+        key: channel,
+        channel,
+        title: timing.title,
+        offsetHours: timing.offsetHours,
+        timingLabel: launchTimingLabel(timing.offsetHours),
+        plannedAt: offsetSchedule(campaignStudioSchedule, timing.offsetHours),
+        owner: timing.owner,
+        action: timing.action,
+        detail: draft.subject || draft.contentTitle,
+        recipients,
+        route: execution?.sendMode ?? "Planning record",
+        state: recipients > 0 ? execution?.state ?? "planning" : "blocked",
+      };
+    })
+    .sort((a, b) => a.offsetHours - b.offsetHours);
+  const campaignStudioLaunchTimelineText = [
+    "Campaign launch timeline",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${selectedCampaignStudioTargetAudience?.name ?? "Best matching list"}`,
+    `Main window: ${formatDate(fromDateTimeLocal(campaignStudioSchedule))}`,
+    "",
+    ...campaignStudioLaunchTimeline.map((item, index) => [
+      `${index + 1}. ${channelLabel[item.channel]} - ${item.title}`,
+      `Timing: ${item.timingLabel}${item.plannedAt ? ` / ${formatDate(item.plannedAt)}` : ""}`,
+      `Owner: ${item.owner}`,
+      `Route: ${item.route}`,
+      `Recipients: ${item.recipients}`,
+      `Action: ${item.action}`,
+      `Copy hook: ${item.detail}`,
+    ].join("\n")),
+  ].join("\n\n");
   const campaignStudioBestChannelReach = [...campaignStudioChannelReach].sort((a, b) => {
     if (b.count !== a.count) return b.count - a.count;
     if (a.channel === campaignStudio.channel) return -1;
@@ -12863,6 +12973,65 @@ export default function MarketingAdminPage() {
                             </article>
                           );
                         })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4" data-testid="marketing-campaign-studio-channel-timeline">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-indigo-800">Channel launch timeline</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Publish in a sensible order</h3>
+                          <p className="mt-1 text-xs font-bold text-[#5f5f7a]">Turns the channel pack into a simple launch order with owner, route, timing, and the next action for each channel.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Channel launch timeline", campaignStudioLaunchTimelineText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 text-sm font-black text-indigo-800 hover:bg-indigo-50"
+                          data-testid="button-marketing-campaign-studio-copy-channel-timeline"
+                        >
+                          <Copy size={14} /> Copy timeline
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-channel-timeline-items">
+                        {campaignStudioLaunchTimeline.map((item, index) => (
+                          <article
+                            key={item.key}
+                            className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`}
+                            data-testid={`marketing-campaign-studio-channel-timeline-${item.channel}`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-50 text-indigo-800 shadow-sm">
+                                    <Clock size={15} aria-hidden="true" />
+                                  </span>
+                                  <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </div>
+                                <h4 className="mt-2 font-black text-[#241133]">{index + 1}. {item.title}</h4>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#5f5f7a]">{item.action}</p>
+                              </div>
+                              <Pill className="bg-white text-[#5b4a46]">{item.timingLabel}</Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-xs font-bold text-[#5f5f7a]">
+                              <div className="rounded-lg bg-indigo-50/60 px-3 py-2">
+                                <span className="font-black text-[#241133]">Time:</span> {formatDate(item.plannedAt)}
+                              </div>
+                              <div className="rounded-lg bg-indigo-50/60 px-3 py-2">
+                                <span className="font-black text-[#241133]">Owner:</span> {item.owner}
+                              </div>
+                              <div className="rounded-lg bg-indigo-50/60 px-3 py-2">
+                                <span className="font-black text-[#241133]">Route:</span> {item.route}
+                              </div>
+                              <div className="rounded-lg bg-indigo-50/60 px-3 py-2">
+                                <span className="font-black text-[#241133]">Recipients:</span> {item.recipients}
+                              </div>
+                            </div>
+                            <p className="mt-3 line-clamp-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#5f5f7a]">
+                              {item.detail}
+                            </p>
+                          </article>
+                        ))}
                       </div>
                     </div>
 
