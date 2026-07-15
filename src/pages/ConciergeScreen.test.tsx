@@ -3871,11 +3871,15 @@ describe("ConciergeScreen route prefill", () => {
     fireEvent.change(screen.getByTestId("input-provider-reply-time-reply-home-service-1"), {
       target: { value: "2026-07-23T11:00" },
     });
+    expect(screen.getByTestId("button-provider-reply-save-reply-home-service-1")).toBeDisabled();
     fireEvent.change(screen.getByTestId("input-provider-reply-reference-reply-home-service-1"), {
       target: { value: "PL-19" },
     });
     fireEvent.change(screen.getByTestId("input-provider-reply-text-reply-home-service-1"), {
       target: { value: "Can visit Thursday at 11:00. Estimated cost EUR95." },
+    });
+    fireEvent.change(screen.getByTestId("input-provider-reply-notes-reply-home-service-1"), {
+      target: { value: "Caregiver will be home during the visit." },
     });
     fireEvent.click(screen.getByTestId("button-provider-reply-save-reply-home-service-1"));
 
@@ -3900,9 +3904,11 @@ describe("ConciergeScreen route prefill", () => {
           provider_reply: "Can visit Thursday at 11:00. Estimated cost EUR95.",
           reference: "PL-19",
           location: "Home kitchen",
+          notes: "Caregiver will be home during the visit.",
           home_access_or_safety_notes: "Caregiver can open the door",
         }),
       });
+      expect(String(scheduledBody?.description)).toContain("Notes: Caregiver will be home during the visit.");
       expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
       expect(completeBody).toMatchObject({
         outcome_summary: "Home service visit confirmed with Saved Plumber.",
@@ -3915,6 +3921,11 @@ describe("ConciergeScreen route prefill", () => {
           problem_summary: "Leak under kitchen sink",
           urgency: "tomorrow",
           estimated_cost: "EUR95",
+          provider_reply_status: "confirmed",
+          provider_reply: "Can visit Thursday at 11:00. Estimated cost EUR95.",
+          reference: "PL-19",
+          location: "Home kitchen",
+          notes: "Caregiver will be home during the visit.",
           scheduled_event_id: "scheduled-home-reply",
         }),
       });

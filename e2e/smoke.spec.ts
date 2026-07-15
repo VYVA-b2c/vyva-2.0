@@ -855,6 +855,170 @@ test("concierge provider reply saves confirmed medical appointment outcome", asy
   await expect(page.getByTestId("provider-reply-notice")).toContainText("Appointment saved in Scheduled Support. The task is closed.");
 });
 
+test("concierge home-service provider reply keeps pending paths and saves confirmed visit", async ({ page }) => {
+  await mockApi(page, true, {}, {
+    phone: "+34 600 123 123",
+    street: "Saved Street 12",
+    cityState: "Madrid",
+    caregiverName: "Caregiver Profile",
+    caregiverContact: "+34 600 777 888",
+  });
+
+  let scheduledBody: Record<string, unknown> | null = null;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  let completeCount = 0;
+  const pendingHomeServiceReply = {
+    id: "reply-home-service-smoke-1",
+    use_case: "book_appointment",
+    provider_name: "Saved Plumber",
+    provider_phone: "+34 600 222 333",
+    action_summary: "Saved plumber is checking the kitchen leak slot.",
+    action_payload: {
+      flow_reference: "FLOW_SAFE_HOME_SUPPORT",
+      appointment_type: "home-service",
+      provider_source: "saved",
+      selected_provider_name: "Saved Plumber",
+      service_type: "plumber",
+      service_label: "Plumber",
+      problem_summary: "Leak under kitchen sink",
+      urgency: "tomorrow",
+      location: "Home kitchen",
+      home_access_or_safety_notes: "Caregiver can open the door",
+      mission_status: "awaiting_provider_reply",
+      preferred_channel: "whatsapp",
+    },
+    status: "calling",
+    language: "en",
+  };
+
+  await page.route("**/api/profile/scheduled-events", async (route) => {
+    if (route.request().method() === "POST") {
+      scheduledBody = route.request().postDataJSON();
+      await fulfillJson(route, 201, { event: { id: "scheduled-home-service-smoke", ...scheduledBody } });
+      return;
+    }
+    await fulfillJson(route, 200, { events: [] });
+  });
+  await page.route("**/api/scheduled-events", async (route) => {
+    await fulfillJson(route, 200, { events: [] });
+  });
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingHomeServiceReply] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/reply-home-service-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeCount += 1;
+      completeBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-home-service-smoke" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-provider-reply")).toContainText("Provider reply");
+  await page.getByTestId("button-provider-reply-follow-up-reply-home-service-smoke-1").click();
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Follow-up prepared in chat.");
+  expect(completeCount).toBe(0);
+  expect(scheduledBody).toBeNull();
+
+  await page.getByTestId("button-provider-reply-more-info-reply-home-service-smoke-1").click();
+  await page.getByTestId("input-provider-reply-question-reply-home-service-smoke-1").fill("Do they need the water turned off before arrival?");
+  await page.getByTestId("button-provider-reply-ask-reply-home-service-smoke-1").click();
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Question added to chat.");
+  expect(completeCount).toBe(0);
+
+  await page.getByTestId("button-provider-reply-unavailable-reply-home-service-smoke-1").click();
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Home-service search prepared with the original problem.");
+  await expect(page.getByTestId("panel-provider-search-criteria")).toContainText("What matters most");
+  await expect(page.getByTestId("input-offers-query")).toHaveValue(/Find another home-service provider/);
+  await expect(page.getByTestId("input-offers-query")).toHaveValue(/Avoid this provider: Saved Plumber/);
+  expect(completeCount).toBe(0);
+
+  await page.getByTestId("button-provider-reply-confirmed-reply-home-service-smoke-1").click();
+
+  const replyPanel = page.getByTestId("panel-provider-reply-confirmed-reply-home-service-smoke-1");
+  await expect(replyPanel).toContainText("A date and time are needed to save the visit in Scheduled Support.");
+  await expect(replyPanel).toContainText("Add the provider reply before saving.");
+  await expect(replyPanel).not.toContainText("Saved Street 12");
+  await expect(replyPanel).not.toContainText("+34 600 123 123");
+  await expect(replyPanel).not.toContainText("Caregiver Profile");
+
+  const saveButton = page.getByTestId("button-provider-reply-save-reply-home-service-smoke-1");
+  await expect(saveButton).toBeDisabled();
+  const replyInput = page.getByTestId("input-provider-reply-text-reply-home-service-smoke-1");
+  await replyInput.fill("Can visit Friday at 09:15. Estimated cost EUR110.");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("input-provider-reply-time-reply-home-service-smoke-1").fill("2026-07-24T09:15");
+  await expect(saveButton).toBeEnabled();
+  await replyInput.fill("");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("input-provider-reply-reference-reply-home-service-smoke-1").fill("PL-42");
+  await replyInput.fill("Can visit Friday at 09:15. Estimated cost EUR110.");
+  await page.getByTestId("input-provider-reply-notes-reply-home-service-smoke-1").fill("Caregiver will be home during the visit.");
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  await expect.poll(() => scheduledBody?.event_type ?? null).toBe("home_service");
+  expect(scheduledBody).toMatchObject({
+    event_type: "home_service",
+    title: "Plumber with Saved Plumber",
+    channel: "app",
+    status: "upcoming",
+    source: "concierge",
+    metadata: expect.objectContaining({
+      flow_reference: "FLOW_SAFE_HOME_SUPPORT",
+      pending_id: "reply-home-service-smoke-1",
+      appointment_type: "home-service",
+      provider_name: "Saved Plumber",
+      provider_phone: "+34 600 222 333",
+      service_type: "plumber",
+      service_label: "Plumber",
+      problem_summary: "Leak under kitchen sink",
+      urgency: "tomorrow",
+      estimated_cost: "EUR110",
+      provider_reply: "Can visit Friday at 09:15. Estimated cost EUR110.",
+      reference: "PL-42",
+      location: "Home kitchen",
+      notes: "Caregiver will be home during the visit.",
+      home_access_or_safety_notes: "Caregiver can open the door",
+    }),
+  });
+  expect(String(scheduledBody?.description)).toContain("Notes: Caregiver will be home during the visit.");
+  expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
+  await expect.poll(() => completeBody?.outcome_payload?.provider_reply_status ?? null).toBe("confirmed");
+  expect(completeCount).toBe(1);
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Home service visit confirmed with Saved Plumber.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_SAFE_HOME_SUPPORT",
+      appointment_type: "home-service",
+      provider_name: "Saved Plumber",
+      provider_phone: "+34 600 222 333",
+      service_type: "plumber",
+      service_label: "Plumber",
+      problem_summary: "Leak under kitchen sink",
+      urgency: "tomorrow",
+      estimated_cost: "EUR110",
+      provider_reply_status: "confirmed",
+      provider_reply: "Can visit Friday at 09:15. Estimated cost EUR110.",
+      reference: "PL-42",
+      location: "Home kitchen",
+      notes: "Caregiver will be home during the visit.",
+      scheduled_event_id: "scheduled-home-service-smoke",
+    }),
+  });
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Visit saved in Scheduled Support. The task is closed.");
+});
+
 test("notifications settings back returns to settings home", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/settings/notifications", { waitUntil: "domcontentloaded" });
