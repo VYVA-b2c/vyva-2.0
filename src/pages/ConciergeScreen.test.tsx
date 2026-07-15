@@ -2989,6 +2989,129 @@ describe("ConciergeScreen route prefill", () => {
     });
   });
 
+  it("blocks scam document review confirmation until the source detail is present", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "scam-missing-source",
+            use_case: "scam_check",
+            provider_name: "VYVA review",
+            provider_phone: null,
+            action_summary: "Safe check prepared: Document or photo.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+              requested_tool: "camera_or_upload",
+              active_tool: "camera_or_upload",
+              execution_channel: "manual",
+              concern: "Document or photo",
+              risk_context: "Suspicious document, letter, invoice, or photo",
+              confirmation_required_before_action: true,
+              no_external_action_without_confirmation: true,
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const review = await screen.findByTestId("panel-concierge-next-action");
+    expect(review).toHaveTextContent("Source");
+    expect(review).toHaveTextContent("Needs confirmation");
+    expect(review).toHaveTextContent("Complete before confirming: Source");
+    expect(screen.getByTestId("button-concierge-confirm-scam-missing-source")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-scam-missing-source"));
+
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/concierge/actions/scam-missing-source/confirm",
+      { method: "POST" },
+    );
+  });
+
+  it("records a review-pending scam document outcome through the completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/scam-document-review/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-scam-document-review" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "scam-document-review",
+            use_case: "scam_check",
+            provider_name: "VYVA review",
+            provider_phone: null,
+            action_summary: "Safe check prepared: Document or photo.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+              requested_tool: "camera_or_upload",
+              active_tool: "camera_or_upload",
+              execution_channel: "manual",
+              review_source: "Prize letter photo",
+              scam_detail: "Prize letter photo",
+              document_type: "Prize letter photo",
+              concern: "Suspicious document, letter, invoice, or photo",
+              confirmation_required_before_action: true,
+              no_external_action_without_confirmation: true,
+              user_confirmed: true,
+            },
+            status: "pending",
+            confirmed_at: "2026-07-15T10:00:00.000Z",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-manual-review-outcome-scam-document-review");
+    expect(panel).toHaveTextContent("Review outcome");
+    expect(panel).toHaveTextContent("Prize letter photo");
+    expect(screen.getByTestId("button-manual-review-save-scam-document-review")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-manual-review-status-review_pending-scam-document-review"));
+    fireEvent.change(screen.getByTestId("input-manual-review-summary-scam-document-review"), {
+      target: { value: "Looks suspicious because it asks for an upfront payment." },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-next-step-scam-document-review"), {
+      target: { value: "Ask a trusted contact before replying." },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-reference-scam-document-review"), {
+      target: { value: "SG-9" },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-notes-scam-document-review"), {
+      target: { value: "No upload or reply was sent." },
+    });
+    fireEvent.click(screen.getByTestId("button-manual-review-save-scam-document-review"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Review pending: Prize letter photo. Reference: SG-9.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+          execution_type: "manual_review_outcome_capture",
+          execution_channel: "operator_review",
+          review_outcome: "review_pending",
+          review_summary: "Looks suspicious because it asks for an upfront payment.",
+          next_step: "Ask a trusted contact before replying.",
+          reference: "SG-9",
+          notes: "No upload or reply was sent.",
+          completed_from: "manual_review_outcome_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
+  });
+
   it("reveals prepared provider phone actions only after user confirmation and final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
