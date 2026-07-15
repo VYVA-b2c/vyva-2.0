@@ -6477,6 +6477,18 @@ export default function MarketingAdminPage() {
       },
     ];
   }, [contacts]);
+  const campaignStudioRelationshipQueues = useMemo(() => {
+    const activeQueues = contactRelationshipWorkQueues.filter((queue) => queue.count > 0);
+    const sourceQueues = activeQueues.length ? activeQueues : contactRelationshipWorkQueues;
+    return sourceQueues
+      .slice()
+      .sort((a, b) => {
+        const stateRank = (state: CampaignReadinessState) => (state === "ready" ? 3 : state === "needs_action" ? 2 : state === "planning" ? 1 : 0);
+        if (stateRank(b.state) !== stateRank(a.state)) return stateRank(b.state) - stateRank(a.state);
+        return b.count - a.count;
+      })
+      .slice(0, 3);
+  }, [contactRelationshipWorkQueues]);
   const audienceHealthActions: AudienceHealthAction[] = [
     {
       key: "reach",
@@ -11938,6 +11950,65 @@ export default function MarketingAdminPage() {
                             ))}
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-relationship-opportunities">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Relationship opportunities</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Turn audience signals into campaigns</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Uses contact consent, channel reach, market, role, and list data to suggest the next campaign route.</p>
+                        </div>
+                        <Pill className="bg-purple-50 text-purple-800">{campaignStudioRelationshipQueues.length} queues</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        {campaignStudioRelationshipQueues.map((queue) => {
+                          const Icon = queue.icon;
+                          return (
+                            <article
+                              key={queue.key}
+                              className={`rounded-xl border p-3 ${readinessClass(queue.state)}`}
+                              data-testid={`marketing-campaign-studio-relationship-queue-${queue.key}`}
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-white shadow-sm">
+                                      <Icon size={15} aria-hidden="true" />
+                                    </span>
+                                    <Pill className={readinessPillClass(queue.state)}>{readinessLabel(queue.state)}</Pill>
+                                    <Pill className="bg-purple-50 text-purple-800">{queue.countLabel}</Pill>
+                                  </div>
+                                  <h4 className="mt-2 font-black text-[#241133]">{queue.title}</h4>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{queue.detail}</p>
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {queue.channels.map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                                  </div>
+                                </div>
+                                <div className="flex shrink-0 flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => showContactWorkQueue(queue)}
+                                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:border-purple-300"
+                                    data-testid={`button-marketing-campaign-studio-relationship-review-${queue.key}`}
+                                  >
+                                    <Eye size={14} /> Review
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => loadContactWorkQueueInStudio(queue)}
+                                    disabled={queue.count === 0}
+                                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                    data-testid={`button-marketing-campaign-studio-relationship-use-${queue.key}`}
+                                  >
+                                    <Sparkles size={14} /> Use in studio
+                                  </button>
+                                </div>
+                              </div>
+                            </article>
+                          );
+                        })}
                       </div>
                     </div>
 

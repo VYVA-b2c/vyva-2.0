@@ -3092,6 +3092,28 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
   });
 
+  it("turns relationship opportunities into campaign studio setup", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-opportunities")).toHaveTextContent("Turn audience signals into campaigns");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-queue-partner-nurture")).toHaveTextContent("B2B partner nurture");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-queue-partner-nurture")).toHaveTextContent("1 partner");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-queue-partner-nurture")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-queue-partner-nurture")).toHaveTextContent("LinkedIn");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-relationship-use-partner-nurture"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Relationship queue loaded: B2B partner nurture");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
+    expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("hassan@example.com");
+  });
+
   it("matches a plain-language campaign intent into a studio plan", async () => {
     renderPage();
 
