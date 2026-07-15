@@ -4330,6 +4330,10 @@ describe("ConciergeScreen route prefill", () => {
           provider_email: "trusted@example.com",
           email_subject: "Can you check this message?",
           email_body: "I received a suspicious prize message. Can you help me review it?",
+          show_vyva_execution_flow: "scam_email_forward_review",
+          show_vyva_next_question: "Who should receive the draft, if anything needs to be sent?",
+          show_vyva_required_details: ["Recipient or organization", "What needs to be said", "Final confirmation before sending or calling"],
+          show_vyva_guided_steps: ["Summarize the important points.", "Prepare a draft or call notes.", "Wait for final user confirmation."],
           confirmation_required_before_action: true,
           no_external_action_without_confirmation: true,
           executor_version: 1,
@@ -4348,6 +4352,9 @@ describe("ConciergeScreen route prefill", () => {
     expect(rightNow).toHaveTextContent("Scam Guard");
     expect(rightNow).toHaveTextContent("Message");
     expect(rightNow).toHaveTextContent("Suspicious prize message");
+    expect(screen.getByTestId("panel-show-vyva-execution-guide")).toHaveTextContent("Who should receive the draft");
+    expect(screen.getByTestId("panel-show-vyva-execution-guide")).toHaveTextContent("Recipient or organization");
+    expect(screen.getByTestId("panel-show-vyva-execution-guide")).toHaveTextContent("Nothing is sent, called, booked, bought, or shared until you confirm.");
 
     fireEvent.click(screen.getByTestId("link-concierge-email-show-vyva-email-1"));
 

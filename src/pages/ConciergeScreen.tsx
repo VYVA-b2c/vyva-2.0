@@ -104,6 +104,8 @@ import type {
 } from "../../shared/conciergeActionExecution";
 import {
   isShowVyvaPreparedTask,
+  type ShowVyvaExecutionGuide,
+  showVyvaExecutionGuide,
   showVyvaResumeActionLabel,
   showVyvaResumeSourceLabel,
   showVyvaResumeSummary,
@@ -125,7 +127,7 @@ type ConciergeRoutePrefill = {
   providerSearchMode?: string;
   providerSearchCriteria?: string[];
   providerSearchQuery?: string;
-  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "shopping_helper" | "shopping_recommendation" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "shopping_helper" | "shopping_recommendation" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action" | "show_vyva";
 };
 
 type ConciergeLocationState = {
@@ -4494,6 +4496,65 @@ function ActiveTaskChecklistPanel({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function ShowVyvaExecutionGuidePanel({
+  guide,
+}: {
+  guide: ShowVyvaExecutionGuide;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#BFDBFE] bg-[#F8FBFF] p-4 shadow-[0_12px_28px_rgba(37,99,235,0.08)]"
+      data-testid="panel-show-vyva-execution-guide"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#2563EB] shadow-sm">
+          <Sparkles size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#2563EB]">
+            {guide.title}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {guide.nextQuestion}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {guide.helper}
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {guide.requiredDetails.slice(0, 4).map((detail) => (
+          <span
+            key={detail}
+            className="rounded-full border border-[#DBEAFE] bg-white px-3 py-1 font-body text-[11px] font-black text-[#1D4ED8]"
+          >
+            {detail}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {guide.steps.slice(0, 3).map((step, index) => (
+          <div key={`${step}-${index}`} className="rounded-[14px] bg-white px-3 py-2 text-center shadow-sm">
+            <p className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#64748B]">
+              {index + 1}
+            </p>
+            <p className="mt-0.5 font-body text-[12px] font-black leading-tight text-vyva-text-1">
+              {step}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-3 flex items-start gap-2 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black leading-snug text-[#047857]">
+        <ShieldCheck size={15} className="mt-0.5 flex-shrink-0" aria-hidden="true" />
+        <span>{guide.confirmationReminder}</span>
+      </p>
     </div>
   );
 }
@@ -10780,6 +10841,9 @@ const ConciergeScreen = () => {
   const activeActionShowVyvaSummary = activeActionShowVyvaPrepared
     ? showVyvaResumeSummary(activeAction?.action_payload, activeAction?.action_summary)
     : "";
+  const activeActionShowVyvaGuide = activeActionShowVyvaPrepared
+    ? showVyvaExecutionGuide(activeAction?.action_payload, locale)
+    : null;
   const externalConfirmationReview = externalConfirmationRequest
     ? buildPendingActionReviewSummary({
       item: externalConfirmationRequest.item,
@@ -12580,6 +12644,10 @@ const ConciergeScreen = () => {
                 checklist={activeActionChecklist}
                 onAction={handleActiveChecklistAction}
               />
+            ) : null}
+
+            {activeActionShowVyvaGuide ? (
+              <ShowVyvaExecutionGuidePanel guide={activeActionShowVyvaGuide} />
             ) : null}
 
             {activeActionNeedsUserConfirmation && activeActionReviewSummary ? (

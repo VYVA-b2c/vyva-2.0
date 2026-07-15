@@ -111,6 +111,25 @@ describe("Show VYVA review contract", () => {
     });
     expect(phone.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.phoneNumber);
     expect(phone.followUpContext).toBe("scam");
+    expect(phone.followUpActions.map((action) => action.id)).toEqual([
+      "check_number",
+      "call_trusted_contact",
+      "save_report",
+      "scam_concierge",
+    ]);
+
+    const scamLink = showVyvaReviewContractFromPastePayload({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+      source: "paste_text",
+      value: "https://suspicious.example/pay",
+    });
+    expect(scamLink.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.pastedLink);
+    expect(scamLink.followUpActions.map((action) => action.id)).toEqual([
+      "check_link",
+      "call_trusted_contact",
+      "save_report",
+      "scam_concierge",
+    ]);
 
     const company = showVyvaReviewContractFromPastePayload({
       useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
@@ -118,6 +137,12 @@ describe("Show VYVA review contract", () => {
       value: "Example Energy SL",
     });
     expect(company.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.companyName);
+    expect(company.followUpActions.map((action) => action.id)).toEqual([
+      "check_company",
+      "call_trusted_contact",
+      "save_report",
+      "scam_concierge",
+    ]);
 
     const document = showVyvaReviewContractFromPastePayload({
       useCaseId: SHOW_VYVA_USE_CASE_IDS.documentHelp,
@@ -142,6 +167,24 @@ describe("Show VYVA review contract", () => {
     expect(scam.context).toBe("scam");
     expect(scam.riskLevel).toBe("high");
     expect(scam.followUpActions.map((action) => action.id)).toEqual([
+      "check_company",
+      "call_trusted_contact",
+      "save_report",
+      "scam_concierge",
+    ]);
+
+    const scamMessage = showVyvaReviewContractFromScamResult({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+      source: "paste_text",
+      value: "This message asks me to forward bank details urgently.",
+    }, {
+      riskLevel: "Suspicious",
+      resultTitle: "Suspicious message",
+      explanation: "Pressure language.",
+      steps: ["Do not reply."],
+    });
+    expect(scamMessage.followUpActions.map((action) => action.id)).toEqual([
+      "forward_email",
       "check_company",
       "call_trusted_contact",
       "save_report",
