@@ -790,6 +790,31 @@ type AudienceRecipe = CampaignReadinessItem & {
   studioLabel: string;
 };
 
+type AudienceStrategyBrief = {
+  audienceType: Audience;
+  state: CampaignReadinessState;
+  score: number;
+  playId: CampaignStudioPlayId;
+  toneId: CampaignStudioToneId;
+  angleId: CampaignStudioAngleId;
+  primaryChannel: Channel;
+  channels: Channel[];
+  totalMembers: number;
+  mappedContacts: MarketingContact[];
+  reachableContacts: MarketingContact[];
+  emailReady: number;
+  whatsappReady: number;
+  consentReviewCount: number;
+  optedOutCount: number;
+  segmentedCount: number;
+  topMarkets: string[];
+  topVerticals: string[];
+  topLanguages: string[];
+  nextMove: string;
+  cleanup: string;
+  promptText: string;
+};
+
 type ContentTemplateRecommendation = {
   template: ContentTemplate;
   score: number;
@@ -5054,6 +5079,141 @@ function topCountLabels(values: Array<string | null | undefined>, fallback = "Un
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
     .slice(0, limit)
     .map((item) => `${item.label} ${item.count}`);
+}
+
+function audienceStrategyBrief(audience: MarketingAudience, contacts: MarketingContact[]): AudienceStrategyBrief {
+  const mappedContacts = contacts.filter((contact) => contactMatchesMemberIds(contact, audience.contactExternalIds));
+  const totalMembers = Math.max(audience.memberCount, audience.contactExternalIds.length, mappedContacts.length);
+  const emailReadyContacts = mappedContacts.filter((contact) => Boolean(recipientForChannel(contact, "email")));
+  const whatsappReadyContacts = mappedContacts.filter((contact) => Boolean(recipientForChannel(contact, "whatsapp")));
+  const reachableContacts = mappedContacts.filter((contact) => Boolean(recipientForChannel(contact, "email") || recipientForChannel(contact, "whatsapp")));
+  const consentReviewContacts = mappedContacts.filter((contact) => contact.consentStatus !== "opted_in");
+  const optedOutCount = mappedContacts.filter((contact) => contact.consentStatus === "opted_out").length;
+  const segmentedCount = mappedContacts.filter((contact) => Boolean(
+    contact.language
+    || contact.category
+    || contact.vertical
+    || contact.market
+    || contact.tags.length
+    || contact.lists.length,
+  )).length;
+  const b2bCount = mappedContacts.filter((contact) => (
+    contact.audienceType === "b2b"
+    || contact.audienceType === "both"
+    || Boolean(contact.companyName || contact.roleLabel)
+  )).length;
+  const b2cCount = mappedContacts.filter((contact) => contact.audienceType === "b2c" || contact.audienceType === "both").length;
+  const audienceHaystack = lower([
+    audience.name,
+    audience.description,
+    audience.listType,
+    audience.source,
+    audience.lovableExternalId,
+    JSON.stringify(audience.rules ?? {}),
+    JSON.stringify(audience.metadata ?? {}),
+  ].filter(Boolean).join(" "));
+  const partnerSignal = ["partner", "provider", "clinic", "pharmacy", "referral", "b2b", "organization", "organisation"].some((signal) => audienceHaystack.includes(signal));
+  const familySignal = ["family", "caregiver", "elder", "senior", "b2c", "user"].some((signal) => audienceHaystack.includes(signal));
+  const localSignal = mappedContacts.some((contact) => Boolean(contact.market)) || ["local", "madrid", "spain", "city", "community", "event"].some((signal) => audienceHaystack.includes(signal));
+  const audienceType: Audience = (b2bCount > 0 && b2cCount > 0)
+    ? "both"
+    : b2bCount > b2cCount || partnerSignal
+      ? "b2b"
+      : b2cCount > 0 || familySignal
+        ? "b2c"
+        : "both";
+  const playId: CampaignStudioPlayId = audienceType === "b2b"
+    ? "b2b-partner-outreach"
+    : localSignal
+      ? "local-event"
+      : consentReviewContacts.length > 0
+        ? "reactivation"
+        : "caregiver-onboarding";
+  const toneId: CampaignStudioToneId = audienceType === "b2b" ? "expert" : localSignal ? "uplifting" : "warm";
+  const angleId: CampaignStudioAngleId = audienceType === "b2b" ? "proof" : localSignal ? "local" : consentReviewContacts.length > 0 ? "balanced" : "action";
+  const primaryChannel: Channel = emailReadyContacts.length >= whatsappReadyContacts.length ? "email" : "whatsapp";
+  const channels = uniqueChannels(audienceType === "b2b"
+    ? [primaryChannel, "linkedin", "email", "whatsapp"]
+    : localSignal
+      ? [primaryChannel, "facebook", "instagram", "whatsapp"]
+      : [primaryChannel, "whatsapp", "email"]);
+  const percent = (value: number, total: number) => total > 0 ? Math.round((value / total) * 100) : 0;
+  const mappedScore = percent(mappedContacts.length, totalMembers || mappedContacts.length);
+  const reachScore = percent(reachableContacts.length, mappedContacts.length);
+  const consentScore = percent(mappedContacts.length - consentReviewContacts.length, mappedContacts.length);
+  const segmentationScore = percent(segmentedCount, mappedContacts.length);
+  const score = mappedContacts.length
+    ? Math.round((mappedScore + reachScore + consentScore + segmentationScore) / 4)
+    : 0;
+  const state: CampaignReadinessState = totalMembers === 0 || mappedContacts.length === 0 || reachableContacts.length === 0
+    ? "blocked"
+    : audience.unmappedContactExternalIds.length > 0 || consentReviewContacts.length > 0 || segmentedCount < mappedContacts.length
+      ? "needs_action"
+      : "ready";
+  const topMarkets = topCountLabels(mappedContacts.map((contact) => contact.market), "Unknown", 2);
+  const topVerticals = topCountLabels(mappedContacts.map((contact) => contact.vertical), "Unknown", 2);
+  const topLanguages = topCountLabels(mappedContacts.map((contact) => contact.language), "Unknown", 2);
+  const nextMove = playId === "b2b-partner-outreach"
+    ? "Build a proof-led partner sequence with one clear intro or demo ask."
+    : playId === "local-event"
+      ? "Build a localised campaign around one place, moment, or community CTA."
+      : playId === "reactivation"
+        ? "Run a soft reactivation campaign after consent and channel cleanup."
+        : "Build a warm onboarding campaign that moves people to one useful care-team action.";
+  const cleanup = audience.unmappedContactExternalIds.length > 0
+    ? `Map ${audience.unmappedContactExternalIds.length} imported list member ID${audience.unmappedContactExternalIds.length === 1 ? "" : "s"} before relying on this list for snapshots.`
+    : consentReviewContacts.length > 0
+      ? `Review consent for ${consentReviewContacts.length} mapped contact${consentReviewContacts.length === 1 ? "" : "s"} before automation.`
+      : segmentedCount < mappedContacts.length
+        ? `Add language, market, tag, category, or vertical data for ${mappedContacts.length - segmentedCount} contact${mappedContacts.length - segmentedCount === 1 ? "" : "s"}.`
+        : "List is ready for campaign planning and recipient snapshots.";
+  const sampleContacts = reachableContacts.slice(0, 3).map((contact) => [
+    contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact",
+    contact.email || contact.whatsappNumber || contact.phoneNumber || "no direct route",
+    contact.companyName || contact.roleLabel || contact.market || "",
+  ].filter(Boolean).join(" - "));
+  const promptText = [
+    `VYVA audience strategy brief: ${audience.name}`,
+    `List type/source: ${audience.listType} / ${audience.source}`,
+    `Audience fit: ${audienceType.toUpperCase()}`,
+    `Readiness: ${readinessLabel(state)} (${score}%)`,
+    `Members: ${mappedContacts.length}/${totalMembers} mapped; ${reachableContacts.length} reachable; ${audience.unmappedContactExternalIds.length} unmapped imported IDs`,
+    `Channels: ${channels.map((channel) => channelLabel[channel]).join(", ")}; primary ${channelLabel[primaryChannel]}`,
+    `Consent: ${consentReviewContacts.length} need review, ${optedOutCount} opted out`,
+    `Segments: markets ${topMarkets.join(" / ") || "Unknown"}; verticals ${topVerticals.join(" / ") || "Unknown"}; languages ${topLanguages.join(" / ") || "Unknown"}`,
+    "",
+    `Recommended move: ${nextMove}`,
+    `Cleanup: ${cleanup}`,
+    sampleContacts.length ? `Sample contacts: ${sampleContacts.join("; ")}` : "Sample contacts: none mapped yet",
+    "",
+    "AI task:",
+    `Create a concise campaign plan for this list. Use ${channels.map((channel) => channelLabel[channel]).join(", ")}. Keep the offer practical, consent-safe, localized when market data exists, and include one human relationship follow-up step after replies or clicks.`,
+  ].join("\n");
+
+  return {
+    audienceType,
+    state,
+    score,
+    playId,
+    toneId,
+    angleId,
+    primaryChannel,
+    channels,
+    totalMembers,
+    mappedContacts,
+    reachableContacts,
+    emailReady: emailReadyContacts.length,
+    whatsappReady: whatsappReadyContacts.length,
+    consentReviewCount: consentReviewContacts.length,
+    optedOutCount,
+    segmentedCount,
+    topMarkets,
+    topVerticals,
+    topLanguages,
+    nextMove,
+    cleanup,
+    promptText,
+  };
 }
 
 function valueMatchesFilter(value: string | null | undefined, filter: string) {
@@ -11989,6 +12149,76 @@ export default function MarketingAdminPage() {
     setMessage(`${recipe.title} campaign recipe loaded.`);
   }
 
+  async function copyAudienceStrategyBrief(strategy: AudienceStrategyBrief) {
+    const label = "Audience strategy brief";
+    if (!strategy.promptText.trim()) {
+      const feedback = `${label} is empty.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(strategy.promptText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = strategy.promptText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  function loadAudienceStrategyInStudio(audience: MarketingAudience, strategy: AudienceStrategyBrief) {
+    const play = campaignStudioPlays.find((item) => item.id === strategy.playId) ?? campaignStudioPlays[0];
+    const selectedChannels = uniqueChannels(strategy.channels.length ? strategy.channels : recommendedCampaignStudioChannels(play));
+    const primaryChannel = selectedChannels[0] ?? play.defaultChannel;
+    const scheduleStartsAt = campaignStudioDefaultSchedule(play);
+    setActiveTab("dashboard");
+    setCampaignStudioCategory(play.categoryId);
+    updateCampaignStudio({
+      playId: play.id,
+      toneId: strategy.toneId,
+      angleId: strategy.angleId,
+      channel: primaryChannel,
+      selectedChannels,
+      targetAudienceId: audience.id,
+      scheduleStartsAt,
+    });
+    setCampaignIntentBrief(strategy.promptText);
+    setCampaignDraft((draft) => ({
+      ...draft,
+      name: play.campaignName,
+      audienceType: strategy.audienceType,
+      channel: primaryChannel,
+      contentAssetId: "",
+      status: scheduleStartsAt ? "scheduled" : "draft",
+      scheduleStartsAt,
+      scheduleEndsAt: "",
+      objective: [strategy.nextMove, "", strategy.promptText].join("\n"),
+      targetAudienceId: audience.id,
+      recipientFilter: audience.name,
+      snapshotRecipients: strategy.reachableContacts.length > 0,
+    }));
+    setCampaignStudioFeedback(`Audience loaded: ${audience.name}. ${strategy.nextMove}`);
+    setMessage(`Audience "${audience.name}" is ready in the campaign studio.`);
+  }
+
   function addAudienceEditContact(contactId: string) {
     const contact = contacts.find((item) => item.id === contactId);
     if (!contact) return;
@@ -18424,6 +18654,7 @@ export default function MarketingAdminPage() {
                         const hiddenUnmappedCount = Math.max(unmappedCount - visibleUnmappedIds.length, 0);
                         const canExpandMembers = hiddenListMemberCount > 0 || hiddenUnmappedCount > 0 || audienceExpanded;
                         const timelineParts = recordTimelineParts(audience);
+                        const strategy = audienceStrategyBrief(audience, contacts);
                         return (
                           <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -18483,6 +18714,60 @@ export default function MarketingAdminPage() {
                             ) : (
                               <p className="mt-3 rounded-lg bg-[#f5eee8] px-3 py-2 text-xs font-bold text-[#8b7a73]">No imported list members to preview yet.</p>
                             )}
+                            <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid={`marketing-audience-strategy-${audience.id}`}>
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="flex items-start gap-2">
+                                  <span className="grid min-h-8 min-w-8 place-items-center rounded-xl bg-purple-50 text-purple-700">
+                                    <Sparkles size={15} />
+                                  </span>
+                                  <div>
+                                    <p className="text-sm font-black text-[#241133]">AI audience strategy</p>
+                                    <p className="mt-1 text-xs font-bold text-[#7d6b65]">{strategy.nextMove}</p>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap justify-end gap-1.5">
+                                  <Pill className={readinessPillClass(strategy.state)}>{readinessLabel(strategy.state)}</Pill>
+                                  <Pill className="bg-purple-50 text-purple-800">{strategy.score}%</Pill>
+                                </div>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                <Pill className="bg-blue-50 text-blue-800">{strategy.reachableContacts.length}/{strategy.mappedContacts.length} reachable</Pill>
+                                <Pill className={channelClass(strategy.primaryChannel)}>Best: {channelLabel[strategy.primaryChannel]}</Pill>
+                                <Pill className="bg-white text-[#7d6b65]">{strategy.emailReady} email</Pill>
+                                <Pill className="bg-white text-[#7d6b65]">{strategy.whatsappReady} WhatsApp</Pill>
+                                <Pill className={strategy.consentReviewCount ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>{strategy.consentReviewCount} consent review</Pill>
+                                <Pill className="bg-white text-[#7d6b65]">{strategy.segmentedCount}/{strategy.mappedContacts.length} segmented</Pill>
+                              </div>
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-[#6f5f59]">{strategy.cleanup}</p>
+                              <details className="mt-2 rounded-lg border border-[#eadfd5] bg-[#fffaf4] px-3 py-2">
+                                <summary className="cursor-pointer text-xs font-black text-purple-700">AI brief text</summary>
+                                <textarea
+                                  className={`${textareaClass} mt-2 min-h-[120px] font-mono text-xs`}
+                                  readOnly
+                                  value={strategy.promptText}
+                                  data-testid={`textarea-marketing-audience-strategy-${audience.id}`}
+                                />
+                              </details>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void copyAudienceStrategyBrief(strategy)}
+                                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
+                                  data-testid={`button-marketing-copy-audience-strategy-${audience.id}`}
+                                >
+                                  <Copy size={13} /> Copy brief
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => loadAudienceStrategyInStudio(audience, strategy)}
+                                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                  disabled={campaignStudioSaving || strategy.reachableContacts.length === 0}
+                                  data-testid={`button-marketing-build-audience-campaign-${audience.id}`}
+                                >
+                                  <Megaphone size={13} /> Build campaign
+                                </button>
+                              </div>
+                            </div>
                             {canExpandMembers ? (
                               <button
                                 type="button"

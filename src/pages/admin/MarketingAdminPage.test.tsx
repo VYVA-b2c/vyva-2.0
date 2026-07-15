@@ -1062,6 +1062,30 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("hassan@example.com");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Mapped");
     expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Imported only");
+    expect(screen.getByTestId("marketing-audience-strategy-audience-1")).toHaveTextContent("AI audience strategy");
+    expect(screen.getByTestId("marketing-audience-strategy-audience-1")).toHaveTextContent("Build a proof-led partner sequence");
+    expect(screen.getByTestId("marketing-audience-strategy-audience-1")).toHaveTextContent("1/1 reachable");
+    expect(screen.getByTestId("marketing-audience-strategy-audience-1")).toHaveTextContent("Best: Email");
+    expect(screen.getByTestId("marketing-audience-strategy-audience-1")).toHaveTextContent("1 consent review");
+    const audienceStrategyBrief = screen.getByTestId("textarea-marketing-audience-strategy-audience-1") as HTMLTextAreaElement;
+    expect(audienceStrategyBrief.value).toContain("VYVA audience strategy brief: Partners");
+    expect(audienceStrategyBrief.value).toContain("Audience fit: B2B");
+    const audienceClipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: audienceClipboardWriteText },
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-copy-audience-strategy-audience-1"));
+    await waitFor(() => {
+      expect(audienceClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA audience strategy brief: Partners"));
+    });
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent("Audience strategy brief copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-build-audience-campaign-audience-1"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Audience loaded: Partners.");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
+    expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain("VYVA audience strategy brief: Partners");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
     fireEvent.click(screen.getByTestId("button-marketing-open-audience-member-contact-audience-1-contact-2"));
     expect(screen.getByTestId("button-marketing-contacts-view")).toHaveClass("bg-purple-700");
     expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
