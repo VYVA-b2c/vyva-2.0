@@ -55,6 +55,7 @@ export type ConciergeExecutionTask = {
 export type ConciergeConfirmedExecutionMode =
   | "needs_info"
   | "direct_phone_call"
+  | "user_controlled_handoff"
   | "operator_queue";
 
 export type ConciergeConfirmedExecutionPlan = {

@@ -606,6 +606,57 @@ export async function startPendingConciergeAction(
   return confirmLoadedPendingConciergeAction(pending, profile, confirmationSource);
 }
 
+export async function confirmPendingConciergeActionReview(
+  pendingId: string,
+  userId: string,
+  confirmationSource = "user_controlled_execution",
+): Promise<TriggerResult> {
+  const pending = await loadPendingById(pendingId);
+  if (!pending) {
+    throw new Error("Concierge action not found.");
+  }
+  if (pending.user_id !== userId) {
+    throw new Error("You do not have access to this concierge action.");
+  }
+  if (pending.status === "completed" || pending.status === "failed" || pending.status === "cancelled") {
+    throw new Error(`Concierge action cannot be confirmed from status "${pending.status}".`);
+  }
+
+  const plan = planConciergeConfirmedExecution({
+    useCase: pending.use_case,
+    payload: pending.action_payload ?? {},
+    providerName: pending.provider_name,
+    providerPhone: pending.provider_phone,
+    summary: pending.action_summary,
+    pendingStatus: pending.status,
+  });
+
+  if (plan.mode === "needs_info") {
+    await markPendingNeedsInfo(pending, confirmationSource, plan);
+    const labels = missingLabels(plan);
+    throw new Error(labels ? `Complete before confirming: ${labels}.` : plan.message);
+  }
+
+  await updatePendingStatus(pending, "pending", {
+    lifecycleStatus: "confirmed",
+    userConfirmed: true,
+    confirmationSource,
+    outcome: pending.action_summary,
+    auditEvent: "user_confirmed",
+    auditMode: "user_controlled_handoff",
+    auditPlan: plan,
+    externalActionAllowed: true,
+  });
+
+  return {
+    pendingId: pending.id,
+    status: "pending",
+    conversationId: null,
+    callSid: null,
+    message: "Concierge action confirmed. You can open the prepared draft or call link.",
+  };
+}
+
 export async function cancelPendingConciergeAction(pendingId: string, userId: string): Promise<void> {
   const pending = await loadPendingById(pendingId);
   if (!pending) {

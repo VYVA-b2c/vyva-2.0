@@ -11,7 +11,7 @@ const dbMock = vi.hoisted(() => ({
 
 vi.mock("../db.js", () => dbMock);
 
-import { startPendingConciergeAction } from "./conciergeActions.js";
+import { confirmPendingConciergeActionReview, startPendingConciergeAction } from "./conciergeActions.js";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -154,6 +154,51 @@ describe("confirmed Concierge action execution", () => {
         event: "blocked_missing_info",
         mode: "needs_info",
         external_action_allowed: false,
+      }),
+    ]));
+  });
+
+  it("records user-controlled draft confirmation without starting a direct call", async () => {
+    mockPendingRow({
+      id: "33333333-3333-3333-3333-333333333333",
+      user_id: "user-1",
+      use_case: "send_message",
+      provider_id: null,
+      provider_name: "Clinic desk",
+      provider_phone: null,
+      found_externally: false,
+      action_summary: "Email draft prepared for the clinic.",
+      action_payload: {
+        execution_channel: "email",
+        provider_email: "clinic@example.com",
+        email_subject: "Question about my appointment",
+        email_body: "Hello, I would like to confirm my appointment details.",
+      },
+      language: "en",
+      status: "pending",
+    });
+
+    const result = await confirmPendingConciergeActionReview("33333333-3333-3333-3333-333333333333", "user-1");
+
+    expect(result).toMatchObject({
+      status: "pending",
+      conversationId: null,
+      callSid: null,
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    const payload = lastUpdatedPayload();
+    expect(payload.execution_task).toMatchObject({
+      lifecycle_status: "confirmed",
+      user_confirmed: true,
+      confirmation_source: "user_controlled_execution",
+      active_tool: "email",
+    });
+    expect(payload.execution_audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "user_confirmed",
+        mode: "user_controlled_handoff",
+        external_action_allowed: true,
       }),
     ]));
   });
