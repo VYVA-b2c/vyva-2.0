@@ -1443,6 +1443,10 @@ const fr = {
       provider_or_deal: "VYVA compare les options et demande avant contact, reservation, achat ou partage de donnees.",
       health_or_home_photo: "VYVA donne seulement une revue d'aide et demande avant partage ou escalade.",
     },
+    executor: {
+      saved: "Enregistre. Continue dans Concierge quand tu es pret.",
+      error: "Je n'ai pas pu enregistrer cette etape. Reessaie.",
+    },
     contract: {
       finalConfirmation: "VYVA prepare d'abord. Vous confirmez avant tout envoi, achat, reservation, appel, import, soumission ou partage.",
       sections: {

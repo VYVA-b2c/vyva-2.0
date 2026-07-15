@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
+import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -34,6 +35,7 @@ import {
   type ShowVyvaPastePayload,
 } from "../../shared/showVyvaFlow";
 import { showVyvaReviewContractFromSafeHomeResult } from "../../shared/showVyvaReviewContract";
+import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
 
 type HomeScan = {
   id: string;
@@ -459,28 +461,38 @@ const SafeHomeScreen = () => {
           confirmation={t("showVyva.contract.finalConfirmation", reviewContract.finalConfirmationRule)}
           actions={actions}
           onSelect={(action) => {
-            if (action.id === "buy_safety_aid") {
-              navigate("/concierge/shopping", {
-                state: safeHomeShoppingState(scan, language),
-              });
-              return;
-            }
-            if (action.id === "request_quote") {
-              navigate("/concierge", {
-                state: safeHomeQuoteState(scan, language),
-              });
-              return;
-            }
             if (action.id === "call_care_team") {
-              if (caregiverHref) {
-                window.location.href = caregiverHref;
+              if (!caregiverHref) {
+                navigate("/onboarding/profile/care-team");
                 return;
               }
-              navigate("/onboarding/profile/care-team");
-              return;
             }
-            toast({ description: t("safeHome.actions.safeNowSaved", "Marked safe for now.") });
-            if (testIdSuffix === "current") setResult(null);
+            const plan = buildShowVyvaActionExecutionPlan({
+              contract: reviewContract,
+              action,
+              language,
+              sourceRoute: "/safe-home",
+              target: action.id === "call_care_team"
+                ? { name: caregiverName, phone: profile?.caregiverContact, relationship: "care_team" }
+                : undefined,
+            });
+            void saveShowVyvaActionExecutionPlan(plan)
+              .then(async () => {
+                await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+                toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+                if (testIdSuffix === "current") setResult(null);
+                if (action.id === "mark_safe_now") return;
+                navigate(plan.targetRoute, {
+                  state: action.id === "buy_safety_aid"
+                    ? safeHomeShoppingState(scan, language)
+                    : action.id === "request_quote"
+                      ? safeHomeQuoteState(scan, language)
+                      : undefined,
+                });
+              })
+              .catch(() => {
+                toast({ description: t("showVyva.executor.error", "I could not save that step. Please try again.") });
+              });
           }}
         />
       </div>

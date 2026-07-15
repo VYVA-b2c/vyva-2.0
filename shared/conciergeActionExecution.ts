@@ -21,6 +21,7 @@ export type ConciergeExecutionActionType =
 export type ConciergeExecutionTaskStatus =
   | "ready"
   | "needs_info"
+  | "confirmed"
   | "in_progress"
   | "done"
   | "failed"
@@ -49,6 +50,52 @@ export type ConciergeExecutionTask = {
   updated_at: string;
   failure_reason?: string;
   outcome?: string;
+};
+
+export type ConciergeConfirmedExecutionMode =
+  | "needs_info"
+  | "direct_phone_call"
+  | "user_controlled_handoff"
+  | "operator_queue";
+
+export type ConciergeConfirmedExecutionPlan = {
+  mode: ConciergeConfirmedExecutionMode;
+  pending_status: "pending" | "calling";
+  lifecycle_status: ConciergeExecutionTaskStatus;
+  requested_tool: ConciergeToolRequirement;
+  active_tool: ConciergeToolRequirement;
+  action_type: ConciergeExecutionActionType;
+  missing_requirements: ConciergeExecutionMissingRequirement[];
+  external_action_allowed: boolean;
+  operator_fallback_reason?: string;
+  message: string;
+};
+
+export type ConciergeExecutionAuditEvent =
+  | "created"
+  | "blocked_missing_info"
+  | "user_confirmed"
+  | "direct_call_started"
+  | "operator_handoff_queued"
+  | "completed"
+  | "cancelled"
+  | "failed";
+
+export type ConciergeExecutionAuditEntry = {
+  version: 1;
+  event: ConciergeExecutionAuditEvent;
+  at: string;
+  source: string;
+  pending_status?: string;
+  lifecycle_status?: ConciergeExecutionTaskStatus;
+  mode?: ConciergeConfirmedExecutionMode;
+  requested_tool?: ConciergeToolRequirement;
+  active_tool?: ConciergeToolRequirement;
+  action_type?: ConciergeExecutionActionType;
+  user_confirmed?: boolean;
+  external_action_allowed?: boolean;
+  reason?: string;
+  missing_requirements?: ConciergeExecutionMissingRequirement[];
 };
 
 export type ConciergeExecutionBuildInput = {
@@ -121,6 +168,42 @@ function missingProviderRequirement(): ConciergeExecutionMissingRequirement {
   };
 }
 
+function missingToolRequirement(labelEn: string, labelEs: string): ConciergeExecutionMissingRequirement {
+  return {
+    key: "tool_setup",
+    label_en: labelEn,
+    label_es: labelEs,
+  };
+}
+
+function payloadHasCleanString(payload: Record<string, unknown>, keys: string[]): boolean {
+  return keys.some((key) => clean(payload[key]));
+}
+
+function providerPhoneReady(payload: Record<string, unknown>, providerPhone?: string | null): boolean {
+  return Boolean(clean(providerPhone) || payloadHasCleanString(payload, ["provider_phone", "phone", "contact_phone"]));
+}
+
+function toolSpecificMissingRequirement(
+  tool: ConciergeToolRequirement,
+  payload: Record<string, unknown>,
+  providerPhone?: string | null,
+): ConciergeExecutionMissingRequirement | null {
+  if (tool === "phone_call" && !providerPhoneReady(payload, providerPhone)) {
+    return missingToolRequirement("Phone number", "Telefono");
+  }
+  if (tool === "email" && !payloadHasCleanString(payload, ["recipient_email", "provider_email", "to_email", "email_to", "email"])) {
+    return missingToolRequirement("Email address", "Email");
+  }
+  if (tool === "whatsapp" && !payloadHasCleanString(payload, ["recipient_whatsapp", "provider_whatsapp", "to_whatsapp", "whatsapp_to", "whatsapp_number", "whatsapp"])) {
+    return missingToolRequirement("WhatsApp number", "Numero de WhatsApp");
+  }
+  if (tool === "booking_link" && !payloadHasCleanString(payload, ["form_automation_prefilled_url", "booking_url", "provider_booking_url", "website", "url"])) {
+    return missingToolRequirement("Form or booking link", "Formulario o enlace");
+  }
+  return null;
+}
+
 function lifecycleStatusFor(
   pendingStatus: string | null | undefined,
   hasMissingRequirements: boolean,
@@ -152,8 +235,21 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
 
   const requestedTool = toolFromPayload(payload, input.providerPhone);
   const actionType = actionTypeFromPayload(input.useCase, requirements.flowReference, payload, requestedTool);
+  const toolMissingRequirement = toolSpecificMissingRequirement(requestedTool, payload, input.providerPhone);
+  const missingKeys = new Set(missingRequirements.map((requirement) => requirement.key));
+  if (
+    toolMissingRequirement
+    && !missingKeys.has("recipient")
+    && !missingKeys.has("website_or_contact")
+    && !missingKeys.has("provider")
+  ) {
+    missingRequirements.push(toolMissingRequirement);
+  }
+  const inferredLifecycleStatus = lifecycleStatusFor(input.pendingStatus, missingRequirements.length > 0);
   const lifecycleStatus = input.lifecycleStatus
-    ?? lifecycleStatusFor(input.pendingStatus, missingRequirements.length > 0);
+    ?? (existing?.user_confirmed && existing.lifecycle_status === "confirmed" && inferredLifecycleStatus === "ready"
+      ? "confirmed"
+      : inferredLifecycleStatus);
   const userConfirmed = input.userConfirmed ?? existing?.user_confirmed ?? false;
   const confirmedAt = userConfirmed
     ? input.confirmedAt ?? existing?.confirmed_at ?? now
@@ -186,5 +282,78 @@ export function withConciergeExecutionTask(input: ConciergeExecutionBuildInput):
   return {
     ...payload,
     execution_task: buildConciergeExecutionTask(input),
+  };
+}
+
+export function appendConciergeExecutionAudit(
+  payload: Record<string, unknown> | null | undefined,
+  entry: Omit<ConciergeExecutionAuditEntry, "version"> & { version?: 1 },
+): Record<string, unknown> {
+  const base = payload ?? {};
+  const existing = Array.isArray(base.execution_audit)
+    ? base.execution_audit.filter((item): item is ConciergeExecutionAuditEntry => (
+        Boolean(item)
+          && typeof item === "object"
+          && !Array.isArray(item)
+          && (item as ConciergeExecutionAuditEntry).version === 1
+          && typeof (item as ConciergeExecutionAuditEntry).event === "string"
+      ))
+    : [];
+  return {
+    ...base,
+    execution_audit: [
+      ...existing.slice(-19),
+      {
+        ...entry,
+        version: 1,
+      },
+    ],
+  };
+}
+
+export function planConciergeConfirmedExecution(input: ConciergeExecutionBuildInput): ConciergeConfirmedExecutionPlan {
+  const task = buildConciergeExecutionTask({
+    ...input,
+    pendingStatus: input.pendingStatus ?? "pending",
+  });
+
+  if (task.missing_requirements.length > 0) {
+    return {
+      mode: "needs_info",
+      pending_status: "pending",
+      lifecycle_status: "needs_info",
+      requested_tool: task.requested_tool,
+      active_tool: task.active_tool,
+      action_type: task.action_type,
+      missing_requirements: task.missing_requirements,
+      external_action_allowed: false,
+      message: "Complete the missing details before confirming this Concierge action.",
+    };
+  }
+
+  if (task.active_tool === "phone_call") {
+    return {
+      mode: "direct_phone_call",
+      pending_status: "calling",
+      lifecycle_status: "in_progress",
+      requested_tool: task.requested_tool,
+      active_tool: task.active_tool,
+      action_type: task.action_type,
+      missing_requirements: [],
+      external_action_allowed: true,
+      message: "Outbound concierge call started.",
+    };
+  }
+
+  return {
+    mode: "operator_queue",
+    pending_status: "pending",
+    lifecycle_status: "confirmed",
+    requested_tool: task.requested_tool,
+    active_tool: task.active_tool,
+    action_type: task.action_type,
+    missing_requirements: [],
+    external_action_allowed: false,
+    message: "Concierge action confirmed and queued for VYVA review.",
   };
 }

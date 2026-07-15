@@ -102,6 +102,12 @@ import type {
   ConciergeExecutionTask,
   ConciergeExecutionTaskStatus,
 } from "../../shared/conciergeActionExecution";
+import {
+  isShowVyvaPreparedTask,
+  showVyvaResumeActionLabel,
+  showVyvaResumeSourceLabel,
+  showVyvaResumeSummary,
+} from "../../shared/showVyvaResume";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -115,6 +121,7 @@ type ConciergeRoutePrefill = {
   requestedTool?: ConciergeToolRequirement;
   actionLabel?: string;
   summary?: string;
+  payload?: Record<string, unknown>;
   useCase?: "scam_check" | "admin_task" | "paperwork" | "send_message" | "find_offers" | "find_provider" | "shopping_request";
   providerSearchMode?: string;
   providerSearchCriteria?: string[];
@@ -285,6 +292,7 @@ function coerceConciergeRoutePrefill(value: unknown): ConciergeRoutePrefill | nu
     requestedTool: isConciergeToolRequirement(value.requestedTool) ? value.requestedTool : undefined,
     actionLabel: typeof value.actionLabel === "string" && value.actionLabel.trim() ? value.actionLabel.trim() : undefined,
     summary: typeof value.summary === "string" && value.summary.trim() ? value.summary.trim() : undefined,
+    payload: isRecord(value.payload) ? value.payload : undefined,
     useCase: isConciergePreparedUseCase(value.useCase) ? value.useCase : undefined,
     providerSearchMode: typeof value.providerSearchMode === "string" && value.providerSearchMode.trim() ? value.providerSearchMode.trim() : undefined,
     providerSearchCriteria: routeStringList(value.providerSearchCriteria),
@@ -602,6 +610,9 @@ function routePrefillTaskTitle(prefill: ConciergeRoutePrefill, isSpanish: boolea
     return isSpanish ? "Gestion preparada" : "Paperwork task ready";
   }
   if (prefill.flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) {
+    if (prefill.useCase === "find_offers") {
+      return isSpanish ? "Comparacion preparada" : "Deal comparison ready";
+    }
     return isSpanish ? "Compra preparada" : "Shopping request ready";
   }
   if (prefill.flowReference === CARE_NAVIGATION_FLOW_REFERENCE) {
@@ -626,6 +637,11 @@ function routePrefillTaskDetail(prefill: ConciergeRoutePrefill, isSpanish: boole
       : "VYVA organizes the document, recipient, and next step.";
   }
   if (prefill.flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) {
+    if (prefill.useCase === "find_offers") {
+      return isSpanish
+        ? "VYVA compara precio, condiciones, confianza y riesgo antes de cualquier compra o cambio."
+        : "VYVA compares price, terms, trust, and risk before any purchase or switch.";
+    }
     return isSpanish
       ? "VYVA prepara la solicitud de compra. No se pide, paga ni contacta a nadie sin confirmacion."
       : "VYVA prepares the shopping request. Nothing is ordered, paid, or sent without confirmation.";
@@ -670,6 +686,16 @@ interface ConciergePendingItem {
   confirmed_at?: string | null;
   expires_at?: string | null;
 }
+
+type ConciergeExternalConfirmationKind = "confirm" | "phone" | "email" | "whatsapp" | "booking";
+
+type ConciergeExternalConfirmationRequest = {
+  item: ConciergePendingItem;
+  kind: ConciergeExternalConfirmationKind;
+  href?: string;
+  label: string;
+  target?: "_self" | "_blank";
+};
 
 interface ConciergeCompletedSession {
   id: string;
@@ -933,6 +959,36 @@ interface OfferOption {
   trust_note: string;
   score: number;
   score_breakdown?: OfferScoreBreakdown;
+}
+
+function offerReviewStructuredPayload(option: OfferOption, params: {
+  intent: "compare" | "watch";
+  query: string;
+  criteria: string[];
+  category?: string | null;
+}): Record<string, unknown> {
+  const contact = option.phone || option.website || option.maps_url || "";
+  return {
+    task_type: params.intent === "watch" ? "deal_watch" : "deal_comparison",
+    shopping_need: params.intent === "watch" ? `Watch ${option.name}` : `Review ${option.name}`,
+    shopping_context: params.category || option.category || "deal_review",
+    review_target: option.name,
+    offer_name: option.name,
+    deal_name: option.name,
+    category: option.category,
+    query: params.query,
+    criteria: params.criteria,
+    comparison_summary: option.why_good_option || option.trust_note || option.what_it_offers,
+    price_or_advantage: option.price_or_advantage,
+    distance_or_availability: option.distance_or_availability,
+    contact_method: option.contact_method,
+    website: option.website || option.maps_url || null,
+    phone: option.phone || null,
+    provider_name: option.name,
+    score: option.score,
+    trust_note: option.trust_note,
+    contact,
+  };
 }
 
 interface OfferProtectionSummary {
@@ -1304,6 +1360,12 @@ const SCHEDULE_APPOINTMENT_TYPE_KEYS = new Set<AppointmentType>([
 
 type ScamCheckKind = "email" | "document" | "phone" | "company";
 type InsuranceAdminKind = "insurance-letter" | "claim" | "government-form" | "call-email";
+type InsuranceAdminDetails = {
+  subject: string;
+  recipient: string;
+  deadline: string;
+  notes: string;
+};
 
 const SCAM_CHECK_OPTIONS: Array<{
   key: ScamCheckKind;
@@ -1483,6 +1545,67 @@ function insuranceAdminDetailCopy(kind: InsuranceAdminKind, isSpanish: boolean):
     deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
     notesLabel: isSpanish ? "Preguntas o preocupaciones" : "Questions or worries",
   };
+}
+
+function scamCheckStructuredPayload(option: typeof SCAM_CHECK_OPTIONS[number], detail: string, isSpanish: boolean): Record<string, unknown> {
+  const cleanDetail = detail.trim();
+  const optionLabel = isSpanish ? option.es : option.en;
+  const payload: Record<string, unknown> = {
+    source_type: option.key,
+    review_kind: "scam_or_safety_check",
+    review_label: optionLabel,
+    concern: optionLabel,
+    risk_context: option.key === "company"
+      ? "Company, seller, offer, or service reputation"
+      : option.key === "phone"
+        ? "Suspicious phone number or caller"
+        : option.key === "document"
+          ? "Suspicious document, letter, invoice, or photo"
+          : "Suspicious email or message",
+  };
+
+  if (!cleanDetail) return payload;
+
+  payload.review_source = cleanDetail;
+  payload.scam_detail = cleanDetail;
+  payload.detail = cleanDetail;
+
+  if (option.key === "email") payload.email_body = cleanDetail;
+  if (option.key === "document") payload.document_type = cleanDetail;
+  if (option.key === "phone") payload.phone_number = cleanDetail;
+  if (option.key === "company") payload.company_name = cleanDetail;
+
+  return payload;
+}
+
+function insuranceAdminStructuredPayload(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: InsuranceAdminDetails, isSpanish: boolean): Record<string, unknown> {
+  const subject = details.subject.trim();
+  const recipient = details.recipient.trim();
+  const deadline = details.deadline.trim();
+  const notes = details.notes.trim();
+  const optionLabel = isSpanish ? option.es : option.en;
+  const payload: Record<string, unknown> = {
+    task_type: option.key,
+    admin_task: optionLabel,
+    action_type: option.requestedTool,
+    requested_tool: option.requestedTool,
+  };
+
+  if (subject) {
+    payload.detail = subject;
+    payload.reason = subject;
+    if (option.key === "insurance-letter" || option.key === "government-form") {
+      payload.document_type = subject;
+    }
+  }
+  if (recipient) {
+    payload.recipient = recipient;
+    payload.recipient_name = recipient;
+  }
+  if (deadline) payload.deadline = deadline;
+  if (notes) payload.notes = notes;
+
+  return payload;
 }
 
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
@@ -2375,6 +2498,11 @@ async function prepareToolGatedConciergeTask(params: {
     params.locale.startsWith("es"),
   );
   const summary = params.prefill.summary?.trim() || `${actionLabel} prepared for VYVA review.`;
+  const structuredPayload = params.prefill.payload ?? {};
+  const payloadFlowReference = typeof structuredPayload.flow_reference === "string" && isConciergeFlowReference(structuredPayload.flow_reference)
+    ? structuredPayload.flow_reference
+    : undefined;
+  const flowReference = params.prefill.flowReference ?? payloadFlowReference ?? CONCIERGE_FLOW_REFERENCES.toolGatedTask;
   const res = await apiFetch("/api/concierge/actions/trigger", {
     method: "POST",
     body: JSON.stringify({
@@ -2384,20 +2512,22 @@ async function prepareToolGatedConciergeTask(params: {
       found_externally: false,
       action_summary: summary,
       action_payload: {
-        flow_reference: params.prefill.flowReference ?? CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+        ...structuredPayload,
+        flow_reference: flowReference,
         requested_tool: params.readiness.requestedTool,
         active_tool: params.readiness.activeTool,
         readiness_status: params.readiness.status,
         execution_channel: "manual",
         action_label: actionLabel,
         draft_message: params.prefill.message,
-        provider_search_mode: params.prefill.providerSearchMode ?? null,
-        provider_search_query: params.prefill.providerSearchQuery ?? null,
-        criteria: params.prefill.providerSearchCriteria?.length ? params.prefill.providerSearchCriteria : null,
-        source: params.prefill.source ?? "user_request",
+        provider_search_mode: params.prefill.providerSearchMode ?? structuredPayload.provider_search_mode ?? null,
+        provider_search_query: params.prefill.providerSearchQuery ?? structuredPayload.provider_search_query ?? null,
+        criteria: params.prefill.providerSearchCriteria?.length ? params.prefill.providerSearchCriteria : structuredPayload.criteria ?? null,
+        source: params.prefill.source ?? structuredPayload.source ?? "user_request",
         confirmation_required_before_action: true,
         review_fallback: params.readiness.activeTool === "operator_review",
         no_external_action_without_confirmation: true,
+        user_confirmed: false,
       },
       language: params.locale,
       trigger_source: "user_request",
@@ -2813,23 +2943,24 @@ async function confirmPendingAction(item: ConciergePendingItem) {
   const emailDraft = getActionEmailDraft(item);
   const whatsAppDraft = getActionWhatsAppDraft(item);
   const preferredHandoffChannel = getPreferredHandoffChannel(item);
-
-  if (whatsAppDraft && (preferredHandoffChannel === "whatsapp" || (!item.provider_phone && !emailDraft && !bookingUrl))) {
-    window.open(whatsAppDraftHref(whatsAppDraft), "_blank", "noopener,noreferrer");
-    return;
-  }
-
-  if (emailDraft && (preferredHandoffChannel === "email" || (!item.provider_phone && !bookingUrl))) {
-    window.open(emailDraftHref(emailDraft), "_blank", "noopener,noreferrer");
-    return;
-  }
-
-  if (!item.provider_phone && bookingUrl) {
-    window.open(bookingUrl, "_blank", "noopener,noreferrer");
-    return;
-  }
+  const followUpUrl = whatsAppDraft && (preferredHandoffChannel === "whatsapp" || (!item.provider_phone && !emailDraft && !bookingUrl))
+    ? whatsAppDraftHref(whatsAppDraft)
+    : emailDraft && (preferredHandoffChannel === "email" || (!item.provider_phone && !bookingUrl))
+      ? emailDraftHref(emailDraft)
+      : !item.provider_phone && bookingUrl
+        ? bookingUrl
+        : "";
 
   const res = await apiFetch(`/api/concierge/actions/${item.id}/confirm`, { method: "POST" });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Failed to confirm concierge action");
+  }
+  if (followUpUrl) window.open(followUpUrl, "_blank", "noopener,noreferrer");
+}
+
+async function confirmPendingActionReview(item: ConciergePendingItem) {
+  const res = await apiFetch(`/api/concierge/actions/${item.id}/review-confirm`, { method: "POST" });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Failed to confirm concierge action");
@@ -4341,7 +4472,7 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
         : !detailsReady
           ? (isSpanish ? "Completar detalles" : "Complete details")
         : isVyvaTask
-          ? (isSpanish ? "Cuando este listo" : "When ready")
+          ? (isSpanish ? "Tu OK primero" : "Your OK first")
           : nextStepLabel || (isSpanish ? "Tu OK primero" : "Your OK first"),
     state: item.status === "failed"
       ? "warning"
@@ -4352,17 +4483,17 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
         : !detailsReady
           ? "needed"
       : isVyvaTask
-        ? "waiting"
+        ? "active"
         : "active",
     action: isWaitingForProvider
       ? "reply"
       : item.status === "pending"
-      ? (!providerReady ? "provider" : !detailsReady || isVyvaTask ? "details" : "confirm")
+      ? (!providerReady ? "provider" : !detailsReady ? "details" : "confirm")
       : undefined,
     actionLabel: isWaitingForProvider
       ? (isSpanish ? "Registrar" : "Record")
       : item.status === "pending"
-      ? (!providerReady || !detailsReady || isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
+      ? (!providerReady || !detailsReady ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
       : undefined,
   });
 
@@ -4603,6 +4734,7 @@ function BookingFormSupportPanel({
   plan,
   bookingUrl,
   canOpenForm,
+  externalLinksAllowed,
   form,
   notice,
   error,
@@ -4617,6 +4749,7 @@ function BookingFormSupportPanel({
   plan: ReturnType<typeof getFormAutomationPlan>;
   bookingUrl: string;
   canOpenForm: boolean;
+  externalLinksAllowed: boolean;
   form: BookingFormOutcomeForm;
   notice: string | null;
   error: string | null;
@@ -4664,16 +4797,25 @@ function BookingFormSupportPanel({
       {canOpenForm && bookingUrl ? (
         <div className="mt-3 rounded-[16px] border border-[#BBF7D0] bg-white p-3" data-testid={`panel-booking-form-ready-${item.id}`}>
           <div className="flex flex-wrap gap-2">
-            <a
-              href={bookingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid={`link-booking-form-open-${item.id}`}
-              className="vyva-tap inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[13px] font-black text-white shadow-sm"
-            >
-              <ExternalLink size={14} />
-              {isSpanish ? "Abrir formulario" : "Open form"}
-            </a>
+            {externalLinksAllowed ? (
+              <a
+                href={bookingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid={`link-booking-form-open-${item.id}`}
+                className="vyva-tap inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[13px] font-black text-white shadow-sm"
+              >
+                <ExternalLink size={14} />
+                {isSpanish ? "Abrir formulario" : "Open form"}
+              </a>
+            ) : (
+              <p
+                data-testid={`text-booking-form-confirm-first-${item.id}`}
+                className="rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
+              >
+                {isSpanish ? "Confirma arriba antes de abrir el formulario." : "Confirm above before opening the form."}
+              </p>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -4685,32 +4827,36 @@ function BookingFormSupportPanel({
               {isSpanish ? "Necesito ayuda" : "Need help"}
             </Button>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <Input
-              value={form.reference}
-              onChange={(event) => onFormChange("reference", event.target.value)}
-              placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
-              data-testid={`input-booking-form-reference-${item.id}`}
-              className="h-[44px] rounded-[14px] border-[#BBF7D0] bg-white font-body text-[14px]"
-            />
-            <Input
-              value={form.notes}
-              onChange={(event) => onFormChange("notes", event.target.value)}
-              placeholder={isSpanish ? "Nota opcional" : "Optional note"}
-              data-testid={`input-booking-form-notes-${item.id}`}
-              className="h-[44px] rounded-[14px] border-[#BBF7D0] bg-white font-body text-[14px]"
-            />
-          </div>
-          <Button
-            type="button"
-            data-testid={`button-booking-form-submitted-${item.id}`}
-            onClick={onSubmitted}
-            disabled={isSaving}
-            className="vyva-primary-action mt-3 h-auto w-full bg-[#047857] hover:bg-[#065F46]"
-          >
-            {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-            {isSpanish ? "Ya lo envie" : "I submitted it"}
-          </Button>
+          {externalLinksAllowed ? (
+            <>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <Input
+                  value={form.reference}
+                  onChange={(event) => onFormChange("reference", event.target.value)}
+                  placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
+                  data-testid={`input-booking-form-reference-${item.id}`}
+                  className="h-[44px] rounded-[14px] border-[#BBF7D0] bg-white font-body text-[14px]"
+                />
+                <Input
+                  value={form.notes}
+                  onChange={(event) => onFormChange("notes", event.target.value)}
+                  placeholder={isSpanish ? "Nota opcional" : "Optional note"}
+                  data-testid={`input-booking-form-notes-${item.id}`}
+                  className="h-[44px] rounded-[14px] border-[#BBF7D0] bg-white font-body text-[14px]"
+                />
+              </div>
+              <Button
+                type="button"
+                data-testid={`button-booking-form-submitted-${item.id}`}
+                onClick={onSubmitted}
+                disabled={isSaving}
+                className="vyva-primary-action mt-3 h-auto w-full bg-[#047857] hover:bg-[#065F46]"
+              >
+                {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+                {isSpanish ? "Ya lo envie" : "I submitted it"}
+              </Button>
+            </>
+          ) : null}
         </div>
       ) : (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -4758,6 +4904,7 @@ function PhoneCallOutcomePanel({
   isSaving,
   isSpanish,
   onFormChange,
+  onCall,
   onSave,
 }: {
   item: ConciergePendingItem;
@@ -4767,6 +4914,7 @@ function PhoneCallOutcomePanel({
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof PhoneCallOutcomeForm, value: string) => void;
+  onCall: (href: string, label: string) => void;
   onSave: () => void;
 }) {
   const provider = phoneCallProviderName(item, isSpanish);
@@ -4798,15 +4946,16 @@ function PhoneCallOutcomePanel({
           </span>
         </span>
         {href ? (
-          <a
-            href={href}
+          <button
+            type="button"
+            onClick={() => onCall(href, isSpanish ? "Llamar" : "Call now")}
             data-testid={`link-concierge-phone-call-${item.id}`}
             className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
             aria-label={`${isSpanish ? "Llamar" : "Call"} ${phone}`}
           >
             <PhoneCall size={14} />
             {isSpanish ? "Llamar" : "Call now"}
-          </a>
+          </button>
         ) : null}
       </div>
 
@@ -4898,6 +5047,7 @@ function EmailDraftOutcomePanel({
   isSaving,
   isSpanish,
   onFormChange,
+  onOpenDraft,
   onSent,
 }: {
   item: ConciergePendingItem;
@@ -4909,6 +5059,7 @@ function EmailDraftOutcomePanel({
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof EmailDraftOutcomeForm, value: string) => void;
+  onOpenDraft: (href: string, label: string) => void;
   onSent: () => void;
 }) {
   return (
@@ -4933,15 +5084,16 @@ function EmailDraftOutcomePanel({
               : "Open the draft, send it from your email, then save that it went out."}
           </span>
         </span>
-        <a
-          href={href}
+        <button
+          type="button"
+          onClick={() => onOpenDraft(href, isSpanish ? "Abrir email" : "Open email")}
           data-testid={`link-concierge-email-draft-open-${item.id}`}
           className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
           aria-label={`${isSpanish ? "Abrir email" : "Open email"} ${draft.address}`}
         >
           <ExternalLink size={14} />
           {isSpanish ? "Abrir" : "Open"}
-        </a>
+        </button>
       </div>
 
       <div className="mt-3 rounded-[18px] border border-[#E0E7FF] bg-white p-3">
@@ -5010,6 +5162,7 @@ function WhatsAppDraftOutcomePanel({
   isSaving,
   isSpanish,
   onFormChange,
+  onOpenDraft,
   onSent,
 }: {
   item: ConciergePendingItem;
@@ -5021,6 +5174,7 @@ function WhatsAppDraftOutcomePanel({
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof WhatsAppDraftOutcomeForm, value: string) => void;
+  onOpenDraft: (href: string, label: string) => void;
   onSent: () => void;
 }) {
   return (
@@ -5045,17 +5199,16 @@ function WhatsAppDraftOutcomePanel({
               : "Open the draft, send it in WhatsApp, then save that it went out."}
           </span>
         </span>
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={() => onOpenDraft(href, isSpanish ? "Abrir WhatsApp" : "Open WhatsApp")}
           data-testid={`link-concierge-whatsapp-draft-open-${item.id}`}
           className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[13px] font-black text-white shadow-sm"
           aria-label={`${isSpanish ? "Abrir WhatsApp" : "Open WhatsApp"} ${draft.number}`}
         >
           <ExternalLink size={14} />
           {isSpanish ? "Abrir" : "Open"}
-        </a>
+        </button>
       </div>
 
       <div className="mt-3 rounded-[18px] border border-[#CCFBF1] bg-white p-3">
@@ -5526,6 +5679,103 @@ function SafeWebSearchExecutionPanel({
   );
 }
 
+function PendingExternalConfirmationModal({
+  request,
+  review,
+  locale,
+  isSpanish,
+  isPending,
+  onCancel,
+  onConfirm,
+}: {
+  request: ConciergeExternalConfirmationRequest;
+  review: PendingActionReviewSummary;
+  locale: string;
+  isSpanish: boolean;
+  isPending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const preparedByShowVyva = isShowVyvaPreparedTask(request.item.action_payload);
+  const sourceLabel = preparedByShowVyva ? showVyvaResumeSourceLabel(request.item.action_payload, locale) : "";
+  const actionLabel = preparedByShowVyva ? showVyvaResumeActionLabel(request.item.action_payload, locale) : request.label;
+  const summary = preparedByShowVyva
+    ? showVyvaResumeSummary(request.item.action_payload, request.item.action_summary)
+    : request.item.action_summary;
+
+  return (
+    <PurpleModal
+      Icon={ShieldCheck}
+      kicker={preparedByShowVyva ? (isSpanish ? "VYVA lo preparo" : "VYVA prepared this") : review.eyebrow}
+      title={isSpanish ? "Revisar primero" : "Review first"}
+      subtitle={isSpanish
+        ? "Confirma solo si quieres continuar. Nada sale sin este paso."
+        : "Confirm only if you want to continue. Nothing leaves without this step."}
+      titleId="concierge-final-confirmation-title"
+      onClose={onCancel}
+      closeLabel={isSpanish ? "Cerrar" : "Close"}
+      modalTestId="modal-concierge-final-confirmation"
+      panelTestId="panel-concierge-final-confirmation"
+      size="narrow"
+      layer="top"
+    >
+      <div className="rounded-[22px] border border-[#CCFBF1] bg-[#F8FFFC] p-4">
+        <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+          {preparedByShowVyva && sourceLabel ? sourceLabel : (isSpanish ? "Siguiente paso" : "Next step")}
+        </p>
+        <p className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+          {actionLabel}
+        </p>
+        {summary ? (
+          <p className="mt-2 font-body text-[13px] font-bold leading-relaxed text-vyva-text-2">
+            {summary}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        {review.details.slice(0, 4).map((detail) => (
+          <div
+            key={`${detail.label}-${detail.value}`}
+            className="flex items-start justify-between gap-3 rounded-[16px] border border-vyva-border bg-white px-3 py-2"
+          >
+            <span className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+              {detail.label}
+            </span>
+            <span className="text-right font-body text-[13px] font-black leading-snug text-vyva-text-1">
+              {detail.value}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <ConciergeApprovalPromise isSpanish={isSpanish} />
+
+      <div className="mt-4 grid grid-cols-1 gap-2">
+        <button
+          type="button"
+          data-testid="button-concierge-final-confirm"
+          onClick={onConfirm}
+          disabled={isPending}
+          className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+        >
+          {isPending ? <Loader2 size={16} className="animate-spin" /> : <CircleCheck size={16} />}
+          {isSpanish ? "Confirmar y continuar" : "Confirm and continue"}
+        </button>
+        <button
+          type="button"
+          data-testid="button-concierge-final-cancel"
+          onClick={onCancel}
+          disabled={isPending}
+          className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
+        >
+          {isSpanish ? "Cancelar" : "Cancel"}
+        </button>
+      </div>
+    </PurpleModal>
+  );
+}
+
 function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "item" | "isSpanish" | "formMissingFields">): string {
   const { item, isSpanish, formMissingFields } = params;
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
@@ -5539,7 +5789,13 @@ function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "it
 function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string {
   const { item, isSpanish, opensWhatsApp, opensEmail, opensBooking, needsPhoneOutcome, needsWhatsAppOutcome, needsEmailOutcome, canOpenForm, isVyvaTask, formMissingFields } = params;
   if (needsPhoneOutcome) return isSpanish ? "Revisar guion de llamada" : "Review call script";
-  if (isVyvaTask) return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
+  if (isVyvaTask) {
+    const task = getConciergeExecutionTask(item);
+    if (task && !task.user_confirmed && task.missing_requirements.length === 0 && formMissingFields.length === 0) {
+      return isSpanish ? "Confirmar revision VYVA" : "Confirm VYVA review";
+    }
+    return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
+  }
   if (needsWhatsAppOutcome) return isSpanish ? "Abrir borrador de WhatsApp" : "Open WhatsApp draft";
   if (needsEmailOutcome) return isSpanish ? "Abrir borrador de email" : "Open email draft";
 
@@ -5599,7 +5855,7 @@ function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
 }
 
 function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
-  const { item, isSpanish, isVyvaTask, needsPhoneOutcome, needsWhatsAppOutcome, needsEmailOutcome } = params;
+  const { item, isSpanish, isVyvaTask, needsPhoneOutcome, needsWhatsAppOutcome, needsEmailOutcome, formMissingFields } = params;
   if (item.status === "calling") {
     return isSpanish ? "Puedes volver mas tarde; la tarea seguira aqui." : "You can come back later; this task stays here.";
   }
@@ -5622,6 +5878,12 @@ function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
       : "VYVA does not send it for you. Open the draft and save that it went out.";
   }
   if (isVyvaTask) {
+    const task = getConciergeExecutionTask(item);
+    if (task && !task.user_confirmed && task.missing_requirements.length === 0 && formMissingFields.length === 0) {
+      return isSpanish
+        ? "Confirma para ponerlo en la cola de VYVA. Nada se envia sin ese OK."
+        : "Confirm to place it in the VYVA queue. Nothing is sent without that OK.";
+    }
     return isSpanish ? "VYVA lo mantiene aqui hasta que este listo para confirmar." : "VYVA keeps it here until it is ready to confirm.";
   }
   return isSpanish ? "Tu confirmas antes de enviar, llamar o reservar." : "You confirm before anything is sent, called, or booked.";
@@ -5868,7 +6130,7 @@ function getConciergeExecutionTask(item: ConciergePendingItem): ConciergeExecuti
   const lifecycleStatus = typeof task.lifecycle_status === "string"
     ? task.lifecycle_status
     : "";
-  if (!["ready", "needs_info", "in_progress", "done", "failed", "cancelled"].includes(lifecycleStatus)) return null;
+  if (!["ready", "needs_info", "confirmed", "in_progress", "done", "failed", "cancelled"].includes(lifecycleStatus)) return null;
   return task as unknown as ConciergeExecutionTask;
 }
 
@@ -5930,6 +6192,14 @@ function executionTaskStatusSummary(task: ConciergeExecutionTask, isSpanish: boo
         ? (isSpanish ? `Anade ${missingLabel} para seguir.` : `Add ${missingLabel} to continue.`)
         : (isSpanish ? "Anade un detalle para seguir." : "Add one detail to continue."),
       tone: "amber",
+    },
+    confirmed: {
+      phase: "waiting",
+      label: isSpanish ? "Confirmado" : "Confirmed",
+      helper: isSpanish
+        ? "VYVA ya tiene tu OK y mantiene la tarea en cola."
+        : "VYVA has your OK and is keeping this task queued.",
+      tone: "blue",
     },
     in_progress: {
       phase: "waiting",
@@ -6966,6 +7236,7 @@ const ConciergeScreen = () => {
   const [visibleActionId, setVisibleActionId] = useState<string | null>(null);
   const [isRightNowHidden, setIsRightNowHidden] = useState(false);
   const [selectedCompletedSessionId, setSelectedCompletedSessionId] = useState<string | null>(null);
+  const [externalConfirmationRequest, setExternalConfirmationRequest] = useState<ConciergeExternalConfirmationRequest | null>(null);
   const [providerReplyMode, setProviderReplyMode] = useState<ProviderReplyMode>(null);
   const [providerReplyForm, setProviderReplyForm] = useState<ProviderReplyForm>(EMPTY_PROVIDER_REPLY_FORM);
   const [providerReplyNotice, setProviderReplyNotice] = useState<string | null>(null);
@@ -6982,6 +7253,7 @@ const ConciergeScreen = () => {
   const [whatsAppDraftOutcomeForm, setWhatsAppDraftOutcomeForm] = useState<WhatsAppDraftOutcomeForm>(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
   const [whatsAppDraftNotice, setWhatsAppDraftNotice] = useState<string | null>(null);
   const [whatsAppDraftError, setWhatsAppDraftError] = useState<string | null>(null);
+  const [confirmedReviewActionIds, setConfirmedReviewActionIds] = useState<Set<string>>(() => new Set());
   const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -7075,7 +7347,7 @@ const ConciergeScreen = () => {
   const [selectedScamCheckKind, setSelectedScamCheckKind] = useState<ScamCheckKind | null>(null);
   const [scamCheckDetail, setScamCheckDetail] = useState("");
   const [selectedInsuranceAdminKind, setSelectedInsuranceAdminKind] = useState<InsuranceAdminKind | null>(null);
-  const [insuranceAdminDetails, setInsuranceAdminDetails] = useState({
+  const [insuranceAdminDetails, setInsuranceAdminDetails] = useState<InsuranceAdminDetails>({
     subject: "",
     recipient: "",
     deadline: "",
@@ -7778,6 +8050,60 @@ const ConciergeScreen = () => {
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
       ]);
+    },
+  });
+
+  function requestExternalConfirmation(request: ConciergeExternalConfirmationRequest) {
+    setExternalConfirmationRequest(request);
+  }
+
+  function handleExternalConfirmationConfirm() {
+    const request = externalConfirmationRequest;
+    if (!request) return;
+
+    if (request.kind === "confirm") {
+      confirmMutation.mutate(request.item, {
+        onSuccess: () => setExternalConfirmationRequest(null),
+      });
+      return;
+    }
+
+    if (request.href) {
+      window.open(
+        request.href,
+        request.target ?? "_self",
+        request.target === "_blank" ? "noopener,noreferrer" : undefined,
+      );
+    }
+    setExternalConfirmationRequest(null);
+  }
+
+  const reviewConfirmMutation = useMutation({
+    mutationFn: async ({ item, kind }: { item: ConciergePendingItem; kind: "phone" | "email" | "whatsapp" }) => {
+      await confirmPendingActionReview(item);
+      return { item, kind };
+    },
+    onSuccess: ({ item, kind }) => {
+      setConfirmedReviewActionIds((current) => {
+        const next = new Set(current);
+        next.add(item.id);
+        return next;
+      });
+      if (kind === "phone") {
+        showPhoneCallReview(item);
+      } else if (kind === "email") {
+        showEmailDraftReview(item);
+      } else {
+        showWhatsAppDraftReview(item);
+      }
+    },
+    onError: (error, { kind }) => {
+      const message = error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido confirmar la accion." : "I could not confirm the action.");
+      if (kind === "phone") setPhoneCallOutcomeError(message);
+      if (kind === "email") setEmailDraftError(message);
+      if (kind === "whatsapp") setWhatsAppDraftError(message);
     },
   });
 
@@ -9695,7 +10021,11 @@ const ConciergeScreen = () => {
       } else if (activeActionNeedsEmailOutcome) {
         handleEmailDraftReview(activeAction);
       } else if (activeAction.status === "pending" && !activeActionIsVyvaTask) {
-        confirmMutation.mutate(activeAction);
+        requestExternalConfirmation({
+          item: activeAction,
+          kind: "confirm",
+          label: activeActionPrimaryLabel,
+        });
       } else {
         handleChangePendingAction(activeAction);
       }
@@ -9726,7 +10056,7 @@ const ConciergeScreen = () => {
     bookingFormOutcomeMutation.mutate({ item, form: bookingFormOutcomeForm });
   }
 
-  function handlePhoneCallReview(item: ConciergePendingItem) {
+  function showPhoneCallReview(item: ConciergePendingItem) {
     setPhoneCallOutcomeError(null);
     setPhoneCallOutcomeNotice(isSpanish ? "Guion listo. Llama y guarda lo que paso." : "Script ready. Call and save what happened.");
     setVisibleActionId(item.id);
@@ -9734,11 +10064,15 @@ const ConciergeScreen = () => {
     window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
+  function handlePhoneCallReview(item: ConciergePendingItem) {
+    reviewConfirmMutation.mutate({ item, kind: "phone" });
+  }
+
   function handleSavePhoneCallOutcome(item: ConciergePendingItem) {
     phoneCallOutcomeMutation.mutate({ item, form: phoneCallOutcomeForm });
   }
 
-  function handleWhatsAppDraftReview(item: ConciergePendingItem) {
+  function showWhatsAppDraftReview(item: ConciergePendingItem) {
     setWhatsAppDraftError(null);
     setWhatsAppDraftNotice(isSpanish ? "Borrador listo. Abre WhatsApp y guarda el resultado." : "Draft ready. Open WhatsApp and save the result.");
     setVisibleActionId(item.id);
@@ -9746,16 +10080,24 @@ const ConciergeScreen = () => {
     window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }
 
+  function handleWhatsAppDraftReview(item: ConciergePendingItem) {
+    reviewConfirmMutation.mutate({ item, kind: "whatsapp" });
+  }
+
   function handleWhatsAppDraftSent(item: ConciergePendingItem, draft: ConciergeWhatsAppDraft) {
     whatsAppDraftOutcomeMutation.mutate({ item, draft, form: whatsAppDraftOutcomeForm });
   }
 
-  function handleEmailDraftReview(item: ConciergePendingItem) {
+  function showEmailDraftReview(item: ConciergePendingItem) {
     setEmailDraftError(null);
     setEmailDraftNotice(isSpanish ? "Borrador listo. Abre tu email y guarda el resultado." : "Draft ready. Open your email and save the result.");
     setVisibleActionId(item.id);
     setIsRightNowHidden(false);
     window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
+  }
+
+  function handleEmailDraftReview(item: ConciergePendingItem) {
+    reviewConfirmMutation.mutate({ item, kind: "email" });
   }
 
   function handleEmailDraftSent(item: ConciergePendingItem, draft: ConciergeEmailDraft) {
@@ -10081,6 +10423,7 @@ const ConciergeScreen = () => {
       summary: isSpanish
         ? `Revision segura: ${option.es}.`
         : `Safe check prepared: ${option.en}.`,
+      payload: scamCheckStructuredPayload(option, scamCheckDetail, isSpanish),
       useCase: "scam_check",
     });
     setScamCheckOpen(false);
@@ -10090,7 +10433,7 @@ const ConciergeScreen = () => {
 
   function openInsuranceAdminAssistant(
     initialKind: InsuranceAdminKind | null = null,
-    initialDetails: Partial<typeof insuranceAdminDetails> = {},
+    initialDetails: Partial<InsuranceAdminDetails> = {},
   ) {
     setInsuranceAdminOpen(true);
     setScamCheckOpen(false);
@@ -10119,7 +10462,7 @@ const ConciergeScreen = () => {
     });
   }
 
-  function insuranceAdminPrompt(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: typeof insuranceAdminDetails) {
+  function insuranceAdminPrompt(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: InsuranceAdminDetails) {
     const common = isSpanish
       ? "Pide primero el documento, destinatario, fecha limite y para quien es. No envies, llames, subas ni compartas datos sin mi confirmacion."
       : "Ask first for the document, recipient, deadline, and who this is for. Do not send, call, upload, or share details without my confirmation.";
@@ -10165,6 +10508,7 @@ const ConciergeScreen = () => {
       summary: isSpanish
         ? `Gestion preparada: ${option.es}.`
         : `Paperwork task prepared: ${option.en}.`,
+      payload: insuranceAdminStructuredPayload(option, insuranceAdminDetails, isSpanish),
       useCase: "admin_task",
     });
     setInsuranceAdminOpen(false);
@@ -10174,6 +10518,7 @@ const ConciergeScreen = () => {
 
   function handleOfferAssistance(option: OfferOption) {
     const contact = option.phone || option.website || option.maps_url || (isSpanish ? "sin contacto publicado" : "no published contact");
+    const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish);
     const message = isSpanish
       ? [
         `Ayudame a revisar ${option.name} antes de contactar.`,
@@ -10187,7 +10532,21 @@ const ConciergeScreen = () => {
         `Available contact: ${contact}.`,
         "Check terms, real price, commitment, reviews, and risks. Do not call, book, switch, or share details without asking me to confirm.",
       ].join("\n");
-    prepareConciergeRequest(message);
+    prepareConciergeRequest(message, {
+      flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+      requestedTool: "operator_review",
+      actionLabel: isSpanish ? "Revisar oferta" : "Review deal",
+      summary: isSpanish
+        ? `Comparacion preparada: ${option.name}.`
+        : `Deal comparison prepared: ${option.name}.`,
+      payload: offerReviewStructuredPayload(option, {
+        intent: "compare",
+        query: offersQuery.trim(),
+        criteria,
+        category: offersResult?.category,
+      }),
+      useCase: "find_offers",
+    });
   }
 
   function handleProviderSearchAssistance(option: OfferOption) {
@@ -10225,6 +10584,21 @@ const ConciergeScreen = () => {
       providerSearchMode: providerSearchMode ?? undefined,
       providerSearchCriteria: providerSearchCriteria,
       providerSearchQuery: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
+      payload: {
+        provider_search_mode: providerSearchMode ?? null,
+        provider_search_query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
+        criteria: providerSearchCriteria,
+        chosen_criteria: providerSearchCriteria,
+        selected_provider_name: option.name,
+        provider_name: option.name,
+        provider_phone: option.phone || null,
+        website: option.website || option.maps_url || null,
+        comparison_summary: option.why_good_option || option.trust_note || option.what_it_offers,
+        price_or_advantage: option.price_or_advantage,
+        distance_or_availability: option.distance_or_availability,
+        contact_method: option.contact_method,
+        score: option.score,
+      },
     });
   }
 
@@ -10254,6 +10628,12 @@ const ConciergeScreen = () => {
       providerSearchMode: providerSearchMode ?? undefined,
       providerSearchCriteria: providerSearchCriteria,
       providerSearchQuery: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
+      payload: {
+        provider_search_mode: providerSearchMode ?? null,
+        provider_search_query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
+        criteria: providerSearchCriteria,
+        chosen_criteria: providerSearchCriteria,
+      },
     });
   }
 
@@ -10424,6 +10804,7 @@ const ConciergeScreen = () => {
   }
 
   function handleOfferWatch(option: OfferOption) {
+    const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish);
     const message = isSpanish
       ? [
         `Vigila cambios importantes para ${option.name}.`,
@@ -10435,7 +10816,21 @@ const ConciergeScreen = () => {
         "Notify me if the price changes, a commitment appears, documents are missing, trust drops, or a clearly better option appears.",
         "Before acting, prepare a short summary and ask me to confirm.",
       ].join("\n");
-    prepareConciergeRequest(message);
+    prepareConciergeRequest(message, {
+      flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+      requestedTool: "operator_review",
+      actionLabel: isSpanish ? "Vigilar cambios" : "Watch changes",
+      summary: isSpanish
+        ? `Seguimiento preparado: ${option.name}.`
+        : `Offer watch prepared: ${option.name}.`,
+      payload: offerReviewStructuredPayload(option, {
+        intent: "watch",
+        query: offersQuery.trim(),
+        criteria,
+        category: offersResult?.category,
+      }),
+      useCase: "find_offers",
+    });
   }
 
   const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
@@ -10558,6 +10953,7 @@ const ConciergeScreen = () => {
   ));
   const activeActionExecutionChannel = activeAction ? getExecutionChannel(activeAction) : "";
   const activeActionAlreadyConfirmed = activeAction ? conciergeActionAlreadyConfirmed(activeAction) : false;
+  const activeActionReviewConfirmed = activeAction ? confirmedReviewActionIds.has(activeAction.id) : false;
   const activeActionNeedsUserConfirmation = Boolean(activeAction?.status === "pending" && !activeActionAlreadyConfirmed);
   const activeActionFormPlan = activeAction ? getFormAutomationPlan(activeAction) : null;
   const activeActionFormMissingFields = activeActionFormPlan?.missingFields ?? [];
@@ -10593,6 +10989,10 @@ const ConciergeScreen = () => {
     (activeActionCanOpenForm || (!activeAction?.provider_phone && activeActionExecutionChannel !== "booking_url"))
   );
   const activeActionNeedsPhoneOutcome = activeActionNeedsUserConfirmation && activeAction ? isPhoneCallPendingAction(activeAction) : false;
+  const activeActionCanShowPhoneOutcome = activeActionNeedsPhoneOutcome && activeActionReviewConfirmed;
+  const activeActionCanShowWhatsAppOutcome = activeActionNeedsWhatsAppOutcome && activeActionReviewConfirmed;
+  const activeActionCanShowEmailOutcome = activeActionNeedsEmailOutcome && activeActionReviewConfirmed;
+  const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation;
   const activeActionIsAppointment = activeAction?.use_case === "book_appointment";
   const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
     ? activeAction.action_payload.mission_status
@@ -10622,6 +11022,26 @@ const ConciergeScreen = () => {
       isSpanish,
       nextStepLabel: activeActionNextStepLabel,
       nextStepHelper: activeActionNextStepHelper,
+    })
+    : null;
+  const activeActionShowVyvaPrepared = activeAction ? isShowVyvaPreparedTask(activeAction.action_payload) : false;
+  const activeActionShowVyvaSource = activeActionShowVyvaPrepared
+    ? showVyvaResumeSourceLabel(activeAction?.action_payload, locale)
+    : "";
+  const activeActionShowVyvaTask = activeActionShowVyvaPrepared
+    ? showVyvaResumeActionLabel(activeAction?.action_payload, locale)
+    : "";
+  const activeActionShowVyvaSummary = activeActionShowVyvaPrepared
+    ? showVyvaResumeSummary(activeAction?.action_payload, activeAction?.action_summary)
+    : "";
+  const externalConfirmationReview = externalConfirmationRequest
+    ? buildPendingActionReviewSummary({
+      item: externalConfirmationRequest.item,
+      isSpanish,
+      nextStepLabel: externalConfirmationRequest.label,
+      nextStepHelper: isSpanish
+        ? "Nada se envia, llama ni abre hasta que confirmes."
+        : "Nothing is sent, called, or opened until you confirm.",
     })
     : null;
   const activeActionChecklist = activeAction && activeActionLabelParams
@@ -12359,11 +12779,20 @@ const ConciergeScreen = () => {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-body text-[12px] uppercase tracking-[0.12em] text-vyva-text-2">
-                  {getPendingActionUseCaseLabel(activeAction, locale)}
+                  {activeActionShowVyvaPrepared
+                    ? (isSpanish ? "VYVA lo preparo" : "VYVA prepared this")
+                    : getPendingActionUseCaseLabel(activeAction, locale)}
                 </p>
                 <p className="mt-1 font-body text-[20px] font-semibold leading-tight text-vyva-text-1">
-                  {activeAction.provider_name || (isSpanish ? "Proveedor seleccionado" : "Selected provider")}
+                  {activeActionShowVyvaPrepared
+                    ? activeActionShowVyvaTask
+                    : activeAction.provider_name || (isSpanish ? "Proveedor seleccionado" : "Selected provider")}
                 </p>
+                {activeActionShowVyvaPrepared && activeActionShowVyvaSource ? (
+                  <p className="mt-1 font-body text-[13px] font-black leading-tight text-[#0F766E]">
+                    {activeActionShowVyvaSource}
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
                 <span
@@ -12388,7 +12817,7 @@ const ConciergeScreen = () => {
             </div>
 
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
-              {activeAction.action_summary}
+              {activeActionShowVyvaSummary || activeAction.action_summary}
             </p>
 
             {activeActionExecutionStatus ? (
@@ -12420,19 +12849,24 @@ const ConciergeScreen = () => {
                   } else if (activeActionNeedsEmailOutcome) {
                     handleEmailDraftReview(activeAction);
                   } else {
-                    confirmMutation.mutate(activeAction);
+                    requestExternalConfirmation({
+                      item: activeAction,
+                      kind: "confirm",
+                      label: activeActionPrimaryLabel,
+                    });
                   }
                 }}
                 onChange={() => handleChangePendingAction(activeAction)}
                 onCancel={() => cancelMutation.mutate(activeAction.id)}
                 confirmPending={
                   confirmMutation.isPending ||
+                  reviewConfirmMutation.isPending ||
                   phoneCallOutcomeMutation.isPending ||
                   emailDraftOutcomeMutation.isPending ||
                   whatsAppDraftOutcomeMutation.isPending
                 }
                 cancelPending={cancelMutation.isPending}
-                primaryDisabled={activeActionIsVyvaTask}
+                primaryDisabled={activeActionReviewSummary.missingDetails.length > 0 || Boolean(activeActionWebSearch)}
                 confirmTestId={`button-concierge-confirm-${activeAction.id}`}
                 changeTestId={`button-concierge-change-${activeAction.id}`}
                 cancelTestId={`button-concierge-cancel-${activeAction.id}`}
@@ -12485,7 +12919,7 @@ const ConciergeScreen = () => {
               />
             ) : null}
 
-            {activeActionNeedsPhoneOutcome ? (
+            {activeActionCanShowPhoneOutcome ? (
               <PhoneCallOutcomePanel
                 item={activeAction}
                 form={phoneCallOutcomeForm}
@@ -12494,11 +12928,17 @@ const ConciergeScreen = () => {
                 isSaving={phoneCallOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updatePhoneCallOutcomeForm}
+                onCall={(href, label) => requestExternalConfirmation({
+                  item: activeAction,
+                  kind: "phone",
+                  href,
+                  label,
+                })}
                 onSave={() => handleSavePhoneCallOutcome(activeAction)}
               />
             ) : null}
 
-            {activeActionNeedsWhatsAppOutcome && activeActionWhatsAppDraft ? (
+            {activeActionCanShowWhatsAppOutcome && activeActionWhatsAppDraft ? (
               <WhatsAppDraftOutcomePanel
                 item={activeAction}
                 draft={activeActionWhatsAppDraft}
@@ -12509,11 +12949,18 @@ const ConciergeScreen = () => {
                 isSaving={whatsAppDraftOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updateWhatsAppDraftOutcome}
+                onOpenDraft={(href, label) => requestExternalConfirmation({
+                  item: activeAction,
+                  kind: "whatsapp",
+                  href,
+                  label,
+                  target: "_blank",
+                })}
                 onSent={() => handleWhatsAppDraftSent(activeAction, activeActionWhatsAppDraft)}
               />
             ) : null}
 
-            {activeActionNeedsEmailOutcome && activeActionEmailDraft ? (
+            {activeActionCanShowEmailOutcome && activeActionEmailDraft ? (
               <EmailDraftOutcomePanel
                 item={activeAction}
                 draft={activeActionEmailDraft}
@@ -12524,6 +12971,12 @@ const ConciergeScreen = () => {
                 isSaving={emailDraftOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updateEmailDraftOutcome}
+                onOpenDraft={(href, label) => requestExternalConfirmation({
+                  item: activeAction,
+                  kind: "email",
+                  href,
+                  label,
+                })}
                 onSent={() => handleEmailDraftSent(activeAction, activeActionEmailDraft)}
               />
             ) : null}
@@ -12613,6 +13066,7 @@ const ConciergeScreen = () => {
                 plan={activeActionFormPlan}
                 bookingUrl={activeActionBookingUrl}
                 canOpenForm={activeActionCanOpenForm}
+                externalLinksAllowed={activeActionExternalLinksAllowed}
                 form={bookingFormOutcomeForm}
                 notice={bookingFormNotice}
                 error={bookingFormError}
@@ -12626,39 +13080,56 @@ const ConciergeScreen = () => {
             )}
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {activeActionPhoneHref && (
-                <a
-                  href={activeActionPhoneHref}
+              {activeActionPhoneHref && activeActionExternalLinksAllowed && (
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "phone",
+                    href: activeActionPhoneHref,
+                    label: isSpanish ? "Llamar" : "Call",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
                   aria-label={`${isSpanish ? "Llamar" : "Call"} ${activeAction.provider_phone}`}
                 >
                   <PhoneCall size={13} style={{ color: "#6B21A8" }} />
                   {activeAction.provider_phone}
-                </a>
+                </button>
               )}
-              {activeActionEmailDraft && (
-                <a
-                  href={activeActionEmailHref}
+              {activeActionEmailDraft && activeActionExternalLinksAllowed && (
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "email",
+                    href: activeActionEmailHref,
+                    label: isSpanish ? "Abrir email" : "Open email",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#EEF2FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
                   aria-label={`Email ${activeActionEmailDraft.address}`}
                   data-testid={`link-concierge-email-${activeAction.id}`}
                 >
                   <Mail size={13} style={{ color: "#6B21A8" }} />
                   {activeActionEmailDraft.address}
-                </a>
+                </button>
               )}
-              {activeActionWhatsAppDraft && (
-                <a
-                  href={activeActionWhatsAppHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
+              {activeActionWhatsAppDraft && activeActionExternalLinksAllowed && (
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "whatsapp",
+                    href: activeActionWhatsAppHref,
+                    label: isSpanish ? "Abrir WhatsApp" : "Open WhatsApp",
+                    target: "_blank",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
                   aria-label={`WhatsApp ${activeActionWhatsAppDraft.number}`}
                   data-testid={`link-concierge-whatsapp-${activeAction.id}`}
                 >
                   <Send size={13} style={{ color: "#047857" }} />
                   WhatsApp
-                </a>
+                </button>
               )}
               {activeActionBookingUrl && activeActionIsVyvaTask && (
                 <span
@@ -12668,28 +13139,38 @@ const ConciergeScreen = () => {
                   {isSpanish ? "Formulario pendiente en VYVA" : "Form waiting in VYVA"}
                 </span>
               )}
-              {activeActionCanOpenForm && activeActionBookingUrl && (
-                <a
-                  href={activeActionBookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+              {activeActionCanOpenForm && activeActionBookingUrl && activeActionExternalLinksAllowed && (
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "booking",
+                    href: activeActionBookingUrl,
+                    label: isSpanish ? "Abrir formulario" : "Open form",
+                    target: "_blank",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
                   data-testid={`link-concierge-form-${activeAction.id}`}
                 >
                   <Calendar size={13} style={{ color: "#0A7C4E" }} />
                   {isSpanish ? "Formulario listo" : "Form ready"}
-                </a>
+                </button>
               )}
-              {!activeActionCanOpenForm && !activeAction.provider_phone && activeActionBookingUrl && !activeActionIsVyvaTask && (
-                <a
-                  href={activeActionBookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+              {!activeActionCanOpenForm && !activeAction.provider_phone && activeActionBookingUrl && !activeActionIsVyvaTask && activeActionExternalLinksAllowed && (
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "booking",
+                    href: activeActionBookingUrl,
+                    label: isSpanish ? "Abrir reserva" : "Open booking",
+                    target: "_blank",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
                 >
                   <Calendar size={13} style={{ color: "#0A7C4E" }} />
                   {isSpanish ? "Reserva online disponible" : "Online booking available"}
-                </a>
+                </button>
               )}
             </div>
 
@@ -12775,6 +13256,18 @@ const ConciergeScreen = () => {
           </div>
         ) : null}
       </section>
+
+      {externalConfirmationRequest && externalConfirmationReview ? (
+        <PendingExternalConfirmationModal
+          request={externalConfirmationRequest}
+          review={externalConfirmationReview}
+          locale={locale}
+          isSpanish={isSpanish}
+          isPending={confirmMutation.isPending}
+          onCancel={() => setExternalConfirmationRequest(null)}
+          onConfirm={handleExternalConfirmationConfirm}
+        />
+      ) : null}
 
       {selectedCompletedSession && (
         <PurpleModal

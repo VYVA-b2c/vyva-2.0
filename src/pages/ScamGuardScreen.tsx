@@ -28,6 +28,7 @@ import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
+import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -40,6 +41,7 @@ import {
   type ShowVyvaPastePayload,
 } from "../../shared/showVyvaFlow";
 import { showVyvaReviewContractFromScamResult } from "../../shared/showVyvaReviewContract";
+import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
 
 type ScamCheck = {
   id: string;
@@ -195,6 +197,7 @@ const SCAM_CALL_SYSTEM_PROMPT =
 type ScamGuardActionButtonsProps = {
   context: ScamGuardActionContext;
   trustedContactName?: string;
+  trustedContactPhone?: string;
   trustedContactHref?: string;
   isCallActive?: boolean;
   onOpenConcierge: (context: ScamGuardActionContext) => void;
@@ -207,6 +210,7 @@ type ScamGuardActionButtonsProps = {
 export function ScamGuardActionButtons({
   context,
   trustedContactName,
+  trustedContactPhone,
   trustedContactHref,
   isCallActive,
   onOpenConcierge,
@@ -216,6 +220,8 @@ export function ScamGuardActionButtons({
   testIdSuffix,
 }: ScamGuardActionButtonsProps) {
   const { t } = useTranslation();
+  const { language } = useLanguage();
+  const { toast } = useToast();
   const contactName = trustedContactName?.trim() || t("scamGuard.actions.trustedFallback", "trusted person");
   const reviewContract = showVyvaReviewContractFromScamResult({
     useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
@@ -251,14 +257,29 @@ export function ScamGuardActionButtons({
         actions={actions}
         onSelect={(action) => {
           if (action.id === "call_trusted_contact") {
-            if (trustedContactHref) {
-              window.location.href = trustedContactHref;
+            if (!trustedContactHref) {
+              onAddTrustedContact();
               return;
             }
-            onAddTrustedContact();
-            return;
           }
-          onOpenConcierge(context);
+          const plan = buildShowVyvaActionExecutionPlan({
+            contract: reviewContract,
+            action,
+            language,
+            sourceRoute: "/scam-guard",
+            target: action.id === "call_trusted_contact"
+              ? { name: contactName, phone: trustedContactPhone ?? trustedContactHref?.replace(/^tel:/, ""), relationship: "trusted_contact" }
+              : undefined,
+          });
+          void saveShowVyvaActionExecutionPlan(plan)
+            .then(async () => {
+              await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+              toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+              onOpenConcierge(context);
+            })
+            .catch(() => {
+              toast({ description: t("showVyva.executor.error", "I could not save that step. Please try again.") });
+            });
         }}
       />
     </div>
@@ -838,6 +859,7 @@ const ScamGuardScreen = () => {
                   <ScamGuardActionButtons
                     context={resultToActionContext(result)}
                     trustedContactName={trustedContactName}
+                    trustedContactPhone={profile?.caregiverContact}
                     trustedContactHref={trustedContactHref}
                     isCallActive={isCallActive}
                     onOpenConcierge={openScamConcierge}
@@ -985,6 +1007,7 @@ const ScamGuardScreen = () => {
                           <ScamGuardActionButtons
                             context={scamCheckToActionContext(check)}
                             trustedContactName={trustedContactName}
+                            trustedContactPhone={profile?.caregiverContact}
                             trustedContactHref={trustedContactHref}
                             isCallActive={isCallActive}
                             onOpenConcierge={openScamConcierge}

@@ -288,6 +288,56 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("2 tasks");
   });
 
+  it("counts only active Concierge tasks on the Home badge", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [
+              {
+                id: "done-ride",
+                use_case: "book_ride",
+                status: "completed",
+                provider_name: "Old Taxi",
+                action_summary: "Completed ride.",
+                action_payload: null,
+              },
+              {
+                id: "cancelled-admin",
+                use_case: "admin_task",
+                status: "cancelled",
+                provider_name: "VYVA review",
+                action_summary: "Cancelled task.",
+                action_payload: null,
+              },
+              {
+                id: "active-service",
+                use_case: "home_service",
+                status: "calling",
+                provider_name: "Saved Plumber",
+                action_summary: "VYVA is contacting Saved Plumber.",
+                action_payload: { mission_status: "awaiting_provider_reply" },
+              },
+            ],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("1 task");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Waiting for Saved Plumber");
+    expect(screen.queryByText("Old Taxi")).not.toBeInTheDocument();
+  });
+
   it("surfaces a pending Concierge task until the user confirms it", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
@@ -329,6 +379,55 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Waiting for your confirmation");
 
     fireEvent.click(screen.getByTestId("button-home-fast-concierge-status"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
+  });
+
+  it("surfaces saved Show VYVA tasks as prepared work from Home", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "show-vyva-scam-1",
+              use_case: "scam_check",
+              status: "pending",
+              provider_name: "Trusted contact",
+              action_summary: "Ask before replying to this bank message.",
+              action_payload: {
+                show_vyva_action_id: "call_trusted_contact",
+                show_vyva_follow_up_context: "scam",
+                show_vyva_source: "paste_text",
+                source_route: "/scam-guard",
+                review_summary: "Suspicious bank message",
+                requested_tool: "phone_call",
+                confirmation_required_before_action: true,
+                no_external_action_without_confirmation: true,
+                executor_version: 1,
+              },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const nudge = screen.getByTestId("card-home-concierge-resume");
+    expect(nudge).toHaveTextContent("VYVA prepared this");
+    expect(nudge).toHaveTextContent("Scam Guard");
+    expect(nudge).toHaveTextContent("Call");
+    expect(nudge).toHaveTextContent("Suspicious bank message");
+    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Review first");
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
   });

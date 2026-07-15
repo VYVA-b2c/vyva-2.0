@@ -2034,6 +2034,10 @@
       provider_or_deal: "VYVA compares options and asks before contacting, booking, buying, or sharing details.",
       health_or_home_photo: "VYVA gives an assistive review only and asks before sharing or escalating.",
     },
+    executor: {
+      saved: "Saved. Continue in Concierge when you are ready.",
+      error: "I could not save that step. Please try again.",
+    },
     contract: {
       finalConfirmation: "VYVA prepares first. You confirm before anything is sent, bought, booked, called, uploaded, submitted, or shared.",
       sections: {
