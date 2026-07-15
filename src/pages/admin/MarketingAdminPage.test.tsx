@@ -1992,6 +1992,51 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: Profile completion WhatsApp nudge");
   });
 
+  it("creates saved content assets from a curated template pack", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-create-assets-monthly-care-digest"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Creating 5 Monthly care digest content assets");
+
+    await waitFor(() => {
+      const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+      expect(contentPosts).toHaveLength(5);
+    });
+
+    const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const postBodies = contentPosts.map(([, init]) => JSON.parse(String(init?.body ?? "{}")));
+    expect(postBodies[0]).toMatchObject({
+      title: "Monthly care digest email",
+      channel: "email",
+      source: "vyva",
+      lovableExternalId: null,
+      metadata: expect.objectContaining({
+        generatedFrom: "template_pack",
+        packId: "monthly-care-digest",
+        packTitle: "Monthly care digest",
+        templateTitle: "Monthly care digest email",
+        studioPlayId: "monthly-care-digest",
+        tone: "warm",
+        angle: "proof",
+      }),
+    });
+    expect(new Set(postBodies.map((body) => body.metadata.templateId)).size).toBe(5);
+    expect(postBodies.some((body) => body.channel === "whatsapp")).toBe(true);
+    expect(postBodies.every((body) => typeof body.metadata.aiPrompt === "string" && body.metadata.aiPrompt.length > 20)).toBe(true);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Created 5 Monthly care digest content assets");
+    });
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("First asset opened for review.");
+    expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Monthly care digest email");
+    expect((screen.getByTestId("textarea-marketing-edit-content-metadata") as HTMLTextAreaElement).value).toContain("template_pack");
+  });
+
   it("loads template packs into editable journey drafts with visible sequence steps", async () => {
     renderPage();
 

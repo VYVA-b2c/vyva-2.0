@@ -12006,6 +12006,79 @@ export default function MarketingAdminPage() {
     setActiveTab("dashboard");
   }
 
+  async function createContentAssetsFromTemplatePack(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+    if (!templates.length) {
+      const feedback = `${pack.title} has no templates to save.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    setContentSaving(true);
+    setContentActionFeedback(`Creating ${templates.length} ${pack.title} content asset${templates.length === 1 ? "" : "s"}...`);
+    setContentFeedback("");
+    setMessage(`Creating content assets from ${pack.title}...`);
+    try {
+      const created: ContentAsset[] = [];
+      for (const template of templates) {
+        const draft = contentDraftFromTemplate(template);
+        const response = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+          method: "POST",
+          body: JSON.stringify({
+            ...contentCreatePayloadFromDraft(draft),
+            source: "vyva",
+            lovableExternalId: null,
+            metadata: {
+              generatedFrom: "template_pack",
+              packId: pack.id,
+              packTitle: pack.title,
+              packFocus: pack.focus,
+              templateId: template.id,
+              templateTitle: template.title,
+              studioPlayId: pack.studioPlayId,
+              tone: pack.toneId,
+              angle: pack.angleId,
+              aiPrompt: pack.aiPrompt,
+            },
+          }),
+        });
+        created.push(response.content);
+      }
+
+      const firstCreated = created[0] ?? null;
+      const createdById = new Map(created.map((item) => [item.id, item]));
+      setContent((current) => [
+        ...createdById.values(),
+        ...current.filter((item) => !createdById.has(item.id)),
+      ]);
+      if (firstCreated) {
+        setSelectedContentId(firstCreated.id);
+        setEditingContentId(firstCreated.id);
+        setContentEditDraft(contentEditDraftFromContent(firstCreated));
+        setContentDrawerMode("edit");
+      }
+      setContentTemplatePackFilter(pack.id);
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+      const feedback = `Created ${created.length} ${pack.title} content asset${created.length === 1 ? "" : "s"}. ${firstCreated ? "First asset opened for review." : ""}`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+      await refreshAll();
+      scrollToContentPanel(contentEditorPanelRef);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : `${pack.title} content assets could not be created.`;
+      setContentActionFeedback(errorMessage);
+      setContentFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentSaving(false);
+    }
+  }
+
   function loadContentTemplatePackAsJourney(pack: ContentTemplatePack, heroTemplate: ContentTemplate | null) {
     const play = campaignStudioPlays.find((item) => item.id === pack.studioPlayId) ?? campaignStudioPlays[0];
     const audienceType = templatePackAudience(pack, heroTemplate, play);
@@ -17920,6 +17993,15 @@ export default function MarketingAdminPage() {
                             data-testid={`button-marketing-template-pack-studio-${pack.id}`}
                           >
                             <Sparkles size={14} /> Load pack in studio
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void createContentAssetsFromTemplatePack(pack, templates)}
+                            disabled={contentSaving || templates.length === 0}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                            data-testid={`button-marketing-template-pack-create-assets-${pack.id}`}
+                          >
+                            <FileText size={14} /> Create pack assets
                           </button>
                           <button
                             type="button"
