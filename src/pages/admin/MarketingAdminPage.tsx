@@ -2811,6 +2811,140 @@ const contentTemplateGallery: ContentTemplate[] = [
     },
     mediaAssets: [],
   },
+  {
+    id: "email-local-event-invite",
+    title: "Local event invite email",
+    category: "Local event",
+    audienceType: "both",
+    channel: "email",
+    description: "A complete email invite for a neighbourhood activity, partner session, or community support moment.",
+    subject: "{{event_name}} near {{area_name}}: a practical VYVA invite",
+    body: "Hi {{first_name}},\n\nWe found a local moment that may be useful: {{event_name}} near {{area_name}} on {{event_date}}.\n\nVYVA can help turn it into a simple plan: save the reminder, share it with the care team, and decide who should follow up before or after the event.\n\nIf this is relevant, reply or open the event details and we will help make the next step clear.",
+    htmlBody: "<h1>{{event_name}} near {{area_name}}</h1><p>Save the reminder, share it with the care team, and plan the next useful step.</p>",
+    ctaLabel: "View event details",
+    ctaUrl: "https://v2.vyva.life/social",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "email-local-event-invite",
+      category: "Local event",
+      layout: "email-local-event-card",
+      mergeFields: ["first_name", "event_name", "area_name", "event_date"],
+      blocks: [
+        { type: "eyebrow", text: "Local activity" },
+        { type: "headline", text: "{{event_name}} near {{area_name}}" },
+        { type: "body", text: "Turn a local event into a simple care-team plan." },
+        { type: "cta", label: "View event details" },
+      ],
+      visualPrompt: "accessible local community activity with older adults and families, warm practical VYVA tone",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "whatsapp-local-event-rsvp",
+    title: "Local event RSVP WhatsApp",
+    category: "Local event",
+    audienceType: "both",
+    channel: "whatsapp",
+    description: "A short RSVP and reminder message for families, caregivers, or partner contacts.",
+    subject: "",
+    body: "Hi {{first_name}}, {{event_name}} is happening near {{area_name}} on {{event_date}}. Reply yes if you want a reminder or help planning who should go / follow up.",
+    ctaLabel: "Reply yes",
+    ctaUrl: "https://v2.vyva.life/social",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "whatsapp-local-event-rsvp",
+      category: "Local event",
+      layout: "whatsapp-rsvp",
+      tone: "warm-practical",
+      mergeFields: ["first_name", "event_name", "area_name", "event_date"],
+      replyOptions: ["yes", "send details", "not this time"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "facebook-neighbourhood-event",
+    title: "Facebook neighbourhood event post",
+    category: "Local event",
+    audienceType: "both",
+    channel: "facebook",
+    description: "A public event post that explains why a local activity matters for families and care teams.",
+    subject: "",
+    body: "A useful local activity can do more than fill a calendar. It can create a reason to check in, plan support, and keep care feeling connected.\n\n{{event_name}} is coming up near {{area_name}}. Use VYVA to save the reminder, share the plan, and decide the next useful follow-up.",
+    ctaLabel: "Save the activity",
+    ctaUrl: "https://v2.vyva.life/social",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "facebook-neighbourhood-event",
+      category: "Local event",
+      layout: "facebook-event-story",
+      visualPrompt: "local neighbourhood event poster for families and older adults, clear accessible design",
+      proofPoint: "events become care-team touchpoints",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "instagram-event-story-sequence",
+    title: "Instagram event story sequence",
+    category: "Local event",
+    audienceType: "both",
+    channel: "instagram",
+    description: "A story/carousel sequence that turns an activity into a visual local campaign.",
+    subject: "",
+    body: "Story 1: Something local worth saving.\nStory 2: {{event_name}} near {{area_name}}.\nStory 3: Save it, share it, decide who follows up.\nStory 4: VYVA helps turn the event into one clear care-team step.",
+    ctaLabel: "Save and share",
+    ctaUrl: "https://v2.vyva.life/social",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "instagram-event-story-sequence",
+      category: "Local event",
+      layout: "instagram-story-sequence",
+      slides: ["Something local worth saving", "{{event_name}}", "Save it", "Share the next step"],
+      visualPrompt: "warm local event story sequence with accessible type and VYVA purple accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "linkedin-community-partner-invite",
+    title: "LinkedIn community partner invite",
+    category: "Local event",
+    audienceType: "b2b",
+    channel: "linkedin",
+    description: "A partner-facing local event post for providers, venues, and community organizations.",
+    subject: "",
+    body: "Local activities can become stronger care pathways when partners know how families will discover, save, and follow up on them.\n\nVYVA helps connect community moments like {{event_name}} with practical reminders, care-team context, and relationship follow-up.",
+    ctaLabel: "Discuss a community pathway",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "linkedin-community-partner-invite",
+      category: "Local event",
+      layout: "linkedin-community-partner-post",
+      proofPoint: "community moments become care pathways",
+      visualPrompt: "professional local care partnership around community activity planning",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "tiktok-event-day-script",
+    title: "TikTok event day script",
+    category: "Local event",
+    audienceType: "both",
+    channel: "tiktok",
+    description: "A short video script for showing how a local activity becomes a care-team action.",
+    subject: "",
+    body: "Hook: A local event is not just something to attend. It can be a care check-in.\n\nBeat 1: Find {{event_name}} near {{area_name}}.\nBeat 2: Save the reminder in VYVA.\nBeat 3: Share who is going and who should follow up.\nBeat 4: After the event, log what happened and the next useful step.",
+    ctaLabel: "Plan the next step",
+    ctaUrl: "https://v2.vyva.life/social",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "tiktok-event-day-script",
+      category: "Local event",
+      layout: "short-video-event-day",
+      beats: ["event as check-in", "save reminder", "share care-team plan", "log follow-up"],
+      visualPrompt: "quick local event planning video with calm family care workflow",
+    },
+    mediaAssets: [],
+  },
 ];
 
 const contentTemplatePacks: ContentTemplatePack[] = [
@@ -2884,6 +3018,32 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day -1", channel: "whatsapp", title: "Reminder", detail: "Send a practical reminder with time, place, and CTA.", templateId: "whatsapp-event-reminder" },
     ],
     aiPrompt: "Localize this community pack for one city, one neighbourhood, and one practical event CTA.",
+  },
+  {
+    id: "local-event-relationship",
+    title: "Local event relationship",
+    focus: "Turn a discovered local activity into invitations, reminders, partner posts, and relationship follow-up.",
+    description: "A complete six-channel pack for local event discovery, RSVP nudges, neighbourhood social posts, partner handoff, and post-event next steps.",
+    templateIds: [
+      "email-local-event-invite",
+      "whatsapp-local-event-rsvp",
+      "facebook-neighbourhood-event",
+      "instagram-event-story-sequence",
+      "linkedin-community-partner-invite",
+      "tiktok-event-day-script",
+    ],
+    heroTemplateId: "email-local-event-invite",
+    studioPlayId: "local-event",
+    toneId: "uplifting",
+    angleId: "local",
+    sequence: [
+      { offset: "Week -2", channel: "facebook", title: "Public local invite", detail: "Make the event visible and useful for nearby families and partners.", templateId: "facebook-neighbourhood-event" },
+      { offset: "Week -1", channel: "email", title: "Care-team invite", detail: "Send the practical invite with event, area, reminder, and care-team next step.", templateId: "email-local-event-invite" },
+      { offset: "Day -2", channel: "instagram", title: "Story sequence", detail: "Turn the activity into a visual reminder people can save and share.", templateId: "instagram-event-story-sequence" },
+      { offset: "Day -1", channel: "whatsapp", title: "RSVP reminder", detail: "Ask for a simple yes/reply so follow-up has a contact signal.", templateId: "whatsapp-local-event-rsvp" },
+      { offset: "Day 1", channel: "linkedin", title: "Partner handoff", detail: "Share the partner angle and invite a community pathway conversation.", templateId: "linkedin-community-partner-invite" },
+    ],
+    aiPrompt: "Adapt this local event relationship pack for a specific country, city, neighbourhood, event type, audience, and care-team next step. Keep the online campaign, partner handoff, and post-event follow-up aligned.",
   },
   {
     id: "retention-feedback",
@@ -3961,6 +4121,7 @@ function templatePackTriggerType(pack: ContentTemplatePack) {
   if (pack.id === "family-onboarding") return "signup_or_invite_sent";
   if (pack.id === "partner-growth") return "list_joined";
   if (pack.id === "local-community") return "event_interest";
+  if (pack.id === "local-event-relationship") return "local_event_discovered";
   if (pack.id === "retention-feedback") return "inactive_30_days";
   if (pack.id === "social-launch") return "campaign_launch";
   return "manual_add";
@@ -3970,6 +4131,7 @@ function templatePackGoalType(pack: ContentTemplatePack) {
   if (pack.id === "family-onboarding") return "profile_completed";
   if (pack.id === "partner-growth") return "reply";
   if (pack.id === "local-community") return "event_response";
+  if (pack.id === "local-event-relationship") return "event_rsvp_or_followup";
   if (pack.id === "retention-feedback") return "feedback_or_reply";
   if (pack.id === "social-launch") return "engagement";
   return "reviewed";
