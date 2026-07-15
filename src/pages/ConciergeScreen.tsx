@@ -813,6 +813,11 @@ interface AppointmentRequestResponse {
   mission?: AppointmentMissionState;
 }
 
+interface AppointmentOptionResponse {
+  option: AppointmentProviderOption;
+  mission?: AppointmentMissionState;
+}
+
 interface AppointmentErrorBody {
   error?: string;
   code?: string;
@@ -1872,6 +1877,36 @@ async function discoverAppointmentOptions(params: {
     throw new AppointmentRequestError(data.error ?? "Could not look for appointment options", res.status, data.code, data.nextRoute);
   }
   return await res.json() as AppointmentRequestResponse;
+}
+
+async function addAppointmentBookingSiteOption(params: {
+  requestId: string;
+  system: NonNullable<AppointmentDiscoveryMeta["reservation_systems"]>[number];
+}): Promise<AppointmentOptionResponse> {
+  const res = await apiFetch(`/api/appointments/requests/${params.requestId}/options`, {
+    method: "POST",
+    body: JSON.stringify({
+      provider_source: "external",
+      provider_snapshot: {
+        source: "reservation_system",
+        name: params.system.name,
+        category: params.system.category,
+        booking_url: params.system.url,
+        url: params.system.url,
+        preferred_channel: "booking_url",
+        notes: "Booking-site fallback prepared for Concierge review.",
+      },
+      match_reason: "Booking-site fallback. VYVA will review before opening or submitting any form.",
+      available_channels: ["booking_url", "manual"],
+      rank: 40,
+      select: true,
+    }),
+  });
+  if (!res.ok) {
+    const data = await readAppointmentErrorBody(res);
+    throw new AppointmentRequestError(data.error ?? "Could not prepare booking site", res.status, data.code, data.nextRoute);
+  }
+  return await res.json() as AppointmentOptionResponse;
 }
 
 async function confirmAppointmentAttempt(params: {
@@ -8093,7 +8128,6 @@ const ConciergeScreen = () => {
       setAppointmentOptions([]);
       setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
-      setAppointmentMission(null);
       setAppointmentAttemptResult(null);
       setAppointmentOpen(false);
       scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" });
@@ -8270,6 +8304,29 @@ const ConciergeScreen = () => {
         return;
       }
       setAppointmentError(appointmentErrorMessage(error, isSpanish, isSpanish ? "No he podido buscar opciones." : "I could not look for options."));
+    },
+  });
+
+  const addAppointmentBookingSiteMutation = useMutation({
+    mutationFn: addAppointmentBookingSiteOption,
+    onMutate: () => {
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+    },
+    onSuccess: (result) => {
+      setAppointmentOptions((current) => {
+        const withoutDuplicate = current.filter((option) => option.id !== result.option.id);
+        return [result.option, ...withoutDuplicate];
+      });
+      setSelectedAppointmentOptionId(result.option.id);
+      setAppointmentNotice(isSpanish
+        ? "Sitio de reserva preparado. Confirma antes de que VYVA abra o envie el formulario."
+        : "Booking site prepared. Confirm before VYVA opens or submits the form.");
+    },
+    onError: (error) => {
+      setAppointmentError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido preparar el sitio de reserva." : "I could not prepare the booking site."));
     },
   });
 
@@ -14471,15 +14528,20 @@ const ConciergeScreen = () => {
                 {appointmentDiscovery?.reservation_systems?.length && appointmentOptions.length === 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2" data-testid="panel-appointment-booking-sites">
                     {appointmentDiscovery.reservation_systems.slice(0, 3).map((system) => (
-                      <a
+                      <button
                         key={`${system.name}-${system.url}`}
-                        href={system.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="vyva-tap inline-flex min-h-[38px] items-center justify-center rounded-full border border-[#FCD34D] bg-white px-3 font-body text-[12px] font-black text-[#92400E]"
+                        type="button"
+                        onClick={() => appointmentRequest && addAppointmentBookingSiteMutation.mutate({
+                          requestId: appointmentRequest.id,
+                          system,
+                        })}
+                        disabled={!appointmentRequest || addAppointmentBookingSiteMutation.isPending}
+                        data-testid={`button-appointment-booking-site-${testIdSlug(system.name)}`}
+                        className="vyva-tap inline-flex min-h-[38px] items-center justify-center rounded-full border border-[#FCD34D] bg-white px-3 font-body text-[12px] font-black text-[#92400E] disabled:opacity-60"
                       >
+                        {addAppointmentBookingSiteMutation.isPending ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <ShieldCheck size={13} className="mr-1.5" />}
                         {system.name}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 ) : null}
