@@ -936,8 +936,10 @@ describe("ConciergeScreen action hub", () => {
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-2/discover-options", expect.objectContaining({ method: "POST" }));
   });
 
-  it("shows reservation-system fallbacks when external provider discovery has no result", async () => {
-    apiFetchMock.mockImplementation(async (url) => {
+  it("gates reservation-system fallbacks through an appointment confirmation", async () => {
+    let addedOptionBody: Record<string, unknown> | null = null;
+    let confirmBody: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.includes("/api/appointments/requests/request-3/discover-options")) {
         return jsonResponse({
@@ -961,6 +963,41 @@ describe("ConciergeScreen action hub", () => {
           },
         });
       }
+      if (target.includes("/api/appointments/requests/request-3/options")) {
+        addedOptionBody = JSON.parse(String(init?.body));
+        return jsonResponse({
+          option: {
+            id: "option-doctoralia",
+            provider_id: null,
+            provider_source: "external",
+            provider_snapshot: {
+              source: "reservation_system",
+              name: "Doctoralia",
+              category: "medical_marketplace",
+              booking_url: "https://www.google.com/search?q=doctoralia",
+              preferred_channel: "booking_url",
+            },
+            match_reason: "Booking-site fallback. VYVA will review before opening or submitting any form.",
+            available_channels: ["booking_url", "manual"],
+            rank: 40,
+            status: "selected",
+          },
+        });
+      }
+      if (target.includes("/api/appointments/requests/request-3/confirm-attempt")) {
+        confirmBody = JSON.parse(String(init?.body));
+        return jsonResponse({
+          attempt: { id: "attempt-doctoralia", channel: "booking_url", status: "form_task_queued" },
+          form_task: {
+            status: "needs_operator",
+            booking_url: "https://www.google.com/search?q=doctoralia",
+            pending_id: "pending-doctoralia",
+          },
+          pending: { pendingId: "pending-doctoralia", status: "queued" },
+          needs_booking_confirmation: true,
+          handled_by_vyva: true,
+        });
+      }
       if (target.endsWith("/api/appointments/requests")) {
         return jsonResponse({
           request: {
@@ -982,8 +1019,36 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
     fireEvent.click(await screen.findByTestId("button-appointment-discover-options"));
 
-    expect(await screen.findByTestId("panel-appointment-booking-sites")).toHaveTextContent("Doctoralia");
-    expect(screen.getByTestId("panel-appointment-booking-sites")).toHaveTextContent("Top Doctors");
+    const fallbackPanel = await screen.findByTestId("panel-appointment-booking-sites");
+    expect(fallbackPanel).toHaveTextContent("Doctoralia");
+    expect(fallbackPanel).toHaveTextContent("Top Doctors");
+    expect(within(fallbackPanel).queryByRole("link", { name: /Doctoralia/i })).not.toBeInTheDocument();
+    expect(confirmBody).toBeNull();
+
+    fireEvent.click(screen.getByTestId("button-appointment-booking-site-doctoralia"));
+
+    expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Doctoralia");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm before VYVA acts");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Contact route: VYVA fills form");
+    expect(addedOptionBody).toMatchObject({
+      provider_source: "external",
+      provider_snapshot: expect.objectContaining({
+        source: "reservation_system",
+        name: "Doctoralia",
+        booking_url: "https://www.google.com/search?q=doctoralia",
+        preferred_channel: "booking_url",
+      }),
+      available_channels: ["booking_url", "manual"],
+      select: true,
+    });
+
+    expect(confirmBody).toBeNull();
+    fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
+
+    await waitFor(() => {
+      expect(confirmBody).toEqual({ option_id: "option-doctoralia", channel: "booking_url" });
+    });
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
   });
 
   it("renders compact protected savings results with expandable proof and watch confirmation", async () => {
