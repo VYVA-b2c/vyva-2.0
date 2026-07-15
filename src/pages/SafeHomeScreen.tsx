@@ -20,6 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
+import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
+import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -30,11 +32,11 @@ import type { ShoppingPriority } from "../../shared/shopping";
 import { languageText } from "../../shared/language";
 import {
   SHOW_VYVA_USE_CASE_IDS,
-  buildShowVyvaConciergePrefill,
   type ShowVyvaCaptureSource,
   type ShowVyvaPastePayload,
+  type ShowVyvaUseCaseId,
 } from "../../shared/showVyvaFlow";
-import { showVyvaReviewContractFromSafeHomeResult } from "../../shared/showVyvaReviewContract";
+import { showVyvaReviewContractFromSafeHomeResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
 import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
 
 type HomeScan = {
@@ -52,6 +54,13 @@ export type SafeHomeActionScan = {
   resultTitle: string;
   hazards?: string[];
   advice?: string;
+};
+
+type ShowVyvaFileReviewInput = {
+  useCaseId: ShowVyvaUseCaseId;
+  source: Extract<ShowVyvaCaptureSource, "camera" | "upload">;
+  fileName?: string | null;
+  mimeType?: string | null;
 };
 
 type SafeHomeShoppingState = {
@@ -297,9 +306,14 @@ const SafeHomeScreen = () => {
     hazards: string[];
     advice: string;
   }>(null);
+  const [showVyvaPasteReview, setShowVyvaPasteReview] = useState<ShowVyvaPastePayload | null>(null);
   const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
   const [fullScreenScan, setFullScreenScan] = useState<HomeScan | null>(null);
   const [homeScanCaptureSource, setHomeScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
+  const [homeScanReviewInput, setHomeScanReviewInput] = useState<ShowVyvaFileReviewInput>({
+    useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+    source: "camera",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const {
     action: safetyVoiceAction,
@@ -371,6 +385,12 @@ const SafeHomeScreen = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    setHomeScanReviewInput((current) => ({
+      ...current,
+      fileName: file.name,
+      mimeType: file.type,
+    }));
+    setShowVyvaPasteReview(null);
     setResult(null);
     setAnalyzing(true);
 
@@ -411,23 +431,71 @@ const SafeHomeScreen = () => {
       });
   };
 
-  const openHomeScanFilePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+  const openHomeScanFilePicker = (
+    source: Extract<ShowVyvaCaptureSource, "camera" | "upload">,
+    useCaseId: ShowVyvaUseCaseId = SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+  ) => {
     setHomeScanCaptureSource(source);
+    setHomeScanReviewInput({
+      useCaseId,
+      source,
+      fileName: null,
+      mimeType: null,
+    });
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
   const openPastedHomeReview = (payload: ShowVyvaPastePayload) => {
-    navigate("/concierge", {
-      state: {
-        conciergePrefill: buildShowVyvaConciergePrefill(payload, language),
-      },
-    });
+    setResult(null);
+    setShowVyvaPasteReview(payload);
   };
 
-  const resultColors = result ? getRiskColors(result.riskLevel) : null;
-  const ResultIcon = resultColors?.icon ?? CheckCircle;
   const caregiverName = profile?.caregiverName?.trim() || t("safeHome.actions.caregiverFallback", "care team");
   const caregiverHref = sanitizePhoneHref(profile?.caregiverContact);
+
+  const handleSafeHomeReviewAction = (
+    action: Parameters<typeof buildShowVyvaActionExecutionPlan>[0]["action"],
+    reviewContract: ShowVyvaReviewContract,
+    actionScan?: SafeHomeActionScan,
+  ) => {
+    if (action.id === "call_care_team" && !caregiverHref) {
+      navigate("/onboarding/profile/care-team");
+      return;
+    }
+    const plan = buildShowVyvaActionExecutionPlan({
+      contract: reviewContract,
+      action,
+      language,
+      sourceRoute: "/safe-home",
+      target: action.id === "call_care_team"
+        ? { name: caregiverName, phone: profile?.caregiverContact, relationship: "care_team" }
+        : undefined,
+    });
+    const stateScan = actionScan ?? {
+      resultTitle: reviewContract.concernSummary,
+      hazards: reviewContract.noticed,
+      advice: reviewContract.safeNextSteps.join(" "),
+    };
+
+    void saveShowVyvaActionExecutionPlan(plan)
+      .then(async () => {
+        await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+        toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+        setResult(null);
+        setShowVyvaPasteReview(null);
+        if (action.id === "mark_safe_now") return;
+        navigate(plan.targetRoute, {
+          state: action.id === "buy_safety_aid"
+            ? safeHomeShoppingState(stateScan, language)
+            : action.id === "request_quote"
+              ? safeHomeQuoteState(stateScan, language)
+              : undefined,
+        });
+      })
+      .catch(() => {
+        toast({ description: t("showVyva.executor.error", "I could not save that step. Please try again.") });
+      });
+  };
 
   const renderServiceActions = (scan: SafeHomeActionScan, testIdSuffix: string) => {
     const reviewContract = showVyvaReviewContractFromSafeHomeResult({
@@ -661,7 +729,7 @@ const SafeHomeScreen = () => {
                 SHOW_VYVA_USE_CASE_IDS.documentHelp,
               ]}
               busy={analyzing}
-              onChooseFileSource={(source) => openHomeScanFilePicker(source)}
+              onChooseFileSource={(source, useCase) => openHomeScanFilePicker(source, useCase.id)}
               onPaste={(payload) => openPastedHomeReview(payload)}
             />
 
@@ -684,69 +752,54 @@ const SafeHomeScreen = () => {
               </div>
             )}
 
-            {/* Result */}
-            {result && !analyzing && (
-              <div
-                data-testid="section-home-scan-result"
-                className="mt-[14px] rounded-[14px] p-[16px] mb-[14px]"
-                style={{ background: resultColors!.bg }}
-              >
-                <div className="flex items-center gap-[8px] mb-[8px]">
-                  <ResultIcon size={18} style={{ color: resultColors!.text }} />
-                  <span
-                    data-testid="text-home-scan-risk"
-                    className="font-body text-[13px] font-semibold"
-                    style={{ color: resultColors!.text }}
-                  >
-                    {t(riskLabelKey(result.riskLevel), result.riskLevel)}
-                  </span>
-                </div>
-                <p
-                  data-testid="text-home-scan-result-title"
-                  className="font-body text-[15px] font-semibold text-vyva-text-1 mb-[6px]"
-                >
-                  {result.resultTitle}
-                </p>
-                {result.hazards.length > 0 && (
-                  <div className="mb-[10px]">
-                    <p
-                      className="font-body text-[11px] font-semibold uppercase tracking-wide mb-[6px]"
-                      style={{ color: "#7C3AED" }}
-                    >
-                      {t("safeHome.hazardsFound", "Hazards Spotted")}
-                    </p>
-                    <ul className="space-y-[4px]">
-                      {result.hazards.map((h, i) => (
-                        <li
-                          key={i}
-                          data-testid={`text-home-scan-hazard-${i}`}
-                          className="flex items-start gap-[6px]"
-                        >
-                          <AlertTriangle
-                            size={12}
-                            style={{ color: "#C9890A", marginTop: 2, flexShrink: 0 }}
-                          />
-                          <span className="font-body text-[13px] text-vyva-text-1">{h}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <p
-                  className="font-body text-[11px] font-semibold uppercase tracking-wide mb-[4px]"
-                  style={{ color: "#7C3AED" }}
-                >
-                  {t("safeHome.advice", "Safety Advice")}
-                </p>
-                <p
-                  data-testid="text-home-scan-advice"
-                  className="font-body text-[13px] text-vyva-text-1 leading-snug"
-                >
-                  {result.advice}
-                </p>
-                {renderServiceActions(result, "current")}
-              </div>
+            {showVyvaPasteReview && (
+              <ShowVyvaPastedReviewResult
+                payload={showVyvaPasteReview}
+                testIdSuffix="home-pasted"
+                onActionSelect={handleSafeHomeReviewAction}
+                onClose={() => setShowVyvaPasteReview(null)}
+              />
             )}
+
+            {/* Result */}
+            {result && !analyzing && (() => {
+              const reviewContract = showVyvaReviewContractFromSafeHomeResult({
+                useCaseId: homeScanReviewInput.useCaseId,
+                source: homeScanReviewInput.source,
+                fileName: homeScanReviewInput.fileName,
+                mimeType: homeScanReviewInput.mimeType,
+                followUpContext: homeScanReviewInput.useCaseId === SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto ? "home_safety" : undefined,
+              }, result);
+              const isHomeSafetyReview = reviewContract.followUpContext === "home_safety";
+              const resultActions = reviewContract.followUpActions.map((action) => {
+                if (action.id !== "call_care_team") return action;
+                if (caregiverHref) {
+                  return {
+                    ...action,
+                    label: t("safeHome.actions.callCaregiver", "Call {{name}}", { name: caregiverName }),
+                    detail: t("safeHome.actions.callCaregiverSub", "Share the safety concern now."),
+                  };
+                }
+                return {
+                  ...action,
+                  label: t("safeHome.actions.addCaregiver", "Add care team"),
+                  detail: t("safeHome.actions.addCaregiverSub", "Save someone to call from safety checks."),
+                };
+              });
+              return (
+                <div data-testid="section-home-scan-result" className="mt-[14px] mb-[14px]">
+                  <ShowVyvaResultCard
+                    contract={reviewContract}
+                    testIdSuffix="home-current"
+                    reviewedLabel={isHomeSafetyReview ? t("showVyva.contract.input.home_safety_photo", "Home-safety photo or concern") : undefined}
+                    thinkingLabel={result.advice || result.resultTitle}
+                    actions={resultActions}
+                    actionSubtitle={isHomeSafetyReview ? t("showVyva.followUp.subtitle.home_safety", "Choose one practical step. VYVA asks before buying, booking, or calling.") : undefined}
+                    onActionSelect={(action) => handleSafeHomeReviewAction(action, reviewContract, result)}
+                  />
+                </div>
+              );
+            })()}
 
             {/* Upload button */}
             <input

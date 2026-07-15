@@ -99,7 +99,10 @@ function flowForAction(actionId: ShowVyvaFollowUpActionId, context: ShowVyvaRevi
     case "draft_reply":
     case "prepare_call":
       return CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
+    case "forward_email":
     case "check_company":
+    case "check_number":
+    case "check_link":
     case "call_trusted_contact":
     case "save_report":
     case "scam_concierge":
@@ -116,7 +119,15 @@ function flowForAction(actionId: ShowVyvaFollowUpActionId, context: ShowVyvaRevi
 }
 
 function executorUseCaseForFlow(actionId: ShowVyvaFollowUpActionId, flow: ConciergeFlowReference): ShowVyvaExecutorUseCase {
-  if (actionId === "check_company" || actionId === "save_report" || actionId === "scam_concierge" || actionId === "call_trusted_contact") return "scam_check";
+  if (
+    actionId === "check_company" ||
+    actionId === "check_number" ||
+    actionId === "check_link" ||
+    actionId === "forward_email" ||
+    actionId === "save_report" ||
+    actionId === "scam_concierge" ||
+    actionId === "call_trusted_contact"
+  ) return "scam_check";
   if (actionId === "request_quote" || actionId === "call_care_team" || flow === CONCIERGE_FLOW_REFERENCES.homeService) return "home_service";
   if (flow === CONCIERGE_FLOW_REFERENCES.transportBooking) return "book_ride";
   if (flow === CONCIERGE_FLOW_REFERENCES.otcPharmacy) return "order_medicine";
@@ -136,10 +147,13 @@ function toolForAction(actionId: ShowVyvaFollowUpActionId): ConciergeToolRequire
       return "phone_call";
     case "email_gp":
     case "draft_reply":
+    case "forward_email":
       return "email";
     case "schedule_appointment":
       return "booking_link";
     case "check_company":
+    case "check_number":
+    case "check_link":
     case "check_reputation":
       return "web_search";
     default:
@@ -208,6 +222,226 @@ function draftMessageForAction(action: ShowVyvaFollowUpAction, contract: ShowVyv
   ].filter(Boolean).join("\n\n");
 }
 
+function reviewedText(contract: ShowVyvaReviewContract): string {
+  return clean(contract.reviewedValue) || clean(contract.concernSummary) || "Show VYVA review";
+}
+
+function executionGuideForAction(
+  action: ShowVyvaFollowUpAction,
+  contract: ShowVyvaReviewContract,
+): { flow: string; nextQuestion: string; requiredDetails: string[]; guideSteps: string[]; actionScope: string } {
+  const reviewed = reviewedText(contract);
+  switch (action.id) {
+    case "pharmacist_questions":
+    case "medicine_safety":
+      return {
+        flow: "health_medicine_review",
+        nextQuestion: "Which medicine or OTC item should VYVA prepare help with?",
+        requiredDetails: ["Item name or label", "What the user wants to ask", "Saved pharmacy if contact is needed"],
+        guideSteps: ["Clarify the item.", "Prepare a pharmacist-safe question.", "Confirm before any pharmacy contact."],
+        actionScope: reviewed,
+      };
+    case "summarize_document":
+    case "draft_reply":
+    case "forward_email":
+    case "prepare_call":
+      return {
+        flow: action.id === "forward_email" ? "scam_email_forward_review" : "document_or_message_review",
+        nextQuestion: action.id === "prepare_call"
+          ? "Who is the call for, and what should VYVA prepare?"
+          : "Who should receive the draft, if anything needs to be sent?",
+        requiredDetails: ["Recipient or organization", "What needs to be said", "Final confirmation before sending or calling"],
+        guideSteps: ["Summarize the important points.", "Prepare a draft or call notes.", "Wait for final user confirmation."],
+        actionScope: reviewed,
+      };
+    case "buy_safety_aid":
+      return {
+        flow: "safe_home_safety_item",
+        nextQuestion: "What safety item should VYVA help compare?",
+        requiredDetails: ["Item needed", "Room or place at home", "Budget, access, and delivery preference"],
+        guideSteps: ["Clarify the item.", "Compare safe options.", "Confirm before buying or sharing details."],
+        actionScope: reviewed,
+      };
+    case "request_quote":
+      return {
+        flow: "safe_home_quote_request",
+        nextQuestion: "What home help is needed, and where?",
+        requiredDetails: ["Problem summary", "Home area or address", "Preferred time and contact method"],
+        guideSteps: ["Prepare the quote request.", "Check provider readiness.", "Confirm before any provider contact."],
+        actionScope: reviewed,
+      };
+    case "call_care_team":
+    case "mark_safe_now":
+      return {
+        flow: "safe_home_care_team_note",
+        nextQuestion: "Who should know about this, if anyone?",
+        requiredDetails: ["Care contact", "Short concern summary", "Whether the issue is handled now"],
+        guideSteps: ["Turn the scan into a simple note.", "Choose the contact.", "Confirm before calling or sharing."],
+        actionScope: reviewed,
+      };
+    case "check_number":
+      return {
+        flow: "scam_phone_number_check",
+        nextQuestion: "Should VYVA check this number for warning signs?",
+        requiredDetails: ["Phone number", "Message or context", "Whether anyone has already replied"],
+        guideSteps: ["Search for public warning signs.", "Summarize the safest next step.", "Do not call back without confirmation."],
+        actionScope: reviewed,
+      };
+    case "check_link":
+      return {
+        flow: "scam_link_check",
+        nextQuestion: "Should VYVA check this link before it is opened?",
+        requiredDetails: ["Link", "Who sent it", "What it asks the user to do"],
+        guideSteps: ["Check the link reputation.", "Look for pressure or payment requests.", "Do not open or submit details without confirmation."],
+        actionScope: reviewed,
+      };
+    case "check_company":
+    case "check_reputation":
+      return {
+        flow: "provider_or_company_reputation_check",
+        nextQuestion: "Which company, seller, or service should VYVA check?",
+        requiredDetails: ["Name or website", "Location if relevant", "Price, reputation, and access criteria"],
+        guideSteps: ["Search public trust signals.", "Compare risk and fit.", "Confirm before contacting anyone."],
+        actionScope: reviewed,
+      };
+    case "save_report":
+      return {
+        flow: "scam_evidence_save",
+        nextQuestion: "What should VYVA keep as evidence?",
+        requiredDetails: ["Suspicious message or document", "Date or sender if known", "Whether the user wants to report it later"],
+        guideSteps: ["Save the evidence summary.", "Keep it private.", "Ask before sharing with anyone."],
+        actionScope: reviewed,
+      };
+    case "compare_price":
+    case "compare_proximity":
+    case "check_terms":
+      return {
+        flow: "provider_deal_comparison",
+        nextQuestion: "What matters most for this comparison?",
+        requiredDetails: ["Offer or provider", "Price and location", "Reputation, access, and terms"],
+        guideSteps: ["Compare the deal.", "Flag hidden terms.", "Confirm before contacting or buying."],
+        actionScope: reviewed,
+      };
+    default:
+      return {
+        flow: "guided_show_vyva_follow_up",
+        nextQuestion: "What would you like VYVA to do next?",
+        requiredDetails: ["Goal", "Preferred contact method", "Final confirmation before action"],
+        guideSteps: ["Clarify the next step.", "Prepare it safely.", "Wait for final user confirmation."],
+        actionScope: reviewed,
+      };
+  }
+}
+
+function payloadDetailsForAction(
+  action: ShowVyvaFollowUpAction,
+  contract: ShowVyvaReviewContract,
+  target: ShowVyvaActionTarget | null | undefined,
+  draftMessage: string,
+): Record<string, unknown> {
+  const reviewed = reviewedText(contract);
+  const targetEmail = clean(target?.email);
+  const targetPhone = clean(target?.phone);
+  const common = {
+    reviewed_item: reviewed,
+    user_detail: reviewed,
+    notes: clean(contract.concernSummary) || reviewed,
+  };
+
+  switch (action.id) {
+    case "pharmacist_questions":
+    case "medicine_safety":
+      return {
+        ...common,
+        item_text: reviewed,
+        item_category: "otc_or_medicine_review",
+        fulfillment_preference: "ask_first",
+        requested_time: "when convenient",
+        pharmacist_question: clean(contract.concernSummary) || reviewed,
+      };
+    case "summarize_document":
+      return {
+        ...common,
+        document_type: contract.inputType,
+        document_summary_request: reviewed,
+      };
+    case "draft_reply":
+    case "forward_email":
+      return {
+        ...common,
+        recipient_email: targetEmail || null,
+        email_subject: action.id === "forward_email" ? "Please help me check this safely" : `Draft reply: ${reviewed.slice(0, 60)}`,
+        email_body: draftMessage,
+        message_body: draftMessage,
+      };
+    case "prepare_call":
+      return {
+        ...common,
+        contact_phone: targetPhone || null,
+        call_script: draftMessage,
+      };
+    case "buy_safety_aid":
+      return {
+        ...common,
+        item_text: reviewed,
+        shopping_category: "safe_home_item",
+        criteria: ["safety", "price", "delivery", "ease_of_use"],
+      };
+    case "request_quote":
+      return {
+        ...common,
+        service_needed: reviewed,
+        problem_summary: clean(contract.concernSummary) || reviewed,
+        service_location: "home",
+      };
+    case "call_care_team":
+      return {
+        ...common,
+        care_team_note: draftMessage,
+        contact_phone: targetPhone || null,
+      };
+    case "check_number":
+      return {
+        ...common,
+        phone_number: reviewed,
+        search_query: `${reviewed} scam warning reputation`,
+        scam_check_type: "phone_number",
+      };
+    case "check_link":
+      return {
+        ...common,
+        url: reviewed,
+        search_query: `${reviewed} scam warning link safety`,
+        scam_check_type: "link",
+      };
+    case "check_company":
+    case "check_reputation":
+      return {
+        ...common,
+        company_name: reviewed,
+        search_query: `${reviewed} reputation reviews complaints scam`,
+        scam_check_type: "company_or_provider",
+      };
+    case "save_report":
+      return {
+        ...common,
+        evidence_summary: draftMessage,
+        report_status: "saved_private",
+      };
+    case "compare_price":
+    case "compare_proximity":
+    case "check_terms":
+      return {
+        ...common,
+        provider_search_query: reviewed,
+        search_query: reviewed,
+        criteria: ["price", "proximity", "reputation", "terms"],
+      };
+    default:
+      return common;
+  }
+}
+
 export function buildShowVyvaActionExecutionPlan(input: ShowVyvaActionExecutorInput): ShowVyvaActionExecutionPlan {
   const flowReference = flowForAction(input.action.id, input.contract.context, input.contract.conciergeFlow);
   const useCase = executorUseCaseForFlow(input.action.id, flowReference);
@@ -217,14 +451,20 @@ export function buildShowVyvaActionExecutionPlan(input: ShowVyvaActionExecutorIn
   const language = clean(input.language);
   const summary = summaryForAction(input.action, input.contract).slice(0, 500);
   const draftMessage = draftMessageForAction(input.action, input.contract);
+  const executionGuide = executionGuideForAction(input.action, input.contract);
+  const actionDetails = payloadDetailsForAction(input.action, input.contract, input.target, draftMessage);
 
   const actionPayload: Record<string, unknown> = {
+    ...actionDetails,
     flow_reference: flowReference,
     show_vyva_action_id: input.action.id,
     show_vyva_context: input.contract.context,
     show_vyva_follow_up_context: input.contract.followUpContext,
     show_vyva_input_type: input.contract.inputType,
     show_vyva_source: input.contract.source,
+    show_vyva_reviewed_value: clean(input.contract.reviewedValue) || null,
+    show_vyva_file_name: clean(input.contract.fileName) || null,
+    show_vyva_mime_type: clean(input.contract.mimeType) || null,
     source_route: clean(input.sourceRoute) || null,
     review_summary: input.contract.concernSummary,
     risk_level: input.contract.riskLevel,
@@ -240,6 +480,11 @@ export function buildShowVyvaActionExecutionPlan(input: ShowVyvaActionExecutorIn
     booking_url: clean(input.target?.bookingUrl) || null,
     target_relationship: clean(input.target?.relationship) || null,
     draft_message: draftMessage,
+    show_vyva_execution_flow: executionGuide.flow,
+    show_vyva_next_question: executionGuide.nextQuestion,
+    show_vyva_required_details: executionGuide.requiredDetails,
+    show_vyva_guided_steps: executionGuide.guideSteps,
+    show_vyva_action_scope: executionGuide.actionScope,
     confirmation_required_before_action: true,
     no_external_action_without_confirmation: true,
     final_confirmation_rule: input.contract.finalConfirmationRule,

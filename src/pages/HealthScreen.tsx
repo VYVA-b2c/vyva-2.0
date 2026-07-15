@@ -46,7 +46,9 @@ import MasterDashboardLayout, {
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
-import ShowVyvaFollowUpPanel, { type ShowVyvaFollowUpAction } from "@/components/ShowVyvaFollowUpPanel";
+import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
+import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
+import type { ShowVyvaFollowUpAction } from "@/components/ShowVyvaFollowUpPanel";
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -65,9 +67,9 @@ import {
 } from "../../shared/vitalsSignalCatalog";
 import {
   SHOW_VYVA_USE_CASE_IDS,
-  buildShowVyvaConciergePrefill,
   type ShowVyvaCaptureSource,
   type ShowVyvaPastePayload,
+  type ShowVyvaUseCaseId,
 } from "../../shared/showVyvaFlow";
 import { showVyvaReviewContractFromHealthResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
 import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
@@ -102,6 +104,13 @@ type VisualScanResult = {
   uncertainty?: string[];
   recommendedNextStep?: string;
   isFallback?: boolean;
+};
+
+type ShowVyvaFileReviewInput = {
+  useCaseId: ShowVyvaUseCaseId;
+  source: Extract<ShowVyvaCaptureSource, "camera" | "upload">;
+  fileName?: string | null;
+  mimeType?: string | null;
 };
 
 type TriageReport = {
@@ -660,7 +669,7 @@ export function VisualHealthScanCardContent({
 }: {
   t: TFunction;
   analyzing: boolean;
-  onScanSource: (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => void;
+  onScanSource: (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">, useCaseId: ShowVyvaUseCaseId) => void;
   onPasteReview?: (payload: ShowVyvaPastePayload) => void;
 }) {
   return (
@@ -676,7 +685,7 @@ export function VisualHealthScanCardContent({
             SHOW_VYVA_USE_CASE_IDS.documentHelp,
           ]}
           busy={analyzing}
-          onChooseFileSource={(source) => onScanSource(source)}
+          onChooseFileSource={(source, useCase) => onScanSource(source, useCase.id)}
           onPaste={onPasteReview ? (payload) => onPasteReview(payload) : undefined}
         />
       </div>
@@ -698,107 +707,51 @@ export function VisualScanResultPanel({
   result,
   t,
   onClose,
+  reviewInput,
   actions = [],
   onFollowUpSelect,
 }: {
   result: VisualScanResult;
   t: TFunction;
   onClose: () => void;
+  reviewInput?: ShowVyvaFileReviewInput;
   actions?: VisualScanAction[];
   onFollowUpSelect?: (action: ShowVyvaFollowUpAction, contract: ShowVyvaReviewContract) => void;
 }) {
-  const visibleObservations = visualScanList(result.visibleObservations);
-  const potentialConcerns = visualScanList(result.potentialConcerns);
-  const uncertainty = visualScanList(result.uncertainty);
-  const hasStructuredReview = visibleObservations.length || potentialConcerns.length || uncertainty.length || result.recommendedNextStep;
-  const reviewContract = showVyvaReviewContractFromHealthResult({
+  const input = reviewInput ?? {
     useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
-    source: "camera",
-    followUpContext: "health_visual",
+    source: "camera" as const,
+  };
+  const reviewContract = showVyvaReviewContractFromHealthResult({
+    useCaseId: input.useCaseId,
+    source: input.source,
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+    followUpContext: input.useCaseId === SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto ? "health_visual" : undefined,
   }, result);
-  const tone =
-    result.severity === "Serious"
-      ? { bg: "#FEF2F2", border: "#FECACA", badgeBg: "#FEE2E2", badgeText: "#991B1B" }
-      : result.severity === "Moderate"
-        ? { bg: "#FFFBEB", border: "#FDE68A", badgeBg: "#FEF3C7", badgeText: "#92400E" }
-        : { bg: "#F0FDFA", border: "#6EE7B7", badgeBg: "#D1FAE5", badgeText: "#065F46" };
-  const sections = [
-    { key: "observations", title: t("health.scanWound.sections.observations", "What VYVA can see"), items: visibleObservations },
-    { key: "concerns", title: t("health.scanWound.sections.concerns", "What may need review"), items: potentialConcerns },
-    { key: "limits", title: t("health.scanWound.sections.limits", "Limits of this image"), items: uncertainty },
-  ].filter((section) => section.items.length);
+  const resultActions = reviewContract.followUpContext === "health_visual"
+    ? actions.map((action) => ({
+        id: action.kind,
+        label: action.label,
+        detail: t(`showVyva.followUp.action.${action.kind}.detail`, "Prepare before acting."),
+        icon: VISUAL_SCAN_FOLLOW_UP_ICONS[action.kind],
+        tone: VISUAL_SCAN_FOLLOW_UP_TONES[action.kind],
+        externalAction: action.kind === "call_gp" || action.kind === "email_gp" || action.kind === "schedule_appointment" || action.kind === "book_ride",
+        requiresConfirmation: true,
+      }) satisfies ShowVyvaFollowUpAction)
+    : reviewContract.followUpActions;
+  const isVisualHealthReview = reviewContract.followUpContext === "health_visual";
 
   return (
-    <div
-      className="mx-[18px] mb-[16px] rounded-[18px] p-[14px]"
-      style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
-    >
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span
-          data-testid="text-wound-severity"
-          className="font-body text-[11px] font-semibold px-[8px] py-[2px] rounded-full"
-          style={{ background: tone.badgeBg, color: tone.badgeText }}
-        >
-          {t(`health.scanWound.severityLabel.${result.severity.toLowerCase()}`, result.severity)}
-        </span>
-        <span className="font-body text-[11px] font-semibold px-[8px] py-[2px] rounded-full bg-white text-vyva-text-2">
-          {visualScanImageTypeLabel(t, result.imageType)}
-        </span>
-        <p data-testid="text-wound-result-title" className="font-body text-[14px] font-extrabold text-vyva-text-1">
-          {result.resultTitle}
-        </p>
-      </div>
-
-      {hasStructuredReview ? (
-        <div className="grid gap-3">
-          {sections.map((section) => (
-            <section key={section.key} className="rounded-[14px] bg-white/72 p-3">
-              <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7C3AED]">
-                {section.title}
-              </p>
-              <ul className="mt-2 grid gap-1.5">
-                {section.items.map((item, index) => (
-                  <li key={`${section.key}-${index}`} className="font-body text-[13px] font-semibold leading-snug text-vyva-text-1">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-          {result.recommendedNextStep ? (
-            <section className="rounded-[14px] bg-white/72 p-3">
-              <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#7C3AED]">
-                {t("health.scanWound.sections.nextStep", "Suggested next step")}
-              </p>
-              <p className="mt-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-1">
-                {result.recommendedNextStep}
-              </p>
-            </section>
-          ) : null}
-        </div>
-      ) : (
-        <p data-testid="text-wound-advice" className="font-body text-[13px] text-vyva-text-1 leading-snug mb-2">
-          {result.advice}
-        </p>
-      )}
-
-      {actions.length ? (
-        <ShowVyvaFollowUpPanel
-          context="health_visual"
-          testIdSuffix="health-current"
-          title={t("showVyva.followUp.title.health_visual", "Next health step")}
-          subtitle={t("showVyva.followUp.subtitle.health_visual", "Choose how to use this review. VYVA asks before sharing or booking.")}
-          confirmation={t("showVyva.contract.finalConfirmation", reviewContract.finalConfirmationRule)}
-          actions={actions.map((action) => ({
-            id: action.kind,
-            label: action.label,
-            detail: t(`showVyva.followUp.action.${action.kind}.detail`, "Prepare before acting."),
-            icon: VISUAL_SCAN_FOLLOW_UP_ICONS[action.kind],
-            tone: VISUAL_SCAN_FOLLOW_UP_TONES[action.kind],
-            externalAction: action.kind === "call_gp" || action.kind === "email_gp" || action.kind === "schedule_appointment" || action.kind === "book_ride",
-            requiresConfirmation: true,
-          }))}
-          onSelect={(selected) => {
+    <div className="mx-[18px] mb-[16px]">
+      <ShowVyvaResultCard
+        contract={reviewContract}
+        testIdSuffix="health-current"
+        reviewedLabel={isVisualHealthReview ? visualScanImageTypeLabel(t, result.imageType) : undefined}
+        thinkingLabel={result.advice || result.resultTitle}
+        actionSubtitle={isVisualHealthReview ? t("showVyva.followUp.subtitle.health_visual", "Choose how to use this review. VYVA asks before sharing or booking.") : undefined}
+        actions={resultActions}
+        onActionSelect={(selected) => {
             if (onFollowUpSelect) {
               onFollowUpSelect(selected, reviewContract);
               return;
@@ -810,9 +763,9 @@ export function VisualScanResultPanel({
               return;
             }
             action.onClick?.();
-          }}
-        />
-      ) : null}
+          }
+        }
+      />
 
       <p className="mt-3 rounded-[12px] bg-white/72 px-3 py-2 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
         {t("health.scanWound.disclaimer", "Assistive description only, not medical advice or diagnosis. A qualified clinician should review anything concerning.")}
@@ -1645,7 +1598,12 @@ const HealthScreen = () => {
   const [fullScreenScan,   setFullScreenScan]   = useState<WoundScan | null>(null);
   const [woundAnalyzing,   setWoundAnalyzing]   = useState(false);
   const [woundResult,      setWoundResult]      = useState<VisualScanResult | null>(null);
+  const [showVyvaPasteReview, setShowVyvaPasteReview] = useState<ShowVyvaPastePayload | null>(null);
   const [visualScanCaptureSource, setVisualScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
+  const [visualScanReviewInput, setVisualScanReviewInput] = useState<ShowVyvaFileReviewInput>({
+    useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+    source: "camera",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
@@ -2279,6 +2237,12 @@ const HealthScreen = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    setVisualScanReviewInput((current) => ({
+      ...current,
+      fileName: file.name,
+      mimeType: file.type,
+    }));
+    setShowVyvaPasteReview(null);
     setWoundResult(null);
     setWoundAnalyzing(true);
 
@@ -2315,17 +2279,24 @@ const HealthScreen = () => {
       .finally(() => setWoundAnalyzing(false));
   };
 
-  const openVisualScanFilePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+  const openVisualScanFilePicker = (
+    source: Extract<ShowVyvaCaptureSource, "camera" | "upload">,
+    useCaseId: ShowVyvaUseCaseId = SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+  ) => {
     setVisualScanCaptureSource(source);
+    setVisualScanReviewInput({
+      useCaseId,
+      source,
+      fileName: null,
+      mimeType: null,
+    });
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
   const openShowVyvaConciergeReview = (payload: ShowVyvaPastePayload) => {
-    navigate("/concierge", {
-      state: {
-        conciergePrefill: buildShowVyvaConciergePrefill(payload, appLanguage),
-      },
-    });
+    setWoundResult(null);
+    setShowVyvaPasteReview(payload);
+    setVisualScanOpen(true);
   };
 
   const latestVitalsReadings = latestVitalsData?.recent_readings ?? [];
@@ -3483,7 +3454,7 @@ const HealthScreen = () => {
           </>
         ) : null}
 
-        {(visualScanOpen || woundResult) && (
+        {(visualScanOpen || woundResult || showVyvaPasteReview) && (
           <div
             id="health-visual-scan-panel"
             className="mt-4 overflow-hidden rounded-[24px] border border-[#FDE68A] bg-white shadow-[0_10px_24px_rgba(201,137,10,0.08)]"
@@ -3496,10 +3467,22 @@ const HealthScreen = () => {
               onPasteReview={openShowVyvaConciergeReview}
             />
 
+            {showVyvaPasteReview && (
+              <div className="mx-[18px]">
+                <ShowVyvaPastedReviewResult
+                  payload={showVyvaPasteReview}
+                  testIdSuffix="health-pasted"
+                  onActionSelect={handleVisualScanFollowUpSelect}
+                  onClose={() => setShowVyvaPasteReview(null)}
+                />
+              </div>
+            )}
+
             {woundResult && (
               <VisualScanResultPanel
                 result={woundResult}
                 t={t}
+                reviewInput={visualScanReviewInput}
                 actions={visualScanActions}
                 onFollowUpSelect={handleVisualScanFollowUpSelect}
                 onClose={() => setWoundResult(null)}
@@ -3865,10 +3848,22 @@ const HealthScreen = () => {
                 onPasteReview={openShowVyvaConciergeReview}
               />
 
+              {showVyvaPasteReview && (
+                <div className="mx-[18px]">
+                  <ShowVyvaPastedReviewResult
+                    payload={showVyvaPasteReview}
+                    testIdSuffix="health-pasted"
+                    onActionSelect={handleVisualScanFollowUpSelect}
+                    onClose={() => setShowVyvaPasteReview(null)}
+                  />
+                </div>
+              )}
+
               {woundResult && (
                 <VisualScanResultPanel
                   result={woundResult}
                   t={t}
+                  reviewInput={visualScanReviewInput}
                   actions={visualScanActions}
                   onFollowUpSelect={handleVisualScanFollowUpSelect}
                   onClose={() => setWoundResult(null)}
