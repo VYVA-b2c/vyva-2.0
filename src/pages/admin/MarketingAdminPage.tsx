@@ -61,6 +61,14 @@ type ConsentStatus = typeof CONSENT_STATUSES[number];
 type ContentLocalizationLanguage = typeof CONTENT_LOCALIZATION_LANGUAGES[number]["value"];
 type CountOption = { value: string; label: string; count: number };
 
+const campaignPlannerChannelPacks: Array<{ id: string; label: string; detail: string; channels: Channel[] }> = [
+  { id: "email", label: "Email", detail: "Send-ready VYVA email route.", channels: ["email"] },
+  { id: "care-team", label: "Email + WhatsApp", detail: "Direct nurture plus quick follow-up.", channels: ["email", "whatsapp"] },
+  { id: "partner", label: "Partner pack", detail: "Email plus LinkedIn relationship handoff.", channels: ["email", "linkedin"] },
+  { id: "local", label: "Local/social", detail: "Facebook, Instagram, and WhatsApp awareness.", channels: ["facebook", "instagram", "whatsapp"] },
+  { id: "full-launch", label: "Full launch", detail: "Email, WhatsApp, and core social channels.", channels: ["email", "whatsapp", "facebook", "instagram", "linkedin"] },
+];
+
 type MarketingSummary = {
   totals: {
     campaigns: number;
@@ -429,6 +437,7 @@ type CampaignDraft = {
   name: string;
   audienceType: Audience;
   channel: Channel;
+  channels: Channel[];
   contentAssetId: string;
   status: "draft" | "scheduled";
   scheduleStartsAt: string;
@@ -1112,6 +1121,13 @@ const channelLabel: Record<Channel, string> = {
   linkedin: "LinkedIn",
   tiktok: "TikTok",
 };
+
+function formatChannelList(channels: Channel[]) {
+  const labels = channels.map((channel) => channelLabel[channel]);
+  if (labels.length <= 1) return labels[0] ?? "";
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}
 
 const manualPublishResultLabel: Record<ManualPublishResultStatus, string> = {
   published: "Published",
@@ -3743,11 +3759,18 @@ function newCampaignChannelDraft(channel: Channel = "email", status: CampaignSta
   };
 }
 
+function campaignDraftChannels(draft: Pick<CampaignDraft, "channel" | "channels">): Channel[] {
+  const channels = [draft.channel, ...(draft.channels ?? [])]
+    .filter((channel): channel is Channel => CHANNELS.includes(channel as Channel));
+  return Array.from(new Set(channels));
+}
+
 function emptyCampaignDraft(): CampaignDraft {
   return {
     name: "",
     audienceType: "b2c",
     channel: "email",
+    channels: ["email"],
     contentAssetId: "",
     status: "draft",
     scheduleStartsAt: "",
@@ -8352,6 +8375,17 @@ export default function MarketingAdminPage() {
     () => campaignDraft.contentAssetId ? contentById.get(campaignDraft.contentAssetId) ?? null : null,
     [campaignDraft.contentAssetId, contentById],
   );
+  const campaignDraftSelectedChannels = useMemo(
+    () => campaignDraftChannels(campaignDraft),
+    [campaignDraft],
+  );
+  const campaignDraftPack = useMemo(
+    () => campaignPlannerChannelPacks.find((pack) => (
+      pack.channels.length === campaignDraftSelectedChannels.length
+      && pack.channels.every((channel, index) => channel === campaignDraftSelectedChannels[index])
+    )) ?? null,
+    [campaignDraftSelectedChannels],
+  );
   const visibleCampaignStudioPlays = useMemo(
     () => campaignStudioCategory === "all"
       ? campaignStudioPlays
@@ -9729,13 +9763,14 @@ export default function MarketingAdminPage() {
     return contacts.filter((contact) => {
       if (!campaignAllowsContact(campaignDraft.audienceType, contact.audienceType)) return false;
       if (!contactMatchesAudienceList(contact, selectedCampaignDraftTargetAudience)) return false;
-      if (!recipientForChannel(contact, campaignDraft.channel)) return false;
+      if (!campaignDraftSelectedChannels.some((channel) => recipientForChannel(contact, channel))) return false;
       return !filter || contactSearchText(contact).includes(filter);
     });
-  }, [campaignDraft, contacts, selectedCampaignDraftTargetAudience]);
+  }, [campaignDraft, campaignDraftSelectedChannels, contacts, selectedCampaignDraftTargetAudience]);
   const campaignDraftReadinessItems = useMemo<CampaignReadinessItem[]>(() => {
     const channelCapability = sendCapabilityByChannel.get(campaignDraft.channel);
     const emailSendEnabled = campaignDraft.channel === "email" && channelCapability?.sendCapability === "enabled" && !channelCapability.locked;
+    const manualChannels = campaignDraftSelectedChannels.filter((channel) => channel !== "email");
     return [
       {
         key: "name",
@@ -9754,6 +9789,14 @@ export default function MarketingAdminPage() {
             : `No active ${channelLabel[campaignDraft.channel]} content assets yet.`,
       },
       {
+        key: "channels",
+        title: "Channel pack",
+        state: campaignDraftSelectedChannels.length > 1 ? "planning" : "ready",
+        detail: campaignDraftSelectedChannels.length > 1
+          ? `${campaignDraftSelectedChannels.length} routes will be created: ${formatChannelList(campaignDraftSelectedChannels)}. Link extra channel content from campaign details after save.`
+          : `${channelLabel[campaignDraft.channel]} only.`,
+      },
+      {
         key: "audience",
         title: "Audience",
         state: selectedCampaignDraftTargetAudience && selectedCampaignDraftTargetAudience.mappedMemberCount === 0 ? "needs_action" : "ready",
@@ -9770,7 +9813,7 @@ export default function MarketingAdminPage() {
         detail: campaignDraft.snapshotRecipients
           ? campaignDraftRecipientPreview.length > 0
             ? `${campaignDraftRecipientPreview.length} recipient${campaignDraftRecipientPreview.length === 1 ? "" : "s"} will be snapshotted.`
-            : "No eligible recipients match this channel, list, and filter."
+            : "No eligible recipients match these channels, list, and filter."
           : "Snapshot is off; recipients can be saved later.",
       },
       {
@@ -9786,14 +9829,17 @@ export default function MarketingAdminPage() {
         title: "Channel mode",
         state: emailSendEnabled ? "ready" : "planning",
         detail: emailSendEnabled
-          ? "Email sending is enabled through Resend after save."
-          : `${channelLabel[campaignDraft.channel]} will be saved for planning or manual handoff.`,
+          ? manualChannels.length
+            ? `Email can send through Resend; ${formatChannelList(manualChannels)} stay as manual handoff routes.`
+            : "Email sending is enabled through Resend after save."
+          : `${formatChannelList(campaignDraftSelectedChannels)} will be saved for planning or manual handoff.`,
       },
     ];
   }, [
     campaignDraft,
     campaignDraftContentOptions.length,
     campaignDraftRecipientPreview.length,
+    campaignDraftSelectedChannels,
     selectedCampaignDraftContent,
     selectedCampaignDraftTargetAudience,
     sendCapabilityByChannel,
@@ -9969,6 +10015,7 @@ export default function MarketingAdminPage() {
       name: recipe.play.campaignName,
       audienceType: recipe.play.audienceType,
       channel: recipe.channel,
+      channels: recipe.recommendation.channels.length ? recipe.recommendation.channels : [recipe.channel],
       contentAssetId: recipe.matchedContent?.id ?? "",
       status: recipe.status,
       scheduleStartsAt: recipe.scheduleStartsAt,
@@ -10288,17 +10335,23 @@ export default function MarketingAdminPage() {
     const scheduledAt = campaignDraft.scheduleStartsAt ? new Date(campaignDraft.scheduleStartsAt).toISOString() : null;
     const scheduleEndsAt = campaignDraft.scheduleEndsAt ? new Date(campaignDraft.scheduleEndsAt).toISOString() : null;
     const targetAudienceSnapshot = audienceSnapshot(selectedCampaignDraftTargetAudience);
+    const draftChannels = campaignDraftSelectedChannels;
     const recipients = campaignDraft.snapshotRecipients
-      ? campaignDraftRecipientPreview.map((contact) => ({
-        contactId: contact.id,
-        channel: campaignDraft.channel,
-        recipient: recipientForChannel(contact, campaignDraft.channel) ?? contact.id,
-        status: "planned",
-        scheduledAt,
-        snapshot: {
-          ...recipientSnapshot(contact),
-          ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
-        },
+      ? campaignDraftRecipientPreview.flatMap((contact) => draftChannels.flatMap((channel) => {
+        const recipient = recipientForChannel(contact, channel);
+        if (!recipient) return [];
+        return [{
+          contactId: contact.id,
+          channel,
+          recipient,
+          status: "planned",
+          scheduledAt,
+          snapshot: {
+            ...recipientSnapshot(contact),
+            ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
+            plannerChannel: channel,
+          },
+        }];
       }))
       : undefined;
     setCampaignSaving(true);
@@ -10313,13 +10366,19 @@ export default function MarketingAdminPage() {
           objective: campaignDraft.objective,
           scheduleStartsAt: scheduledAt,
           scheduleEndsAt,
-          metadata: campaignMetadataWithTarget({}, selectedCampaignDraftTargetAudience),
-          channels: [{
-            channel: campaignDraft.channel,
-            contentAssetId: campaignDraft.contentAssetId || null,
+          metadata: campaignMetadataWithTarget({
+            planner: {
+              primaryChannel: campaignDraft.channel,
+              selectedChannels: draftChannels,
+              channelPack: campaignDraftPack?.id ?? "custom",
+            },
+          }, selectedCampaignDraftTargetAudience),
+          channels: draftChannels.map((channel) => ({
+            channel,
+            contentAssetId: channel === campaignDraft.channel ? campaignDraft.contentAssetId || null : null,
             status: campaignDraft.status,
             scheduledAt,
-          }],
+          })),
           ...(recipients ? { recipients } : {}),
         }),
       });
@@ -15381,6 +15440,45 @@ export default function MarketingAdminPage() {
                       ))}
                     </div>
                   ) : null}
+                  <div className="rounded-2xl border border-purple-100 bg-purple-50/50 p-4" data-testid="marketing-campaign-channel-packs">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Channel pack</p>
+                        <h3 className="mt-1 text-base font-black text-[#241133]">Choose the routes this campaign should prepare</h3>
+                        <p className="mt-1 text-xs font-bold text-[#6b5b54]">Email can send from VYVA; WhatsApp, social, print, event, and phone routes are saved as manual handoff steps.</p>
+                      </div>
+                      <Pill className="bg-white text-purple-800">
+                        {campaignDraftSelectedChannels.length} route{campaignDraftSelectedChannels.length === 1 ? "" : "s"}
+                      </Pill>
+                    </div>
+                    <div className="mt-3 grid gap-2 lg:grid-cols-5">
+                      {campaignPlannerChannelPacks.map((pack) => {
+                        const isSelected = campaignDraftPack?.id === pack.id;
+                        return (
+                          <button
+                            key={pack.id}
+                            type="button"
+                            onClick={() => setCampaignDraft((draft) => ({
+                              ...draft,
+                              channel: pack.channels[0],
+                              channels: [...pack.channels],
+                              contentAssetId: pack.channels[0] === draft.channel ? draft.contentAssetId : "",
+                            }))}
+                            className={`rounded-xl border p-3 text-left shadow-sm transition focus:outline-none focus:ring-4 focus:ring-purple-100 ${
+                              isSelected ? "border-purple-300 bg-purple-700 text-white" : "border-purple-100 bg-white text-[#241133] hover:border-purple-300"
+                            }`}
+                            data-testid={`button-marketing-campaign-pack-${pack.id}`}
+                          >
+                            <span className="block text-sm font-black">{pack.label}</span>
+                            <span className={`mt-1 block text-xs font-bold leading-relaxed ${isSelected ? "text-white/80" : "text-[#7d6b65]"}`}>{pack.detail}</span>
+                            <span className="mt-2 flex flex-wrap gap-1">
+                              {pack.channels.map((channel) => <Pill key={channel} className={isSelected ? "bg-white/15 text-white" : channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
                     <Field label="Campaign name">
@@ -15391,11 +15489,21 @@ export default function MarketingAdminPage() {
                         {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
                       </select>
                     </Field>
-                    <Field label="Channel">
+                    <Field label="Primary channel">
                       <select
                         className={inputClass}
                         value={campaignDraft.channel}
-                        onChange={(event) => setCampaignDraft((draft) => ({ ...draft, channel: event.target.value as Channel, contentAssetId: "" }))}
+                        onChange={(event) => {
+                          const channel = event.target.value as Channel;
+                          setCampaignDraft((draft) => ({
+                            ...draft,
+                            channel,
+                            channels: draft.channels.length > 1
+                              ? [channel, ...draft.channels.filter((item) => item !== channel)]
+                              : [channel],
+                            contentAssetId: "",
+                          }));
+                        }}
                         data-testid="select-marketing-campaign-channel"
                       >
                         {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}

@@ -2154,7 +2154,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Starter loaded: Partner outreach with Partner post");
     expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("Ready to add");
     expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("Partner post is linked for LinkedIn");
-    expect(screen.getByTestId("marketing-campaign-draft-readiness-channel")).toHaveTextContent("LinkedIn will be saved for planning or manual handoff");
+    expect(screen.getByTestId("marketing-campaign-channel-packs")).toHaveTextContent("2 routes");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-channels")).toHaveTextContent("LinkedIn and Email");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-channel")).toHaveTextContent("LinkedIn and Email will be saved for planning or manual handoff");
   });
 
   it("drafts missing campaign content directly from the planner", async () => {
@@ -3666,6 +3668,53 @@ describe("MarketingAdminPage", () => {
         },
       }],
     });
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
+  });
+
+  it("creates multi-channel planner packs without auto-dispatching", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-pack-partner"));
+    expect(screen.getByTestId("marketing-campaign-channel-packs")).toHaveTextContent("2 routes");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-channels")).toHaveTextContent("Email and LinkedIn");
+
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Partner launch pack" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-audience"), { target: { value: "b2b" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-content"), { target: { value: "content-1" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-target-audience"), { target: { value: "audience-1" } });
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-recipient-filter"), { target: { value: "Hassan" } });
+    fireEvent.click(screen.getByTestId("checkbox-marketing-campaign-snapshot"));
+    expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
+
+    fireEvent.click(screen.getByTestId("button-marketing-create-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
+    });
+    const postCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/campaigns" && init?.method === "POST");
+    const postCall = postCalls[postCalls.length - 1];
+    const postBody = JSON.parse(String(postCall?.[1]?.body));
+    expect(postBody).toMatchObject({
+      name: "Partner launch pack",
+      audienceType: "b2b",
+      channels: [
+        { channel: "email", contentAssetId: "content-1" },
+        { channel: "linkedin", contentAssetId: null },
+      ],
+      metadata: {
+        planner: {
+          primaryChannel: "email",
+          selectedChannels: ["email", "linkedin"],
+          channelPack: "partner",
+        },
+      },
+    });
+    expect(postBody.recipients).toEqual(expect.arrayContaining([
+      expect.objectContaining({ contactId: "contact-2", channel: "email", recipient: "hassan@example.com" }),
+      expect.objectContaining({ contactId: "contact-2", channel: "linkedin", recipient: "hassan@example.com" }),
+    ]));
+    expect(postBody.recipients).toHaveLength(2);
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
   });
 
