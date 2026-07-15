@@ -1564,7 +1564,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Trust review request email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event invite email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok event day script");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("41 templates");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care confidence reactivation email");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("47 templates");
     expect(screen.getByTestId("marketing-template-packs")).toHaveTextContent("Family onboarding");
     expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("Trust and review");
     expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("AI pack prompt");
@@ -1609,6 +1610,30 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Local event relationship pack into the campaign studio");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
 
+    expect(screen.getByTestId("marketing-template-pack-care-confidence-reactivation")).toHaveTextContent("Care confidence reactivation");
+    expect(screen.getByTestId("marketing-template-pack-care-confidence-reactivation")).toHaveTextContent("6 templates");
+    expect(screen.getByTestId("marketing-template-pack-care-confidence-reactivation")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-care-confidence-reactivation"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Care confidence reactivation template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care confidence reactivation email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn care confidence partner note");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok care confidence reset script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-care-confidence-reactivation")).toHaveTextContent("Restart routine");
+    expect(screen.getByTestId("marketing-template-pack-sequence-care-confidence-reactivation")).toHaveTextContent("Partner workflow note");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-care-confidence-reactivation"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Care confidence reactivation");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Care confidence reactivation pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("Partner growth");
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-partner-growth"));
@@ -1640,9 +1665,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("9");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("10");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("5");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("6");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Target: 3 per pack");
     fireEvent.click(screen.getByTestId("button-marketing-template-matrix-whatsapp-b2b"));

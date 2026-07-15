@@ -3019,6 +3019,139 @@ const contentTemplateGallery: ContentTemplate[] = [
     },
     mediaAssets: [],
   },
+  {
+    id: "email-care-confidence-reactivation",
+    title: "Care confidence reactivation email",
+    category: "Care confidence",
+    audienceType: "b2c",
+    channel: "email",
+    description: "A warm reactivation email for families who signed up but have not built a useful routine yet.",
+    subject: "A calmer care routine can start with one check-in",
+    body: "Hi {{first_name}},\n\nIf VYVA has been quiet for a while, the easiest restart is one practical check-in: confirm the profile, look at today's care signals, and decide who should receive updates.\n\nYou do not need a perfect setup. One useful routine is enough to make the care circle clearer this week.",
+    htmlBody: "<h1>Restart with one useful care routine</h1><p>Confirm the profile, review today's signals, and decide who should receive updates.</p>",
+    ctaLabel: "Restart the care routine",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "email-care-confidence-reactivation",
+      category: "Care confidence",
+      layout: "email-reactivation-checklist",
+      mergeFields: ["first_name"],
+      blocks: [
+        { type: "eyebrow", text: "Care confidence" },
+        { type: "headline", text: "Restart with one useful care routine" },
+        { type: "checklist", items: ["Confirm profile", "Review today's signals", "Choose update contacts"] },
+        { type: "cta", label: "Restart the care routine" },
+      ],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "whatsapp-care-confidence-checkin",
+    title: "Care confidence WhatsApp check-in",
+    category: "Care confidence",
+    audienceType: "b2c",
+    channel: "whatsapp",
+    description: "A concise WhatsApp reactivation prompt that asks for one low-friction action.",
+    subject: "",
+    body: "Hi {{first_name}}, quick VYVA reset: open the profile, check today's status, and confirm who should get important updates. One small step can make the care circle clearer.",
+    ctaLabel: "Open VYVA",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "whatsapp-care-confidence-checkin",
+      category: "Care confidence",
+      layout: "whatsapp-reactivation",
+      tone: "warm-practical",
+      mergeFields: ["first_name"],
+      replyOptions: ["done", "need help", "later"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "facebook-care-confidence-story",
+    title: "Facebook care confidence story",
+    category: "Care confidence",
+    audienceType: "b2c",
+    channel: "facebook",
+    description: "A family-facing proof post about turning scattered care concern into one clearer next step.",
+    subject: "",
+    body: "Care confidence often starts small: one profile completed, one daily signal checked, one family member who knows what changed.\n\nVYVA helps families turn scattered concern into a clearer care routine, without making everyone chase updates.",
+    ctaLabel: "See the care routine",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "facebook-care-confidence-story",
+      category: "Care confidence",
+      layout: "facebook-family-reactivation",
+      visualPrompt: "family reviewing a calm care routine checklist together, warm real-world scene",
+      proofPoint: "one clearer care routine",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "instagram-care-confidence-carousel",
+    title: "Instagram care confidence carousel",
+    category: "Care confidence",
+    audienceType: "b2c",
+    channel: "instagram",
+    description: "A visual carousel that turns reactivation into three simple family actions.",
+    subject: "",
+    body: "Slide 1: Care feels easier when the next step is clear.\nSlide 2: Complete the profile.\nSlide 3: Check today's signals.\nSlide 4: Share the update route.\n\nVYVA helps turn those small actions into calmer support.",
+    ctaLabel: "Save the routine",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "instagram-care-confidence-carousel",
+      category: "Care confidence",
+      layout: "instagram-care-confidence-carousel",
+      slides: ["Clear next step", "Complete profile", "Check signals", "Share updates"],
+      visualPrompt: "soft care routine carousel with warm family imagery and clear VYVA purple accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "linkedin-care-confidence-partner-note",
+    title: "LinkedIn care confidence partner note",
+    category: "Care confidence",
+    audienceType: "b2b",
+    channel: "linkedin",
+    description: "A professional post that frames reactivation as a measurable care-team workflow.",
+    subject: "",
+    body: "A care platform becomes useful when people return to a clear routine.\n\nFor partners, VYVA makes reactivation practical: profile completion, daily signal review, update routing, and follow-up ownership in one calmer loop.\n\nThat is where family confidence starts to become operational.",
+    ctaLabel: "Discuss the workflow",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "linkedin-care-confidence-partner-note",
+      category: "Care confidence",
+      layout: "linkedin-reactivation-workflow",
+      proofPoint: "reactivation as an operational care loop",
+      visualPrompt: "professional care team reviewing simple reactivation workflow and daily signals",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "tiktok-care-confidence-reset",
+    title: "TikTok care confidence reset script",
+    category: "Care confidence",
+    audienceType: "both",
+    channel: "tiktok",
+    description: "A short video script that makes reactivation feel practical instead of heavy.",
+    subject: "",
+    body: "Hook: If care feels scattered, do not restart with everything. Restart with one useful step.\n\nBeat 1: Open the VYVA profile.\nBeat 2: Check today's signal.\nBeat 3: Pick who gets the update.\nBeat 4: One clear routine beats ten scattered messages.\n\nClose: calmer care starts with one visible next step.",
+    ctaLabel: "Try one step",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "tiktok-care-confidence-reset",
+      category: "Care confidence",
+      layout: "short-video-reactivation-reset",
+      beats: ["restart with one step", "profile", "daily signal", "update route", "clear next step"],
+      visualPrompt: "quick before-after care routine video with one visible next step",
+    },
+    mediaAssets: [],
+  },
 ];
 
 const contentTemplatePacks: ContentTemplatePack[] = [
@@ -3140,6 +3273,32 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day 7", channel: "facebook", title: "Testimonial prompt", detail: "Convert positive users into social proof.", templateId: "facebook-testimonial-prompt" },
     ],
     aiPrompt: "Convert this retention pack into a respectful reactivation campaign with one soft email, one feedback ask, and one referral prompt.",
+  },
+  {
+    id: "care-confidence-reactivation",
+    title: "Care confidence reactivation",
+    focus: "Bring quiet families back with one practical care routine and a clear relationship follow-up path.",
+    description: "A six-channel reactivation pack for family confidence: email, WhatsApp, Facebook, Instagram, LinkedIn, and TikTok prompts that all lead back to one useful care routine.",
+    templateIds: [
+      "email-care-confidence-reactivation",
+      "whatsapp-care-confidence-checkin",
+      "facebook-care-confidence-story",
+      "instagram-care-confidence-carousel",
+      "linkedin-care-confidence-partner-note",
+      "tiktok-care-confidence-reset",
+    ],
+    heroTemplateId: "email-care-confidence-reactivation",
+    studioPlayId: "reactivation",
+    toneId: "warm",
+    angleId: "action",
+    sequence: [
+      { offset: "Day 0", channel: "email", title: "Restart routine", detail: "Invite quiet families back with one profile and signal check.", templateId: "email-care-confidence-reactivation" },
+      { offset: "Day 1", channel: "whatsapp", title: "One-step nudge", detail: "Ask for a small action while the email is still fresh.", templateId: "whatsapp-care-confidence-checkin" },
+      { offset: "Day 3", channel: "instagram", title: "Care routine carousel", detail: "Make the routine visual and easy to save.", templateId: "instagram-care-confidence-carousel" },
+      { offset: "Day 5", channel: "facebook", title: "Family confidence story", detail: "Reinforce the practical benefit for families who have not replied.", templateId: "facebook-care-confidence-story" },
+      { offset: "Day 7", channel: "linkedin", title: "Partner workflow note", detail: "Translate the reactivation loop into a partner-ready operational story.", templateId: "linkedin-care-confidence-partner-note" },
+    ],
+    aiPrompt: "Adapt this care confidence reactivation pack for quiet families in one market. Keep the message warm, practical, consent-aware, and focused on one useful routine: profile, daily signal, and update route.",
   },
   {
     id: "social-launch",
@@ -4197,6 +4356,7 @@ function templatePackTriggerType(pack: ContentTemplatePack) {
   if (pack.id === "local-community") return "event_interest";
   if (pack.id === "local-event-relationship") return "local_event_discovered";
   if (pack.id === "retention-feedback") return "inactive_30_days";
+  if (pack.id === "care-confidence-reactivation") return "inactive_or_incomplete_profile";
   if (pack.id === "social-launch") return "campaign_launch";
   return "manual_add";
 }
@@ -4207,6 +4367,7 @@ function templatePackGoalType(pack: ContentTemplatePack) {
   if (pack.id === "local-community") return "event_response";
   if (pack.id === "local-event-relationship") return "event_rsvp_or_followup";
   if (pack.id === "retention-feedback") return "feedback_or_reply";
+  if (pack.id === "care-confidence-reactivation") return "care_routine_restarted";
   if (pack.id === "social-launch") return "engagement";
   return "reviewed";
 }
@@ -10283,7 +10444,7 @@ export default function MarketingAdminPage() {
       goalConfigText: jsonText({
         source: "template_pack",
         packId: pack.id,
-        suggestedReviewDays: pack.id === "partner-growth" ? 14 : 7,
+        suggestedReviewDays: pack.id === "partner-growth" ? 14 : pack.id === "care-confidence-reactivation" ? 10 : 7,
       }),
       exitOnGoal: true,
       steps,
