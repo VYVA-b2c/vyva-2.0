@@ -477,6 +477,134 @@ test("concierge prepared email task requires review, final confirmation, and sav
   await expectNoHorizontalOverflow(page);
 });
 
+test("concierge booking form task requires final confirmation before handoff and saves submission", async ({ page }) => {
+  await mockApi(page, true);
+  await recordWindowOpen(page);
+
+  let formConfirmed = false;
+  let confirmCount = 0;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  const bookingUrl = "https://booking.example.com/clinic";
+  const prefilledUrl = `${bookingUrl}?slot=morning`;
+  const pendingFormTask = () => ({
+    id: "form-smoke-1",
+    use_case: "book_appointment",
+    provider_name: "The Good Clinic",
+    provider_phone: null,
+    action_summary: "Booking form ready for The Good Clinic.",
+    action_payload: {
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      mission_status: "form_in_progress",
+      preferred_channel: "booking_url",
+      execution_channel: "booking_url",
+      reason: "Follow-up appointment",
+      booking_url: bookingUrl,
+      form_automation_plan: {
+        adapter_label: "ClinicBooking",
+        missing_fields: [],
+        next_step: "Use the supported booking page with the gathered details.",
+        prefilled_url: prefilledUrl,
+      },
+      ...(formConfirmed ? {
+        execution_task: {
+          version: 1,
+          flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+          action_type: "booking_link",
+          requested_tool: "booking_link",
+          active_tool: "booking_link",
+          lifecycle_status: "confirmed",
+          provider_ready: true,
+          missing_requirements: [],
+          confirmation_required: true,
+          user_confirmed: true,
+          confirmation_source: "confirm_endpoint",
+          confirmed_at: "2026-07-15T10:10:00.000Z",
+          created_at: "2026-07-15T10:00:00.000Z",
+          updated_at: "2026-07-15T10:10:00.000Z",
+        },
+      } : {}),
+    },
+    status: "pending",
+    language: "en",
+    confirmed_at: formConfirmed ? "2026-07-15T10:10:00.000Z" : null,
+  });
+
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingFormTask()] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/form-smoke-1/confirm") {
+      expect(route.request().method()).toBe("POST");
+      confirmCount += 1;
+      formConfirmed = true;
+      await fulfillJson(route, 200, { pendingId: "form-smoke-1", status: "pending" });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/form-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-form-smoke-1" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-appointment-mission")).toContainText("Form ready");
+  await expect(page.getByTestId("panel-concierge-form-plan")).toContainText("Ready to open with the gathered details.");
+  await expect(page.getByTestId("panel-concierge-next-action")).toContainText("Open appointment form");
+  await expect(page.getByTestId("text-booking-form-confirm-first-form-smoke-1")).toContainText("Confirm above before opening the form.");
+  await expect(page.getByTestId("link-booking-form-open-form-smoke-1")).toHaveCount(0);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-confirm-form-smoke-1").click();
+
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-final-confirm").click();
+
+  await expect.poll(() => confirmCount).toBe(1);
+  await expect.poll(async () => {
+    const records = await openedWindowRecords(page);
+    return records[0]?.url ?? "";
+  }).toBe(prefilledUrl);
+  await expect(page.getByTestId("link-booking-form-open-form-smoke-1")).toBeVisible();
+
+  await page.getByTestId("input-booking-form-reference-form-smoke-1").fill("CB-88");
+  await page.getByTestId("input-booking-form-notes-form-smoke-1").fill("Submitted from smoke test.");
+  await page.getByTestId("button-booking-form-submitted-form-smoke-1").click();
+
+  await expect.poll(() => completeBody?.outcome_payload?.form_outcome ?? null).toBe("submitted");
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Form submitted: The Good Clinic. Reference: CB-88.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      execution_type: "form_booking_link_outcome_capture",
+      execution_channel: "booking_url",
+      form_outcome: "submitted",
+      provider_name: "The Good Clinic",
+      booking_url: bookingUrl,
+      prefilled_url: prefilledUrl,
+      adapter_label: "ClinicBooking",
+      missing_fields: [],
+      reference: "CB-88",
+      notes: "Submitted from smoke test.",
+      completed_from: "booking_form_support_panel",
+      no_external_action_without_confirmation: true,
+    }),
+  });
+  await expect(page.getByTestId("booking-form-notice")).toContainText("Form saved");
+  await expectNoHorizontalOverflow(page);
+});
+
 test("notifications settings back returns to settings home", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/settings/notifications", { waitUntil: "domcontentloaded" });
