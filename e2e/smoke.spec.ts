@@ -736,6 +736,125 @@ test("concierge missing booking form details block handoff until details are rea
   }).toBe(prefilledUrl);
 });
 
+test("concierge provider reply saves confirmed medical appointment outcome", async ({ page }) => {
+  await mockApi(page, true, {}, {
+    phone: "+34 600 123 123",
+    street: "Saved Street 12",
+    cityState: "Madrid",
+    gpName: "Dr Profile",
+    gpPhone: "+34 600 999 999",
+  });
+
+  let scheduledBody: Record<string, unknown> | null = null;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  const pendingAppointmentReply = {
+    id: "reply-appointment-smoke-1",
+    use_case: "book_appointment",
+    provider_name: "Clinica Lopez",
+    provider_phone: "+34 600 111 222",
+    action_summary: "Saved clinic is checking the dermatology slot.",
+    action_payload: {
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      appointment_type: "medical",
+      appointment_reason: "dermatology follow-up",
+      provider_source: "saved",
+      selected_provider_name: "Clinica Lopez",
+      requested_time: "next Tuesday morning",
+      location: "Marbella",
+      mission_status: "awaiting_provider_reply",
+      preferred_channel: "phone",
+    },
+    status: "calling",
+    language: "en",
+  };
+
+  await page.route("**/api/profile/scheduled-events", async (route) => {
+    if (route.request().method() === "POST") {
+      scheduledBody = route.request().postDataJSON();
+      await fulfillJson(route, 201, { event: { id: "scheduled-appointment-smoke", ...scheduledBody } });
+      return;
+    }
+    await fulfillJson(route, 200, { events: [] });
+  });
+  await page.route("**/api/scheduled-events", async (route) => {
+    await fulfillJson(route, 200, { events: [] });
+  });
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingAppointmentReply] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/reply-appointment-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-appointment-smoke" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-provider-reply")).toContainText("Provider reply");
+  await page.getByTestId("button-provider-reply-confirmed-reply-appointment-smoke-1").click();
+
+  const replyPanel = page.getByTestId("panel-provider-reply-confirmed-reply-appointment-smoke-1");
+  await expect(replyPanel).toContainText("A date and time are needed to save the appointment in Scheduled Support.");
+  await expect(replyPanel).toContainText("Add the provider reply before saving.");
+  await expect(replyPanel).not.toContainText("Saved Street 12");
+  await expect(replyPanel).not.toContainText("+34 600 123 123");
+  await expect(replyPanel).not.toContainText("Dr Profile");
+
+  const saveButton = page.getByTestId("button-provider-reply-save-reply-appointment-smoke-1");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("input-provider-reply-time-reply-appointment-smoke-1").fill("2026-07-22T10:30");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("input-provider-reply-reference-reply-appointment-smoke-1").fill("AP-77");
+  await page.getByTestId("input-provider-reply-text-reply-appointment-smoke-1").fill("Confirmed Wednesday at 10:30. Bring insurance card.");
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  await expect.poll(() => scheduledBody?.event_type ?? null).toBe("appointment");
+  expect(scheduledBody).toMatchObject({
+    event_type: "appointment",
+    title: "Appointment with Clinica Lopez",
+    channel: "app",
+    status: "upcoming",
+    source: "concierge",
+    metadata: expect.objectContaining({
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      pending_id: "reply-appointment-smoke-1",
+      appointment_type: "medical",
+      provider_name: "Clinica Lopez",
+      provider_phone: "+34 600 111 222",
+      provider_reply: "Confirmed Wednesday at 10:30. Bring insurance card.",
+      reference: "AP-77",
+      location: "Marbella",
+    }),
+  });
+  expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
+  await expect.poll(() => completeBody?.outcome_payload?.provider_reply_status ?? null).toBe("confirmed");
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Provider confirmed: Clinica Lopez. Time: 2026-07-22T10:30. Reference: AP-77.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      appointment_type: "medical",
+      provider_name: "Clinica Lopez",
+      provider_reply_status: "confirmed",
+      provider_reply: "Confirmed Wednesday at 10:30. Bring insurance card.",
+      reference: "AP-77",
+      location: "Marbella",
+      scheduled_event_id: "scheduled-appointment-smoke",
+    }),
+  });
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Appointment saved in Scheduled Support. The task is closed.");
+});
+
 test("notifications settings back returns to settings home", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/settings/notifications", { waitUntil: "domcontentloaded" });

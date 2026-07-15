@@ -5318,7 +5318,10 @@ function ProviderReplyPanel({
   const scheduledTimeLabel = isHomeServicePendingAction(item)
     ? (isSpanish ? "visita" : "visit")
     : (isSpanish ? "cita" : "appointment");
-  const canSave = (needsScheduledTime ? providerReplyHasValidScheduledTime(form) : providerReplyFormHasDetails(form)) && !isSaving && !isCancelling;
+  const hasProviderReply = Boolean(form.providerReply.trim());
+  const canSave = (needsScheduledTime
+    ? providerReplyHasValidScheduledTime(form) && hasProviderReply
+    : providerReplyFormHasDetails(form)) && !isSaving && !isCancelling;
   return (
     <div
       className="mt-3 rounded-[22px] border border-[#BFDBFE] bg-[#F8FBFF] p-4"
@@ -5451,6 +5454,13 @@ function ProviderReplyPanel({
               {isSpanish
                 ? `Se necesita fecha y hora para guardar la ${scheduledTimeLabel} en Scheduled Support.`
                 : `A date and time are needed to save the ${scheduledTimeLabel} in Scheduled Support.`}
+            </p>
+          ) : null}
+          {needsScheduledTime ? (
+            <p className="mt-1 font-body text-[12px] font-bold text-vyva-text-2">
+              {isSpanish
+                ? "Anade la respuesta del proveedor antes de guardar."
+                : "Add the provider reply before saving."}
             </p>
           ) : null}
         </div>
