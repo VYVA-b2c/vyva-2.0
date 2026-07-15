@@ -745,6 +745,16 @@ type ContentTemplateRecommendation = {
   reasons: string[];
 };
 
+type ContactRelationshipBrief = {
+  priority: string;
+  primaryChannel: Channel;
+  starter: string;
+  angle: string;
+  opener: string;
+  followUp: string;
+  risk: string;
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -5872,14 +5882,15 @@ export default function MarketingAdminPage() {
       contactRelationshipAudiences.length > 0,
     ].filter(Boolean).length * 25
     : 0;
-  const contactRelationshipNextActions = selectedRelationshipContact
-    ? [
+  const contactRelationshipNextActions = useMemo(() => {
+    if (!selectedRelationshipContact) return [];
+    return [
       !contactRelationshipDirectReachable ? "Add email or WhatsApp before direct outreach." : "",
       selectedRelationshipContact.consentStatus !== "opted_in" ? `Review consent: ${selectedRelationshipContact.consentStatus}.` : "",
       !contactRelationshipSegmented ? "Add market, language, tags, or lifecycle details." : "",
       contactRelationshipAudiences.length === 0 ? "Add this contact to a list or audience." : "",
-    ].filter(Boolean)
-    : [];
+    ].filter(Boolean);
+  }, [contactRelationshipAudiences.length, contactRelationshipDirectReachable, contactRelationshipSegmented, selectedRelationshipContact]);
   const contactRelationshipTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
     if (!selectedRelationshipContact) return [];
     const isB2bContact = selectedRelationshipContact.audienceType === "b2b" || Boolean(selectedRelationshipContact.companyName || selectedRelationshipContact.roleLabel);
@@ -5981,6 +5992,58 @@ export default function MarketingAdminPage() {
       })
       .slice(0, 3);
   }, [contactRelationshipAudiences, selectedRelationshipContact]);
+
+  const contactRelationshipBrief = useMemo<ContactRelationshipBrief | null>(() => {
+    if (!selectedRelationshipContact) return null;
+    const bestReadyChannel = contactRelationshipChannels.find((item) => item.state === "ready")?.channel
+      ?? contactRelationshipChannels.find((item) => item.state === "planning")?.channel
+      ?? "email";
+    const bestTemplate = contactRelationshipTemplateRecommendations[0]?.template ?? null;
+    const isB2bContact = selectedRelationshipContact.audienceType === "b2b" || Boolean(selectedRelationshipContact.companyName || selectedRelationshipContact.roleLabel);
+    const contactName = selectedRelationshipContact.fullName || selectedRelationshipContact.email || selectedRelationshipContact.phoneNumber || "this contact";
+    const roleContext = [selectedRelationshipContact.roleLabel, selectedRelationshipContact.companyName].filter(Boolean).join(" at ");
+    const segmentContext = [selectedRelationshipContact.market, selectedRelationshipContact.vertical, selectedRelationshipContact.category].filter(Boolean).join(" / ");
+    const audienceContext = contactRelationshipAudiences[0]?.name ?? selectedRelationshipContact.lists[0] ?? selectedRelationshipContact.audienceType.toUpperCase();
+    const priority = !contactRelationshipDirectReachable
+      ? "Add a reachable route"
+      : selectedRelationshipContact.consentStatus !== "opted_in"
+        ? "Consent review first"
+        : selectedContactRelationshipScore >= 75
+          ? "Ready to activate"
+          : "Needs light cleanup";
+    const starter = bestTemplate
+      ? `Start with "${bestTemplate.title}" on ${channelLabel[bestTemplate.channel]}.`
+      : `Build a ${channelLabel[bestReadyChannel]} starter campaign.`;
+    const angle = isB2bContact
+      ? `Partner outreach for ${roleContext || contactName}${segmentContext ? ` with ${segmentContext}` : ""}.`
+      : `Family relationship nurture for ${contactName}${segmentContext ? ` with ${segmentContext}` : ""}.`;
+    const opener = isB2bContact
+      ? `Open with the practical value for ${selectedRelationshipContact.companyName || selectedRelationshipContact.roleLabel || "this partner"} and make one next step obvious.`
+      : "Open with reassurance, usefulness, and one simple next step for the family.";
+    const followUp = contactRelationshipCampaigns[0]
+      ? `Connect it to "${contactRelationshipCampaigns[0].name}" or create a focused ${audienceContext} follow-up.`
+      : `Create a focused ${audienceContext} follow-up before broad campaigns.`;
+    const risk = contactRelationshipNextActions[0] ?? "No immediate blockers; keep the message specific and avoid over-contacting.";
+
+    return {
+      priority,
+      primaryChannel: bestReadyChannel,
+      starter,
+      angle,
+      opener,
+      followUp,
+      risk,
+    };
+  }, [
+    contactRelationshipAudiences,
+    contactRelationshipCampaigns,
+    contactRelationshipChannels,
+    contactRelationshipDirectReachable,
+    contactRelationshipNextActions,
+    contactRelationshipTemplateRecommendations,
+    selectedContactRelationshipScore,
+    selectedRelationshipContact,
+  ]);
 
   const visibleAudiences = useMemo(() => audiences.filter((audience) => {
     return matchesSearch(search, [
@@ -15507,6 +15570,26 @@ export default function MarketingAdminPage() {
                                 <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800" data-testid="marketing-contact-next-actions">Ready for relationship-aware campaign planning.</p>
                               )}
                             </div>
+                            {contactRelationshipBrief ? (
+                              <div className="grid gap-3 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-contact-relationship-brief">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Relationship brief</p>
+                                    <p className="mt-1 text-sm font-black text-[#241133]">{contactRelationshipBrief.priority}</p>
+                                  </div>
+                                  <Pill className={channelClass(contactRelationshipBrief.primaryChannel)}>
+                                    Primary route: {channelLabel[contactRelationshipBrief.primaryChannel]}
+                                  </Pill>
+                                </div>
+                                <div className="grid gap-2 text-xs font-bold leading-relaxed text-[#5b4a46]">
+                                  <p><span className="font-black text-[#241133]">Starter:</span> {contactRelationshipBrief.starter}</p>
+                                  <p><span className="font-black text-[#241133]">Angle:</span> {contactRelationshipBrief.angle}</p>
+                                  <p><span className="font-black text-[#241133]">Opener:</span> {contactRelationshipBrief.opener}</p>
+                                  <p><span className="font-black text-[#241133]">Follow-up:</span> {contactRelationshipBrief.followUp}</p>
+                                  <p className="rounded-lg bg-[#fff7ed] px-3 py-2 text-amber-900"><span className="font-black">Watch:</span> {contactRelationshipBrief.risk}</p>
+                                </div>
+                              </div>
+                            ) : null}
                             <div className="grid gap-2 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-contact-template-recommendations">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>

@@ -983,6 +983,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-relationship-context")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-contact-relationship-context")).toHaveTextContent("B2B nurture");
     expect(screen.getByTestId("marketing-contact-next-actions")).toHaveTextContent("Review consent: pending.");
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Consent review first");
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Primary route: Email");
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Start with "WhatsApp partner proof nudge" on WhatsApp.');
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Partner outreach for Partner at Moka Digital with Spain / healthcare / lead.");
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Connect it to "Partner outreach" or create a focused Partners follow-up.');
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Review consent: pending.");
     expect(screen.getByTestId("marketing-contact-template-recommendations")).toHaveTextContent("Suggested templates");
     expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp partner proof nudge");
     expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp ready");
