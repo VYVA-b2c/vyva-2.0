@@ -227,6 +227,7 @@ describe("admin marketing router", () => {
         channel: "linkedin",
         tone: "direct",
         targetAudienceName: "Partners",
+        campaignBrief: "Invite Madrid partners to a practical webinar by email and LinkedIn.",
         objective: "Start a partner conversation.",
         subjectSeed: "A practical care-team layer",
         bodySeed: "VYVA helps families and providers coordinate support.",
@@ -246,6 +247,9 @@ describe("admin marketing router", () => {
             ctaUrl: "https://v2.vyva.life",
           },
         });
+        expect(response.body.draft.objective).toContain("Campaign brief: Invite Madrid partners");
+        expect(response.body.draft.body).toContain("Campaign brief: Invite Madrid partners");
+        expect(response.body.draft.designJson.campaignBrief).toBe("Invite Madrid partners to a practical webinar by email and LinkedIn.");
         expect(response.body.draft.body).toContain("non-clinical");
         expect(response.body.note).toContain("OPENAI_API_KEY");
       });

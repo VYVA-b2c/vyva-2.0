@@ -227,6 +227,7 @@ const marketingAiCampaignDraftSchema = z.object({
   tone: marketingAiToneSchema.optional().default("warm"),
   targetAudienceName: z.string().trim().max(180).optional().default(""),
   targetAudienceSize: z.number().int().nonnegative().max(1_000_000).optional(),
+  campaignBrief: z.string().trim().max(1400).optional().default(""),
   campaignName: z.string().trim().max(180).optional().default(""),
   contentTitle: z.string().trim().max(180).optional().default(""),
   objective: z.string().trim().max(1400).optional().default(""),
@@ -375,24 +376,27 @@ function fallbackMarketingAiCampaignDraft(input: MarketingAiCampaignDraftInput):
   const campaignName = input.campaignName || `${playLabel} - ${audience}`;
   const contentTitle = input.contentTitle || `${campaignName} ${input.channel}`;
   const subject = input.subjectSeed || `${playLabel}: a useful next step`;
+  const campaignBrief = input.campaignBrief.trim();
   const bodySeed = input.bodySeed || input.objective || `Share a practical VYVA update with ${audience}.`;
   const body = [
+    campaignBrief ? `Campaign brief: ${campaignBrief}` : "",
     bodySeed,
     "",
     `Write this for ${audience} in a ${marketingToneDirection[input.tone]} voice.`,
     marketingChannelDirection[input.channel],
     "Keep the message non-clinical, practical, and focused on one action.",
-  ].join("\n");
+  ].filter(Boolean).join("\n\n");
 
   return {
     campaignName,
     contentTitle,
     objective: [
       input.objective || `Move ${audience} toward one useful VYVA action.`,
+      campaignBrief ? `Campaign brief: ${campaignBrief}.` : "",
       `Audience: ${audience}.`,
       `Tone: ${input.tone}.`,
       `Channel: ${input.channel}.`,
-    ].join("\n"),
+    ].filter(Boolean).join("\n"),
     subject,
     body,
     ctaLabel: input.ctaLabel || "Open VYVA",
@@ -405,6 +409,7 @@ function fallbackMarketingAiCampaignDraft(input: MarketingAiCampaignDraftInput):
       tone: input.tone,
       channel: input.channel,
       audience,
+      campaignBrief: campaignBrief || null,
     },
   };
 }
@@ -469,6 +474,7 @@ async function generateMarketingAiCampaignDraft(input: MarketingAiCampaignDraftI
             channel: input.channel,
             tone: input.tone,
             language: input.language,
+            campaignBrief: input.campaignBrief,
             campaignNameSeed: input.campaignName,
             contentTitleSeed: input.contentTitle,
             objectiveSeed: input.objective,

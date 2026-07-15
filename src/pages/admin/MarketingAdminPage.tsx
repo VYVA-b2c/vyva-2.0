@@ -8022,6 +8022,7 @@ export default function MarketingAdminPage() {
             angleGuidance: campaignStudioAngleGuidance[campaignStudio.angleId],
             targetAudienceName: selectedCampaignStudioTargetAudience?.name ?? "",
             targetAudienceSize: selectedCampaignStudioTargetAudience?.mappedMemberCount ?? recipientsForChannel,
+            campaignBrief: campaignIntentBrief.trim(),
             campaignName: seed.campaignName,
             contentTitle: seed.contentTitle,
             objective: seed.objective,

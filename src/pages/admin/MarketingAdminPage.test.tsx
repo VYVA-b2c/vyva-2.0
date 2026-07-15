@@ -3036,6 +3036,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
     expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("Partners");
     expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Campaign brief: Invite Madrid partners");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-copy"));
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI drafts generated for 2 channels");
+    });
+    const aiDraftCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).channel)).toEqual(["email", "linkedin"]);
+    expect(aiDraftCalls.map(([, init]) => JSON.parse(String(init?.body ?? "{}")).campaignBrief)).toEqual([
+      "Invite Madrid partners to a practical webinar by email and LinkedIn.",
+      "Invite Madrid partners to a practical webinar by email and LinkedIn.",
+    ]);
   });
 
   it("creates linked campaign and content directly from the smart studio", async () => {
