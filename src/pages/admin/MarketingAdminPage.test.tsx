@@ -769,7 +769,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
       });
     }
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaignFromRequestBody("campaign-created", init) }, { status: 201 });
-    if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
+    if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaignFromRequestBody("campaign-1", init) });
     if (path === "/api/admin/marketing/campaigns/campaign-2" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[1] });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
     if (path === "/api/admin/marketing/campaigns/campaign-1/test-email" && method === "POST") return jsonResponse({ ok: true, communication: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" }, delivery: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" } });
@@ -3719,7 +3719,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved recipient can be sent through VYVA email");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Manual publishing");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview the content, then publish or track it in the channel tool.");
-    expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toHaveTextContent("Mark published");
+    expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toHaveTextContent("Track result");
     fireEvent.click(screen.getByTestId("button-marketing-copy-launch-packet"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch packet"));
@@ -3752,11 +3752,45 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
     expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
+    expect(screen.getByTestId("marketing-campaign-manual-publish-tracker")).toHaveTextContent("Record what happened outside VYVA");
+    expect(screen.getByTestId("marketing-campaign-manual-publish-results")).toHaveTextContent("No manual results recorded yet.");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin"));
-    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("LinkedIn marked as published.");
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("LinkedIn result tracker opened.");
+    expect(screen.getByTestId("marketing-campaign-manual-publish-feedback")).toHaveTextContent("Add the LinkedIn publish result below");
     expect(screen.getByTestId("select-marketing-campaign-channel-status-1")).toHaveValue("published");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Save campaign changes so this channel uses the latest content");
     expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toBeDisabled();
+    expect(screen.getByTestId("select-marketing-manual-publish-channel")).toHaveValue("linkedin");
+    fireEvent.change(screen.getByTestId("input-marketing-manual-publish-url"), { target: { value: "https://linkedin.com/posts/vyva-caregiver-welcome" } });
+    fireEvent.change(screen.getByTestId("input-marketing-manual-publish-at"), { target: { value: "2026-07-06T10:30" } });
+    fireEvent.change(screen.getByTestId("input-marketing-manual-publish-reached"), { target: { value: "240" } });
+    fireEvent.change(screen.getByTestId("input-marketing-manual-publish-engagements"), { target: { value: "18" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-manual-publish-notes"), { target: { value: "Published by Karim; follow up with commenters tomorrow." } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-manual-publish-result"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-manual-publish-feedback")).toHaveTextContent("LinkedIn publish result saved.");
+    });
+    const manualPatchCall = apiFetchMock.mock.calls.find(([path, init]) => {
+      if (path !== "/api/admin/marketing/campaigns/campaign-1" || init?.method !== "PATCH") return false;
+      const body = JSON.parse(String(init.body ?? "{}"));
+      return Array.isArray(body.metadata?.manualPublishResults);
+    });
+    const manualPatchBody = JSON.parse(String(manualPatchCall?.[1]?.body));
+    expect(manualPatchBody.metadata.manualPublishResults[0]).toMatchObject({
+      channel: "linkedin",
+      result: "published",
+      url: "https://linkedin.com/posts/vyva-caregiver-welcome",
+      notes: "Published by Karim; follow up with commenters tomorrow.",
+      publishedAt: new Date("2026-07-06T10:30").toISOString(),
+      audienceReached: 240,
+      engagements: 18,
+    });
+    expect(manualPatchBody.channels).toEqual(expect.arrayContaining([
+      expect.objectContaining({ channel: "linkedin", contentAssetId: "content-2", status: "published" }),
+    ]));
+    expect(screen.getByTestId("marketing-campaign-manual-publish-results")).toHaveTextContent("240 reached");
+    expect(screen.getByTestId("marketing-campaign-manual-publish-results")).toHaveTextContent("18 engagements");
     const emailContentPreview = screen.getByTestId("marketing-campaign-channel-content-preview-0");
     expect(emailContentPreview).toHaveTextContent("Linked content");
     expect(emailContentPreview).toHaveTextContent("Welcome email");
@@ -3804,7 +3838,8 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "PATCH" }));
     });
-    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns/campaign-1" && init?.method === "PATCH");
+    const campaignPatchCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/campaigns/campaign-1" && init?.method === "PATCH");
+    const patchCall = campaignPatchCalls[campaignPatchCalls.length - 1];
     const patchBody = JSON.parse(String(patchCall?.[1]?.body));
     expect(patchBody).toMatchObject({
       name: "Updated campaign",

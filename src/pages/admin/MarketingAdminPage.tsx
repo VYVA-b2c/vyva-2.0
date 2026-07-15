@@ -562,6 +562,29 @@ type CampaignChannelDraft = {
   scheduledAt: string;
 };
 
+type ManualPublishResultStatus = "published" | "scheduled" | "blocked" | "needs_follow_up";
+
+type ManualPublishTrackerDraft = {
+  channel: Channel;
+  result: ManualPublishResultStatus;
+  url: string;
+  notes: string;
+  publishedAt: string;
+  audienceReached: string;
+  engagements: string;
+};
+
+type ManualPublishResult = {
+  channel: Channel;
+  result: ManualPublishResultStatus;
+  url?: string;
+  notes?: string;
+  publishedAt: string;
+  audienceReached?: number;
+  engagements?: number;
+  recordedAt: string;
+};
+
 type CampaignReadinessState = "ready" | "needs_action" | "blocked" | "planning";
 
 type CampaignReadinessItem = {
@@ -1080,6 +1103,13 @@ const channelLabel: Record<Channel, string> = {
   instagram: "Instagram",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
+};
+
+const manualPublishResultLabel: Record<ManualPublishResultStatus, string> = {
+  published: "Published",
+  scheduled: "Scheduled externally",
+  blocked: "Blocked",
+  needs_follow_up: "Needs follow-up",
 };
 
 const contentLocalizationLanguageLabel: Record<ContentLocalizationLanguage, string> = Object.fromEntries(
@@ -4233,6 +4263,79 @@ function campaignMetadataWithTarget(existingMetadata: unknown, targetAudience: M
     : metadata;
 }
 
+function normalizeManualPublishResultStatus(value: unknown): ManualPublishResultStatus {
+  return value === "scheduled" || value === "blocked" || value === "needs_follow_up" ? value : "published";
+}
+
+function emptyManualPublishTrackerDraft(channel: Channel = "linkedin", scheduledAt = ""): ManualPublishTrackerDraft {
+  return {
+    channel,
+    result: "published",
+    url: "",
+    notes: "",
+    publishedAt: scheduledAt || toDateTimeLocal(new Date().toISOString()),
+    audienceReached: "",
+    engagements: "",
+  };
+}
+
+function manualPublishResultsFromMetadata(metadata: unknown): ManualPublishResult[] {
+  const results = recordValue(metadata).manualPublishResults;
+  if (!Array.isArray(results)) return [];
+  return results.flatMap((item) => {
+    const record = recordValue(item);
+    const channel = record.channel;
+    const publishedAt = record.publishedAt;
+    const recordedAt = record.recordedAt;
+    if (!CHANNELS.includes(channel as Channel) || typeof publishedAt !== "string" || !publishedAt) return [];
+    return [{
+      channel: channel as Channel,
+      result: normalizeManualPublishResultStatus(record.result),
+      url: typeof record.url === "string" && record.url.trim() ? record.url.trim() : undefined,
+      notes: typeof record.notes === "string" && record.notes.trim() ? record.notes.trim() : undefined,
+      publishedAt,
+      audienceReached: typeof record.audienceReached === "number" && Number.isFinite(record.audienceReached) ? record.audienceReached : undefined,
+      engagements: typeof record.engagements === "number" && Number.isFinite(record.engagements) ? record.engagements : undefined,
+      recordedAt: typeof recordedAt === "string" && recordedAt ? recordedAt : publishedAt,
+    }];
+  });
+}
+
+function manualPublishResultsFromMetadataText(value: string) {
+  try {
+    return manualPublishResultsFromMetadata(parseJsonText(value, "Campaign metadata"));
+  } catch {
+    return [];
+  }
+}
+
+function campaignMetadataWithManualPublishResult(existingMetadata: unknown, result: ManualPublishResult) {
+  const metadata = { ...recordValue(existingMetadata) };
+  const previousResults = manualPublishResultsFromMetadata(metadata);
+  return {
+    ...metadata,
+    manualPublishResults: [result, ...previousResults].slice(0, 25),
+    lastManualPublishResult: result,
+  };
+}
+
+function optionalManualMetric(value: string, label: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${label} must be 0 or more.`);
+  }
+  return Math.round(parsed);
+}
+
+function isoDateTimeFromTracker(value: string) {
+  if (!value) return new Date().toISOString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error("Publish time must be a valid date.");
+  return date.toISOString();
+}
+
 function emptyCampaignEditDraft(): CampaignEditDraft {
   return {
     name: "",
@@ -6411,6 +6514,9 @@ export default function MarketingAdminPage() {
   const [campaignEmailSending, setCampaignEmailSending] = useState(false);
   const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
   const [campaignHandoffCopyFeedback, setCampaignHandoffCopyFeedback] = useState("");
+  const [manualPublishDraft, setManualPublishDraft] = useState<ManualPublishTrackerDraft>(() => emptyManualPublishTrackerDraft());
+  const [manualPublishSaving, setManualPublishSaving] = useState(false);
+  const [manualPublishFeedback, setManualPublishFeedback] = useState("");
   const [dueEmailSending, setDueEmailSending] = useState(false);
   const [dueEmailFeedback, setDueEmailFeedback] = useState("");
   const [message, setMessage] = useState("");
@@ -6657,8 +6763,13 @@ export default function MarketingAdminPage() {
   }, [campaignMetrics]);
 
   const startCampaignEdit = useCallback((campaign: Campaign) => {
+    const firstManualChannel = campaign.channels.find((channel) => channel.channel !== "email" && channel.contentAssetId)?.channel
+      ?? campaign.channels.find((channel) => channel.channel !== "email")?.channel
+      ?? "linkedin";
     setEditingCampaignId(campaign.id);
     setCampaignEditDraft(campaignEditDraftFromCampaign(campaign, audiences));
+    setManualPublishDraft(emptyManualPublishTrackerDraft(firstManualChannel, toDateTimeLocal(campaign.scheduleStartsAt)));
+    setManualPublishFeedback("");
     setConfirmingCampaignDeleteId(null);
     setConfirmingCampaignSendId(null);
     setMessage("");
@@ -10214,6 +10325,8 @@ export default function MarketingAdminPage() {
     setConfirmingCampaignSendId(null);
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
+    setManualPublishDraft(emptyManualPublishTrackerDraft());
+    setManualPublishFeedback("");
     setCampaignEditDraft(emptyCampaignEditDraft());
   }
 
@@ -10296,6 +10409,7 @@ export default function MarketingAdminPage() {
     });
     setCampaignEmailFeedback("");
     setTestEmailFeedback("");
+    setManualPublishFeedback("");
   }
 
   function addCampaignChannel() {
@@ -10308,6 +10422,7 @@ export default function MarketingAdminPage() {
     }));
     setCampaignEmailFeedback("");
     setTestEmailFeedback("");
+    setManualPublishFeedback("");
   }
 
   function removeCampaignChannel(channelId: string) {
@@ -10326,14 +10441,96 @@ export default function MarketingAdminPage() {
     });
     setCampaignEmailFeedback("");
     setTestEmailFeedback("");
+    setManualPublishFeedback("");
   }
 
-  function markManualCampaignChannelPublished(channelId: string, channel: Channel) {
+  function prepareManualCampaignChannelTracking(channelId: string, channel: Channel, scheduledAt: string | null) {
     updateCampaignChannel(channelId, { status: "published" });
+    setManualPublishDraft((draft) => ({
+      ...emptyManualPublishTrackerDraft(channel, toDateTimeLocal(fromDateTimeLocal(scheduledAt || campaignEditDraft.scheduleStartsAt) || new Date().toISOString())),
+      ...(draft.channel === channel ? draft : {}),
+      channel,
+    }));
     const label = channelLabel[channel];
-    setCampaignHandoffCopyFeedback(`${label} marked as published. Save campaign changes to keep this channel status.`);
-    setCampaignEmailFeedback(`${label} marked as published. Save campaign changes to keep this channel status.`);
-    setTestEmailFeedback("");
+    setManualPublishFeedback(`Add the ${label} publish result below, then save it to this campaign.`);
+    setCampaignHandoffCopyFeedback(`${label} result tracker opened.`);
+  }
+
+  async function saveManualPublishResult(campaignId: string) {
+    if (!campaignEditDraft.name.trim()) {
+      setManualPublishFeedback("Campaign name is required before saving a publish result.");
+      return;
+    }
+    if (manualPublishDraft.channel === "email") {
+      setManualPublishFeedback("Use the email send controls for email. Manual tracking is for social, WhatsApp, phone, event, print, and other handoff channels.");
+      return;
+    }
+    setManualPublishSaving(true);
+    setManualPublishFeedback("Saving manual publish result...");
+    try {
+      const existingMetadata = parseJsonText(campaignEditDraft.metadataText, "Campaign metadata");
+      const publishedAt = isoDateTimeFromTracker(manualPublishDraft.publishedAt);
+      const manualResult: ManualPublishResult = {
+        channel: manualPublishDraft.channel,
+        result: manualPublishDraft.result,
+        url: manualPublishDraft.url.trim() || undefined,
+        notes: manualPublishDraft.notes.trim() || undefined,
+        publishedAt,
+        audienceReached: optionalManualMetric(manualPublishDraft.audienceReached, "Audience reached"),
+        engagements: optionalManualMetric(manualPublishDraft.engagements, "Engagements"),
+        recordedAt: new Date().toISOString(),
+      };
+      const metadata = campaignMetadataWithTarget(
+        campaignMetadataWithManualPublishResult(existingMetadata, manualResult),
+        selectedCampaignTargetAudience,
+      );
+      const scheduledAt = fromDateTimeLocal(campaignEditDraft.scheduleStartsAt);
+      const scheduleEndsAt = fromDateTimeLocal(campaignEditDraft.scheduleEndsAt);
+      const channels = campaignChannelsPayload(campaignEditDraft).map((channel) => (
+        channel.channel === manualResult.channel ? { ...channel, status: "published" } : channel
+      ));
+      const result = await api<{ ok?: boolean; campaign?: Campaign }>(`/api/admin/marketing/campaigns/${campaignId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: campaignEditDraft.name,
+          audienceType: campaignEditDraft.audienceType,
+          status: campaignEditDraft.status,
+          objective: campaignEditDraft.objective,
+          scheduleStartsAt: scheduledAt,
+          scheduleEndsAt,
+          timezone: campaignEditDraft.timezone,
+          source: campaignEditDraft.source.trim() || "vyva",
+          lovableExternalId: campaignEditDraft.lovableExternalId.trim() || null,
+          metadata,
+          channels,
+        }),
+      });
+      const label = channelLabel[manualResult.channel];
+      setCampaignEditDraft((draft) => ({
+        ...draft,
+        metadataText: jsonText(metadata),
+        channels: campaignChannelsWithPrimary(draft).map((channel) => (
+          channel.channel === manualResult.channel ? { ...channel, status: "published" } : channel
+        )),
+      }));
+      if (result.campaign) {
+        setCampaigns((current) => current.map((campaign) => campaign.id === result.campaign?.id ? result.campaign : campaign));
+        setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
+      }
+      setManualPublishDraft(emptyManualPublishTrackerDraft(manualResult.channel));
+      setManualPublishFeedback(`${label} publish result saved.`);
+      setCampaignHandoffCopyFeedback(`${label} publish result saved to campaign history.`);
+      setMessage(`${label} publish result saved.`);
+      setCampaignEmailFeedback("");
+      setTestEmailFeedback("");
+      await refreshAll();
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Manual publish result could not be saved.";
+      setManualPublishFeedback(messageText);
+      setMessage(messageText);
+    } finally {
+      setManualPublishSaving(false);
+    }
   }
 
   async function sendTestCampaignEmail(campaignId: string) {
@@ -12793,12 +12990,17 @@ export default function MarketingAdminPage() {
       onSelect: () => {
         previewContent(contentAsset);
       },
-      secondaryActionLabel: channelDraft.status === "published" ? "Published in VYVA" : "Mark published",
+      secondaryActionLabel: channelDraft.status === "published" ? "Published in VYVA" : "Track result",
       secondaryIcon: CheckCircle2,
       secondaryDisabled: hasUnsavedCampaignSendChanges || channelDraft.status === "published",
-      onSecondaryAction: () => markManualCampaignChannelPublished(channelDraft.id, channelDraft.channel),
+      onSecondaryAction: () => prepareManualCampaignChannelTracking(channelDraft.id, channelDraft.channel, scheduledAt),
     };
   }) : [];
+  const manualPublishChannelOptions = campaignPublishKitItems.filter((item) => item.channel !== "email" && item.contentAsset);
+  const manualPublishResults = manualPublishResultsFromMetadataText(campaignEditDraft.metadataText);
+  const selectedManualPublishChannel = manualPublishChannelOptions.some((item) => item.channel === manualPublishDraft.channel)
+    ? manualPublishDraft.channel
+    : manualPublishChannelOptions[0]?.channel ?? manualPublishDraft.channel;
   const firstCampaignContentAsset = campaignReadinessChannels
     .map((channelDraft) => channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null)
     .find((item): item is ContentAsset => Boolean(item)) ?? null;
@@ -15578,6 +15780,135 @@ export default function MarketingAdminPage() {
                             );
                           })}
                         </div>
+                        {manualPublishChannelOptions.length ? (
+                          <div className="mt-4 rounded-2xl border border-purple-100 bg-white p-4" data-testid="marketing-campaign-manual-publish-tracker">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Manual result tracker</p>
+                                <h4 className="mt-1 font-serif text-xl text-[#241133]">Record what happened outside VYVA</h4>
+                                <p className="mt-1 text-sm font-bold text-[#7d6b65]">Save the live post, handoff, event, call, or print outcome back to the campaign.</p>
+                              </div>
+                              <Pill className="bg-purple-50 text-purple-800">{manualPublishResults.length} saved result{manualPublishResults.length === 1 ? "" : "s"}</Pill>
+                            </div>
+                            {manualPublishFeedback ? (
+                              <p
+                                className={`mt-3 rounded-xl px-3 py-2 text-sm font-black ${/fail|error|could not|must|required/i.test(manualPublishFeedback) ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}
+                                data-testid="marketing-campaign-manual-publish-feedback"
+                              >
+                                {manualPublishFeedback}
+                              </p>
+                            ) : null}
+                            <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                              <Field label="Channel">
+                                <select
+                                  className={inputClass}
+                                  value={selectedManualPublishChannel}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, channel: event.target.value as Channel }))}
+                                  data-testid="select-marketing-manual-publish-channel"
+                                >
+                                  {manualPublishChannelOptions.map((item) => (
+                                    <option key={item.channel} value={item.channel}>{channelLabel[item.channel]}</option>
+                                  ))}
+                                </select>
+                              </Field>
+                              <Field label="Result">
+                                <select
+                                  className={inputClass}
+                                  value={manualPublishDraft.result}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, result: event.target.value as ManualPublishResultStatus }))}
+                                  data-testid="select-marketing-manual-publish-result"
+                                >
+                                  {(Object.keys(manualPublishResultLabel) as ManualPublishResultStatus[]).map((status) => (
+                                    <option key={status} value={status}>{manualPublishResultLabel[status]}</option>
+                                  ))}
+                                </select>
+                              </Field>
+                              <Field label="Published or scheduled time">
+                                <input
+                                  className={inputClass}
+                                  type="datetime-local"
+                                  value={manualPublishDraft.publishedAt}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, publishedAt: event.target.value }))}
+                                  data-testid="input-marketing-manual-publish-at"
+                                />
+                              </Field>
+                            </div>
+                            <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                              <Field label="Live URL or proof link">
+                                <input
+                                  className={inputClass}
+                                  value={manualPublishDraft.url}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, url: event.target.value }))}
+                                  placeholder="https://..."
+                                  data-testid="input-marketing-manual-publish-url"
+                                />
+                              </Field>
+                              <Field label="Audience reached">
+                                <input
+                                  className={inputClass}
+                                  inputMode="numeric"
+                                  value={manualPublishDraft.audienceReached}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, audienceReached: event.target.value }))}
+                                  placeholder="Optional"
+                                  data-testid="input-marketing-manual-publish-reached"
+                                />
+                              </Field>
+                              <Field label="Engagements">
+                                <input
+                                  className={inputClass}
+                                  inputMode="numeric"
+                                  value={manualPublishDraft.engagements}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, engagements: event.target.value }))}
+                                  placeholder="Optional"
+                                  data-testid="input-marketing-manual-publish-engagements"
+                                />
+                              </Field>
+                            </div>
+                            <Field label="Result notes">
+                              <textarea
+                                className={`${textareaClass} min-h-[92px]`}
+                                value={manualPublishDraft.notes}
+                                onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, notes: event.target.value }))}
+                                placeholder="What was published, where, and what follow-up is needed?"
+                                data-testid="textarea-marketing-manual-publish-notes"
+                              />
+                            </Field>
+                            <div className="mt-3 flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => editingCampaign ? void saveManualPublishResult(editingCampaign.id) : undefined}
+                                disabled={manualPublishSaving || campaignSaving || !editingCampaign}
+                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                data-testid="button-marketing-save-manual-publish-result"
+                              >
+                                <Save size={15} /> {manualPublishSaving ? "Saving..." : "Save result"}
+                              </button>
+                              <span className="text-xs font-bold text-[#7d6b65]">This also marks the selected channel as published.</span>
+                            </div>
+                            <div className="mt-4 border-t border-[#eadfd5] pt-3" data-testid="marketing-campaign-manual-publish-results">
+                              {manualPublishResults.length ? (
+                                <div className="grid gap-2">
+                                  {manualPublishResults.map((result, index) => (
+                                    <div key={`${result.channel}-${result.publishedAt}-${index}`} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-sm font-bold text-[#6f5f59]">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="font-black text-[#241133]">{channelLabel[result.channel]} - {manualPublishResultLabel[result.result]}</span>
+                                        <span className="text-xs text-[#8b7a73]">{formatDate(result.publishedAt)}</span>
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                        {typeof result.audienceReached === "number" ? <Pill className="bg-blue-50 text-blue-800">{result.audienceReached} reached</Pill> : null}
+                                        {typeof result.engagements === "number" ? <Pill className="bg-purple-50 text-purple-800">{result.engagements} engagements</Pill> : null}
+                                        {result.url ? <a className="inline-flex items-center gap-1 text-purple-800 underline" href={result.url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Proof link</a> : null}
+                                      </div>
+                                      {result.notes ? <p className="mt-2 text-xs leading-relaxed">{result.notes}</p> : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="rounded-xl border border-dashed border-[#eadfd5] bg-white p-3 text-sm font-bold text-[#8b7a73]">No manual results recorded yet.</p>
+                              )}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="grid gap-3 xl:grid-cols-2">
