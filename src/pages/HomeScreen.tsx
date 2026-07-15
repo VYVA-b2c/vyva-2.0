@@ -12,6 +12,7 @@ import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
+import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import {
@@ -539,7 +540,8 @@ const HOME_FAST_ACTION_THEMES: Record<HomeFastAction["tone"], {
 
 const HomeScreen = () => {
   const { guardPath, readiness, canUseService } = useServiceGate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const { firstName: profileFirstName, profile } = useProfile();
   const [fastHelpStartIndex, setFastHelpStartIndex] = useState(0);
 
@@ -622,7 +624,7 @@ const HomeScreen = () => {
   }, [fetchIpWeather, noCityInProfile]);
 
   const weatherData = profileWeatherData ?? coordsWeatherData;
-  const participationLanguage = baseLanguageCode(i18n?.language);
+  const participationLanguage = baseLanguageCode(language);
 
   const { data: medicationHomeSignal } = useQuery<MedicationHomeSignal>({
     queryKey: ["/api/meds/adherence-report"],
@@ -946,7 +948,7 @@ const HomeScreen = () => {
   const activeConciergeShowVyvaTask = activeConciergeHomeTask ? isShowVyvaPreparedTask(activeConciergeHomeTask.action_payload) : false;
   const activeConciergeTaskText = activeConciergeHomeTask
     ? activeConciergeShowVyvaTask
-      ? showVyvaResumeActionLabel(activeConciergeHomeTask.action_payload, i18n.language)
+      ? showVyvaResumeActionLabel(activeConciergeHomeTask.action_payload, language)
       : conciergeHomeTaskLabel(activeConciergeHomeTask, t)
     : "";
   const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t) : "";
@@ -955,7 +957,7 @@ const HomeScreen = () => {
   const activeConciergeWaitingOnProvider = activeConciergeHomeTask ? conciergeHomeIsWaitingOnProvider(activeConciergeHomeTask) : false;
   const activeConciergeProviderText = activeConciergeHomeTask ? conciergeHomeProviderLabel(activeConciergeHomeTask, t) : "";
   const activeConciergeShowVyvaSourceText = activeConciergeHomeTask && activeConciergeShowVyvaTask
-    ? showVyvaResumeSourceLabel(activeConciergeHomeTask.action_payload, i18n.language)
+    ? showVyvaResumeSourceLabel(activeConciergeHomeTask.action_payload, language)
     : "";
   const activeConciergeShowVyvaSummary = activeConciergeHomeTask && activeConciergeShowVyvaTask
     ? showVyvaResumeSummary(activeConciergeHomeTask.action_payload, activeConciergeHomeTask.action_summary)
