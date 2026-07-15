@@ -1,10 +1,15 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ConciergeReadinessAdminPage from "./ConciergeReadinessAdminPage";
 import { CONCIERGE_FLOW_REFERENCES } from "../../../shared/conciergeFlowRegistry";
 import { buildConciergeLaunchSmokeAudit } from "../../../shared/conciergeLaunchSmokeAudit";
 import { buildConciergeReadinessRows, type ConciergeReadinessRow } from "../../../shared/conciergeReadinessDashboard";
+import {
+  buildConciergeManualQaJsonExport,
+  normalizeConciergeManualQaRunnerState,
+  updateConciergeManualQaRunnerStatus,
+} from "../../../shared/conciergeManualQaRunner";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -22,6 +27,15 @@ function renderPage(rowsOverride?: ConciergeReadinessRow[]) {
 }
 
 describe("ConciergeReadinessAdminPage", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+  });
+
   it("renders the internal readiness table and summary metrics", () => {
     renderPage();
 
@@ -42,6 +56,8 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(table).getByText("Scam or safety check")).toBeInTheDocument();
     expect(screen.getByTestId("section-manual-qa-script")).toBeInTheDocument();
     expect(screen.getAllByTestId(/manual-qa-script-/)).toHaveLength(10);
+    expect(screen.getByTestId("manual-qa-runner-summary")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-metric-not-tested")).getByText(/\d+/)).toBeInTheDocument();
   });
 
   it("shows provider setup, entry points, and tool dependencies for launch review", () => {
@@ -86,6 +102,106 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(scamScript).getByText("Camera / upload")).toBeInTheDocument();
     expect(within(scamScript).getByText("Final user confirmation")).toBeInTheDocument();
     expect(within(scamScript).getByText("Outcome capture")).toBeInTheDocument();
+  });
+
+  it("lets testers mark manual QA steps and updates the roll-up", () => {
+    renderPage();
+
+    const transportScript = screen.getByTestId("manual-qa-script-flow-transport-booking");
+    const firstBookRideStatus = within(transportScript).getAllByLabelText(/QA status for Start from Book Ride/i)[0];
+    fireEvent.change(firstBookRideStatus, { target: { value: "fail" } });
+
+    expect(within(screen.getByTestId("manual-qa-metric-flows-blocked")).getByText("1")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-metric-failed-checks")).getByText("1")).toBeInTheDocument();
+    expect(within(transportScript).getByText("Blocked")).toBeInTheDocument();
+    expect(within(transportScript).getAllByText("Fail").length).toBeGreaterThan(0);
+  });
+
+  it("copies failed and needs-review QA notes for PR or task follow-up", () => {
+    renderPage();
+
+    const transportScript = screen.getByTestId("manual-qa-script-flow-transport-booking");
+    const bookRideStatuses = within(transportScript).getAllByLabelText(/QA status for Start from Book Ride/i);
+    fireEvent.change(bookRideStatuses[0], { target: { value: "fail" } });
+    fireEvent.change(bookRideStatuses[1], { target: { value: "needs_review" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /copy qa notes/i }));
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1);
+    const notes = vi.mocked(navigator.clipboard.writeText).mock.calls[0][0];
+    expect(notes).toContain("Concierge manual QA notes");
+    expect(notes).toContain("Book ride / transport");
+    expect(notes).toContain("Fail: Start from Book Ride");
+    expect(notes).toContain("Needs review: Start from Book Ride");
+    expect(screen.getByRole("button", { name: /copied/i })).toBeInTheDocument();
+  });
+
+  it("exports the manual QA report as Markdown and JSON", () => {
+    renderPage();
+
+    const transportScript = screen.getByTestId("manual-qa-script-flow-transport-booking");
+    const firstBookRideStatus = within(transportScript).getAllByLabelText(/QA status for Start from Book Ride/i)[0];
+    fireEvent.change(firstBookRideStatus, { target: { value: "fail" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /copy markdown report/i }));
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("# Concierge manual QA report"));
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("Exported at:"));
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("Failed steps:"));
+    expect(screen.getByText("Markdown QA report copied.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy json report/i }));
+    const clipboardCalls = vi.mocked(navigator.clipboard.writeText).mock.calls;
+    const json = clipboardCalls[clipboardCalls.length - 1]?.[0] ?? "";
+    const parsed = JSON.parse(json);
+    expect(parsed.version).toBe("concierge-manual-qa-runner-v1");
+    expect(parsed.exportedAt).toBeTruthy();
+    expect(parsed.summary.failedCheckpoints).toBe(1);
+    expect(screen.getByText("JSON QA report copied.")).toBeInTheDocument();
+  });
+
+  it("imports pasted QA JSON into the local runner state", () => {
+    const rows = buildConciergeReadinessRows();
+    const scripts = rows.map((row) => row.manualQaScript);
+    const transportStep = rows.find((row) => (
+      row.reference === CONCIERGE_FLOW_REFERENCES.transportBooking
+    ))!.manualQaScript.steps[0];
+    let state = normalizeConciergeManualQaRunnerState(scripts, null);
+    state = updateConciergeManualQaRunnerStatus(state, transportStep.id, "fail");
+    const json = buildConciergeManualQaJsonExport(scripts, state, "2026-07-15T12:00:00.000Z");
+
+    renderPage(rows);
+
+    fireEvent.change(screen.getByLabelText(/import qa state from json/i), { target: { value: json } });
+    fireEvent.click(screen.getByRole("button", { name: /import qa state/i }));
+
+    expect(screen.getByText("Imported QA state from 2026-07-15T12:00:00.000Z.")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-metric-failed-checks")).getByText("1")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-script-flow-transport-booking")).getByDisplayValue("Fail")).toBeInTheDocument();
+  });
+
+  it("shows a clear error when pasted QA JSON is invalid", () => {
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText(/import qa state from json/i), { target: { value: "{bad" } });
+    fireEvent.click(screen.getByRole("button", { name: /import qa state/i }));
+
+    expect(screen.getByText("The pasted QA JSON is not valid.")).toBeInTheDocument();
+  });
+
+  it("restores locally saved manual QA status from this browser", () => {
+    const rows = buildConciergeReadinessRows();
+    const transportStep = rows.find((row) => (
+      row.reference === CONCIERGE_FLOW_REFERENCES.transportBooking
+    ))!.manualQaScript.steps[0];
+    window.localStorage.setItem("vyva:conciergeManualQaRunner:v1", JSON.stringify({
+      [transportStep.id]: "needs_review",
+    }));
+
+    renderPage(rows);
+
+    const transportScript = screen.getByTestId("manual-qa-script-flow-transport-booking");
+    expect(within(transportScript).getByDisplayValue("Needs review")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-metric-needs-review")).getByText("1")).toBeInTheDocument();
   });
 
   it("keeps manual QA scripts aligned with an injected smoke-audit failure", () => {

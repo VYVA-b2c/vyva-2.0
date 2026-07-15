@@ -1,5 +1,5 @@
-import { useMemo, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, History, ListChecks, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Copy, History, ListChecks, ShieldCheck } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import {
@@ -10,17 +10,33 @@ import {
   type ConciergeReadinessRow,
   type ConciergeReadinessStageStatus,
 } from "../../../shared/conciergeReadinessDashboard";
+import {
+  CONCIERGE_MANUAL_QA_STATUS_OPTIONS,
+  buildConciergeManualQaJsonExport,
+  buildConciergeManualQaMarkdownReport,
+  buildConciergeManualQaNotes,
+  normalizeConciergeManualQaRunnerState,
+  parseConciergeManualQaImport,
+  summarizeConciergeManualQaRunner,
+  updateConciergeManualQaRunnerStatus,
+  type ConciergeManualQaRunnerState,
+  type ConciergeManualQaStatus,
+  type ConciergeManualQaFlowStatus,
+} from "../../../shared/conciergeManualQaRunner";
+
+const MANUAL_QA_RUNNER_STORAGE_KEY = "vyva:conciergeManualQaRunner:v1";
 
 function flowTestId(reference: string) {
   return `row-concierge-readiness-${reference.toLowerCase().replace(/_/g, "-")}`;
 }
 
-function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "good" | "warn" | "dark" }) {
+function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "good" | "warn" | "dark" | "bad" }) {
   const classes = {
     neutral: "border-[#eadfd5] bg-white text-[#5b4a46]",
     good: "border-emerald-200 bg-emerald-50 text-emerald-800",
     warn: "border-amber-200 bg-amber-50 text-amber-800",
     dark: "border-[#2f2135] bg-[#2f2135] text-white",
+    bad: "border-red-200 bg-red-50 text-red-800",
   }[tone];
 
   return (
@@ -28,6 +44,53 @@ function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neu
       {children}
     </span>
   );
+}
+
+function readStoredManualQaState(): Partial<Record<string, unknown>> {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const stored = window.localStorage.getItem(MANUAL_QA_RUNNER_STORAGE_KEY);
+    if (!stored) return {};
+    const parsed = JSON.parse(stored);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredManualQaState(state: ConciergeManualQaRunnerState) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(MANUAL_QA_RUNNER_STORAGE_KEY, JSON.stringify(state));
+}
+
+function statusLabel(status: ConciergeManualQaStatus) {
+  return CONCIERGE_MANUAL_QA_STATUS_OPTIONS.find((option) => option.id === status)?.label ?? status;
+}
+
+function statusTone(status: ConciergeManualQaStatus): "neutral" | "good" | "warn" | "bad" {
+  if (status === "pass") return "good";
+  if (status === "fail") return "bad";
+  if (status === "needs_review") return "warn";
+  return "neutral";
+}
+
+function flowStatusLabel(status: ConciergeManualQaFlowStatus) {
+  const labels: Record<ConciergeManualQaFlowStatus, string> = {
+    not_tested: "Not tested",
+    in_progress: "In progress",
+    passed: "Passed",
+    blocked: "Blocked",
+    needs_review: "Needs review",
+  };
+  return labels[status];
+}
+
+function flowStatusTone(status: ConciergeManualQaFlowStatus): "neutral" | "good" | "warn" | "bad" {
+  if (status === "passed") return "good";
+  if (status === "blocked") return "bad";
+  if (status === "needs_review") return "warn";
+  return "neutral";
 }
 
 function MetricTile({ icon: Icon, label, value, sub, testId }: {
@@ -132,7 +195,17 @@ function HandoffHistory({ row }: { row: ConciergeReadinessRow }) {
   );
 }
 
-function ManualQaScriptCard({ row }: { row: ConciergeReadinessRow }) {
+function ManualQaScriptCard({
+  row,
+  runnerState,
+  onStatusChange,
+  flowStatus,
+}: {
+  row: ConciergeReadinessRow;
+  runnerState: ConciergeManualQaRunnerState;
+  onStatusChange: (stepId: string, status: ConciergeManualQaStatus) => void;
+  flowStatus: ConciergeManualQaFlowStatus;
+}) {
   const script = row.manualQaScript;
 
   return (
@@ -152,6 +225,7 @@ function ManualQaScriptCard({ row }: { row: ConciergeReadinessRow }) {
           <Pill tone={script.providerPath.required ? "warn" : "good"}>
             {script.providerPath.required ? "Provider path" : "No provider setup required"}
           </Pill>
+          <Pill tone={flowStatusTone(flowStatus)}>{flowStatusLabel(flowStatus)}</Pill>
         </div>
       </div>
 
@@ -194,9 +268,25 @@ function ManualQaScriptCard({ row }: { row: ConciergeReadinessRow }) {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="text-sm font-black text-[#2f2135]">{step.title}</p>
                     <Pill>{step.source.replace(/_/g, " ")}</Pill>
+                    <Pill tone={statusTone(runnerState[step.id] ?? "not_tested")}>
+                      {statusLabel(runnerState[step.id] ?? "not_tested")}
+                    </Pill>
                   </div>
                   <p className="mt-1 text-xs font-semibold leading-relaxed text-[#5b4a46]">{step.instruction}</p>
                   <p className="mt-1 text-xs font-semibold leading-relaxed text-[#8b7a73]">{step.expectedResult}</p>
+                  <label className="mt-2 flex max-w-[220px] flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                    QA status
+                    <select
+                      aria-label={`QA status for ${step.title}`}
+                      className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-white px-2 text-sm font-black normal-case tracking-normal text-[#2f2135]"
+                      value={runnerState[step.id] ?? "not_tested"}
+                      onChange={(event) => onStatusChange(step.id, event.target.value as ConciergeManualQaStatus)}
+                    >
+                      {CONCIERGE_MANUAL_QA_STATUS_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               </li>
             ))}
@@ -207,7 +297,59 @@ function ManualQaScriptCard({ row }: { row: ConciergeReadinessRow }) {
   );
 }
 
-function ManualQaScriptSection({ rows }: { rows: ConciergeReadinessRow[] }) {
+function ManualQaRunnerMetric({ label, value, tone = "neutral" }: {
+  label: string;
+  value: number;
+  tone?: "neutral" | "good" | "warn" | "bad";
+}) {
+  const classes = {
+    neutral: "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135]",
+    good: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    warn: "border-amber-200 bg-amber-50 text-amber-800",
+    bad: "border-red-200 bg-red-50 text-red-800",
+  }[tone];
+
+  return (
+    <div className={`rounded-[12px] border p-3 ${classes}`} data-testid={`manual-qa-metric-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}>
+      <p className="text-xs font-black uppercase tracking-[0.14em] opacity-80">{label}</p>
+      <p className="mt-1 text-2xl font-black">{value}</p>
+    </div>
+  );
+}
+
+function ManualQaScriptSection({
+  rows,
+  runnerState,
+  onStatusChange,
+  onCopyNotes,
+  onCopyMarkdownReport,
+  onCopyJsonReport,
+  exportMessage,
+  importText,
+  onImportTextChange,
+  onImportJson,
+  importMessage,
+  importError,
+  copied,
+}: {
+  rows: ConciergeReadinessRow[];
+  runnerState: ConciergeManualQaRunnerState;
+  onStatusChange: (stepId: string, status: ConciergeManualQaStatus) => void;
+  onCopyNotes: () => void;
+  onCopyMarkdownReport: () => void;
+  onCopyJsonReport: () => void;
+  exportMessage: string | null;
+  importText: string;
+  onImportTextChange: (text: string) => void;
+  onImportJson: () => void;
+  importMessage: string | null;
+  importError: string | null;
+  copied: boolean;
+}) {
+  const scripts = rows.map((row) => row.manualQaScript);
+  const runnerSummary = summarizeConciergeManualQaRunner(scripts, runnerState);
+  const flowResultsByReference = new Map(runnerSummary.flowResults.map((flow) => [flow.reference, flow]));
+
   return (
     <section
       className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
@@ -217,22 +359,97 @@ function ManualQaScriptSection({ rows }: { rows: ConciergeReadinessRow[] }) {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-[#f5f0ff] px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-purple-700">
             <ClipboardCheck size={14} aria-hidden="true" />
-            Manual QA script
+            Manual QA script runner
           </div>
           <h2 className="mt-2 font-serif text-2xl text-[#2f2135]">Flow-by-flow test guide</h2>
           <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
-            Generated from the Concierge registry, coverage map, and launch smoke audit.
+            Generated from the Concierge registry, coverage map, and launch smoke audit. Tester status is saved in this browser only.
           </p>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-black text-[#5b4a46]">
-          <ListChecks size={16} aria-hidden="true" />
-          {rows.reduce((total, row) => total + row.manualQaScript.steps.length, 0)} scripted checks
+        <div className="flex flex-wrap gap-2">
+          <div className="inline-flex items-center gap-2 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-black text-[#5b4a46]">
+            <ListChecks size={16} aria-hidden="true" />
+            {runnerSummary.totalSteps} scripted checks
+          </div>
+          <button
+            type="button"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-[10px] border border-[#2f2135] bg-[#2f2135] px-3 py-2 text-sm font-black text-white"
+            onClick={onCopyNotes}
+          >
+            <Copy size={16} aria-hidden="true" />
+            {copied ? "Copied" : "Copy QA notes"}
+          </button>
         </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5" data-testid="manual-qa-runner-summary">
+        <ManualQaRunnerMetric label="Flows passed" value={runnerSummary.fullyPassedFlows} tone="good" />
+        <ManualQaRunnerMetric label="Flows blocked" value={runnerSummary.blockedFlows} tone="bad" />
+        <ManualQaRunnerMetric label="Needs review" value={runnerSummary.needsReviewFlows} tone="warn" />
+        <ManualQaRunnerMetric label="Failed checks" value={runnerSummary.failedCheckpoints} tone="bad" />
+        <ManualQaRunnerMetric label="Not tested" value={runnerSummary.notTestedCheckpoints} />
+      </div>
+
+      <div className="mt-4 rounded-[12px] border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="manual-qa-export-import">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Export QA report</p>
+            <p className="mt-1 text-sm font-semibold leading-relaxed text-[#7d6b65]">
+              Copy Markdown for PR notes or JSON so another tester can import the same browser-local QA state.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 text-sm font-black text-[#2f2135]"
+              onClick={onCopyMarkdownReport}
+            >
+              <Copy size={16} aria-hidden="true" />
+              Copy Markdown report
+            </button>
+            <button
+              type="button"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 text-sm font-black text-[#2f2135]"
+              onClick={onCopyJsonReport}
+            >
+              <Copy size={16} aria-hidden="true" />
+              Copy JSON report
+            </button>
+          </div>
+        </div>
+        {exportMessage ? <p className="mt-2 text-sm font-black text-emerald-800">{exportMessage}</p> : null}
+
+        <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
+          <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+            Import QA state from JSON
+            <textarea
+              className="min-h-[96px] rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 font-mono text-sm normal-case tracking-normal text-[#2f2135]"
+              placeholder="Paste exported QA JSON here"
+              value={importText}
+              onChange={(event) => onImportTextChange(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-purple-700 bg-purple-700 px-4 py-2 text-sm font-black text-white"
+            onClick={onImportJson}
+          >
+            Import QA state
+          </button>
+        </div>
+        {importMessage ? <p className="mt-2 text-sm font-black text-emerald-800">{importMessage}</p> : null}
+        {importError ? <p className="mt-2 text-sm font-black text-red-800">{importError}</p> : null}
       </div>
 
       <div className="mt-4 grid gap-3">
         {rows.map((row) => (
-          <ManualQaScriptCard key={row.reference} row={row} />
+          <ManualQaScriptCard
+            key={row.reference}
+            row={row}
+            runnerState={runnerState}
+            onStatusChange={onStatusChange}
+            flowStatus={flowResultsByReference.get(row.reference)?.status ?? "not_tested"}
+          />
         ))}
       </div>
     </section>
@@ -329,6 +546,67 @@ function ReadinessRow({ row }: { row: ConciergeReadinessRow }) {
 export default function ConciergeReadinessAdminPage({ rowsOverride }: { rowsOverride?: ConciergeReadinessRow[] }) {
   const rows = useMemo(() => rowsOverride ?? buildConciergeReadinessRows(), [rowsOverride]);
   const summary = useMemo(() => summarizeConciergeReadiness(rows), [rows]);
+  const scripts = useMemo(() => rows.map((row) => row.manualQaScript), [rows]);
+  const [manualQaState, setManualQaState] = useState<ConciergeManualQaRunnerState>(() => (
+    normalizeConciergeManualQaRunnerState(scripts, readStoredManualQaState())
+  ));
+  const [notesCopied, setNotesCopied] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [importText, setImportText] = useState("");
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setManualQaState((current) => normalizeConciergeManualQaRunnerState(scripts, current));
+  }, [scripts]);
+
+  useEffect(() => {
+    writeStoredManualQaState(manualQaState);
+  }, [manualQaState]);
+
+  function handleManualQaStatusChange(stepId: string, status: ConciergeManualQaStatus) {
+    setNotesCopied(false);
+    setExportMessage(null);
+    setImportMessage(null);
+    setImportError(null);
+    setManualQaState((current) => updateConciergeManualQaRunnerStatus(current, stepId, status));
+  }
+
+  function handleCopyManualQaNotes() {
+    const notes = buildConciergeManualQaNotes(scripts, manualQaState);
+    void navigator.clipboard?.writeText(notes);
+    setNotesCopied(true);
+    setExportMessage(null);
+  }
+
+  function handleCopyMarkdownReport() {
+    const report = buildConciergeManualQaMarkdownReport(scripts, manualQaState);
+    void navigator.clipboard?.writeText(report);
+    setNotesCopied(false);
+    setExportMessage("Markdown QA report copied.");
+  }
+
+  function handleCopyJsonReport() {
+    const report = buildConciergeManualQaJsonExport(scripts, manualQaState);
+    void navigator.clipboard?.writeText(report);
+    setNotesCopied(false);
+    setExportMessage("JSON QA report copied.");
+  }
+
+  function handleImportJson() {
+    const result = parseConciergeManualQaImport(scripts, importText);
+    if (!result.ok) {
+      setImportError(result.error);
+      setImportMessage(null);
+      return;
+    }
+
+    setManualQaState(result.state);
+    setImportError(null);
+    setImportMessage(result.importedAt ? `Imported QA state from ${result.importedAt}.` : "Imported QA state.");
+    setNotesCopied(false);
+    setExportMessage(null);
+  }
 
   return (
     <div className="min-h-screen bg-[#f8f2ea] px-4 py-6 text-[#2f2135] sm:px-8" data-testid="page-concierge-readiness">
@@ -411,7 +689,25 @@ export default function ConciergeReadinessAdminPage({ rowsOverride }: { rowsOver
           </div>
         </section>
 
-        <ManualQaScriptSection rows={rows} />
+        <ManualQaScriptSection
+          rows={rows}
+          runnerState={manualQaState}
+          onStatusChange={handleManualQaStatusChange}
+          onCopyNotes={handleCopyManualQaNotes}
+          onCopyMarkdownReport={handleCopyMarkdownReport}
+          onCopyJsonReport={handleCopyJsonReport}
+          exportMessage={exportMessage}
+          importText={importText}
+          onImportTextChange={(text) => {
+            setImportText(text);
+            setImportError(null);
+            setImportMessage(null);
+          }}
+          onImportJson={handleImportJson}
+          importMessage={importMessage}
+          importError={importError}
+          copied={notesCopied}
+        />
       </div>
     </div>
   );
