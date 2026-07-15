@@ -3484,8 +3484,20 @@ describe("MarketingAdminPage", () => {
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-intent-brief")).toHaveTextContent("Tell VYVA what you want to run");
+    expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Grow partner pipeline");
+    expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Reactivate quiet families");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Partner webinar");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-goal-reactivate-quiet-families"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Goal preset matched to Reactivation");
+    expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain("Reactivate quiet family contacts");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Audience reactivation");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-intent-quick-monthly-care-digest"));
 

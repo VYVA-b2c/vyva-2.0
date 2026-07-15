@@ -484,6 +484,17 @@ type CampaignIntentQuickStart = {
   channels: Channel[];
 };
 
+type CampaignGoalPreset = {
+  id: string;
+  title: string;
+  outcome: string;
+  detail: string;
+  brief: string;
+  channels: Channel[];
+  toneId: CampaignStudioToneId;
+  angleId: CampaignStudioAngleId;
+};
+
 type CampaignStudioPlay = {
   id: CampaignStudioPlayId;
   categoryId: Exclude<CampaignStudioCategoryId, "all">;
@@ -1698,6 +1709,59 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     detail: "Gentle reactivation for quiet families or dormant contacts.",
     brief: "Reactivate quiet family contacts with a gentle email and WhatsApp campaign. Give one simple reason to return and one low-friction next step.",
     channels: ["email", "whatsapp"],
+  },
+];
+
+const campaignGoalPresets: CampaignGoalPreset[] = [
+  {
+    id: "grow-partner-pipeline",
+    title: "Grow partner pipeline",
+    outcome: "B2B leads",
+    detail: "Professional outreach that turns clinics, pharmacies, and local partners into follow-up conversations.",
+    brief: "Grow the partner pipeline with an expert email and LinkedIn campaign for clinics, pharmacies, and local care partners. Lead with proof, make the professional value clear, and ask for one short intro call.",
+    channels: ["email", "linkedin"],
+    toneId: "expert",
+    angleId: "proof",
+  },
+  {
+    id: "reactivate-quiet-families",
+    title: "Reactivate quiet families",
+    outcome: "Return to care routine",
+    detail: "A gentle return path for contacts who stopped opening, replying, or completing setup.",
+    brief: "Reactivate quiet family contacts with a warm email and WhatsApp campaign. Give one simple reason to return, focus on profile completion and care-team confidence, and keep the action low friction.",
+    channels: ["email", "whatsapp"],
+    toneId: "warm",
+    angleId: "action",
+  },
+  {
+    id: "fill-local-event",
+    title: "Fill a local event",
+    outcome: "Attendance",
+    detail: "Localized awareness, RSVP nudges, partner handoff, and post-event follow-up in one plan.",
+    brief: "Fill a local Madrid event with Facebook, Instagram, WhatsApp, and local partner outreach. Make the campaign specific to the area, practical for older adults and families, and clear about the RSVP or reminder step.",
+    channels: ["facebook", "instagram", "whatsapp", "linkedin"],
+    toneId: "uplifting",
+    angleId: "local",
+  },
+  {
+    id: "complete-profiles",
+    title: "Complete profiles",
+    outcome: "Cleaner user data",
+    detail: "Nudge people to finish required contact, language, and care-team details before workflows start.",
+    brief: "Improve profile completion with an email and WhatsApp campaign. Explain why name, phone, language, timezone, and care-team contact details matter, then ask for one quick profile update.",
+    channels: ["email", "whatsapp"],
+    toneId: "direct",
+    angleId: "action",
+  },
+  {
+    id: "share-proof-story",
+    title: "Share proof story",
+    outcome: "Trust and awareness",
+    detail: "Repurpose care confidence signals into social proof and a partner-ready story.",
+    brief: "Share a VYVA proof story across Instagram, Facebook, LinkedIn, and email. Turn care confidence, monthly care updates, or family reassurance into one credible story with a clear next step.",
+    channels: ["instagram", "facebook", "linkedin", "email"],
+    toneId: "uplifting",
+    angleId: "proof",
   },
 ];
 
@@ -5273,11 +5337,11 @@ function campaignIntentPlay(brief: string) {
   if (campaignIntentHasAny(text, ["referral", "refer", "provider", "partner follow", "partner nurture"])) return campaignStudioPlayById("referral-partner-nurture");
   if (campaignIntentHasAny(text, ["partner", "b2b", "care home", "clinic", "pharmacy", "provider"])) return campaignStudioPlayById("b2b-partner-outreach");
   if (campaignIntentHasAny(text, ["event", "activity", "workshop", "community", "madrid", "barcelona", "valencia", "local"])) return campaignStudioPlayById("local-event");
+  if (campaignIntentHasAny(text, ["inactive", "quiet", "winback", "win back", "reactivate", "reactivation"])) return campaignStudioPlayById("reactivation");
   if (campaignIntentHasAny(text, ["caregiver", "family", "invite", "welcome", "onboard", "onboarding"])) return campaignStudioPlayById("caregiver-onboarding");
   if (campaignIntentHasAny(text, ["profile", "complete", "setup", "account"])) return campaignStudioPlayById("profile-completion");
   if (campaignIntentHasAny(text, ["medication", "medicine", "routine", "pill"])) return campaignStudioPlayById("medication-routine-education");
   if (campaignIntentHasAny(text, ["feedback", "survey", "questionnaire"])) return campaignStudioPlayById("feedback-survey");
-  if (campaignIntentHasAny(text, ["inactive", "quiet", "winback", "win back", "reactivate", "reactivation"])) return campaignStudioPlayById("reactivation");
   if (campaignIntentHasAny(text, ["instagram", "visual", "story", "reel"])) return campaignStudioPlayById("instagram-proof-point");
   if (campaignIntentHasAny(text, ["tiktok", "short video", "myth"])) return campaignStudioPlayById("tiktok-myth-buster");
   return campaignStudioPlayById("product-education");
@@ -10148,7 +10212,11 @@ export default function MarketingAdminPage() {
     setMessage(`Playbook loaded: ${recommendation.play.label}. Review the channel pack, then improve with AI or create the campaign.`);
   }
 
-  function applyCampaignIntentBriefText(rawBrief: string, source: "brief" | "quick_start" = "brief") {
+  function applyCampaignIntentBriefText(
+    rawBrief: string,
+    source: "brief" | "quick_start" | "goal_preset" = "brief",
+    overrides: Partial<Pick<CampaignStudioState, "toneId" | "angleId" | "channel" | "selectedChannels" | "scheduleStartsAt" | "targetAudienceId">> = {},
+  ) {
     const brief = rawBrief.trim();
     if (!brief) {
       setCampaignStudioFeedback("Add a short campaign brief first.");
@@ -10157,17 +10225,20 @@ export default function MarketingAdminPage() {
 
     setCampaignIntentBrief(brief);
     const match = campaignIntentMatch(brief, audiences);
-    const primaryChannel = match.channels[0] ?? match.play.defaultChannel;
-    const scheduleStartsAt = campaignStudioDefaultSchedule(match.play);
+    const primaryChannel = overrides.channel ?? match.channels[0] ?? match.play.defaultChannel;
+    const selectedChannels = normalizeCampaignStudioChannels(primaryChannel, overrides.selectedChannels ?? match.channels);
+    const scheduleStartsAt = overrides.scheduleStartsAt ?? campaignStudioDefaultSchedule(match.play);
+    const targetAudienceId = overrides.targetAudienceId ?? match.targetAudience?.id ?? "";
+    const targetAudience = targetAudienceId ? audiences.find((audience) => audience.id === targetAudienceId) ?? null : match.targetAudience;
     setCampaignStudioCategory(match.play.categoryId);
     updateCampaignStudio({
       playId: match.play.id,
-      toneId: match.toneId,
-      angleId: match.angleId,
+      toneId: overrides.toneId ?? match.toneId,
+      angleId: overrides.angleId ?? match.angleId,
       channel: primaryChannel,
-      selectedChannels: match.channels,
+      selectedChannels,
       scheduleStartsAt,
-      targetAudienceId: match.targetAudience?.id ?? "",
+      targetAudienceId,
     });
     setCampaignDraft((draft) => ({
       ...draft,
@@ -10179,12 +10250,12 @@ export default function MarketingAdminPage() {
       scheduleStartsAt,
       scheduleEndsAt: "",
       objective: [match.play.objective, "", `Campaign brief: ${brief}`].join("\n"),
-      targetAudienceId: match.targetAudience?.id ?? "",
-      recipientFilter: match.targetAudience?.name ?? "",
-      snapshotRecipients: Boolean(match.targetAudience?.mappedMemberCount || match.targetAudience?.memberCount),
+      targetAudienceId,
+      recipientFilter: targetAudience?.name ?? "",
+      snapshotRecipients: Boolean(targetAudience?.mappedMemberCount || targetAudience?.memberCount),
     }));
-    const feedbackPrefix = source === "quick_start" ? "Quick idea matched to" : "Brief matched to";
-    const messagePrefix = source === "quick_start" ? "Quick idea matched to" : "Campaign brief matched to";
+    const feedbackPrefix = source === "goal_preset" ? "Goal preset matched to" : source === "quick_start" ? "Quick idea matched to" : "Brief matched to";
+    const messagePrefix = source === "goal_preset" ? "Goal preset matched to" : source === "quick_start" ? "Quick idea matched to" : "Campaign brief matched to";
     setCampaignStudioFeedback(`${feedbackPrefix} ${match.play.label}: ${match.reasons.join(", ")}.`);
     setMessage(`${messagePrefix} ${match.play.label}. Review the studio plan, then improve with AI or create the campaign.`);
   }
@@ -10195,6 +10266,15 @@ export default function MarketingAdminPage() {
 
   function applyCampaignIntentQuickStart(quickStart: CampaignIntentQuickStart) {
     applyCampaignIntentBriefText(quickStart.brief, "quick_start");
+  }
+
+  function applyCampaignGoalPreset(preset: CampaignGoalPreset) {
+    applyCampaignIntentBriefText(preset.brief, "goal_preset", {
+      toneId: preset.toneId,
+      angleId: preset.angleId,
+      channel: preset.channels[0] ?? "email",
+      selectedChannels: preset.channels,
+    });
   }
 
   function focusCampaignStudioChannel(channel: Channel) {
@@ -14307,6 +14387,36 @@ export default function MarketingAdminPage() {
                               </button>
                             ))}
                           </div>
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-goal-presets">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Pick a goal</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Start from the outcome, then VYVA chooses the play, tone, channel pack, audience, and schedule.</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignGoalPresets.length} outcomes</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                          {campaignGoalPresets.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => applyCampaignGoalPreset(preset)}
+                              className="min-h-[132px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                              data-testid={`button-marketing-campaign-goal-${preset.id}`}
+                            >
+                              <span className="block text-[11px] font-black uppercase tracking-[0.12em] text-purple-700">{preset.outcome}</span>
+                              <span className="mt-1 block font-black text-[#241133]">{preset.title}</span>
+                              <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{preset.detail}</span>
+                              <span className="mt-2 flex flex-wrap gap-1">
+                                {preset.channels.slice(0, 3).map((channel) => (
+                                  <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                ))}
+                                {preset.channels.length > 3 ? <Pill className="bg-white text-[#5b4a46]">+{preset.channels.length - 3}</Pill> : null}
+                              </span>
+                            </button>
+                          ))}
                         </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-intent-quick-starts">
