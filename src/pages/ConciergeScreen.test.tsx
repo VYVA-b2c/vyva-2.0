@@ -3748,6 +3748,59 @@ describe("ConciergeScreen route prefill", () => {
     );
   });
 
+  it("saves a guided ride detail into the pending Concierge task", async () => {
+    let detailsBody: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "ride-guided-detail",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "Taxi option prepared, but the destination still needs to be confirmed.",
+            action_payload: {
+              pickup_address: "Saved home",
+              requested_time: "now",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/ride-guided-detail/details")) {
+        detailsBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return jsonResponse({ ok: true, item: {} });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-concierge-guided-details");
+    expect(panel).toHaveTextContent("Where should the ride go?");
+    expect(screen.queryByTestId("button-concierge-confirm-ride-guided-detail")).not.toBeInTheDocument();
+
+    const input = screen.getByTestId("input-transport-destination");
+    fireEvent.change(input, { target: { value: "City Clinic" } });
+    fireEvent.click(screen.getByTestId("button-concierge-guided-detail-save"));
+
+    await waitFor(() => {
+      expect(detailsBody).toMatchObject({
+        action_payload: {
+          destination_address: "City Clinic",
+        },
+        answer_key: "destination_address",
+        answer_value: "City Clinic",
+      });
+    });
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/concierge/actions/ride-guided-detail/confirm",
+      { method: "POST" },
+    );
+  });
+
   it("expands ride details and focuses pickup when pickup is missing", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{

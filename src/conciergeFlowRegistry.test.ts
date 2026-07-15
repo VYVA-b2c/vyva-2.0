@@ -13,8 +13,10 @@ import {
   evaluateConciergeFlowRequirements,
 } from "../shared/conciergeFlowRequirements";
 import {
+  conciergeFlowCoverageEntryPoints,
   CONCIERGE_FLOW_COVERAGE,
   CONCIERGE_FLOW_COVERAGE_STAGE_LABELS,
+  missingConciergeFlowEntryCoverage,
   missingConciergeFlowCoverage,
 } from "../shared/conciergeFlowCoverage";
 
@@ -277,6 +279,7 @@ describe("concierge flow registry", () => {
       "action_handoff",
       "completed_history",
       "detail_collection",
+      "entry_points",
       "final_user_confirmation",
       "missing_provider_setup",
       "outcome_capture",
@@ -287,8 +290,14 @@ describe("concierge flow registry", () => {
 
     for (const coverage of CONCIERGE_FLOW_COVERAGE) {
       expect(missingConciergeFlowCoverage(coverage.reference)).toEqual([]);
+      expect(missingConciergeFlowEntryCoverage(coverage.reference)).toEqual([]);
+      expect(coverage.entryPointIds.length).toBeGreaterThan(0);
       for (const stage of coverage.requiredStages) {
         expect(coverage.evidence[stage]).toBeTruthy();
+      }
+      for (const entry of conciergeFlowCoverageEntryPoints(coverage.reference)) {
+        expect(entry.workflow).toBe(coverage.reference);
+        expect(entry.suggestedFlow.trim().length).toBeGreaterThan(0);
       }
     }
 
@@ -303,6 +312,7 @@ describe("concierge flow registry", () => {
     ]) {
       const coverage = CONCIERGE_FLOW_COVERAGE.find((flow) => flow.reference === reference);
       expect(coverage?.requiredStages).toEqual([
+        "entry_points",
         "start_action",
         "detail_collection",
         "missing_provider_setup",
@@ -317,6 +327,7 @@ describe("concierge flow registry", () => {
 
     for (const coverage of CONCIERGE_FLOW_COVERAGE) {
       expect(coverage.requiredStages).toEqual(expect.arrayContaining([
+        "entry_points",
         "start_action",
         "detail_collection",
         "final_user_confirmation",

@@ -88,12 +88,41 @@ describe("cross-app workflow registry", () => {
 
   it("keeps shared concierge flows available from non-concierge surfaces", () => {
     expect(workflowEntryPointsFor(CONCIERGE_FLOW_REFERENCES.careNavigation).map((entry) => entry.id)).toEqual(
-      expect.arrayContaining(["home.fast.find-care", "health.fast.find-specialist", "concierge.action.care-navigation"]),
+      expect.arrayContaining([
+        "home.fast.find-care",
+        "health.fast.find-specialist",
+        "concierge.fast.find-specialist",
+        "concierge.fast.find-residence",
+        "concierge.action.care-navigation",
+      ]),
     );
     expect(workflowEntryPointsFor(CONCIERGE_FLOW_REFERENCES.medicalAppointment).map((entry) => entry.id)).toEqual(
-      expect.arrayContaining(["health.fast.book-medical", "concierge.action.medical-appointment"]),
+      expect.arrayContaining(["health.fast.book-medical", "concierge.fast.book-medical", "concierge.action.medical-appointment"]),
     );
     expect(getWorkflowDefinition(CONCIERGE_FLOW_REFERENCES.otcPharmacy).confirmationRule).toContain("non-prescription");
+  });
+
+  it("covers visible Concierge fast-help actions as real workflow entry points", () => {
+    [
+      ["concierge.fast.safe-home", CONCIERGE_FLOW_REFERENCES.safeHomeSupport],
+      ["concierge.fast.paperwork-help", CONCIERGE_FLOW_REFERENCES.insuranceAdmin],
+      ["concierge.fast.find-plumber", CONCIERGE_FLOW_REFERENCES.homeService],
+      ["concierge.fast.check-scam", CONCIERGE_FLOW_REFERENCES.scamCheck],
+      ["concierge.fast.book-ride", CONCIERGE_FLOW_REFERENCES.transportBooking],
+      ["concierge.fast.order-groceries", CONCIERGE_FLOW_REFERENCES.shoppingSupport],
+      ["concierge.fast.otc-pharmacy", CONCIERGE_FLOW_REFERENCES.otcPharmacy],
+      ["concierge.fast.find-specialist", CONCIERGE_FLOW_REFERENCES.careNavigation],
+      ["concierge.fast.find-residence", CONCIERGE_FLOW_REFERENCES.careNavigation],
+      ["concierge.fast.book-medical", CONCIERGE_FLOW_REFERENCES.medicalAppointment],
+      ["concierge.fast.government-help", CONCIERGE_FLOW_REFERENCES.insuranceAdmin],
+      ["concierge.fast.prepared-meals", CONCIERGE_FLOW_REFERENCES.shoppingSupport],
+    ].forEach(([id, reference]) => {
+      const entry = getWorkflowEntryPoint(id);
+      expect(entry.workflow).toBe(reference);
+      expect(entry.surface).toBe("fast_help");
+      expect(entry.source).toBe("ConciergeScreen");
+      expect(entry.suggestedFlow).toMatch(/confirm|before|ask|prepare/i);
+    });
   });
 
   it("maps all game routes that are visible from Mind and Memory", () => {

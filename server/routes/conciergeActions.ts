@@ -12,6 +12,7 @@ import {
   completePendingConciergeAction,
   startPendingConciergeAction,
   triggerConciergeAction,
+  updatePendingConciergeActionDetails,
   type ConciergeUseCase,
 } from "../services/conciergeActions.js";
 
@@ -47,6 +48,12 @@ const completeSchema = z.object({
   outcome_payload: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
+const detailUpdateSchema = z.object({
+  action_payload: z.record(z.string(), z.unknown()).default({}),
+  answer_key: z.string().trim().min(1).max(120).optional().nullable(),
+  answer_value: z.string().trim().max(1000).optional().nullable(),
+});
+
 router.use(authMiddleware, requireUser, requireEntitlement("concierge"));
 
 router.post("/trigger", async (req: Request, res: Response) => {
@@ -77,6 +84,28 @@ router.post("/trigger", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[concierge/actions POST /trigger]", err);
     return res.status(500).json({ error: (err as Error).message || "Failed to trigger concierge action" });
+  }
+});
+
+router.patch("/:id/details", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = detailUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  try {
+    const result = await updatePendingConciergeActionDetails(req.params.id, userId, {
+      actionPayload: parsed.data.action_payload,
+      answerKey: parsed.data.answer_key,
+      answerValue: parsed.data.answer_value,
+    });
+    return res.json(result);
+  } catch (err) {
+    console.error("[concierge/actions PATCH /:id/details]", err);
+    return res.status(400).json({ error: (err as Error).message || "Failed to update concierge action details" });
   }
 });
 

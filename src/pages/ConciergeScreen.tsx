@@ -112,6 +112,11 @@ import {
   showVyvaResumeSourceLabel,
   showVyvaResumeSummary,
 } from "../../shared/showVyvaResume";
+import {
+  buildConciergeGuidedDetailCapture,
+  type ConciergeGuidedDetailCapture,
+  type ConciergeGuidedDetailQuestion,
+} from "../../shared/conciergeGuidedDetails";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -3011,6 +3016,39 @@ async function confirmPendingActionReview(item: ConciergePendingItem) {
   }
 }
 
+function guidedDetailInputTestId(question: ConciergeGuidedDetailQuestion, useFormCompatibleIds = true): string {
+  if (!useFormCompatibleIds) return `input-concierge-guided-detail-${question.key}`;
+  if (question.key === "destination_address") return "input-transport-destination";
+  if (question.key === "pickup_address") return "input-transport-pickup";
+  if (question.key === "requested_time") return "input-transport-time";
+  if (question.key === "item_text") return "input-otc-item";
+  if (question.key === "fulfillment_preference") return "input-otc-fulfillment-preference";
+  return `input-concierge-guided-detail-${question.key}`;
+}
+
+async function updatePendingActionDetails(params: {
+  item: ConciergePendingItem;
+  question: ConciergeGuidedDetailQuestion;
+  value: string;
+}) {
+  const value = params.value.trim();
+  const res = await apiFetch(`/api/concierge/actions/${params.item.id}/details`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action_payload: {
+        [params.question.payloadKey]: value,
+      },
+      answer_key: params.question.key,
+      answer_value: value,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Failed to save concierge action details");
+  }
+}
+
 async function cancelPendingAction(id: string) {
   const res = await apiFetch(`/api/concierge/actions/${id}/cancel`, { method: "POST" });
   if (!res.ok) {
@@ -4607,19 +4645,19 @@ function activeTaskProviderLabel(item: ConciergePendingItem, isSpanish: boolean)
 
 function focusedDetailTargetForRequirement(
   item: ConciergePendingItem,
-  requirementKey: ConciergeFlowRequirementKey | null | undefined,
+  requirementKey: ConciergeFlowRequirementKey | string | null | undefined,
 ): ConciergeFocusedDetailTarget | null {
   if (!requirementKey) return null;
 
   if (item.use_case === "book_ride") {
-    if (requirementKey === "destination") return "transport-destination";
-    if (requirementKey === "pickup") return "transport-pickup";
-    if (requirementKey === "time") return "transport-time";
+    if (requirementKey === "destination" || requirementKey === "destination_address") return "transport-destination";
+    if (requirementKey === "pickup" || requirementKey === "pickup_address") return "transport-pickup";
+    if (requirementKey === "time" || requirementKey === "requested_time") return "transport-time";
   }
 
   if (item.use_case === "order_medicine") {
-    if (requirementKey === "otc_item") return "otc-item";
-    if (requirementKey === "time") return "otc-time";
+    if (requirementKey === "otc_item" || requirementKey === "item_text") return "otc-item";
+    if (requirementKey === "time" || requirementKey === "requested_time") return "otc-time";
   }
 
   if (item.use_case === "book_appointment" && !isHomeServicePendingAction(item)) {
@@ -4863,6 +4901,141 @@ function ActiveTaskChecklistPanel({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function GuidedDetailCapturePanel({
+  capture,
+  value,
+  onChange,
+  onSave,
+  isSaving,
+  error,
+  notice,
+  useFormCompatibleTestIds,
+  isSpanish,
+}: {
+  capture: ConciergeGuidedDetailCapture;
+  value: string;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  isSaving: boolean;
+  error: string | null;
+  notice: string | null;
+  useFormCompatibleTestIds: boolean;
+  isSpanish: boolean;
+}) {
+  const question = capture.nextQuestion;
+  if (!question) return null;
+  const inputTestId = guidedDetailInputTestId(question, useFormCompatibleTestIds);
+
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#C4B5FD] bg-[#FBFAFF] p-4 shadow-[0_14px_30px_rgba(124,58,237,0.10)]"
+      data-testid="panel-concierge-guided-details"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#6D28D9] shadow-sm">
+          <Sparkles size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#6D28D9]">
+            {capture.title}
+          </span>
+          <span className="mt-1 block font-body text-[17px] font-black leading-tight text-vyva-text-1">
+            {question.prompt}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {capture.helper}
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {capture.questions.map((entry) => {
+          const isDone = capture.answeredKeys.includes(entry.key);
+          const isCurrent = entry.key === question.key;
+          return (
+            <span
+              key={entry.key}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-body text-[11px] font-black ${
+                isDone
+                  ? "border-[#99F6E4] bg-white text-[#0F766E]"
+                  : isCurrent
+                    ? "border-[#DDD6FE] bg-white text-[#6D28D9]"
+                    : "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]"
+              }`}
+            >
+              {isDone ? <CircleCheck size={12} aria-hidden="true" /> : null}
+              {entry.label}
+            </span>
+          );
+        })}
+      </div>
+
+      <label className="mt-3 block">
+        <span className="font-body text-[12px] font-black text-vyva-text-1">{question.label}</span>
+        {question.inputType === "select" ? (
+          <select
+            data-testid={inputTestId}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="mt-1 w-full rounded-[16px] border border-[#DDD6FE] bg-white px-3 py-3 font-body text-[15px] font-bold text-vyva-text-1 shadow-sm outline-none focus:border-[#7C3AED]"
+          >
+            <option value="">{question.placeholder}</option>
+            {(question.options ?? []).map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        ) : question.inputType === "textarea" ? (
+          <textarea
+            data-testid={inputTestId}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={question.placeholder}
+            rows={3}
+            className="mt-1 w-full rounded-[16px] border border-[#DDD6FE] bg-white px-3 py-3 font-body text-[15px] font-bold text-vyva-text-1 shadow-sm outline-none placeholder:text-vyva-text-3 focus:border-[#7C3AED]"
+          />
+        ) : (
+          <input
+            data-testid={inputTestId}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={question.placeholder}
+            className="mt-1 w-full rounded-[16px] border border-[#DDD6FE] bg-white px-3 py-3 font-body text-[15px] font-bold text-vyva-text-1 shadow-sm outline-none placeholder:text-vyva-text-3 focus:border-[#7C3AED]"
+          />
+        )}
+      </label>
+
+      {error ? (
+        <p className="mt-2 rounded-[12px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-bold text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="mt-2 rounded-[12px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-bold text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          data-testid="button-concierge-guided-detail-save"
+          onClick={onSave}
+          disabled={!value.trim() || isSaving}
+          className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#7C3AED] px-5 py-3 font-body text-[14px] font-black text-white shadow-[0_12px_26px_rgba(124,58,237,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSaving ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CircleCheck size={16} aria-hidden="true" />}
+          {isSpanish ? "Guardar detalle" : "Save detail"}
+        </button>
+        <span className="font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+          {isSpanish
+            ? "Despues veras el OK final antes de enviar, llamar o reservar."
+            : "After this, you still get the final OK before anything is sent, called, or booked."}
+        </span>
       </div>
     </div>
   );
@@ -7715,6 +7888,9 @@ const ConciergeScreen = () => {
   const [isRightNowHidden, setIsRightNowHidden] = useState(false);
   const [selectedCompletedSessionId, setSelectedCompletedSessionId] = useState<string | null>(null);
   const [externalConfirmationRequest, setExternalConfirmationRequest] = useState<ConciergeExternalConfirmationRequest | null>(null);
+  const [guidedDetailDraft, setGuidedDetailDraft] = useState("");
+  const [guidedDetailNotice, setGuidedDetailNotice] = useState<string | null>(null);
+  const [guidedDetailError, setGuidedDetailError] = useState<string | null>(null);
   const [providerReplyMode, setProviderReplyMode] = useState<ProviderReplyMode>(null);
   const [providerReplyForm, setProviderReplyForm] = useState<ProviderReplyForm>(EMPTY_PROVIDER_REPLY_FORM);
   const [providerReplyNotice, setProviderReplyNotice] = useState<string | null>(null);
@@ -7740,6 +7916,7 @@ const ConciergeScreen = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
   const rightNowSectionRef = useRef<HTMLElement>(null);
+  const guidedDetailPanelRef = useRef<HTMLDivElement>(null);
   const currentLocaleRef = useRef(language);
   const saveReadyRef = useRef(false);
   const billInputRef = useRef<HTMLInputElement>(null);
@@ -8577,6 +8754,22 @@ const ConciergeScreen = () => {
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
       ]);
+    },
+  });
+
+  const guidedDetailMutation = useMutation({
+    mutationFn: updatePendingActionDetails,
+    onMutate: () => {
+      setGuidedDetailError(null);
+      setGuidedDetailNotice(null);
+    },
+    onSuccess: async () => {
+      setGuidedDetailDraft("");
+      setGuidedDetailNotice(isSpanish ? "Detalle guardado." : "Detail saved.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setGuidedDetailError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el detalle." : "I could not save the detail."));
     },
   });
 
@@ -10611,6 +10804,20 @@ const ConciergeScreen = () => {
     setIsRightNowHidden(false);
 
     if (action === "details" || action === "contact") {
+      if (action === "details" && activeActionNeedsGuidedDetails && activeActionGuidedDetails?.nextQuestion) {
+        if (!activeActionGuidedPanelOpen) {
+          handleChangePendingAction(activeAction, focusedDetailTargetForRequirement(activeAction, activeActionGuidedDetails.nextQuestion.key));
+          return;
+        }
+        guidedDetailPanelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        window.setTimeout(() => {
+          const input = document.querySelector<HTMLElement>(
+            `[data-testid="${guidedDetailInputTestId(activeActionGuidedDetails.nextQuestion!, activeActionGuidedUsesFormCompatibleIds)}"]`,
+          );
+          input?.focus();
+        }, 80);
+        return;
+      }
       const missingRequirement = action === "details"
         ? evaluateConciergeFlowRequirements({
           useCase: activeAction.use_case,
@@ -10641,7 +10848,19 @@ const ConciergeScreen = () => {
     }
 
     if (action === "confirm") {
-      if (activeActionNeedsPhoneOutcome) {
+      if (activeActionNeedsGuidedDetails && activeActionGuidedDetails?.nextQuestion) {
+        if (!activeActionGuidedPanelOpen) {
+          handleChangePendingAction(activeAction, focusedDetailTargetForRequirement(activeAction, activeActionGuidedDetails.nextQuestion.key));
+          return;
+        }
+        guidedDetailPanelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        window.setTimeout(() => {
+          const input = document.querySelector<HTMLElement>(
+            `[data-testid="${guidedDetailInputTestId(activeActionGuidedDetails.nextQuestion!, activeActionGuidedUsesFormCompatibleIds)}"]`,
+          );
+          input?.focus();
+        }, 80);
+      } else if (activeActionNeedsPhoneOutcome) {
         handlePhoneCallReview(activeAction);
       } else if (activeActionNeedsWhatsAppOutcome) {
         handleWhatsAppDraftReview(activeAction);
@@ -10657,6 +10876,20 @@ const ConciergeScreen = () => {
         handleChangePendingAction(activeAction);
       }
     }
+  }
+
+  function handleSaveGuidedDetail() {
+    if (!activeAction || !activeActionGuidedDetails?.nextQuestion) return;
+    const value = guidedDetailDraft.trim();
+    if (!value) {
+      setGuidedDetailError(isSpanish ? "Anade este detalle para continuar." : "Add this detail to continue.");
+      return;
+    }
+    guidedDetailMutation.mutate({
+      item: activeAction,
+      question: activeActionGuidedDetails.nextQuestion,
+      value,
+    });
   }
 
   function updateProviderReplyForm(field: keyof ProviderReplyForm, value: string) {
@@ -11493,6 +11726,7 @@ const ConciergeScreen = () => {
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
   const activeActionTimeline = activeAction ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
+  const activeActionExecutionTask = activeAction ? getConciergeExecutionTask(activeAction) : null;
   const activeActionExecutionStatus = activeAction
     ? buildConciergeExecutionStatus(activeAction, activeActionTimeline, isSpanish)
     : null;
@@ -11521,6 +11755,9 @@ const ConciergeScreen = () => {
     : null;
   const SelectedInsuranceAdminIcon = selectedInsuranceAdminOption?.Icon ?? FileText;
   useEffect(() => {
+    setGuidedDetailDraft("");
+    setGuidedDetailNotice(null);
+    setGuidedDetailError(null);
     setProviderReplyMode(null);
     setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
     setProviderReplyNotice(null);
@@ -11593,6 +11830,47 @@ const ConciergeScreen = () => {
   const activeActionAlreadyConfirmed = activeAction ? conciergeActionAlreadyConfirmed(activeAction) : false;
   const activeActionReviewConfirmed = activeAction ? confirmedReviewActionIds.has(activeAction.id) : false;
   const activeActionNeedsUserConfirmation = Boolean(activeAction?.status === "pending" && !activeActionAlreadyConfirmed);
+  const activeActionGuidedDetails = activeAction
+    ? buildConciergeGuidedDetailCapture({
+        useCase: activeAction.use_case,
+        payload: activeAction.action_payload,
+        providerName: activeAction.provider_name,
+        providerPhone: activeAction.provider_phone,
+        locale,
+      })
+    : null;
+  const activeActionCoreGuidedUseCase = Boolean(
+    activeAction &&
+    ["book_ride", "order_medicine", "home_service"].includes(activeAction.use_case),
+  );
+  const activeActionHasPreparedGuidedBypass = Boolean(
+    activeActionWebSearch ||
+    activeActionEmailDraft ||
+    activeActionWhatsAppDraft ||
+    activeActionBookingUrl ||
+    (activeAction && !activeActionCoreGuidedUseCase && isPhoneCallPendingAction(activeAction)),
+  );
+  const activeActionCanUseGuidedFallback = Boolean(
+    activeActionCoreGuidedUseCase &&
+    !activeActionHasPreparedGuidedBypass,
+  );
+  const activeActionNeedsGuidedDetails = Boolean(
+    activeActionNeedsUserConfirmation &&
+    activeActionGuidedDetails &&
+    !activeActionGuidedDetails.complete &&
+    (
+      (activeActionExecutionTask?.lifecycle_status === "needs_info" && !activeActionHasPreparedGuidedBypass) ||
+      (!activeActionExecutionTask && activeActionCanUseGuidedFallback)
+    ),
+  );
+  const activeActionGuidedUsesFormCompatibleIds = !transportDetailsOpen && !otcPharmacyOpen;
+  const activeActionUsesInlineGuidedPanel = activeAction?.use_case !== "order_medicine";
+  const activeActionGuidedPanelOpen = Boolean(
+    activeActionNeedsGuidedDetails &&
+    activeActionUsesInlineGuidedPanel &&
+    !transportDetailsOpen &&
+    !otcPharmacyOpen,
+  );
   const activeActionFormPlan = activeAction ? getFormAutomationPlan(activeAction) : null;
   const activeActionFormMissingFields = activeActionFormPlan?.missingFields ?? [];
   const activeActionCanOpenForm = Boolean(
@@ -13489,7 +13767,27 @@ const ConciergeScreen = () => {
               <ShowVyvaExecutionGuidePanel guide={activeActionShowVyvaGuide} />
             ) : null}
 
-            {activeActionNeedsUserConfirmation && activeActionReviewSummary ? (
+            {activeActionGuidedPanelOpen && activeActionGuidedDetails ? (
+              <div ref={guidedDetailPanelRef}>
+                <GuidedDetailCapturePanel
+                  capture={activeActionGuidedDetails}
+                  value={guidedDetailDraft}
+                  onChange={(value) => {
+                    setGuidedDetailDraft(value);
+                    setGuidedDetailError(null);
+                    setGuidedDetailNotice(null);
+                  }}
+                  onSave={handleSaveGuidedDetail}
+                  isSaving={guidedDetailMutation.isPending}
+                  error={guidedDetailError}
+                  notice={guidedDetailNotice}
+                  useFormCompatibleTestIds={activeActionGuidedUsesFormCompatibleIds}
+                  isSpanish={isSpanish}
+                />
+              </div>
+            ) : null}
+
+            {!activeActionNeedsGuidedDetails && activeActionNeedsUserConfirmation && activeActionReviewSummary ? (
               <PendingActionReviewCard
                 review={activeActionReviewSummary}
                 primaryLabel={activeActionPrimaryLabel}
@@ -13530,7 +13828,7 @@ const ConciergeScreen = () => {
                 cancelTestId={`button-concierge-cancel-${activeAction.id}`}
                 isSpanish={isSpanish}
               />
-            ) : (
+            ) : !activeActionNeedsGuidedDetails ? (
               <div
                 className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
                 data-testid="panel-concierge-next-action"
@@ -13545,7 +13843,7 @@ const ConciergeScreen = () => {
                   {activeActionNextStepHelper}
                 </p>
               </div>
-            )}
+            ) : null}
 
             {activeActionProviderSearchDetails ? (
               <ProviderSearchFollowThroughPanel
