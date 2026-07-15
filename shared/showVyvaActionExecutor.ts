@@ -115,7 +115,7 @@ function flowForAction(actionId: ShowVyvaFollowUpActionId, context: ShowVyvaRevi
   }
 }
 
-function useCaseForFlow(actionId: ShowVyvaFollowUpActionId, flow: ConciergeFlowReference): ShowVyvaExecutorUseCase {
+function executorUseCaseForFlow(actionId: ShowVyvaFollowUpActionId, flow: ConciergeFlowReference): ShowVyvaExecutorUseCase {
   if (actionId === "check_company" || actionId === "save_report" || actionId === "scam_concierge" || actionId === "call_trusted_contact") return "scam_check";
   if (actionId === "request_quote" || actionId === "call_care_team" || flow === CONCIERGE_FLOW_REFERENCES.homeService) return "home_service";
   if (flow === CONCIERGE_FLOW_REFERENCES.transportBooking) return "book_ride";
@@ -210,7 +210,7 @@ function draftMessageForAction(action: ShowVyvaFollowUpAction, contract: ShowVyv
 
 export function buildShowVyvaActionExecutionPlan(input: ShowVyvaActionExecutorInput): ShowVyvaActionExecutionPlan {
   const flowReference = flowForAction(input.action.id, input.contract.context, input.contract.conciergeFlow);
-  const useCase = useCaseForFlow(input.action.id, flowReference);
+  const useCase = executorUseCaseForFlow(input.action.id, flowReference);
   const requestedTool = toolForAction(input.action.id);
   const providerName = providerNameForAction(input.action.id, input.target);
   const providerPhone = clean(input.target?.phone) || null;
