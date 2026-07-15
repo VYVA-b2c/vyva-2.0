@@ -3071,6 +3071,27 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("\"angle\": \"proof\"");
   });
 
+  it("recommends and loads template packs directly inside the campaign studio", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-recommendations")).toHaveTextContent("Best-fit template packs");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-partner-growth")).toHaveTextContent("Partner growth");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-partner-growth")).toHaveTextContent("7 templates");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-partner-growth")).toHaveTextContent("Built for Partner outreach");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-template-pack-partner-growth"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Partner growth");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+  });
+
   it("matches a plain-language campaign intent into a studio plan", async () => {
     renderPage();
 

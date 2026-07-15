@@ -7128,6 +7128,42 @@ export default function MarketingAdminPage() {
         return a.play.label.localeCompare(b.play.label);
       })
   ), [audiences, contacts]);
+  const campaignStudioTemplatePackRecommendations = useMemo(() => {
+    const selectedChannelSet = new Set(campaignStudioSelectedChannels);
+    return contentTemplatePacksWithStats.map(({ pack, templates, heroTemplate, channels, audiences: packAudiences, categories, state }) => {
+      const packPlay = campaignStudioPlayById(pack.studioPlayId);
+      const playMatch = pack.studioPlayId === selectedCampaignStudioPlay.id;
+      const categoryMatch = packPlay.categoryId === selectedCampaignStudioPlay.categoryId;
+      const channelOverlap = channels.filter((channel) => selectedChannelSet.has(channel)).length;
+      const audienceMatch = packAudiences.some((audience) => (
+        audience === selectedCampaignStudioPlay.audienceType
+        || audience === "both"
+        || selectedCampaignStudioPlay.audienceType === "both"
+      ));
+      const heroMatchesPrimary = heroTemplate?.channel === campaignStudio.channel;
+      const score = Math.min(99,
+        (playMatch ? 42 : 0)
+        + (categoryMatch ? 12 : 0)
+        + (audienceMatch ? 18 : 0)
+        + channelOverlap * 10
+        + (heroMatchesPrimary ? 8 : 0)
+        + Math.min(templates.length, 6) * 3
+      );
+      const recommendationState: CampaignReadinessState = score >= 72 ? "ready" : score >= 42 ? "planning" : state;
+      const reasons = [
+        playMatch ? `Built for ${selectedCampaignStudioPlay.label}` : categoryMatch ? `${campaignStudioCategories.find((category) => category.id === packPlay.categoryId)?.label ?? packPlay.categoryId} fit` : `${packPlay.label} source play`,
+        `${templates.length} template${templates.length === 1 ? "" : "s"}`,
+        channels.length ? `${channels.map((channel) => channelLabel[channel]).join(" + ")} pack` : "No channel pack",
+        audienceMatch ? `${selectedCampaignStudioPlay.audienceType.toUpperCase()} audience fit` : `${packAudiences.map((audience) => audience.toUpperCase()).join(" / ")} audience`,
+      ];
+      return { pack, templates, heroTemplate, channels, categories, score, state: recommendationState, reasons };
+    })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.pack.title.localeCompare(b.pack.title);
+      })
+      .slice(0, 3);
+  }, [campaignStudio.channel, campaignStudioSelectedChannels, contentTemplatePacksWithStats, selectedCampaignStudioPlay]);
   const campaignPlannerRecipes = useMemo<CampaignPlannerRecipe[]>(() => (
     campaignStudioPlayRecommendations.map((recommendation) => {
       const play = recommendation.play;
@@ -11967,6 +12003,47 @@ export default function MarketingAdminPage() {
                                   <Sparkles size={14} /> Use playbook
                                 </button>
                               </div>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-template-pack-recommendations">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Best-fit template packs</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Load a complete channel pack</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Ranked for the selected play, audience, and channel mix so templates are usable from the studio.</p>
+                        </div>
+                        <Pill className="bg-purple-50 text-purple-800">{campaignStudioTemplatePackRecommendations.length} packs</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        {campaignStudioTemplatePackRecommendations.map(({ pack, templates, heroTemplate, channels, score, state, reasons }) => (
+                          <article key={pack.id} className={`rounded-xl border p-3 ${readinessClass(state)}`} data-testid={`marketing-campaign-studio-template-pack-${pack.id}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Pill className={readinessPillClass(state)}>{readinessLabel(state)}</Pill>
+                                  <Pill className="bg-purple-50 text-purple-800">{score} fit</Pill>
+                                  <Pill className="bg-[#f5eee8] text-[#5b4a46]">{templates.length} template{templates.length === 1 ? "" : "s"}</Pill>
+                                </div>
+                                <h4 className="mt-2 font-black text-[#241133]">{pack.title}</h4>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{pack.focus}</p>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {reasons.map((reason) => (
+                                    <span key={reason} className="rounded-full bg-[#fffaf4] px-2 py-1 text-[11px] font-black text-[#6f5f59]">{reason}</span>
+                                  ))}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => loadContentTemplatePackInStudio(pack, heroTemplate, channels)}
+                                className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800"
+                                data-testid={`button-marketing-campaign-studio-template-pack-${pack.id}`}
+                              >
+                                <Sparkles size={14} /> Load pack
+                              </button>
                             </div>
                           </article>
                         ))}
