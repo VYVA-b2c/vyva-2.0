@@ -390,3 +390,37 @@ export function homeServiceIntakeFromPreferences(preferences: unknown): HomeServ
   const researchBrief = clean(record.research_brief);
   return researchBrief ? { ...intake, research_brief: researchBrief.slice(0, 900) } : intake;
 }
+
+function recordFromUnknown(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function textFromRecord(record: Record<string, unknown> | null, keys: string[]): string {
+  for (const key of keys) {
+    const value = record?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function homeServiceAnswerRecord(preferences: unknown): Record<string, unknown> | null {
+  const record = recordFromUnknown(preferences);
+  const intake = recordFromUnknown(record?.service_intake);
+  return recordFromUnknown(intake?.answers);
+}
+
+export function homeServiceAddressFromPreferences(preferences: unknown): string {
+  const record = recordFromUnknown(preferences);
+  const direct = textFromRecord(record, ["home_address", "address", "location"]);
+  if (direct) return direct;
+  return textFromRecord(homeServiceAnswerRecord(preferences), ["home_address", "location"]);
+}
+
+export function homeServiceAccessNotesFromPreferences(preferences: unknown): string {
+  const record = recordFromUnknown(preferences);
+  const direct = textFromRecord(record, ["home_access_or_safety_notes", "access_notes"]);
+  if (direct) return direct;
+  return textFromRecord(homeServiceAnswerRecord(preferences), ["access_notes", "home_access_or_safety_notes"]);
+}

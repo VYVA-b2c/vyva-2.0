@@ -1725,11 +1725,16 @@ describe("ConciergeScreen action hub", () => {
           service_type: "plumber",
           urgency: "today",
           answers: expect.objectContaining({
+            home_address: "Calle Home 10, 29602 Marbella",
             problem_type: "leak",
             active_flooding: "yes",
             affected_area: "kitchen",
             shutoff_status: "cannot_find",
           }),
+        });
+        expect(body.preferences).toMatchObject({
+          home_address: "Calle Home 10, 29602 Marbella",
+          home_address_source: "session",
         });
         expect(body.preferences.service_intake.safety_flags).toContain("active_water_damage");
         return jsonResponse({
@@ -1765,6 +1770,13 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-kitchen"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-cannot_find"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+
+    expect(screen.getByTestId("panel-home-service-address")).toHaveTextContent("Where should the provider come?");
+    expect(screen.getByTestId("button-appointment-start-home-service")).toBeDisabled();
+    fireEvent.change(screen.getByTestId("input-home-service-address"), {
+      target: { value: "Calle Home 10, 29602 Marbella" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-address-save"));
 
     expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
     expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Current path: VYVA review");
@@ -1886,6 +1898,10 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-today"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+    fireEvent.change(screen.getByTestId("input-home-service-address"), {
+      target: { value: "Calle Home 10, 29602 Marbella" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-address-save"));
 
     expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
     const startButton = screen.getByTestId("button-appointment-start-home-service");
@@ -1966,6 +1982,10 @@ describe("ConciergeScreen action hub", () => {
       const target = String(url);
       if (target === "/api/profile") {
         return jsonResponse({
+          street: "Calle Home 10",
+          cityState: "Marbella",
+          postalCode: "29602",
+          country: "ES",
           savedProviders: [{
             name: "Saved Plumber",
             role: "plumber",
@@ -2018,7 +2038,7 @@ describe("ConciergeScreen action hub", () => {
         const body = JSON.parse(String(init?.body));
         expect(body).toMatchObject({
           provider_name: "Saved Plumber",
-          location: "Home kitchen",
+          location: "Calle Home 10, 29602 Marbella, ES",
         });
         expect(body.notes).toContain("Provider reply: Can visit tomorrow at 10:00. Estimated cost EUR80.");
         expect(body.notes).toContain("Notes: Caregiver will open the door.");
@@ -2047,6 +2067,15 @@ describe("ConciergeScreen action hub", () => {
         expect(body.preferences.service_intake).toMatchObject({
           origin: "voice",
           service_type: "plumber",
+          answers: expect.objectContaining({
+            home_address: "Calle Home 10, 29602 Marbella, ES",
+          }),
+        });
+        expect(body.preferences).toMatchObject({
+          home_address: "Calle Home 10, 29602 Marbella, ES",
+          home_address_source: "profile",
+        });
+        expect(body.preferences.service_intake).toMatchObject({
           answers: expect.objectContaining({
             problem_type: "leak",
           }),
@@ -2101,6 +2130,8 @@ describe("ConciergeScreen action hub", () => {
     expect(await screen.findByText("Saved Plumber")).toBeVisible();
     expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Direct tool: WhatsApp");
     expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Tool ready: WhatsApp");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Address: saved");
+    expect(screen.queryByTestId("panel-home-service-address")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
     await waitFor(() => {
@@ -2117,9 +2148,6 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.change(screen.getByTestId("input-appointment-confirmed-time"), {
       target: { value: "2026-08-04T10:00" },
-    });
-    fireEvent.change(screen.getByTestId("input-appointment-confirmed-location"), {
-      target: { value: "Home kitchen" },
     });
     fireEvent.change(screen.getByTestId("input-appointment-confirmed-note"), {
       target: { value: "Caregiver will open the door." },
