@@ -8301,6 +8301,43 @@ export default function MarketingAdminPage() {
     : `Output: ${campaignStudioSelectedChannels.length} content assets, ${campaignStudioSelectedChannels.length} channel routes, ${campaignStudioPackRecipientCount} recipient snapshots.`;
   const CampaignStudioPrimaryLaunchIcon = campaignStudioPrimaryLaunchStep.icon;
   const CampaignStudioSecondaryLaunchIcon = campaignStudioSecondaryLaunchStep?.icon;
+  const campaignStudioCommandCenterState: CampaignReadinessState = campaignStudioBlockedCount > 0
+    ? "blocked"
+    : campaignStudioNeedsActionCount > 0 || !campaignStudioHasFullAiPack
+      ? "needs_action"
+      : "ready";
+  const campaignStudioCommandCenterStats = [
+    {
+      key: "readiness",
+      label: "Readiness",
+      value: `${campaignStudioReadyCount}/${campaignStudioReadinessItems.length}`,
+      detail: campaignStudioReadinessSummary,
+      state: campaignStudioCommandCenterState,
+    },
+    {
+      key: "channels",
+      label: "Channels",
+      value: String(campaignStudioSelectedChannels.length),
+      detail: campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", "),
+      state: campaignStudioSelectedChannels.length ? "ready" as const : "blocked" as const,
+    },
+    {
+      key: "reach",
+      label: "Reach",
+      value: campaignStudioSelectedChannels.length === 1
+        ? String(campaignStudioRecipientPreview.length)
+        : String(campaignStudioPackRecipientCount),
+      detail: campaignStudioSelectedChannels.length === 1 ? "eligible recipients" : "snapshots across channels",
+      state: campaignStudioPackRecipientCount > 0 ? "ready" as const : "blocked" as const,
+    },
+    {
+      key: "ai",
+      label: "AI copy",
+      value: `${campaignStudioAiDraftCount}/${campaignStudioSelectedChannels.length}`,
+      detail: campaignStudioHasFullAiPack ? "polished pack ready" : "templates ready to improve",
+      state: campaignStudioHasFullAiPack ? "ready" as const : "planning" as const,
+    },
+  ];
   const campaignStudioApprovalBriefText = [
     "Campaign approval brief",
     `Campaign: ${campaignStudioGenerated.campaignName}`,
@@ -12754,6 +12791,71 @@ export default function MarketingAdminPage() {
                             ))}
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+                    <div className={`mt-4 rounded-xl border p-4 shadow-sm ${readinessClass(campaignStudioCommandCenterState)}`} data-testid="marketing-campaign-studio-command-center">
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill className="bg-white text-purple-800">Launch command center</Pill>
+                            <Pill className={readinessPillClass(campaignStudioCommandCenterState)}>{readinessLabel(campaignStudioCommandCenterState)}</Pill>
+                          </div>
+                          <h3 className="mt-2 text-xl font-black text-[#241133]" data-testid="marketing-campaign-studio-command-title">{campaignStudioLaunchAssistantTitle}</h3>
+                          <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]" data-testid="marketing-campaign-studio-command-detail">{campaignStudioNextStep}</p>
+                          <div className="mt-3 flex flex-wrap gap-2" data-testid="marketing-campaign-studio-command-channels">
+                            {campaignStudioSelectedChannels.map((channel) => (
+                              <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                            ))}
+                            <Pill className="bg-white text-[#5b4a46]">{selectedCampaignStudioTargetAudience?.name ?? "Best matching list"}</Pill>
+                            <Pill className="bg-white text-[#5b4a46]">{formatDate(fromDateTimeLocal(campaignStudioSchedule))}</Pill>
+                          </div>
+                        </div>
+                        <div className="grid gap-2">
+                          <button
+                            type="button"
+                            onClick={campaignStudioPrimaryLaunchStep.onSelect}
+                            disabled={campaignStudioPrimaryLaunchStep.disabled}
+                            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            data-testid="button-marketing-campaign-studio-command-primary"
+                          >
+                            <CampaignStudioPrimaryLaunchIcon size={16} aria-hidden="true" />
+                            {campaignStudioPrimaryLaunchStep.actionLabel}
+                          </button>
+                          {campaignStudioSecondaryLaunchStep && CampaignStudioSecondaryLaunchIcon && campaignStudioSecondaryLaunchStep.key !== campaignStudioPrimaryLaunchStep.key ? (
+                            <button
+                              type="button"
+                              onClick={campaignStudioSecondaryLaunchStep.onSelect}
+                              disabled={campaignStudioSecondaryLaunchStep.disabled}
+                              className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 py-2 text-sm font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              data-testid="button-marketing-campaign-studio-command-secondary"
+                            >
+                              <CampaignStudioSecondaryLaunchIcon size={15} aria-hidden="true" />
+                              {campaignStudioSecondaryLaunchStep.actionLabel}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("One-page launch packet", campaignStudioLaunchPacketText)}
+                            className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 py-2 text-sm font-black text-[#241133] transition hover:border-purple-200 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                            data-testid="button-marketing-campaign-studio-command-copy-packet"
+                          >
+                            <Copy size={15} aria-hidden="true" />
+                            Copy launch packet
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-2 md:grid-cols-4" data-testid="marketing-campaign-studio-command-stats">
+                        {campaignStudioCommandCenterStats.map((item) => (
+                          <div key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-command-stat-${item.key}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-xs font-black uppercase tracking-[0.1em] opacity-80">{item.label}</span>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <p className="mt-2 text-2xl font-black text-[#241133]">{item.value}</p>
+                            <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
 

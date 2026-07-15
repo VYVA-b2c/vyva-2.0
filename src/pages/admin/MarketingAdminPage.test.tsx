@@ -3028,6 +3028,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-launch-assistant-output")).toHaveTextContent("1 LinkedIn campaign route");
     expect(screen.getByTestId("button-marketing-campaign-studio-assistant-primary")).toHaveTextContent("Improve with AI");
     expect(screen.getByTestId("button-marketing-campaign-studio-assistant-secondary")).toHaveTextContent("Create now");
+    expect(screen.getByTestId("marketing-campaign-studio-command-center")).toHaveTextContent("Launch command center");
+    expect(screen.getByTestId("marketing-campaign-studio-command-title")).toHaveTextContent("Polish this into a stronger campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-command-detail")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("marketing-campaign-studio-command-channels")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-command-channels")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-command-stat-readiness")).toHaveTextContent("4/6");
+    expect(screen.getByTestId("marketing-campaign-studio-command-stat-channels")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-studio-command-stat-reach")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-studio-command-stat-ai")).toHaveTextContent("0/1");
+    expect(screen.getByTestId("button-marketing-campaign-studio-command-primary")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("button-marketing-campaign-studio-command-secondary")).toHaveTextContent("Create now");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-command-copy-packet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch packet"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("One-page launch packet copied.");
     expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Launch sequence");
     expect(screen.getByTestId("marketing-campaign-studio-launch-sequence")).toHaveTextContent("Next best actions");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-audience")).toHaveTextContent("Audience list selected");
