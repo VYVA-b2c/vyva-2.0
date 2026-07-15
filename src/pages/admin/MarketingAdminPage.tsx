@@ -439,6 +439,7 @@ type CampaignDraft = {
   channel: Channel;
   channels: Channel[];
   contentAssetId: string;
+  channelContentAssetIds: Partial<Record<Channel, string>>;
   status: "draft" | "scheduled";
   scheduleStartsAt: string;
   scheduleEndsAt: string;
@@ -3772,6 +3773,7 @@ function emptyCampaignDraft(): CampaignDraft {
     channel: "email",
     channels: ["email"],
     contentAssetId: "",
+    channelContentAssetIds: {},
     status: "draft",
     scheduleStartsAt: "",
     scheduleEndsAt: "",
@@ -5199,6 +5201,9 @@ function campaignDraftFromContentAsset(contentAsset: ContentAsset, play: Campaig
     audienceType: play.audienceType,
     channel: contentAsset.channel,
     contentAssetId: contentAsset.id,
+    channelContentAssetIds: {
+      [contentAsset.channel]: contentAsset.id,
+    },
     status: "draft",
     scheduleStartsAt: "",
     scheduleEndsAt: "",
@@ -8362,6 +8367,10 @@ export default function MarketingAdminPage() {
     () => content.filter((item) => item.channel === campaignDraft.channel && item.status !== "archived"),
     [campaignDraft.channel, content],
   );
+  const campaignDraftContentOptionsByChannel = useMemo(() => new Map(CHANNELS.map((channel) => [
+    channel,
+    content.filter((item) => item.channel === channel && item.status !== "archived"),
+  ] as const)), [content]);
   const campaignEditPrimaryContentOptions = useMemo(() => {
     const options = content.filter((item) => item.channel === campaignEditDraft.channel && item.status !== "archived");
     const selected = campaignEditDraft.contentAssetId ? content.find((item) => item.id === campaignEditDraft.contentAssetId) ?? null : null;
@@ -8378,6 +8387,24 @@ export default function MarketingAdminPage() {
   const campaignDraftSelectedChannels = useMemo(
     () => campaignDraftChannels(campaignDraft),
     [campaignDraft],
+  );
+  const campaignDraftContentIdByChannel = useMemo(() => {
+    const contentAssetIds = campaignDraft.channelContentAssetIds ?? {};
+    const entries = campaignDraftSelectedChannels.map((channel) => [
+      channel,
+      channel === campaignDraft.channel
+        ? campaignDraft.contentAssetId || contentAssetIds[channel] || ""
+        : contentAssetIds[channel] || "",
+    ] as const);
+    return Object.fromEntries(entries) as Partial<Record<Channel, string>>;
+  }, [campaignDraft, campaignDraftSelectedChannels]);
+  const selectedCampaignDraftContentByChannel = useMemo(() => new Map(campaignDraftSelectedChannels.map((channel) => {
+    const contentId = campaignDraftContentIdByChannel[channel];
+    return [channel, contentId ? contentById.get(contentId) ?? null : null] as const;
+  })), [campaignDraftContentIdByChannel, campaignDraftSelectedChannels, contentById]);
+  const campaignDraftMissingContentChannels = useMemo(
+    () => campaignDraftSelectedChannels.filter((channel) => !selectedCampaignDraftContentByChannel.get(channel)),
+    [campaignDraftSelectedChannels, selectedCampaignDraftContentByChannel],
   );
   const campaignDraftPack = useMemo(
     () => campaignPlannerChannelPacks.find((pack) => (
@@ -9771,6 +9798,8 @@ export default function MarketingAdminPage() {
     const channelCapability = sendCapabilityByChannel.get(campaignDraft.channel);
     const emailSendEnabled = campaignDraft.channel === "email" && channelCapability?.sendCapability === "enabled" && !channelCapability.locked;
     const manualChannels = campaignDraftSelectedChannels.filter((channel) => channel !== "email");
+    const linkedContentCount = campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length;
+    const primaryHasContent = Boolean(selectedCampaignDraftContent);
     return [
       {
         key: "name",
@@ -9781,19 +9810,23 @@ export default function MarketingAdminPage() {
       {
         key: "content",
         title: "Content",
-        state: selectedCampaignDraftContent ? "ready" : campaignDraftContentOptions.length ? "needs_action" : "blocked",
-        detail: selectedCampaignDraftContent
-          ? `${selectedCampaignDraftContent.title} is linked for ${channelLabel[campaignDraft.channel]}.`
-          : campaignDraftContentOptions.length
-            ? `${campaignDraftContentOptions.length} ${channelLabel[campaignDraft.channel]} asset${campaignDraftContentOptions.length === 1 ? "" : "s"} available. Pick one before launch.`
-            : `No active ${channelLabel[campaignDraft.channel]} content assets yet.`,
+        state: campaignDraftMissingContentChannels.length === 0
+          ? "ready"
+          : primaryHasContent || campaignDraftContentOptions.length ? "needs_action" : "blocked",
+        detail: campaignDraftMissingContentChannels.length === 0
+          ? `${linkedContentCount} content asset${linkedContentCount === 1 ? "" : "s"} linked across ${formatChannelList(campaignDraftSelectedChannels)}.`
+          : primaryHasContent
+            ? `${selectedCampaignDraftContent.title} is linked for ${channelLabel[campaignDraft.channel]}; add content for ${formatChannelList(campaignDraftMissingContentChannels)} before launch.`
+            : campaignDraftContentOptions.length
+              ? `${campaignDraftContentOptions.length} ${channelLabel[campaignDraft.channel]} asset${campaignDraftContentOptions.length === 1 ? "" : "s"} available. Pick one before launch.`
+              : `No active ${channelLabel[campaignDraft.channel]} content assets yet.`,
       },
       {
         key: "channels",
         title: "Channel pack",
         state: campaignDraftSelectedChannels.length > 1 ? "planning" : "ready",
         detail: campaignDraftSelectedChannels.length > 1
-          ? `${campaignDraftSelectedChannels.length} routes will be created: ${formatChannelList(campaignDraftSelectedChannels)}. Link extra channel content from campaign details after save.`
+          ? `${campaignDraftSelectedChannels.length} routes will be created: ${formatChannelList(campaignDraftSelectedChannels)}. Link route content below before save when available.`
           : `${channelLabel[campaignDraft.channel]} only.`,
       },
       {
@@ -9838,6 +9871,7 @@ export default function MarketingAdminPage() {
   }, [
     campaignDraft,
     campaignDraftContentOptions.length,
+    campaignDraftMissingContentChannels,
     campaignDraftRecipientPreview.length,
     campaignDraftSelectedChannels,
     selectedCampaignDraftContent,
@@ -10010,13 +10044,21 @@ export default function MarketingAdminPage() {
   }
 
   function applyCampaignPlannerRecipe(recipe: CampaignPlannerRecipe) {
+    const recipeChannels = recipe.recommendation.channels.length ? recipe.recommendation.channels : [recipe.channel];
+    const recipeContentIds = Object.fromEntries(recipeChannels.map((channel) => {
+      const matchedContent = channel === recipe.channel
+        ? recipe.matchedContent
+        : content.find((item) => item.channel === channel && item.status !== "archived") ?? null;
+      return [channel, matchedContent?.id ?? ""];
+    })) as Partial<Record<Channel, string>>;
     setCampaignDraft({
       ...emptyCampaignDraft(),
       name: recipe.play.campaignName,
       audienceType: recipe.play.audienceType,
       channel: recipe.channel,
-      channels: recipe.recommendation.channels.length ? recipe.recommendation.channels : [recipe.channel],
-      contentAssetId: recipe.matchedContent?.id ?? "",
+      channels: recipeChannels,
+      contentAssetId: recipeContentIds[recipe.channel] ?? "",
+      channelContentAssetIds: recipeContentIds,
       status: recipe.status,
       scheduleStartsAt: recipe.scheduleStartsAt,
       scheduleEndsAt: "",
@@ -10052,6 +10094,10 @@ export default function MarketingAdminPage() {
         ...current,
         channel: result.content.channel,
         contentAssetId: result.content.id,
+        channelContentAssetIds: {
+          ...current.channelContentAssetIds,
+          [result.content.channel]: result.content.id,
+        },
       }));
       setSelectedContentId(result.content.id);
       setEditingContentId(result.content.id);
@@ -10371,11 +10417,12 @@ export default function MarketingAdminPage() {
               primaryChannel: campaignDraft.channel,
               selectedChannels: draftChannels,
               channelPack: campaignDraftPack?.id ?? "custom",
+              contentAssetIds: campaignDraftContentIdByChannel,
             },
           }, selectedCampaignDraftTargetAudience),
           channels: draftChannels.map((channel) => ({
             channel,
-            contentAssetId: channel === campaignDraft.channel ? campaignDraft.contentAssetId || null : null,
+            contentAssetId: campaignDraftContentIdByChannel[channel] || null,
             status: campaignDraft.status,
             scheduledAt,
           })),
@@ -15458,12 +15505,25 @@ export default function MarketingAdminPage() {
                           <button
                             key={pack.id}
                             type="button"
-                            onClick={() => setCampaignDraft((draft) => ({
-                              ...draft,
-                              channel: pack.channels[0],
-                              channels: [...pack.channels],
-                              contentAssetId: pack.channels[0] === draft.channel ? draft.contentAssetId : "",
-                            }))}
+                            onClick={() => setCampaignDraft((draft) => {
+                              const primaryChannel = pack.channels[0];
+                              const currentDraftContentIds = draft.channelContentAssetIds ?? {};
+                              const currentContentMap = {
+                                ...currentDraftContentIds,
+                                [draft.channel]: draft.contentAssetId || currentDraftContentIds[draft.channel] || "",
+                              };
+                              const nextContentMap = Object.fromEntries(pack.channels.map((channel) => [
+                                channel,
+                                currentContentMap[channel] ?? "",
+                              ])) as Partial<Record<Channel, string>>;
+                              return {
+                                ...draft,
+                                channel: primaryChannel,
+                                channels: [...pack.channels],
+                                contentAssetId: nextContentMap[primaryChannel] ?? "",
+                                channelContentAssetIds: nextContentMap,
+                              };
+                            })}
                             className={`rounded-xl border p-3 text-left shadow-sm transition focus:outline-none focus:ring-4 focus:ring-purple-100 ${
                               isSelected ? "border-purple-300 bg-purple-700 text-white" : "border-purple-100 bg-white text-[#241133] hover:border-purple-300"
                             }`}
@@ -15495,14 +15555,23 @@ export default function MarketingAdminPage() {
                         value={campaignDraft.channel}
                         onChange={(event) => {
                           const channel = event.target.value as Channel;
-                          setCampaignDraft((draft) => ({
-                            ...draft,
-                            channel,
-                            channels: draft.channels.length > 1
+                          setCampaignDraft((draft) => {
+                            const currentDraftContentIds = draft.channelContentAssetIds ?? {};
+                            const currentContentMap = {
+                              ...currentDraftContentIds,
+                              [draft.channel]: draft.contentAssetId || currentDraftContentIds[draft.channel] || "",
+                            };
+                            const channels = draft.channels.length > 1
                               ? [channel, ...draft.channels.filter((item) => item !== channel)]
-                              : [channel],
-                            contentAssetId: "",
-                          }));
+                              : [channel];
+                            return {
+                              ...draft,
+                              channel,
+                              channels,
+                              contentAssetId: currentContentMap[channel] ?? "",
+                              channelContentAssetIds: currentContentMap,
+                            };
+                          });
                         }}
                         data-testid="select-marketing-campaign-channel"
                       >
@@ -15510,7 +15579,22 @@ export default function MarketingAdminPage() {
                       </select>
                     </Field>
                     <Field label="Content asset">
-                      <select className={inputClass} value={campaignDraft.contentAssetId} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, contentAssetId: event.target.value }))} data-testid="select-marketing-campaign-content">
+                      <select
+                        className={inputClass}
+                        value={campaignDraft.contentAssetId}
+                        onChange={(event) => {
+                          const contentAssetId = event.target.value;
+                          setCampaignDraft((draft) => ({
+                            ...draft,
+                            contentAssetId,
+                            channelContentAssetIds: {
+                              ...draft.channelContentAssetIds,
+                              [draft.channel]: contentAssetId,
+                            },
+                          }));
+                        }}
+                        data-testid="select-marketing-campaign-content"
+                      >
                         <option value="">No content asset</option>
                         {campaignDraftContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
                       </select>
@@ -15554,6 +15638,50 @@ export default function MarketingAdminPage() {
                       <p className="mt-1 text-2xl font-black text-[#241133]">{campaignDraft.snapshotRecipients ? campaignDraftRecipientPreview.length : "-"}</p>
                     </div>
                   </div>
+                  {campaignDraftSelectedChannels.length > 1 ? (
+                    <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-route-content-map">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Route content</p>
+                          <p className="mt-1 text-sm font-bold text-[#6b5b54]">Attach content to each non-primary route before save when it exists.</p>
+                        </div>
+                        <Pill className={campaignDraftMissingContentChannels.length ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                          {campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length}/{campaignDraftSelectedChannels.length} linked
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+                        {campaignDraftSelectedChannels.filter((channel) => channel !== campaignDraft.channel).map((channel) => {
+                          const options = campaignDraftContentOptionsByChannel.get(channel) ?? [];
+                          const selectedId = campaignDraftContentIdByChannel[channel] ?? "";
+                          return (
+                            <Field key={channel} label={`${channelLabel[channel]} content`}>
+                              <select
+                                className={inputClass}
+                                value={selectedId}
+                                onChange={(event) => {
+                                  const contentAssetId = event.target.value;
+                                  setCampaignDraft((draft) => ({
+                                    ...draft,
+                                    channelContentAssetIds: {
+                                      ...draft.channelContentAssetIds,
+                                      [channel]: contentAssetId,
+                                    },
+                                  }));
+                                }}
+                                data-testid={`select-marketing-campaign-route-content-${channel}`}
+                              >
+                                <option value="">No content for this route</option>
+                                {options.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                              </select>
+                              <p className="mt-1 text-xs font-bold text-[#8b7a73]">
+                                {options.length ? `${options.length} available ${channelLabel[channel]} asset${options.length === 1 ? "" : "s"}.` : `No active ${channelLabel[channel]} content yet.`}
+                              </p>
+                            </Field>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                   {selectedCampaignDraftTargetAudience ? (
                     <p className="rounded-xl border border-purple-100 bg-white px-4 py-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-draft-target-audience-summary">
                       {selectedCampaignDraftTargetAudience.name}: {selectedCampaignDraftTargetAudience.mappedMemberCount} mapped / {selectedCampaignDraftTargetAudience.unmappedContactExternalIds.length} unmapped contacts.

@@ -2153,7 +2153,8 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Start a partner conversation");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Starter loaded: Partner outreach with Partner post");
     expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("Ready to add");
-    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("Partner post is linked for LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("2 content assets linked across LinkedIn and Email");
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("2/2 linked");
     expect(screen.getByTestId("marketing-campaign-channel-packs")).toHaveTextContent("2 routes");
     expect(screen.getByTestId("marketing-campaign-draft-readiness-channels")).toHaveTextContent("LinkedIn and Email");
     expect(screen.getByTestId("marketing-campaign-draft-readiness-channel")).toHaveTextContent("LinkedIn and Email will be saved for planning or manual handoff");
@@ -2212,7 +2213,7 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-created");
     });
-    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("Community proof post Facebook content is linked for Facebook");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("1 content asset linked across Facebook");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created and linked Community proof post Facebook content");
   });
 
@@ -3682,6 +3683,10 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Partner launch pack" } });
     fireEvent.change(screen.getByTestId("select-marketing-campaign-audience"), { target: { value: "b2b" } });
     fireEvent.change(screen.getByTestId("select-marketing-campaign-content"), { target: { value: "content-1" } });
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("1/2 linked");
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-route-content-linkedin"), { target: { value: "content-2" } });
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("2/2 linked");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("2 content assets linked across Email and LinkedIn");
     fireEvent.change(screen.getByTestId("select-marketing-campaign-target-audience"), { target: { value: "audience-1" } });
     fireEvent.change(screen.getByTestId("input-marketing-campaign-recipient-filter"), { target: { value: "Hassan" } });
     fireEvent.click(screen.getByTestId("checkbox-marketing-campaign-snapshot"));
@@ -3700,13 +3705,17 @@ describe("MarketingAdminPage", () => {
       audienceType: "b2b",
       channels: [
         { channel: "email", contentAssetId: "content-1" },
-        { channel: "linkedin", contentAssetId: null },
+        { channel: "linkedin", contentAssetId: "content-2" },
       ],
       metadata: {
         planner: {
           primaryChannel: "email",
           selectedChannels: ["email", "linkedin"],
           channelPack: "partner",
+          contentAssetIds: {
+            email: "content-1",
+            linkedin: "content-2",
+          },
         },
       },
     });
