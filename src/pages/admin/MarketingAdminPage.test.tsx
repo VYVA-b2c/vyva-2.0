@@ -1695,8 +1695,39 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Phone partner follow-up script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Community flyer copy");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event host handoff brief");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("57 templates");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("62 templates");
     expect(screen.getByTestId("marketing-template-packs")).toHaveTextContent("Family onboarding");
+    expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("Monthly care digest");
+    expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("5 templates");
+    expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-monthly-care-digest"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Monthly care digest template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care check-in WhatsApp");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn monthly care operations note");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-monthly-care-digest")).toHaveTextContent("Family digest");
+    expect(screen.getByTestId("marketing-template-pack-sequence-monthly-care-digest")).toHaveTextContent("Partner operations note");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-monthly-care-digest"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Monthly care digest");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Monthly care digest pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-start-monthly-care-digest"));
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Monthly care digest email campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2c");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign starter applied from \"Monthly care digest email\"");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Monthly care digest");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("Trust and review");
     expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-trust-and-review"));
@@ -1844,7 +1875,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("11");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("12");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
