@@ -12,6 +12,7 @@ import {
   Search,
   Tag,
   Map,
+  MapPin,
   FileText,
   Sparkles,
   BellRing,
@@ -72,6 +73,7 @@ import { apiFetch } from "@/lib/queryClient";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import {
   buildHomeServiceIntake,
+  homeServiceAddressFromPreferences,
   homeServiceQuestionsFor,
   homeServiceTypeLabel,
   HOME_SERVICE_TYPES,
@@ -201,6 +203,11 @@ function scrollIntoViewIfAvailable(element: Element | null | undefined, options?
 }
 
 type ConciergeProfileSummary = {
+  street?: string | null;
+  cityState?: string | null;
+  region?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
   savedProviders?: Array<{
     name?: string | null;
     role?: string | null;
@@ -3140,6 +3147,20 @@ function appointmentPreferredChannel(option: AppointmentProviderOption | null | 
   return available.find((channel) => channel !== "manual") ?? available[0] ?? null;
 }
 
+function cleanProfileText(value?: string | null): string {
+  return value?.trim() ?? "";
+}
+
+function profileHomeAddressLabel(profile: ConciergeProfileSummary | null | undefined): string {
+  const street = cleanProfileText(profile?.street);
+  const city = cleanProfileText(profile?.cityState);
+  const region = cleanProfileText(profile?.region);
+  const postalCode = cleanProfileText(profile?.postalCode);
+  const country = cleanProfileText(profile?.country);
+  const cityLine = [postalCode, city].filter(Boolean).join(" ");
+  return [street, cityLine, region, country].filter(Boolean).join(", ");
+}
+
 function estimateFromHomeServiceReply(...values: Array<string | null | undefined>): string | null {
   const text = values
     .map((value) => value?.trim() ?? "")
@@ -3155,10 +3176,12 @@ function appointmentConfirmationItems(params: {
   contactRoute: string;
   isMedical: boolean;
   hasCoverageInfo: boolean;
+  homeAddress?: string;
+  homeAccessNotes?: string;
   toolReadiness?: ConciergeToolReadinessResult | null;
   isSpanish: boolean;
 }) {
-  const { providerName, providerTrustNote, contactRoute, isMedical, hasCoverageInfo, toolReadiness, isSpanish } = params;
+  const { providerName, providerTrustNote, contactRoute, isMedical, hasCoverageInfo, homeAddress, homeAccessNotes, toolReadiness, isSpanish } = params;
   const items = [
     {
       label: isSpanish ? `Proveedor: ${providerName}` : `Provider: ${providerName}`,
@@ -3187,6 +3210,25 @@ function appointmentConfirmationItems(params: {
           ? "Si el proveedor lo necesita, VYVA te preguntara antes de compartir datos."
           : "If the provider needs it, VYVA will ask before sharing details."),
     });
+  } else {
+    items.push({
+      label: homeAddress?.trim()
+        ? (isSpanish ? "Direccion: guardada" : "Address: saved")
+        : (isSpanish ? "Direccion: pendiente" : "Address: needed"),
+      helper: homeAddress?.trim()
+        ? (isSpanish
+          ? "VYVA usara esta direccion solo despues de tu confirmacion."
+          : "VYVA uses this address only after your confirmation.")
+        : (isSpanish
+          ? "Anade donde debe ir el proveedor antes de contactar."
+          : "Add where the provider should visit before contact."),
+    });
+    if (homeAccessNotes?.trim()) {
+      items.push({
+        label: isSpanish ? "Acceso: preparado" : "Access: prepared",
+        helper: homeAccessNotes.trim(),
+      });
+    }
   }
 
   items.push(
@@ -7930,6 +7972,19 @@ const ConciergeScreen = () => {
   const savedHomeServiceProviderDetailsValue = savedHomeServiceProviderDetails(conciergeProfile, homeServiceType);
   const savedHomeServiceProvider = savedHomeServiceProviderDetailsValue?.name?.trim() || "";
   const hasSavedHomeServiceProvider = Boolean(savedHomeServiceProviderDetailsValue);
+  const savedHomeAddress = profileHomeAddressLabel(conciergeProfile);
+  const homeServiceSessionAddress = homeServiceIntakeAnswers.home_address?.trim() || homeServiceIntakeAnswers.location?.trim() || "";
+  const appointmentHomeServiceAddress = appointmentRequest?.appointment_type === "home-service"
+    ? homeServiceAddressFromPreferences(appointmentRequest.preferences)
+    : "";
+  const homeServiceVisitAddress = appointmentHomeServiceAddress || homeServiceSessionAddress || savedHomeAddress;
+  const homeServiceAddressSource = appointmentHomeServiceAddress
+    ? "request"
+    : homeServiceSessionAddress
+      ? "session"
+      : savedHomeAddress
+        ? "profile"
+        : "";
   const hasSavedTransportMobilityInfo = Boolean(conciergeProfile?.serviceReadiness?.hasMobilityInfo);
   const shouldAskTransportMobility = !hasSavedTransportMobilityInfo;
   const hasTransportDestination = transportDestination.trim().length > 0;
@@ -8081,6 +8136,12 @@ const ConciergeScreen = () => {
         contactRoute: appointmentChannelLabel(selectedAppointmentActionChannel, isSpanish),
         isMedical: (appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key) === "medical",
         hasCoverageInfo: hasAppointmentCoverageInfo,
+        homeAddress: (appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key) === "home-service"
+          ? homeServiceVisitAddress
+          : "",
+        homeAccessNotes: (appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key) === "home-service"
+          ? homeServiceIntakeAnswers.access_notes
+          : "",
         toolReadiness: selectedAppointmentToolReadiness,
         isSpanish,
       })
@@ -8378,6 +8439,9 @@ const ConciergeScreen = () => {
         const isHomeServiceOutcome = appointmentRequest.appointment_type === "home-service";
         const providerReply = appointmentBookedForm.providerReply.trim();
         const notes = appointmentBookedForm.notes.trim();
+        const outcomeLocation = appointmentBookedForm.location.trim()
+          || (isHomeServiceOutcome ? homeServiceVisitAddress : appointmentSnapshotText(selectedAppointmentOption, "address"))
+          || null;
         const homeServiceEstimate = isHomeServiceOutcome
           ? estimateFromHomeServiceReply(providerReply, notes)
           : null;
@@ -8394,7 +8458,7 @@ const ConciergeScreen = () => {
               provider_name: appointmentProviderName,
               selected_channel: appointmentRequest.selected_channel ?? selectedAppointmentActionChannel,
               scheduled_for: appointmentBookedForm.scheduledFor,
-              location: appointmentBookedForm.location.trim() || appointmentSnapshotText(selectedAppointmentOption, "address") || null,
+              location: outcomeLocation,
               provider_reply: providerReply || null,
               reference: appointmentBookedForm.reference.trim() || null,
               notes: notes || null,
@@ -8406,6 +8470,8 @@ const ConciergeScreen = () => {
                 criteria: homeServiceIntakeAnswers.criteria ?? null,
                 safety_flags: homeServiceSafetyFlags,
                 estimated_cost: homeServiceEstimate,
+                home_address: homeServiceVisitAddress || null,
+                home_address_source: homeServiceAddressSource || null,
                 home_access_or_safety_notes: homeServiceIntakeAnswers.access_notes ?? null,
               } : {}),
               scheduled_event_id: typeof result.scheduled_event === "object" && result.scheduled_event && "id" in result.scheduled_event
@@ -9020,7 +9086,14 @@ const ConciergeScreen = () => {
     [homeServiceIntakeAnswers, homeServiceQuestions, isHomeServiceElectricalDanger],
   );
   const answeredHomeServiceQuestionCount = homeServiceQuestions.filter((question) => homeServiceIntakeAnswers[question.key]).length;
-  const isHomeServiceIntakeComplete = Boolean(!isHomeServiceElectricalDanger && homeServiceType && homeServiceQuestions.length > 0 && answeredHomeServiceQuestionCount === homeServiceQuestions.length);
+  const isHomeServiceQuestionSetComplete = Boolean(
+    !isHomeServiceElectricalDanger
+    && homeServiceType
+    && homeServiceQuestions.length > 0
+    && answeredHomeServiceQuestionCount === homeServiceQuestions.length,
+  );
+  const homeServiceNeedsVisitAddress = Boolean(isHomeServiceQuestionSetComplete && !homeServiceVisitAddress.trim());
+  const isHomeServiceIntakeComplete = Boolean(isHomeServiceQuestionSetComplete && !homeServiceNeedsVisitAddress);
   const homeServiceCurrentStep = homeServiceQuestions.length > 0
     ? Math.min(answeredHomeServiceQuestionCount + (activeHomeServiceQuestion ? 1 : 0), homeServiceQuestions.length)
     : 0;
@@ -9515,18 +9588,29 @@ const ConciergeScreen = () => {
   }
 
   function buildCurrentHomeServiceIntake() {
+    const visitAddress = homeServiceVisitAddress.trim();
+    const answerSource = visitAddress && !homeServiceIntakeAnswers.home_address?.trim()
+      ? { home_address: visitAddress }
+      : {};
     const intake = buildHomeServiceIntake({
       origin: homeServiceIntakeOrigin,
       serviceType: homeServiceType,
       urgency: homeServiceIntakeAnswers.urgency,
       criteria: homeServiceIntakeAnswers.criteria,
-      answers: homeServiceIntakeAnswers,
+      answers: {
+        ...homeServiceIntakeAnswers,
+        ...answerSource,
+      },
       language: locale,
     });
     return {
       intake,
       preferences: {
         service_intake: intake,
+        ...(visitAddress ? {
+          home_address: visitAddress,
+          home_address_source: homeServiceAddressSource || "session",
+        } : {}),
       },
     };
   }
@@ -9788,7 +9872,9 @@ const ConciergeScreen = () => {
       scheduledFor: appointmentBookedForm.scheduledFor,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid",
       providerName: appointmentProviderName,
-      location: appointmentBookedForm.location.trim() || appointmentSnapshotText(selectedAppointmentOption, "address") || undefined,
+      location: appointmentBookedForm.location.trim()
+        || (appointmentRequest.appointment_type === "home-service" ? homeServiceVisitAddress : appointmentSnapshotText(selectedAppointmentOption, "address"))
+        || undefined,
       notes: finalNotes || appointmentRequest.reason_detail || undefined,
     });
   }
@@ -14132,7 +14218,54 @@ const ConciergeScreen = () => {
                     </div>
                   )}
 
-                  {homeServiceType && !activeHomeServiceQuestion && !isHomeServiceElectricalDanger && (
+                  {homeServiceNeedsVisitAddress && (
+                    <div
+                      className="order-1 mt-4 rounded-[22px] border-2 border-[#F59E0B] bg-[#FFFBEB] p-4 shadow-[0_14px_28px_rgba(245,158,11,0.12)]"
+                      data-testid="panel-home-service-address"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B45309]">
+                          <MapPin size={19} aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-body text-[17px] font-black leading-tight text-[#92400E]">
+                            {isSpanish ? "Donde debe ir el proveedor?" : "Where should the provider come?"}
+                          </p>
+                          <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                            {isSpanish
+                              ? "VYVA usara esta direccion solo cuando confirmes el contacto o la reserva."
+                              : "VYVA uses this address only when you confirm contact or booking."}
+                          </p>
+                        </div>
+                      </div>
+                      <textarea
+                        value={homeServiceTextDrafts.home_address ?? ""}
+                        onChange={(event) => setHomeServiceTextDrafts((current) => ({
+                          ...current,
+                          home_address: event.target.value,
+                        }))}
+                        placeholder={isSpanish ? "Direccion, piso, puerta o notas de acceso" : "Address, apartment, entrance, or access notes"}
+                        rows={2}
+                        data-testid="input-home-service-address"
+                        className="mt-3 min-h-[86px] w-full resize-none rounded-[18px] border border-[#FCD34D] bg-white px-4 py-3 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-1 outline-none focus:border-[#B45309] focus:ring-4 focus:ring-[#F59E0B]/15"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const draft = (homeServiceTextDrafts.home_address ?? "").trim();
+                          if (draft) setHomeServiceAnswer("home_address", draft);
+                        }}
+                        disabled={!(homeServiceTextDrafts.home_address ?? "").trim()}
+                        data-testid="button-home-service-address-save"
+                        className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-[#B45309] px-4 font-body text-[15px] font-black text-white shadow-[0_12px_26px_rgba(180,83,9,0.18)] disabled:opacity-55"
+                      >
+                        <CircleCheck size={16} aria-hidden="true" />
+                        {isSpanish ? "Usar esta direccion" : "Use this address"}
+                      </button>
+                    </div>
+                  )}
+
+                  {homeServiceType && !activeHomeServiceQuestion && !isHomeServiceElectricalDanger && isHomeServiceIntakeComplete && (
                     <div className="order-1 mt-4 rounded-[22px] border-2 border-[#0F766E] bg-[#ECFDF5] p-4 shadow-[0_14px_28px_rgba(15,118,110,0.14)]" data-testid="panel-home-service-ready">
                       <div className="flex items-start gap-3">
                         <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#0F766E]">
@@ -14590,7 +14723,7 @@ const ConciergeScreen = () => {
                     label: isSpanish ? "Lugar" : "Place",
                     value: appointmentBookedForm.location,
                     onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, location: value })),
-                    placeholder: appointmentProviderAddress || (isSpanish ? "Lugar" : "Location"),
+                    placeholder: (isHomeServiceAppointment ? homeServiceVisitAddress : appointmentProviderAddress) || (isSpanish ? "Lugar" : "Location"),
                     testId: "input-appointment-confirmed-location",
                   },
                   {
