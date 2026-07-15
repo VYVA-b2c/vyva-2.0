@@ -812,10 +812,12 @@ async function expectResponsiveRoute(
   await page.setViewportSize(viewport);
   await page.goto(route.path, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 500 }).catch(() => undefined);
-  await page
-    .getByRole("status", { name: "Opening VYVA" })
-    .waitFor({ state: "hidden", timeout: 5000 })
-    .catch(() => undefined);
+  await page.locator("#vyva-launch").waitFor({ state: "detached", timeout: 15_000 });
+
+  const expectedShell = route.expectedLayout ? page.getByTestId("app-shell") : null;
+  if (expectedShell) {
+    await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 15_000 });
+  }
 
   await page
     .waitForFunction(() => (document.body.textContent ?? "").trim().length > 0, undefined, { timeout: 8000 })
@@ -843,7 +845,7 @@ async function expectResponsiveRoute(
   ).toBeGreaterThanOrEqual(route.minTextLength ?? 80);
 
   if (route.expectedLayout) {
-    const shell = page.getByTestId("app-shell");
+    const shell = expectedShell ?? page.getByTestId("app-shell");
     await expect(shell).toHaveAttribute("data-layout", route.expectedLayout);
     const shellBox = await shell.boundingBox();
     expect(shellBox, `${route.path} app shell should have a measurable box`).not.toBeNull();

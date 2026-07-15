@@ -6,6 +6,7 @@ const futureToken = [
   "signature",
 ].join(".");
 const symptomCheckDraftKey = "vyva.symptomCheck.draft.v1";
+type OpenedWindowRecord = { url: string; target?: string; features?: string };
 
 async function fulfillJson(route: Route, status: number, body: unknown) {
   await route.fulfill({
@@ -172,6 +173,24 @@ async function continuePastSymptomEmergencyModal(page: Page) {
     await continueButton.click();
     await expect(page.getByTestId("symptom-emergency-modal")).toBeHidden();
   }
+}
+
+async function recordWindowOpen(page: Page) {
+  await page.addInitScript(() => {
+    const win = window as typeof window & { __vyvaOpenedUrls?: OpenedWindowRecord[] };
+    win.__vyvaOpenedUrls = [];
+    window.open = ((url?: string | URL, target?: string, features?: string) => {
+      win.__vyvaOpenedUrls?.push({ url: String(url ?? ""), target, features });
+      return null;
+    }) as typeof window.open;
+  });
+}
+
+async function openedWindowRecords(page: Page): Promise<OpenedWindowRecord[]> {
+  return page.evaluate(() => {
+    const win = window as typeof window & { __vyvaOpenedUrls?: OpenedWindowRecord[] };
+    return win.__vyvaOpenedUrls ?? [];
+  });
 }
 
 test("login screen renders auth controls", async ({ page }) => {
@@ -358,6 +377,752 @@ test("concierge shopping helper recommends and saves a choice", async ({ page })
   await page.getByTestId("button-shopping-find").click();
   await expect(page.getByTestId("shopping-recommendation-results")).toBeVisible();
   await expectNoHorizontalOverflow(page);
+});
+
+test("concierge prepared email task requires review, final confirmation, and saved outcome", async ({ page }) => {
+  await mockApi(page, true);
+  await recordWindowOpen(page);
+
+  let completed = false;
+  let reviewConfirmCount = 0;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  const pendingEmailTask = {
+    id: "email-smoke-1",
+    use_case: "admin_task",
+    provider_name: "Council Office",
+    provider_phone: null,
+    action_summary: "Email draft prepared for the council office.",
+    action_payload: {
+      flow_reference: "FLOW_TOOL_GATED_TASK",
+      execution_channel: "email",
+      provider_email: "office@example.com",
+      email_subject: "Application question",
+      email_body: "Hello, I need help with my application.",
+      confirmation_required_before_action: true,
+      no_external_action_without_confirmation: true,
+    },
+    status: "pending",
+    language: "en",
+  };
+
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: completed ? [] : [pendingEmailTask] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/email-smoke-1/review-confirm") {
+      expect(route.request().method()).toBe("POST");
+      reviewConfirmCount += 1;
+      await fulfillJson(route, 200, { pendingId: "email-smoke-1", status: "pending" });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/email-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeBody = route.request().postDataJSON();
+      completed = true;
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-email-smoke-1" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("button-concierge-confirm-email-smoke-1")).toHaveText("Open email draft");
+  await expect(page.getByTestId("panel-concierge-email-draft")).toHaveCount(0);
+
+  await page.getByTestId("button-concierge-confirm-email-smoke-1").click();
+
+  await expect.poll(() => reviewConfirmCount).toBe(1);
+  await expect(page.getByTestId("panel-concierge-email-draft")).toBeVisible();
+
+  await page.getByTestId("link-concierge-email-draft-open-email-smoke-1").click();
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-final-confirm").click();
+
+  await expect.poll(async () => {
+    const records = await openedWindowRecords(page);
+    return records[0]?.url ?? "";
+  }).toContain("mailto:office@example.com");
+
+  await page.getByTestId("input-email-draft-reference-email-smoke-1").fill("APP-42");
+  await page.getByTestId("input-email-draft-notes-email-smoke-1").fill("Sent from smoke test.");
+  await page.getByTestId("button-email-draft-sent-email-smoke-1").click();
+
+  await expect.poll(() => completeBody?.outcome_payload?.email_outcome ?? null).toBe("sent");
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Email sent to Council Office. Reference: APP-42.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_TOOL_GATED_TASK",
+      execution_channel: "email",
+      email_outcome: "sent",
+      provider_name: "Council Office",
+      provider_email: "office@example.com",
+      recipient_email: "office@example.com",
+      email_subject: "Application question",
+      reference: "APP-42",
+      notes: "Sent from smoke test.",
+      completed_from: "email_draft_outcome_panel",
+      no_external_action_without_confirmation: true,
+    }),
+  });
+  await expect(page.getByTestId("email-draft-notice")).toContainText("Email saved");
+  await expectNoHorizontalOverflow(page);
+});
+
+test("concierge booking form task requires final confirmation before handoff and saves submission", async ({ page }) => {
+  await mockApi(page, true);
+  await recordWindowOpen(page);
+
+  let formConfirmed = false;
+  let confirmCount = 0;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  const bookingUrl = "https://booking.example.com/clinic";
+  const prefilledUrl = `${bookingUrl}?slot=morning`;
+  const pendingFormTask = () => ({
+    id: "form-smoke-1",
+    use_case: "book_appointment",
+    provider_name: "The Good Clinic",
+    provider_phone: null,
+    action_summary: "Booking form ready for The Good Clinic.",
+    action_payload: {
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      mission_status: "form_in_progress",
+      preferred_channel: "booking_url",
+      execution_channel: "booking_url",
+      reason: "Follow-up appointment",
+      booking_url: bookingUrl,
+      form_automation_plan: {
+        adapter_label: "ClinicBooking",
+        missing_fields: [],
+        next_step: "Use the supported booking page with the gathered details.",
+        prefilled_url: prefilledUrl,
+      },
+      ...(formConfirmed ? {
+        execution_task: {
+          version: 1,
+          flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+          action_type: "booking_link",
+          requested_tool: "booking_link",
+          active_tool: "booking_link",
+          lifecycle_status: "confirmed",
+          provider_ready: true,
+          missing_requirements: [],
+          confirmation_required: true,
+          user_confirmed: true,
+          confirmation_source: "confirm_endpoint",
+          confirmed_at: "2026-07-15T10:10:00.000Z",
+          created_at: "2026-07-15T10:00:00.000Z",
+          updated_at: "2026-07-15T10:10:00.000Z",
+        },
+      } : {}),
+    },
+    status: "pending",
+    language: "en",
+    confirmed_at: formConfirmed ? "2026-07-15T10:10:00.000Z" : null,
+  });
+
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingFormTask()] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/form-smoke-1/confirm") {
+      expect(route.request().method()).toBe("POST");
+      confirmCount += 1;
+      formConfirmed = true;
+      await fulfillJson(route, 200, { pendingId: "form-smoke-1", status: "pending" });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/form-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-form-smoke-1" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-appointment-mission")).toContainText("Form ready");
+  await expect(page.getByTestId("panel-concierge-form-plan")).toContainText("Ready to open with the gathered details.");
+  await expect(page.getByTestId("panel-concierge-next-action")).toContainText("Open appointment form");
+  await expect(page.getByTestId("text-booking-form-confirm-first-form-smoke-1")).toContainText("Confirm above before opening the form.");
+  await expect(page.getByTestId("link-booking-form-open-form-smoke-1")).toHaveCount(0);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-confirm-form-smoke-1").click();
+
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-final-confirm").click();
+
+  await expect.poll(() => confirmCount).toBe(1);
+  await expect.poll(async () => {
+    const records = await openedWindowRecords(page);
+    return records[0]?.url ?? "";
+  }).toBe(prefilledUrl);
+  await expect(page.getByTestId("link-booking-form-open-form-smoke-1")).toBeVisible();
+
+  await page.getByTestId("input-booking-form-reference-form-smoke-1").fill("CB-88");
+  await page.getByTestId("input-booking-form-notes-form-smoke-1").fill("Submitted from smoke test.");
+  await page.getByTestId("button-booking-form-submitted-form-smoke-1").click();
+
+  await expect.poll(() => completeBody?.outcome_payload?.form_outcome ?? null).toBe("submitted");
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Form submitted: The Good Clinic. Reference: CB-88.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      execution_type: "form_booking_link_outcome_capture",
+      execution_channel: "booking_url",
+      form_outcome: "submitted",
+      provider_name: "The Good Clinic",
+      booking_url: bookingUrl,
+      prefilled_url: prefilledUrl,
+      adapter_label: "ClinicBooking",
+      missing_fields: [],
+      reference: "CB-88",
+      notes: "Submitted from smoke test.",
+      completed_from: "booking_form_support_panel",
+      no_external_action_without_confirmation: true,
+    }),
+  });
+  await expect(page.getByTestId("booking-form-notice")).toContainText("Form saved");
+  await expectNoHorizontalOverflow(page);
+});
+
+test("concierge missing booking form details block handoff until details are ready", async ({ page }) => {
+  await mockApi(page, true, {}, {
+    phone: "+34 600 123 123",
+    street: "Saved Street 12",
+    cityState: "Madrid",
+    postalCode: "28001",
+    gpName: "Dr Profile",
+    gpPhone: "+34 600 999 999",
+  });
+  await recordWindowOpen(page);
+
+  let detailsSupplied = false;
+  let formConfirmed = false;
+  let confirmCount = 0;
+  const bookingUrl = "https://booking.example.com/clinic";
+  const prefilledUrl = `${bookingUrl}?slot=afternoon`;
+  const pendingFormTask = () => ({
+    id: "form-missing-1",
+    use_case: "book_appointment",
+    provider_name: "The Good Clinic",
+    provider_phone: null,
+    action_summary: "Booking form needs a few details before The Good Clinic can be contacted.",
+    action_payload: {
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      mission_status: "form_in_progress",
+      preferred_channel: "booking_url",
+      execution_channel: "booking_url",
+      reason: "Follow-up appointment",
+      booking_url: bookingUrl,
+      form_automation_plan: {
+        adapter_label: "ClinicBooking",
+        missing_fields: detailsSupplied ? [] : ["preferred time", "insurance member ID"],
+        next_step: detailsSupplied
+          ? "Use the supported booking page with the gathered details."
+          : "Collect the preferred time and insurance member ID before using the external form.",
+        ...(detailsSupplied ? { prefilled_url: prefilledUrl } : {}),
+      },
+      ...(formConfirmed ? {
+        execution_task: {
+          version: 1,
+          flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+          action_type: "booking_link",
+          requested_tool: "booking_link",
+          active_tool: "booking_link",
+          lifecycle_status: "confirmed",
+          provider_ready: true,
+          missing_requirements: [],
+          confirmation_required: true,
+          user_confirmed: true,
+          confirmation_source: "confirm_endpoint",
+          confirmed_at: "2026-07-15T11:10:00.000Z",
+          created_at: "2026-07-15T11:00:00.000Z",
+          updated_at: "2026-07-15T11:10:00.000Z",
+        },
+      } : {}),
+    },
+    status: "pending",
+    language: "en",
+    confirmed_at: formConfirmed ? "2026-07-15T11:10:00.000Z" : null,
+  });
+
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingFormTask()] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/form-missing-1/confirm") {
+      expect(route.request().method()).toBe("POST");
+      confirmCount += 1;
+      formConfirmed = true;
+      await fulfillJson(route, 200, { pendingId: "form-missing-1", status: "pending" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-appointment-mission")).toContainText("VYVA is handling this");
+  await expect(page.getByTestId("panel-concierge-form-plan")).toContainText("Needs first: preferred time, insurance member ID");
+  await expect(page.getByTestId("panel-concierge-next-action")).toContainText("Add missing details");
+  await expect(page.getByTestId("button-concierge-confirm-form-missing-1")).toBeDisabled();
+  await expect(page.getByTestId("button-booking-form-add-details-form-missing-1")).toHaveText("Add details");
+  await expect(page.getByTestId("link-booking-form-open-form-missing-1")).toHaveCount(0);
+  await expect(page.getByTestId("button-booking-form-submitted-form-missing-1")).toHaveCount(0);
+  await expect(page.locator(`a[href="${bookingUrl}"], a[href="${prefilledUrl}"]`)).toHaveCount(0);
+  await expect(page.locator('a[href^="mailto:"], a[href^="tel:"], a[href^="https://wa.me/"]')).toHaveCount(0);
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-booking-form-add-details-form-missing-1").click();
+
+  await expect(page.getByTestId("booking-form-notice")).toContainText("VYVA can help collect those details.");
+  const intakeDraft = page.getByTestId("panel-booking-form-intake-draft-form-missing-1");
+  await expect(intakeDraft).toContainText("The form needs these details: preferred time, insurance member ID.");
+  await expect(intakeDraft).toContainText("Help me collect them before opening the link.");
+  await expect(intakeDraft).not.toContainText("Saved Street 12");
+  await expect(intakeDraft).not.toContainText("+34 600 123 123");
+  await expect(intakeDraft).not.toContainText("Dr Profile");
+  await expect.poll(() => confirmCount).toBe(0);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  detailsSupplied = true;
+  await page.reload({ waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-appointment-mission")).toContainText("Form ready");
+  await expect(page.getByTestId("panel-concierge-form-plan")).toContainText("Ready to open with the gathered details.");
+  await expect(page.getByTestId("text-booking-form-confirm-first-form-missing-1")).toContainText("Confirm above before opening the form.");
+  await expect(page.getByTestId("link-booking-form-open-form-missing-1")).toHaveCount(0);
+  await expect(page.getByTestId("button-concierge-confirm-form-missing-1")).toHaveText("Open appointment form");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-confirm-form-missing-1").click();
+
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-final-confirm").click();
+
+  await expect.poll(() => confirmCount).toBe(1);
+  await expect.poll(async () => {
+    const records = await openedWindowRecords(page);
+    return records[0]?.url ?? "";
+  }).toBe(prefilledUrl);
+});
+
+test("concierge provider reply saves confirmed medical appointment outcome", async ({ page }) => {
+  await mockApi(page, true, {}, {
+    phone: "+34 600 123 123",
+    street: "Saved Street 12",
+    cityState: "Madrid",
+    gpName: "Dr Profile",
+    gpPhone: "+34 600 999 999",
+  });
+
+  let scheduledBody: Record<string, unknown> | null = null;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  const pendingAppointmentReply = {
+    id: "reply-appointment-smoke-1",
+    use_case: "book_appointment",
+    provider_name: "Clinica Lopez",
+    provider_phone: "+34 600 111 222",
+    action_summary: "Saved clinic is checking the dermatology slot.",
+    action_payload: {
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      appointment_type: "medical",
+      appointment_reason: "dermatology follow-up",
+      provider_source: "saved",
+      selected_provider_name: "Clinica Lopez",
+      requested_time: "next Tuesday morning",
+      location: "Marbella",
+      mission_status: "awaiting_provider_reply",
+      preferred_channel: "phone",
+    },
+    status: "calling",
+    language: "en",
+  };
+
+  await page.route("**/api/profile/scheduled-events", async (route) => {
+    if (route.request().method() === "POST") {
+      scheduledBody = route.request().postDataJSON();
+      await fulfillJson(route, 201, { event: { id: "scheduled-appointment-smoke", ...scheduledBody } });
+      return;
+    }
+    await fulfillJson(route, 200, { events: [] });
+  });
+  await page.route("**/api/scheduled-events", async (route) => {
+    await fulfillJson(route, 200, { events: [] });
+  });
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingAppointmentReply] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/reply-appointment-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-appointment-smoke" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-provider-reply")).toContainText("Provider reply");
+  await page.getByTestId("button-provider-reply-confirmed-reply-appointment-smoke-1").click();
+
+  const replyPanel = page.getByTestId("panel-provider-reply-confirmed-reply-appointment-smoke-1");
+  await expect(replyPanel).toContainText("A date and time are needed to save the appointment in Scheduled Support.");
+  await expect(replyPanel).toContainText("Add the provider reply before saving.");
+  await expect(replyPanel).not.toContainText("Saved Street 12");
+  await expect(replyPanel).not.toContainText("+34 600 123 123");
+  await expect(replyPanel).not.toContainText("Dr Profile");
+
+  const saveButton = page.getByTestId("button-provider-reply-save-reply-appointment-smoke-1");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("input-provider-reply-time-reply-appointment-smoke-1").fill("2026-07-22T10:30");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("input-provider-reply-reference-reply-appointment-smoke-1").fill("AP-77");
+  await page.getByTestId("input-provider-reply-text-reply-appointment-smoke-1").fill("Confirmed Wednesday at 10:30. Bring insurance card.");
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  await expect.poll(() => scheduledBody?.event_type ?? null).toBe("appointment");
+  expect(scheduledBody).toMatchObject({
+    event_type: "appointment",
+    title: "Appointment with Clinica Lopez",
+    channel: "app",
+    status: "upcoming",
+    source: "concierge",
+    metadata: expect.objectContaining({
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      pending_id: "reply-appointment-smoke-1",
+      appointment_type: "medical",
+      provider_name: "Clinica Lopez",
+      provider_phone: "+34 600 111 222",
+      provider_reply: "Confirmed Wednesday at 10:30. Bring insurance card.",
+      reference: "AP-77",
+      location: "Marbella",
+    }),
+  });
+  expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
+  await expect.poll(() => completeBody?.outcome_payload?.provider_reply_status ?? null).toBe("confirmed");
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Provider confirmed: Clinica Lopez. Time: 2026-07-22T10:30. Reference: AP-77.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      appointment_type: "medical",
+      provider_name: "Clinica Lopez",
+      provider_reply_status: "confirmed",
+      provider_reply: "Confirmed Wednesday at 10:30. Bring insurance card.",
+      reference: "AP-77",
+      location: "Marbella",
+      scheduled_event_id: "scheduled-appointment-smoke",
+    }),
+  });
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Appointment saved in Scheduled Support. The task is closed.");
+});
+
+test("concierge home-service provider reply keeps pending paths and saves confirmed visit", async ({ page }) => {
+  await mockApi(page, true, {}, {
+    phone: "+34 600 123 123",
+    street: "Saved Street 12",
+    cityState: "Madrid",
+    caregiverName: "Caregiver Profile",
+    caregiverContact: "+34 600 777 888",
+  });
+
+  let scheduledBody: Record<string, unknown> | null = null;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  let completeCount = 0;
+  const pendingHomeServiceReply = {
+    id: "reply-home-service-smoke-1",
+    use_case: "book_appointment",
+    provider_name: "Saved Plumber",
+    provider_phone: "+34 600 222 333",
+    action_summary: "Saved plumber is checking the kitchen leak slot.",
+    action_payload: {
+      flow_reference: "FLOW_SAFE_HOME_SUPPORT",
+      appointment_type: "home-service",
+      provider_source: "saved",
+      selected_provider_name: "Saved Plumber",
+      service_type: "plumber",
+      service_label: "Plumber",
+      problem_summary: "Leak under kitchen sink",
+      urgency: "tomorrow",
+      location: "Home kitchen",
+      home_access_or_safety_notes: "Caregiver can open the door",
+      mission_status: "awaiting_provider_reply",
+      preferred_channel: "whatsapp",
+    },
+    status: "calling",
+    language: "en",
+  };
+
+  await page.route("**/api/profile/scheduled-events", async (route) => {
+    if (route.request().method() === "POST") {
+      scheduledBody = route.request().postDataJSON();
+      await fulfillJson(route, 201, { event: { id: "scheduled-home-service-smoke", ...scheduledBody } });
+      return;
+    }
+    await fulfillJson(route, 200, { events: [] });
+  });
+  await page.route("**/api/scheduled-events", async (route) => {
+    await fulfillJson(route, 200, { events: [] });
+  });
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingHomeServiceReply] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/reply-home-service-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeCount += 1;
+      completeBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-home-service-smoke" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-provider-reply")).toContainText("Provider reply");
+  await page.getByTestId("button-provider-reply-follow-up-reply-home-service-smoke-1").click();
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Follow-up prepared in chat.");
+  expect(completeCount).toBe(0);
+  expect(scheduledBody).toBeNull();
+
+  await page.getByTestId("button-provider-reply-more-info-reply-home-service-smoke-1").click();
+  await page.getByTestId("input-provider-reply-question-reply-home-service-smoke-1").fill("Do they need the water turned off before arrival?");
+  await page.getByTestId("button-provider-reply-ask-reply-home-service-smoke-1").click();
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Question added to chat.");
+  expect(completeCount).toBe(0);
+
+  await page.getByTestId("button-provider-reply-unavailable-reply-home-service-smoke-1").click();
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Home-service search prepared with the original problem.");
+  await expect(page.getByTestId("panel-provider-search-criteria")).toContainText("What matters most");
+  await expect(page.getByTestId("input-offers-query")).toHaveValue(/Find another home-service provider/);
+  await expect(page.getByTestId("input-offers-query")).toHaveValue(/Avoid this provider: Saved Plumber/);
+  expect(completeCount).toBe(0);
+
+  await page.getByTestId("button-provider-reply-confirmed-reply-home-service-smoke-1").click();
+
+  const replyPanel = page.getByTestId("panel-provider-reply-confirmed-reply-home-service-smoke-1");
+  await expect(replyPanel).toContainText("A date and time are needed to save the visit in Scheduled Support.");
+  await expect(replyPanel).toContainText("Add the provider reply before saving.");
+  await expect(replyPanel).not.toContainText("Saved Street 12");
+  await expect(replyPanel).not.toContainText("+34 600 123 123");
+  await expect(replyPanel).not.toContainText("Caregiver Profile");
+
+  const saveButton = page.getByTestId("button-provider-reply-save-reply-home-service-smoke-1");
+  await expect(saveButton).toBeDisabled();
+  const replyInput = page.getByTestId("input-provider-reply-text-reply-home-service-smoke-1");
+  await replyInput.fill("Can visit Friday at 09:15. Estimated cost EUR110.");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("input-provider-reply-time-reply-home-service-smoke-1").fill("2026-07-24T09:15");
+  await expect(saveButton).toBeEnabled();
+  await replyInput.fill("");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("input-provider-reply-reference-reply-home-service-smoke-1").fill("PL-42");
+  await replyInput.fill("Can visit Friday at 09:15. Estimated cost EUR110.");
+  await page.getByTestId("input-provider-reply-notes-reply-home-service-smoke-1").fill("Caregiver will be home during the visit.");
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  await expect.poll(() => scheduledBody?.event_type ?? null).toBe("home_service");
+  expect(scheduledBody).toMatchObject({
+    event_type: "home_service",
+    title: "Plumber with Saved Plumber",
+    channel: "app",
+    status: "upcoming",
+    source: "concierge",
+    metadata: expect.objectContaining({
+      flow_reference: "FLOW_SAFE_HOME_SUPPORT",
+      pending_id: "reply-home-service-smoke-1",
+      appointment_type: "home-service",
+      provider_name: "Saved Plumber",
+      provider_phone: "+34 600 222 333",
+      service_type: "plumber",
+      service_label: "Plumber",
+      problem_summary: "Leak under kitchen sink",
+      urgency: "tomorrow",
+      estimated_cost: "EUR110",
+      provider_reply: "Can visit Friday at 09:15. Estimated cost EUR110.",
+      reference: "PL-42",
+      location: "Home kitchen",
+      notes: "Caregiver will be home during the visit.",
+      home_access_or_safety_notes: "Caregiver can open the door",
+    }),
+  });
+  expect(String(scheduledBody?.description)).toContain("Notes: Caregiver will be home during the visit.");
+  expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
+  await expect.poll(() => completeBody?.outcome_payload?.provider_reply_status ?? null).toBe("confirmed");
+  expect(completeCount).toBe(1);
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Home service visit confirmed with Saved Plumber.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_SAFE_HOME_SUPPORT",
+      appointment_type: "home-service",
+      provider_name: "Saved Plumber",
+      provider_phone: "+34 600 222 333",
+      service_type: "plumber",
+      service_label: "Plumber",
+      problem_summary: "Leak under kitchen sink",
+      urgency: "tomorrow",
+      estimated_cost: "EUR110",
+      provider_reply_status: "confirmed",
+      provider_reply: "Can visit Friday at 09:15. Estimated cost EUR110.",
+      reference: "PL-42",
+      location: "Home kitchen",
+      notes: "Caregiver will be home during the visit.",
+      scheduled_event_id: "scheduled-home-service-smoke",
+    }),
+  });
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Visit saved in Scheduled Support. The task is closed.");
+});
+
+test("concierge scam document review requires final confirmation before saving outcome", async ({ page }) => {
+  await mockApi(page, true, {}, {
+    phone: "+34 600 123 123",
+    street: "Saved Street 12",
+    cityState: "Madrid",
+  });
+  await recordWindowOpen(page);
+
+  let confirmed = false;
+  let confirmCount = 0;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  const pendingScamReview = () => ({
+    id: "scam-document-smoke-1",
+    use_case: "scam_check",
+    provider_name: "VYVA review",
+    provider_phone: null,
+    action_summary: "Safe check prepared: Document or photo.",
+    action_payload: {
+      flow_reference: "FLOW_SCAM_CHECK",
+      requested_tool: "camera_or_upload",
+      active_tool: "camera_or_upload",
+      execution_channel: "manual",
+      review_source: "Prize letter photo",
+      scam_detail: "Prize letter photo",
+      document_type: "Prize letter photo",
+      concern: "Suspicious document, letter, invoice, or photo",
+      confirmation_required_before_action: true,
+      no_external_action_without_confirmation: true,
+      user_confirmed: confirmed,
+    },
+    status: "pending",
+    confirmed_at: confirmed ? "2026-07-15T10:00:00.000Z" : null,
+    language: "en",
+  });
+
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingScamReview()] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/scam-document-smoke-1/confirm") {
+      expect(route.request().method()).toBe("POST");
+      confirmed = true;
+      confirmCount += 1;
+      await fulfillJson(route, 200, { pendingId: "scam-document-smoke-1", status: "pending" });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/scam-document-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-scam-document-smoke" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  const reviewCard = page.getByTestId("panel-concierge-next-action");
+  await expect(reviewCard).toContainText("Prize letter photo");
+  await expect(reviewCard).toContainText("Source");
+  await expect(page.getByTestId("panel-manual-review-outcome-scam-document-smoke-1")).toHaveCount(0);
+
+  await page.getByTestId("button-concierge-confirm-scam-document-smoke-1").click();
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+  await page.getByTestId("button-concierge-final-confirm").click();
+  await expect.poll(() => confirmCount).toBe(1);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  const outcomePanel = page.getByTestId("panel-manual-review-outcome-scam-document-smoke-1");
+  await expect(outcomePanel).toContainText("Review outcome");
+  await expect(outcomePanel).toContainText("Prize letter photo");
+  const saveButton = page.getByTestId("button-manual-review-save-scam-document-smoke-1");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("button-manual-review-status-review_pending-scam-document-smoke-1").click();
+  await page.getByTestId("input-manual-review-summary-scam-document-smoke-1").fill("Looks suspicious because it asks for an upfront payment.");
+  await page.getByTestId("input-manual-review-next-step-scam-document-smoke-1").fill("Ask a trusted contact before replying.");
+  await page.getByTestId("input-manual-review-reference-scam-document-smoke-1").fill("SG-9");
+  await page.getByTestId("input-manual-review-notes-scam-document-smoke-1").fill("No upload or reply was sent.");
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  await expect.poll(() => completeBody?.outcome_payload?.review_outcome ?? null).toBe("review_pending");
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Review pending: Prize letter photo. Reference: SG-9.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_SCAM_CHECK",
+      execution_type: "manual_review_outcome_capture",
+      execution_channel: "operator_review",
+      review_outcome: "review_pending",
+      review_summary: "Looks suspicious because it asks for an upfront payment.",
+      next_step: "Ask a trusted contact before replying.",
+      reference: "SG-9",
+      notes: "No upload or reply was sent.",
+      completed_from: "manual_review_outcome_panel",
+      no_external_action_without_confirmation: true,
+    }),
+  });
 });
 
 test("notifications settings back returns to settings home", async ({ page }) => {

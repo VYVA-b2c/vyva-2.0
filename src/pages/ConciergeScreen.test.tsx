@@ -936,8 +936,10 @@ describe("ConciergeScreen action hub", () => {
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-2/discover-options", expect.objectContaining({ method: "POST" }));
   });
 
-  it("shows reservation-system fallbacks when external provider discovery has no result", async () => {
-    apiFetchMock.mockImplementation(async (url) => {
+  it("gates reservation-system fallbacks through an appointment confirmation", async () => {
+    let addedOptionBody: Record<string, unknown> | null = null;
+    let confirmBody: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.includes("/api/appointments/requests/request-3/discover-options")) {
         return jsonResponse({
@@ -961,6 +963,41 @@ describe("ConciergeScreen action hub", () => {
           },
         });
       }
+      if (target.includes("/api/appointments/requests/request-3/options")) {
+        addedOptionBody = JSON.parse(String(init?.body));
+        return jsonResponse({
+          option: {
+            id: "option-doctoralia",
+            provider_id: null,
+            provider_source: "external",
+            provider_snapshot: {
+              source: "reservation_system",
+              name: "Doctoralia",
+              category: "medical_marketplace",
+              booking_url: "https://www.google.com/search?q=doctoralia",
+              preferred_channel: "booking_url",
+            },
+            match_reason: "Booking-site fallback. VYVA will review before opening or submitting any form.",
+            available_channels: ["booking_url", "manual"],
+            rank: 40,
+            status: "selected",
+          },
+        });
+      }
+      if (target.includes("/api/appointments/requests/request-3/confirm-attempt")) {
+        confirmBody = JSON.parse(String(init?.body));
+        return jsonResponse({
+          attempt: { id: "attempt-doctoralia", channel: "booking_url", status: "form_task_queued" },
+          form_task: {
+            status: "needs_operator",
+            booking_url: "https://www.google.com/search?q=doctoralia",
+            pending_id: "pending-doctoralia",
+          },
+          pending: { pendingId: "pending-doctoralia", status: "queued" },
+          needs_booking_confirmation: true,
+          handled_by_vyva: true,
+        });
+      }
       if (target.endsWith("/api/appointments/requests")) {
         return jsonResponse({
           request: {
@@ -982,8 +1019,36 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
     fireEvent.click(await screen.findByTestId("button-appointment-discover-options"));
 
-    expect(await screen.findByTestId("panel-appointment-booking-sites")).toHaveTextContent("Doctoralia");
-    expect(screen.getByTestId("panel-appointment-booking-sites")).toHaveTextContent("Top Doctors");
+    const fallbackPanel = await screen.findByTestId("panel-appointment-booking-sites");
+    expect(fallbackPanel).toHaveTextContent("Doctoralia");
+    expect(fallbackPanel).toHaveTextContent("Top Doctors");
+    expect(within(fallbackPanel).queryByRole("link", { name: /Doctoralia/i })).not.toBeInTheDocument();
+    expect(confirmBody).toBeNull();
+
+    fireEvent.click(screen.getByTestId("button-appointment-booking-site-doctoralia"));
+
+    expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Doctoralia");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm before VYVA acts");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Contact route: VYVA fills form");
+    expect(addedOptionBody).toMatchObject({
+      provider_source: "external",
+      provider_snapshot: expect.objectContaining({
+        source: "reservation_system",
+        name: "Doctoralia",
+        booking_url: "https://www.google.com/search?q=doctoralia",
+        preferred_channel: "booking_url",
+      }),
+      available_channels: ["booking_url", "manual"],
+      select: true,
+    });
+
+    expect(confirmBody).toBeNull();
+    fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
+
+    await waitFor(() => {
+      expect(confirmBody).toEqual({ option_id: "option-doctoralia", channel: "booking_url" });
+    });
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
   });
 
   it("renders compact protected savings results with expandable proof and watch confirmation", async () => {
@@ -1093,6 +1158,225 @@ describe("ConciergeScreen action hub", () => {
         method: "POST",
       }));
     });
+  });
+
+  it("turns deal contact links into confirmed Concierge review tasks", async () => {
+    let triggerBody: {
+      action_summary?: string;
+      action_payload?: Record<string, unknown>;
+      auto_start?: boolean;
+      use_case?: string;
+    } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/offers/search")) {
+        return jsonResponse({
+          category: "Household costs",
+          decision_explanation: "This option has the best mix of price, trust, ease, and fit.",
+          neutrality_note: "No provider paid for placement.",
+          source_guidance: ["official or regulated comparison sources"],
+          protection_summary: {
+            title: "Objective check",
+            checkpoints: ["No paid ranking."],
+            notification_triggers: ["price change"],
+            action_guardrail: "VYVA asks before contact, switching, or sharing details.",
+          },
+          options: [{
+            label: "Opcion recomendada",
+            name: "Senior Energy Saver",
+            category: "Household costs",
+            what_it_offers: "Lower-cost electric service.",
+            price_or_advantage: "Estimated 18% monthly saving with no early switch.",
+            why_good_option: "Strong fit for the current household profile.",
+            distance_or_availability: "Available online.",
+            contact_method: "Online or phone",
+            phone: "+34 600 333 444",
+            website: "https://example.com",
+            trust_note: "Official source and verified tariff.",
+            score: 91,
+          }],
+          next_step: "Confirm before contacting or switching.",
+        });
+      }
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "deal-review-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByRole("button", { name: /review available benefits/i }));
+    fireEvent.click(screen.getByTestId("button-offers-search"));
+
+    const prepareButton = await screen.findByTestId("button-offer-prepare-review-opcion-recomendada-senior-energy-saver");
+    expect(prepareButton).toHaveTextContent("Ask VYVA to review");
+    expect(screen.getByTestId("badge-offer-contact-gated-opcion-recomendada-senior-energy-saver")).toHaveTextContent("Contact after your OK");
+    expect(screen.queryByRole("link", { name: /open now|call now/i })).not.toBeInTheDocument();
+
+    fireEvent.click(prepareButton);
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Deal comparison ready");
+    expect(prefill).toHaveTextContent("Deal comparison prepared: Senior Energy Saver.");
+    expect(prefill).toHaveTextContent("Review deal");
+    expect(prefill).toHaveTextContent("Nothing is booked");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(triggerBody).toMatchObject({
+        use_case: "find_offers",
+        auto_start: false,
+        action_summary: "Deal comparison prepared: Senior Energy Saver.",
+        action_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          task_type: "deal_comparison",
+          offer_name: "Senior Energy Saver",
+          provider_name: "Senior Energy Saver",
+          phone: "+34 600 333 444",
+          website: "https://example.com",
+          requested_tool: "operator_review",
+          active_tool: "operator_review",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+          user_confirmed: false,
+        }),
+      });
+    });
+    expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not call, book, switch, or share details without asking me to confirm.");
+  });
+
+  it("gates utility comparison offer links behind a prepared Concierge switch review", async () => {
+    let triggerBody: {
+      action_summary?: string;
+      action_payload?: Record<string, unknown>;
+      auto_start?: boolean;
+      use_case?: string;
+    } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.includes("/api/utilities/normalize")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          can_compare: true,
+        });
+      }
+      if (target.includes("/api/utilities/compare")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          source_used: "CNMC",
+          source_status: "success",
+          source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+          summary: {
+            headline: "One tariff looks cheaper, but confirm terms first.",
+            current_monthly_cost: 92,
+            best_estimated_monthly_cost: 71,
+            estimated_monthly_savings: 21,
+          },
+          results: [{
+            provider: "Tarifa Clara",
+            tariff_name: "Luz Senior",
+            estimated_monthly_cost: 71,
+            estimated_annual_cost: 852,
+            estimated_monthly_savings: 21,
+            contract_type: "indexed",
+            permanence: "none",
+            price_stability: "variable",
+            green_energy: true,
+            source: "CNMC",
+            source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+            provider_url: "https://tarifaclara.example/luz-senior",
+            action_label: "View offers",
+            confidence: "high",
+            notes: ["Confirm taxes and permanence."],
+          }],
+          calculation_note: "Compared current bill against estimated tariffs.",
+          estimated_note: "Savings are estimates.",
+          neutrality_note: "No provider paid for placement.",
+          source_note: "CNMC comparison.",
+        });
+      }
+      if (target.includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "utility-switch-review-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByRole("button", { name: /Household costs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Fill manually/i }));
+    fireEvent.change(screen.getByPlaceholderText("Postcode"), { target: { value: "28013" } });
+    fireEvent.change(screen.getByPlaceholderText("Approx monthly cost"), { target: { value: "92" } });
+    fireEvent.change(screen.getByPlaceholderText("Current provider optional"), { target: { value: "Current Co" } });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare comparison/i }));
+
+    expect(await screen.findByTestId("button-utilities-compare")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("button-utilities-compare"));
+
+    const reviewButton = await screen.findByTestId("button-utility-option-review-0");
+    expect(reviewButton).toHaveTextContent("View offers");
+    expect(screen.getByTestId("badge-utility-option-gated-0")).toHaveTextContent("Link after your OK");
+    expect(screen.queryByRole("link", { name: /View offers/i })).not.toBeInTheDocument();
+
+    fireEvent.click(reviewButton);
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Deal comparison ready");
+    expect(prefill).toHaveTextContent("Deal comparison prepared: Tarifa Clara - Luz Senior.");
+    expect(prefill).toHaveTextContent("Review switch");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(triggerBody).toMatchObject({
+        use_case: "find_offers",
+        auto_start: false,
+        action_summary: "Deal comparison prepared: Tarifa Clara - Luz Senior.",
+        action_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          task_type: "utility_switch_review",
+          review_target: "Tarifa Clara - Luz Senior",
+          provider_name: "Tarifa Clara",
+          tariff_name: "Luz Senior",
+          estimated_monthly_cost: 71,
+          estimated_monthly_savings: 21,
+          website: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+          requested_tool: "operator_review",
+          active_tool: "operator_review",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+          user_confirmed: false,
+        }),
+      });
+    });
+    expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not open, switch, call, or share details without my confirmation.");
   });
 
   it("turns provider results into clear prepared-contact tasks", async () => {
@@ -1441,11 +1725,16 @@ describe("ConciergeScreen action hub", () => {
           service_type: "plumber",
           urgency: "today",
           answers: expect.objectContaining({
+            home_address: "Calle Home 10, 29602 Marbella",
             problem_type: "leak",
             active_flooding: "yes",
             affected_area: "kitchen",
             shutoff_status: "cannot_find",
           }),
+        });
+        expect(body.preferences).toMatchObject({
+          home_address: "Calle Home 10, 29602 Marbella",
+          home_address_source: "session",
         });
         expect(body.preferences.service_intake.safety_flags).toContain("active_water_damage");
         return jsonResponse({
@@ -1481,6 +1770,13 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-kitchen"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-cannot_find"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+
+    expect(screen.getByTestId("panel-home-service-address")).toHaveTextContent("Where should the provider come?");
+    expect(screen.getByTestId("button-appointment-start-home-service")).toBeDisabled();
+    fireEvent.change(screen.getByTestId("input-home-service-address"), {
+      target: { value: "Calle Home 10, 29602 Marbella" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-address-save"));
 
     expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
     expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Current path: VYVA review");
@@ -1602,6 +1898,10 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-today"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+    fireEvent.change(screen.getByTestId("input-home-service-address"), {
+      target: { value: "Calle Home 10, 29602 Marbella" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-address-save"));
 
     expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
     const startButton = screen.getByTestId("button-appointment-start-home-service");
@@ -1682,6 +1982,10 @@ describe("ConciergeScreen action hub", () => {
       const target = String(url);
       if (target === "/api/profile") {
         return jsonResponse({
+          street: "Calle Home 10",
+          cityState: "Marbella",
+          postalCode: "29602",
+          country: "ES",
           savedProviders: [{
             name: "Saved Plumber",
             role: "plumber",
@@ -1734,7 +2038,7 @@ describe("ConciergeScreen action hub", () => {
         const body = JSON.parse(String(init?.body));
         expect(body).toMatchObject({
           provider_name: "Saved Plumber",
-          location: "Home kitchen",
+          location: "Calle Home 10, 29602 Marbella, ES",
         });
         expect(body.notes).toContain("Provider reply: Can visit tomorrow at 10:00. Estimated cost EUR80.");
         expect(body.notes).toContain("Notes: Caregiver will open the door.");
@@ -1763,6 +2067,15 @@ describe("ConciergeScreen action hub", () => {
         expect(body.preferences.service_intake).toMatchObject({
           origin: "voice",
           service_type: "plumber",
+          answers: expect.objectContaining({
+            home_address: "Calle Home 10, 29602 Marbella, ES",
+          }),
+        });
+        expect(body.preferences).toMatchObject({
+          home_address: "Calle Home 10, 29602 Marbella, ES",
+          home_address_source: "profile",
+        });
+        expect(body.preferences.service_intake).toMatchObject({
           answers: expect.objectContaining({
             problem_type: "leak",
           }),
@@ -1817,6 +2130,8 @@ describe("ConciergeScreen action hub", () => {
     expect(await screen.findByText("Saved Plumber")).toBeVisible();
     expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Direct tool: WhatsApp");
     expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Tool ready: WhatsApp");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Address: saved");
+    expect(screen.queryByTestId("panel-home-service-address")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
     await waitFor(() => {
@@ -1833,9 +2148,6 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.change(screen.getByTestId("input-appointment-confirmed-time"), {
       target: { value: "2026-08-04T10:00" },
-    });
-    fireEvent.change(screen.getByTestId("input-appointment-confirmed-location"), {
-      target: { value: "Home kitchen" },
     });
     fireEvent.change(screen.getByTestId("input-appointment-confirmed-note"), {
       target: { value: "Caregiver will open the door." },
@@ -2989,6 +3301,212 @@ describe("ConciergeScreen route prefill", () => {
     });
   });
 
+  it("blocks scam document review confirmation until the source detail is present", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "scam-missing-source",
+            use_case: "scam_check",
+            provider_name: "VYVA review",
+            provider_phone: null,
+            action_summary: "Safe check prepared: Document or photo.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+              requested_tool: "camera_or_upload",
+              active_tool: "camera_or_upload",
+              execution_channel: "manual",
+              concern: "Document or photo",
+              risk_context: "Suspicious document, letter, invoice, or photo",
+              confirmation_required_before_action: true,
+              no_external_action_without_confirmation: true,
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const review = await screen.findByTestId("panel-concierge-next-action");
+    expect(review).toHaveTextContent("Source");
+    expect(review).toHaveTextContent("Needs confirmation");
+    expect(review).toHaveTextContent("Complete before confirming: Source");
+    expect(screen.getByTestId("button-concierge-confirm-scam-missing-source")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-scam-missing-source"));
+
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/concierge/actions/scam-missing-source/confirm",
+      { method: "POST" },
+    );
+  });
+
+  it("records a review-pending scam document outcome through the completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/scam-document-review/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-scam-document-review" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "scam-document-review",
+            use_case: "scam_check",
+            provider_name: "VYVA review",
+            provider_phone: null,
+            action_summary: "Safe check prepared: Document or photo.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+              requested_tool: "camera_or_upload",
+              active_tool: "camera_or_upload",
+              execution_channel: "manual",
+              review_source: "Prize letter photo",
+              scam_detail: "Prize letter photo",
+              document_type: "Prize letter photo",
+              concern: "Suspicious document, letter, invoice, or photo",
+              confirmation_required_before_action: true,
+              no_external_action_without_confirmation: true,
+              user_confirmed: true,
+            },
+            status: "pending",
+            confirmed_at: "2026-07-15T10:00:00.000Z",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-manual-review-outcome-scam-document-review");
+    expect(panel).toHaveTextContent("Review outcome");
+    expect(panel).toHaveTextContent("Prize letter photo");
+    expect(screen.getByTestId("button-manual-review-save-scam-document-review")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-manual-review-status-review_pending-scam-document-review"));
+    fireEvent.change(screen.getByTestId("input-manual-review-summary-scam-document-review"), {
+      target: { value: "Looks suspicious because it asks for an upfront payment." },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-next-step-scam-document-review"), {
+      target: { value: "Ask a trusted contact before replying." },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-reference-scam-document-review"), {
+      target: { value: "SG-9" },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-notes-scam-document-review"), {
+      target: { value: "No upload or reply was sent." },
+    });
+    fireEvent.click(screen.getByTestId("button-manual-review-save-scam-document-review"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Review pending: Prize letter photo. Reference: SG-9.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+          execution_type: "manual_review_outcome_capture",
+          execution_channel: "operator_review",
+          review_outcome: "review_pending",
+          review_summary: "Looks suspicious because it asks for an upfront payment.",
+          next_step: "Ask a trusted contact before replying.",
+          reference: "SG-9",
+          notes: "No upload or reply was sent.",
+          completed_from: "manual_review_outcome_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
+  });
+
+  it("records a completed selected deal review through the completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/deal-review-complete/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-deal-review-complete" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "deal-review-complete",
+            use_case: "find_offers",
+            provider_name: "Senior Energy Saver",
+            provider_phone: null,
+            action_summary: "Deal comparison prepared: Senior Energy Saver.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+              task_type: "deal_comparison",
+              requested_tool: "operator_review",
+              active_tool: "operator_review",
+              execution_channel: "manual",
+              offer_name: "Senior Energy Saver",
+              deal_name: "Senior Energy Saver",
+              review_target: "Senior Energy Saver",
+              shopping_context: "Household costs",
+              comparison_summary: "Strong fit for the current household profile.",
+              price_or_advantage: "Estimated 18% monthly saving with no early switch.",
+              website: "https://example.com",
+              phone: "+34 600 333 444",
+              confirmation_required_before_action: true,
+              no_external_action_without_confirmation: true,
+              user_confirmed: true,
+            },
+            status: "pending",
+            confirmed_at: "2026-07-15T10:00:00.000Z",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-manual-review-outcome-deal-review-complete");
+    expect(panel).toHaveTextContent("Review outcome");
+    expect(panel).toHaveTextContent("Senior Energy Saver");
+    fireEvent.change(screen.getByTestId("input-manual-review-summary-deal-review-complete"), {
+      target: { value: "Compared the price, commitment, trust notes, and contact route." },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-next-step-deal-review-complete"), {
+      target: { value: "Ask the user before opening the provider website." },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-reference-deal-review-complete"), {
+      target: { value: "DEAL-7" },
+    });
+    fireEvent.click(screen.getByTestId("button-manual-review-save-deal-review-complete"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Completed: Senior Energy Saver. Reference: DEAL-7.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          execution_type: "manual_review_outcome_capture",
+          execution_channel: "operator_review",
+          review_outcome: "completed",
+          offer_name: "Senior Energy Saver",
+          deal_name: "Senior Energy Saver",
+          review_target: "Senior Energy Saver",
+          shopping_context: "Household costs",
+          website: "https://example.com",
+          phone: "+34 600 333 444",
+          review_summary: "Compared the price, commitment, trust notes, and contact route.",
+          next_step: "Ask the user before opening the provider website.",
+          reference: "DEAL-7",
+          completed_from: "manual_review_outcome_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
+  });
+
   it("reveals prepared provider phone actions only after user confirmation and final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
@@ -3226,6 +3744,59 @@ describe("ConciergeScreen route prefill", () => {
     });
     expect(apiFetchMock).not.toHaveBeenCalledWith(
       "/api/concierge/actions/ride-missing-destination/confirm",
+      { method: "POST" },
+    );
+  });
+
+  it("saves a guided ride detail into the pending Concierge task", async () => {
+    let detailsBody: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "ride-guided-detail",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "Taxi option prepared, but the destination still needs to be confirmed.",
+            action_payload: {
+              pickup_address: "Saved home",
+              requested_time: "now",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/ride-guided-detail/details")) {
+        detailsBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return jsonResponse({ ok: true, item: {} });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-concierge-guided-details");
+    expect(panel).toHaveTextContent("Where should the ride go?");
+    expect(screen.queryByTestId("button-concierge-confirm-ride-guided-detail")).not.toBeInTheDocument();
+
+    const input = screen.getByTestId("input-transport-destination");
+    fireEvent.change(input, { target: { value: "City Clinic" } });
+    fireEvent.click(screen.getByTestId("button-concierge-guided-detail-save"));
+
+    await waitFor(() => {
+      expect(detailsBody).toMatchObject({
+        action_payload: {
+          destination_address: "City Clinic",
+        },
+        answer_key: "destination_address",
+        answer_value: "City Clinic",
+      });
+    });
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/concierge/actions/ride-guided-detail/confirm",
       { method: "POST" },
     );
   });
@@ -3871,11 +4442,15 @@ describe("ConciergeScreen route prefill", () => {
     fireEvent.change(screen.getByTestId("input-provider-reply-time-reply-home-service-1"), {
       target: { value: "2026-07-23T11:00" },
     });
+    expect(screen.getByTestId("button-provider-reply-save-reply-home-service-1")).toBeDisabled();
     fireEvent.change(screen.getByTestId("input-provider-reply-reference-reply-home-service-1"), {
       target: { value: "PL-19" },
     });
     fireEvent.change(screen.getByTestId("input-provider-reply-text-reply-home-service-1"), {
       target: { value: "Can visit Thursday at 11:00. Estimated cost EUR95." },
+    });
+    fireEvent.change(screen.getByTestId("input-provider-reply-notes-reply-home-service-1"), {
+      target: { value: "Caregiver will be home during the visit." },
     });
     fireEvent.click(screen.getByTestId("button-provider-reply-save-reply-home-service-1"));
 
@@ -3900,9 +4475,11 @@ describe("ConciergeScreen route prefill", () => {
           provider_reply: "Can visit Thursday at 11:00. Estimated cost EUR95.",
           reference: "PL-19",
           location: "Home kitchen",
+          notes: "Caregiver will be home during the visit.",
           home_access_or_safety_notes: "Caregiver can open the door",
         }),
       });
+      expect(String(scheduledBody?.description)).toContain("Notes: Caregiver will be home during the visit.");
       expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
       expect(completeBody).toMatchObject({
         outcome_summary: "Home service visit confirmed with Saved Plumber.",
@@ -3915,6 +4492,11 @@ describe("ConciergeScreen route prefill", () => {
           problem_summary: "Leak under kitchen sink",
           urgency: "tomorrow",
           estimated_cost: "EUR95",
+          provider_reply_status: "confirmed",
+          provider_reply: "Can visit Thursday at 11:00. Estimated cost EUR95.",
+          reference: "PL-19",
+          location: "Home kitchen",
+          notes: "Caregiver will be home during the visit.",
           scheduled_event_id: "scheduled-home-reply",
         }),
       });
@@ -4393,6 +4975,10 @@ describe("ConciergeScreen route prefill", () => {
           provider_email: "trusted@example.com",
           email_subject: "Can you check this message?",
           email_body: "I received a suspicious prize message. Can you help me review it?",
+          show_vyva_execution_flow: "scam_email_forward_review",
+          show_vyva_next_question: "Who should receive the draft, if anything needs to be sent?",
+          show_vyva_required_details: ["Recipient or organization", "What needs to be said", "Final confirmation before sending or calling"],
+          show_vyva_guided_steps: ["Summarize the important points.", "Prepare a draft or call notes.", "Wait for final user confirmation."],
           confirmation_required_before_action: true,
           no_external_action_without_confirmation: true,
           executor_version: 1,
@@ -4411,6 +4997,9 @@ describe("ConciergeScreen route prefill", () => {
     expect(rightNow).toHaveTextContent("Scam Guard");
     expect(rightNow).toHaveTextContent("Message");
     expect(rightNow).toHaveTextContent("Suspicious prize message");
+    expect(screen.getByTestId("panel-show-vyva-execution-guide")).toHaveTextContent("Who should receive the draft");
+    expect(screen.getByTestId("panel-show-vyva-execution-guide")).toHaveTextContent("Recipient or organization");
+    expect(screen.getByTestId("panel-show-vyva-execution-guide")).toHaveTextContent("Nothing is sent, called, booked, bought, or shared until you confirm.");
 
     expect(screen.queryByTestId("link-concierge-email-show-vyva-email-1")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-concierge-confirm-show-vyva-email-1"));

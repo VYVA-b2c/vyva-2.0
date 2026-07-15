@@ -243,7 +243,23 @@ describe("Safe-home scan service actions", () => {
     });
     fireEvent.click(screen.getByTestId("button-show-vyva-submit-paste"));
 
+    expect(screen.getByTestId("show-vyva-pasted-review-home-pasted")).toBeInTheDocument();
+    expect(screen.getByTestId("show-vyva-result-reviewed-home-pasted")).toHaveTextContent("Loose rug near the stairs");
+    expect(savePlanMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-request_quote-home-pasted"));
+
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
+    expect(savePlanMock).toHaveBeenCalledWith(expect.objectContaining({
+      triggerRequest: expect.objectContaining({
+        auto_start: false,
+        action_payload: expect.objectContaining({
+          show_vyva_reviewed_value: "Loose rug near the stairs",
+          user_confirmed: false,
+          no_external_action_without_confirmation: true,
+        }),
+      }),
+    }));
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"source\":\"safe_home_scan\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
     expect(screen.getByTestId("route-state")).toHaveTextContent("Loose rug near the stairs");

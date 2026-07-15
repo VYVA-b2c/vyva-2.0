@@ -33,6 +33,16 @@ describe("AdminMenu", () => {
 
     expect(screen.getByRole("link", { name: /cognitive assessment.*cognitive compass upload/i }))
       .toHaveAttribute("href", "/admin/cognitive-assessment");
+    expect(screen.getByRole("link", { name: /concierge readiness.*flow coverage and launch gates/i }))
+      .toHaveAttribute("href", "/admin/concierge-readiness");
+  });
+
+  it("links admins to workflow coverage", () => {
+    renderMenu("/admin/workflows");
+
+    const workflowLink = screen.getByRole("link", { name: /workflows.*coverage and next steps/i });
+    expect(workflowLink).toHaveAttribute("href", "/admin/workflows");
+    expect(workflowLink).toHaveAttribute("aria-current", "page");
   });
 
   it("keeps the Admins tab super-admin only", () => {

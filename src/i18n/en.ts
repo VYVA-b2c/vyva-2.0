@@ -2042,6 +2042,11 @@
       finalConfirmation: "VYVA prepares first. You confirm before anything is sent, bought, booked, called, uploaded, submitted, or shared.",
       sections: {
         summary: "Summary",
+        reviewed: "What VYVA reviewed",
+        thinks: "What VYVA thinks",
+        urgency: "Risk or urgency",
+        recommendedNextStep: "Recommended next step",
+        safeActions: "Ask VYVA to help or save for later",
         noticed: "What VYVA noticed",
         nextSteps: "Safe next steps",
       },
@@ -2065,6 +2070,8 @@
         phone_number: "Phone number",
         company_name: "Company name",
         document_text: "Document text",
+        scam_review: "Scam, message, link, document, number, or company concern",
+        home_safety_photo: "Home-safety photo or concern",
       },
     },
     followUp: {
@@ -2122,6 +2129,7 @@
     linkDetected: "Link detected",
     textDetected: "Text detected",
     reviewPasted: "Review safely",
+    closeReview: "Close review",
   },
   statusVitals: {
     actions: {

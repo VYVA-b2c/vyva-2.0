@@ -87,6 +87,19 @@ export type WorkflowDomain =
   | "concierge"
   | "profile";
 
+export const WORKFLOW_DOMAINS: WorkflowDomain[] = [
+  "home",
+  "health",
+  "medication",
+  "mind_memory",
+  "learning",
+  "community",
+  "room",
+  "game",
+  "concierge",
+  "profile",
+];
+
 export type WorkflowEntrySurface =
   | "main_card"
   | "sub_card"
@@ -98,7 +111,24 @@ export type WorkflowEntrySurface =
   | "voice_action"
   | "profile_setup";
 
+export const WORKFLOW_ENTRY_SURFACES: WorkflowEntrySurface[] = [
+  "main_card",
+  "sub_card",
+  "fast_help",
+  "room_action",
+  "health_action",
+  "learning_action",
+  "game_action",
+  "voice_action",
+  "profile_setup",
+];
+
 export type WorkflowStatus = "ready" | "partial" | "planned" | "deferred";
+
+export const WORKFLOW_STATUSES: WorkflowStatus[] = ["ready", "partial", "planned", "deferred"];
+
+export type WorkflowCoverageState = "complete" | "partial" | "missing";
+
 export type WorkflowFallback =
   | "ask_user"
   | "open_setup"
@@ -130,6 +160,51 @@ export interface WorkflowEntryPoint {
   label: string;
   route?: string;
   suggestedFlow: string;
+}
+
+export interface WorkflowActionLookup {
+  entryPointId: string;
+  workflowReference: WorkflowReference;
+  label: string;
+  source: string;
+  surface: WorkflowEntrySurface;
+  route?: string;
+  suggestedFlow: string;
+  workflowTitle: string;
+  domain: WorkflowDomain;
+  status: WorkflowStatus;
+  coverageState: WorkflowCoverageState;
+  nextStep: string;
+  completionState: string;
+  confirmationRule: string;
+  fallbackIfMissing: WorkflowFallback[];
+  relatedConciergeFlow?: ConciergeFlowReference;
+}
+
+export interface WorkflowActionTarget {
+  entryPointId?: string;
+  workflow?: WorkflowReference;
+  source?: string;
+  surface?: WorkflowEntrySurface;
+  route?: string;
+  label?: string;
+}
+
+export interface WorkflowCoverageCounts {
+  total: number;
+  complete: number;
+  partial: number;
+  missing: number;
+}
+
+export interface WorkflowCoverageSummary {
+  workflows: WorkflowCoverageCounts;
+  entryPoints: WorkflowCoverageCounts;
+  byDomain: Record<WorkflowDomain, WorkflowCoverageCounts>;
+  bySurface: Record<WorkflowEntrySurface, WorkflowCoverageCounts>;
+  byStatus: Record<WorkflowStatus, number>;
+  partialWorkflows: WorkflowReference[];
+  missingWorkflows: WorkflowReference[];
 }
 
 function conciergeWorkflowDefinitions(): WorkflowDefinition[] {
@@ -1047,6 +1122,18 @@ export const WORKFLOW_ENTRY_POINTS: WorkflowEntryPoint[] = [
   { id: "game.breath-garden", workflow: APP_WORKFLOW_REFERENCES.gameBreathGarden, surface: "game_action", source: "SensesPage", label: "Breath Garden", route: "/senses/breath-garden", suggestedFlow: "Start breath garden." },
   { id: "game.scent-memory", workflow: APP_WORKFLOW_REFERENCES.gameScentMemory, surface: "game_action", source: "SensesPage", label: "Scent Memory", route: "/senses/scent-memory", suggestedFlow: "Start scent memory." },
   { id: "profile.setup.providers", workflow: APP_WORKFLOW_REFERENCES.trustedProviders, surface: "profile_setup", source: "ProvidersSection", label: "Trusted providers", route: "/onboarding/profile/providers", suggestedFlow: "Open focused provider setup." },
+  { id: "concierge.fast.safe-home", workflow: CONCIERGE_FLOW_REFERENCES.safeHomeSupport, surface: "fast_help", source: "ConciergeScreen", label: "Safe Home", route: "/safe-home", suggestedFlow: "Open safety support and ask what feels unsafe before any escalation." },
+  { id: "concierge.fast.paperwork-help", workflow: CONCIERGE_FLOW_REFERENCES.insuranceAdmin, surface: "fast_help", source: "ConciergeScreen", label: "Paperwork Help", route: "/concierge", suggestedFlow: "Identify the form or admin task, collect missing details, and stop before sending." },
+  { id: "concierge.fast.find-plumber", workflow: CONCIERGE_FLOW_REFERENCES.homeService, surface: "fast_help", source: "ConciergeScreen", label: "Find Plumber", route: "/concierge", suggestedFlow: "Collect service type, urgency, address/access notes, and prepare provider options before contact." },
+  { id: "concierge.fast.check-scam", workflow: CONCIERGE_FLOW_REFERENCES.scamCheck, surface: "fast_help", source: "ConciergeScreen", label: "Check Scam", route: "/concierge", suggestedFlow: "Route by email, document, phone, company, or link and ask before forwarding, searching, or sharing details." },
+  { id: "concierge.fast.book-ride", workflow: CONCIERGE_FLOW_REFERENCES.transportBooking, surface: "fast_help", source: "ConciergeScreen", label: "Book Ride", route: "/concierge", suggestedFlow: "Ask destination, pickup, time, mobility needs, and provider preference before booking." },
+  { id: "concierge.fast.order-groceries", workflow: CONCIERGE_FLOW_REFERENCES.shoppingSupport, surface: "fast_help", source: "ConciergeScreen", label: "Order Groceries", route: "/concierge/shopping", suggestedFlow: "Prepare grocery choices and ask before ordering, paying, or contacting anyone." },
+  { id: "concierge.fast.otc-pharmacy", workflow: CONCIERGE_FLOW_REFERENCES.otcPharmacy, surface: "fast_help", source: "ConciergeScreen", label: "OTC Pharmacy", route: "/concierge", suggestedFlow: "Use a saved pharmacy and non-prescription item details, then confirm before contact." },
+  { id: "concierge.fast.find-specialist", workflow: CONCIERGE_FLOW_REFERENCES.careNavigation, surface: "fast_help", source: "ConciergeScreen", label: "Find Specialist", route: "/concierge", suggestedFlow: "Collect specialty, proximity, reputation, coverage, availability, and accessibility preferences, then prepare options before contact." },
+  { id: "concierge.fast.find-residence", workflow: CONCIERGE_FLOW_REFERENCES.careNavigation, surface: "fast_help", source: "ConciergeScreen", label: "Find Residence", route: "/concierge", suggestedFlow: "Compare care homes or residences by care need, location, price, reputation, and access needs, then prepare options before contact." },
+  { id: "concierge.fast.book-medical", workflow: CONCIERGE_FLOW_REFERENCES.medicalAppointment, surface: "fast_help", source: "ConciergeScreen", label: "Book Medical", route: "/concierge", suggestedFlow: "Ask reason, preferred time, provider, and coverage note before any booking or message." },
+  { id: "concierge.fast.government-help", workflow: CONCIERGE_FLOW_REFERENCES.insuranceAdmin, surface: "fast_help", source: "ConciergeScreen", label: "Government Help", route: "/concierge", suggestedFlow: "Collect official task, deadline, recipient, and missing documents before preparing the next step." },
+  { id: "concierge.fast.prepared-meals", workflow: CONCIERGE_FLOW_REFERENCES.shoppingSupport, surface: "fast_help", source: "ConciergeScreen", label: "Prepared Meals", route: "/concierge/shopping", suggestedFlow: "Prepare simple meal options and ask before ordering, paying, or contacting anyone." },
   { id: "concierge.action.transport", workflow: CONCIERGE_FLOW_REFERENCES.transportBooking, surface: "voice_action", source: "ConciergeScreen", label: "Book ride", route: "/concierge", suggestedFlow: "Collect ride details and confirm before booking." },
   { id: "concierge.action.otc-pharmacy", workflow: CONCIERGE_FLOW_REFERENCES.otcPharmacy, surface: "voice_action", source: "ConciergeScreen", label: "OTC pharmacy help", route: "/concierge", suggestedFlow: "Use saved pharmacy and only non-prescription support." },
   { id: "concierge.action.medical-appointment", workflow: CONCIERGE_FLOW_REFERENCES.medicalAppointment, surface: "voice_action", source: "ConciergeScreen", label: "Medical appointment", route: "/concierge", suggestedFlow: "Collect reason, provider, and timing, then confirm." },
@@ -1116,4 +1203,134 @@ export function workflowEntryPointsForSurface(surface: WorkflowEntrySurface): Wo
 
 export function deduplicateWorkflowReferences(references: WorkflowReference[]): WorkflowReference[] {
   return [...new Set(references)];
+}
+
+export function workflowCoverageState(status: WorkflowStatus): WorkflowCoverageState {
+  if (status === "ready") return "complete";
+  if (status === "partial") return "partial";
+  return "missing";
+}
+
+function emptyCoverageCounts(): WorkflowCoverageCounts {
+  return {
+    total: 0,
+    complete: 0,
+    partial: 0,
+    missing: 0,
+  };
+}
+
+function addCoverageCount(counts: WorkflowCoverageCounts, state: WorkflowCoverageState): void {
+  counts.total += 1;
+  counts[state] += 1;
+}
+
+function emptyDomainCoverage(): Record<WorkflowDomain, WorkflowCoverageCounts> {
+  return Object.fromEntries(
+    WORKFLOW_DOMAINS.map((domain) => [domain, emptyCoverageCounts()]),
+  ) as Record<WorkflowDomain, WorkflowCoverageCounts>;
+}
+
+function emptySurfaceCoverage(): Record<WorkflowEntrySurface, WorkflowCoverageCounts> {
+  return Object.fromEntries(
+    WORKFLOW_ENTRY_SURFACES.map((surface) => [surface, emptyCoverageCounts()]),
+  ) as Record<WorkflowEntrySurface, WorkflowCoverageCounts>;
+}
+
+function emptyStatusCounts(): Record<WorkflowStatus, number> {
+  return Object.fromEntries(WORKFLOW_STATUSES.map((status) => [status, 0])) as Record<WorkflowStatus, number>;
+}
+
+function toWorkflowActionLookup(entry: WorkflowEntryPoint): WorkflowActionLookup {
+  const workflow = getWorkflowDefinition(entry.workflow);
+  return {
+    entryPointId: entry.id,
+    workflowReference: workflow.reference,
+    label: entry.label,
+    source: entry.source,
+    surface: entry.surface,
+    route: entry.route,
+    suggestedFlow: entry.suggestedFlow,
+    workflowTitle: workflow.title,
+    domain: workflow.domain,
+    status: workflow.status,
+    coverageState: workflowCoverageState(workflow.status),
+    nextStep: workflow.nextStep ?? entry.suggestedFlow,
+    completionState: workflow.completionState,
+    confirmationRule: workflow.confirmationRule,
+    fallbackIfMissing: workflow.fallbackIfMissing,
+    relatedConciergeFlow: workflow.relatedConciergeFlow,
+  };
+}
+
+export function workflowActionForEntryPoint(entryPointId: string): WorkflowActionLookup {
+  return toWorkflowActionLookup(getWorkflowEntryPoint(entryPointId));
+}
+
+export function workflowActionsForTarget(target: WorkflowActionTarget): WorkflowActionLookup[] {
+  return WORKFLOW_ENTRY_POINTS
+    .filter((entry) => {
+      if (target.entryPointId && entry.id !== target.entryPointId) return false;
+      if (target.workflow && entry.workflow !== target.workflow) return false;
+      if (target.source && entry.source !== target.source) return false;
+      if (target.surface && entry.surface !== target.surface) return false;
+      if (target.route && entry.route !== target.route) return false;
+      if (target.label && entry.label !== target.label) return false;
+      return true;
+    })
+    .map(toWorkflowActionLookup);
+}
+
+export function resolveWorkflowAction(target: WorkflowActionTarget): WorkflowActionLookup | null {
+  const matches = workflowActionsForTarget(target);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+export function getWorkflowCoverageSummary(): WorkflowCoverageSummary {
+  const workflows = emptyCoverageCounts();
+  const entryPoints = emptyCoverageCounts();
+  const byDomain = emptyDomainCoverage();
+  const bySurface = emptySurfaceCoverage();
+  const byStatus = emptyStatusCounts();
+  const partialWorkflows: WorkflowReference[] = [];
+  const missingWorkflows: WorkflowReference[] = [];
+
+  WORKFLOW_DEFINITIONS.forEach((workflow) => {
+    const state = workflowCoverageState(workflow.status);
+    addCoverageCount(workflows, state);
+    addCoverageCount(byDomain[workflow.domain], state);
+    byStatus[workflow.status] += 1;
+    if (state === "partial") partialWorkflows.push(workflow.reference);
+    if (state === "missing") missingWorkflows.push(workflow.reference);
+  });
+
+  WORKFLOW_ENTRY_POINTS.forEach((entry) => {
+    const workflow = getWorkflowDefinition(entry.workflow);
+    const state = workflowCoverageState(workflow.status);
+    addCoverageCount(entryPoints, state);
+    addCoverageCount(bySurface[entry.surface], state);
+  });
+
+  return {
+    workflows,
+    entryPoints,
+    byDomain,
+    bySurface,
+    byStatus,
+    partialWorkflows,
+    missingWorkflows,
+  };
+}
+
+export function nextWorkflowImplementationCandidates(limit = 5): WorkflowActionLookup[] {
+  return WORKFLOW_ENTRY_POINTS
+    .map(toWorkflowActionLookup)
+    .filter((action) => action.coverageState !== "complete")
+    .sort((left, right) => {
+      if (left.coverageState !== right.coverageState) {
+        return left.coverageState === "partial" ? -1 : 1;
+      }
+      return left.entryPointId.localeCompare(right.entryPointId);
+    })
+    .slice(0, limit);
 }

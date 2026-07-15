@@ -12,6 +12,7 @@ import {
   Search,
   Tag,
   Map,
+  MapPin,
   FileText,
   Sparkles,
   BellRing,
@@ -72,6 +73,7 @@ import { apiFetch } from "@/lib/queryClient";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import {
   buildHomeServiceIntake,
+  homeServiceAddressFromPreferences,
   homeServiceQuestionsFor,
   homeServiceTypeLabel,
   HOME_SERVICE_TYPES,
@@ -104,10 +106,17 @@ import type {
 } from "../../shared/conciergeActionExecution";
 import {
   isShowVyvaPreparedTask,
+  type ShowVyvaExecutionGuide,
+  showVyvaExecutionGuide,
   showVyvaResumeActionLabel,
   showVyvaResumeSourceLabel,
   showVyvaResumeSummary,
 } from "../../shared/showVyvaResume";
+import {
+  buildConciergeGuidedDetailCapture,
+  type ConciergeGuidedDetailCapture,
+  type ConciergeGuidedDetailQuestion,
+} from "../../shared/conciergeGuidedDetails";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -126,7 +135,7 @@ type ConciergeRoutePrefill = {
   providerSearchMode?: string;
   providerSearchCriteria?: string[];
   providerSearchQuery?: string;
-  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "shopping_helper" | "shopping_recommendation" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "shopping_helper" | "shopping_recommendation" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action" | "show_vyva";
 };
 
 type ConciergeLocationState = {
@@ -201,6 +210,11 @@ function scrollIntoViewIfAvailable(element: Element | null | undefined, options?
 }
 
 type ConciergeProfileSummary = {
+  street?: string | null;
+  cityState?: string | null;
+  region?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
   savedProviders?: Array<{
     name?: string | null;
     role?: string | null;
@@ -810,6 +824,11 @@ interface AppointmentRequestResponse {
   request: AppointmentRequestItem;
   options: AppointmentProviderOption[];
   discovery?: AppointmentDiscoveryMeta;
+  mission?: AppointmentMissionState;
+}
+
+interface AppointmentOptionResponse {
+  option: AppointmentProviderOption;
   mission?: AppointmentMissionState;
 }
 
@@ -1872,6 +1891,36 @@ async function discoverAppointmentOptions(params: {
     throw new AppointmentRequestError(data.error ?? "Could not look for appointment options", res.status, data.code, data.nextRoute);
   }
   return await res.json() as AppointmentRequestResponse;
+}
+
+async function addAppointmentBookingSiteOption(params: {
+  requestId: string;
+  system: NonNullable<AppointmentDiscoveryMeta["reservation_systems"]>[number];
+}): Promise<AppointmentOptionResponse> {
+  const res = await apiFetch(`/api/appointments/requests/${params.requestId}/options`, {
+    method: "POST",
+    body: JSON.stringify({
+      provider_source: "external",
+      provider_snapshot: {
+        source: "reservation_system",
+        name: params.system.name,
+        category: params.system.category,
+        booking_url: params.system.url,
+        url: params.system.url,
+        preferred_channel: "booking_url",
+        notes: "Booking-site fallback prepared for Concierge review.",
+      },
+      match_reason: "Booking-site fallback. VYVA will review before opening or submitting any form.",
+      available_channels: ["booking_url", "manual"],
+      rank: 40,
+      select: true,
+    }),
+  });
+  if (!res.ok) {
+    const data = await readAppointmentErrorBody(res);
+    throw new AppointmentRequestError(data.error ?? "Could not prepare booking site", res.status, data.code, data.nextRoute);
+  }
+  return await res.json() as AppointmentOptionResponse;
 }
 
 async function confirmAppointmentAttempt(params: {
@@ -2967,6 +3016,39 @@ async function confirmPendingActionReview(item: ConciergePendingItem) {
   }
 }
 
+function guidedDetailInputTestId(question: ConciergeGuidedDetailQuestion, useFormCompatibleIds = true): string {
+  if (!useFormCompatibleIds) return `input-concierge-guided-detail-${question.key}`;
+  if (question.key === "destination_address") return "input-transport-destination";
+  if (question.key === "pickup_address") return "input-transport-pickup";
+  if (question.key === "requested_time") return "input-transport-time";
+  if (question.key === "item_text") return "input-otc-item";
+  if (question.key === "fulfillment_preference") return "input-otc-fulfillment-preference";
+  return `input-concierge-guided-detail-${question.key}`;
+}
+
+async function updatePendingActionDetails(params: {
+  item: ConciergePendingItem;
+  question: ConciergeGuidedDetailQuestion;
+  value: string;
+}) {
+  const value = params.value.trim();
+  const res = await apiFetch(`/api/concierge/actions/${params.item.id}/details`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action_payload: {
+        [params.question.payloadKey]: value,
+      },
+      answer_key: params.question.key,
+      answer_value: value,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Failed to save concierge action details");
+  }
+}
+
 async function cancelPendingAction(id: string) {
   const res = await apiFetch(`/api/concierge/actions/${id}/cancel`, { method: "POST" });
   if (!res.ok) {
@@ -3105,6 +3187,20 @@ function appointmentPreferredChannel(option: AppointmentProviderOption | null | 
   return available.find((channel) => channel !== "manual") ?? available[0] ?? null;
 }
 
+function cleanProfileText(value?: string | null): string {
+  return value?.trim() ?? "";
+}
+
+function profileHomeAddressLabel(profile: ConciergeProfileSummary | null | undefined): string {
+  const street = cleanProfileText(profile?.street);
+  const city = cleanProfileText(profile?.cityState);
+  const region = cleanProfileText(profile?.region);
+  const postalCode = cleanProfileText(profile?.postalCode);
+  const country = cleanProfileText(profile?.country);
+  const cityLine = [postalCode, city].filter(Boolean).join(" ");
+  return [street, cityLine, region, country].filter(Boolean).join(", ");
+}
+
 function estimateFromHomeServiceReply(...values: Array<string | null | undefined>): string | null {
   const text = values
     .map((value) => value?.trim() ?? "")
@@ -3120,10 +3216,12 @@ function appointmentConfirmationItems(params: {
   contactRoute: string;
   isMedical: boolean;
   hasCoverageInfo: boolean;
+  homeAddress?: string;
+  homeAccessNotes?: string;
   toolReadiness?: ConciergeToolReadinessResult | null;
   isSpanish: boolean;
 }) {
-  const { providerName, providerTrustNote, contactRoute, isMedical, hasCoverageInfo, toolReadiness, isSpanish } = params;
+  const { providerName, providerTrustNote, contactRoute, isMedical, hasCoverageInfo, homeAddress, homeAccessNotes, toolReadiness, isSpanish } = params;
   const items = [
     {
       label: isSpanish ? `Proveedor: ${providerName}` : `Provider: ${providerName}`,
@@ -3152,6 +3250,25 @@ function appointmentConfirmationItems(params: {
           ? "Si el proveedor lo necesita, VYVA te preguntara antes de compartir datos."
           : "If the provider needs it, VYVA will ask before sharing details."),
     });
+  } else {
+    items.push({
+      label: homeAddress?.trim()
+        ? (isSpanish ? "Direccion: guardada" : "Address: saved")
+        : (isSpanish ? "Direccion: pendiente" : "Address: needed"),
+      helper: homeAddress?.trim()
+        ? (isSpanish
+          ? "VYVA usara esta direccion solo despues de tu confirmacion."
+          : "VYVA uses this address only after your confirmation.")
+        : (isSpanish
+          ? "Anade donde debe ir el proveedor antes de contactar."
+          : "Add where the provider should visit before contact."),
+    });
+    if (homeAccessNotes?.trim()) {
+      items.push({
+        label: isSpanish ? "Acceso: preparado" : "Access: prepared",
+        helper: homeAccessNotes.trim(),
+      });
+    }
   }
 
   items.push(
@@ -3735,6 +3852,98 @@ function webSearchOutcomePayload(item: ConciergePendingItem, search: WebSearchAc
   };
 }
 
+function manualReviewFlowReference(item: ConciergePendingItem): string {
+  const explicit = payloadString(item.action_payload, ["flow_reference"]);
+  if (explicit) return explicit;
+  if (item.use_case === "scam_check") return SCAM_CHECK_FLOW_REFERENCE;
+  if (item.use_case === "insurance_admin" || item.use_case === "admin_task" || item.use_case === "paperwork") {
+    return INSURANCE_ADMIN_FLOW_REFERENCE;
+  }
+  return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
+}
+
+function manualReviewSubject(item: ConciergePendingItem, isSpanish: boolean): string {
+  return payloadString(item.action_payload, [
+    "review_source",
+    "scam_detail",
+    "review_target",
+    "offer_name",
+    "deal_name",
+    "company_name",
+    "document_type",
+    "phone_number",
+    "recipient",
+    "recipient_name",
+    "task_goal",
+    "goal",
+    "detail",
+    "reason",
+  ]) || item.action_summary || (isSpanish ? "revision VYVA" : "VYVA review");
+}
+
+function manualReviewStatusLabel(status: ManualReviewOutcomeStatus, isSpanish: boolean): string {
+  if (status === "review_pending") return isSpanish ? "Revision pendiente" : "Review pending";
+  return isSpanish ? "Completado" : "Completed";
+}
+
+function manualReviewOutcomeSummary(
+  item: ConciergePendingItem,
+  form: ManualReviewOutcomeForm,
+  isSpanish: boolean,
+): string {
+  const subject = manualReviewSubject(item, isSpanish);
+  const status = manualReviewStatusLabel(form.status, isSpanish);
+  const reference = form.reference.trim();
+  if (reference) {
+    return isSpanish
+      ? `${status}: ${subject}. Referencia: ${reference}.`
+      : `${status}: ${subject}. Reference: ${reference}.`;
+  }
+  return `${status}: ${subject}.`;
+}
+
+function manualReviewOutcomePayload(
+  item: ConciergePendingItem,
+  form: ManualReviewOutcomeForm,
+): Record<string, unknown> {
+  const payload = item.action_payload ?? {};
+  const summary = form.summary.trim();
+  const nextStep = form.nextStep.trim();
+  const reference = form.reference.trim();
+  const notes = form.notes.trim();
+  return {
+    ...payload,
+    flow_reference: manualReviewFlowReference(item),
+    execution_type: "manual_review_outcome_capture",
+    execution_channel: "operator_review",
+    review_outcome: form.status,
+    review_summary: summary || null,
+    next_step: nextStep || null,
+    reference: reference || payloadString(payload, ["reference", "case_reference", "claim_reference"]) || null,
+    notes: notes || null,
+    completed_from: "manual_review_outcome_panel",
+    no_external_action_without_confirmation: true,
+    reviewed_at: new Date().toISOString(),
+  };
+}
+
+function isManualReviewOutcomePendingAction(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
+  if (!item || (item.status !== "pending" && item.status !== "calling")) return false;
+  if (isWebSearchPendingAction(item)) return false;
+  if (isPhoneCallPendingAction(item)) return false;
+  if (getActionEmailDraft(item) || getActionWhatsAppDraft(item) || getBookingUrl(item)) return false;
+  if (isProviderSearchPendingAction(item)) return false;
+  if (item.use_case === "scam_check" || item.use_case === "insurance_admin" || item.use_case === "admin_task" || item.use_case === "paperwork") {
+    return true;
+  }
+  const toolText = [
+    payloadString(item.action_payload, ["requested_tool"]),
+    payloadString(item.action_payload, ["active_tool"]),
+    payloadString(item.action_payload, ["execution_channel"]),
+  ].join(" ").toLowerCase();
+  return /\b(operator_review|manual|manual_review|camera_or_upload)\b/.test(toolText);
+}
+
 function getActionEmailDraft(item: ConciergePendingItem): ConciergeEmailDraft | null {
   const payload = item.action_payload;
   const address = payloadString(payload, [
@@ -4299,6 +4508,90 @@ function buildPendingActionReviewSummary(params: {
     missing,
   );
 
+  const flowRequirements = evaluateConciergeFlowRequirements({
+    useCase: item.use_case,
+    payload,
+    providerName: activeTaskProviderLabel(item, isSpanish),
+    summary: item.action_summary,
+  });
+
+  if (isManualReviewOutcomePendingAction(item) && flowRequirements.flowReference === CONCIERGE_FLOW_REFERENCES.scamCheck) {
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Fuente" : "Source",
+      payloadString(payload, [
+        "review_source",
+        "scam_detail",
+        "document_url",
+        "uploaded_file",
+        "uploaded_document",
+        "uploaded_image",
+        "document_type",
+        "phone_number",
+        "company_name",
+        "email_body",
+        "sender",
+        "link",
+        "url",
+        "show_vyva_input_type",
+        "show_vyva_source",
+      ]),
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Riesgo" : "Concern",
+      payloadString(payload, ["concern", "what_worries_you", "risk_context", "review_question", "review_summary", "risk_level", "reason", "detail"]),
+      missing,
+    );
+  } else if (isManualReviewOutcomePendingAction(item) && flowRequirements.flowReference === CONCIERGE_FLOW_REFERENCES.insuranceAdmin) {
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Gestion" : "Task",
+      payloadString(payload, ["document_type", "task_type", "admin_task", "action_label", "reason", "detail"]) || item.action_summary,
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Destinatario" : "Recipient",
+      payloadString(payload, ["recipient", "recipient_name", "recipient_email", "provider_email", "email", "phone"]),
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Fecha limite" : "Deadline",
+      payloadString(payload, ["deadline", "due_date", "requested_time"]),
+      missing,
+    );
+  } else if (isManualReviewOutcomePendingAction(item) && flowRequirements.flowReference === CONCIERGE_FLOW_REFERENCES.toolGatedTask) {
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Objetivo" : "Goal",
+      payloadString(payload, ["task_goal", "goal", "reason", "detail", "message", "draft_message"]) || item.action_summary,
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Tipo de accion" : "Action type",
+      payloadString(payload, ["action_type", "requested_tool", "active_tool", "execution_channel", "preferred_channel"]),
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Web o contacto" : "Website or contact",
+      payloadString(payload, ["recipient", "recipient_email", "website", "booking_url", "provider_name", "provider_email", "phone"]),
+      missing,
+    );
+  }
+
   if (item.use_case === "book_ride") {
     addReviewDetail(details, missingDetails, isSpanish ? "Recogida" : "Pickup", payloadString(payload, ["pickup_address", "pickup"]), missing);
     addReviewDetail(details, missingDetails, isSpanish ? "Destino" : "Destination", payloadString(payload, ["destination_address", "destination"]), missing);
@@ -4352,19 +4645,19 @@ function activeTaskProviderLabel(item: ConciergePendingItem, isSpanish: boolean)
 
 function focusedDetailTargetForRequirement(
   item: ConciergePendingItem,
-  requirementKey: ConciergeFlowRequirementKey | null | undefined,
+  requirementKey: ConciergeFlowRequirementKey | string | null | undefined,
 ): ConciergeFocusedDetailTarget | null {
   if (!requirementKey) return null;
 
   if (item.use_case === "book_ride") {
-    if (requirementKey === "destination") return "transport-destination";
-    if (requirementKey === "pickup") return "transport-pickup";
-    if (requirementKey === "time") return "transport-time";
+    if (requirementKey === "destination" || requirementKey === "destination_address") return "transport-destination";
+    if (requirementKey === "pickup" || requirementKey === "pickup_address") return "transport-pickup";
+    if (requirementKey === "time" || requirementKey === "requested_time") return "transport-time";
   }
 
   if (item.use_case === "order_medicine") {
-    if (requirementKey === "otc_item") return "otc-item";
-    if (requirementKey === "time") return "otc-time";
+    if (requirementKey === "otc_item" || requirementKey === "item_text") return "otc-item";
+    if (requirementKey === "time" || requirementKey === "requested_time") return "otc-time";
   }
 
   if (item.use_case === "book_appointment" && !isHomeServicePendingAction(item)) {
@@ -4613,6 +4906,200 @@ function ActiveTaskChecklistPanel({
   );
 }
 
+function GuidedDetailCapturePanel({
+  capture,
+  value,
+  onChange,
+  onSave,
+  isSaving,
+  error,
+  notice,
+  useFormCompatibleTestIds,
+  isSpanish,
+}: {
+  capture: ConciergeGuidedDetailCapture;
+  value: string;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  isSaving: boolean;
+  error: string | null;
+  notice: string | null;
+  useFormCompatibleTestIds: boolean;
+  isSpanish: boolean;
+}) {
+  const question = capture.nextQuestion;
+  if (!question) return null;
+  const inputTestId = guidedDetailInputTestId(question, useFormCompatibleTestIds);
+
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#C4B5FD] bg-[#FBFAFF] p-4 shadow-[0_14px_30px_rgba(124,58,237,0.10)]"
+      data-testid="panel-concierge-guided-details"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#6D28D9] shadow-sm">
+          <Sparkles size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#6D28D9]">
+            {capture.title}
+          </span>
+          <span className="mt-1 block font-body text-[17px] font-black leading-tight text-vyva-text-1">
+            {question.prompt}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {capture.helper}
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {capture.questions.map((entry) => {
+          const isDone = capture.answeredKeys.includes(entry.key);
+          const isCurrent = entry.key === question.key;
+          return (
+            <span
+              key={entry.key}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-body text-[11px] font-black ${
+                isDone
+                  ? "border-[#99F6E4] bg-white text-[#0F766E]"
+                  : isCurrent
+                    ? "border-[#DDD6FE] bg-white text-[#6D28D9]"
+                    : "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]"
+              }`}
+            >
+              {isDone ? <CircleCheck size={12} aria-hidden="true" /> : null}
+              {entry.label}
+            </span>
+          );
+        })}
+      </div>
+
+      <label className="mt-3 block">
+        <span className="font-body text-[12px] font-black text-vyva-text-1">{question.label}</span>
+        {question.inputType === "select" ? (
+          <select
+            data-testid={inputTestId}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="mt-1 w-full rounded-[16px] border border-[#DDD6FE] bg-white px-3 py-3 font-body text-[15px] font-bold text-vyva-text-1 shadow-sm outline-none focus:border-[#7C3AED]"
+          >
+            <option value="">{question.placeholder}</option>
+            {(question.options ?? []).map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        ) : question.inputType === "textarea" ? (
+          <textarea
+            data-testid={inputTestId}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={question.placeholder}
+            rows={3}
+            className="mt-1 w-full rounded-[16px] border border-[#DDD6FE] bg-white px-3 py-3 font-body text-[15px] font-bold text-vyva-text-1 shadow-sm outline-none placeholder:text-vyva-text-3 focus:border-[#7C3AED]"
+          />
+        ) : (
+          <input
+            data-testid={inputTestId}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={question.placeholder}
+            className="mt-1 w-full rounded-[16px] border border-[#DDD6FE] bg-white px-3 py-3 font-body text-[15px] font-bold text-vyva-text-1 shadow-sm outline-none placeholder:text-vyva-text-3 focus:border-[#7C3AED]"
+          />
+        )}
+      </label>
+
+      {error ? (
+        <p className="mt-2 rounded-[12px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-bold text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="mt-2 rounded-[12px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-bold text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          data-testid="button-concierge-guided-detail-save"
+          onClick={onSave}
+          disabled={!value.trim() || isSaving}
+          className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#7C3AED] px-5 py-3 font-body text-[14px] font-black text-white shadow-[0_12px_26px_rgba(124,58,237,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSaving ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CircleCheck size={16} aria-hidden="true" />}
+          {isSpanish ? "Guardar detalle" : "Save detail"}
+        </button>
+        <span className="font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+          {isSpanish
+            ? "Despues veras el OK final antes de enviar, llamar o reservar."
+            : "After this, you still get the final OK before anything is sent, called, or booked."}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ShowVyvaExecutionGuidePanel({
+  guide,
+}: {
+  guide: ShowVyvaExecutionGuide;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#BFDBFE] bg-[#F8FBFF] p-4 shadow-[0_12px_28px_rgba(37,99,235,0.08)]"
+      data-testid="panel-show-vyva-execution-guide"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#2563EB] shadow-sm">
+          <Sparkles size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#2563EB]">
+            {guide.title}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {guide.nextQuestion}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {guide.helper}
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {guide.requiredDetails.slice(0, 4).map((detail) => (
+          <span
+            key={detail}
+            className="rounded-full border border-[#DBEAFE] bg-white px-3 py-1 font-body text-[11px] font-black text-[#1D4ED8]"
+          >
+            {detail}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {guide.steps.slice(0, 3).map((step, index) => (
+          <div key={`${step}-${index}`} className="rounded-[14px] bg-white px-3 py-2 text-center shadow-sm">
+            <p className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#64748B]">
+              {index + 1}
+            </p>
+            <p className="mt-0.5 font-body text-[12px] font-black leading-tight text-vyva-text-1">
+              {step}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-3 flex items-start gap-2 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black leading-snug text-[#047857]">
+        <ShieldCheck size={15} className="mt-0.5 flex-shrink-0" aria-hidden="true" />
+        <span>{guide.confirmationReminder}</span>
+      </p>
+    </div>
+  );
+}
+
 function PendingActionReviewCard({
   review,
   primaryLabel,
@@ -4738,6 +5225,7 @@ function BookingFormSupportPanel({
   form,
   notice,
   error,
+  intakeDraft,
   isSaving,
   isSpanish,
   onFormChange,
@@ -4753,6 +5241,7 @@ function BookingFormSupportPanel({
   form: BookingFormOutcomeForm;
   notice: string | null;
   error: string | null;
+  intakeDraft: string;
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof BookingFormOutcomeForm, value: string) => void;
@@ -4886,6 +5375,19 @@ function BookingFormSupportPanel({
         <p data-testid="booking-form-notice" className="mt-3 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
           {notice}
         </p>
+      ) : null}
+      {intakeDraft ? (
+        <div
+          data-testid={`panel-booking-form-intake-draft-${item.id}`}
+          className="mt-3 rounded-[16px] border border-[#BBF7D0] bg-white px-3 py-2"
+        >
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#047857]">
+            {isSpanish ? "Borrador para VYVA" : "Intake draft"}
+          </p>
+          <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-1">
+            {intakeDraft}
+          </p>
+        </div>
       ) : null}
       {error ? (
         <p data-testid="booking-form-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
@@ -5303,7 +5805,10 @@ function ProviderReplyPanel({
   const scheduledTimeLabel = isHomeServicePendingAction(item)
     ? (isSpanish ? "visita" : "visit")
     : (isSpanish ? "cita" : "appointment");
-  const canSave = (needsScheduledTime ? providerReplyHasValidScheduledTime(form) : providerReplyFormHasDetails(form)) && !isSaving && !isCancelling;
+  const hasProviderReply = Boolean(form.providerReply.trim());
+  const canSave = (needsScheduledTime
+    ? providerReplyHasValidScheduledTime(form) && hasProviderReply
+    : providerReplyFormHasDetails(form)) && !isSaving && !isCancelling;
   return (
     <div
       className="mt-3 rounded-[22px] border border-[#BFDBFE] bg-[#F8FBFF] p-4"
@@ -5436,6 +5941,13 @@ function ProviderReplyPanel({
               {isSpanish
                 ? `Se necesita fecha y hora para guardar la ${scheduledTimeLabel} en Scheduled Support.`
                 : `A date and time are needed to save the ${scheduledTimeLabel} in Scheduled Support.`}
+            </p>
+          ) : null}
+          {needsScheduledTime ? (
+            <p className="mt-1 font-body text-[12px] font-bold text-vyva-text-2">
+              {isSpanish
+                ? "Anade la respuesta del proveedor antes de guardar."
+                : "Add the provider reply before saving."}
             </p>
           ) : null}
         </div>
@@ -5675,6 +6187,127 @@ function SafeWebSearchExecutionPanel({
           {isSpanish ? "Guardar y cerrar" : "Save and close"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function ManualReviewOutcomePanel({
+  item,
+  form,
+  notice,
+  error,
+  isSaving,
+  isSpanish,
+  onFormChange,
+  onSave,
+}: {
+  item: ConciergePendingItem;
+  form: ManualReviewOutcomeForm;
+  notice: string | null;
+  error: string | null;
+  isSaving: boolean;
+  isSpanish: boolean;
+  onFormChange: (field: keyof ManualReviewOutcomeForm, value: string) => void;
+  onSave: () => void;
+}) {
+  const canSave = Boolean(form.summary.trim()) && !isSaving;
+  const statusOptions: ManualReviewOutcomeStatus[] = ["completed", "review_pending"];
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#DDD6FE] bg-[#FBFAFF] p-4"
+      data-testid={`panel-manual-review-outcome-${item.id}`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-vyva-purple shadow-sm">
+          <FileText size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+            {isSpanish ? "Resultado de revision" : "Review outcome"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {manualReviewSubject(item, isSpanish)}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "Guarda si la revision queda resuelta o si necesita seguimiento."
+              : "Save whether the review is resolved or still needs follow-up."}
+          </span>
+        </span>
+      </div>
+
+      <ConciergeApprovalPromise isSpanish={isSpanish} tone="purple" />
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {statusOptions.map((status) => {
+          const selected = form.status === status;
+          return (
+            <Button
+              key={status}
+              type="button"
+              data-testid={`button-manual-review-status-${status}-${item.id}`}
+              onClick={() => onFormChange("status", status)}
+              variant={selected ? "default" : "outline"}
+              className={selected ? "vyva-primary-action h-auto" : "vyva-secondary-action h-auto border-[#DDD6FE] text-vyva-purple"}
+            >
+              {manualReviewStatusLabel(status, isSpanish)}
+            </Button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <textarea
+          value={form.summary}
+          onChange={(event) => onFormChange("summary", event.target.value)}
+          placeholder={isSpanish ? "Resumen de lo revisado" : "Summary of what was reviewed"}
+          data-testid={`input-manual-review-summary-${item.id}`}
+          className="min-h-[76px] rounded-[14px] border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-vyva-purple focus:ring-2 focus:ring-[#EDE9FE] sm:col-span-2"
+        />
+        <Input
+          value={form.reference}
+          onChange={(event) => onFormChange("reference", event.target.value)}
+          placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
+          data-testid={`input-manual-review-reference-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DDD6FE] bg-white font-body text-[14px]"
+        />
+        <Input
+          value={form.nextStep}
+          onChange={(event) => onFormChange("nextStep", event.target.value)}
+          placeholder={isSpanish ? "Siguiente paso opcional" : "Next step optional"}
+          data-testid={`input-manual-review-next-step-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DDD6FE] bg-white font-body text-[14px]"
+        />
+        <textarea
+          value={form.notes}
+          onChange={(event) => onFormChange("notes", event.target.value)}
+          placeholder={isSpanish ? "Notas opcionales" : "Optional notes"}
+          data-testid={`input-manual-review-notes-${item.id}`}
+          className="min-h-[64px] rounded-[14px] border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-vyva-purple focus:ring-2 focus:ring-[#EDE9FE] sm:col-span-2"
+        />
+      </div>
+
+      <Button
+        type="button"
+        data-testid={`button-manual-review-save-${item.id}`}
+        onClick={onSave}
+        disabled={!canSave}
+        className="vyva-primary-action mt-3 h-auto w-full"
+      >
+        {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+        {isSpanish ? "Guardar resultado" : "Save outcome"}
+      </Button>
+
+      {notice ? (
+        <p data-testid="manual-review-notice" className="mt-3 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="manual-review-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -5937,6 +6570,16 @@ type EmailDraftOutcomeForm = {
 };
 
 type WhatsAppDraftOutcomeForm = {
+  reference: string;
+  notes: string;
+};
+
+type ManualReviewOutcomeStatus = "completed" | "review_pending";
+
+type ManualReviewOutcomeForm = {
+  status: ManualReviewOutcomeStatus;
+  summary: string;
+  nextStep: string;
   reference: string;
   notes: string;
 };
@@ -6421,6 +7064,14 @@ const EMPTY_EMAIL_DRAFT_OUTCOME_FORM: EmailDraftOutcomeForm = {
 };
 
 const EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM: WhatsAppDraftOutcomeForm = {
+  reference: "",
+  notes: "",
+};
+
+const EMPTY_MANUAL_REVIEW_OUTCOME_FORM: ManualReviewOutcomeForm = {
+  status: "completed",
+  summary: "",
+  nextStep: "",
   reference: "",
   notes: "",
 };
@@ -7237,6 +7888,9 @@ const ConciergeScreen = () => {
   const [isRightNowHidden, setIsRightNowHidden] = useState(false);
   const [selectedCompletedSessionId, setSelectedCompletedSessionId] = useState<string | null>(null);
   const [externalConfirmationRequest, setExternalConfirmationRequest] = useState<ConciergeExternalConfirmationRequest | null>(null);
+  const [guidedDetailDraft, setGuidedDetailDraft] = useState("");
+  const [guidedDetailNotice, setGuidedDetailNotice] = useState<string | null>(null);
+  const [guidedDetailError, setGuidedDetailError] = useState<string | null>(null);
   const [providerReplyMode, setProviderReplyMode] = useState<ProviderReplyMode>(null);
   const [providerReplyForm, setProviderReplyForm] = useState<ProviderReplyForm>(EMPTY_PROVIDER_REPLY_FORM);
   const [providerReplyNotice, setProviderReplyNotice] = useState<string | null>(null);
@@ -7253,12 +7907,16 @@ const ConciergeScreen = () => {
   const [whatsAppDraftOutcomeForm, setWhatsAppDraftOutcomeForm] = useState<WhatsAppDraftOutcomeForm>(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
   const [whatsAppDraftNotice, setWhatsAppDraftNotice] = useState<string | null>(null);
   const [whatsAppDraftError, setWhatsAppDraftError] = useState<string | null>(null);
+  const [manualReviewOutcomeForm, setManualReviewOutcomeForm] = useState<ManualReviewOutcomeForm>(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
+  const [manualReviewNotice, setManualReviewNotice] = useState<string | null>(null);
+  const [manualReviewError, setManualReviewError] = useState<string | null>(null);
   const [confirmedReviewActionIds, setConfirmedReviewActionIds] = useState<Set<string>>(() => new Set());
   const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
   const rightNowSectionRef = useRef<HTMLElement>(null);
+  const guidedDetailPanelRef = useRef<HTMLDivElement>(null);
   const currentLocaleRef = useRef(language);
   const saveReadyRef = useRef(false);
   const billInputRef = useRef<HTMLInputElement>(null);
@@ -7552,6 +8210,19 @@ const ConciergeScreen = () => {
   const savedHomeServiceProviderDetailsValue = savedHomeServiceProviderDetails(conciergeProfile, homeServiceType);
   const savedHomeServiceProvider = savedHomeServiceProviderDetailsValue?.name?.trim() || "";
   const hasSavedHomeServiceProvider = Boolean(savedHomeServiceProviderDetailsValue);
+  const savedHomeAddress = profileHomeAddressLabel(conciergeProfile);
+  const homeServiceSessionAddress = homeServiceIntakeAnswers.home_address?.trim() || homeServiceIntakeAnswers.location?.trim() || "";
+  const appointmentHomeServiceAddress = appointmentRequest?.appointment_type === "home-service"
+    ? homeServiceAddressFromPreferences(appointmentRequest.preferences)
+    : "";
+  const homeServiceVisitAddress = appointmentHomeServiceAddress || homeServiceSessionAddress || savedHomeAddress;
+  const homeServiceAddressSource = appointmentHomeServiceAddress
+    ? "request"
+    : homeServiceSessionAddress
+      ? "session"
+      : savedHomeAddress
+        ? "profile"
+        : "";
   const hasSavedTransportMobilityInfo = Boolean(conciergeProfile?.serviceReadiness?.hasMobilityInfo);
   const shouldAskTransportMobility = !hasSavedTransportMobilityInfo;
   const hasTransportDestination = transportDestination.trim().length > 0;
@@ -7703,6 +8374,12 @@ const ConciergeScreen = () => {
         contactRoute: appointmentChannelLabel(selectedAppointmentActionChannel, isSpanish),
         isMedical: (appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key) === "medical",
         hasCoverageInfo: hasAppointmentCoverageInfo,
+        homeAddress: (appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key) === "home-service"
+          ? homeServiceVisitAddress
+          : "",
+        homeAccessNotes: (appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key) === "home-service"
+          ? homeServiceIntakeAnswers.access_notes
+          : "",
         toolReadiness: selectedAppointmentToolReadiness,
         isSpanish,
       })
@@ -7750,7 +8427,6 @@ const ConciergeScreen = () => {
       setAppointmentOptions([]);
       setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
-      setAppointmentMission(null);
       setAppointmentAttemptResult(null);
       setAppointmentOpen(false);
       scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" });
@@ -7930,6 +8606,29 @@ const ConciergeScreen = () => {
     },
   });
 
+  const addAppointmentBookingSiteMutation = useMutation({
+    mutationFn: addAppointmentBookingSiteOption,
+    onMutate: () => {
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+    },
+    onSuccess: (result) => {
+      setAppointmentOptions((current) => {
+        const withoutDuplicate = current.filter((option) => option.id !== result.option.id);
+        return [result.option, ...withoutDuplicate];
+      });
+      setSelectedAppointmentOptionId(result.option.id);
+      setAppointmentNotice(isSpanish
+        ? "Sitio de reserva preparado. Confirma antes de que VYVA abra o envie el formulario."
+        : "Booking site prepared. Confirm before VYVA opens or submits the form.");
+    },
+    onError: (error) => {
+      setAppointmentError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido preparar el sitio de reserva." : "I could not prepare the booking site."));
+    },
+  });
+
   const confirmAppointmentMutation = useMutation({
     mutationFn: confirmAppointmentAttempt,
     onMutate: () => {
@@ -7978,6 +8677,9 @@ const ConciergeScreen = () => {
         const isHomeServiceOutcome = appointmentRequest.appointment_type === "home-service";
         const providerReply = appointmentBookedForm.providerReply.trim();
         const notes = appointmentBookedForm.notes.trim();
+        const outcomeLocation = appointmentBookedForm.location.trim()
+          || (isHomeServiceOutcome ? homeServiceVisitAddress : appointmentSnapshotText(selectedAppointmentOption, "address"))
+          || null;
         const homeServiceEstimate = isHomeServiceOutcome
           ? estimateFromHomeServiceReply(providerReply, notes)
           : null;
@@ -7994,7 +8696,7 @@ const ConciergeScreen = () => {
               provider_name: appointmentProviderName,
               selected_channel: appointmentRequest.selected_channel ?? selectedAppointmentActionChannel,
               scheduled_for: appointmentBookedForm.scheduledFor,
-              location: appointmentBookedForm.location.trim() || appointmentSnapshotText(selectedAppointmentOption, "address") || null,
+              location: outcomeLocation,
               provider_reply: providerReply || null,
               reference: appointmentBookedForm.reference.trim() || null,
               notes: notes || null,
@@ -8006,6 +8708,8 @@ const ConciergeScreen = () => {
                 criteria: homeServiceIntakeAnswers.criteria ?? null,
                 safety_flags: homeServiceSafetyFlags,
                 estimated_cost: homeServiceEstimate,
+                home_address: homeServiceVisitAddress || null,
+                home_address_source: homeServiceAddressSource || null,
                 home_access_or_safety_notes: homeServiceIntakeAnswers.access_notes ?? null,
               } : {}),
               scheduled_event_id: typeof result.scheduled_event === "object" && result.scheduled_event && "id" in result.scheduled_event
@@ -8050,6 +8754,22 @@ const ConciergeScreen = () => {
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
       ]);
+    },
+  });
+
+  const guidedDetailMutation = useMutation({
+    mutationFn: updatePendingActionDetails,
+    onMutate: () => {
+      setGuidedDetailError(null);
+      setGuidedDetailNotice(null);
+    },
+    onSuccess: async () => {
+      setGuidedDetailDraft("");
+      setGuidedDetailNotice(isSpanish ? "Detalle guardado." : "Detail saved.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setGuidedDetailError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el detalle." : "I could not save the detail."));
     },
   });
 
@@ -8343,6 +9063,33 @@ const ConciergeScreen = () => {
     },
   });
 
+  const manualReviewOutcomeMutation = useMutation({
+    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: ManualReviewOutcomeForm }) => (
+      completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: manualReviewOutcomeSummary(item, form, isSpanish),
+        outcomePayload: manualReviewOutcomePayload(item, form),
+      })
+    ),
+    onMutate: () => {
+      setManualReviewError(null);
+      setManualReviewNotice(null);
+    },
+    onSuccess: async (_result, { form }) => {
+      setManualReviewOutcomeForm(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
+      setManualReviewNotice(form.status === "review_pending"
+        ? (isSpanish ? "Revision guardada como pendiente. La tarea queda en historial." : "Review saved as pending. The task is in history.")
+        : (isSpanish ? "Revision guardada. La tarea queda cerrada." : "Review saved. The task is closed."));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setManualReviewError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la revision." : "I could not save the review."));
+    },
+  });
+
   const transportOptionsMutation = useMutation({
     mutationFn: () => fetchTransportOptions({
       pickupAddress: transportPickup,
@@ -8593,7 +9340,14 @@ const ConciergeScreen = () => {
     [homeServiceIntakeAnswers, homeServiceQuestions, isHomeServiceElectricalDanger],
   );
   const answeredHomeServiceQuestionCount = homeServiceQuestions.filter((question) => homeServiceIntakeAnswers[question.key]).length;
-  const isHomeServiceIntakeComplete = Boolean(!isHomeServiceElectricalDanger && homeServiceType && homeServiceQuestions.length > 0 && answeredHomeServiceQuestionCount === homeServiceQuestions.length);
+  const isHomeServiceQuestionSetComplete = Boolean(
+    !isHomeServiceElectricalDanger
+    && homeServiceType
+    && homeServiceQuestions.length > 0
+    && answeredHomeServiceQuestionCount === homeServiceQuestions.length,
+  );
+  const homeServiceNeedsVisitAddress = Boolean(isHomeServiceQuestionSetComplete && !homeServiceVisitAddress.trim());
+  const isHomeServiceIntakeComplete = Boolean(isHomeServiceQuestionSetComplete && !homeServiceNeedsVisitAddress);
   const homeServiceCurrentStep = homeServiceQuestions.length > 0
     ? Math.min(answeredHomeServiceQuestionCount + (activeHomeServiceQuestion ? 1 : 0), homeServiceQuestions.length)
     : 0;
@@ -9088,18 +9842,29 @@ const ConciergeScreen = () => {
   }
 
   function buildCurrentHomeServiceIntake() {
+    const visitAddress = homeServiceVisitAddress.trim();
+    const answerSource = visitAddress && !homeServiceIntakeAnswers.home_address?.trim()
+      ? { home_address: visitAddress }
+      : {};
     const intake = buildHomeServiceIntake({
       origin: homeServiceIntakeOrigin,
       serviceType: homeServiceType,
       urgency: homeServiceIntakeAnswers.urgency,
       criteria: homeServiceIntakeAnswers.criteria,
-      answers: homeServiceIntakeAnswers,
+      answers: {
+        ...homeServiceIntakeAnswers,
+        ...answerSource,
+      },
       language: locale,
     });
     return {
       intake,
       preferences: {
         service_intake: intake,
+        ...(visitAddress ? {
+          home_address: visitAddress,
+          home_address_source: homeServiceAddressSource || "session",
+        } : {}),
       },
     };
   }
@@ -9361,7 +10126,9 @@ const ConciergeScreen = () => {
       scheduledFor: appointmentBookedForm.scheduledFor,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid",
       providerName: appointmentProviderName,
-      location: appointmentBookedForm.location.trim() || appointmentSnapshotText(selectedAppointmentOption, "address") || undefined,
+      location: appointmentBookedForm.location.trim()
+        || (appointmentRequest.appointment_type === "home-service" ? homeServiceVisitAddress : appointmentSnapshotText(selectedAppointmentOption, "address"))
+        || undefined,
       notes: finalNotes || appointmentRequest.reason_detail || undefined,
     });
   }
@@ -9762,6 +10529,59 @@ const ConciergeScreen = () => {
     return isSpanish ? "Ver opciones" : "View options";
   }
 
+  function handleUtilityOptionReview(option: UtilityComparisonResult, optionUrl: string) {
+    if (!utilityResult) return;
+    const target = `${option.provider} - ${option.tariff_name}`;
+    const message = isSpanish
+      ? [
+        `Ayudame a revisar esta opcion de tarifa antes de abrir o cambiar: ${target}.`,
+        `Coste estimado: ${formatEuro(option.estimated_monthly_cost, true)}/mes.`,
+        `Ahorro estimado: ${formatEuro(option.estimated_monthly_savings, true)}/mes.`,
+        optionUrl ? `Enlace disponible: ${optionUrl}.` : "",
+        "Comprueba condiciones, permanencia, precio real y pasos seguros. No abras, contrates, llames ni compartas datos sin mi confirmacion.",
+      ].filter(Boolean).join("\n")
+      : [
+        `Help me review this tariff option before opening or switching: ${target}.`,
+        `Estimated cost: ${formatEuro(option.estimated_monthly_cost, false)}/month.`,
+        `Estimated saving: ${formatEuro(option.estimated_monthly_savings, false)}/month.`,
+        optionUrl ? `Available link: ${optionUrl}.` : "",
+        "Check terms, commitment, real price, and safe steps. Do not open, switch, call, or share details without my confirmation.",
+      ].filter(Boolean).join("\n");
+    prepareConciergeRequest(message, {
+      flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+      requestedTool: "operator_review",
+      actionLabel: isSpanish ? "Revisar cambio" : "Review switch",
+      summary: isSpanish
+        ? `Comparacion preparada: ${target}.`
+        : `Deal comparison prepared: ${target}.`,
+      useCase: "find_offers",
+      payload: {
+        task_type: "utility_switch_review",
+        shopping_need: isSpanish ? `Revisar ${target}` : `Review ${target}`,
+        shopping_context: "utility_comparison",
+        review_target: target,
+        offer_name: target,
+        deal_name: target,
+        provider_name: option.provider,
+        tariff_name: option.tariff_name,
+        estimated_monthly_cost: option.estimated_monthly_cost,
+        estimated_monthly_savings: option.estimated_monthly_savings,
+        contract_type: option.contract_type,
+        permanence: option.permanence,
+        price_stability: option.price_stability,
+        source: option.source,
+        source_url: option.source_url || utilityResult.source_url || null,
+        provider_url: option.provider_url || null,
+        website: optionUrl || null,
+        comparison_summary: utilityResult.summary.headline,
+        current_monthly_cost: utilityResult.summary.current_monthly_cost,
+        best_estimated_monthly_cost: utilityResult.summary.best_estimated_monthly_cost,
+        calculation_note: utilityResult.calculation_note,
+        neutrality_note: utilityResult.neutrality_note,
+      },
+    });
+  }
+
   async function handleUtilityResultAction(action: "whatsapp" | "save" | "remind" | "switch") {
     if (!utilityResult) return;
     if (action === "whatsapp") {
@@ -9984,6 +10804,20 @@ const ConciergeScreen = () => {
     setIsRightNowHidden(false);
 
     if (action === "details" || action === "contact") {
+      if (action === "details" && activeActionNeedsGuidedDetails && activeActionGuidedDetails?.nextQuestion) {
+        if (!activeActionGuidedPanelOpen) {
+          handleChangePendingAction(activeAction, focusedDetailTargetForRequirement(activeAction, activeActionGuidedDetails.nextQuestion.key));
+          return;
+        }
+        guidedDetailPanelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        window.setTimeout(() => {
+          const input = document.querySelector<HTMLElement>(
+            `[data-testid="${guidedDetailInputTestId(activeActionGuidedDetails.nextQuestion!, activeActionGuidedUsesFormCompatibleIds)}"]`,
+          );
+          input?.focus();
+        }, 80);
+        return;
+      }
       const missingRequirement = action === "details"
         ? evaluateConciergeFlowRequirements({
           useCase: activeAction.use_case,
@@ -10014,7 +10848,19 @@ const ConciergeScreen = () => {
     }
 
     if (action === "confirm") {
-      if (activeActionNeedsPhoneOutcome) {
+      if (activeActionNeedsGuidedDetails && activeActionGuidedDetails?.nextQuestion) {
+        if (!activeActionGuidedPanelOpen) {
+          handleChangePendingAction(activeAction, focusedDetailTargetForRequirement(activeAction, activeActionGuidedDetails.nextQuestion.key));
+          return;
+        }
+        guidedDetailPanelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        window.setTimeout(() => {
+          const input = document.querySelector<HTMLElement>(
+            `[data-testid="${guidedDetailInputTestId(activeActionGuidedDetails.nextQuestion!, activeActionGuidedUsesFormCompatibleIds)}"]`,
+          );
+          input?.focus();
+        }, 80);
+      } else if (activeActionNeedsPhoneOutcome) {
         handlePhoneCallReview(activeAction);
       } else if (activeActionNeedsWhatsAppOutcome) {
         handleWhatsAppDraftReview(activeAction);
@@ -10030,6 +10876,20 @@ const ConciergeScreen = () => {
         handleChangePendingAction(activeAction);
       }
     }
+  }
+
+  function handleSaveGuidedDetail() {
+    if (!activeAction || !activeActionGuidedDetails?.nextQuestion) return;
+    const value = guidedDetailDraft.trim();
+    if (!value) {
+      setGuidedDetailError(isSpanish ? "Anade este detalle para continuar." : "Add this detail to continue.");
+      return;
+    }
+    guidedDetailMutation.mutate({
+      item: activeAction,
+      question: activeActionGuidedDetails.nextQuestion,
+      value,
+    });
   }
 
   function updateProviderReplyForm(field: keyof ProviderReplyForm, value: string) {
@@ -10050,6 +10910,14 @@ const ConciergeScreen = () => {
 
   function updateWhatsAppDraftOutcome(field: keyof WhatsAppDraftOutcomeForm, value: string) {
     setWhatsAppDraftOutcomeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateManualReviewOutcome(field: keyof ManualReviewOutcomeForm, value: string) {
+    setManualReviewOutcomeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function handleSaveManualReviewOutcome(item: ConciergePendingItem) {
+    manualReviewOutcomeMutation.mutate({ item, form: manualReviewOutcomeForm });
   }
 
   function handleBookingFormSubmitted(item: ConciergePendingItem) {
@@ -10858,6 +11726,7 @@ const ConciergeScreen = () => {
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
   const activeActionTimeline = activeAction ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
+  const activeActionExecutionTask = activeAction ? getConciergeExecutionTask(activeAction) : null;
   const activeActionExecutionStatus = activeAction
     ? buildConciergeExecutionStatus(activeAction, activeActionTimeline, isSpanish)
     : null;
@@ -10886,6 +11755,9 @@ const ConciergeScreen = () => {
     : null;
   const SelectedInsuranceAdminIcon = selectedInsuranceAdminOption?.Icon ?? FileText;
   useEffect(() => {
+    setGuidedDetailDraft("");
+    setGuidedDetailNotice(null);
+    setGuidedDetailError(null);
     setProviderReplyMode(null);
     setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
     setProviderReplyNotice(null);
@@ -10902,6 +11774,9 @@ const ConciergeScreen = () => {
     setWhatsAppDraftOutcomeForm(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
     setWhatsAppDraftNotice(null);
     setWhatsAppDraftError(null);
+    setManualReviewOutcomeForm(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
+    setManualReviewNotice(null);
+    setManualReviewError(null);
   }, [activeAction?.id]);
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -10955,6 +11830,47 @@ const ConciergeScreen = () => {
   const activeActionAlreadyConfirmed = activeAction ? conciergeActionAlreadyConfirmed(activeAction) : false;
   const activeActionReviewConfirmed = activeAction ? confirmedReviewActionIds.has(activeAction.id) : false;
   const activeActionNeedsUserConfirmation = Boolean(activeAction?.status === "pending" && !activeActionAlreadyConfirmed);
+  const activeActionGuidedDetails = activeAction
+    ? buildConciergeGuidedDetailCapture({
+        useCase: activeAction.use_case,
+        payload: activeAction.action_payload,
+        providerName: activeAction.provider_name,
+        providerPhone: activeAction.provider_phone,
+        locale,
+      })
+    : null;
+  const activeActionCoreGuidedUseCase = Boolean(
+    activeAction &&
+    ["book_ride", "order_medicine", "home_service"].includes(activeAction.use_case),
+  );
+  const activeActionHasPreparedGuidedBypass = Boolean(
+    activeActionWebSearch ||
+    activeActionEmailDraft ||
+    activeActionWhatsAppDraft ||
+    activeActionBookingUrl ||
+    (activeAction && !activeActionCoreGuidedUseCase && isPhoneCallPendingAction(activeAction)),
+  );
+  const activeActionCanUseGuidedFallback = Boolean(
+    activeActionCoreGuidedUseCase &&
+    !activeActionHasPreparedGuidedBypass,
+  );
+  const activeActionNeedsGuidedDetails = Boolean(
+    activeActionNeedsUserConfirmation &&
+    activeActionGuidedDetails &&
+    !activeActionGuidedDetails.complete &&
+    (
+      (activeActionExecutionTask?.lifecycle_status === "needs_info" && !activeActionHasPreparedGuidedBypass) ||
+      (!activeActionExecutionTask && activeActionCanUseGuidedFallback)
+    ),
+  );
+  const activeActionGuidedUsesFormCompatibleIds = !transportDetailsOpen && !otcPharmacyOpen;
+  const activeActionUsesInlineGuidedPanel = activeAction?.use_case !== "order_medicine";
+  const activeActionGuidedPanelOpen = Boolean(
+    activeActionNeedsGuidedDetails &&
+    activeActionUsesInlineGuidedPanel &&
+    !transportDetailsOpen &&
+    !otcPharmacyOpen,
+  );
   const activeActionFormPlan = activeAction ? getFormAutomationPlan(activeAction) : null;
   const activeActionFormMissingFields = activeActionFormPlan?.missingFields ?? [];
   const activeActionCanOpenForm = Boolean(
@@ -10993,6 +11909,14 @@ const ConciergeScreen = () => {
   const activeActionCanShowWhatsAppOutcome = activeActionNeedsWhatsAppOutcome && activeActionReviewConfirmed;
   const activeActionCanShowEmailOutcome = activeActionNeedsEmailOutcome && activeActionReviewConfirmed;
   const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation;
+  const activeActionCanShowManualReviewOutcome = Boolean(
+    activeAction &&
+    isManualReviewOutcomePendingAction(activeAction) &&
+    !activeActionNeedsUserConfirmation,
+  );
+  const activeActionBookingFormIntakeDraft = activeActionHasBookingFormSupport && bookingFormNotice && input.trim()
+    ? input.trim()
+    : "";
   const activeActionIsAppointment = activeAction?.use_case === "book_appointment";
   const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
     ? activeAction.action_payload.mission_status
@@ -11034,6 +11958,9 @@ const ConciergeScreen = () => {
   const activeActionShowVyvaSummary = activeActionShowVyvaPrepared
     ? showVyvaResumeSummary(activeAction?.action_payload, activeAction?.action_summary)
     : "";
+  const activeActionShowVyvaGuide = activeActionShowVyvaPrepared
+    ? showVyvaExecutionGuide(activeAction?.action_payload, locale)
+    : null;
   const externalConfirmationReview = externalConfirmationRequest
     ? buildPendingActionReviewSummary({
       item: externalConfirmationRequest.item,
@@ -12836,7 +13763,31 @@ const ConciergeScreen = () => {
               />
             ) : null}
 
-            {activeActionNeedsUserConfirmation && activeActionReviewSummary ? (
+            {activeActionShowVyvaGuide ? (
+              <ShowVyvaExecutionGuidePanel guide={activeActionShowVyvaGuide} />
+            ) : null}
+
+            {activeActionGuidedPanelOpen && activeActionGuidedDetails ? (
+              <div ref={guidedDetailPanelRef}>
+                <GuidedDetailCapturePanel
+                  capture={activeActionGuidedDetails}
+                  value={guidedDetailDraft}
+                  onChange={(value) => {
+                    setGuidedDetailDraft(value);
+                    setGuidedDetailError(null);
+                    setGuidedDetailNotice(null);
+                  }}
+                  onSave={handleSaveGuidedDetail}
+                  isSaving={guidedDetailMutation.isPending}
+                  error={guidedDetailError}
+                  notice={guidedDetailNotice}
+                  useFormCompatibleTestIds={activeActionGuidedUsesFormCompatibleIds}
+                  isSpanish={isSpanish}
+                />
+              </div>
+            ) : null}
+
+            {!activeActionNeedsGuidedDetails && activeActionNeedsUserConfirmation && activeActionReviewSummary ? (
               <PendingActionReviewCard
                 review={activeActionReviewSummary}
                 primaryLabel={activeActionPrimaryLabel}
@@ -12863,16 +13814,21 @@ const ConciergeScreen = () => {
                   reviewConfirmMutation.isPending ||
                   phoneCallOutcomeMutation.isPending ||
                   emailDraftOutcomeMutation.isPending ||
-                  whatsAppDraftOutcomeMutation.isPending
+                  whatsAppDraftOutcomeMutation.isPending ||
+                  manualReviewOutcomeMutation.isPending
                 }
                 cancelPending={cancelMutation.isPending}
-                primaryDisabled={activeActionReviewSummary.missingDetails.length > 0 || Boolean(activeActionWebSearch)}
+                primaryDisabled={
+                  activeActionReviewSummary.missingDetails.length > 0 ||
+                  activeActionFormMissingFields.length > 0 ||
+                  Boolean(activeActionWebSearch)
+                }
                 confirmTestId={`button-concierge-confirm-${activeAction.id}`}
                 changeTestId={`button-concierge-change-${activeAction.id}`}
                 cancelTestId={`button-concierge-cancel-${activeAction.id}`}
                 isSpanish={isSpanish}
               />
-            ) : (
+            ) : !activeActionNeedsGuidedDetails ? (
               <div
                 className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
                 data-testid="panel-concierge-next-action"
@@ -12887,7 +13843,7 @@ const ConciergeScreen = () => {
                   {activeActionNextStepHelper}
                 </p>
               </div>
-            )}
+            ) : null}
 
             {activeActionProviderSearchDetails ? (
               <ProviderSearchFollowThroughPanel
@@ -12916,6 +13872,19 @@ const ConciergeScreen = () => {
                     search: activeActionWebSearchResult,
                   });
                 }}
+              />
+            ) : null}
+
+            {activeActionCanShowManualReviewOutcome && activeAction ? (
+              <ManualReviewOutcomePanel
+                item={activeAction}
+                form={manualReviewOutcomeForm}
+                notice={manualReviewNotice}
+                error={manualReviewError}
+                isSaving={manualReviewOutcomeMutation.isPending}
+                isSpanish={isSpanish}
+                onFormChange={updateManualReviewOutcome}
+                onSave={() => handleSaveManualReviewOutcome(activeAction)}
               />
             ) : null}
 
@@ -13070,6 +14039,7 @@ const ConciergeScreen = () => {
                 form={bookingFormOutcomeForm}
                 notice={bookingFormNotice}
                 error={bookingFormError}
+                intakeDraft={activeActionBookingFormIntakeDraft}
                 isSaving={bookingFormOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updateBookingFormOutcome}
@@ -13614,7 +14584,54 @@ const ConciergeScreen = () => {
                     </div>
                   )}
 
-                  {homeServiceType && !activeHomeServiceQuestion && !isHomeServiceElectricalDanger && (
+                  {homeServiceNeedsVisitAddress && (
+                    <div
+                      className="order-1 mt-4 rounded-[22px] border-2 border-[#F59E0B] bg-[#FFFBEB] p-4 shadow-[0_14px_28px_rgba(245,158,11,0.12)]"
+                      data-testid="panel-home-service-address"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B45309]">
+                          <MapPin size={19} aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-body text-[17px] font-black leading-tight text-[#92400E]">
+                            {isSpanish ? "Donde debe ir el proveedor?" : "Where should the provider come?"}
+                          </p>
+                          <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                            {isSpanish
+                              ? "VYVA usara esta direccion solo cuando confirmes el contacto o la reserva."
+                              : "VYVA uses this address only when you confirm contact or booking."}
+                          </p>
+                        </div>
+                      </div>
+                      <textarea
+                        value={homeServiceTextDrafts.home_address ?? ""}
+                        onChange={(event) => setHomeServiceTextDrafts((current) => ({
+                          ...current,
+                          home_address: event.target.value,
+                        }))}
+                        placeholder={isSpanish ? "Direccion, piso, puerta o notas de acceso" : "Address, apartment, entrance, or access notes"}
+                        rows={2}
+                        data-testid="input-home-service-address"
+                        className="mt-3 min-h-[86px] w-full resize-none rounded-[18px] border border-[#FCD34D] bg-white px-4 py-3 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-1 outline-none focus:border-[#B45309] focus:ring-4 focus:ring-[#F59E0B]/15"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const draft = (homeServiceTextDrafts.home_address ?? "").trim();
+                          if (draft) setHomeServiceAnswer("home_address", draft);
+                        }}
+                        disabled={!(homeServiceTextDrafts.home_address ?? "").trim()}
+                        data-testid="button-home-service-address-save"
+                        className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-[#B45309] px-4 font-body text-[15px] font-black text-white shadow-[0_12px_26px_rgba(180,83,9,0.18)] disabled:opacity-55"
+                      >
+                        <CircleCheck size={16} aria-hidden="true" />
+                        {isSpanish ? "Usar esta direccion" : "Use this address"}
+                      </button>
+                    </div>
+                  )}
+
+                  {homeServiceType && !activeHomeServiceQuestion && !isHomeServiceElectricalDanger && isHomeServiceIntakeComplete && (
                     <div className="order-1 mt-4 rounded-[22px] border-2 border-[#0F766E] bg-[#ECFDF5] p-4 shadow-[0_14px_28px_rgba(15,118,110,0.14)]" data-testid="panel-home-service-ready">
                       <div className="flex items-start gap-3">
                         <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#0F766E]">
@@ -14010,15 +15027,20 @@ const ConciergeScreen = () => {
                 {appointmentDiscovery?.reservation_systems?.length && appointmentOptions.length === 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2" data-testid="panel-appointment-booking-sites">
                     {appointmentDiscovery.reservation_systems.slice(0, 3).map((system) => (
-                      <a
+                      <button
                         key={`${system.name}-${system.url}`}
-                        href={system.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="vyva-tap inline-flex min-h-[38px] items-center justify-center rounded-full border border-[#FCD34D] bg-white px-3 font-body text-[12px] font-black text-[#92400E]"
+                        type="button"
+                        onClick={() => appointmentRequest && addAppointmentBookingSiteMutation.mutate({
+                          requestId: appointmentRequest.id,
+                          system,
+                        })}
+                        disabled={!appointmentRequest || addAppointmentBookingSiteMutation.isPending}
+                        data-testid={`button-appointment-booking-site-${testIdSlug(system.name)}`}
+                        className="vyva-tap inline-flex min-h-[38px] items-center justify-center rounded-full border border-[#FCD34D] bg-white px-3 font-body text-[12px] font-black text-[#92400E] disabled:opacity-60"
                       >
+                        {addAppointmentBookingSiteMutation.isPending ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <ShieldCheck size={13} className="mr-1.5" />}
                         {system.name}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 ) : null}
@@ -14067,7 +15089,7 @@ const ConciergeScreen = () => {
                     label: isSpanish ? "Lugar" : "Place",
                     value: appointmentBookedForm.location,
                     onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, location: value })),
-                    placeholder: appointmentProviderAddress || (isSpanish ? "Lugar" : "Location"),
+                    placeholder: (isHomeServiceAppointment ? homeServiceVisitAddress : appointmentProviderAddress) || (isSpanish ? "Lugar" : "Location"),
                     testId: "input-appointment-confirmed-location",
                   },
                   {
@@ -14556,15 +15578,25 @@ const ConciergeScreen = () => {
                         </div>
                       </div>
                       {optionUrl && (
-                        <a
-                          href={optionUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-3 inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full border border-vyva-purple/20 bg-[#F5F3FF] px-4 py-2 font-body text-[13px] font-semibold text-vyva-purple"
-                        >
-                          <ExternalLink size={15} />
-                          {utilityOptionActionLabel(result, optionUrl)}
-                        </a>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleUtilityOptionReview(result, optionUrl)}
+                            data-testid={`button-utility-option-review-${index}`}
+                            className="h-[40px] rounded-full border-vyva-purple/20 bg-[#F5F3FF] px-4 font-body text-[13px] font-semibold text-vyva-purple"
+                          >
+                            <ShieldCheck size={15} className="mr-2" />
+                            {utilityOptionActionLabel(result, optionUrl)}
+                          </Button>
+                          <span
+                            data-testid={`badge-utility-option-gated-${index}`}
+                            className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-4 font-body text-[13px] font-bold text-vyva-purple"
+                          >
+                            <ShieldCheck size={15} />
+                            {isSpanish ? "Enlace tras tu OK" : "Link after your OK"}
+                          </span>
+                        </div>
                       )}
                     </div>
                   );
@@ -14907,14 +15939,7 @@ const ConciergeScreen = () => {
                       offersResult.options.map((option) => {
                         const optionKey = offerCardKey(option);
                         const scoreDetailsOpen = expandedOfferScoreKey === optionKey;
-                        const offerPhoneHref = phoneHref(option.phone);
-                        const offerUrl = option.website || option.maps_url || "";
-                        const primaryLabel = offerPhoneHref
-                          ? (isSpanish ? "Llamar ahora" : "Call now")
-                          : offerUrl
-                            ? (isSpanish ? "Abrir ahora" : "Open now")
-                            : (isSpanish ? "Pedir ayuda a VYVA" : "Ask VYVA to help");
-                        const PrimaryIcon = offerPhoneHref ? PhoneCall : offerUrl ? ExternalLink : Send;
+                        const contactAvailable = Boolean(option.phone || option.website || option.maps_url);
                         const overallScore = clampScore(option.score);
                         const providerBadges = providerSearchMode
                           ? providerResultBadges(option, providerSearchCriteria, isSpanish)
@@ -15021,35 +16046,25 @@ const ConciergeScreen = () => {
                                   <Send size={15} className="mr-2" />
                                   {isSpanish ? "Preparar contacto" : "Ask VYVA to prepare contact"}
                                 </Button>
-                              ) : offerPhoneHref || offerUrl ? (
-                                <a
-                                  href={offerPhoneHref || offerUrl}
-                                  target={offerUrl ? "_blank" : undefined}
-                                  rel={offerUrl ? "noopener noreferrer" : undefined}
-                                  className="vyva-tap inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold text-white"
-                                >
-                                  <PrimaryIcon size={15} />
-                                  {primaryLabel}
-                                </a>
                               ) : (
                                 <Button
                                   type="button"
                                   onClick={() => handleOfferAssistance(option)}
+                                  data-testid={`button-offer-prepare-review-${optionKey}`}
                                   className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
                                 >
                                   <Send size={15} className="mr-2" />
-                                  {primaryLabel}
+                                  {isSpanish ? "Que VYVA revise" : "Ask VYVA to review"}
                                 </Button>
                               )}
-                              {!providerSearchMode && (offerPhoneHref || offerUrl) && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => handleOfferAssistance(option)}
-                                  className="h-[40px] rounded-full border-vyva-border bg-white px-4 font-body text-[13px] font-bold text-vyva-purple"
+                              {!providerSearchMode && contactAvailable && (
+                                <span
+                                  data-testid={`badge-offer-contact-gated-${optionKey}`}
+                                  className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-[#F5F3FF] px-4 font-body text-[13px] font-bold text-vyva-purple"
                                 >
-                                  {isSpanish ? "Que VYVA ayude" : "Let VYVA help"}
-                                </Button>
+                                  <ShieldCheck size={15} />
+                                  {isSpanish ? "Contacto tras tu OK" : "Contact after your OK"}
+                                </span>
                               )}
                               {!providerSearchMode && (
                                 <Button
