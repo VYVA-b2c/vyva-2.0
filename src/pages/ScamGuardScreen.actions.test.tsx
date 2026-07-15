@@ -1,11 +1,33 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ScamGuardActionButtons,
   scamGuardConciergeState,
   scamGuardContextSummary,
   type ScamGuardActionContext,
 } from "./ScamGuardScreen";
+
+const { invalidateQueriesMock, savePlanMock, toastMock } = vi.hoisted(() => ({
+  invalidateQueriesMock: vi.fn(),
+  savePlanMock: vi.fn(),
+  toastMock: vi.fn(),
+}));
+
+vi.mock("@/i18n", () => ({
+  useLanguage: () => ({ language: "en" }),
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: toastMock }),
+}));
+
+vi.mock("@/lib/queryClient", () => ({
+  queryClient: { invalidateQueries: invalidateQueriesMock },
+}));
+
+vi.mock("@/lib/showVyvaActionExecutorClient", () => ({
+  saveShowVyvaActionExecutionPlan: savePlanMock,
+}));
 
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
@@ -32,6 +54,11 @@ const suspiciousContext: ScamGuardActionContext = {
 };
 
 describe("Scam Guard service actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    savePlanMock.mockResolvedValue({ pendingId: "show-vyva-action-1" });
+  });
+
   it("builds a confirmation-led concierge task with scam context", () => {
     const state = scamGuardConciergeState(suspiciousContext, "en");
 
@@ -45,7 +72,7 @@ describe("Scam Guard service actions", () => {
     expect(scamGuardContextSummary(suspiciousContext)).toContain("Recommended steps");
   });
 
-  it("renders direct trusted-contact plus scam-safe follow-up actions", () => {
+  it("saves trusted-contact and scam-safe follow-up actions before opening Concierge", async () => {
     const onOpenConcierge = vi.fn();
     const onStartGuidance = vi.fn();
     const onAddTrustedContact = vi.fn();
@@ -54,6 +81,7 @@ describe("Scam Guard service actions", () => {
       <ScamGuardActionButtons
         context={suspiciousContext}
         trustedContactName="Maria"
+        trustedContactPhone="+34 612 345 678"
         trustedContactHref="tel:+34612345678"
         onOpenConcierge={onOpenConcierge}
         onStartGuidance={onStartGuidance}
@@ -70,8 +98,22 @@ describe("Scam Guard service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-check_company-current"));
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-scam_concierge-current"));
-    expect(onOpenConcierge).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-call_trusted_contact-current"));
+
+    await waitFor(() => expect(onOpenConcierge).toHaveBeenCalledTimes(3));
     expect(onOpenConcierge).toHaveBeenLastCalledWith(suspiciousContext);
+    expect(savePlanMock).toHaveBeenCalledTimes(3);
+    expect(savePlanMock.mock.calls[2][0].triggerRequest).toMatchObject({
+      provider_name: "Maria",
+      provider_phone: "+34 612 345 678",
+      auto_start: false,
+    });
+    expect(savePlanMock.mock.calls[2][0].triggerRequest.action_payload).toMatchObject({
+      show_vyva_action_id: "call_trusted_contact",
+      user_confirmed: false,
+      no_external_action_without_confirmation: true,
+    });
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ["/api/concierge/actions/pending"] });
     expect(onStartGuidance).not.toHaveBeenCalled();
     expect(onAddTrustedContact).not.toHaveBeenCalled();
   });
@@ -91,5 +133,6 @@ describe("Scam Guard service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-call_trusted_contact-saved"));
     expect(onAddTrustedContact).toHaveBeenCalled();
+    expect(savePlanMock).not.toHaveBeenCalled();
   });
 });

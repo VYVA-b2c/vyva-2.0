@@ -51,6 +51,7 @@ import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
@@ -68,7 +69,8 @@ import {
   type ShowVyvaCaptureSource,
   type ShowVyvaPastePayload,
 } from "../../shared/showVyvaFlow";
-import { showVyvaReviewContractFromHealthResult } from "../../shared/showVyvaReviewContract";
+import { showVyvaReviewContractFromHealthResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
+import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
 
 type WoundScan = {
   id: string;
@@ -697,11 +699,13 @@ export function VisualScanResultPanel({
   t,
   onClose,
   actions = [],
+  onFollowUpSelect,
 }: {
   result: VisualScanResult;
   t: TFunction;
   onClose: () => void;
   actions?: VisualScanAction[];
+  onFollowUpSelect?: (action: ShowVyvaFollowUpAction, contract: ShowVyvaReviewContract) => void;
 }) {
   const visibleObservations = visualScanList(result.visibleObservations);
   const potentialConcerns = visualScanList(result.potentialConcerns);
@@ -795,6 +799,10 @@ export function VisualScanResultPanel({
             requiresConfirmation: true,
           }))}
           onSelect={(selected) => {
+            if (onFollowUpSelect) {
+              onFollowUpSelect(selected, reviewContract);
+              return;
+            }
             const action = actions.find((item) => item.kind === selected.id);
             if (!action) return;
             if (action.href) {
@@ -1955,6 +1963,36 @@ const HealthScreen = () => {
         };
       })
     : [];
+
+  const handleVisualScanFollowUpSelect = (
+    action: ShowVyvaFollowUpAction,
+    contract: ShowVyvaReviewContract,
+  ) => {
+    const plan = buildShowVyvaActionExecutionPlan({
+      contract,
+      action,
+      language: appLanguage,
+      sourceRoute: "/health",
+      target: action.id === "call_gp" || action.id === "email_gp"
+        ? {
+            name: visualScanGpName || t("health.scanWound.actions.gpFallback", "GP"),
+            phone: profileContacts?.gpPhone ?? profile?.gpPhone,
+            email: visualScanGpEmail,
+            relationship: "gp",
+          }
+        : undefined,
+    });
+
+    void saveShowVyvaActionExecutionPlan(plan)
+      .then(async () => {
+        await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+        toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+        navigate(plan.targetRoute);
+      })
+      .catch(() => {
+        toast({ description: t("showVyva.executor.error", "I could not save that step. Please try again.") });
+      });
+  };
 
   const deleteScanMutation = useMutation({
     mutationFn: (id: string) =>
@@ -3463,6 +3501,7 @@ const HealthScreen = () => {
                 result={woundResult}
                 t={t}
                 actions={visualScanActions}
+                onFollowUpSelect={handleVisualScanFollowUpSelect}
                 onClose={() => setWoundResult(null)}
               />
             )}
@@ -3831,6 +3870,7 @@ const HealthScreen = () => {
                   result={woundResult}
                   t={t}
                   actions={visualScanActions}
+                  onFollowUpSelect={handleVisualScanFollowUpSelect}
                   onClose={() => setWoundResult(null)}
                 />
               )}
