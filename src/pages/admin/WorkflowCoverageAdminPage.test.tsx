@@ -32,8 +32,9 @@ describe("WorkflowCoverageAdminPage", () => {
     expect(screen.getByText("Incomplete workflows first")).toBeInTheDocument();
 
     const visualScan = screen.getByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.visualScan}`);
+    const visualScanWorkflow = WORKFLOW_DEFINITIONS.find((workflow) => workflow.reference === APP_WORKFLOW_REFERENCES.visualScan);
     expect(within(visualScan).getByText("Visual scan")).toBeInTheDocument();
-    expect(within(visualScan).getByText(/Unify image review paths/i)).toBeInTheDocument();
+    expect(within(visualScan).getByText(visualScanWorkflow?.nextStep ?? "")).toBeInTheDocument();
     expect(within(visualScan).getByText(/Ask before uploading/i)).toBeInTheDocument();
     expect(within(visualScan).getByText("Visual Scan")).toBeInTheDocument();
   });
