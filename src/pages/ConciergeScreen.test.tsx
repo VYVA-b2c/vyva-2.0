@@ -987,7 +987,7 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("renders compact protected savings results with expandable proof and watch confirmation", async () => {
-    apiFetchMock.mockImplementation(async (url) => {
+    apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).includes("/api/offers/search")) {
         return jsonResponse({
           category: "Household costs",
@@ -1031,6 +1031,25 @@ describe("ConciergeScreen action hub", () => {
           next_step: "Confirm before contacting or switching.",
         });
       }
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.use_case).toBe("find_offers");
+        expect(body.auto_start).toBe(false);
+        expect(body.action_summary).toBe("Offer watch prepared: Senior Energy Saver.");
+        expect(body.action_payload).toMatchObject({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          task_type: "deal_watch",
+          offer_name: "Senior Energy Saver",
+          shopping_context: "Household costs",
+          requested_tool: "operator_review",
+          active_tool: "operator_review",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+          user_confirmed: false,
+        });
+        return jsonResponse({ pendingId: "deal-watch-1", status: "pending" });
+      }
       return jsonResponse({ items: [] });
     });
 
@@ -1063,8 +1082,17 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: /watch changes/i }));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Deal comparison ready");
     expect(prefill).toHaveTextContent("Watch important changes for Senior Energy Saver");
     expect(prefill).toHaveTextContent("Nothing is booked");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({
+        method: "POST",
+      }));
+    });
   });
 
   it("turns provider results into clear prepared-contact tasks", async () => {
@@ -1114,6 +1142,11 @@ describe("ConciergeScreen action hub", () => {
           flow_reference: CONCIERGE_FLOW_REFERENCES.careNavigation,
           requested_tool: "operator_review",
           action_label: "Prepare contact",
+          provider_search_mode: "personal-care",
+          selected_provider_name: "Marbella Care Clinic",
+          provider_name: "Marbella Care Clinic",
+          provider_phone: "+34 600 111 222",
+          score: 88,
           confirmation_required_before_action: true,
           no_external_action_without_confirmation: true,
         });
@@ -1845,6 +1878,12 @@ describe("ConciergeScreen action hub", () => {
         expect(body.action_summary).toBe("Paperwork task prepared: Claim or reimbursement.");
         expect(body.action_payload).toMatchObject({
           flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+          task_type: "claim",
+          admin_task: "Claim or reimbursement",
+          action_type: "email",
+          detail: "Reimbursement for taxi receipt",
+          recipient: "Seguro Salud",
+          deadline: "Friday",
           requested_tool: "email",
           active_tool: "operator_review",
           readiness_status: "manual_review",
@@ -2048,6 +2087,11 @@ describe("ConciergeScreen action hub", () => {
         expect(body.action_summary).toBe("Safe check prepared: Company or offer.");
         expect(body.action_payload).toMatchObject({
           flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+          source_type: "company",
+          review_kind: "scam_or_safety_check",
+          review_source: "Acme Deals https://example.test/offer",
+          company_name: "Acme Deals https://example.test/offer",
+          concern: "Company or offer",
           requested_tool: "web_search",
           active_tool: "web_search",
           readiness_status: "ready",
