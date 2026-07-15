@@ -4246,6 +4246,30 @@ function contentDraftFromCampaignDraft(draft: CampaignDraft, targetAudience: Mar
   };
 }
 
+function contentDraftFromCampaignEditChannel(
+  draft: CampaignEditDraft,
+  channelDraft: CampaignChannelDraft,
+  targetAudience: MarketingAudience | null,
+): ContentDraft {
+  const channels = campaignChannelsWithPrimary(draft);
+  const contentAssetIds = Object.fromEntries(channels.map((item) => [item.channel, item.contentAssetId])) as Partial<Record<Channel, string>>;
+  return contentDraftFromCampaignDraft({
+    name: draft.name,
+    audienceType: draft.audienceType,
+    channel: channelDraft.channel,
+    channels: channels.map((item) => item.channel),
+    contentAssetId: channelDraft.contentAssetId,
+    channelContentAssetIds: contentAssetIds,
+    status: draft.status === "scheduled" ? "scheduled" : "draft",
+    scheduleStartsAt: channelDraft.scheduledAt || draft.scheduleStartsAt,
+    scheduleEndsAt: draft.scheduleEndsAt,
+    objective: draft.objective,
+    targetAudienceId: draft.targetAudienceId,
+    recipientFilter: draft.recipientFilter,
+    snapshotRecipients: false,
+  }, targetAudience);
+}
+
 function templateGapStudioPlayId(channel: Channel, audienceType: Audience): CampaignStudioPlayId {
   if (audienceType === "b2b") {
     if (channel === "email") return "referral-partner-nurture";
@@ -10942,6 +10966,93 @@ export default function MarketingAdminPage() {
     setManualPublishFeedback("");
   }
 
+  async function createAndLinkCampaignChannelContent(channelId: string) {
+    if (!editingCampaignId) return;
+    const channelDraft = campaignChannelsWithPrimary(campaignEditDraft).find((channel) => channel.id === channelId);
+    if (!channelDraft) {
+      setCampaignEmailFeedback("Campaign channel could not be found.");
+      return;
+    }
+    if (channelDraft.contentAssetId) {
+      setCampaignEmailFeedback(`${channelLabel[channelDraft.channel]} already has content linked.`);
+      return;
+    }
+    if (!campaignEditDraft.name.trim()) {
+      setCampaignEmailFeedback("Campaign name is required before creating channel content.");
+      return;
+    }
+
+    const label = channelLabel[channelDraft.channel];
+    setContentSaving(true);
+    setCampaignSaving(true);
+    setCampaignEmailFeedback(`Creating and linking ${label} content...`);
+    try {
+      const contentDraft = contentDraftFromCampaignEditChannel(campaignEditDraft, channelDraft, selectedCampaignTargetAudience);
+      const contentResult = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+        method: "POST",
+        body: JSON.stringify(contentCreatePayloadFromDraft(contentDraft)),
+      });
+      const channels = campaignChannelsWithPrimary(campaignEditDraft).map((channel) => (
+        channel.id === channelId ? { ...channel, contentAssetId: contentResult.content.id } : channel
+      ));
+      const primary = channels[0] ?? newCampaignChannelDraft();
+      const nextDraft: CampaignEditDraft = {
+        ...campaignEditDraft,
+        channel: primary.channel,
+        contentAssetId: primary.contentAssetId,
+        status: primary.status,
+        scheduleStartsAt: primary.scheduledAt,
+        channels,
+      };
+      const existingMetadata = parseJsonText(nextDraft.metadataText, "Campaign metadata");
+      const result = await api<{ ok?: boolean; campaign?: Campaign }>(`/api/admin/marketing/campaigns/${editingCampaignId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: nextDraft.name,
+          audienceType: nextDraft.audienceType,
+          status: nextDraft.status,
+          objective: nextDraft.objective,
+          scheduleStartsAt: fromDateTimeLocal(nextDraft.scheduleStartsAt),
+          scheduleEndsAt: fromDateTimeLocal(nextDraft.scheduleEndsAt),
+          timezone: nextDraft.timezone,
+          source: nextDraft.source.trim() || "vyva",
+          lovableExternalId: nextDraft.lovableExternalId.trim() || null,
+          metadata: campaignMetadataWithTarget(existingMetadata, selectedCampaignTargetAudience),
+          channels: campaignChannelsPayload(nextDraft),
+        }),
+      });
+      setContent((current) => [contentResult.content, ...current.filter((item) => item.id !== contentResult.content.id)]);
+      setSelectedContentId(contentResult.content.id);
+      setEditingContentId(contentResult.content.id);
+      setContentEditDraft(contentEditDraftFromContent(contentResult.content));
+      setContentDrawerMode("edit");
+      if (result.campaign) {
+        setCampaigns((current) => current.map((campaign) => campaign.id === result.campaign?.id ? result.campaign : campaign));
+        setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
+      } else {
+        setCampaignEditDraft(nextDraft);
+      }
+      const feedback = `${label} content created, linked, and saved to this campaign.`;
+      setContentFeedback(feedback);
+      setContentActionFeedback(feedback);
+      setCampaignEmailFeedback(feedback);
+      setCampaignHandoffCopyFeedback(feedback);
+      setMessage(feedback);
+      setTestEmailFeedback("");
+      setManualPublishFeedback("");
+      await refreshAll();
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : `${label} content could not be created and linked.`;
+      setContentFeedback(messageText);
+      setContentActionFeedback(messageText);
+      setCampaignEmailFeedback(messageText);
+      setMessage(messageText);
+    } finally {
+      setCampaignSaving(false);
+      setContentSaving(false);
+    }
+  }
+
   function prepareManualCampaignChannelTracking(channelId: string, channel: Channel, scheduledAt: string | null) {
     updateCampaignChannel(channelId, { status: "published" });
     setManualPublishDraft((draft) => ({
@@ -13436,14 +13547,15 @@ export default function MarketingAdminPage() {
         channel: channelDraft.channel,
         title: `${channelLabel[channelDraft.channel]} content`,
         state: "blocked",
-        detail: noContentDetail,
+        detail: `${noContentDetail} Create a starter asset here and VYVA will save the link back to this campaign.`,
         contentAsset,
         recipients,
         scheduledAt,
-        actionLabel: "Attach content",
-        icon: FileText,
+        actionLabel: contentSaving || campaignSaving ? "Creating..." : "Create & link content",
+        icon: Sparkles,
+        disabled: contentSaving || campaignSaving,
         onSelect: () => {
-          setCampaignEmailFeedback(noContentDetail);
+          void createAndLinkCampaignChannelContent(channelDraft.id);
         },
       };
     }

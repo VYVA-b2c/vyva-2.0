@@ -728,9 +728,9 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
   analytics?: typeof analytics;
 } = {}) {
   const syncResponse = { ...sync, ...syncOverride };
-  const campaignsResponse = dataOverride.campaigns ?? campaigns;
+  let campaignsResponse = dataOverride.campaigns ?? campaigns;
   const contactsResponse = dataOverride.contacts ?? contacts;
-  const contentResponse = dataOverride.content ?? content;
+  let contentResponse = dataOverride.content ?? content;
   const mediaAssetsResponse = dataOverride.mediaAssets ?? mediaAssets;
   const analyticsResponse = dataOverride.analytics ?? analytics;
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -770,7 +770,11 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
     }
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaignFromRequestBody("campaign-created", init) }, { status: 201 });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaignFromRequestBody("campaign-1", init) });
-    if (path === "/api/admin/marketing/campaigns/campaign-2" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[1] });
+    if (path === "/api/admin/marketing/campaigns/campaign-2" && method === "PATCH") {
+      const updatedCampaign = campaignFromRequestBody("campaign-2", init);
+      campaignsResponse = campaignsResponse.map((campaign) => (campaign as { id?: string }).id === "campaign-2" ? updatedCampaign : campaign);
+      return jsonResponse({ ok: true, campaign: updatedCampaign });
+    }
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
     if (path === "/api/admin/marketing/campaigns/campaign-1/test-email" && method === "POST") return jsonResponse({ ok: true, communication: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" }, delivery: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" } });
     if (path === "/api/admin/marketing/campaigns/campaign-1/send-email" && method === "POST") return jsonResponse({ ok: true, sentCount: 1, failedCount: 0, skippedCount: 0, campaign: { ...campaigns[0], status: "published" }, delivery: [{ id: "comm-2", recipient: "karim@example.com", status: "sent" }] });
@@ -778,7 +782,11 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
     if (path === "/api/admin/marketing/journeys" && method === "POST") return jsonResponse({ ok: true, journey: journeyFromRequestBody("journey-created", init) }, { status: 201 });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeyFromRequestBody("journey-1", init) });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") return jsonResponse({ ok: true, deletedJourneyId: "journey-1" });
-    if (path === "/api/admin/marketing/content" && method === "POST") return jsonResponse({ ok: true, content: contentFromRequestBody("content-created", init) }, { status: 201 });
+    if (path === "/api/admin/marketing/content" && method === "POST") {
+      const createdContent = contentFromRequestBody("content-created", init);
+      contentResponse = [createdContent, ...contentResponse.filter((item) => (item as { id?: string }).id !== createdContent.id)];
+      return jsonResponse({ ok: true, content: createdContent }, { status: 201 });
+    }
     if (path === "/api/admin/marketing/content/content-2" && method === "PATCH") return jsonResponse({ ok: true, content: contentFromRequestBody("content-2", init) });
     if (path === "/api/admin/marketing/content/content-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContentId: "content-2" });
     if (path === "/api/admin/marketing/media/media-1" && method === "PATCH") return jsonResponse({ ok: true, mediaAsset: mediaFromRequestBody("media-1", init) });
@@ -4149,5 +4157,57 @@ describe("MarketingAdminPage", () => {
         contentAssetId: "content-2",
       }),
     ]);
+  });
+
+  it("creates and links missing campaign channel content from the publish kit", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-2"));
+
+    expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Content: Missing");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Create a starter asset here");
+    expect(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Create & link content");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const contentPostCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const contentPostBody = JSON.parse(String(contentPostCall?.[1]?.body));
+    expect(contentPostBody).toMatchObject({
+      title: "Partner outreach LinkedIn content",
+      channel: "linkedin",
+      language: "en",
+      status: "draft",
+      body: expect.stringContaining("Warm B2B leads"),
+      ctaLabel: "Book a demo",
+      ctaUrl: "https://v2.vyva.life/demo",
+    });
+    expect(contentPostBody.designJson).toMatchObject({
+      generator: "marketing_campaign_planner",
+      campaignName: "Partner outreach",
+      audienceType: "b2b",
+      channel: "linkedin",
+    });
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const campaignPatchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns/campaign-2" && init?.method === "PATCH");
+    const campaignPatchBody = JSON.parse(String(campaignPatchCall?.[1]?.body));
+    expect(campaignPatchBody.channels).toEqual([
+      expect.objectContaining({
+        channel: "linkedin",
+        contentAssetId: "content-created",
+        status: "draft",
+      }),
+    ]);
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("LinkedIn content created, linked, and saved to this campaign.");
+    });
+    expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Content: Partner outreach LinkedIn content");
+    expect(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview content");
   });
 });
