@@ -2881,6 +2881,40 @@ function contentDraftFromCampaignExperiment(
   };
 }
 
+function campaignIntentBriefFromExperiment(
+  campaign: Campaign,
+  content: ContentAsset,
+  suggestion: CampaignExperimentSuggestion,
+  targetAudience: MarketingAudience | null,
+) {
+  const experimentLabel = suggestion.experimentType === "subject"
+    ? "subject line clarity test"
+    : suggestion.experimentType === "cta"
+      ? "CTA clarity test"
+      : "winner follow-up";
+  const aiDirection = suggestion.experimentType === "subject"
+    ? "Write a subject-led variant that makes the benefit clearer before opening."
+    : suggestion.experimentType === "cta"
+      ? "Write a variant with one direct call to action, one obvious button label, and no competing asks."
+      : "Write a warm follow-up that reuses the winning angle and adds one fresh proof point.";
+  const audienceLabel = targetAudience?.name ?? campaign.audienceType.toUpperCase();
+  const routeLabel = campaign.channels.length
+    ? campaign.channels.map((channel) => channelLabel[channel.channel]).join(" + ")
+    : channelLabel[content.channel];
+
+  return [
+    `Performance experiment from "${campaign.name}".`,
+    `Signal: ${suggestion.value}. ${suggestion.detail}`,
+    `Experiment: ${experimentLabel}.`,
+    `Audience/list: ${audienceLabel}.`,
+    `Primary channel: ${channelLabel[content.channel]}. Current campaign route: ${routeLabel}.`,
+    content.subject ? `Current hook: "${content.subject}".` : "",
+    content.ctaLabel ? `Current CTA: ${content.ctaLabel}.` : "",
+    `AI direction: ${aiDirection}`,
+    "Goal: create the next campaign/content variant, compare it against the imported performance baseline, and keep the audience experience focused.",
+  ].filter(Boolean).join("\n");
+}
+
 function contentDraftFromCampaignDraft(draft: CampaignDraft, targetAudience: MarketingAudience | null): ContentDraft {
   const campaignName = draft.name.trim() || `${channelLabel[draft.channel]} campaign`;
   const objective = draft.objective.trim() || "Share one clear VYVA benefit and invite the audience to take the next step.";
@@ -9407,6 +9441,35 @@ export default function MarketingAdminPage() {
       return;
     }
     const draft = contentDraftFromCampaignExperiment(campaign, contentAsset, suggestion);
+    const targetAudience = campaignTargetAudience(campaign, audiences);
+    const play = campaignPlayForContentAsset(contentAsset);
+    const intentBrief = campaignIntentBriefFromExperiment(campaign, contentAsset, suggestion, targetAudience);
+    const selectedChannels = uniqueChannels([contentAsset.channel, ...campaign.channels.map((channel) => channel.channel)]);
+    setCampaignStudioCategory(play.categoryId);
+    updateCampaignStudio({
+      playId: play.id,
+      channel: contentAsset.channel,
+      selectedChannels,
+      toneId: suggestion.experimentType === "follow_up" ? "warm" : "direct",
+      angleId: suggestion.experimentType === "follow_up" ? "proof" : "action",
+      targetAudienceId: targetAudience?.id ?? "",
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+    });
+    setCampaignIntentBrief(intentBrief);
+    setCampaignDraft((current) => ({
+      ...current,
+      name: `${campaign.name} - ${suggestion.experimentType === "subject" ? "subject test" : suggestion.experimentType === "cta" ? "CTA test" : "follow-up"}`,
+      audienceType: campaign.audienceType,
+      channel: contentAsset.channel,
+      contentAssetId: "",
+      status: "draft",
+      scheduleStartsAt: "",
+      scheduleEndsAt: "",
+      objective: intentBrief,
+      targetAudienceId: targetAudience?.id ?? "",
+      recipientFilter: targetAudience?.name ?? "",
+      snapshotRecipients: Boolean(targetAudience?.mappedMemberCount || targetAudience?.memberCount || campaign.recipientCount),
+    }));
     setActiveTab("content");
     setSelectedContentId(null);
     setEditingContentId(null);
@@ -9419,8 +9482,9 @@ export default function MarketingAdminPage() {
     setContentTemplateAudienceFilter("all");
     setContentTemplateCategoryFilter("all");
     setContentSourceFilter("all");
-    setContentActionFeedback(`Drafted ${suggestion.experimentType === "cta" ? "CTA" : suggestion.experimentType === "subject" ? "subject line" : "follow-up"} experiment from "${campaign.name}". Save it as new content, then link it to a campaign channel.`);
-    setMessage(`Performance experiment drafted from "${campaign.name}".`);
+    setContentActionFeedback(`Drafted ${suggestion.experimentType === "cta" ? "CTA" : suggestion.experimentType === "subject" ? "subject line" : "follow-up"} experiment from "${campaign.name}". Campaign AI brief also updated from performance data.`);
+    setCampaignStudioFeedback(`Performance brief loaded from "${campaign.name}". Review the AI brief in the campaign studio, then create the next test.`);
+    setMessage(`Performance experiment drafted from "${campaign.name}" and loaded into the campaign AI brief.`);
   }
 
   function cancelContentEdit() {

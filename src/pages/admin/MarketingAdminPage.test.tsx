@@ -1108,6 +1108,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-content-cta-label")).toHaveValue("Take the next step");
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Experiment note: Use one direct call to action");
     expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_performance_experiment");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign AI brief also updated");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Performance brief loaded from "Caregiver welcome"');
+    const campaignExperimentBrief = screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement;
+    expect(campaignExperimentBrief.value).toContain('Performance experiment from "Caregiver welcome".');
+    expect(campaignExperimentBrief.value).toContain("Signal: 9% click rate");
+    expect(campaignExperimentBrief.value).toContain("Experiment: CTA clarity test.");
+    expect(campaignExperimentBrief.value).toContain("AI direction: Write a variant with one direct call to action");
+    expect(campaignExperimentBrief.value).toContain("Goal: create the next campaign/content variant");
   });
 
   it("surfaces recommended next actions and routes to the right work area", async () => {
