@@ -683,6 +683,16 @@ type CampaignStudioFollowUpPlayItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignStudioOutcomeTrackerItem = {
+  key: string;
+  title: string;
+  value: string;
+  detail: string;
+  text: string;
+  icon: LucideIcon;
+  state: CampaignReadinessState;
+};
+
 type CampaignStudioCreativeVariant = {
   key: string;
   label: string;
@@ -8116,6 +8126,109 @@ export default function MarketingAdminPage() {
     },
   ];
   const campaignStudioFollowUpPlaybookText = campaignStudioFollowUpPlays.map((item) => item.text).join("\n\n---\n\n");
+  const campaignStudioRelationshipGoal = selectedCampaignStudioPlay.audienceType === "b2b"
+    ? "partner conversation, referral path, demo request, or useful introduction"
+    : selectedCampaignStudioPlay.audienceType === "b2c"
+      ? "caregiver activation, profile completion, app engagement, or care-team reply"
+      : "qualified reply, useful next step, or cleaner segment for the next campaign";
+  const campaignStudioOutcomeTrackerItems: CampaignStudioOutcomeTrackerItem[] = [
+    {
+      key: "human-response",
+      title: "Human responses",
+      value: "Replies, comments, demos",
+      detail: "Treat every direct response as a relationship record, not just a campaign result.",
+      icon: UsersRound,
+      state: campaignStudioPackRecipientCount > 0 ? "ready" : "blocked",
+      text: [
+        "Human response outcome log",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Relationship goal: ${campaignStudioRelationshipGoal}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        "",
+        "Capture for every reply, comment, call, demo request, or in-person conversation:",
+        "- Contact:",
+        "- Signal: interested / question / objection / demo requested / not now / wrong contact",
+        "- Need or context:",
+        "- Best next step:",
+        "- Owner:",
+        "- Follow-up date:",
+        "",
+        "Next action rule: warm replies should become a contact note, a follow-up task, or a smaller relationship list before the next broadcast.",
+      ].join("\n"),
+    },
+    {
+      key: "engagement-signal",
+      title: "Engagement signals",
+      value: campaignStudioHasEmailChannel ? "Opens and clicks" : "Views, saves, clicks",
+      detail: "Use soft engagement as a warm queue for a lighter follow-up or a sharper next angle.",
+      icon: BarChart3,
+      state: campaignStudioSelectedChannels.length > 0 ? "planning" : "blocked",
+      text: [
+        "Engagement signal tracker",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Channels: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
+        `Planned recipient snapshots: ${campaignStudioPackRecipientCount}`,
+        "",
+        "Track after publish:",
+        "- Sent/published count:",
+        "- Opens/views:",
+        "- Clicks/profile visits/saves:",
+        "- Replies/comments:",
+        "- Follow-up conversations:",
+        "",
+        "Decision guide:",
+        "High clicks but low replies: send a short proof-led follow-up.",
+        "Low opens/views: change the hook, subject, or first visual.",
+        "Good replies from one segment: create a smaller audience list and continue the relationship there.",
+      ].join("\n"),
+    },
+    {
+      key: "consent-cleanup",
+      title: "Consent and fit cleanup",
+      value: `${campaignStudioConsentCounts.optedOut} opted out / ${campaignStudioConsentCounts.review} review`,
+      detail: "Clean bad-fit, opted-out, and unmapped contacts before the next campaign so trust improves over time.",
+      icon: CheckCircle2,
+      state: campaignStudioConsentCounts.optedOut > 0 || campaignStudioConsentCounts.review > 0 ? "needs_action" : "ready",
+      text: [
+        "Consent and fit cleanup tracker",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Current consent picture: ${campaignStudioConsentCounts.optedIn} opted in, ${campaignStudioConsentCounts.review} pending/unknown, ${campaignStudioConsentCounts.optedOut} opted out.`,
+        "",
+        "Capture after publish:",
+        "- Opt-outs:",
+        "- Wrong contacts:",
+        "- Bad phone/email/WhatsApp:",
+        "- Better organization/list fit:",
+        "- Contacts to suppress or re-route:",
+        "",
+        "Before the next send: remove opted-out contacts, fix bad contact routes, and split weak-fit contacts into a separate review list.",
+      ].join("\n"),
+    },
+    {
+      key: "next-campaign",
+      title: "Next campaign move",
+      value: selectedCampaignStudioPlay.audienceType === "b2b" ? "Nurture or partner follow-up" : "Activation or trust follow-up",
+      detail: "Decide the next message from what people actually did, so campaigns become a relationship loop.",
+      icon: Waypoints,
+      state: "planning",
+      text: [
+        "Next campaign decision sheet",
+        `Current campaign: ${campaignStudioGenerated.campaignName}`,
+        `Current objective: ${campaignStudioGenerated.objective || selectedCampaignStudioPlay.objective}`,
+        `Current audience: ${campaignStudioOfflineAudienceName}`,
+        "",
+        "Choose the next move:",
+        "1. Warm responders: personal follow-up or journey enrollment.",
+        "2. Clicked/opened only: proof-led reminder with one easier CTA.",
+        "3. Silent but reachable: change angle, channel, or timing.",
+        "4. Wrong fit or opted out: clean data and exclude from future sends.",
+        "",
+        `Suggested next relationship goal: ${campaignStudioRelationshipGoal}.`,
+      ].join("\n"),
+    },
+  ];
+  const campaignStudioOutcomeTrackerText = campaignStudioOutcomeTrackerItems.map((item) => item.text).join("\n\n---\n\n");
   const contentTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
     const candidateTemplates = contentTemplateFiltersActive ? visibleContentTemplates : contentTemplateGallery;
     const playCategoryLabel = campaignStudioCategories.find((category) => category.id === selectedCampaignStudioPlay.categoryId)?.label ?? selectedCampaignStudioPlay.categoryId;
@@ -13086,6 +13199,62 @@ export default function MarketingAdminPage() {
                                 data-testid={`button-marketing-campaign-studio-copy-follow-up-${item.key}`}
                               >
                                 <Copy size={14} /> Copy play
+                              </button>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4" data-testid="marketing-campaign-studio-outcome-tracker">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-800">Outcome tracker</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Turn results into the next relationship step</h3>
+                          <p className="mt-1 text-xs font-bold text-[#735f42]">
+                            Capture replies, clicks, opt-outs, and next actions in one format so every campaign improves the audience record.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Outcome tracker pack", campaignStudioOutcomeTrackerText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-sm font-black text-amber-800 hover:bg-amber-50"
+                          data-testid="button-marketing-campaign-studio-copy-outcome-tracker"
+                        >
+                          <Copy size={14} /> Copy tracker pack
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-4" data-testid="marketing-campaign-studio-outcome-items">
+                        {campaignStudioOutcomeTrackerItems.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <article key={item.key} className={`flex min-h-[320px] flex-col rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-outcome-${item.key}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-amber-800 shadow-sm">
+                                    <Icon size={15} aria-hidden="true" />
+                                  </span>
+                                  <h4 className="mt-2 font-black text-[#241133]">{item.title}</h4>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed text-[#735f42]">{item.detail}</p>
+                                </div>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                              <p className="mt-3 rounded-lg bg-white/80 p-2 text-xs font-black leading-relaxed text-[#735f42]">
+                                {item.value}
+                              </p>
+                              <textarea
+                                className="mt-3 min-h-[145px] flex-1 rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#5b4a32]"
+                                value={item.text}
+                                readOnly
+                                data-testid={`textarea-marketing-campaign-studio-outcome-${item.key}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignStudioOfflineHandoff(item.title, item.text)}
+                                className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-700 px-3 text-sm font-black text-white hover:bg-amber-800"
+                                data-testid={`button-marketing-campaign-studio-copy-outcome-${item.key}`}
+                              >
+                                <Copy size={14} /> Copy tracker
                               </button>
                             </article>
                           );

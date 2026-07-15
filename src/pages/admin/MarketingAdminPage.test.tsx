@@ -3017,6 +3017,22 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Consent and relationship cleanup"));
     });
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Relationship follow-up playbook copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-outcome-tracker")).toHaveTextContent("Outcome tracker");
+    expect(screen.getByTestId("marketing-campaign-studio-outcome-human-response")).toHaveTextContent("Human responses");
+    expect(screen.getByTestId("marketing-campaign-studio-outcome-next-campaign")).toHaveTextContent("Next campaign move");
+    const outcomeTracker = screen.getByTestId("textarea-marketing-campaign-studio-outcome-human-response") as HTMLTextAreaElement;
+    expect(outcomeTracker.value).toContain("Human response outcome log");
+    expect(outcomeTracker.value).toContain("Relationship goal");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-outcome-human-response"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Human response outcome log"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Human responses copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-outcome-tracker"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Next campaign decision sheet"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Outcome tracker pack copied.");
     expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Offline and human handoff");
     expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Phone call script");
     expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Flyer / poster brief");
