@@ -3823,6 +3823,43 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-contact-lovable-id")).toHaveValue("lovable-contact-2");
   });
 
+  it("starts a relationship follow-up campaign from campaign results", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+
+    expect(screen.getByTestId("marketing-campaign-relationship-follow-up")).toHaveTextContent("Responder nurture");
+    expect(screen.getByTestId("marketing-campaign-relationship-follow-up-responders")).toHaveTextContent("8 signals");
+    fireEvent.click(screen.getByTestId("button-marketing-start-relationship-follow-up"));
+
+    expect(screen.queryByTestId("marketing-campaign-edit-form")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Follow-up campaign starter loaded from "Caregiver welcome".');
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Caregiver welcome responder follow-up");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2c");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-1");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("checkbox-marketing-campaign-snapshot")).toBeChecked();
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("2/3 linked");
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("select-marketing-campaign-route-content-whatsapp")).toHaveValue("");
+    expect(screen.getByTestId("select-marketing-campaign-route-content-linkedin")).toHaveValue("content-2");
+    expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("0");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness-recipients")).toHaveTextContent("No eligible recipients match these channels, list, and filter.");
+    const intent = screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement;
+    expect(intent.value).toContain('Relationship follow-up from "Caregiver welcome".');
+    expect(intent.value).toContain("Target list: Partners.");
+    expect(intent.value).toContain("Recommended channels: Email, WhatsApp, and LinkedIn.");
+    expect(intent.value).toContain("Signals: 8 engagement signals; 1 manual route to track.");
+    expect(intent.value).toContain("VYVA relationship follow-up brief");
+    const objective = screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement;
+    expect(objective.value).toContain('Follow-up campaign generated from "Caregiver welcome".');
+    expect(objective.value).toContain("Audience/list: Partners.");
+    expect(objective.value).toContain("Channels: Email, WhatsApp, and LinkedIn.");
+  });
+
   it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

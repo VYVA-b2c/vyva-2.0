@@ -13584,6 +13584,97 @@ export default function MarketingAdminPage() {
     "3. Suggest the next channel, message angle, CTA, and follow-up owner.",
     "4. Keep consent and channel availability in mind before proposing any live send.",
   ].join("\n") : "";
+
+  function startFollowUpCampaignFromCurrentCampaign() {
+    if (!editingCampaign) return;
+    const sourceName = (campaignEditDraft.name || editingCampaign.name || "Campaign").trim();
+    const audienceType = campaignEditDraft.audienceType;
+    const play = campaignStudioPlayById(
+      audienceType === "b2b"
+        ? "referral-partner-nurture"
+        : audienceType === "both"
+          ? "reactivation"
+          : "family-confidence",
+    );
+    const primaryChannel: Channel = "email";
+    const selectedChannels = uniqueChannels([
+      primaryChannel,
+      ...recommendedCampaignStudioChannels(play),
+      ...planningOnlyCampaignChannels.map((channel) => channel.channel),
+    ]);
+    const targetAudience = selectedCampaignTargetAudience ?? bestCampaignStudioAudience(play, audiences);
+    const scheduleStartsAt = campaignStudioDefaultSchedule(play);
+    const originalContentByChannel = new Map(campaignReadinessChannels.map((channelDraft) => [
+      channelDraft.channel,
+      channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null,
+    ]));
+    const channelContentAssetIds = Object.fromEntries(selectedChannels.map((channel) => {
+      const matchedContent = bestCampaignPlannerContent(play, channel, content) ?? originalContentByChannel.get(channel) ?? null;
+      return [channel, matchedContent?.id ?? ""];
+    })) as Partial<Record<Channel, string>>;
+    const signalLabel = campaignRelationshipSignalCount > 0
+      ? `${campaignRelationshipSignalCount} engagement signal${campaignRelationshipSignalCount === 1 ? "" : "s"}`
+      : "no strong engagement signal yet";
+    const manualOutcomeLabel = manualPublishResults.length
+      ? `${manualPublishResults.length} manual result${manualPublishResults.length === 1 ? "" : "s"} recorded`
+      : planningOnlyCampaignChannels.length
+        ? `${planningOnlyCampaignChannels.length} manual route${planningOnlyCampaignChannels.length === 1 ? "" : "s"} to track`
+        : "email-only route";
+    const intentBrief = [
+      `Relationship follow-up from "${sourceName}".`,
+      `Original audience: ${campaignEditDraft.audienceType.toUpperCase()}.`,
+      targetAudience ? `Target list: ${targetAudience.name}.` : "Target list: all eligible contacts.",
+      `Recommended channels: ${formatChannelList(selectedChannels)}.`,
+      `Signals: ${signalLabel}; ${manualOutcomeLabel}.`,
+      `Saved recipients on original campaign: ${savedCampaignRecipientCount}.`,
+      "",
+      "Goal: create the next campaign for people who clicked, replied, engaged, or need a clearer second touch.",
+      "AI direction: keep this follow-up specific, relationship-led, consent-aware, and lighter than the original campaign.",
+      "",
+      campaignRelationshipFollowUpBrief,
+    ].join("\n");
+
+    setActiveTab("dashboard");
+    setCampaignStudioCategory(play.categoryId);
+    setCampaignStudioAiDrafts({});
+    setCampaignStudio({
+      playId: play.id,
+      toneId: audienceType === "b2b" ? "expert" : "warm",
+      angleId: campaignRelationshipSignalCount > 0 ? "action" : "balanced",
+      channel: primaryChannel,
+      selectedChannels,
+      scheduleStartsAt,
+      targetAudienceId: targetAudience?.id ?? "",
+    });
+    setCampaignIntentBrief(intentBrief);
+    setCampaignDraft({
+      ...emptyCampaignDraft(),
+      name: `${sourceName} ${campaignRelationshipSignalCount > 0 ? "responder" : "relationship"} follow-up`,
+      audienceType: play.audienceType,
+      channel: primaryChannel,
+      channels: selectedChannels,
+      contentAssetId: channelContentAssetIds[primaryChannel] ?? "",
+      channelContentAssetIds,
+      status: scheduleStartsAt ? "scheduled" : "draft",
+      scheduleStartsAt,
+      objective: [
+        `Follow-up campaign generated from "${sourceName}".`,
+        `Use ${signalLabel} and ${manualOutcomeLabel} to decide who gets a second touch.`,
+        targetAudience ? `Audience/list: ${targetAudience.name}.` : "",
+        `Channels: ${formatChannelList(selectedChannels)}.`,
+        "Next step: review linked content, generate or improve AI copy, then add the campaign.",
+      ].filter(Boolean).join("\n"),
+      targetAudienceId: targetAudience?.id ?? "",
+      recipientFilter: targetAudience?.name ?? "",
+      snapshotRecipients: Boolean(targetAudience?.mappedMemberCount || savedCampaignRecipientCount),
+    });
+    setEditingCampaignId(null);
+    setConfirmingCampaignDeleteId(null);
+    setConfirmingCampaignSendId(null);
+    setCampaignStudioFeedback(`Follow-up campaign starter loaded from "${sourceName}". Review AI copy, linked content, and recipients before creating it.`);
+    setMessage(`Follow-up campaign starter loaded from "${sourceName}".`);
+  }
+
   const selectedManualPublishChannel = manualPublishChannelOptions.some((item) => item.channel === manualPublishDraft.channel)
     ? manualPublishDraft.channel
     : manualPublishChannelOptions[0]?.channel ?? manualPublishDraft.channel;
@@ -16765,15 +16856,25 @@ export default function MarketingAdminPage() {
                             <h3 className="mt-1 font-serif text-2xl text-[#241133]">What should happen after this campaign?</h3>
                             <p className="mt-1 text-sm font-bold text-[#5f6f62]">Turn clicks, replies, social/manual outcomes, and saved recipients into the next audience move.</p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => void copyCampaignHandoffText("Campaign relationship follow-up brief", campaignRelationshipFollowUpBrief)}
-                            disabled={!campaignRelationshipFollowUpBrief.trim()}
-                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                            data-testid="button-marketing-copy-relationship-follow-up"
-                          >
-                            <Sparkles size={15} /> Copy AI follow-up brief
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={startFollowUpCampaignFromCurrentCampaign}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-black text-white hover:bg-emerald-800"
+                              data-testid="button-marketing-start-relationship-follow-up"
+                            >
+                              <Waypoints size={15} /> Start follow-up campaign
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void copyCampaignHandoffText("Campaign relationship follow-up brief", campaignRelationshipFollowUpBrief)}
+                              disabled={!campaignRelationshipFollowUpBrief.trim()}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-copy-relationship-follow-up"
+                            >
+                              <Sparkles size={15} /> Copy AI follow-up brief
+                            </button>
+                          </div>
                         </div>
                         <div className="mt-4 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-relationship-follow-up-items">
                           {campaignRelationshipFollowUpItems.map((item) => {
