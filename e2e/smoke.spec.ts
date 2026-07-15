@@ -1019,6 +1019,112 @@ test("concierge home-service provider reply keeps pending paths and saves confir
   await expect(page.getByTestId("provider-reply-notice")).toContainText("Visit saved in Scheduled Support. The task is closed.");
 });
 
+test("concierge scam document review requires final confirmation before saving outcome", async ({ page }) => {
+  await mockApi(page, true, {}, {
+    phone: "+34 600 123 123",
+    street: "Saved Street 12",
+    cityState: "Madrid",
+  });
+  await recordWindowOpen(page);
+
+  let confirmed = false;
+  let confirmCount = 0;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  const pendingScamReview = () => ({
+    id: "scam-document-smoke-1",
+    use_case: "scam_check",
+    provider_name: "VYVA review",
+    provider_phone: null,
+    action_summary: "Safe check prepared: Document or photo.",
+    action_payload: {
+      flow_reference: "FLOW_SCAM_CHECK",
+      requested_tool: "camera_or_upload",
+      active_tool: "camera_or_upload",
+      execution_channel: "manual",
+      review_source: "Prize letter photo",
+      scam_detail: "Prize letter photo",
+      document_type: "Prize letter photo",
+      concern: "Suspicious document, letter, invoice, or photo",
+      confirmation_required_before_action: true,
+      no_external_action_without_confirmation: true,
+      user_confirmed: confirmed,
+    },
+    status: "pending",
+    confirmed_at: confirmed ? "2026-07-15T10:00:00.000Z" : null,
+    language: "en",
+  });
+
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingScamReview()] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/scam-document-smoke-1/confirm") {
+      expect(route.request().method()).toBe("POST");
+      confirmed = true;
+      confirmCount += 1;
+      await fulfillJson(route, 200, { pendingId: "scam-document-smoke-1", status: "pending" });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/scam-document-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-scam-document-smoke" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  const reviewCard = page.getByTestId("panel-concierge-next-action");
+  await expect(reviewCard).toContainText("Prize letter photo");
+  await expect(reviewCard).toContainText("Source");
+  await expect(page.getByTestId("panel-manual-review-outcome-scam-document-smoke-1")).toHaveCount(0);
+
+  await page.getByTestId("button-concierge-confirm-scam-document-smoke-1").click();
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+  await page.getByTestId("button-concierge-final-confirm").click();
+  await expect.poll(() => confirmCount).toBe(1);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  const outcomePanel = page.getByTestId("panel-manual-review-outcome-scam-document-smoke-1");
+  await expect(outcomePanel).toContainText("Review outcome");
+  await expect(outcomePanel).toContainText("Prize letter photo");
+  const saveButton = page.getByTestId("button-manual-review-save-scam-document-smoke-1");
+  await expect(saveButton).toBeDisabled();
+  await page.getByTestId("button-manual-review-status-review_pending-scam-document-smoke-1").click();
+  await page.getByTestId("input-manual-review-summary-scam-document-smoke-1").fill("Looks suspicious because it asks for an upfront payment.");
+  await page.getByTestId("input-manual-review-next-step-scam-document-smoke-1").fill("Ask a trusted contact before replying.");
+  await page.getByTestId("input-manual-review-reference-scam-document-smoke-1").fill("SG-9");
+  await page.getByTestId("input-manual-review-notes-scam-document-smoke-1").fill("No upload or reply was sent.");
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  await expect.poll(() => completeBody?.outcome_payload?.review_outcome ?? null).toBe("review_pending");
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Review pending: Prize letter photo. Reference: SG-9.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_SCAM_CHECK",
+      execution_type: "manual_review_outcome_capture",
+      execution_channel: "operator_review",
+      review_outcome: "review_pending",
+      review_summary: "Looks suspicious because it asks for an upfront payment.",
+      next_step: "Ask a trusted contact before replying.",
+      reference: "SG-9",
+      notes: "No upload or reply was sent.",
+      completed_from: "manual_review_outcome_panel",
+      no_external_action_without_confirmation: true,
+    }),
+  });
+});
+
 test("notifications settings back returns to settings home", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/settings/notifications", { waitUntil: "domcontentloaded" });

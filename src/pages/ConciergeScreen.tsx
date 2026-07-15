@@ -3735,6 +3735,95 @@ function webSearchOutcomePayload(item: ConciergePendingItem, search: WebSearchAc
   };
 }
 
+function manualReviewFlowReference(item: ConciergePendingItem): string {
+  const explicit = payloadString(item.action_payload, ["flow_reference"]);
+  if (explicit) return explicit;
+  if (item.use_case === "scam_check") return SCAM_CHECK_FLOW_REFERENCE;
+  if (item.use_case === "insurance_admin" || item.use_case === "admin_task" || item.use_case === "paperwork") {
+    return INSURANCE_ADMIN_FLOW_REFERENCE;
+  }
+  return CONCIERGE_FLOW_REFERENCES.toolGatedTask;
+}
+
+function manualReviewSubject(item: ConciergePendingItem, isSpanish: boolean): string {
+  return payloadString(item.action_payload, [
+    "review_source",
+    "scam_detail",
+    "company_name",
+    "document_type",
+    "phone_number",
+    "recipient",
+    "recipient_name",
+    "task_goal",
+    "goal",
+    "detail",
+    "reason",
+  ]) || item.action_summary || (isSpanish ? "revision VYVA" : "VYVA review");
+}
+
+function manualReviewStatusLabel(status: ManualReviewOutcomeStatus, isSpanish: boolean): string {
+  if (status === "review_pending") return isSpanish ? "Revision pendiente" : "Review pending";
+  return isSpanish ? "Completado" : "Completed";
+}
+
+function manualReviewOutcomeSummary(
+  item: ConciergePendingItem,
+  form: ManualReviewOutcomeForm,
+  isSpanish: boolean,
+): string {
+  const subject = manualReviewSubject(item, isSpanish);
+  const status = manualReviewStatusLabel(form.status, isSpanish);
+  const reference = form.reference.trim();
+  if (reference) {
+    return isSpanish
+      ? `${status}: ${subject}. Referencia: ${reference}.`
+      : `${status}: ${subject}. Reference: ${reference}.`;
+  }
+  return `${status}: ${subject}.`;
+}
+
+function manualReviewOutcomePayload(
+  item: ConciergePendingItem,
+  form: ManualReviewOutcomeForm,
+): Record<string, unknown> {
+  const payload = item.action_payload ?? {};
+  const summary = form.summary.trim();
+  const nextStep = form.nextStep.trim();
+  const reference = form.reference.trim();
+  const notes = form.notes.trim();
+  return {
+    ...payload,
+    flow_reference: manualReviewFlowReference(item),
+    execution_type: "manual_review_outcome_capture",
+    execution_channel: "operator_review",
+    review_outcome: form.status,
+    review_summary: summary || null,
+    next_step: nextStep || null,
+    reference: reference || payloadString(payload, ["reference", "case_reference", "claim_reference"]) || null,
+    notes: notes || null,
+    completed_from: "manual_review_outcome_panel",
+    no_external_action_without_confirmation: true,
+    reviewed_at: new Date().toISOString(),
+  };
+}
+
+function isManualReviewOutcomePendingAction(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
+  if (!item || (item.status !== "pending" && item.status !== "calling")) return false;
+  if (isWebSearchPendingAction(item)) return false;
+  if (isPhoneCallPendingAction(item)) return false;
+  if (getActionEmailDraft(item) || getActionWhatsAppDraft(item) || getBookingUrl(item)) return false;
+  if (isProviderSearchPendingAction(item)) return false;
+  if (item.use_case === "scam_check" || item.use_case === "insurance_admin" || item.use_case === "admin_task" || item.use_case === "paperwork") {
+    return true;
+  }
+  const toolText = [
+    payloadString(item.action_payload, ["requested_tool"]),
+    payloadString(item.action_payload, ["active_tool"]),
+    payloadString(item.action_payload, ["execution_channel"]),
+  ].join(" ").toLowerCase();
+  return /\b(operator_review|manual|manual_review|camera_or_upload)\b/.test(toolText);
+}
+
 function getActionEmailDraft(item: ConciergePendingItem): ConciergeEmailDraft | null {
   const payload = item.action_payload;
   const address = payloadString(payload, [
@@ -4298,6 +4387,90 @@ function buildPendingActionReviewSummary(params: {
     handoffChannelLabel(item, isSpanish),
     missing,
   );
+
+  const flowRequirements = evaluateConciergeFlowRequirements({
+    useCase: item.use_case,
+    payload,
+    providerName: activeTaskProviderLabel(item, isSpanish),
+    summary: item.action_summary,
+  });
+
+  if (isManualReviewOutcomePendingAction(item) && flowRequirements.flowReference === CONCIERGE_FLOW_REFERENCES.scamCheck) {
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Fuente" : "Source",
+      payloadString(payload, [
+        "review_source",
+        "scam_detail",
+        "document_url",
+        "uploaded_file",
+        "uploaded_document",
+        "uploaded_image",
+        "document_type",
+        "phone_number",
+        "company_name",
+        "email_body",
+        "sender",
+        "link",
+        "url",
+        "show_vyva_input_type",
+        "show_vyva_source",
+      ]),
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Riesgo" : "Concern",
+      payloadString(payload, ["concern", "what_worries_you", "risk_context", "review_question", "review_summary", "risk_level", "reason", "detail"]),
+      missing,
+    );
+  } else if (isManualReviewOutcomePendingAction(item) && flowRequirements.flowReference === CONCIERGE_FLOW_REFERENCES.insuranceAdmin) {
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Gestion" : "Task",
+      payloadString(payload, ["document_type", "task_type", "admin_task", "action_label", "reason", "detail"]) || item.action_summary,
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Destinatario" : "Recipient",
+      payloadString(payload, ["recipient", "recipient_name", "recipient_email", "provider_email", "email", "phone"]),
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Fecha limite" : "Deadline",
+      payloadString(payload, ["deadline", "due_date", "requested_time"]),
+      missing,
+    );
+  } else if (isManualReviewOutcomePendingAction(item) && flowRequirements.flowReference === CONCIERGE_FLOW_REFERENCES.toolGatedTask) {
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Objetivo" : "Goal",
+      payloadString(payload, ["task_goal", "goal", "reason", "detail", "message", "draft_message"]) || item.action_summary,
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Tipo de accion" : "Action type",
+      payloadString(payload, ["action_type", "requested_tool", "active_tool", "execution_channel", "preferred_channel"]),
+      missing,
+    );
+    addReviewDetail(
+      details,
+      missingDetails,
+      isSpanish ? "Web o contacto" : "Website or contact",
+      payloadString(payload, ["recipient", "recipient_email", "website", "booking_url", "provider_name", "provider_email", "phone"]),
+      missing,
+    );
+  }
 
   if (item.use_case === "book_ride") {
     addReviewDetail(details, missingDetails, isSpanish ? "Recogida" : "Pickup", payloadString(payload, ["pickup_address", "pickup"]), missing);
@@ -5704,6 +5877,127 @@ function SafeWebSearchExecutionPanel({
   );
 }
 
+function ManualReviewOutcomePanel({
+  item,
+  form,
+  notice,
+  error,
+  isSaving,
+  isSpanish,
+  onFormChange,
+  onSave,
+}: {
+  item: ConciergePendingItem;
+  form: ManualReviewOutcomeForm;
+  notice: string | null;
+  error: string | null;
+  isSaving: boolean;
+  isSpanish: boolean;
+  onFormChange: (field: keyof ManualReviewOutcomeForm, value: string) => void;
+  onSave: () => void;
+}) {
+  const canSave = Boolean(form.summary.trim()) && !isSaving;
+  const statusOptions: ManualReviewOutcomeStatus[] = ["completed", "review_pending"];
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#DDD6FE] bg-[#FBFAFF] p-4"
+      data-testid={`panel-manual-review-outcome-${item.id}`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-vyva-purple shadow-sm">
+          <FileText size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+            {isSpanish ? "Resultado de revision" : "Review outcome"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {manualReviewSubject(item, isSpanish)}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "Guarda si la revision queda resuelta o si necesita seguimiento."
+              : "Save whether the review is resolved or still needs follow-up."}
+          </span>
+        </span>
+      </div>
+
+      <ConciergeApprovalPromise isSpanish={isSpanish} tone="purple" />
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {statusOptions.map((status) => {
+          const selected = form.status === status;
+          return (
+            <Button
+              key={status}
+              type="button"
+              data-testid={`button-manual-review-status-${status}-${item.id}`}
+              onClick={() => onFormChange("status", status)}
+              variant={selected ? "default" : "outline"}
+              className={selected ? "vyva-primary-action h-auto" : "vyva-secondary-action h-auto border-[#DDD6FE] text-vyva-purple"}
+            >
+              {manualReviewStatusLabel(status, isSpanish)}
+            </Button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <textarea
+          value={form.summary}
+          onChange={(event) => onFormChange("summary", event.target.value)}
+          placeholder={isSpanish ? "Resumen de lo revisado" : "Summary of what was reviewed"}
+          data-testid={`input-manual-review-summary-${item.id}`}
+          className="min-h-[76px] rounded-[14px] border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-vyva-purple focus:ring-2 focus:ring-[#EDE9FE] sm:col-span-2"
+        />
+        <Input
+          value={form.reference}
+          onChange={(event) => onFormChange("reference", event.target.value)}
+          placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
+          data-testid={`input-manual-review-reference-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DDD6FE] bg-white font-body text-[14px]"
+        />
+        <Input
+          value={form.nextStep}
+          onChange={(event) => onFormChange("nextStep", event.target.value)}
+          placeholder={isSpanish ? "Siguiente paso opcional" : "Next step optional"}
+          data-testid={`input-manual-review-next-step-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DDD6FE] bg-white font-body text-[14px]"
+        />
+        <textarea
+          value={form.notes}
+          onChange={(event) => onFormChange("notes", event.target.value)}
+          placeholder={isSpanish ? "Notas opcionales" : "Optional notes"}
+          data-testid={`input-manual-review-notes-${item.id}`}
+          className="min-h-[64px] rounded-[14px] border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-vyva-purple focus:ring-2 focus:ring-[#EDE9FE] sm:col-span-2"
+        />
+      </div>
+
+      <Button
+        type="button"
+        data-testid={`button-manual-review-save-${item.id}`}
+        onClick={onSave}
+        disabled={!canSave}
+        className="vyva-primary-action mt-3 h-auto w-full"
+      >
+        {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+        {isSpanish ? "Guardar resultado" : "Save outcome"}
+      </Button>
+
+      {notice ? (
+        <p data-testid="manual-review-notice" className="mt-3 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="manual-review-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function PendingExternalConfirmationModal({
   request,
   review,
@@ -5962,6 +6256,16 @@ type EmailDraftOutcomeForm = {
 };
 
 type WhatsAppDraftOutcomeForm = {
+  reference: string;
+  notes: string;
+};
+
+type ManualReviewOutcomeStatus = "completed" | "review_pending";
+
+type ManualReviewOutcomeForm = {
+  status: ManualReviewOutcomeStatus;
+  summary: string;
+  nextStep: string;
   reference: string;
   notes: string;
 };
@@ -6446,6 +6750,14 @@ const EMPTY_EMAIL_DRAFT_OUTCOME_FORM: EmailDraftOutcomeForm = {
 };
 
 const EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM: WhatsAppDraftOutcomeForm = {
+  reference: "",
+  notes: "",
+};
+
+const EMPTY_MANUAL_REVIEW_OUTCOME_FORM: ManualReviewOutcomeForm = {
+  status: "completed",
+  summary: "",
+  nextStep: "",
   reference: "",
   notes: "",
 };
@@ -7278,6 +7590,9 @@ const ConciergeScreen = () => {
   const [whatsAppDraftOutcomeForm, setWhatsAppDraftOutcomeForm] = useState<WhatsAppDraftOutcomeForm>(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
   const [whatsAppDraftNotice, setWhatsAppDraftNotice] = useState<string | null>(null);
   const [whatsAppDraftError, setWhatsAppDraftError] = useState<string | null>(null);
+  const [manualReviewOutcomeForm, setManualReviewOutcomeForm] = useState<ManualReviewOutcomeForm>(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
+  const [manualReviewNotice, setManualReviewNotice] = useState<string | null>(null);
+  const [manualReviewError, setManualReviewError] = useState<string | null>(null);
   const [confirmedReviewActionIds, setConfirmedReviewActionIds] = useState<Set<string>>(() => new Set());
   const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
@@ -8365,6 +8680,33 @@ const ConciergeScreen = () => {
     },
     onError: (error) => {
       setWhatsAppDraftError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el WhatsApp." : "I could not save the WhatsApp."));
+    },
+  });
+
+  const manualReviewOutcomeMutation = useMutation({
+    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: ManualReviewOutcomeForm }) => (
+      completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: manualReviewOutcomeSummary(item, form, isSpanish),
+        outcomePayload: manualReviewOutcomePayload(item, form),
+      })
+    ),
+    onMutate: () => {
+      setManualReviewError(null);
+      setManualReviewNotice(null);
+    },
+    onSuccess: async (_result, { form }) => {
+      setManualReviewOutcomeForm(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
+      setManualReviewNotice(form.status === "review_pending"
+        ? (isSpanish ? "Revision guardada como pendiente. La tarea queda en historial." : "Review saved as pending. The task is in history.")
+        : (isSpanish ? "Revision guardada. La tarea queda cerrada." : "Review saved. The task is closed."));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setManualReviewError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la revision." : "I could not save the review."));
     },
   });
 
@@ -10077,6 +10419,14 @@ const ConciergeScreen = () => {
     setWhatsAppDraftOutcomeForm((current) => ({ ...current, [field]: value }));
   }
 
+  function updateManualReviewOutcome(field: keyof ManualReviewOutcomeForm, value: string) {
+    setManualReviewOutcomeForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function handleSaveManualReviewOutcome(item: ConciergePendingItem) {
+    manualReviewOutcomeMutation.mutate({ item, form: manualReviewOutcomeForm });
+  }
+
   function handleBookingFormSubmitted(item: ConciergePendingItem) {
     bookingFormOutcomeMutation.mutate({ item, form: bookingFormOutcomeForm });
   }
@@ -10927,6 +11277,9 @@ const ConciergeScreen = () => {
     setWhatsAppDraftOutcomeForm(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
     setWhatsAppDraftNotice(null);
     setWhatsAppDraftError(null);
+    setManualReviewOutcomeForm(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
+    setManualReviewNotice(null);
+    setManualReviewError(null);
   }, [activeAction?.id]);
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -11018,6 +11371,11 @@ const ConciergeScreen = () => {
   const activeActionCanShowWhatsAppOutcome = activeActionNeedsWhatsAppOutcome && activeActionReviewConfirmed;
   const activeActionCanShowEmailOutcome = activeActionNeedsEmailOutcome && activeActionReviewConfirmed;
   const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation;
+  const activeActionCanShowManualReviewOutcome = Boolean(
+    activeAction &&
+    isManualReviewOutcomePendingAction(activeAction) &&
+    !activeActionNeedsUserConfirmation,
+  );
   const activeActionBookingFormIntakeDraft = activeActionHasBookingFormSupport && bookingFormNotice && input.trim()
     ? input.trim()
     : "";
@@ -12891,7 +13249,8 @@ const ConciergeScreen = () => {
                   reviewConfirmMutation.isPending ||
                   phoneCallOutcomeMutation.isPending ||
                   emailDraftOutcomeMutation.isPending ||
-                  whatsAppDraftOutcomeMutation.isPending
+                  whatsAppDraftOutcomeMutation.isPending ||
+                  manualReviewOutcomeMutation.isPending
                 }
                 cancelPending={cancelMutation.isPending}
                 primaryDisabled={
@@ -12948,6 +13307,19 @@ const ConciergeScreen = () => {
                     search: activeActionWebSearchResult,
                   });
                 }}
+              />
+            ) : null}
+
+            {activeActionCanShowManualReviewOutcome && activeAction ? (
+              <ManualReviewOutcomePanel
+                item={activeAction}
+                form={manualReviewOutcomeForm}
+                notice={manualReviewNotice}
+                error={manualReviewError}
+                isSaving={manualReviewOutcomeMutation.isPending}
+                isSpanish={isSpanish}
+                onFormChange={updateManualReviewOutcome}
+                onSave={() => handleSaveManualReviewOutcome(activeAction)}
               />
             ) : null}
 
