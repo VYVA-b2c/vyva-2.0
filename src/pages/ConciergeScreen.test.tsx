@@ -2989,7 +2989,7 @@ describe("ConciergeScreen route prefill", () => {
     });
   });
 
-  it("renders prepared provider phone actions behind final confirmation", async () => {
+  it("reveals prepared provider phone actions only after user confirmation and final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
@@ -3010,17 +3010,12 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    const callLink = await screen.findByTestId("link-concierge-phone-call-ride-1");
-    fireEvent.click(callLink);
-    expect(openMock).not.toHaveBeenCalled();
-    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
-    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
-    expect(openMock).toHaveBeenCalledWith("tel:+34612345678", "_self", undefined);
+    expect(await screen.findByTestId("panel-concierge-execution-status")).toHaveAttribute("data-phase", "needs_ok");
+    expect(screen.queryByTestId("link-concierge-phone-call-ride-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-concierge-phone-call")).not.toBeInTheDocument();
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveAttribute("data-phase", "needs_ok");
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Needs your OK");
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("You confirm before anything is sent, called, or booked.");
-    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Call step");
-    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Call now, then save what happened.");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Follow-through");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Ready for your OK");
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "active");
@@ -3048,7 +3043,17 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Review call script");
 
     fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
-    expect(screen.getByTestId("panel-concierge-phone-call")).toBeVisible();
+    expect(await screen.findByTestId("panel-concierge-phone-call")).toBeVisible();
+    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Call step");
+    expect(screen.getByTestId("panel-concierge-phone-call")).toHaveTextContent("Call now, then save what happened.");
+    fireEvent.click(screen.getByTestId("link-concierge-phone-call-ride-1"));
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+    expect(openMock).toHaveBeenCalledWith("tel:+34612345678", "_self", undefined);
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/ride-1/review-confirm", { method: "POST" });
+    });
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/ride-1/confirm", { method: "POST" });
 
     fireEvent.click(screen.getByTestId("button-concierge-checklist-details"));
@@ -3142,13 +3147,19 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
+    expect(await screen.findByTestId("button-concierge-confirm-phone-task-1")).toHaveTextContent("Review call script");
+    expect(screen.queryByTestId("panel-concierge-phone-call")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("link-concierge-phone-call-phone-task-1")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-phone-task-1"));
     expect(await screen.findByTestId("panel-concierge-phone-call")).toHaveTextContent("Hello, I am calling about claim CL-9.");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/phone-task-1/review-confirm", { method: "POST" });
+    });
     fireEvent.click(screen.getByTestId("link-concierge-phone-call-phone-task-1"));
     expect(openMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
     fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
     expect(openMock).toHaveBeenCalledWith("tel:+34600111222", "_self", undefined);
-    fireEvent.click(screen.getByTestId("button-concierge-confirm-phone-task-1"));
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/phone-task-1/confirm", { method: "POST" });
     fireEvent.change(screen.getByTestId("input-phone-outcome-time-phone-task-1"), {
       target: { value: "tomorrow 10:30" },
@@ -4317,7 +4328,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Question added to chat.");
   });
 
-  it("renders prepared email actions as draft mail links", async () => {
+  it("reveals prepared email draft actions only after user confirmation and final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
@@ -4339,7 +4350,16 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    const emailLink = await screen.findByTestId("link-concierge-email-email-1");
+    expect(await screen.findByTestId("button-concierge-confirm-email-1")).toHaveTextContent("Open email draft");
+    expect(screen.queryByTestId("link-concierge-email-email-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-concierge-email-draft")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-email-1"));
+
+    const emailLink = await screen.findByTestId("link-concierge-email-draft-open-email-1");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/email-1/review-confirm", { method: "POST" });
+    });
     fireEvent.click(emailLink);
     expect(openMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
@@ -4349,7 +4369,6 @@ describe("ConciergeScreen route prefill", () => {
       "_self",
       undefined,
     );
-    expect(screen.getByTestId("button-concierge-confirm-email-1")).toHaveTextContent("Open email draft");
     expect(screen.getByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
     expect(screen.getByTestId("button-email-draft-sent-email-1")).toHaveTextContent("I sent it");
   });
@@ -4393,7 +4412,13 @@ describe("ConciergeScreen route prefill", () => {
     expect(rightNow).toHaveTextContent("Message");
     expect(rightNow).toHaveTextContent("Suspicious prize message");
 
-    fireEvent.click(screen.getByTestId("link-concierge-email-show-vyva-email-1"));
+    expect(screen.queryByTestId("link-concierge-email-show-vyva-email-1")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-show-vyva-email-1"));
+    expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/show-vyva-email-1/review-confirm", { method: "POST" });
+    });
+    fireEvent.click(screen.getByTestId("link-concierge-email-draft-open-show-vyva-email-1"));
 
     expect(openMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
@@ -4440,8 +4465,14 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
+    expect(await screen.findByTestId("button-concierge-confirm-email-sent-1")).toHaveTextContent("Open email draft");
+    expect(screen.queryByTestId("panel-concierge-email-draft")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-email-sent-1"));
     expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
     expect(screen.getByTestId("link-concierge-email-draft-open-email-sent-1")).toHaveTextContent("Open");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/email-sent-1/review-confirm", { method: "POST" });
+    });
     fireEvent.change(screen.getByTestId("input-email-draft-reference-email-sent-1"), {
       target: { value: "CL-11" },
     });
@@ -4504,7 +4535,12 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
+    expect(await screen.findByTestId("button-concierge-confirm-tool-email-1")).toHaveTextContent("Open email draft");
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-tool-email-1"));
     expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/tool-email-1/review-confirm", { method: "POST" });
+    });
     fireEvent.change(screen.getByTestId("input-email-draft-reference-tool-email-1"), {
       target: { value: "APP-3" },
     });
@@ -4527,7 +4563,7 @@ describe("ConciergeScreen route prefill", () => {
     });
   });
 
-  it("renders prepared WhatsApp actions as draft message links", async () => {
+  it("reveals prepared WhatsApp draft actions only after user confirmation and final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
@@ -4547,7 +4583,16 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    const whatsAppLink = await screen.findByTestId("link-concierge-whatsapp-whatsapp-1");
+    expect(await screen.findByTestId("button-concierge-confirm-whatsapp-1")).toHaveTextContent("Open WhatsApp draft");
+    expect(screen.queryByTestId("link-concierge-whatsapp-whatsapp-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-concierge-whatsapp-draft")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-whatsapp-1"));
+
+    const whatsAppLink = await screen.findByTestId("link-concierge-whatsapp-draft-open-whatsapp-1");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/whatsapp-1/review-confirm", { method: "POST" });
+    });
     fireEvent.click(whatsAppLink);
     expect(openMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
@@ -4557,7 +4602,6 @@ describe("ConciergeScreen route prefill", () => {
       "_blank",
       "noopener,noreferrer",
     );
-    expect(screen.getByTestId("button-concierge-confirm-whatsapp-1")).toHaveTextContent("Open WhatsApp draft");
     expect(screen.getByTestId("panel-concierge-whatsapp-draft")).toHaveTextContent("WhatsApp ready");
     expect(screen.getByTestId("button-whatsapp-draft-sent-whatsapp-1")).toHaveTextContent("I sent it");
   });
@@ -4582,6 +4626,7 @@ describe("ConciergeScreen route prefill", () => {
               flow_reference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
               preferred_channel: "whatsapp",
               execution_channel: "whatsapp",
+              item_text: "Paracetamol for pickup today",
               whatsapp_message: "Hello, do you have paracetamol available for pickup today?",
             },
             status: "pending",
@@ -4594,8 +4639,13 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
+    expect(await screen.findByTestId("button-concierge-confirm-whatsapp-sent-1")).toHaveTextContent("Open WhatsApp draft");
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-whatsapp-sent-1"));
     expect(await screen.findByTestId("panel-concierge-whatsapp-draft")).toHaveTextContent("WhatsApp ready");
     expect(screen.getByTestId("link-concierge-whatsapp-draft-open-whatsapp-sent-1")).toHaveTextContent("Open");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/whatsapp-sent-1/review-confirm", { method: "POST" });
+    });
     fireEvent.change(screen.getByTestId("input-whatsapp-draft-reference-whatsapp-sent-1"), {
       target: { value: "OTC-77" },
     });
@@ -4666,6 +4716,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("shows booking forms as ready to open when no details are missing", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
         id: "form-ready-1",
@@ -4677,6 +4728,7 @@ describe("ConciergeScreen route prefill", () => {
           mission_status: "form_in_progress",
           preferred_channel: "booking_url",
           execution_channel: "booking_url",
+          reason: "Dinner reservation for tomorrow",
           booking_url: "https://www.thefork.es/restaurante/example",
           form_automation_plan: {
             adapter_label: "TheFork",
@@ -4695,28 +4747,38 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form ready");
     expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Ready to open with the gathered details.");
     expect(screen.queryByText("VYVA is handling it")).not.toBeInTheDocument();
-    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
-    fireEvent.click(screen.getByTestId("link-concierge-form-form-ready-1"));
+    expect(screen.queryByTestId("link-concierge-form-form-ready-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("link-booking-form-open-form-ready-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("text-booking-form-confirm-first-form-ready-1")).toHaveTextContent("Confirm above before opening the form.");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Open appointment form");
+    expect(screen.getByTestId("button-concierge-confirm-form-ready-1")).toHaveTextContent("Open appointment form");
+
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-form-ready-1"));
     expect(openMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
     fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/form-ready-1/confirm", { method: "POST" });
+    });
     expect(openMock).toHaveBeenCalledWith(
       "https://www.thefork.es/restaurante/example?date=tomorrow",
       "_blank",
       "noopener,noreferrer",
     );
-    expect(screen.getByTestId("link-booking-form-open-form-ready-1")).toHaveAttribute(
-      "href",
-      "https://www.thefork.es/restaurante/example?date=tomorrow",
-    );
-    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Open appointment form");
-    expect(screen.getByTestId("button-concierge-confirm-form-ready-1")).toHaveTextContent("Open appointment form");
   });
 
   it("records a submitted booking form through the existing completion endpoint", async () => {
     let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    let formConfirmed = false;
+    vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
+      if (target.endsWith("/api/concierge/actions/form-submit-1/confirm")) {
+        expect(init?.method).toBe("POST");
+        formConfirmed = true;
+        return jsonResponse({ pendingId: "form-submit-1", status: "pending", conversationId: null, callSid: null });
+      }
       if (target.endsWith("/api/concierge/actions/form-submit-1/complete")) {
         completeBody = JSON.parse(String(init?.body));
         return jsonResponse({ ok: true, status: "completed", sessionId: "session-form-submit-1" });
@@ -4734,6 +4796,7 @@ describe("ConciergeScreen route prefill", () => {
               mission_status: "form_in_progress",
               preferred_channel: "booking_url",
               execution_channel: "booking_url",
+              reason: "Dinner reservation for tomorrow",
               booking_url: "https://www.thefork.es/restaurante/example",
               form_automation_plan: {
                 adapter_label: "TheFork",
@@ -4741,9 +4804,28 @@ describe("ConciergeScreen route prefill", () => {
                 next_step: "Use the supported booking page with the gathered details.",
                 prefilled_url: "https://www.thefork.es/restaurante/example?date=tomorrow",
               },
+              ...(formConfirmed ? {
+                execution_task: {
+                  version: 1,
+                  flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+                  action_type: "booking_link",
+                  requested_tool: "booking_link",
+                  active_tool: "booking_link",
+                  lifecycle_status: "confirmed",
+                  provider_ready: true,
+                  missing_requirements: [],
+                  confirmation_required: true,
+                  user_confirmed: true,
+                  confirmation_source: "confirm_endpoint",
+                  confirmed_at: "2026-07-14T10:10:00.000Z",
+                  created_at: "2026-07-14T10:00:00.000Z",
+                  updated_at: "2026-07-14T10:10:00.000Z",
+                },
+              } : {}),
             },
             status: "pending",
             language: "en",
+            confirmed_at: formConfirmed ? "2026-07-14T10:10:00.000Z" : null,
           }],
         });
       }
@@ -4752,6 +4834,15 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
+    expect(await screen.findByTestId("text-booking-form-confirm-first-form-submit-1")).toHaveTextContent("Confirm above before opening the form.");
+    expect(screen.queryByTestId("link-booking-form-open-form-submit-1")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-form-submit-1"));
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/form-submit-1/confirm", { method: "POST" });
+    });
     expect(await screen.findByTestId("panel-booking-form-ready-form-submit-1")).toHaveTextContent("Open form");
     fireEvent.change(screen.getByTestId("input-booking-form-reference-form-submit-1"), {
       target: { value: "TF-88" },

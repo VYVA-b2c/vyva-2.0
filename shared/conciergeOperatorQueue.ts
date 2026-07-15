@@ -3,6 +3,7 @@ import type { ConciergeExecutionTask, ConciergeExecutionTaskStatus } from "./con
 export const OPERATOR_CONCIERGE_QUEUE_STATUSES = [
   "needs_info",
   "ready",
+  "confirmed",
   "in_progress",
   "done",
   "failed",
@@ -48,6 +49,7 @@ export type OperatorConciergeQueueTotals = Record<OperatorConciergeQueueStatus, 
 export const OPERATOR_CONCIERGE_QUEUE_STATUS_LABELS: Record<OperatorConciergeQueueStatus, string> = {
   needs_info: "Needs info",
   ready: "Ready",
+  confirmed: "Confirmed",
   in_progress: "In progress",
   done: "Done",
   failed: "Failed",
@@ -74,6 +76,7 @@ export function emptyOperatorConciergeQueueTotals(): OperatorConciergeQueueTotal
   return {
     needs_info: 0,
     ready: 0,
+    confirmed: 0,
     in_progress: 0,
     done: 0,
     failed: 0,

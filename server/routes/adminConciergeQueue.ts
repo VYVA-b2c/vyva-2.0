@@ -158,8 +158,8 @@ function currentPendingPayload(row: PendingQueueRow): Record<string, unknown> {
 function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
   const payload = currentPendingPayload(row);
   const task = executionTaskFromPayload(payload);
-  if (!task?.user_confirmed) return null;
-  const status = normalizeOperatorConciergeQueueStatus(task?.lifecycle_status ?? row.status);
+  let status = normalizeOperatorConciergeQueueStatus(task?.lifecycle_status ?? row.status);
+  if (status === "ready" && task?.user_confirmed) status = "confirmed";
   if (!status) return null;
   const assignment = operatorAssignmentFromPayload(payload);
 
@@ -246,6 +246,7 @@ function buildUpdatedPendingPayload(
 }
 
 async function updatePendingAssignment(row: PendingQueueRow, req: Request): Promise<void> {
+  const currentTask = executionTaskFromPayload(currentPendingPayload(row));
   const payload = withConciergeExecutionTask({
     useCase: row.use_case,
     payload: withAssignment(row.action_payload ?? {}, req, true),
@@ -253,6 +254,9 @@ async function updatePendingAssignment(row: PendingQueueRow, req: Request): Prom
     providerPhone: row.provider_phone,
     summary: row.action_summary,
     pendingStatus: row.status,
+    lifecycleStatus: currentTask?.lifecycle_status === "ready" && currentTask?.user_confirmed
+      ? "confirmed"
+      : currentTask?.lifecycle_status,
     userConfirmed: true,
     confirmationSource: "operator_queue",
   });
