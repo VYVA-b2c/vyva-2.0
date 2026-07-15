@@ -807,6 +807,15 @@ type ContactRelationshipBrief = {
   risk: string;
 };
 
+type ContactRelationshipFollowUpStep = {
+  key: string;
+  offset: string;
+  title: string;
+  channel: Channel;
+  detail: string;
+  output: string;
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -6864,6 +6873,89 @@ export default function MarketingAdminPage() {
     selectedRelationshipContact,
   ]);
 
+  const contactRelationshipFollowUpSteps = useMemo<ContactRelationshipFollowUpStep[]>(() => {
+    if (!selectedRelationshipContact || !contactRelationshipBrief) return [];
+    const fallbackChannel = contactRelationshipBrief.primaryChannel;
+    const secondTemplate = contactRelationshipTemplateRecommendations.find((recommendation) => recommendation.template.channel !== fallbackChannel)?.template
+      ?? contactRelationshipTemplateRecommendations[1]?.template
+      ?? null;
+    const secondChannel = secondTemplate?.channel
+      ?? contactRelationshipChannels.find((item) => item.channel !== fallbackChannel && item.state !== "blocked")?.channel
+      ?? fallbackChannel;
+    const audienceContext = contactRelationshipAudiences[0]?.name ?? selectedRelationshipContact.lists[0] ?? selectedRelationshipContact.audienceType.toUpperCase();
+    const isB2bContact = selectedRelationshipContact.audienceType === "b2b" || Boolean(selectedRelationshipContact.companyName || selectedRelationshipContact.roleLabel);
+    const outcome = isB2bContact
+      ? "Log reply, objection, intro owner, or demo interest before the next partner touch."
+      : "Log caregiver reply, completed profile step, or support concern before the next family touch.";
+
+    return [
+      {
+        key: "first-touch",
+        offset: "Today",
+        title: "First touch",
+        channel: fallbackChannel,
+        detail: contactRelationshipBrief.opener,
+        output: contactRelationshipBrief.starter,
+      },
+      {
+        key: "second-touch",
+        offset: "+2 days",
+        title: "Second touch",
+        channel: secondChannel,
+        detail: secondTemplate
+          ? `Use "${secondTemplate.title}" if there is no reply, keeping the CTA narrow.`
+          : `Follow up on ${channelLabel[secondChannel]} with one reminder and one reply path.`,
+        output: contactRelationshipBrief.followUp,
+      },
+      {
+        key: "relationship-note",
+        offset: "+7 days",
+        title: "Relationship note",
+        channel: fallbackChannel,
+        detail: `Keep this contact in ${audienceContext} and record the outcome before broad campaigns.`,
+        output: outcome,
+      },
+    ];
+  }, [
+    contactRelationshipAudiences,
+    contactRelationshipBrief,
+    contactRelationshipChannels,
+    contactRelationshipTemplateRecommendations,
+    selectedRelationshipContact,
+  ]);
+
+  const contactRelationshipFollowUpKitText = useMemo(() => {
+    if (!selectedRelationshipContact || !contactRelationshipBrief || !contactRelationshipFollowUpSteps.length) return "";
+    const contactName = selectedRelationshipContact.fullName || selectedRelationshipContact.email || selectedRelationshipContact.phoneNumber || "Unnamed contact";
+    const roleContext = [selectedRelationshipContact.roleLabel, selectedRelationshipContact.companyName].filter(Boolean).join(" at ");
+    const audienceContext = contactRelationshipAudiences[0]?.name ?? selectedRelationshipContact.lists[0] ?? selectedRelationshipContact.audienceType.toUpperCase();
+    const segmentContext = [selectedRelationshipContact.market, selectedRelationshipContact.vertical, selectedRelationshipContact.category, selectedRelationshipContact.language].filter(Boolean).join(" / ") || "No segment detail yet";
+    const lines = [
+      `Relationship follow-up kit: ${contactName}`,
+      roleContext ? `Context: ${roleContext}` : "",
+      `Audience/list: ${audienceContext}`,
+      `Readiness: ${selectedContactRelationshipScore}%`,
+      `Consent: ${selectedRelationshipContact.consentStatus}`,
+      `Segment: ${segmentContext}`,
+      `Primary route: ${channelLabel[contactRelationshipBrief.primaryChannel]}`,
+      "",
+      "Touchpoints:",
+      ...contactRelationshipFollowUpSteps.map((step, index) => `${index + 1}. ${step.offset} - ${step.title} (${channelLabel[step.channel]}): ${step.detail} ${step.output}`),
+      "",
+      `Watch item: ${contactRelationshipBrief.risk}`,
+      "",
+      "Consent-safe AI prompt:",
+      `Write a concise ${channelLabel[contactRelationshipBrief.primaryChannel]} follow-up for ${contactName}. Use this angle: ${contactRelationshipBrief.angle}. Start from this opener: ${contactRelationshipBrief.opener}. Keep one CTA, respect consent status ${selectedRelationshipContact.consentStatus}, and avoid pressure.`,
+    ];
+    return lines.filter((line) => line !== "").join("\n");
+  }, [
+    contactRelationshipAudiences,
+    contactRelationshipBrief,
+    contactRelationshipFollowUpSteps,
+    selectedContactRelationshipScore,
+    selectedRelationshipContact,
+  ]);
+
   const visibleAudiences = useMemo(() => audiences.filter((audience) => {
     return matchesSearch(search, [
       audience.id,
@@ -9929,6 +10021,41 @@ export default function MarketingAdminPage() {
     } catch {
       const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
       setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyContactRelationshipFollowUpKit() {
+    const label = "Relationship follow-up kit";
+    if (!contactRelationshipFollowUpKitText.trim()) {
+      const feedback = `${label} is empty.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contactRelationshipFollowUpKitText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contactRelationshipFollowUpKitText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setContactFeedback(feedback);
       setMessage(feedback);
     }
   }
@@ -17524,6 +17651,45 @@ export default function MarketingAdminPage() {
                                   <p><span className="font-black text-[#241133]">Follow-up:</span> {contactRelationshipBrief.followUp}</p>
                                   <p className="rounded-lg bg-[#fff7ed] px-3 py-2 text-amber-900"><span className="font-black">Watch:</span> {contactRelationshipBrief.risk}</p>
                                 </div>
+                              </div>
+                            ) : null}
+                            {contactRelationshipFollowUpSteps.length ? (
+                              <div className="grid gap-3 rounded-xl border border-violet-100 bg-white p-3" data-testid="marketing-contact-follow-up-kit">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-700">Relationship follow-up kit</p>
+                                    <p className="mt-1 text-sm font-bold text-[#7d6b65]">Three touchpoints plus a consent-safe AI prompt.</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => void copyContactRelationshipFollowUpKit()}
+                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-800"
+                                    data-testid="button-marketing-copy-contact-follow-up-kit"
+                                  >
+                                    <Copy size={13} /> Copy kit
+                                  </button>
+                                </div>
+                                <div className="grid gap-2">
+                                  {contactRelationshipFollowUpSteps.map((step, index) => (
+                                    <article key={step.key} className="rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-contact-follow-up-step-${step.key}`}>
+                                      <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div>
+                                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">{index + 1}. {step.offset}</p>
+                                          <h4 className="mt-1 font-black text-[#241133]">{step.title}</h4>
+                                        </div>
+                                        <Pill className={channelClass(step.channel)}>{channelLabel[step.channel]}</Pill>
+                                      </div>
+                                      <p className="mt-2 text-xs font-bold leading-relaxed text-[#5b4a46]">{step.detail}</p>
+                                      <p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs font-black text-[#241133]">{step.output}</p>
+                                    </article>
+                                  ))}
+                                </div>
+                                <textarea
+                                  className={`${textareaClass} min-h-[132px] text-xs`}
+                                  value={contactRelationshipFollowUpKitText}
+                                  readOnly
+                                  data-testid="textarea-marketing-contact-follow-up-kit"
+                                />
                               </div>
                             ) : null}
                             <div className="grid gap-2 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-contact-template-recommendations">

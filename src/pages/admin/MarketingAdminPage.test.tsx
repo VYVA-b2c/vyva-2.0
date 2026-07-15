@@ -989,6 +989,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Partner outreach for Partner at Moka Digital with Spain / healthcare / lead.");
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Connect it to "Partner outreach" or create a focused Partners follow-up.');
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Review consent: pending.");
+    expect(screen.getByTestId("marketing-contact-follow-up-kit")).toHaveTextContent("Relationship follow-up kit");
+    expect(screen.getByTestId("marketing-contact-follow-up-step-first-touch")).toHaveTextContent("First touch");
+    expect(screen.getByTestId("marketing-contact-follow-up-step-first-touch")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-contact-follow-up-step-second-touch")).toHaveTextContent("Second touch");
+    expect(screen.getByTestId("marketing-contact-follow-up-step-relationship-note")).toHaveTextContent("Relationship note");
+    expect((screen.getByTestId("textarea-marketing-contact-follow-up-kit") as HTMLTextAreaElement).value).toContain("Consent-safe AI prompt");
+    const relationshipClipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: relationshipClipboardWriteText },
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-copy-contact-follow-up-kit"));
+    await waitFor(() => {
+      expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Relationship follow-up kit: Hassan Partner"));
+    });
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Relationship follow-up kit copied.");
     expect(screen.getByTestId("marketing-contact-template-recommendations")).toHaveTextContent("Suggested templates");
     expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp partner proof nudge");
     expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp ready");
