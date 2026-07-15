@@ -216,6 +216,45 @@ describe("admin marketing router", () => {
     expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
   });
 
+  it("generates marketing campaign copy with a safe fallback when OpenAI is not configured", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+
+    await request(buildApp("ops@example.com"))
+      .post("/api/admin/marketing/ai/campaign-draft")
+      .send({
+        playLabel: "Partner outreach",
+        audienceType: "b2b",
+        channel: "linkedin",
+        tone: "direct",
+        targetAudienceName: "Partners",
+        campaignBrief: "Invite Madrid partners to a practical webinar by email and LinkedIn.",
+        objective: "Start a partner conversation.",
+        subjectSeed: "A practical care-team layer",
+        bodySeed: "VYVA helps families and providers coordinate support.",
+        ctaLabel: "Book intro",
+        ctaUrl: "https://v2.vyva.life",
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          ok: true,
+          configured: false,
+          source: "fallback",
+          draft: {
+            campaignName: "Partner outreach - Partners",
+            subject: "A practical care-team layer",
+            ctaLabel: "Book intro",
+            ctaUrl: "https://v2.vyva.life",
+          },
+        });
+        expect(response.body.draft.objective).toContain("Campaign brief: Invite Madrid partners");
+        expect(response.body.draft.body).toContain("Campaign brief: Invite Madrid partners");
+        expect(response.body.draft.designJson.campaignBrief).toBe("Invite Madrid partners to a practical webinar by email and LinkedIn.");
+        expect(response.body.draft.body).toContain("non-clinical");
+        expect(response.body.note).toContain("OPENAI_API_KEY");
+      });
+  });
+
   it("reports whether the current admin can run Lovable sync", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");

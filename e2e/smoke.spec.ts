@@ -176,12 +176,16 @@ async function continuePastSymptomEmergencyModal(page: Page) {
 
 test("login screen renders auth controls", async ({ page }) => {
   await mockApi(page);
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await page.goto("/login?mode=login", { waitUntil: "domcontentloaded" });
 
   await expect(page.getByTestId("input-auth-contact")).toBeVisible();
-  await expect(page.getByTestId("input-auth-password")).toBeVisible();
+  await expect(page.getByTestId("auth-audience-switcher")).toBeVisible();
   await expect(page.getByTestId("link-auth-door-member")).toBeVisible();
   await expect(page.getByTestId("link-auth-door-caregiver")).toBeVisible();
+  await expect(page.getByTestId("button-signin-method-link")).toBeVisible();
+  await expect(page.getByTestId("button-signin-method-password")).toBeVisible();
+  await page.getByTestId("button-signin-method-password").click();
+  await expect(page.getByTestId("input-auth-password")).toBeVisible();
   await expect(page.getByTestId("button-auth-submit")).toBeVisible();
 });
 
@@ -279,14 +283,14 @@ test("public pages initialize from browser language until the user changes it", 
   await context.close();
 });
 
-test("login screen exposes caregiver and on-behalf account intent", async ({ page }) => {
+test("login screen exposes caregiver account route", async ({ page }) => {
   await mockApi(page);
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await page.goto("/login?mode=login", { waitUntil: "domcontentloaded" });
 
   await page.getByTestId("link-auth-door-caregiver").click();
-  await expect(page).toHaveURL(/\/caregiver\/register$/);
-  await expect(page.getByTestId("auth-caregiver-note")).toBeVisible();
-  await expect(page.getByText("For someone I care for")).toBeVisible();
+  await expect(page).toHaveURL(/\/caregiver\/login/);
+  await expect(page.getByRole("heading", { name: "Caregiver sign in" })).toBeVisible();
+  await expect(page.getByTestId("link-auth-door-caregiver")).toContainText("I am a caregiver");
 });
 
 test("login screen scales from mobile card to tablet and desktop auth layout", async ({ page }) => {
@@ -538,6 +542,7 @@ test("symptom check resumes an unfinished chat and can start over", async ({ pag
 
   await page.goto("/health", { waitUntil: "domcontentloaded" });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await continuePastSymptomEmergencyModal(page);
 
   await expect(page.getByText("How strong is it?")).toBeVisible();
   await expect(page.getByTestId("button-symptom-check-start-over")).toBeVisible();
@@ -590,6 +595,7 @@ test("symptom check resumes and retries a pending review", async ({ page }) => {
 
   await page.goto("/health", { waitUntil: "domcontentloaded" });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await continuePastSymptomEmergencyModal(page);
 
   await expect.poll(() => requestCount).toBe(2);
   await expect(page.getByTestId("triage-review-panel")).toBeVisible();
@@ -645,11 +651,13 @@ test("symptom check restores a completed report until done", async ({ page }) =>
 
   await page.goto("/health", { waitUntil: "domcontentloaded" });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await continuePastSymptomEmergencyModal(page);
 
   await expect(page.getByTestId("button-report-done")).toBeVisible();
   await expect(page.getByText("Monitor at Home", { exact: true })).toBeVisible();
   await page.getByTestId("button-report-done").click();
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
+  await continuePastSymptomEmergencyModal(page);
   await expect(page.getByTestId("input-symptom-clue")).toBeVisible();
   await expect.poll(async () => page.evaluate((key) => sessionStorage.getItem(key), symptomCheckDraftKey)).toBeNull();
 });

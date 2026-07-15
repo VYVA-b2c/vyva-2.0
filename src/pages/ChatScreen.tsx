@@ -1,20 +1,18 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Settings, ArrowUp } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { useVyvaVoice, type TranscriptEntry } from "@/hooks/useVyvaVoice";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import { apiFetch } from "@/lib/queryClient";
-import { useLanguage } from "@/i18n";
+import { useAppLanguage } from "@/i18n";
 
 type LiveChatHistoryTurn = { role: "user" | "assistant"; content: string };
 
 const ChatScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
-  const { language } = useLanguage();
+  const { language, t } = useAppLanguage();
   const [searchParams] = useSearchParams();
   const {
     startVoice,
@@ -120,7 +118,7 @@ const ChatScreen = () => {
     } finally {
       setIsTextSending(false);
     }
-  }, [language, isTextSending, localFallbackReply, typedTranscript]);
+  }, [isTextSending, language, localFallbackReply, typedTranscript]);
 
   useEffect(() => {
     if (!pendingRef.current) return;

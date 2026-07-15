@@ -7443,7 +7443,15 @@ const ConciergeScreen = () => {
     setCoverageMemberId(savedCoverage.memberId?.trim() ?? "");
     setCoveragePlan(savedCoverage.plan?.trim() ?? "");
     setCoverageNotes(savedCoverage.notes?.trim() ?? "");
-  }, [hasAppointmentCoverageInfo, savedCoverage]);
+  }, [
+    hasAppointmentCoverageInfo,
+    savedCoverage,
+    savedCoverage?.coverageType,
+    savedCoverage?.memberId,
+    savedCoverage?.notes,
+    savedCoverage?.plan,
+    savedCoverage?.provider,
+  ]);
 
   function prepareAppointmentAccessFallback(appointmentType: AppointmentType, detail: string) {
     const cleanedDetail = detail.trim();
