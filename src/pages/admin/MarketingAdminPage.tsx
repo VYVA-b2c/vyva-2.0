@@ -19407,6 +19407,12 @@ function MarketingCalendarView({
     && channelHasCalendarContent(channel)
   )));
   const missingContentCampaigns = campaigns.filter((campaign) => campaign.channels.some((channel) => !channelHasCalendarContent(channel)));
+  const scheduledCampaignsWithoutRecipients = scheduledCampaigns.filter((campaign) => (
+    campaign.status === "scheduled"
+    && campaign.recipientCount <= 0
+    && campaign.channels.some(channelHasCalendarContent)
+  ));
+  const unscheduledReadyCampaigns = unscheduledCampaigns.filter((campaign) => campaign.channels.some(channelHasCalendarContent));
   const calendarCommandItems = [
     {
       key: "due-email",
@@ -19441,6 +19447,75 @@ function MarketingCalendarView({
       tone: missingContentCampaigns.length ? "bg-red-50 text-red-900 border-red-100" : "bg-white text-[#5b4a46] border-[#eadfd5]",
     },
   ];
+  const calendarWindowLabel = (campaign: Campaign) => {
+    const channels = campaign.channels.map((channel) => channel.channel);
+    if (channels.includes("email")) return "Next weekday morning";
+    if (channels.some((channel) => ["whatsapp", "sms"].includes(channel))) return "Late afternoon reply window";
+    if (channels.some((channel) => ["linkedin", "facebook", "instagram", "tiktok"].includes(channel))) return "Midday social review window";
+    return "Next practical window";
+  };
+  const calendarPlannerItems: Array<CampaignReadinessItem & { campaign: Campaign; channels: Channel[]; windowLabel: string }> = [
+    ...(dueEmailCampaigns[0] ? [{
+      key: "due-email",
+      title: "Send due email now",
+      detail: `"${dueEmailCampaigns[0].name}" is scheduled, has saved recipients, and has email content ready. Review it, then run the explicit send from campaign details or the due-email control.`,
+      state: "ready" as CampaignReadinessState,
+      actionLabel: "Open send review",
+      icon: Send,
+      campaign: dueEmailCampaigns[0],
+      channels: dueEmailCampaigns[0].channels.map((channel) => channel.channel),
+      windowLabel: "Due now",
+      onSelect: () => onEdit(dueEmailCampaigns[0]),
+    }] : []),
+    ...(scheduledCampaignsWithoutRecipients[0] ? [{
+      key: "recipient-gap",
+      title: "Snapshot recipients first",
+      detail: `"${scheduledCampaignsWithoutRecipients[0].name}" is scheduled but has no saved recipients. Snapshot the audience before launch so sends are auditable.`,
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Open recipients",
+      icon: UsersRound,
+      campaign: scheduledCampaignsWithoutRecipients[0],
+      channels: scheduledCampaignsWithoutRecipients[0].channels.map((channel) => channel.channel),
+      windowLabel: formatCalendarTime(scheduledCampaignsWithoutRecipients[0].scheduleStartsAt),
+      onSelect: () => onEdit(scheduledCampaignsWithoutRecipients[0]),
+    }] : []),
+    ...(missingContentCampaigns[0] ? [{
+      key: "content-gap",
+      title: "Fix content gap",
+      detail: `"${missingContentCampaigns[0].name}" has a campaign route without linked content. Attach or draft content before choosing a publish window.`,
+      state: "blocked" as CampaignReadinessState,
+      actionLabel: "Open content gap",
+      icon: FileText,
+      campaign: missingContentCampaigns[0],
+      channels: missingContentCampaigns[0].channels.map((channel) => channel.channel),
+      windowLabel: "Before scheduling",
+      onSelect: () => onEdit(missingContentCampaigns[0]),
+    }] : []),
+    ...(unscheduledReadyCampaigns[0] ? [{
+      key: "schedule-draft",
+      title: "Schedule ready draft",
+      detail: `"${unscheduledReadyCampaigns[0].name}" has linked content and can be given a practical publish window.`,
+      state: "planning" as CampaignReadinessState,
+      actionLabel: "Open schedule",
+      icon: CalendarDays,
+      campaign: unscheduledReadyCampaigns[0],
+      channels: unscheduledReadyCampaigns[0].channels.map((channel) => channel.channel),
+      windowLabel: calendarWindowLabel(unscheduledReadyCampaigns[0]),
+      onSelect: () => onEdit(unscheduledReadyCampaigns[0]),
+    }] : []),
+    ...(manualHandoffCampaigns[0] ? [{
+      key: "manual-handoff",
+      title: "Prepare manual handoff",
+      detail: `"${manualHandoffCampaigns[0].name}" has social or offline channel content. Prepare the channel handoff and track the result after publishing.`,
+      state: "planning" as CampaignReadinessState,
+      actionLabel: "Open handoff",
+      icon: Sparkles,
+      campaign: manualHandoffCampaigns[0],
+      channels: manualHandoffCampaigns[0].channels.filter((channel) => channel.channel !== "email").map((channel) => channel.channel),
+      windowLabel: calendarWindowLabel(manualHandoffCampaigns[0]),
+      onSelect: () => onEdit(manualHandoffCampaigns[0]),
+    }] : []),
+  ].slice(0, 5);
 
   if (!campaigns.length) return <EmptyState text="No campaigns match the filters." />;
 
@@ -19462,6 +19537,58 @@ function MarketingCalendarView({
             {item.campaign ? <span className="mt-2 inline-flex text-xs font-black text-purple-700">Open campaign</span> : null}
           </button>
         ))}
+      </div>
+      <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-4 shadow-sm" data-testid="marketing-calendar-ai-planner">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">AI schedule planner</p>
+            <h3 className="mt-1 text-lg font-black text-[#241133]">Best next publishing moves</h3>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+              Uses schedule, recipients, linked content, and channel type to point the admin to the next useful action.
+            </p>
+          </div>
+          <Pill className={calendarPlannerItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : calendarPlannerItems.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+            {calendarPlannerItems.length ? `${calendarPlannerItems.length} moves` : "Clear"}
+          </Pill>
+        </div>
+        {calendarPlannerItems.length ? (
+          <div className="mt-3 grid gap-3 xl:grid-cols-5">
+            {calendarPlannerItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={item.onSelect}
+                  className={`min-h-[172px] rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                  data-testid={`button-marketing-calendar-ai-plan-${item.key}`}
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                      <Icon size={16} aria-hidden="true" />
+                    </span>
+                    <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                  </span>
+                  <span className="mt-3 block text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.windowLabel}</span>
+                  <span className="mt-1 block font-black text-[#241133]">{item.title}</span>
+                  <span className="mt-2 line-clamp-3 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                  <span className="mt-3 flex flex-wrap gap-1">
+                    {(item.channels.length ? item.channels : item.campaign.channels.map((channel) => channel.channel)).map((channel) => (
+                      <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                    ))}
+                  </span>
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                    {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-xl border border-dashed border-purple-100 bg-white px-4 py-3 text-sm font-bold text-[#6b5b54]">
+            No urgent schedule moves. Add a draft, schedule a campaign, or attach content to create a planner recommendation.
+          </p>
+        )}
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="grid content-start gap-3" data-testid="marketing-calendar-timeline">
