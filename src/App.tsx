@@ -133,6 +133,7 @@ const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage")
 const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
 const MarketingAdminPage = lazy(() => import("./pages/admin/MarketingAdminPage"));
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
+const WorkflowCoverageAdminPage = lazy(() => import("./pages/admin/WorkflowCoverageAdminPage"));
 const ConciergeReadinessAdminPage = lazy(() => import("./pages/admin/ConciergeReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const ConciergeQueueAdminPage = lazy(() => import("./pages/admin/ConciergeQueueAdminPage"));
@@ -643,6 +644,7 @@ const App = () => (
                 <Route path="/admin/home-cards" element={<AdminRoute><HomeCardsAdminPage /></AdminRoute>} />
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
                 <Route path="/admin/marketing" element={<AdminRoute><MarketingAdminPage /></AdminRoute>} />
+                <Route path="/admin/workflows" element={<AdminRoute><WorkflowCoverageAdminPage /></AdminRoute>} />
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-readiness" element={<AdminRoute><ConciergeReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
