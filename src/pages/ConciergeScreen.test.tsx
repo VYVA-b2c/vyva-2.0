@@ -2989,7 +2989,8 @@ describe("ConciergeScreen route prefill", () => {
     });
   });
 
-  it("renders prepared provider phone actions as direct call links", async () => {
+  it("renders prepared provider phone actions behind final confirmation", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
         id: "ride-1",
@@ -3010,7 +3011,11 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     const callLink = await screen.findByTestId("link-concierge-phone-call-ride-1");
-    expect(callLink).toHaveAttribute("href", "tel:+34612345678");
+    fireEvent.click(callLink);
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+    expect(openMock).toHaveBeenCalledWith("tel:+34612345678", "_self", undefined);
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveAttribute("data-phase", "needs_ok");
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Needs your OK");
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("You confirm before anything is sent, called, or booked.");
@@ -3105,6 +3110,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("records a user phone call outcome through the existing completion endpoint", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
@@ -3137,7 +3143,11 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     expect(await screen.findByTestId("panel-concierge-phone-call")).toHaveTextContent("Hello, I am calling about claim CL-9.");
-    expect(screen.getByTestId("link-concierge-phone-call-phone-task-1")).toHaveAttribute("href", "tel:+34600111222");
+    fireEvent.click(screen.getByTestId("link-concierge-phone-call-phone-task-1"));
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+    expect(openMock).toHaveBeenCalledWith("tel:+34600111222", "_self", undefined);
     fireEvent.click(screen.getByTestId("button-concierge-confirm-phone-task-1"));
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/phone-task-1/confirm", { method: "POST" });
     fireEvent.change(screen.getByTestId("input-phone-outcome-time-phone-task-1"), {
@@ -4308,6 +4318,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("renders prepared email actions as draft mail links", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
         id: "email-1",
@@ -4329,13 +4340,71 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     const emailLink = await screen.findByTestId("link-concierge-email-email-1");
-    expect(emailLink).toHaveAttribute(
-      "href",
+    fireEvent.click(emailLink);
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+    expect(openMock).toHaveBeenCalledWith(
       "mailto:clinic@example.com?subject=Question%20about%20my%20appointment&body=Hello%2C%20I%20would%20like%20to%20confirm%20my%20appointment%20details.",
+      "_self",
+      undefined,
     );
     expect(screen.getByTestId("button-concierge-confirm-email-1")).toHaveTextContent("Open email draft");
     expect(screen.getByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
     expect(screen.getByTestId("button-email-draft-sent-email-1")).toHaveTextContent("I sent it");
+  });
+
+  it("shows Show VYVA prepared tasks and blocks handoff until final confirmation", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "show-vyva-email-1",
+        use_case: "send_message",
+        provider_name: "Trusted contact",
+        provider_phone: null,
+        action_summary: "Ask a trusted contact before replying.",
+        action_payload: {
+          show_vyva_action_id: "draft_reply",
+          show_vyva_follow_up_context: "scam",
+          show_vyva_source: "paste_text",
+          source_route: "/scam-guard",
+          review_summary: "Suspicious prize message",
+          requested_tool: "email",
+          execution_channel: "email",
+          provider_email: "trusted@example.com",
+          email_subject: "Can you check this message?",
+          email_body: "I received a suspicious prize message. Can you help me review it?",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+          executor_version: 1,
+          user_confirmed: false,
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    await screen.findByText("VYVA prepared this");
+    const rightNow = await screen.findByTestId("section-concierge-active-task");
+    expect(rightNow).toHaveTextContent("VYVA prepared this");
+    expect(rightNow).toHaveTextContent("Scam Guard");
+    expect(rightNow).toHaveTextContent("Message");
+    expect(rightNow).toHaveTextContent("Suspicious prize message");
+
+    fireEvent.click(screen.getByTestId("link-concierge-email-show-vyva-email-1"));
+
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Scam Guard");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+
+    expect(openMock).toHaveBeenCalledWith(
+      "mailto:trusted@example.com?subject=Can%20you%20check%20this%20message%3F&body=I%20received%20a%20suspicious%20prize%20message.%20Can%20you%20help%20me%20review%20it%3F",
+      "_self",
+      undefined,
+    );
   });
 
   it("records a sent email draft through the existing completion endpoint", async () => {
@@ -4372,10 +4441,7 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
-    expect(screen.getByTestId("link-concierge-email-draft-open-email-sent-1")).toHaveAttribute(
-      "href",
-      "mailto:claims@example.com?subject=Claim%20documents&body=Hello%2C%20please%20review%20my%20claim%20documents.",
-    );
+    expect(screen.getByTestId("link-concierge-email-draft-open-email-sent-1")).toHaveTextContent("Open");
     fireEvent.change(screen.getByTestId("input-email-draft-reference-email-sent-1"), {
       target: { value: "CL-11" },
     });
@@ -4462,6 +4528,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("renders prepared WhatsApp actions as draft message links", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
         id: "whatsapp-1",
@@ -4481,9 +4548,14 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     const whatsAppLink = await screen.findByTestId("link-concierge-whatsapp-whatsapp-1");
-    expect(whatsAppLink).toHaveAttribute(
-      "href",
+    fireEvent.click(whatsAppLink);
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+    expect(openMock).toHaveBeenCalledWith(
       "https://wa.me/34611222333?text=Hello%2C%20can%20we%20confirm%20the%20visit%20time%3F",
+      "_blank",
+      "noopener,noreferrer",
     );
     expect(screen.getByTestId("button-concierge-confirm-whatsapp-1")).toHaveTextContent("Open WhatsApp draft");
     expect(screen.getByTestId("panel-concierge-whatsapp-draft")).toHaveTextContent("WhatsApp ready");
@@ -4523,10 +4595,7 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     expect(await screen.findByTestId("panel-concierge-whatsapp-draft")).toHaveTextContent("WhatsApp ready");
-    expect(screen.getByTestId("link-concierge-whatsapp-draft-open-whatsapp-sent-1")).toHaveAttribute(
-      "href",
-      "https://wa.me/34600111222?text=Hello%2C%20do%20you%20have%20paracetamol%20available%20for%20pickup%20today%3F",
-    );
+    expect(screen.getByTestId("link-concierge-whatsapp-draft-open-whatsapp-sent-1")).toHaveTextContent("Open");
     fireEvent.change(screen.getByTestId("input-whatsapp-draft-reference-whatsapp-sent-1"), {
       target: { value: "OTC-77" },
     });
@@ -4626,9 +4695,15 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form ready");
     expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Ready to open with the gathered details.");
     expect(screen.queryByText("VYVA is handling it")).not.toBeInTheDocument();
-    expect(screen.getByTestId("link-concierge-form-form-ready-1")).toHaveAttribute(
-      "href",
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    fireEvent.click(screen.getByTestId("link-concierge-form-form-ready-1"));
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+    expect(openMock).toHaveBeenCalledWith(
       "https://www.thefork.es/restaurante/example?date=tomorrow",
+      "_blank",
+      "noopener,noreferrer",
     );
     expect(screen.getByTestId("link-booking-form-open-form-ready-1")).toHaveAttribute(
       "href",

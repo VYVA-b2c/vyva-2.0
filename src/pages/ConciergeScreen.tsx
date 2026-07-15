@@ -102,6 +102,12 @@ import type {
   ConciergeExecutionTask,
   ConciergeExecutionTaskStatus,
 } from "../../shared/conciergeActionExecution";
+import {
+  isShowVyvaPreparedTask,
+  showVyvaResumeActionLabel,
+  showVyvaResumeSourceLabel,
+  showVyvaResumeSummary,
+} from "../../shared/showVyvaResume";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -680,6 +686,16 @@ interface ConciergePendingItem {
   confirmed_at?: string | null;
   expires_at?: string | null;
 }
+
+type ConciergeExternalConfirmationKind = "confirm" | "phone" | "email" | "whatsapp" | "booking";
+
+type ConciergeExternalConfirmationRequest = {
+  item: ConciergePendingItem;
+  kind: ConciergeExternalConfirmationKind;
+  href?: string;
+  label: string;
+  target?: "_self" | "_blank";
+};
 
 interface ConciergeCompletedSession {
   id: string;
@@ -4872,6 +4888,7 @@ function PhoneCallOutcomePanel({
   isSaving,
   isSpanish,
   onFormChange,
+  onCall,
   onSave,
 }: {
   item: ConciergePendingItem;
@@ -4881,6 +4898,7 @@ function PhoneCallOutcomePanel({
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof PhoneCallOutcomeForm, value: string) => void;
+  onCall: (href: string, label: string) => void;
   onSave: () => void;
 }) {
   const provider = phoneCallProviderName(item, isSpanish);
@@ -4912,15 +4930,16 @@ function PhoneCallOutcomePanel({
           </span>
         </span>
         {href ? (
-          <a
-            href={href}
+          <button
+            type="button"
+            onClick={() => onCall(href, isSpanish ? "Llamar" : "Call now")}
             data-testid={`link-concierge-phone-call-${item.id}`}
             className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
             aria-label={`${isSpanish ? "Llamar" : "Call"} ${phone}`}
           >
             <PhoneCall size={14} />
             {isSpanish ? "Llamar" : "Call now"}
-          </a>
+          </button>
         ) : null}
       </div>
 
@@ -5012,6 +5031,7 @@ function EmailDraftOutcomePanel({
   isSaving,
   isSpanish,
   onFormChange,
+  onOpenDraft,
   onSent,
 }: {
   item: ConciergePendingItem;
@@ -5023,6 +5043,7 @@ function EmailDraftOutcomePanel({
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof EmailDraftOutcomeForm, value: string) => void;
+  onOpenDraft: (href: string, label: string) => void;
   onSent: () => void;
 }) {
   return (
@@ -5047,15 +5068,16 @@ function EmailDraftOutcomePanel({
               : "Open the draft, send it from your email, then save that it went out."}
           </span>
         </span>
-        <a
-          href={href}
+        <button
+          type="button"
+          onClick={() => onOpenDraft(href, isSpanish ? "Abrir email" : "Open email")}
           data-testid={`link-concierge-email-draft-open-${item.id}`}
           className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
           aria-label={`${isSpanish ? "Abrir email" : "Open email"} ${draft.address}`}
         >
           <ExternalLink size={14} />
           {isSpanish ? "Abrir" : "Open"}
-        </a>
+        </button>
       </div>
 
       <div className="mt-3 rounded-[18px] border border-[#E0E7FF] bg-white p-3">
@@ -5124,6 +5146,7 @@ function WhatsAppDraftOutcomePanel({
   isSaving,
   isSpanish,
   onFormChange,
+  onOpenDraft,
   onSent,
 }: {
   item: ConciergePendingItem;
@@ -5135,6 +5158,7 @@ function WhatsAppDraftOutcomePanel({
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof WhatsAppDraftOutcomeForm, value: string) => void;
+  onOpenDraft: (href: string, label: string) => void;
   onSent: () => void;
 }) {
   return (
@@ -5159,17 +5183,16 @@ function WhatsAppDraftOutcomePanel({
               : "Open the draft, send it in WhatsApp, then save that it went out."}
           </span>
         </span>
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={() => onOpenDraft(href, isSpanish ? "Abrir WhatsApp" : "Open WhatsApp")}
           data-testid={`link-concierge-whatsapp-draft-open-${item.id}`}
           className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[13px] font-black text-white shadow-sm"
           aria-label={`${isSpanish ? "Abrir WhatsApp" : "Open WhatsApp"} ${draft.number}`}
         >
           <ExternalLink size={14} />
           {isSpanish ? "Abrir" : "Open"}
-        </a>
+        </button>
       </div>
 
       <div className="mt-3 rounded-[18px] border border-[#CCFBF1] bg-white p-3">
@@ -5637,6 +5660,103 @@ function SafeWebSearchExecutionPanel({
         </Button>
       </div>
     </div>
+  );
+}
+
+function PendingExternalConfirmationModal({
+  request,
+  review,
+  locale,
+  isSpanish,
+  isPending,
+  onCancel,
+  onConfirm,
+}: {
+  request: ConciergeExternalConfirmationRequest;
+  review: PendingActionReviewSummary;
+  locale: string;
+  isSpanish: boolean;
+  isPending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const preparedByShowVyva = isShowVyvaPreparedTask(request.item.action_payload);
+  const sourceLabel = preparedByShowVyva ? showVyvaResumeSourceLabel(request.item.action_payload, locale) : "";
+  const actionLabel = preparedByShowVyva ? showVyvaResumeActionLabel(request.item.action_payload, locale) : request.label;
+  const summary = preparedByShowVyva
+    ? showVyvaResumeSummary(request.item.action_payload, request.item.action_summary)
+    : request.item.action_summary;
+
+  return (
+    <PurpleModal
+      Icon={ShieldCheck}
+      kicker={preparedByShowVyva ? (isSpanish ? "VYVA lo preparo" : "VYVA prepared this") : review.eyebrow}
+      title={isSpanish ? "Revisar primero" : "Review first"}
+      subtitle={isSpanish
+        ? "Confirma solo si quieres continuar. Nada sale sin este paso."
+        : "Confirm only if you want to continue. Nothing leaves without this step."}
+      titleId="concierge-final-confirmation-title"
+      onClose={onCancel}
+      closeLabel={isSpanish ? "Cerrar" : "Close"}
+      modalTestId="modal-concierge-final-confirmation"
+      panelTestId="panel-concierge-final-confirmation"
+      size="narrow"
+      layer="top"
+    >
+      <div className="rounded-[22px] border border-[#CCFBF1] bg-[#F8FFFC] p-4">
+        <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+          {preparedByShowVyva && sourceLabel ? sourceLabel : (isSpanish ? "Siguiente paso" : "Next step")}
+        </p>
+        <p className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+          {actionLabel}
+        </p>
+        {summary ? (
+          <p className="mt-2 font-body text-[13px] font-bold leading-relaxed text-vyva-text-2">
+            {summary}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        {review.details.slice(0, 4).map((detail) => (
+          <div
+            key={`${detail.label}-${detail.value}`}
+            className="flex items-start justify-between gap-3 rounded-[16px] border border-vyva-border bg-white px-3 py-2"
+          >
+            <span className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+              {detail.label}
+            </span>
+            <span className="text-right font-body text-[13px] font-black leading-snug text-vyva-text-1">
+              {detail.value}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <ConciergeApprovalPromise isSpanish={isSpanish} />
+
+      <div className="mt-4 grid grid-cols-1 gap-2">
+        <button
+          type="button"
+          data-testid="button-concierge-final-confirm"
+          onClick={onConfirm}
+          disabled={isPending}
+          className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+        >
+          {isPending ? <Loader2 size={16} className="animate-spin" /> : <CircleCheck size={16} />}
+          {isSpanish ? "Confirmar y continuar" : "Confirm and continue"}
+        </button>
+        <button
+          type="button"
+          data-testid="button-concierge-final-cancel"
+          onClick={onCancel}
+          disabled={isPending}
+          className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
+        >
+          {isSpanish ? "Cancelar" : "Cancel"}
+        </button>
+      </div>
+    </PurpleModal>
   );
 }
 
@@ -7080,6 +7200,7 @@ const ConciergeScreen = () => {
   const [visibleActionId, setVisibleActionId] = useState<string | null>(null);
   const [isRightNowHidden, setIsRightNowHidden] = useState(false);
   const [selectedCompletedSessionId, setSelectedCompletedSessionId] = useState<string | null>(null);
+  const [externalConfirmationRequest, setExternalConfirmationRequest] = useState<ConciergeExternalConfirmationRequest | null>(null);
   const [providerReplyMode, setProviderReplyMode] = useState<ProviderReplyMode>(null);
   const [providerReplyForm, setProviderReplyForm] = useState<ProviderReplyForm>(EMPTY_PROVIDER_REPLY_FORM);
   const [providerReplyNotice, setProviderReplyNotice] = useState<string | null>(null);
@@ -7894,6 +8015,31 @@ const ConciergeScreen = () => {
       ]);
     },
   });
+
+  function requestExternalConfirmation(request: ConciergeExternalConfirmationRequest) {
+    setExternalConfirmationRequest(request);
+  }
+
+  function handleExternalConfirmationConfirm() {
+    const request = externalConfirmationRequest;
+    if (!request) return;
+
+    if (request.kind === "confirm") {
+      confirmMutation.mutate(request.item, {
+        onSuccess: () => setExternalConfirmationRequest(null),
+      });
+      return;
+    }
+
+    if (request.href) {
+      window.open(
+        request.href,
+        request.target ?? "_self",
+        request.target === "_blank" ? "noopener,noreferrer" : undefined,
+      );
+    }
+    setExternalConfirmationRequest(null);
+  }
 
   const cancelMutation = useMutation({
     mutationFn: cancelPendingAction,
@@ -9809,7 +9955,11 @@ const ConciergeScreen = () => {
       } else if (activeActionNeedsEmailOutcome) {
         handleEmailDraftReview(activeAction);
       } else if (activeAction.status === "pending" && !activeActionIsVyvaTask) {
-        confirmMutation.mutate(activeAction);
+        requestExternalConfirmation({
+          item: activeAction,
+          kind: "confirm",
+          label: activeActionPrimaryLabel,
+        });
       } else {
         handleChangePendingAction(activeAction);
       }
@@ -10789,6 +10939,26 @@ const ConciergeScreen = () => {
       isSpanish,
       nextStepLabel: activeActionNextStepLabel,
       nextStepHelper: activeActionNextStepHelper,
+    })
+    : null;
+  const activeActionShowVyvaPrepared = activeAction ? isShowVyvaPreparedTask(activeAction.action_payload) : false;
+  const activeActionShowVyvaSource = activeActionShowVyvaPrepared
+    ? showVyvaResumeSourceLabel(activeAction?.action_payload, locale)
+    : "";
+  const activeActionShowVyvaTask = activeActionShowVyvaPrepared
+    ? showVyvaResumeActionLabel(activeAction?.action_payload, locale)
+    : "";
+  const activeActionShowVyvaSummary = activeActionShowVyvaPrepared
+    ? showVyvaResumeSummary(activeAction?.action_payload, activeAction?.action_summary)
+    : "";
+  const externalConfirmationReview = externalConfirmationRequest
+    ? buildPendingActionReviewSummary({
+      item: externalConfirmationRequest.item,
+      isSpanish,
+      nextStepLabel: externalConfirmationRequest.label,
+      nextStepHelper: isSpanish
+        ? "Nada se envia, llama ni abre hasta que confirmes."
+        : "Nothing is sent, called, or opened until you confirm.",
     })
     : null;
   const activeActionChecklist = activeAction && activeActionLabelParams
@@ -12526,11 +12696,20 @@ const ConciergeScreen = () => {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-body text-[12px] uppercase tracking-[0.12em] text-vyva-text-2">
-                  {getPendingActionUseCaseLabel(activeAction, locale)}
+                  {activeActionShowVyvaPrepared
+                    ? (isSpanish ? "VYVA lo preparo" : "VYVA prepared this")
+                    : getPendingActionUseCaseLabel(activeAction, locale)}
                 </p>
                 <p className="mt-1 font-body text-[20px] font-semibold leading-tight text-vyva-text-1">
-                  {activeAction.provider_name || (isSpanish ? "Proveedor seleccionado" : "Selected provider")}
+                  {activeActionShowVyvaPrepared
+                    ? activeActionShowVyvaTask
+                    : activeAction.provider_name || (isSpanish ? "Proveedor seleccionado" : "Selected provider")}
                 </p>
+                {activeActionShowVyvaPrepared && activeActionShowVyvaSource ? (
+                  <p className="mt-1 font-body text-[13px] font-black leading-tight text-[#0F766E]">
+                    {activeActionShowVyvaSource}
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
                 <span
@@ -12555,7 +12734,7 @@ const ConciergeScreen = () => {
             </div>
 
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
-              {activeAction.action_summary}
+              {activeActionShowVyvaSummary || activeAction.action_summary}
             </p>
 
             {activeActionExecutionStatus ? (
@@ -12587,7 +12766,11 @@ const ConciergeScreen = () => {
                   } else if (activeActionNeedsEmailOutcome) {
                     handleEmailDraftReview(activeAction);
                   } else {
-                    confirmMutation.mutate(activeAction);
+                    requestExternalConfirmation({
+                      item: activeAction,
+                      kind: "confirm",
+                      label: activeActionPrimaryLabel,
+                    });
                   }
                 }}
                 onChange={() => handleChangePendingAction(activeAction)}
@@ -12661,6 +12844,12 @@ const ConciergeScreen = () => {
                 isSaving={phoneCallOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updatePhoneCallOutcomeForm}
+                onCall={(href, label) => requestExternalConfirmation({
+                  item: activeAction,
+                  kind: "phone",
+                  href,
+                  label,
+                })}
                 onSave={() => handleSavePhoneCallOutcome(activeAction)}
               />
             ) : null}
@@ -12676,6 +12865,13 @@ const ConciergeScreen = () => {
                 isSaving={whatsAppDraftOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updateWhatsAppDraftOutcome}
+                onOpenDraft={(href, label) => requestExternalConfirmation({
+                  item: activeAction,
+                  kind: "whatsapp",
+                  href,
+                  label,
+                  target: "_blank",
+                })}
                 onSent={() => handleWhatsAppDraftSent(activeAction, activeActionWhatsAppDraft)}
               />
             ) : null}
@@ -12691,6 +12887,12 @@ const ConciergeScreen = () => {
                 isSaving={emailDraftOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updateEmailDraftOutcome}
+                onOpenDraft={(href, label) => requestExternalConfirmation({
+                  item: activeAction,
+                  kind: "email",
+                  href,
+                  label,
+                })}
                 onSent={() => handleEmailDraftSent(activeAction, activeActionEmailDraft)}
               />
             ) : null}
@@ -12794,38 +12996,55 @@ const ConciergeScreen = () => {
 
             <div className="mt-4 flex flex-wrap gap-2">
               {activeActionPhoneHref && (
-                <a
-                  href={activeActionPhoneHref}
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "phone",
+                    href: activeActionPhoneHref,
+                    label: isSpanish ? "Llamar" : "Call",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
                   aria-label={`${isSpanish ? "Llamar" : "Call"} ${activeAction.provider_phone}`}
                 >
                   <PhoneCall size={13} style={{ color: "#6B21A8" }} />
                   {activeAction.provider_phone}
-                </a>
+                </button>
               )}
               {activeActionEmailDraft && (
-                <a
-                  href={activeActionEmailHref}
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "email",
+                    href: activeActionEmailHref,
+                    label: isSpanish ? "Abrir email" : "Open email",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#EEF2FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
                   aria-label={`Email ${activeActionEmailDraft.address}`}
                   data-testid={`link-concierge-email-${activeAction.id}`}
                 >
                   <Mail size={13} style={{ color: "#6B21A8" }} />
                   {activeActionEmailDraft.address}
-                </a>
+                </button>
               )}
               {activeActionWhatsAppDraft && (
-                <a
-                  href={activeActionWhatsAppHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "whatsapp",
+                    href: activeActionWhatsAppHref,
+                    label: isSpanish ? "Abrir WhatsApp" : "Open WhatsApp",
+                    target: "_blank",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
                   aria-label={`WhatsApp ${activeActionWhatsAppDraft.number}`}
                   data-testid={`link-concierge-whatsapp-${activeAction.id}`}
                 >
                   <Send size={13} style={{ color: "#047857" }} />
                   WhatsApp
-                </a>
+                </button>
               )}
               {activeActionBookingUrl && activeActionIsVyvaTask && (
                 <span
@@ -12836,27 +13055,37 @@ const ConciergeScreen = () => {
                 </span>
               )}
               {activeActionCanOpenForm && activeActionBookingUrl && (
-                <a
-                  href={activeActionBookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "booking",
+                    href: activeActionBookingUrl,
+                    label: isSpanish ? "Abrir formulario" : "Open form",
+                    target: "_blank",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
                   data-testid={`link-concierge-form-${activeAction.id}`}
                 >
                   <Calendar size={13} style={{ color: "#0A7C4E" }} />
                   {isSpanish ? "Formulario listo" : "Form ready"}
-                </a>
+                </button>
               )}
               {!activeActionCanOpenForm && !activeAction.provider_phone && activeActionBookingUrl && !activeActionIsVyvaTask && (
-                <a
-                  href={activeActionBookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => requestExternalConfirmation({
+                    item: activeAction,
+                    kind: "booking",
+                    href: activeActionBookingUrl,
+                    label: isSpanish ? "Abrir reserva" : "Open booking",
+                    target: "_blank",
+                  })}
                   className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
                 >
                   <Calendar size={13} style={{ color: "#0A7C4E" }} />
                   {isSpanish ? "Reserva online disponible" : "Online booking available"}
-                </a>
+                </button>
               )}
             </div>
 
@@ -12942,6 +13171,18 @@ const ConciergeScreen = () => {
           </div>
         ) : null}
       </section>
+
+      {externalConfirmationRequest && externalConfirmationReview ? (
+        <PendingExternalConfirmationModal
+          request={externalConfirmationRequest}
+          review={externalConfirmationReview}
+          locale={locale}
+          isSpanish={isSpanish}
+          isPending={confirmMutation.isPending}
+          onCancel={() => setExternalConfirmationRequest(null)}
+          onConfirm={handleExternalConfirmationConfirm}
+        />
+      ) : null}
 
       {selectedCompletedSession && (
         <PurpleModal
