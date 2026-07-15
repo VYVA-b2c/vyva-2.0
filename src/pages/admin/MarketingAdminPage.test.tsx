@@ -1561,8 +1561,30 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok feature demo script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn family proof article");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("29 templates");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Trust review request email");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("35 templates");
     expect(screen.getByTestId("marketing-template-packs")).toHaveTextContent("Family onboarding");
+    expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("Trust and review");
+    expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-trust-and-review"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Trust and review template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Trust review request email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Instagram trust carousel");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-trust-and-review")).toHaveTextContent("Ask for one moment");
+    expect(screen.getByTestId("marketing-template-pack-sequence-trust-and-review")).toHaveTextContent("Partner proof");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-trust-and-review"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Trust and review");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Trust and review pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("Partner growth");
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-partner-growth"));
@@ -1594,9 +1616,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("8");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("3");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("4");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Target: 3 per pack");
     fireEvent.click(screen.getByTestId("button-marketing-template-matrix-whatsapp-b2b"));
