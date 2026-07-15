@@ -53,7 +53,7 @@ interface BasicProfile {
   language_preference: string | null;
 }
 
-interface PendingRow {
+export interface PendingRow {
   id: string;
   user_id: string;
   use_case: ConciergeUseCase;
@@ -79,6 +79,17 @@ export interface CompleteResult {
   ok: true;
   status: "completed";
   sessionId: string | null;
+}
+
+export interface PendingActionDetailsUpdateInput {
+  actionPayload: Record<string, unknown>;
+  answerKey?: string | null;
+  answerValue?: string | null;
+}
+
+export interface PendingActionDetailsUpdateResult {
+  ok: true;
+  item: PendingRow;
 }
 
 type OutboundResponse = {
@@ -116,6 +127,12 @@ function asString(value: unknown): string | undefined {
     return String(value);
   }
   return undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function formatList(value: unknown): string | undefined {
@@ -342,6 +359,85 @@ async function loadPendingById(pendingId: string): Promise<PendingRow | null> {
   );
 
   return result.rows[0] ?? null;
+}
+
+export async function updatePendingConciergeActionDetails(
+  pendingId: string,
+  userId: string,
+  input: PendingActionDetailsUpdateInput,
+): Promise<PendingActionDetailsUpdateResult> {
+  const pending = await loadPendingById(pendingId);
+  if (!pending) {
+    throw new Error("Concierge action not found.");
+  }
+  if (pending.user_id !== userId) {
+    throw new Error("You do not have access to this concierge action.");
+  }
+  if (pending.status === "completed" || pending.status === "failed" || pending.status === "cancelled") {
+    throw new Error(`Concierge action cannot be updated from status "${pending.status}".`);
+  }
+
+  const currentPayload = pending.action_payload ?? {};
+  const patchMeta = asRecord(input.actionPayload._meta);
+  const patchPayload = Object.fromEntries(
+    Object.entries(input.actionPayload).filter(([key]) => key !== "_meta"),
+  );
+  const currentMeta = asRecord(currentPayload._meta);
+  const currentAnswers = asRecord(currentMeta.guided_detail_answers);
+  const nextAnswers = input.answerKey
+    ? {
+        ...currentAnswers,
+        [input.answerKey]: input.answerValue ?? patchPayload[input.answerKey] ?? "",
+      }
+    : currentAnswers;
+
+  const nextPayloadBase = {
+    ...currentPayload,
+    ...patchPayload,
+    _meta: {
+      ...currentMeta,
+      ...patchMeta,
+      ...(Object.keys(nextAnswers).length > 0 ? { guided_detail_answers: nextAnswers } : {}),
+      guided_detail_updated_at: new Date().toISOString(),
+    },
+  };
+
+  const actionPayload = withConciergeExecutionTask({
+    useCase: pending.use_case,
+    payload: nextPayloadBase,
+    providerName: pending.provider_name,
+    providerPhone: pending.provider_phone,
+    summary: pending.action_summary,
+    pendingStatus: pending.status,
+  });
+
+  const result = await pool.query<PendingRow>(
+    `
+      update concierge_pending
+      set action_payload = $3::jsonb, updated_at = now()
+      where id = $1::uuid
+        and user_id = $2
+      returning
+        id,
+        user_id,
+        use_case,
+        provider_id::text,
+        provider_name,
+        provider_phone,
+        found_externally,
+        action_summary,
+        action_payload,
+        language,
+        status
+    `,
+    [pending.id, userId, JSON.stringify(actionPayload)],
+  );
+
+  const item = result.rows[0];
+  if (!item) {
+    throw new Error("Concierge action could not be updated.");
+  }
+  return { ok: true, item };
 }
 
 async function startOutboundCall(
