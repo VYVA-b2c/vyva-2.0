@@ -1821,7 +1821,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner demo LinkedIn post campaign");
     expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
     expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign starter applied from \"Partner demo LinkedIn post\"");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI brief and channel pack are ready");
+    const partnerTemplateBrief = screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement;
+    expect(partnerTemplateBrief.value).toContain('Template campaign from "Partner demo LinkedIn post".');
+    expect(partnerTemplateBrief.value).toContain("Audience/list: Partners.");
+    expect(partnerTemplateBrief.value).toContain("Channels: LinkedIn");
+    expect(partnerTemplateBrief.value).toContain("AI direction: adapt this into a polished campaign pack");
   });
 
   it("starts a campaign planner draft from a content template", async () => {
@@ -1834,8 +1841,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Caregiver welcome email campaign");
     expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2c");
     expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
-    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("A warm first email for a family caregiver");
+    const templateCampaignObjective = screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement;
+    expect(templateCampaignObjective.value).toContain('Template campaign from "Caregiver welcome email".');
+    expect(templateCampaignObjective.value).toContain("A warm first email for a family caregiver");
+    expect(templateCampaignObjective.value).toContain("AI direction: adapt this into a polished campaign pack");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign starter applied from \"Caregiver welcome email\"");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI brief and channel pack are ready");
+    const templateCampaignBrief = screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement;
+    expect(templateCampaignBrief.value).toContain('Template campaign from "Caregiver welcome email".');
+    expect(templateCampaignBrief.value).toContain("Starting hook: \"Welcome to VYVA, {{first_name}}\".");
+    expect(templateCampaignBrief.value).toContain("Goal: create the saved content asset");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Caregiver welcome email");

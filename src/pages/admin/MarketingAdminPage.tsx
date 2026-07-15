@@ -3080,7 +3080,7 @@ function templateGapSuggestionsFor(templates: ContentTemplate[]) {
     .slice(0, 4);
 }
 
-function campaignDraftFromContentTemplate(template: ContentTemplate): CampaignDraft {
+function campaignDraftFromContentTemplate(template: ContentTemplate, targetAudience: MarketingAudience | null = null): CampaignDraft {
   return {
     name: `${template.title} campaign`,
     audienceType: template.audienceType,
@@ -3093,14 +3093,58 @@ function campaignDraftFromContentTemplate(template: ContentTemplate): CampaignDr
       template.description,
       "",
       `Audience: ${template.audienceType.toUpperCase()}.`,
+      targetAudience ? `Audience/list: ${targetAudience.name}.` : "",
       `Primary channel: ${channelLabel[template.channel]}.`,
       template.ctaLabel ? `CTA: ${template.ctaLabel}${template.ctaUrl ? ` (${template.ctaUrl})` : ""}.` : "",
       "Next step: save the content draft, then attach the saved content asset to this campaign before sending.",
     ].filter(Boolean).join("\n"),
-    targetAudienceId: "",
-    recipientFilter: "",
-    snapshotRecipients: false,
+    targetAudienceId: targetAudience?.id ?? "",
+    recipientFilter: targetAudience?.name ?? "",
+    snapshotRecipients: Boolean(targetAudience?.mappedMemberCount || targetAudience?.memberCount),
   };
+}
+
+function campaignPlayForContentTemplate(template: ContentTemplate) {
+  const haystack = lower([
+    template.title,
+    template.description,
+    template.category,
+    template.subject,
+    template.body,
+    template.ctaLabel,
+  ].join(" "));
+  return campaignStudioPlays.find((play) => (
+    (play.audienceType === template.audienceType || play.audienceType === "both" || template.audienceType === "both")
+    && (
+      play.defaultChannel === template.channel
+      || play.targetListHints.some((hint) => haystack.includes(lower(hint)))
+      || haystack.includes(lower(play.label))
+      || haystack.includes(lower(play.categoryId))
+    )
+  ))
+    ?? campaignStudioPlays.find((play) => play.defaultChannel === template.channel)
+    ?? campaignStudioPlays[0];
+}
+
+function campaignIntentBriefFromTemplate(
+  template: ContentTemplate,
+  play: CampaignStudioPlay,
+  targetAudience: MarketingAudience | null,
+  selectedChannels: Channel[],
+) {
+  const audienceLabel = targetAudience?.name ?? template.audienceType.toUpperCase();
+  return [
+    `Template campaign from "${template.title}".`,
+    `Use case: ${template.description}`,
+    `Playbook: ${play.label}.`,
+    `Audience/list: ${audienceLabel}.`,
+    `Channels: ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")}.`,
+    template.subject ? `Starting hook: "${template.subject}".` : "",
+    template.body ? `Starter copy: ${template.body}` : "",
+    template.ctaLabel ? `CTA: ${template.ctaLabel}${template.ctaUrl ? ` (${template.ctaUrl})` : ""}.` : "",
+    "AI direction: adapt this into a polished campaign pack with one clear promise, channel-specific copy, and no extra asks.",
+    "Goal: create the saved content asset, attach it to the campaign, then publish or hand off through the selected route.",
+  ].filter(Boolean).join("\n");
 }
 
 function campaignChannelDraftFromChannel(channel: CampaignChannel, fallbackStatus: CampaignStatus, fallbackSchedule: string): CampaignChannelDraft {
@@ -9216,17 +9260,36 @@ export default function MarketingAdminPage() {
   }
 
   function startCampaignFromContentTemplate(template: ContentTemplate) {
+    const play = campaignPlayForContentTemplate(template);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const selectedChannels = uniqueChannels([template.channel, ...recommendedCampaignStudioChannels(play)]);
+    const intentBrief = campaignIntentBriefFromTemplate(template, play, targetAudience, selectedChannels);
     setContentDraft(contentDraftFromTemplate(template));
-    setCampaignDraft(campaignDraftFromContentTemplate(template));
+    setCampaignDraft({
+      ...campaignDraftFromContentTemplate(template, targetAudience),
+      objective: intentBrief,
+    });
+    setCampaignStudioCategory(play.categoryId);
+    setCampaignStudioAiDrafts({});
+    setCampaignStudio({
+      playId: play.id,
+      toneId: template.audienceType === "b2b" ? "expert" : "warm",
+      angleId: template.category.toLowerCase().includes("proof") || template.category.toLowerCase().includes("partner") ? "proof" : "balanced",
+      channel: template.channel,
+      selectedChannels,
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+      targetAudienceId: targetAudience?.id ?? "",
+    });
+    setCampaignIntentBrief(intentBrief);
     setSelectedContentId(null);
     setEditingContentId(null);
     setContentEditDraft(null);
     setContentDrawerMode(null);
     setEditingCampaignId(null);
-    setCampaignStudioFeedback(`Campaign starter applied from "${template.title}".`);
+    setCampaignStudioFeedback(`Campaign starter applied from "${template.title}". AI brief and channel pack are ready.`);
     setContentFeedback(`Template applied: ${template.title}. Save this content, then attach it to the campaign.`);
     setContentActionFeedback(`Campaign starter applied: ${template.title}.`);
-    setMessage(`Campaign starter applied: ${template.title}. Save the content draft, then add the campaign.`);
+    setMessage(`Campaign starter applied: ${template.title}. Review the AI brief, save the content draft, then add the campaign.`);
     setActiveTab("dashboard");
   }
 
