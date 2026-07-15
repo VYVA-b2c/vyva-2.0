@@ -476,6 +476,14 @@ type CampaignIntentMatch = {
   reasons: string[];
 };
 
+type CampaignIntentQuickStart = {
+  id: string;
+  title: string;
+  detail: string;
+  brief: string;
+  channels: Channel[];
+};
+
 type CampaignStudioPlay = {
   id: CampaignStudioPlayId;
   categoryId: Exclude<CampaignStudioCategoryId, "all">;
@@ -1450,6 +1458,23 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     ctaUrl: "https://v2.vyva.life",
   },
   {
+    id: "monthly-care-digest",
+    categoryId: "engagement",
+    label: "Monthly care digest",
+    brief: "Turn daily care signals into a recurring monthly family update and partner proof story.",
+    audienceType: "both",
+    defaultChannel: "email",
+    targetListHints: ["monthly", "digest", "summary", "caregiver", "family", "updates"],
+    scheduleDaysFromNow: 7,
+    campaignName: "Monthly care digest",
+    contentTitle: "Monthly care digest",
+    objective: "Create a recurring care digest that gives families one calm summary, one confidence signal, and one practical next step.",
+    subject: "{{month_name}} care update",
+    body: "Hi {{first_name}},\n\nHere is the monthly VYVA care digest: what stayed steady, what changed, and the one useful next step for the care team.\n\nKeep it calm, practical, and easy to act on.",
+    ctaLabel: "Review monthly update",
+    ctaUrl: "https://v2.vyva.life/caregiver/dashboard",
+  },
+  {
     id: "alert-preference-refresh",
     categoryId: "engagement",
     label: "Alert preference refresh",
@@ -1635,6 +1660,44 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     body: "Hi {{first_name}},\n\nWe have not heard from you in a while, so we will keep this simple. If VYVA is still useful, open your account and check the latest profile, care-team, or update settings.\n\nIf not, no problem. We want messages to stay useful.",
     ctaLabel: "Open VYVA",
     ctaUrl: "https://v2.vyva.life",
+  },
+];
+
+const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
+  {
+    id: "monthly-care-digest",
+    title: "Monthly care digest",
+    detail: "Family email, WhatsApp reply prompt, and social proof from monthly care signals.",
+    brief: "Create a monthly care digest for families and partners by email, WhatsApp, Instagram, Facebook, and LinkedIn. Use warm proof, stay non-clinical, and give one practical next step.",
+    channels: ["email", "whatsapp", "instagram", "facebook", "linkedin"],
+  },
+  {
+    id: "partner-webinar",
+    title: "Partner webinar",
+    detail: "Professional invite for clinics, pharmacies, and local partners.",
+    brief: "Invite Madrid partners to a practical webinar by email and LinkedIn. Make it expert, proof-led, and easy to book.",
+    channels: ["email", "linkedin"],
+  },
+  {
+    id: "local-event",
+    title: "Local event",
+    detail: "Local activity campaign with public post, direct reminder, and follow-up.",
+    brief: "Promote a local Madrid activity for families on Facebook, WhatsApp, and Instagram. Keep it local, accessible, and clear about the next step.",
+    channels: ["facebook", "whatsapp", "instagram"],
+  },
+  {
+    id: "caregiver-onboarding",
+    title: "Caregiver onboarding",
+    detail: "Warm welcome flow for new caregivers and family members.",
+    brief: "Welcome new caregivers with a warm email and WhatsApp onboarding campaign. Focus on profile completion, dashboard access, and one first useful action.",
+    channels: ["email", "whatsapp"],
+  },
+  {
+    id: "winback",
+    title: "Win-back",
+    detail: "Gentle reactivation for quiet families or dormant contacts.",
+    brief: "Reactivate quiet family contacts with a gentle email and WhatsApp campaign. Give one simple reason to return and one low-friction next step.",
+    channels: ["email", "whatsapp"],
   },
 ];
 
@@ -3653,7 +3716,7 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "linkedin-monthly-care-operations-note",
     ],
     heroTemplateId: "email-monthly-care-digest",
-    studioPlayId: "daily-summary-education",
+    studioPlayId: "monthly-care-digest",
     toneId: "warm",
     angleId: "proof",
     sequence: [
@@ -5205,6 +5268,7 @@ function campaignStudioPlayById(id: CampaignStudioPlayId) {
 
 function campaignIntentPlay(brief: string) {
   const text = lower(brief);
+  if (campaignIntentHasAny(text, ["monthly", "newsletter", "digest", "roundup", "report", "summary"])) return campaignStudioPlayById("monthly-care-digest");
   if (campaignIntentHasAny(text, ["webinar", "session", "demo", "professional session"])) return campaignStudioPlayById("partner-webinar");
   if (campaignIntentHasAny(text, ["referral", "refer", "provider", "partner follow", "partner nurture"])) return campaignStudioPlayById("referral-partner-nurture");
   if (campaignIntentHasAny(text, ["partner", "b2b", "care home", "clinic", "pharmacy", "provider"])) return campaignStudioPlayById("b2b-partner-outreach");
@@ -5214,7 +5278,6 @@ function campaignIntentPlay(brief: string) {
   if (campaignIntentHasAny(text, ["medication", "medicine", "routine", "pill"])) return campaignStudioPlayById("medication-routine-education");
   if (campaignIntentHasAny(text, ["feedback", "survey", "questionnaire"])) return campaignStudioPlayById("feedback-survey");
   if (campaignIntentHasAny(text, ["inactive", "quiet", "winback", "win back", "reactivate", "reactivation"])) return campaignStudioPlayById("reactivation");
-  if (campaignIntentHasAny(text, ["newsletter", "digest", "roundup"])) return campaignStudioPlayById("newsletter-digest");
   if (campaignIntentHasAny(text, ["instagram", "visual", "story", "reel"])) return campaignStudioPlayById("instagram-proof-point");
   if (campaignIntentHasAny(text, ["tiktok", "short video", "myth"])) return campaignStudioPlayById("tiktok-myth-buster");
   return campaignStudioPlayById("product-education");
@@ -10085,13 +10148,14 @@ export default function MarketingAdminPage() {
     setMessage(`Playbook loaded: ${recommendation.play.label}. Review the channel pack, then improve with AI or create the campaign.`);
   }
 
-  function applyCampaignIntentBrief() {
-    const brief = campaignIntentBrief.trim();
+  function applyCampaignIntentBriefText(rawBrief: string, source: "brief" | "quick_start" = "brief") {
+    const brief = rawBrief.trim();
     if (!brief) {
       setCampaignStudioFeedback("Add a short campaign brief first.");
       return;
     }
 
+    setCampaignIntentBrief(brief);
     const match = campaignIntentMatch(brief, audiences);
     const primaryChannel = match.channels[0] ?? match.play.defaultChannel;
     const scheduleStartsAt = campaignStudioDefaultSchedule(match.play);
@@ -10119,8 +10183,18 @@ export default function MarketingAdminPage() {
       recipientFilter: match.targetAudience?.name ?? "",
       snapshotRecipients: Boolean(match.targetAudience?.mappedMemberCount || match.targetAudience?.memberCount),
     }));
-    setCampaignStudioFeedback(`Brief matched to ${match.play.label}: ${match.reasons.join(", ")}.`);
-    setMessage(`Campaign brief matched to ${match.play.label}. Review the studio plan, then improve with AI or create the campaign.`);
+    const feedbackPrefix = source === "quick_start" ? "Quick idea matched to" : "Brief matched to";
+    const messagePrefix = source === "quick_start" ? "Quick idea matched to" : "Campaign brief matched to";
+    setCampaignStudioFeedback(`${feedbackPrefix} ${match.play.label}: ${match.reasons.join(", ")}.`);
+    setMessage(`${messagePrefix} ${match.play.label}. Review the studio plan, then improve with AI or create the campaign.`);
+  }
+
+  function applyCampaignIntentBrief() {
+    applyCampaignIntentBriefText(campaignIntentBrief);
+  }
+
+  function applyCampaignIntentQuickStart(quickStart: CampaignIntentQuickStart) {
+    applyCampaignIntentBriefText(quickStart.brief, "quick_start");
   }
 
   function focusCampaignStudioChannel(channel: Channel) {
@@ -14233,6 +14307,35 @@ export default function MarketingAdminPage() {
                               </button>
                             ))}
                           </div>
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-intent-quick-starts">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Quick starts</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Choose a common communication job and VYVA will fill the brief, channels, list, and planner.</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignIntentQuickStarts.length} ideas</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                          {campaignIntentQuickStarts.map((quickStart) => (
+                            <button
+                              key={quickStart.id}
+                              type="button"
+                              onClick={() => applyCampaignIntentQuickStart(quickStart)}
+                              className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                              data-testid={`button-marketing-campaign-intent-quick-${quickStart.id}`}
+                            >
+                              <span className="block font-black text-[#241133]">{quickStart.title}</span>
+                              <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{quickStart.detail}</span>
+                              <span className="mt-2 flex flex-wrap gap-1">
+                                {quickStart.channels.slice(0, 3).map((channel) => (
+                                  <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                ))}
+                                {quickStart.channels.length > 3 ? <Pill className="bg-white text-[#5b4a46]">+{quickStart.channels.length - 3}</Pill> : null}
+                              </span>
+                            </button>
+                          ))}
                         </div>
                       </div>
                     </div>

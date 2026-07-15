@@ -3179,7 +3179,7 @@ describe("MarketingAdminPage", () => {
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("All plays");
-    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("22");
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("23");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Best next campaigns from your data");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Event reminder");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-playbook-event-reminder"));
@@ -3484,6 +3484,18 @@ describe("MarketingAdminPage", () => {
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-intent-brief")).toHaveTextContent("Tell VYVA what you want to run");
+    expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Monthly care digest");
+    expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Partner webinar");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-intent-quick-monthly-care-digest"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Quick idea matched to Monthly care digest");
+    expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain("monthly care digest");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Monthly care digest");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
 
     fireEvent.change(screen.getByTestId("textarea-marketing-campaign-intent"), {
       target: { value: "Invite Madrid partners to a practical webinar by email and LinkedIn." },
