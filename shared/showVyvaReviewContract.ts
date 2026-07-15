@@ -3,6 +3,7 @@ import {
   getShowVyvaUseCase,
   inferShowVyvaPasteSource,
   type ShowVyvaCaptureSource,
+  type ShowVyvaPastePayload,
   type ShowVyvaUseCaseId,
 } from "./showVyvaFlow";
 import {
@@ -62,6 +63,9 @@ export interface ShowVyvaReviewContract {
   followUpContext: ShowVyvaFollowUpContext;
   inputType: ShowVyvaReviewInputType;
   source: ShowVyvaCaptureSource;
+  reviewedValue?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
   workflow: WorkflowReference;
   conciergeFlow?: ConciergeFlowReference;
   concernSummary: string;
@@ -114,6 +118,11 @@ const PHONE_NUMBER_MATCH = /(?:\+?\d[\s().-]?){7,}\d/;
 
 function cleanList(items: Array<string | null | undefined> | null | undefined): string[] {
   return (items ?? []).map((item) => item?.trim() ?? "").filter(Boolean);
+}
+
+function cleanOptional(value: string | null | undefined): string | null {
+  const cleaned = value?.trim() ?? "";
+  return cleaned || null;
 }
 
 function documentLike(input: ShowVyvaReviewInputDescriptor): boolean {
@@ -191,13 +200,32 @@ function fallbackNextSteps(context: ShowVyvaReviewContext): string[] {
   return ["Compare the item or document first.", "Prepare a message or next step, then confirm before sending."];
 }
 
+function defaultActionIdsForInput(
+  followUpContext: ShowVyvaFollowUpContext,
+  inputType: ShowVyvaReviewInputType,
+): ShowVyvaFollowUpActionId[] | null {
+  if (followUpContext !== "scam") return null;
+
+  if (inputType === "phone_number") {
+    return ["check_number", "call_trusted_contact", "save_report", "scam_concierge"];
+  }
+  if (inputType === "pasted_link") {
+    return ["check_link", "call_trusted_contact", "save_report", "scam_concierge"];
+  }
+  if (inputType === "company_name") {
+    return ["check_company", "call_trusted_contact", "save_report", "scam_concierge"];
+  }
+  return ["forward_email", "check_company", "save_report", "call_trusted_contact", "scam_concierge"];
+}
+
 export function buildShowVyvaReviewContract(input: ShowVyvaReviewDraftInput): ShowVyvaReviewContract {
   const useCase = getShowVyvaUseCase(input.useCaseId);
   const inputType = inferShowVyvaReviewInputType(input);
   const followUpContext = input.followUpContext ?? showVyvaFollowUpContextForUseCase(input.useCaseId);
   const context = showVyvaReviewContextForFollowUp(followUpContext);
+  const defaultIncludeActions = defaultActionIdsForInput(followUpContext, inputType);
   const actions = showVyvaFollowUpActionsFor(followUpContext, {
-    include: input.includeActions ?? undefined,
+    include: input.includeActions ?? defaultIncludeActions ?? undefined,
     exclude: input.excludeActions ?? undefined,
   });
 
@@ -207,6 +235,9 @@ export function buildShowVyvaReviewContract(input: ShowVyvaReviewDraftInput): Sh
     followUpContext,
     inputType,
     source: input.source,
+    reviewedValue: cleanOptional(input.value),
+    fileName: cleanOptional(input.fileName),
+    mimeType: cleanOptional(input.mimeType),
     workflow: useCase.workflow,
     conciergeFlow: useCase.conciergeFlow,
     concernSummary: input.concernSummary?.trim() || fallbackConcern(inputType),
@@ -271,5 +302,34 @@ export function showVyvaReviewContractFromHealthResult(
       ...cleanList(result.uncertainty),
     ],
     safeNextSteps: cleanList([result.recommendedNextStep, result.advice]),
+  });
+}
+
+export function showVyvaReviewContractFromPastePayload(payload: ShowVyvaPastePayload): ShowVyvaReviewContract {
+  const trimmed = payload.value.trim();
+  const inputType = inferShowVyvaReviewInputType({
+    useCaseId: payload.useCaseId,
+    source: payload.source,
+    value: trimmed,
+  });
+  const valueHint = trimmed.length > 140 ? `${trimmed.slice(0, 137)}...` : trimmed;
+  const concernSummary = fallbackConcern(inputType);
+  const inputSummary = valueHint ? `${concernSummary}: ${valueHint}` : concernSummary;
+
+  return buildShowVyvaReviewContract({
+    useCaseId: payload.useCaseId,
+    source: payload.source,
+    value: trimmed,
+    concernSummary,
+    riskLevel: "unknown",
+    confidenceLevel: "low",
+    noticed: [
+      `VYVA reviewed this as ${concernSummary.toLowerCase()}.`,
+      "Nothing has been sent, called, uploaded externally, paid, or shared.",
+    ],
+    safeNextSteps: [
+      inputSummary,
+      ...fallbackNextSteps(showVyvaReviewContextForUseCase(payload.useCaseId)),
+    ],
   });
 }

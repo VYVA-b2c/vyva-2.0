@@ -1613,6 +1613,11 @@ const es = {
       finalConfirmation: "VYVA prepara primero. Tu confirmas antes de enviar, comprar, reservar, llamar, subir, entregar o compartir nada.",
       sections: {
         summary: "Resumen",
+        reviewed: "Lo que VYVA reviso",
+        thinks: "Lo que VYVA piensa",
+        urgency: "Riesgo o urgencia",
+        recommendedNextStep: "Siguiente paso recomendado",
+        safeActions: "Pedir ayuda a VYVA o guardar para despues",
         noticed: "Lo que VYVA noto",
         nextSteps: "Siguientes pasos seguros",
       },
@@ -1636,6 +1641,8 @@ const es = {
         phone_number: "Numero de telefono",
         company_name: "Nombre de empresa",
         document_text: "Texto de documento",
+        scam_review: "Estafa, mensaje, enlace, documento, numero o empresa",
+        home_safety_photo: "Foto o preocupacion de seguridad en casa",
       },
     },
     followUp: {
@@ -1693,6 +1700,7 @@ const es = {
     linkDetected: "Enlace detectado",
     textDetected: "Texto detectado",
     reviewPasted: "Revisar seguro",
+    closeReview: "Cerrar revision",
   },
   statusVitals: {
     actions: {

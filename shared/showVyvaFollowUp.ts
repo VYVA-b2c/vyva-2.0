@@ -13,7 +13,10 @@ export type ShowVyvaFollowUpContext =
   typeof SHOW_VYVA_FOLLOW_UP_CONTEXTS[keyof typeof SHOW_VYVA_FOLLOW_UP_CONTEXTS];
 
 export const SHOW_VYVA_FOLLOW_UP_ACTION_IDS = {
+  forwardEmail: "forward_email",
   checkCompany: "check_company",
+  checkNumber: "check_number",
+  checkLink: "check_link",
   callTrusted: "call_trusted_contact",
   saveReport: "save_report",
   scamConcierge: "scam_concierge",
@@ -72,11 +75,38 @@ export interface ShowVyvaFollowUpAction {
 }
 
 const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
+  forward_email: {
+    id: "forward_email",
+    label: "Forward safely",
+    detail: "Prepare an email draft.",
+    icon: "reply",
+    tone: "warm",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
   check_company: {
     id: "check_company",
     label: "Check company",
     detail: "Look up reputation first.",
     icon: "building",
+    tone: "quiet",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
+  check_number: {
+    id: "check_number",
+    label: "Check number",
+    detail: "Look up warning signs.",
+    icon: "phone",
+    tone: "quiet",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
+  check_link: {
+    id: "check_link",
+    label: "Check link",
+    detail: "Review the address first.",
+    icon: "shield",
     tone: "quiet",
     externalAction: true,
     requiresConfirmation: true,
@@ -291,9 +321,9 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
 };
 
 const CONTEXT_ACTIONS: Record<ShowVyvaFollowUpContext, ShowVyvaFollowUpActionId[]> = {
-  scam: ["check_company", "call_trusted_contact", "save_report", "scam_concierge"],
+  scam: ["forward_email", "check_company", "check_number", "check_link", "call_trusted_contact", "save_report", "scam_concierge"],
   health_visual: ["doctor_help", "save_note", "call_gp", "email_gp", "schedule_appointment", "book_ride"],
-  home_safety: ["buy_safety_aid", "request_quote", "call_care_team", "mark_safe_now"],
+  home_safety: ["buy_safety_aid", "request_quote", "call_care_team", "save_note", "mark_safe_now"],
   medicine: ["pharmacist_questions", "medicine_safety", "save_note", "continue_concierge"],
   document: ["summarize_document", "draft_reply", "prepare_call", "continue_concierge"],
   provider_deal: ["compare_price", "compare_proximity", "check_reputation", "check_terms", "continue_concierge"],

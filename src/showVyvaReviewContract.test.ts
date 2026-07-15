@@ -8,6 +8,7 @@ import {
   buildShowVyvaReviewContract,
   inferShowVyvaReviewInputType,
   showVyvaReviewContractFromHealthResult,
+  showVyvaReviewContractFromPastePayload,
   showVyvaReviewContractFromSafeHomeResult,
   showVyvaReviewContractFromScamResult,
 } from "../shared/showVyvaReviewContract";
@@ -81,6 +82,7 @@ describe("Show VYVA review contract", () => {
       finalConfirmationRule: SHOW_VYVA_FINAL_CONFIRMATION_RULE,
     });
     expect(contract.concernSummary).toBe("Compare this offer");
+    expect(contract.reviewedValue).toBe("https://example.com/deal");
     expect(contract.noticed).toHaveLength(2);
     expect(contract.safeNextSteps).toHaveLength(3);
     expect(contract.followUpActions.map((action) => action.id)).toEqual([
@@ -90,6 +92,65 @@ describe("Show VYVA review contract", () => {
       "check_terms",
       "continue_concierge",
     ]);
+  });
+
+  it("builds pasted review contracts for links, phone numbers, company names, and document text", () => {
+    const link = showVyvaReviewContractFromPastePayload({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.providerOrDeal,
+      source: "paste_link",
+      value: "https://example.com/quote",
+    });
+    expect(link.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.pastedLink);
+    expect(link.followUpContext).toBe("provider_deal");
+    expect(link.reviewedValue).toBe("https://example.com/quote");
+
+    const phone = showVyvaReviewContractFromPastePayload({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+      source: "paste_text",
+      value: "+34 600 111 222",
+    });
+    expect(phone.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.phoneNumber);
+    expect(phone.followUpContext).toBe("scam");
+    expect(phone.followUpActions.map((action) => action.id)).toEqual([
+      "check_number",
+      "call_trusted_contact",
+      "save_report",
+      "scam_concierge",
+    ]);
+
+    const scamLink = showVyvaReviewContractFromPastePayload({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+      source: "paste_text",
+      value: "https://suspicious.example/pay",
+    });
+    expect(scamLink.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.pastedLink);
+    expect(scamLink.followUpActions.map((action) => action.id)).toEqual([
+      "check_link",
+      "call_trusted_contact",
+      "save_report",
+      "scam_concierge",
+    ]);
+
+    const company = showVyvaReviewContractFromPastePayload({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+      source: "paste_text",
+      value: "Example Energy SL",
+    });
+    expect(company.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.companyName);
+    expect(company.followUpActions.map((action) => action.id)).toEqual([
+      "check_company",
+      "call_trusted_contact",
+      "save_report",
+      "scam_concierge",
+    ]);
+
+    const document = showVyvaReviewContractFromPastePayload({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.documentHelp,
+      source: "paste_text",
+      value: "Insurance claim deadline: Friday",
+    });
+    expect(document.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.documentText);
+    expect(document.followUpActions.map((action) => action.id)).toContain("summarize_document");
   });
 
   it("normalizes existing scam, safe-home, and health results to the same contract", () => {
@@ -112,6 +173,24 @@ describe("Show VYVA review contract", () => {
       "scam_concierge",
     ]);
 
+    const scamMessage = showVyvaReviewContractFromScamResult({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+      source: "paste_text",
+      value: "This message asks me to forward bank details urgently.",
+    }, {
+      riskLevel: "Suspicious",
+      resultTitle: "Suspicious message",
+      explanation: "Pressure language.",
+      steps: ["Do not reply."],
+    });
+    expect(scamMessage.followUpActions.map((action) => action.id)).toEqual([
+      "forward_email",
+      "check_company",
+      "call_trusted_contact",
+      "save_report",
+      "scam_concierge",
+    ]);
+
     const home = showVyvaReviewContractFromSafeHomeResult({
       useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
       source: "camera",
@@ -126,6 +205,7 @@ describe("Show VYVA review contract", () => {
       "buy_safety_aid",
       "request_quote",
       "call_care_team",
+      "save_note",
       "mark_safe_now",
     ]);
 
@@ -197,6 +277,7 @@ describe("Show VYVA review contract", () => {
       expect(translate(code, "showVyva.contract.input.company_name")).not.toBe("showVyva.contract.input.company_name");
       expect(translate(code, "showVyva.contract.risk.high")).not.toBe("showVyva.contract.risk.high");
       expect(translate(code, "showVyva.followUp.action.save_note.label")).not.toBe("showVyva.followUp.action.save_note.label");
+      expect(translate(code, "showVyva.closeReview")).not.toBe("showVyva.closeReview");
     }
   });
 });
