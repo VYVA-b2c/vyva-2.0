@@ -4738,6 +4738,7 @@ function BookingFormSupportPanel({
   form,
   notice,
   error,
+  intakeDraft,
   isSaving,
   isSpanish,
   onFormChange,
@@ -4753,6 +4754,7 @@ function BookingFormSupportPanel({
   form: BookingFormOutcomeForm;
   notice: string | null;
   error: string | null;
+  intakeDraft: string;
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof BookingFormOutcomeForm, value: string) => void;
@@ -4886,6 +4888,19 @@ function BookingFormSupportPanel({
         <p data-testid="booking-form-notice" className="mt-3 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
           {notice}
         </p>
+      ) : null}
+      {intakeDraft ? (
+        <div
+          data-testid={`panel-booking-form-intake-draft-${item.id}`}
+          className="mt-3 rounded-[16px] border border-[#BBF7D0] bg-white px-3 py-2"
+        >
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#047857]">
+            {isSpanish ? "Borrador para VYVA" : "Intake draft"}
+          </p>
+          <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-1">
+            {intakeDraft}
+          </p>
+        </div>
       ) : null}
       {error ? (
         <p data-testid="booking-form-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
@@ -10993,6 +11008,9 @@ const ConciergeScreen = () => {
   const activeActionCanShowWhatsAppOutcome = activeActionNeedsWhatsAppOutcome && activeActionReviewConfirmed;
   const activeActionCanShowEmailOutcome = activeActionNeedsEmailOutcome && activeActionReviewConfirmed;
   const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation;
+  const activeActionBookingFormIntakeDraft = activeActionHasBookingFormSupport && bookingFormNotice && input.trim()
+    ? input.trim()
+    : "";
   const activeActionIsAppointment = activeAction?.use_case === "book_appointment";
   const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
     ? activeAction.action_payload.mission_status
@@ -12866,7 +12884,11 @@ const ConciergeScreen = () => {
                   whatsAppDraftOutcomeMutation.isPending
                 }
                 cancelPending={cancelMutation.isPending}
-                primaryDisabled={activeActionReviewSummary.missingDetails.length > 0 || Boolean(activeActionWebSearch)}
+                primaryDisabled={
+                  activeActionReviewSummary.missingDetails.length > 0 ||
+                  activeActionFormMissingFields.length > 0 ||
+                  Boolean(activeActionWebSearch)
+                }
                 confirmTestId={`button-concierge-confirm-${activeAction.id}`}
                 changeTestId={`button-concierge-change-${activeAction.id}`}
                 cancelTestId={`button-concierge-cancel-${activeAction.id}`}
@@ -13070,6 +13092,7 @@ const ConciergeScreen = () => {
                 form={bookingFormOutcomeForm}
                 notice={bookingFormNotice}
                 error={bookingFormError}
+                intakeDraft={activeActionBookingFormIntakeDraft}
                 isSaving={bookingFormOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updateBookingFormOutcome}

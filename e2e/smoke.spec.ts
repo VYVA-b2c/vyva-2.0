@@ -605,6 +605,137 @@ test("concierge booking form task requires final confirmation before handoff and
   await expectNoHorizontalOverflow(page);
 });
 
+test("concierge missing booking form details block handoff until details are ready", async ({ page }) => {
+  await mockApi(page, true, {}, {
+    phone: "+34 600 123 123",
+    street: "Saved Street 12",
+    cityState: "Madrid",
+    postalCode: "28001",
+    gpName: "Dr Profile",
+    gpPhone: "+34 600 999 999",
+  });
+  await recordWindowOpen(page);
+
+  let detailsSupplied = false;
+  let formConfirmed = false;
+  let confirmCount = 0;
+  const bookingUrl = "https://booking.example.com/clinic";
+  const prefilledUrl = `${bookingUrl}?slot=afternoon`;
+  const pendingFormTask = () => ({
+    id: "form-missing-1",
+    use_case: "book_appointment",
+    provider_name: "The Good Clinic",
+    provider_phone: null,
+    action_summary: "Booking form needs a few details before The Good Clinic can be contacted.",
+    action_payload: {
+      flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+      mission_status: "form_in_progress",
+      preferred_channel: "booking_url",
+      execution_channel: "booking_url",
+      reason: "Follow-up appointment",
+      booking_url: bookingUrl,
+      form_automation_plan: {
+        adapter_label: "ClinicBooking",
+        missing_fields: detailsSupplied ? [] : ["preferred time", "insurance member ID"],
+        next_step: detailsSupplied
+          ? "Use the supported booking page with the gathered details."
+          : "Collect the preferred time and insurance member ID before using the external form.",
+        ...(detailsSupplied ? { prefilled_url: prefilledUrl } : {}),
+      },
+      ...(formConfirmed ? {
+        execution_task: {
+          version: 1,
+          flow_reference: "FLOW_MEDICAL_APPOINTMENT",
+          action_type: "booking_link",
+          requested_tool: "booking_link",
+          active_tool: "booking_link",
+          lifecycle_status: "confirmed",
+          provider_ready: true,
+          missing_requirements: [],
+          confirmation_required: true,
+          user_confirmed: true,
+          confirmation_source: "confirm_endpoint",
+          confirmed_at: "2026-07-15T11:10:00.000Z",
+          created_at: "2026-07-15T11:00:00.000Z",
+          updated_at: "2026-07-15T11:10:00.000Z",
+        },
+      } : {}),
+    },
+    status: "pending",
+    language: "en",
+    confirmed_at: formConfirmed ? "2026-07-15T11:10:00.000Z" : null,
+  });
+
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: [pendingFormTask()] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/form-missing-1/confirm") {
+      expect(route.request().method()).toBe("POST");
+      confirmCount += 1;
+      formConfirmed = true;
+      await fulfillJson(route, 200, { pendingId: "form-missing-1", status: "pending" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-appointment-mission")).toContainText("VYVA is handling this");
+  await expect(page.getByTestId("panel-concierge-form-plan")).toContainText("Needs first: preferred time, insurance member ID");
+  await expect(page.getByTestId("panel-concierge-next-action")).toContainText("Add missing details");
+  await expect(page.getByTestId("button-concierge-confirm-form-missing-1")).toBeDisabled();
+  await expect(page.getByTestId("button-booking-form-add-details-form-missing-1")).toHaveText("Add details");
+  await expect(page.getByTestId("link-booking-form-open-form-missing-1")).toHaveCount(0);
+  await expect(page.getByTestId("button-booking-form-submitted-form-missing-1")).toHaveCount(0);
+  await expect(page.locator(`a[href="${bookingUrl}"], a[href="${prefilledUrl}"]`)).toHaveCount(0);
+  await expect(page.locator('a[href^="mailto:"], a[href^="tel:"], a[href^="https://wa.me/"]')).toHaveCount(0);
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-booking-form-add-details-form-missing-1").click();
+
+  await expect(page.getByTestId("booking-form-notice")).toContainText("VYVA can help collect those details.");
+  const intakeDraft = page.getByTestId("panel-booking-form-intake-draft-form-missing-1");
+  await expect(intakeDraft).toContainText("The form needs these details: preferred time, insurance member ID.");
+  await expect(intakeDraft).toContainText("Help me collect them before opening the link.");
+  await expect(intakeDraft).not.toContainText("Saved Street 12");
+  await expect(intakeDraft).not.toContainText("+34 600 123 123");
+  await expect(intakeDraft).not.toContainText("Dr Profile");
+  await expect.poll(() => confirmCount).toBe(0);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  detailsSupplied = true;
+  await page.reload({ waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("panel-concierge-appointment-mission")).toContainText("Form ready");
+  await expect(page.getByTestId("panel-concierge-form-plan")).toContainText("Ready to open with the gathered details.");
+  await expect(page.getByTestId("text-booking-form-confirm-first-form-missing-1")).toContainText("Confirm above before opening the form.");
+  await expect(page.getByTestId("link-booking-form-open-form-missing-1")).toHaveCount(0);
+  await expect(page.getByTestId("button-concierge-confirm-form-missing-1")).toHaveText("Open appointment form");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-confirm-form-missing-1").click();
+
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-final-confirm").click();
+
+  await expect.poll(() => confirmCount).toBe(1);
+  await expect.poll(async () => {
+    const records = await openedWindowRecords(page);
+    return records[0]?.url ?? "";
+  }).toBe(prefilledUrl);
+});
+
 test("notifications settings back returns to settings home", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/settings/notifications", { waitUntil: "domcontentloaded" });
