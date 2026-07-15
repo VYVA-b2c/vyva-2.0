@@ -293,7 +293,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
 const CONTEXT_ACTIONS: Record<ShowVyvaFollowUpContext, ShowVyvaFollowUpActionId[]> = {
   scam: ["check_company", "call_trusted_contact", "save_report", "scam_concierge"],
   health_visual: ["doctor_help", "save_note", "call_gp", "email_gp", "schedule_appointment", "book_ride"],
-  home_safety: ["buy_safety_aid", "request_quote", "call_care_team", "mark_safe_now"],
+  home_safety: ["buy_safety_aid", "request_quote", "call_care_team", "save_note", "mark_safe_now"],
   medicine: ["pharmacist_questions", "medicine_safety", "save_note", "continue_concierge"],
   document: ["summarize_document", "draft_reply", "prepare_call", "continue_concierge"],
   provider_deal: ["compare_price", "compare_proximity", "check_reputation", "check_terms", "continue_concierge"],

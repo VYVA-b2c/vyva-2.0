@@ -40,6 +40,7 @@ describe("Show VYVA action executor", () => {
     expect(plan.triggerRequest.action_payload).toMatchObject({
       flow_reference: "FLOW_SCAM_CHECK",
       show_vyva_action_id: "call_trusted_contact",
+      show_vyva_reviewed_value: "Suspicious message asking for bank details",
       requested_tool: "phone_call",
       execution_channel: "phone_call",
       user_confirmed: false,

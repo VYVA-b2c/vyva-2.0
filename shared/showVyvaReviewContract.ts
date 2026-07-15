@@ -3,6 +3,7 @@ import {
   getShowVyvaUseCase,
   inferShowVyvaPasteSource,
   type ShowVyvaCaptureSource,
+  type ShowVyvaPastePayload,
   type ShowVyvaUseCaseId,
 } from "./showVyvaFlow";
 import {
@@ -62,6 +63,9 @@ export interface ShowVyvaReviewContract {
   followUpContext: ShowVyvaFollowUpContext;
   inputType: ShowVyvaReviewInputType;
   source: ShowVyvaCaptureSource;
+  reviewedValue?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
   workflow: WorkflowReference;
   conciergeFlow?: ConciergeFlowReference;
   concernSummary: string;
@@ -114,6 +118,11 @@ const PHONE_NUMBER_MATCH = /(?:\+?\d[\s().-]?){7,}\d/;
 
 function cleanList(items: Array<string | null | undefined> | null | undefined): string[] {
   return (items ?? []).map((item) => item?.trim() ?? "").filter(Boolean);
+}
+
+function cleanOptional(value: string | null | undefined): string | null {
+  const cleaned = value?.trim() ?? "";
+  return cleaned || null;
 }
 
 function documentLike(input: ShowVyvaReviewInputDescriptor): boolean {
@@ -207,6 +216,9 @@ export function buildShowVyvaReviewContract(input: ShowVyvaReviewDraftInput): Sh
     followUpContext,
     inputType,
     source: input.source,
+    reviewedValue: cleanOptional(input.value),
+    fileName: cleanOptional(input.fileName),
+    mimeType: cleanOptional(input.mimeType),
     workflow: useCase.workflow,
     conciergeFlow: useCase.conciergeFlow,
     concernSummary: input.concernSummary?.trim() || fallbackConcern(inputType),
@@ -271,5 +283,34 @@ export function showVyvaReviewContractFromHealthResult(
       ...cleanList(result.uncertainty),
     ],
     safeNextSteps: cleanList([result.recommendedNextStep, result.advice]),
+  });
+}
+
+export function showVyvaReviewContractFromPastePayload(payload: ShowVyvaPastePayload): ShowVyvaReviewContract {
+  const trimmed = payload.value.trim();
+  const inputType = inferShowVyvaReviewInputType({
+    useCaseId: payload.useCaseId,
+    source: payload.source,
+    value: trimmed,
+  });
+  const valueHint = trimmed.length > 140 ? `${trimmed.slice(0, 137)}...` : trimmed;
+  const concernSummary = fallbackConcern(inputType);
+  const inputSummary = valueHint ? `${concernSummary}: ${valueHint}` : concernSummary;
+
+  return buildShowVyvaReviewContract({
+    useCaseId: payload.useCaseId,
+    source: payload.source,
+    value: trimmed,
+    concernSummary,
+    riskLevel: "unknown",
+    confidenceLevel: "low",
+    noticed: [
+      `VYVA reviewed this as ${concernSummary.toLowerCase()}.`,
+      "Nothing has been sent, called, uploaded externally, paid, or shared.",
+    ],
+    safeNextSteps: [
+      inputSummary,
+      ...fallbackNextSteps(showVyvaReviewContextForUseCase(payload.useCaseId)),
+    ],
   });
 }
