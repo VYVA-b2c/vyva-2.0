@@ -18,6 +18,7 @@ export const CONCIERGE_MANUAL_QA_STATUS_OPTIONS: Array<{
 ];
 
 export type ConciergeManualQaRunnerState = Record<string, ConciergeManualQaStatus>;
+export const CONCIERGE_MANUAL_QA_EXPORT_VERSION = "concierge-manual-qa-runner-v1";
 
 export interface ConciergeManualQaStepResult {
   step: ConciergeManualQaStep;
@@ -47,6 +48,36 @@ export interface ConciergeManualQaRunnerSummary {
   notTestedCheckpoints: number;
   flowResults: ConciergeManualQaFlowResult[];
 }
+
+export interface ConciergeManualQaExportStep {
+  id: string;
+  title: string;
+  instruction: string;
+  expectedResult: string;
+  status: Extract<ConciergeManualQaStatus, "fail" | "needs_review">;
+}
+
+export interface ConciergeManualQaExportFlow {
+  reference: ConciergeFlowReference;
+  actionName: string;
+  status: ConciergeManualQaFlowStatus;
+  totalSteps: number;
+  counts: Record<ConciergeManualQaStatus, number>;
+  failedSteps: ConciergeManualQaExportStep[];
+  needsReviewSteps: ConciergeManualQaExportStep[];
+}
+
+export interface ConciergeManualQaExportPayload {
+  version: typeof CONCIERGE_MANUAL_QA_EXPORT_VERSION;
+  exportedAt: string;
+  runnerState: ConciergeManualQaRunnerState;
+  summary: Omit<ConciergeManualQaRunnerSummary, "flowResults">;
+  flows: ConciergeManualQaExportFlow[];
+}
+
+export type ConciergeManualQaImportResult =
+  | { ok: true; state: ConciergeManualQaRunnerState; importedAt: string | null }
+  | { ok: false; error: string };
 
 function emptyCounts(): Record<ConciergeManualQaStatus, number> {
   return {
@@ -176,4 +207,158 @@ export function buildConciergeManualQaNotes(
   }
 
   return lines.join("\n").trimEnd();
+}
+
+function exportStep(result: ConciergeManualQaStepResult): ConciergeManualQaExportStep {
+  return {
+    id: result.step.id,
+    title: result.step.title,
+    instruction: result.step.instruction,
+    expectedResult: result.step.expectedResult,
+    status: result.status as Extract<ConciergeManualQaStatus, "fail" | "needs_review">,
+  };
+}
+
+export function buildConciergeManualQaExportPayload(
+  scripts: ConciergeManualQaScript[],
+  state: Partial<Record<string, unknown>> | null | undefined,
+  exportedAt = new Date().toISOString(),
+): ConciergeManualQaExportPayload {
+  const runnerState = normalizeConciergeManualQaRunnerState(scripts, state);
+  const summary = summarizeConciergeManualQaRunner(scripts, runnerState);
+  const { flowResults, ...summaryWithoutFlows } = summary;
+
+  return {
+    version: CONCIERGE_MANUAL_QA_EXPORT_VERSION,
+    exportedAt,
+    runnerState,
+    summary: summaryWithoutFlows,
+    flows: flowResults.map((flow) => ({
+      reference: flow.reference,
+      actionName: flow.actionName,
+      status: flow.status,
+      totalSteps: flow.totalSteps,
+      counts: flow.counts,
+      failedSteps: flow.failedOrReviewSteps
+        .filter((result) => result.status === "fail")
+        .map(exportStep),
+      needsReviewSteps: flow.failedOrReviewSteps
+        .filter((result) => result.status === "needs_review")
+        .map(exportStep),
+    })),
+  };
+}
+
+export function buildConciergeManualQaJsonExport(
+  scripts: ConciergeManualQaScript[],
+  state: Partial<Record<string, unknown>> | null | undefined,
+  exportedAt?: string,
+): string {
+  return JSON.stringify(buildConciergeManualQaExportPayload(scripts, state, exportedAt), null, 2);
+}
+
+export function buildConciergeManualQaMarkdownReport(
+  scripts: ConciergeManualQaScript[],
+  state: Partial<Record<string, unknown>> | null | undefined,
+  exportedAt?: string,
+): string {
+  const payload = buildConciergeManualQaExportPayload(scripts, state, exportedAt);
+  const lines = [
+    "# Concierge manual QA report",
+    "",
+    `Exported at: ${payload.exportedAt}`,
+    "",
+    "## Summary",
+    "",
+    `- Flows passed: ${payload.summary.fullyPassedFlows}/${payload.summary.totalFlows}`,
+    `- Flows blocked: ${payload.summary.blockedFlows}`,
+    `- Needs-review flows: ${payload.summary.needsReviewFlows}`,
+    `- Failed checkpoints: ${payload.summary.failedCheckpoints}`,
+    `- Needs-review checkpoints: ${payload.summary.needsReviewCheckpoints}`,
+    `- Not-tested checkpoints: ${payload.summary.notTestedCheckpoints}`,
+    "",
+    "## Flow status",
+    "",
+  ];
+
+  for (const flow of payload.flows) {
+    lines.push(`### ${flow.actionName} (${flow.reference})`);
+    lines.push("");
+    lines.push(`Status: ${flow.status.replace(/_/g, " ")}`);
+    lines.push(`Steps: ${flow.counts.pass}/${flow.totalSteps} passed, ${flow.counts.fail} failed, ${flow.counts.needs_review} needs review, ${flow.counts.not_tested} not tested`);
+
+    if (flow.failedSteps.length > 0) {
+      lines.push("");
+      lines.push("Failed steps:");
+      for (const step of flow.failedSteps) {
+        lines.push(`- ${step.title}`);
+        lines.push(`  - Expected: ${step.expectedResult}`);
+      }
+    }
+
+    if (flow.needsReviewSteps.length > 0) {
+      lines.push("");
+      lines.push("Needs-review steps:");
+      for (const step of flow.needsReviewSteps) {
+        lines.push(`- ${step.title}`);
+        lines.push(`  - Expected: ${step.expectedResult}`);
+      }
+    }
+
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
+}
+
+function extractImportState(parsed: unknown): {
+  state: Partial<Record<string, unknown>>;
+  importedAt: string | null;
+  source: "export_payload" | "state";
+} | null {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const candidate = parsed as Record<string, unknown>;
+
+  if (candidate.runnerState && typeof candidate.runnerState === "object" && !Array.isArray(candidate.runnerState)) {
+    return {
+      state: candidate.runnerState as Partial<Record<string, unknown>>,
+      importedAt: typeof candidate.exportedAt === "string" ? candidate.exportedAt : null,
+      source: "export_payload",
+    };
+  }
+
+  return {
+    state: candidate,
+    importedAt: null,
+    source: "state",
+  };
+}
+
+export function parseConciergeManualQaImport(
+  scripts: ConciergeManualQaScript[],
+  text: string,
+): ConciergeManualQaImportResult {
+  if (!text.trim()) return { ok: false, error: "Paste exported QA JSON first." };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "The pasted QA JSON is not valid." };
+  }
+
+  const extracted = extractImportState(parsed);
+  if (!extracted) return { ok: false, error: "The pasted QA JSON does not contain runner state." };
+
+  const state = normalizeConciergeManualQaRunnerState(scripts, extracted.state);
+  const knownValues = Object.values(state).filter((status) => status !== "not_tested");
+  if (extracted.source === "state" && knownValues.length === 0) {
+    return { ok: false, error: "The pasted QA JSON has no matching tested checkpoints for this dashboard." };
+  }
+
+  return {
+    ok: true,
+    state,
+    importedAt: extracted.importedAt,
+  };
 }

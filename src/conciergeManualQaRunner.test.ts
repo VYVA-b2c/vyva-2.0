@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest";
 import { CONCIERGE_FLOW_REFERENCES } from "../shared/conciergeFlowRegistry";
 import { buildConciergeManualQaScripts } from "../shared/conciergeManualQaScripts";
 import {
+  CONCIERGE_MANUAL_QA_EXPORT_VERSION,
+  buildConciergeManualQaExportPayload,
+  buildConciergeManualQaJsonExport,
+  buildConciergeManualQaMarkdownReport,
   buildConciergeManualQaNotes,
   normalizeConciergeManualQaRunnerState,
+  parseConciergeManualQaImport,
   summarizeConciergeManualQaRunner,
   updateConciergeManualQaRunnerStatus,
 } from "../shared/conciergeManualQaRunner";
@@ -77,5 +82,72 @@ describe("concierge manual QA runner", () => {
     expect(notes).toContain(`Fail: ${transport.steps[0].title}`);
     expect(notes).toContain(`Needs review: ${transport.steps[1].title}`);
     expect(notes).toContain("Expected:");
+  });
+
+  it("exports a JSON payload with timestamp, flow status, failed steps, and needs-review steps", () => {
+    const scripts = buildConciergeManualQaScripts();
+    const transport = scripts.find((script) => script.reference === CONCIERGE_FLOW_REFERENCES.transportBooking)!;
+    let state = normalizeConciergeManualQaRunnerState(scripts, null);
+    state = updateConciergeManualQaRunnerStatus(state, transport.steps[0].id, "fail");
+    state = updateConciergeManualQaRunnerStatus(state, transport.steps[1].id, "needs_review");
+
+    const payload = buildConciergeManualQaExportPayload(scripts, state, "2026-07-15T12:00:00.000Z");
+    const transportFlow = payload.flows.find((flow) => flow.reference === CONCIERGE_FLOW_REFERENCES.transportBooking);
+
+    expect(payload.version).toBe(CONCIERGE_MANUAL_QA_EXPORT_VERSION);
+    expect(payload.exportedAt).toBe("2026-07-15T12:00:00.000Z");
+    expect(payload.runnerState[transport.steps[0].id]).toBe("fail");
+    expect(payload.summary.failedCheckpoints).toBe(1);
+    expect(payload.summary.needsReviewCheckpoints).toBe(1);
+    expect(transportFlow?.status).toBe("blocked");
+    expect(transportFlow?.failedSteps).toHaveLength(1);
+    expect(transportFlow?.failedSteps[0].title).toBe(transport.steps[0].title);
+    expect(transportFlow?.needsReviewSteps).toHaveLength(1);
+    expect(transportFlow?.needsReviewSteps[0].title).toBe(transport.steps[1].title);
+  });
+
+  it("builds a Markdown report with timestamp, flow status, and issue sections", () => {
+    const scripts = buildConciergeManualQaScripts();
+    const transport = scripts.find((script) => script.reference === CONCIERGE_FLOW_REFERENCES.transportBooking)!;
+    let state = normalizeConciergeManualQaRunnerState(scripts, null);
+    state = updateConciergeManualQaRunnerStatus(state, transport.steps[0].id, "fail");
+    state = updateConciergeManualQaRunnerStatus(state, transport.steps[1].id, "needs_review");
+
+    const markdown = buildConciergeManualQaMarkdownReport(scripts, state, "2026-07-15T12:00:00.000Z");
+
+    expect(markdown).toContain("# Concierge manual QA report");
+    expect(markdown).toContain("Exported at: 2026-07-15T12:00:00.000Z");
+    expect(markdown).toContain("Status: blocked");
+    expect(markdown).toContain("Failed steps:");
+    expect(markdown).toContain(transport.steps[0].title);
+    expect(markdown).toContain("Needs-review steps:");
+    expect(markdown).toContain(transport.steps[1].title);
+  });
+
+  it("imports an exported JSON state so another tester can continue", () => {
+    const scripts = buildConciergeManualQaScripts();
+    const transport = scripts.find((script) => script.reference === CONCIERGE_FLOW_REFERENCES.transportBooking)!;
+    let state = normalizeConciergeManualQaRunnerState(scripts, null);
+    state = updateConciergeManualQaRunnerStatus(state, transport.steps[0].id, "pass");
+
+    const json = buildConciergeManualQaJsonExport(scripts, state, "2026-07-15T12:00:00.000Z");
+    const result = parseConciergeManualQaImport(scripts, json);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.importedAt).toBe("2026-07-15T12:00:00.000Z");
+      expect(result.state[transport.steps[0].id]).toBe("pass");
+    }
+  });
+
+  it("returns a clear error for invalid or unrelated import JSON", () => {
+    const scripts = buildConciergeManualQaScripts();
+
+    expect(parseConciergeManualQaImport(scripts, "{bad").ok).toBe(false);
+    const unrelated = parseConciergeManualQaImport(scripts, JSON.stringify({ some_other_step: "pass" }));
+    expect(unrelated).toEqual({
+      ok: false,
+      error: "The pasted QA JSON has no matching tested checkpoints for this dashboard.",
+    });
   });
 });

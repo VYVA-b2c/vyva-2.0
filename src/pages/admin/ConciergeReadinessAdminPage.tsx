@@ -12,8 +12,11 @@ import {
 } from "../../../shared/conciergeReadinessDashboard";
 import {
   CONCIERGE_MANUAL_QA_STATUS_OPTIONS,
+  buildConciergeManualQaJsonExport,
+  buildConciergeManualQaMarkdownReport,
   buildConciergeManualQaNotes,
   normalizeConciergeManualQaRunnerState,
+  parseConciergeManualQaImport,
   summarizeConciergeManualQaRunner,
   updateConciergeManualQaRunnerStatus,
   type ConciergeManualQaRunnerState,
@@ -319,12 +322,28 @@ function ManualQaScriptSection({
   runnerState,
   onStatusChange,
   onCopyNotes,
+  onCopyMarkdownReport,
+  onCopyJsonReport,
+  exportMessage,
+  importText,
+  onImportTextChange,
+  onImportJson,
+  importMessage,
+  importError,
   copied,
 }: {
   rows: ConciergeReadinessRow[];
   runnerState: ConciergeManualQaRunnerState;
   onStatusChange: (stepId: string, status: ConciergeManualQaStatus) => void;
   onCopyNotes: () => void;
+  onCopyMarkdownReport: () => void;
+  onCopyJsonReport: () => void;
+  exportMessage: string | null;
+  importText: string;
+  onImportTextChange: (text: string) => void;
+  onImportJson: () => void;
+  importMessage: string | null;
+  importError: string | null;
   copied: boolean;
 }) {
   const scripts = rows.map((row) => row.manualQaScript);
@@ -369,6 +388,57 @@ function ManualQaScriptSection({
         <ManualQaRunnerMetric label="Needs review" value={runnerSummary.needsReviewFlows} tone="warn" />
         <ManualQaRunnerMetric label="Failed checks" value={runnerSummary.failedCheckpoints} tone="bad" />
         <ManualQaRunnerMetric label="Not tested" value={runnerSummary.notTestedCheckpoints} />
+      </div>
+
+      <div className="mt-4 rounded-[12px] border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="manual-qa-export-import">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Export QA report</p>
+            <p className="mt-1 text-sm font-semibold leading-relaxed text-[#7d6b65]">
+              Copy Markdown for PR notes or JSON so another tester can import the same browser-local QA state.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 text-sm font-black text-[#2f2135]"
+              onClick={onCopyMarkdownReport}
+            >
+              <Copy size={16} aria-hidden="true" />
+              Copy Markdown report
+            </button>
+            <button
+              type="button"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 text-sm font-black text-[#2f2135]"
+              onClick={onCopyJsonReport}
+            >
+              <Copy size={16} aria-hidden="true" />
+              Copy JSON report
+            </button>
+          </div>
+        </div>
+        {exportMessage ? <p className="mt-2 text-sm font-black text-emerald-800">{exportMessage}</p> : null}
+
+        <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
+          <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+            Import QA state from JSON
+            <textarea
+              className="min-h-[96px] rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 font-mono text-sm normal-case tracking-normal text-[#2f2135]"
+              placeholder="Paste exported QA JSON here"
+              value={importText}
+              onChange={(event) => onImportTextChange(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-purple-700 bg-purple-700 px-4 py-2 text-sm font-black text-white"
+            onClick={onImportJson}
+          >
+            Import QA state
+          </button>
+        </div>
+        {importMessage ? <p className="mt-2 text-sm font-black text-emerald-800">{importMessage}</p> : null}
+        {importError ? <p className="mt-2 text-sm font-black text-red-800">{importError}</p> : null}
       </div>
 
       <div className="mt-4 grid gap-3">
@@ -481,6 +551,10 @@ export default function ConciergeReadinessAdminPage({ rowsOverride }: { rowsOver
     normalizeConciergeManualQaRunnerState(scripts, readStoredManualQaState())
   ));
   const [notesCopied, setNotesCopied] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [importText, setImportText] = useState("");
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     setManualQaState((current) => normalizeConciergeManualQaRunnerState(scripts, current));
@@ -492,6 +566,9 @@ export default function ConciergeReadinessAdminPage({ rowsOverride }: { rowsOver
 
   function handleManualQaStatusChange(stepId: string, status: ConciergeManualQaStatus) {
     setNotesCopied(false);
+    setExportMessage(null);
+    setImportMessage(null);
+    setImportError(null);
     setManualQaState((current) => updateConciergeManualQaRunnerStatus(current, stepId, status));
   }
 
@@ -499,6 +576,36 @@ export default function ConciergeReadinessAdminPage({ rowsOverride }: { rowsOver
     const notes = buildConciergeManualQaNotes(scripts, manualQaState);
     void navigator.clipboard?.writeText(notes);
     setNotesCopied(true);
+    setExportMessage(null);
+  }
+
+  function handleCopyMarkdownReport() {
+    const report = buildConciergeManualQaMarkdownReport(scripts, manualQaState);
+    void navigator.clipboard?.writeText(report);
+    setNotesCopied(false);
+    setExportMessage("Markdown QA report copied.");
+  }
+
+  function handleCopyJsonReport() {
+    const report = buildConciergeManualQaJsonExport(scripts, manualQaState);
+    void navigator.clipboard?.writeText(report);
+    setNotesCopied(false);
+    setExportMessage("JSON QA report copied.");
+  }
+
+  function handleImportJson() {
+    const result = parseConciergeManualQaImport(scripts, importText);
+    if (!result.ok) {
+      setImportError(result.error);
+      setImportMessage(null);
+      return;
+    }
+
+    setManualQaState(result.state);
+    setImportError(null);
+    setImportMessage(result.importedAt ? `Imported QA state from ${result.importedAt}.` : "Imported QA state.");
+    setNotesCopied(false);
+    setExportMessage(null);
   }
 
   return (
@@ -587,6 +694,18 @@ export default function ConciergeReadinessAdminPage({ rowsOverride }: { rowsOver
           runnerState={manualQaState}
           onStatusChange={handleManualQaStatusChange}
           onCopyNotes={handleCopyManualQaNotes}
+          onCopyMarkdownReport={handleCopyMarkdownReport}
+          onCopyJsonReport={handleCopyJsonReport}
+          exportMessage={exportMessage}
+          importText={importText}
+          onImportTextChange={(text) => {
+            setImportText(text);
+            setImportError(null);
+            setImportMessage(null);
+          }}
+          onImportJson={handleImportJson}
+          importMessage={importMessage}
+          importError={importError}
           copied={notesCopied}
         />
       </div>

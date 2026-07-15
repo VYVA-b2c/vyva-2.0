@@ -5,6 +5,11 @@ import ConciergeReadinessAdminPage from "./ConciergeReadinessAdminPage";
 import { CONCIERGE_FLOW_REFERENCES } from "../../../shared/conciergeFlowRegistry";
 import { buildConciergeLaunchSmokeAudit } from "../../../shared/conciergeLaunchSmokeAudit";
 import { buildConciergeReadinessRows, type ConciergeReadinessRow } from "../../../shared/conciergeReadinessDashboard";
+import {
+  buildConciergeManualQaJsonExport,
+  normalizeConciergeManualQaRunnerState,
+  updateConciergeManualQaRunnerStatus,
+} from "../../../shared/conciergeManualQaRunner";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -129,6 +134,58 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(notes).toContain("Fail: Start from Book Ride");
     expect(notes).toContain("Needs review: Start from Book Ride");
     expect(screen.getByRole("button", { name: /copied/i })).toBeInTheDocument();
+  });
+
+  it("exports the manual QA report as Markdown and JSON", () => {
+    renderPage();
+
+    const transportScript = screen.getByTestId("manual-qa-script-flow-transport-booking");
+    const firstBookRideStatus = within(transportScript).getAllByLabelText(/QA status for Start from Book Ride/i)[0];
+    fireEvent.change(firstBookRideStatus, { target: { value: "fail" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /copy markdown report/i }));
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("# Concierge manual QA report"));
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("Exported at:"));
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("Failed steps:"));
+    expect(screen.getByText("Markdown QA report copied.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy json report/i }));
+    const clipboardCalls = vi.mocked(navigator.clipboard.writeText).mock.calls;
+    const json = clipboardCalls[clipboardCalls.length - 1]?.[0] ?? "";
+    const parsed = JSON.parse(json);
+    expect(parsed.version).toBe("concierge-manual-qa-runner-v1");
+    expect(parsed.exportedAt).toBeTruthy();
+    expect(parsed.summary.failedCheckpoints).toBe(1);
+    expect(screen.getByText("JSON QA report copied.")).toBeInTheDocument();
+  });
+
+  it("imports pasted QA JSON into the local runner state", () => {
+    const rows = buildConciergeReadinessRows();
+    const scripts = rows.map((row) => row.manualQaScript);
+    const transportStep = rows.find((row) => (
+      row.reference === CONCIERGE_FLOW_REFERENCES.transportBooking
+    ))!.manualQaScript.steps[0];
+    let state = normalizeConciergeManualQaRunnerState(scripts, null);
+    state = updateConciergeManualQaRunnerStatus(state, transportStep.id, "fail");
+    const json = buildConciergeManualQaJsonExport(scripts, state, "2026-07-15T12:00:00.000Z");
+
+    renderPage(rows);
+
+    fireEvent.change(screen.getByLabelText(/import qa state from json/i), { target: { value: json } });
+    fireEvent.click(screen.getByRole("button", { name: /import qa state/i }));
+
+    expect(screen.getByText("Imported QA state from 2026-07-15T12:00:00.000Z.")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-metric-failed-checks")).getByText("1")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-script-flow-transport-booking")).getByDisplayValue("Fail")).toBeInTheDocument();
+  });
+
+  it("shows a clear error when pasted QA JSON is invalid", () => {
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText(/import qa state from json/i), { target: { value: "{bad" } });
+    fireEvent.click(screen.getByRole("button", { name: /import qa state/i }));
+
+    expect(screen.getByText("The pasted QA JSON is not valid.")).toBeInTheDocument();
   });
 
   it("restores locally saved manual QA status from this browser", () => {
