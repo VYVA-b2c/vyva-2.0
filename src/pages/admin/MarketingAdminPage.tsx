@@ -660,6 +660,18 @@ type CampaignStudioApprovalPackItem = {
   icon: LucideIcon;
 };
 
+type CampaignStudioPublishingRunSheetItem = {
+  key: string;
+  channel: Channel;
+  title: string;
+  format: string;
+  detail: string;
+  actionLabel: string;
+  state: CampaignReadinessState;
+  text: string;
+  icon: LucideIcon;
+};
+
 type CampaignStudioCreativeVariant = {
   key: string;
   label: string;
@@ -7909,6 +7921,87 @@ export default function MarketingAdminPage() {
     },
   ];
   const campaignStudioApprovalPackText = campaignStudioApprovalPack.map((item) => item.text).join("\n\n---\n\n");
+  const campaignStudioPublishingRunSheets: CampaignStudioPublishingRunSheetItem[] = campaignStudioExecutionPlan.map((item) => {
+    const draft = campaignStudioChannelDrafts.find((candidate) => candidate.channel === item.channel)?.draft ?? campaignStudioGenerated;
+    const channelRecipients = campaignStudioRecipientPreviewByChannel.get(item.channel) ?? [];
+    const sampleContact = channelRecipients[0]?.contact ?? campaignStudioPersonalizationContact;
+    const sampleLabel = sampleContact?.fullName || sampleContact?.email || sampleContact?.phoneNumber || "No sample contact";
+    const sampleBody = sampleContact ? personalizePreview(draft.body, sampleContact) : draft.body;
+    const cta = draft.ctaLabel.trim()
+      ? `${draft.ctaLabel}${draft.ctaUrl.trim() ? ` - ${draft.ctaUrl.trim()}` : ""}`
+      : "No CTA set";
+    const route = item.channel === "email"
+      ? {
+          title: "Email review and send",
+          format: "VYVA send",
+          actionLabel: "Create, review recipients, then send from campaign details.",
+          detail: "Email is the live-send route. Keep final approval separate from campaign creation.",
+          icon: Send,
+        }
+      : item.channel === "whatsapp"
+        ? {
+            title: "WhatsApp manual handoff",
+            format: "Manual send",
+            actionLabel: "Copy the approved WhatsApp copy and send through the approved external workflow.",
+            detail: "WhatsApp remains a tracked handoff until provider dispatch controls are enabled.",
+            icon: UsersRound,
+          }
+        : {
+            title: `${channelLabel[item.channel]} publish and track`,
+            format: "Social publish",
+            actionLabel: "Copy the caption, publish in the platform, then record the post URL and outcomes.",
+            detail: `${channelLabel[item.channel]} is a planning/tracking channel for now, with copy and assets ready for manual publishing.`,
+            icon: Megaphone,
+          };
+    const text = [
+      `${channelLabel[item.channel]} publishing run sheet`,
+      `Campaign: ${draft.campaignName}`,
+      `Audience: ${campaignStudioOfflineAudienceName}`,
+      `Schedule: ${campaignStudioOfflineScheduleLabel}`,
+      `Route: ${route.format}`,
+      `Current VYVA status: ${item.sendMode}`,
+      `Recipient snapshot: ${item.recipients} planned recipient${item.recipients === 1 ? "" : "s"}`,
+      `Sample contact: ${sampleLabel}`,
+      "",
+      "Next action:",
+      route.actionLabel,
+      "",
+      "Approval guardrails:",
+      "- Confirm list, consent, timezone, and owner before publishing.",
+      "- Confirm CTA/link is correct and trackable.",
+      "- Confirm final copy has been reviewed for claims, tone, and personalization.",
+      "",
+      "Copy/caption:",
+      `Subject or hook: ${draft.subject || draft.campaignName}`,
+      sampleBody || "No body copy yet.",
+      `CTA: ${cta}`,
+      "",
+      "Assets to attach or generate:",
+      ...campaignStudioVisualAssets
+        .filter((asset) => item.channel === "email" ? asset.key === "email-hero" || asset.key === "print-layout" : asset.key !== "email-hero")
+        .map((asset) => `- ${asset.title}: ${asset.detail}`),
+      "",
+      "Track after publish:",
+      "- Publish/send time:",
+      "- Owner:",
+      "- Platform URL or message batch:",
+      "- Replies/leads:",
+      "- Follow-up notes:",
+    ].join("\n");
+
+    return {
+      key: item.channel,
+      channel: item.channel,
+      title: route.title,
+      format: route.format,
+      detail: route.detail,
+      actionLabel: route.actionLabel,
+      state: item.state,
+      text,
+      icon: route.icon,
+    };
+  });
+  const campaignStudioPublishingRunSheetPacket = campaignStudioPublishingRunSheets.map((item) => item.text).join("\n\n---\n\n");
   const contentTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
     const candidateTemplates = contentTemplateFiltersActive ? visibleContentTemplates : contentTemplateGallery;
     const playCategoryLabel = campaignStudioCategories.find((category) => category.id === selectedCampaignStudioPlay.categoryId)?.label ?? selectedCampaignStudioPlay.categoryId;
@@ -12765,6 +12858,65 @@ export default function MarketingAdminPage() {
                                 {step.actionLabel} <ExternalLink size={12} aria-hidden="true" />
                               </span>
                             </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4" data-testid="marketing-campaign-studio-publishing-assistant">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-sky-800">Channel publishing assistant</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Know exactly where this goes next</h3>
+                          <p className="mt-1 text-xs font-bold text-[#5f6f7a]">
+                            Per-channel run sheets separate what VYVA can send from what needs manual platform publishing or team handoff.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Channel publishing guide", campaignStudioPublishingRunSheetPacket)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-3 text-sm font-black text-sky-800 hover:bg-sky-50"
+                          data-testid="button-marketing-campaign-studio-copy-publishing-guide"
+                        >
+                          <Copy size={14} /> Copy publishing guide
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-publishing-routes">
+                        {campaignStudioPublishingRunSheets.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <article key={item.key} className={`flex min-h-[340px] flex-col rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-publishing-route-${item.channel}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sky-800 shadow-sm">
+                                    <Icon size={15} aria-hidden="true" />
+                                  </span>
+                                  <h4 className="mt-2 font-black text-[#241133]">{item.title}</h4>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed text-[#5f6f7a]">{item.detail}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                  <Pill className="bg-white text-[#5b4a46]">{item.format}</Pill>
+                                </div>
+                              </div>
+                              <p className="mt-3 rounded-lg bg-white/80 p-2 text-xs font-black leading-relaxed text-[#365064]">
+                                {item.actionLabel}
+                              </p>
+                              <textarea
+                                className="mt-3 min-h-[150px] flex-1 rounded-xl border border-sky-100 bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#365064]"
+                                value={item.text}
+                                readOnly
+                                data-testid={`textarea-marketing-campaign-studio-publishing-${item.channel}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignStudioOfflineHandoff(`${channelLabel[item.channel]} publishing run sheet`, item.text)}
+                                className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-sky-700 px-3 text-sm font-black text-white hover:bg-sky-800"
+                                data-testid={`button-marketing-campaign-studio-copy-publishing-${item.channel}`}
+                              >
+                                <Copy size={14} /> Copy run sheet
+                              </button>
+                            </article>
                           );
                         })}
                       </div>

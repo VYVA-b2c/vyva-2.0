@@ -2985,6 +2985,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-audience")).toHaveTextContent("Audience list selected");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-copy")).toHaveTextContent("Improve with AI");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-create")).toHaveTextContent("Create now");
+    expect(screen.getByTestId("marketing-campaign-studio-publishing-assistant")).toHaveTextContent("Channel publishing assistant");
+    expect(screen.getByTestId("marketing-campaign-studio-publishing-route-linkedin")).toHaveTextContent("LinkedIn publish and track");
+    expect(screen.getByTestId("marketing-campaign-studio-publishing-route-linkedin")).toHaveTextContent("Social publish");
+    const linkedinRunSheet = screen.getByTestId("textarea-marketing-campaign-studio-publishing-linkedin") as HTMLTextAreaElement;
+    expect(linkedinRunSheet.value).toContain("LinkedIn publishing run sheet");
+    expect(linkedinRunSheet.value).toContain("Platform URL or message batch");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-publishing-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn publishing run sheet"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("LinkedIn publishing run sheet copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-publishing-guide"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Track after publish"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Channel publishing guide copied.");
     expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Offline and human handoff");
     expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Phone call script");
     expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Flyer / poster brief");
