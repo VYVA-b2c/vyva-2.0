@@ -17,6 +17,8 @@ This pass focuses the manual QA runner on the highest-risk Concierge flows:
 
 The automated readiness checks and generated manual QA scripts are passing for the priority flows. The first runtime blocker found in this pass was fixed: the Concierge readiness admin page overflowed horizontally on a 320px viewport.
 
+The marked dashboard export for this pass is saved in `docs/audits/concierge-priority-qa-dashboard-export.md`.
+
 ## Priority Flow Status
 
 | Flow | Automated readiness | Manual live action status | Notes |
