@@ -19,9 +19,15 @@ import {
   type ConciergeFlowCoverageStage,
   type ConciergeFlowEntryCoverageGap,
 } from "./conciergeFlowCoverage";
+import {
+  buildConciergeLaunchSmokeAudit,
+  type ConciergeLaunchSmokeCheckId,
+  type ConciergeLaunchSmokeFlowAudit,
+} from "./conciergeLaunchSmokeAudit";
 import type { WorkflowEntryPoint, WorkflowEntrySurface } from "./workflowRegistry";
 
 export type ConciergeReadinessStatus = "ready" | "needs_attention";
+export type ConciergeReadinessAuditStatus = "pass" | "needs_attention";
 
 export interface ConciergeReadinessChip<T extends string = string> {
   id: T;
@@ -44,6 +50,29 @@ export interface ConciergeReadinessProviderDependency {
   needsSavedProvider: boolean;
 }
 
+export interface ConciergeReadinessStageStatus {
+  id: ConciergeFlowCoverageStage;
+  label: string;
+  covered: boolean;
+  evidence: string | null;
+}
+
+export interface ConciergeReadinessLaunchAuditCheck {
+  id: ConciergeLaunchSmokeCheckId;
+  label: string;
+  passed: boolean;
+  details: string[];
+}
+
+export interface ConciergeReadinessLaunchAudit {
+  status: ConciergeReadinessAuditStatus;
+  passed: boolean;
+  checkCount: number;
+  failedCheckCount: number;
+  checks: ConciergeReadinessLaunchAuditCheck[];
+  failures: string[];
+}
+
 export interface ConciergeReadinessRow {
   reference: ConciergeFlowReference;
   actionName: string;
@@ -57,6 +86,10 @@ export interface ConciergeReadinessRow {
   toolDependencies: Array<ConciergeReadinessChip<ConciergeToolRequirement>>;
   firstQuestions: string[];
   confirmationRule: string;
+  finalConfirmation: ConciergeReadinessStageStatus;
+  savedProviderPath: ConciergeReadinessStageStatus;
+  handoffHistory: ConciergeReadinessStageStatus[];
+  launchAudit: ConciergeReadinessLaunchAudit;
   requiredStageCount: number;
   coveredStageCount: number;
   missingStages: Array<ConciergeReadinessChip<ConciergeFlowCoverageStage>>;
@@ -72,6 +105,9 @@ export interface ConciergeReadinessSummary {
   providerGated: number;
   toolGated: number;
   entryPoints: number;
+  launchAuditPassed: number;
+  launchAuditNeedsAttention: number;
+  launchAuditChecks: number;
 }
 
 const FLOW_LEVEL_LABELS: Record<ConciergeFlowLevel, string> = {
@@ -107,6 +143,14 @@ const ENTRY_GAP_LABELS: Record<ConciergeFlowEntryCoverageGap, string> = {
   missing_voice_handoff: "No voice handoff",
 };
 
+const LAUNCH_SMOKE_CHECK_LABELS: Record<ConciergeLaunchSmokeCheckId, string> = {
+  entry_points_open_correct_flow: "Entry points open correct flow",
+  missing_provider_setup_routes: "Missing provider setup routes",
+  saved_provider_path_collects_details: "Saved-provider path collects details",
+  final_confirmation_gate: "Final confirmation gate",
+  handoff_and_completed_history: "Handoff and completed history",
+};
+
 function categoryLabel(categoryId: ConciergeProviderCategoryId | null | undefined): string | null {
   if (!categoryId) return null;
   return CONCIERGE_PROVIDER_CATEGORIES.find((category) => category.id === categoryId)?.label ?? categoryId;
@@ -140,18 +184,79 @@ function readinessNotesForFlow(
   flow: ConciergeFlowDefinition,
   missingStages: Array<ConciergeReadinessChip<ConciergeFlowCoverageStage>>,
   entryGaps: Array<ConciergeReadinessChip<ConciergeFlowEntryCoverageGap>>,
+  launchAudit: ConciergeReadinessLaunchAudit,
 ): string[] {
   const notes: string[] = [];
   if (flow.status !== "ready") notes.push(`Flow status is ${flow.status}.`);
   if (missingStages.length > 0) notes.push(`Missing coverage: ${missingStages.map((stage) => stage.label).join(", ")}.`);
   if (entryGaps.length > 0) notes.push(`Entry gap: ${entryGaps.map((gap) => gap.label).join(", ")}.`);
+  if (!launchAudit.passed) {
+    const failedLabels = launchAudit.checks
+      .filter((check) => !check.passed)
+      .map((check) => check.label);
+    notes.push(`Smoke audit needs attention: ${failedLabels.join(", ")}.`);
+  }
   if (notes.length === 0) notes.push("Launch gates covered.");
   return notes;
 }
 
-export function buildConciergeReadinessRows(): ConciergeReadinessRow[] {
+function stageStatus(
+  coverage: ReturnType<typeof getConciergeFlowCoverage>,
+  stage: ConciergeFlowCoverageStage,
+): ConciergeReadinessStageStatus {
+  return {
+    id: stage,
+    label: CONCIERGE_FLOW_COVERAGE_STAGE_LABELS[stage],
+    covered: coverage.coveredStages.includes(stage),
+    evidence: coverage.evidence[stage] ?? null,
+  };
+}
+
+function launchAuditSummary(audit: ConciergeLaunchSmokeFlowAudit | undefined): ConciergeReadinessLaunchAudit {
+  if (!audit) {
+    return {
+      status: "needs_attention",
+      passed: false,
+      checkCount: 0,
+      failedCheckCount: 1,
+      checks: [{
+        id: "entry_points_open_correct_flow",
+        label: LAUNCH_SMOKE_CHECK_LABELS.entry_points_open_correct_flow,
+        passed: false,
+        details: ["No launch smoke audit row found."],
+      }],
+      failures: ["No launch smoke audit row found."],
+    };
+  }
+
+  const checks = audit.checks.map((check) => ({
+    id: check.id,
+    label: LAUNCH_SMOKE_CHECK_LABELS[check.id],
+    passed: check.passed,
+    details: check.details,
+  }));
+  const failures = checks.flatMap((check) => check.details);
+
+  return {
+    status: failures.length === 0 ? "pass" : "needs_attention",
+    passed: failures.length === 0,
+    checkCount: checks.length,
+    failedCheckCount: checks.filter((check) => !check.passed).length,
+    checks,
+    failures,
+  };
+}
+
+export function buildConciergeReadinessRows(options?: {
+  launchAudit?: ConciergeLaunchSmokeFlowAudit[];
+}): ConciergeReadinessRow[] {
+  const auditByReference = new Map(
+    (options?.launchAudit ?? buildConciergeLaunchSmokeAudit()).map((audit) => [audit.reference, audit]),
+  );
+
   return CONCIERGE_FLOW_REGISTRY.map((flow) => {
     const coverage = getConciergeFlowCoverage(flow.reference);
+    const launchAudit = launchAuditSummary(auditByReference.get(flow.reference));
     const missingStages = missingConciergeFlowCoverage(flow.reference).map((stage) => ({
       id: stage,
       label: CONCIERGE_FLOW_COVERAGE_STAGE_LABELS[stage],
@@ -160,7 +265,7 @@ export function buildConciergeReadinessRows(): ConciergeReadinessRow[] {
       id: gap,
       label: ENTRY_GAP_LABELS[gap],
     }));
-    const readyForUsers = flow.status === "ready" && missingStages.length === 0 && entryGaps.length === 0;
+    const readyForUsers = flow.status === "ready" && missingStages.length === 0 && entryGaps.length === 0 && launchAudit.passed;
 
     return {
       reference: flow.reference,
@@ -181,11 +286,19 @@ export function buildConciergeReadinessRows(): ConciergeReadinessRow[] {
       toolDependencies: flow.tools.map((tool) => ({ id: tool, label: TOOL_LABELS[tool] })),
       firstQuestions: flow.firstQuestions,
       confirmationRule: flow.confirmationRule,
+      finalConfirmation: stageStatus(coverage, "final_user_confirmation"),
+      savedProviderPath: stageStatus(coverage, "saved_provider_path"),
+      handoffHistory: [
+        stageStatus(coverage, "action_handoff"),
+        stageStatus(coverage, "outcome_capture"),
+        stageStatus(coverage, "completed_history"),
+      ],
+      launchAudit,
       requiredStageCount: coverage.requiredStages.length,
       coveredStageCount: coverage.coveredStages.length,
       missingStages,
       entryGaps,
-      readinessNotes: readinessNotesForFlow(flow, missingStages, entryGaps),
+      readinessNotes: readinessNotesForFlow(flow, missingStages, entryGaps, launchAudit),
       nextImplementationStep: flow.nextImplementationStep ?? null,
     };
   });
@@ -201,5 +314,8 @@ export function summarizeConciergeReadiness(
     providerGated: rows.filter((row) => row.providerDependency.needsSavedProvider).length,
     toolGated: rows.filter((row) => row.toolDependencies.length > 0).length,
     entryPoints: rows.reduce((total, row) => total + row.entryPoints.length, 0),
+    launchAuditPassed: rows.filter((row) => row.launchAudit.passed).length,
+    launchAuditNeedsAttention: rows.filter((row) => !row.launchAudit.passed).length,
+    launchAuditChecks: rows.reduce((total, row) => total + row.launchAudit.checkCount, 0),
   };
 }
