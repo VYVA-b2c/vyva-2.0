@@ -115,6 +115,7 @@ type ConciergeRoutePrefill = {
   requestedTool?: ConciergeToolRequirement;
   actionLabel?: string;
   summary?: string;
+  payload?: Record<string, unknown>;
   useCase?: "scam_check" | "admin_task" | "paperwork" | "send_message" | "find_offers" | "find_provider" | "shopping_request";
   providerSearchMode?: string;
   providerSearchCriteria?: string[];
@@ -285,6 +286,7 @@ function coerceConciergeRoutePrefill(value: unknown): ConciergeRoutePrefill | nu
     requestedTool: isConciergeToolRequirement(value.requestedTool) ? value.requestedTool : undefined,
     actionLabel: typeof value.actionLabel === "string" && value.actionLabel.trim() ? value.actionLabel.trim() : undefined,
     summary: typeof value.summary === "string" && value.summary.trim() ? value.summary.trim() : undefined,
+    payload: isRecord(value.payload) ? value.payload : undefined,
     useCase: isConciergePreparedUseCase(value.useCase) ? value.useCase : undefined,
     providerSearchMode: typeof value.providerSearchMode === "string" && value.providerSearchMode.trim() ? value.providerSearchMode.trim() : undefined,
     providerSearchCriteria: routeStringList(value.providerSearchCriteria),
@@ -602,6 +604,9 @@ function routePrefillTaskTitle(prefill: ConciergeRoutePrefill, isSpanish: boolea
     return isSpanish ? "Gestion preparada" : "Paperwork task ready";
   }
   if (prefill.flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) {
+    if (prefill.useCase === "find_offers") {
+      return isSpanish ? "Comparacion preparada" : "Deal comparison ready";
+    }
     return isSpanish ? "Compra preparada" : "Shopping request ready";
   }
   if (prefill.flowReference === CARE_NAVIGATION_FLOW_REFERENCE) {
@@ -626,6 +631,11 @@ function routePrefillTaskDetail(prefill: ConciergeRoutePrefill, isSpanish: boole
       : "VYVA organizes the document, recipient, and next step.";
   }
   if (prefill.flowReference === SHOPPING_SUPPORT_FLOW_REFERENCE) {
+    if (prefill.useCase === "find_offers") {
+      return isSpanish
+        ? "VYVA compara precio, condiciones, confianza y riesgo antes de cualquier compra o cambio."
+        : "VYVA compares price, terms, trust, and risk before any purchase or switch.";
+    }
     return isSpanish
       ? "VYVA prepara la solicitud de compra. No se pide, paga ni contacta a nadie sin confirmacion."
       : "VYVA prepares the shopping request. Nothing is ordered, paid, or sent without confirmation.";
@@ -933,6 +943,36 @@ interface OfferOption {
   trust_note: string;
   score: number;
   score_breakdown?: OfferScoreBreakdown;
+}
+
+function offerReviewStructuredPayload(option: OfferOption, params: {
+  intent: "compare" | "watch";
+  query: string;
+  criteria: string[];
+  category?: string | null;
+}): Record<string, unknown> {
+  const contact = option.phone || option.website || option.maps_url || "";
+  return {
+    task_type: params.intent === "watch" ? "deal_watch" : "deal_comparison",
+    shopping_need: params.intent === "watch" ? `Watch ${option.name}` : `Review ${option.name}`,
+    shopping_context: params.category || option.category || "deal_review",
+    review_target: option.name,
+    offer_name: option.name,
+    deal_name: option.name,
+    category: option.category,
+    query: params.query,
+    criteria: params.criteria,
+    comparison_summary: option.why_good_option || option.trust_note || option.what_it_offers,
+    price_or_advantage: option.price_or_advantage,
+    distance_or_availability: option.distance_or_availability,
+    contact_method: option.contact_method,
+    website: option.website || option.maps_url || null,
+    phone: option.phone || null,
+    provider_name: option.name,
+    score: option.score,
+    trust_note: option.trust_note,
+    contact,
+  };
 }
 
 interface OfferProtectionSummary {
@@ -1304,6 +1344,12 @@ const SCHEDULE_APPOINTMENT_TYPE_KEYS = new Set<AppointmentType>([
 
 type ScamCheckKind = "email" | "document" | "phone" | "company";
 type InsuranceAdminKind = "insurance-letter" | "claim" | "government-form" | "call-email";
+type InsuranceAdminDetails = {
+  subject: string;
+  recipient: string;
+  deadline: string;
+  notes: string;
+};
 
 const SCAM_CHECK_OPTIONS: Array<{
   key: ScamCheckKind;
@@ -1483,6 +1529,67 @@ function insuranceAdminDetailCopy(kind: InsuranceAdminKind, isSpanish: boolean):
     deadlineLabel: isSpanish ? "Fecha limite" : "Deadline",
     notesLabel: isSpanish ? "Preguntas o preocupaciones" : "Questions or worries",
   };
+}
+
+function scamCheckStructuredPayload(option: typeof SCAM_CHECK_OPTIONS[number], detail: string, isSpanish: boolean): Record<string, unknown> {
+  const cleanDetail = detail.trim();
+  const optionLabel = isSpanish ? option.es : option.en;
+  const payload: Record<string, unknown> = {
+    source_type: option.key,
+    review_kind: "scam_or_safety_check",
+    review_label: optionLabel,
+    concern: optionLabel,
+    risk_context: option.key === "company"
+      ? "Company, seller, offer, or service reputation"
+      : option.key === "phone"
+        ? "Suspicious phone number or caller"
+        : option.key === "document"
+          ? "Suspicious document, letter, invoice, or photo"
+          : "Suspicious email or message",
+  };
+
+  if (!cleanDetail) return payload;
+
+  payload.review_source = cleanDetail;
+  payload.scam_detail = cleanDetail;
+  payload.detail = cleanDetail;
+
+  if (option.key === "email") payload.email_body = cleanDetail;
+  if (option.key === "document") payload.document_type = cleanDetail;
+  if (option.key === "phone") payload.phone_number = cleanDetail;
+  if (option.key === "company") payload.company_name = cleanDetail;
+
+  return payload;
+}
+
+function insuranceAdminStructuredPayload(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: InsuranceAdminDetails, isSpanish: boolean): Record<string, unknown> {
+  const subject = details.subject.trim();
+  const recipient = details.recipient.trim();
+  const deadline = details.deadline.trim();
+  const notes = details.notes.trim();
+  const optionLabel = isSpanish ? option.es : option.en;
+  const payload: Record<string, unknown> = {
+    task_type: option.key,
+    admin_task: optionLabel,
+    action_type: option.requestedTool,
+    requested_tool: option.requestedTool,
+  };
+
+  if (subject) {
+    payload.detail = subject;
+    payload.reason = subject;
+    if (option.key === "insurance-letter" || option.key === "government-form") {
+      payload.document_type = subject;
+    }
+  }
+  if (recipient) {
+    payload.recipient = recipient;
+    payload.recipient_name = recipient;
+  }
+  if (deadline) payload.deadline = deadline;
+  if (notes) payload.notes = notes;
+
+  return payload;
 }
 
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
@@ -2375,6 +2482,11 @@ async function prepareToolGatedConciergeTask(params: {
     params.locale.startsWith("es"),
   );
   const summary = params.prefill.summary?.trim() || `${actionLabel} prepared for VYVA review.`;
+  const structuredPayload = params.prefill.payload ?? {};
+  const payloadFlowReference = typeof structuredPayload.flow_reference === "string" && isConciergeFlowReference(structuredPayload.flow_reference)
+    ? structuredPayload.flow_reference
+    : undefined;
+  const flowReference = params.prefill.flowReference ?? payloadFlowReference ?? CONCIERGE_FLOW_REFERENCES.toolGatedTask;
   const res = await apiFetch("/api/concierge/actions/trigger", {
     method: "POST",
     body: JSON.stringify({
@@ -2384,20 +2496,22 @@ async function prepareToolGatedConciergeTask(params: {
       found_externally: false,
       action_summary: summary,
       action_payload: {
-        flow_reference: params.prefill.flowReference ?? CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+        ...structuredPayload,
+        flow_reference: flowReference,
         requested_tool: params.readiness.requestedTool,
         active_tool: params.readiness.activeTool,
         readiness_status: params.readiness.status,
         execution_channel: "manual",
         action_label: actionLabel,
         draft_message: params.prefill.message,
-        provider_search_mode: params.prefill.providerSearchMode ?? null,
-        provider_search_query: params.prefill.providerSearchQuery ?? null,
-        criteria: params.prefill.providerSearchCriteria?.length ? params.prefill.providerSearchCriteria : null,
-        source: params.prefill.source ?? "user_request",
+        provider_search_mode: params.prefill.providerSearchMode ?? structuredPayload.provider_search_mode ?? null,
+        provider_search_query: params.prefill.providerSearchQuery ?? structuredPayload.provider_search_query ?? null,
+        criteria: params.prefill.providerSearchCriteria?.length ? params.prefill.providerSearchCriteria : structuredPayload.criteria ?? null,
+        source: params.prefill.source ?? structuredPayload.source ?? "user_request",
         confirmation_required_before_action: true,
         review_fallback: params.readiness.activeTool === "operator_review",
         no_external_action_without_confirmation: true,
+        user_confirmed: false,
       },
       language: params.locale,
       trigger_source: "user_request",
@@ -7075,7 +7189,7 @@ const ConciergeScreen = () => {
   const [selectedScamCheckKind, setSelectedScamCheckKind] = useState<ScamCheckKind | null>(null);
   const [scamCheckDetail, setScamCheckDetail] = useState("");
   const [selectedInsuranceAdminKind, setSelectedInsuranceAdminKind] = useState<InsuranceAdminKind | null>(null);
-  const [insuranceAdminDetails, setInsuranceAdminDetails] = useState({
+  const [insuranceAdminDetails, setInsuranceAdminDetails] = useState<InsuranceAdminDetails>({
     subject: "",
     recipient: "",
     deadline: "",
@@ -10081,6 +10195,7 @@ const ConciergeScreen = () => {
       summary: isSpanish
         ? `Revision segura: ${option.es}.`
         : `Safe check prepared: ${option.en}.`,
+      payload: scamCheckStructuredPayload(option, scamCheckDetail, isSpanish),
       useCase: "scam_check",
     });
     setScamCheckOpen(false);
@@ -10090,7 +10205,7 @@ const ConciergeScreen = () => {
 
   function openInsuranceAdminAssistant(
     initialKind: InsuranceAdminKind | null = null,
-    initialDetails: Partial<typeof insuranceAdminDetails> = {},
+    initialDetails: Partial<InsuranceAdminDetails> = {},
   ) {
     setInsuranceAdminOpen(true);
     setScamCheckOpen(false);
@@ -10119,7 +10234,7 @@ const ConciergeScreen = () => {
     });
   }
 
-  function insuranceAdminPrompt(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: typeof insuranceAdminDetails) {
+  function insuranceAdminPrompt(option: typeof INSURANCE_ADMIN_OPTIONS[number], details: InsuranceAdminDetails) {
     const common = isSpanish
       ? "Pide primero el documento, destinatario, fecha limite y para quien es. No envies, llames, subas ni compartas datos sin mi confirmacion."
       : "Ask first for the document, recipient, deadline, and who this is for. Do not send, call, upload, or share details without my confirmation.";
@@ -10165,6 +10280,7 @@ const ConciergeScreen = () => {
       summary: isSpanish
         ? `Gestion preparada: ${option.es}.`
         : `Paperwork task prepared: ${option.en}.`,
+      payload: insuranceAdminStructuredPayload(option, insuranceAdminDetails, isSpanish),
       useCase: "admin_task",
     });
     setInsuranceAdminOpen(false);
@@ -10174,6 +10290,7 @@ const ConciergeScreen = () => {
 
   function handleOfferAssistance(option: OfferOption) {
     const contact = option.phone || option.website || option.maps_url || (isSpanish ? "sin contacto publicado" : "no published contact");
+    const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish);
     const message = isSpanish
       ? [
         `Ayudame a revisar ${option.name} antes de contactar.`,
@@ -10187,7 +10304,21 @@ const ConciergeScreen = () => {
         `Available contact: ${contact}.`,
         "Check terms, real price, commitment, reviews, and risks. Do not call, book, switch, or share details without asking me to confirm.",
       ].join("\n");
-    prepareConciergeRequest(message);
+    prepareConciergeRequest(message, {
+      flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+      requestedTool: "operator_review",
+      actionLabel: isSpanish ? "Revisar oferta" : "Review deal",
+      summary: isSpanish
+        ? `Comparacion preparada: ${option.name}.`
+        : `Deal comparison prepared: ${option.name}.`,
+      payload: offerReviewStructuredPayload(option, {
+        intent: "compare",
+        query: offersQuery.trim(),
+        criteria,
+        category: offersResult?.category,
+      }),
+      useCase: "find_offers",
+    });
   }
 
   function handleProviderSearchAssistance(option: OfferOption) {
@@ -10225,6 +10356,21 @@ const ConciergeScreen = () => {
       providerSearchMode: providerSearchMode ?? undefined,
       providerSearchCriteria: providerSearchCriteria,
       providerSearchQuery: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
+      payload: {
+        provider_search_mode: providerSearchMode ?? null,
+        provider_search_query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
+        criteria: providerSearchCriteria,
+        chosen_criteria: providerSearchCriteria,
+        selected_provider_name: option.name,
+        provider_name: option.name,
+        provider_phone: option.phone || null,
+        website: option.website || option.maps_url || null,
+        comparison_summary: option.why_good_option || option.trust_note || option.what_it_offers,
+        price_or_advantage: option.price_or_advantage,
+        distance_or_availability: option.distance_or_availability,
+        contact_method: option.contact_method,
+        score: option.score,
+      },
     });
   }
 
@@ -10254,6 +10400,12 @@ const ConciergeScreen = () => {
       providerSearchMode: providerSearchMode ?? undefined,
       providerSearchCriteria: providerSearchCriteria,
       providerSearchQuery: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
+      payload: {
+        provider_search_mode: providerSearchMode ?? null,
+        provider_search_query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
+        criteria: providerSearchCriteria,
+        chosen_criteria: providerSearchCriteria,
+      },
     });
   }
 
@@ -10424,6 +10576,7 @@ const ConciergeScreen = () => {
   }
 
   function handleOfferWatch(option: OfferOption) {
+    const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish);
     const message = isSpanish
       ? [
         `Vigila cambios importantes para ${option.name}.`,
@@ -10435,7 +10588,21 @@ const ConciergeScreen = () => {
         "Notify me if the price changes, a commitment appears, documents are missing, trust drops, or a clearly better option appears.",
         "Before acting, prepare a short summary and ask me to confirm.",
       ].join("\n");
-    prepareConciergeRequest(message);
+    prepareConciergeRequest(message, {
+      flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+      requestedTool: "operator_review",
+      actionLabel: isSpanish ? "Vigilar cambios" : "Watch changes",
+      summary: isSpanish
+        ? `Seguimiento preparado: ${option.name}.`
+        : `Offer watch prepared: ${option.name}.`,
+      payload: offerReviewStructuredPayload(option, {
+        intent: "watch",
+        query: offersQuery.trim(),
+        criteria,
+        category: offersResult?.category,
+      }),
+      useCase: "find_offers",
+    });
   }
 
   const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];

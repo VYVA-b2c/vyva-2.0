@@ -154,6 +154,18 @@ describe("concierge flow registry", () => {
     expect(shopping.needsProvider).toBe(false);
     expect(shopping.missingRequirements).toEqual([]);
 
+    const dealComparison = evaluateConciergeFlowRequirements({
+      useCase: "find_offers",
+      payload: {
+        offer_name: "Senior Energy Saver",
+        category: "Household costs",
+        comparison_summary: "Check price, terms, trust, and fit.",
+      },
+    });
+    expect(dealComparison.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
+    expect(dealComparison.needsProvider).toBe(false);
+    expect(dealComparison.missingRequirements).toEqual([]);
+
     const care = evaluateConciergeFlowRequirements({
       useCase: "find_provider",
       payload: {
@@ -192,6 +204,37 @@ describe("concierge flow registry", () => {
     });
     expect(safeHome.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
     expect(safeHome.missingRequirements).toEqual([]);
+
+    const scamNeedsSource = evaluateConciergeFlowRequirements({
+      useCase: "scam_check",
+      payload: {
+        source_type: "company",
+        concern: "Company or offer",
+      },
+      summary: "Safe check prepared: Company or offer.",
+    });
+    expect(scamNeedsSource.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.scamCheck);
+    expect(scamNeedsSource.firstMissingRequirement?.labelEn).toBe("Source");
+
+    const scamReady = evaluateConciergeFlowRequirements({
+      useCase: "scam_check",
+      payload: {
+        source_type: "company",
+        company_name: "Acme Deals",
+        concern: "Company or offer",
+      },
+    });
+    expect(scamReady.missingRequirements).toEqual([]);
+
+    const toolGatedEmail = evaluateConciergeFlowRequirements({
+      useCase: "send_message",
+      payload: {
+        requested_tool: "email",
+        draft_message: "Please prepare an email about my application.",
+      },
+    });
+    expect(toolGatedEmail.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.toolGatedTask);
+    expect(toolGatedEmail.firstMissingRequirement?.labelEn).toBe("Website or contact");
   });
 
   it("maps pending actions to their reusable flow references", () => {
@@ -205,6 +248,10 @@ describe("concierge flow registry", () => {
     })).toBe(CONCIERGE_FLOW_REFERENCES.scamCheck);
     expect(conciergeFlowReferenceForPendingAction({
       useCase: "shopping_request",
+      payload: {},
+    })).toBe(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
+    expect(conciergeFlowReferenceForPendingAction({
+      useCase: "find_offers",
       payload: {},
     })).toBe(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
     expect(conciergeFlowReferenceForPendingAction({

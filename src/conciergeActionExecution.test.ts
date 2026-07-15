@@ -103,4 +103,80 @@ describe("concierge action execution task", () => {
       outcome: "Claim email prepared and saved.",
     });
   });
+
+  it("asks for the scam review source without treating the canned summary as enough", () => {
+    const task = buildConciergeExecutionTask({
+      useCase: "scam_check",
+      payload: {
+        source_type: "company",
+        concern: "Company or offer",
+        requested_tool: "web_search",
+        execution_channel: "web_search",
+      },
+      summary: "Safe check prepared: Company or offer.",
+      pendingStatus: "pending",
+      now: "2026-07-14T10:00:00.000Z",
+    });
+
+    expect(task).toMatchObject({
+      flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+      action_type: "web_search",
+      lifecycle_status: "needs_info",
+      confirmation_required: true,
+      user_confirmed: false,
+    });
+    expect(task.missing_requirements).toEqual([{
+      key: "source",
+      label_en: "Source",
+      label_es: "Fuente",
+    }]);
+  });
+
+  it("routes deal comparisons through shopping support with confirmation still gated", () => {
+    const task = buildConciergeExecutionTask({
+      useCase: "find_offers",
+      payload: {
+        offer_name: "Senior Energy Saver",
+        category: "Household costs",
+        comparison_summary: "Compare price, trust, and terms.",
+        requested_tool: "operator_review",
+      },
+      summary: "Deal comparison prepared: Senior Energy Saver.",
+      pendingStatus: "pending",
+      now: "2026-07-14T10:00:00.000Z",
+    });
+
+    expect(task).toMatchObject({
+      flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+      action_type: "shopping_request",
+      lifecycle_status: "ready",
+      provider_ready: true,
+      confirmation_required: true,
+      user_confirmed: false,
+      missing_requirements: [],
+    });
+  });
+
+  it("keeps tool-gated actions in needs-info until the contact or website is known", () => {
+    const task = buildConciergeExecutionTask({
+      useCase: "send_message",
+      payload: {
+        requested_tool: "email",
+        action_type: "email",
+        draft_message: "Please prepare an email about my application.",
+      },
+      summary: "Email draft prepared.",
+      pendingStatus: "pending",
+      now: "2026-07-14T10:00:00.000Z",
+    });
+
+    expect(task).toMatchObject({
+      flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+      action_type: "message",
+      lifecycle_status: "needs_info",
+      confirmation_required: true,
+      user_confirmed: false,
+    });
+    expect(task.missing_requirements.map((item) => item.key)).toEqual(["website_or_contact"]);
+  });
 });
