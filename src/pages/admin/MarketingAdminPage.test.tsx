@@ -3008,6 +3008,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-audience")).toHaveTextContent("Audience list selected");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-copy")).toHaveTextContent("Improve with AI");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-create")).toHaveTextContent("Create now");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-packet")).toHaveTextContent("One-page launch packet");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-packet")).toHaveTextContent("Copy the whole campaign handoff");
+    const launchPacket = screen.getByTestId("textarea-marketing-campaign-studio-launch-packet") as HTMLTextAreaElement;
+    expect(launchPacket.value).toContain("VYVA campaign launch packet");
+    expect(launchPacket.value).toContain("Campaign: B2B partner introduction");
+    expect(launchPacket.value).toContain("Hook: A gentle invite: Partner outreach: proof point");
+    expect(launchPacket.value).toContain("Audience: Partners (B2B)");
+    expect(launchPacket.value).toContain("Channel plan:");
+    expect(launchPacket.value).toContain("LinkedIn: Manual publishing");
+    expect(launchPacket.value).toContain("Relationship follow-up:");
+    expect(launchPacket.value).toContain("Outcome tracking:");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-launch-packet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch packet"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("One-page launch packet copied.");
     expect(screen.getByTestId("marketing-campaign-studio-publishing-assistant")).toHaveTextContent("Channel publishing assistant");
     expect(screen.getByTestId("marketing-campaign-studio-publishing-route-linkedin")).toHaveTextContent("LinkedIn publish and track");
     expect(screen.getByTestId("marketing-campaign-studio-publishing-route-linkedin")).toHaveTextContent("Social publish");

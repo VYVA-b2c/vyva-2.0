@@ -8501,6 +8501,57 @@ export default function MarketingAdminPage() {
     },
   ];
   const campaignStudioOutcomeTrackerText = campaignStudioOutcomeTrackerItems.map((item) => item.text).join("\n\n---\n\n");
+  const campaignStudioLaunchPacketText = [
+    "VYVA campaign launch packet",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Objective: ${campaignStudioGenerated.objective || selectedCampaignStudioPlay.objective}`,
+    `Audience: ${campaignStudioOfflineAudienceName} (${selectedCampaignStudioPlay.audienceType.toUpperCase()})`,
+    `Primary channel: ${channelLabel[campaignStudio.channel]}`,
+    `Channel pack: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
+    `Schedule: ${campaignStudioOfflineScheduleLabel}`,
+    `Recommended next step: ${campaignStudioNextStep}`,
+    "",
+    "At a glance:",
+    ...campaignStudioLaunchBriefItems.map((item) => `- ${item.title}: ${item.value} (${readinessLabel(item.state)}) - ${item.detail}`),
+    "",
+    "Audience and consent:",
+    `- Reachable on primary channel: ${campaignStudioRecipientPreview.length}`,
+    `- Recipient snapshots across channel pack: ${campaignStudioPackRecipientCount}`,
+    `- Consent: ${campaignStudioConsentCounts.optedIn} opted in, ${campaignStudioConsentCounts.review} pending/unknown, ${campaignStudioConsentCounts.optedOut} opted out.`,
+    `- Sample: ${campaignStudioOfflineSampleLabel}`,
+    "",
+    "Message:",
+    `- Hook: ${campaignStudioPersonalizedSubject}`,
+    `- CTA: ${campaignStudioOfflineCta}`,
+    `- Tone: ${campaignStudioToneLabel[campaignStudio.toneId]}`,
+    `- Angle: ${campaignStudioAngleOptions.find((item) => item.id === campaignStudio.angleId)?.label ?? campaignStudio.angleId}`,
+    `- Body: ${campaignStudioOfflineMessageLine || campaignStudioGenerated.body || "No body copy yet."}`,
+    "",
+    "Channel plan:",
+    ...campaignStudioExecutionPlan.map((item) => `- ${channelLabel[item.channel]}: ${item.sendMode}; ${item.recipients} recipient${item.recipients === 1 ? "" : "s"}; ${item.nextAction}`),
+    "",
+    "Launch order:",
+    ...campaignStudioLaunchTimeline.map((item, index) => `${index + 1}. ${channelLabel[item.channel]} - ${item.timingLabel}${item.plannedAt ? ` (${formatDate(item.plannedAt)})` : ""}; owner: ${item.owner}; action: ${item.action}`),
+    "",
+    "Assets to prepare:",
+    ...campaignStudioVisualAssets.map((item) => `- ${item.title} (${item.format}): ${item.detail}`),
+    "",
+    "Human/offline handoffs:",
+    ...campaignStudioOfflineHandoffs.map((item) => `- ${item.title} (${item.format}): ${item.detail}`),
+    "",
+    "Relationship follow-up:",
+    ...campaignStudioFollowUpPlays.map((item) => `- ${item.title}: ${item.trigger} Owner: ${item.owner}.`),
+    "",
+    "Outcome tracking:",
+    ...campaignStudioOutcomeTrackerItems.map((item) => `- ${item.title}: ${item.value}. ${item.detail}`),
+    "",
+    "Approval:",
+    "- Final audience approved:",
+    "- Final copy approved:",
+    "- Visuals/assets approved:",
+    "- Publishing owner:",
+    "- Notes:",
+  ].join("\n");
   const contentTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
     const candidateTemplates = contentTemplateFiltersActive ? visibleContentTemplates : contentTemplateGallery;
     const playCategoryLabel = campaignStudioCategories.find((category) => category.id === selectedCampaignStudioPlay.categoryId)?.label ?? selectedCampaignStudioPlay.categoryId;
@@ -13418,6 +13469,48 @@ export default function MarketingAdminPage() {
                             </button>
                           );
                         })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4" data-testid="marketing-campaign-studio-launch-packet">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">One-page launch packet</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Copy the whole campaign handoff</h3>
+                          <p className="mt-1 text-xs font-bold text-[#665a7a]">
+                            Combines the campaign objective, audience, copy, channel plan, timeline, assets, approval notes, and follow-up into one team-ready brief.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("One-page launch packet", campaignStudioLaunchPacketText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-3 text-sm font-black text-violet-800 hover:bg-violet-50"
+                          data-testid="button-marketing-campaign-studio-copy-launch-packet"
+                        >
+                          <Copy size={14} /> Copy packet
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_250px]">
+                        <textarea
+                          className="min-h-[260px] rounded-xl border border-violet-100 bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#4f4564]"
+                          value={campaignStudioLaunchPacketText}
+                          readOnly
+                          data-testid="textarea-marketing-campaign-studio-launch-packet"
+                        />
+                        <div className="grid gap-2 text-xs font-bold text-[#665a7a]">
+                          <div className="rounded-xl border border-violet-100 bg-white p-3">
+                            <p className="font-black text-[#241133]">Use it for</p>
+                            <p className="mt-1">Internal review, client/partner handoff, agency production, and final launch readiness.</p>
+                          </div>
+                          <div className="rounded-xl border border-violet-100 bg-white p-3">
+                            <p className="font-black text-[#241133]">Includes</p>
+                            <p className="mt-1">{campaignStudioSelectedChannels.length} channel{campaignStudioSelectedChannels.length === 1 ? "" : "s"}, {campaignStudioVisualAssets.length} asset brief{campaignStudioVisualAssets.length === 1 ? "" : "s"}, {campaignStudioFollowUpPlays.length} follow-up play{campaignStudioFollowUpPlays.length === 1 ? "" : "s"}.</p>
+                          </div>
+                          <div className="rounded-xl border border-violet-100 bg-white p-3">
+                            <p className="font-black text-[#241133]">Best next action</p>
+                            <p className="mt-1">{campaignStudioNextStep}</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
