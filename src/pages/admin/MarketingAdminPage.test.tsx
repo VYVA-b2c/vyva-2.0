@@ -1000,6 +1000,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("WhatsApp partner proof nudge campaign");
     expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("whatsapp");
     expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("hassan@example.com");
+    let relationshipCampaignIntent = (screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value;
+    expect(relationshipCampaignIntent).toContain("Relationship campaign for Hassan Partner.");
+    expect(relationshipCampaignIntent).toContain('Starter template: "WhatsApp partner proof nudge" on WhatsApp.');
+    expect(relationshipCampaignIntent).toContain("Consent status: pending.");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     fireEvent.click(screen.getByTestId("button-marketing-view-contact-contact-2"));
     fireEvent.click(screen.getByTestId("button-marketing-build-contact-campaign-contact-2"));
@@ -1007,6 +1011,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("B2B partner introduction");
     expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
     expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("hassan@example.com");
+    relationshipCampaignIntent = (screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value;
+    expect(relationshipCampaignIntent).toContain("Channels: Email + LinkedIn.");
+    expect(relationshipCampaignIntent).toContain("Goal: open a partner conversation, reply, or demo request.");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Contacts (2)");
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Lists (1)");

@@ -10152,6 +10152,37 @@ export default function MarketingAdminPage() {
     setMessage(`Relationship queue loaded: ${queue.title}. Generate AI copy, review the templates, then create the campaign.`);
   }
 
+  function relationshipCampaignIntentForContact(
+    contact: MarketingContact,
+    selectedChannels: Channel[],
+    relatedAudience: MarketingAudience | null,
+    template: ContentTemplate | null = null,
+  ) {
+    const activeBrief = selectedRelationshipContact?.id === contact.id ? contactRelationshipBrief : null;
+    const isB2bContact = contact.audienceType === "b2b" || Boolean(contact.companyName || contact.roleLabel);
+    const contactName = contact.fullName || contact.email || contact.phoneNumber || "this contact";
+    const roleContext = [contact.roleLabel, contact.companyName].filter(Boolean).join(" at ");
+    const segmentContext = [contact.market, contact.vertical, contact.category, contact.language].filter(Boolean).join(" / ");
+    const audienceName = relatedAudience?.name ?? contact.lists[0] ?? contact.audienceType.toUpperCase();
+    const route = selectedChannels.map((channel) => channelLabel[channel]).join(" + ");
+    const goal = isB2bContact
+      ? "open a partner conversation, reply, or demo request"
+      : "help the family or caregiver take one useful next step";
+
+    return [
+      `Relationship campaign for ${contactName}.`,
+      roleContext ? `Contact context: ${roleContext}.` : "",
+      `Audience/list: ${audienceName}.`,
+      `Channels: ${route}.`,
+      template ? `Starter template: "${template.title}" on ${channelLabel[template.channel]}.` : activeBrief?.starter ? `Starter: ${activeBrief.starter}` : "",
+      activeBrief?.angle ? `Angle: ${activeBrief.angle}` : segmentContext ? `Angle: make the message specific to ${segmentContext}.` : "",
+      activeBrief?.opener ? `Opener: ${activeBrief.opener}` : "",
+      `Consent status: ${contact.consentStatus}.`,
+      activeBrief?.risk ? `Watch item: ${activeBrief.risk}` : "",
+      `Goal: ${goal}.`,
+    ].filter(Boolean).join("\n");
+  }
+
   function buildCampaignForRelationshipContact(contact: MarketingContact) {
     const isB2bContact = contact.audienceType === "b2b" || Boolean(contact.companyName || contact.roleLabel);
     const play = campaignStudioPlays.find((item) => item.id === (isB2bContact ? "b2b-partner-outreach" : "family-confidence")) ?? campaignStudioPlays[0];
@@ -10197,6 +10228,7 @@ export default function MarketingAdminPage() {
       recipientFilter: contact.email || contact.fullName || contact.whatsappNumber || contact.phoneNumber || "",
       snapshotRecipients: Boolean(recipientForChannel(contact, primaryChannel)),
     }));
+    setCampaignIntentBrief(relationshipCampaignIntentForContact(contact, selectedChannels, relatedAudience));
     setCampaignStudioFeedback(`Studio focused on ${contact.fullName || contact.email || "this contact"} with ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")}.`);
     setMessage(`Campaign studio is ready for ${contact.fullName || contact.email || "this contact"}. Generate AI copy or use the recommended channel pack.`);
   }
@@ -10215,6 +10247,7 @@ export default function MarketingAdminPage() {
       recipientFilter: contact.email || contact.fullName || contact.whatsappNumber || contact.phoneNumber || "",
       snapshotRecipients: Boolean(recipientForChannel(contact, template.channel)),
     }));
+    setCampaignIntentBrief(relationshipCampaignIntentForContact(contact, [template.channel], relatedAudience, template));
     setCampaignStudioFeedback(`Template "${template.title}" applied for ${contact.fullName || contact.email || "this contact"}.`);
     setMessage(`Template "${template.title}" is ready for ${contact.fullName || contact.email || "this contact"}. Save the content draft, then add the campaign.`);
   }
