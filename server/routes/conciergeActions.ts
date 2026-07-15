@@ -8,6 +8,7 @@ import { withConciergeExecutionTask } from "../../shared/conciergeActionExecutio
 import {
   CONCIERGE_USE_CASES,
   cancelPendingConciergeAction,
+  confirmPendingConciergeActionReview,
   completePendingConciergeAction,
   startPendingConciergeAction,
   triggerConciergeAction,
@@ -117,6 +118,19 @@ router.post("/:id/confirm", async (req: Request, res: Response) => {
     return res.json(result);
   } catch (err) {
     console.error("[concierge/actions POST /:id/confirm]", err);
+    return res.status(400).json({ error: (err as Error).message || "Failed to confirm concierge action" });
+  }
+});
+
+router.post("/:id/review-confirm", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  try {
+    const result = await confirmPendingConciergeActionReview(req.params.id, userId);
+    return res.json(result);
+  } catch (err) {
+    console.error("[concierge/actions POST /:id/review-confirm]", err);
     return res.status(400).json({ error: (err as Error).message || "Failed to confirm concierge action" });
   }
 });

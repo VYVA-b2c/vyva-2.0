@@ -18,7 +18,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 
 const apiFetchMock = vi.mocked(apiFetch);
 
-const readyTask: OperatorConciergeQueueItem = {
+const confirmedTask: OperatorConciergeQueueItem = {
   id: "pending-1",
   source: "pending",
   user_id: "user-1",
@@ -28,7 +28,7 @@ const readyTask: OperatorConciergeQueueItem = {
   provider_name: "Safe Taxi",
   provider_phone: "+34 611 111 111",
   action_summary: "Book a ride to the clinic",
-  status: "ready",
+  status: "confirmed",
   pending_status: "pending",
   flow_reference: "FLOW_TRANSPORT_BOOKING",
   action_type: "phone_call",
@@ -85,7 +85,7 @@ const doneTask: OperatorConciergeQueueItem = {
 };
 
 const otherAssignedTask: OperatorConciergeQueueItem = {
-  ...readyTask,
+  ...confirmedTask,
   id: "pending-other",
   user_id: "user-4",
   user_label: "Marta",
@@ -104,7 +104,7 @@ function jsonResponse(body: unknown) {
   });
 }
 
-function renderPage(items: OperatorConciergeQueueItem[] = [readyTask, needsInfoTask, doneTask]) {
+function renderPage(items: OperatorConciergeQueueItem[] = [confirmedTask, needsInfoTask, doneTask]) {
   apiFetchMock.mockImplementation((path, init) => {
     if (path === "/api/admin/concierge/queue" && (init?.method ?? "GET") === "GET") {
       return Promise.resolve(jsonResponse({
@@ -112,6 +112,7 @@ function renderPage(items: OperatorConciergeQueueItem[] = [readyTask, needsInfoT
         totals: {
           needs_info: items.filter((item) => item.status === "needs_info").length,
           ready: items.filter((item) => item.status === "ready").length,
+          confirmed: items.filter((item) => item.status === "confirmed").length,
           in_progress: items.filter((item) => item.status === "in_progress").length,
           done: items.filter((item) => item.status === "done").length,
           failed: items.filter((item) => item.status === "failed").length,
@@ -147,7 +148,7 @@ describe("ConciergeQueueAdminPage", () => {
     const summary = screen.getByTestId("admin-concierge-queue-summary");
     expect(summary).toHaveTextContent("Showing 3 of 3 Concierge tasks.");
     expect(summary).toHaveTextContent("Needs info");
-    expect(summary).toHaveTextContent("Ready");
+    expect(summary).toHaveTextContent("Confirmed");
     expect(summary).toHaveTextContent("Done");
 
     const list = screen.getByTestId("admin-concierge-queue-list");
@@ -162,7 +163,7 @@ describe("ConciergeQueueAdminPage", () => {
     renderPage();
 
     expect(await screen.findByText("Arrange home repair")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("admin-concierge-queue-filter-ready"));
+    fireEvent.click(screen.getByTestId("admin-concierge-queue-filter-confirmed"));
 
     const list = screen.getByTestId("admin-concierge-queue-list");
     expect(within(list).getByText("Book a ride to the clinic")).toBeInTheDocument();

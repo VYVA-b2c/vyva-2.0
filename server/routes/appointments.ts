@@ -42,6 +42,8 @@ import {
   providerMetadataWithBookingSuccess,
 } from "../services/appointmentMission.js";
 import {
+  homeServiceAccessNotesFromPreferences,
+  homeServiceAddressFromPreferences,
   homeServiceIntakeFromPreferences,
   homeServiceSearchTerms,
   homeServiceTypeLabel,
@@ -270,13 +272,21 @@ async function createScheduledAppointmentFromRequest(input: {
     channel: input.request.selected_channel,
   });
   const providerName = input.providerName || optionName(input.selectedOption);
-  const title = input.title || `${appointmentTypeLabel(input.request.appointment_type)} with ${providerName}`;
+  const isHomeService = input.request.appointment_type === "home-service";
+  const homePayload = homeServiceActionPayload(input.request);
+  const homePayloadLocation = typeof homePayload.location === "string" && homePayload.location.trim()
+    ? homePayload.location.trim()
+    : null;
+  const serviceLabel = typeof homePayload.service_label === "string" && homePayload.service_label.trim()
+    ? homePayload.service_label.trim()
+    : appointmentTypeLabel(input.request.appointment_type);
+  const title = input.title || `${isHomeService ? serviceLabel : appointmentTypeLabel(input.request.appointment_type)} with ${providerName}`;
 
   const [event] = await db
     .insert(scheduledEvents)
     .values({
       user_id: input.userId,
-      event_type: "appointment",
+      event_type: isHomeService ? "home_service" : "appointment",
       title,
       description: input.notes ?? input.request.reason_detail ?? null,
       channel: "app",
@@ -288,8 +298,10 @@ async function createScheduledAppointmentFromRequest(input: {
       source_session_id: input.request.id,
       metadata: {
         appointment_request_id: input.request.id,
+        appointment_type: input.request.appointment_type,
+        ...homePayload,
         provider_name: providerName,
-        location: input.location ?? null,
+        location: input.location ?? homePayloadLocation,
         selected_channel: input.request.selected_channel,
         selected_provider_id: savedProviderId ?? input.request.selected_provider_id,
         ...input.sourceMetadata,
@@ -334,6 +346,34 @@ function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function recordText(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function homeServiceActionPayload(request: AppointmentRequest): Record<string, unknown> {
+  if (request.appointment_type !== "home-service") return {};
+
+  const preferences = recordValue(request.preferences);
+  const intake = homeServiceIntakeFromPreferences(preferences);
+  const homeAddress = homeServiceAddressFromPreferences(preferences) || null;
+  const accessNotes = homeServiceAccessNotesFromPreferences(preferences) || null;
+
+  return {
+    service_type: intake?.service_type ?? null,
+    service_label: intake ? homeServiceTypeLabel(intake.service_type, request.language ?? "en") : null,
+    urgency: intake?.urgency ?? null,
+    requested_time: intake?.urgency ?? null,
+    criteria: intake?.criteria ?? null,
+    safety_flags: intake?.safety_flags ?? null,
+    problem_summary: request.reason_detail,
+    home_address: homeAddress,
+    home_address_source: recordText(preferences, "home_address_source"),
+    location: homeAddress,
+    home_access_or_safety_notes: accessNotes,
+  };
 }
 
 async function saveSuccessfulAppointmentProvider(input: {
@@ -516,6 +556,9 @@ function appointmentMessage(channel: AppointmentChannel, option: AppointmentProv
   const provider = optionName(option);
   const reason = request.reason_detail?.trim() || "I would like to arrange an appointment.";
   const isHomeService = request.appointment_type === "home-service";
+  const homeServicePayload = isHomeService ? homeServiceActionPayload(request) : {};
+  const homeAddress = typeof homeServicePayload.home_address === "string" ? homeServicePayload.home_address : "";
+  const accessNotes = typeof homeServicePayload.home_access_or_safety_notes === "string" ? homeServicePayload.home_access_or_safety_notes : "";
   const subject = isHomeService ? "Home service request" : "Appointment request";
   const requestLine = isHomeService
     ? "VYVA is helping me arrange a home service visit."
@@ -523,13 +566,24 @@ function appointmentMessage(channel: AppointmentChannel, option: AppointmentProv
   const askLine = isHomeService
     ? "Could you confirm availability, visit timing, estimated cost if possible, and anything I should do before you arrive?"
     : "Could you send available dates, times, location, price if relevant, and any preparation needed?";
+  const addressLine = isHomeService && homeAddress ? `Visit address: ${homeAddress}` : "";
+  const accessLine = isHomeService && accessNotes ? `Access/safety notes: ${accessNotes}` : "";
   const body = channel === "whatsapp"
-    ? `Hello ${provider}, ${requestLine} Request: ${reason}. ${askLine} Nothing is confirmed until I approve the next step. Thank you.`
+    ? [
+        `Hello ${provider}, ${requestLine}`,
+        `Request: ${reason}.`,
+        addressLine ? `${addressLine}.` : "",
+        accessLine ? `${accessLine}.` : "",
+        askLine,
+        "Nothing is confirmed until I approve the next step. Thank you.",
+      ].filter(Boolean).join(" ")
     : [
         `Hello ${provider},`,
         "",
         requestLine,
         `Request: ${reason}`,
+        addressLine,
+        accessLine,
         "",
         askLine,
         "",
@@ -839,6 +893,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
     const channel = parsed.data.channel;
     const flowReference = appointmentRequestFlowReference(request);
     const communicationRecipient = appointmentChannelRecipient(channel, snapshot);
+    const homeServicePayload = homeServiceActionPayload(request);
     const preferenceSnapshot = orderAppointmentChannels({
       channels: option.available_channels as AppointmentChannel[],
       providerSnapshot: snapshot,
@@ -910,6 +965,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             provider_whatsapp: providerWhatsapp,
             booking_url: bookingUrl,
             provider_notes: snapshotText(snapshot, "notes"),
+            ...homeServicePayload,
           },
           language: request.language,
           triggerSource: "agent_confirmed",
@@ -968,6 +1024,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             provider_whatsapp: providerWhatsapp,
             booking_url: bookingUrl,
             execution_channel: channel,
+            ...homeServicePayload,
             provider_snapshot: snapshot,
             preferred_channel: channel,
             provider_preference_snapshot: preferenceSnapshot,
@@ -1016,6 +1073,9 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
       if (formResult.status === "confirmed" && formResult.scheduled_for) {
         const scheduledFor = new Date(formResult.scheduled_for);
         if (!Number.isNaN(scheduledFor.getTime())) {
+          const homeVisitLocation = typeof homeServicePayload.home_address === "string" && homeServicePayload.home_address.trim()
+            ? homeServicePayload.home_address.trim()
+            : null;
           bookedFromForm = await createScheduledAppointmentFromRequest({
             userId,
             request: { ...request, selected_channel: "booking_url" },
@@ -1023,7 +1083,9 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             scheduledFor,
             timezone: formResult.timezone ?? "Europe/Madrid",
             providerName,
-            location: formResult.location ?? snapshotText(snapshot, "address") ?? null,
+            location: formResult.location
+              ?? (request.appointment_type === "home-service" ? homeVisitLocation : snapshotText(snapshot, "address"))
+              ?? null,
             notes: formResult.notes ?? request.reason_detail ?? null,
             sourceMetadata: {
               form_automation: {
@@ -1064,6 +1126,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             provider_whatsapp: providerWhatsapp,
             booking_url: bookingUrl,
             provider_notes: snapshotText(snapshot, "notes"),
+            ...homeServicePayload,
             form_automation_status: formResult.status,
             form_automation_reason: formResult.reason,
             form_automation_adapter: formResult.adapter,
@@ -1123,6 +1186,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           provider_whatsapp: providerWhatsapp,
           booking_url: bookingUrl,
           provider_notes: snapshotText(snapshot, "notes"),
+          ...homeServicePayload,
         },
         language: request.language,
         triggerSource: "agent_confirmed",
@@ -1238,6 +1302,10 @@ router.post("/requests/:id/mark-booked", async (req: Request, res: Response) => 
       ? await loadOptionForRequest(request.selected_provider_option_id, request.id, userId)
       : null;
     const providerName = parsed.data.provider_name || optionName(selectedOption);
+    const homePayload = homeServiceActionPayload(request);
+    const fallbackHomeLocation = typeof homePayload.home_address === "string" && homePayload.home_address.trim()
+      ? homePayload.home_address.trim()
+      : null;
     const booked = await createScheduledAppointmentFromRequest({
       userId,
       request,
@@ -1246,7 +1314,7 @@ router.post("/requests/:id/mark-booked", async (req: Request, res: Response) => 
       timezone: parsed.data.timezone,
       providerName,
       title: parsed.data.title ?? null,
-      location: parsed.data.location ?? null,
+      location: parsed.data.location ?? fallbackHomeLocation,
       notes: parsed.data.notes ?? null,
     });
 

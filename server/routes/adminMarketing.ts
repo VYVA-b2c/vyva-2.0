@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import OpenAI from "openai";
 import { z } from "zod";
 import { db } from "../db.js";
 import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
@@ -216,6 +217,27 @@ const audienceBodySchema = z.object({
 
 const audiencePatchSchema = audienceBodySchema.partial();
 
+const marketingAiToneSchema = z.enum(["warm", "expert", "direct", "uplifting"]);
+
+const marketingAiCampaignDraftSchema = z.object({
+  playLabel: z.string().trim().max(140).optional().default("Campaign"),
+  playCategory: z.string().trim().max(80).optional().default(""),
+  audienceType: audienceTypeSchema.optional().default("b2c"),
+  channel: channelSchema.optional().default("email"),
+  tone: marketingAiToneSchema.optional().default("warm"),
+  targetAudienceName: z.string().trim().max(180).optional().default(""),
+  targetAudienceSize: z.number().int().nonnegative().max(1_000_000).optional(),
+  campaignBrief: z.string().trim().max(1400).optional().default(""),
+  campaignName: z.string().trim().max(180).optional().default(""),
+  contentTitle: z.string().trim().max(180).optional().default(""),
+  objective: z.string().trim().max(1400).optional().default(""),
+  subjectSeed: z.string().trim().max(240).optional().default(""),
+  bodySeed: z.string().trim().max(5000).optional().default(""),
+  ctaLabel: z.string().trim().max(80).optional().default(""),
+  ctaUrl: z.string().trim().max(500).optional().default(""),
+  language: z.string().trim().min(2).max(24).optional().default("en"),
+});
+
 function actor(req: Request) {
   return String(req.user?.email ?? req.user?.id ?? "admin");
 }
@@ -310,6 +332,179 @@ function emptyToNull(value: string | null | undefined) {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function clippedText(value: unknown, fallback: string, maxLength: number) {
+  const text = typeof value === "string" ? value.trim() : "";
+  const resolved = text || fallback;
+  return resolved.length > maxLength ? resolved.slice(0, maxLength).trim() : resolved;
+}
+
+type MarketingAiCampaignDraftInput = z.infer<typeof marketingAiCampaignDraftSchema>;
+
+type MarketingAiCampaignDraft = {
+  campaignName: string;
+  contentTitle: string;
+  objective: string;
+  subject: string;
+  body: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  language: string;
+  designJson: Record<string, unknown>;
+};
+
+const marketingToneDirection: Record<z.infer<typeof marketingAiToneSchema>, string> = {
+  warm: "warm, human, reassuring, and clear",
+  expert: "credible, practical, precise, and useful",
+  direct: "short, action-oriented, and easy to scan",
+  uplifting: "positive, encouraging, and momentum-building",
+};
+
+const marketingChannelDirection: Record<typeof marketingChannels[number], string> = {
+  email: "Use a crisp subject, one central idea, and one primary call to action.",
+  whatsapp: "Keep the copy conversational, brief, and easy to reply to.",
+  facebook: "Make the hook shareable and community-friendly.",
+  instagram: "Make the copy visual-first with a strong caption opening.",
+  linkedin: "Lead with the professional value and practical outcome.",
+  tiktok: "Write it like a short creator prompt with a strong opening line.",
+};
+
+function fallbackMarketingAiCampaignDraft(input: MarketingAiCampaignDraftInput): MarketingAiCampaignDraft {
+  const audience = input.targetAudienceName || input.audienceType.toUpperCase();
+  const playLabel = input.playLabel || "Campaign";
+  const campaignName = input.campaignName || `${playLabel} - ${audience}`;
+  const contentTitle = input.contentTitle || `${campaignName} ${input.channel}`;
+  const subject = input.subjectSeed || `${playLabel}: a useful next step`;
+  const campaignBrief = input.campaignBrief.trim();
+  const bodySeed = input.bodySeed || input.objective || `Share a practical VYVA update with ${audience}.`;
+  const body = [
+    campaignBrief ? `Campaign brief: ${campaignBrief}` : "",
+    bodySeed,
+    "",
+    `Write this for ${audience} in a ${marketingToneDirection[input.tone]} voice.`,
+    marketingChannelDirection[input.channel],
+    "Keep the message non-clinical, practical, and focused on one action.",
+  ].filter(Boolean).join("\n\n");
+
+  return {
+    campaignName,
+    contentTitle,
+    objective: [
+      input.objective || `Move ${audience} toward one useful VYVA action.`,
+      campaignBrief ? `Campaign brief: ${campaignBrief}.` : "",
+      `Audience: ${audience}.`,
+      `Tone: ${input.tone}.`,
+      `Channel: ${input.channel}.`,
+    ].filter(Boolean).join("\n"),
+    subject,
+    body,
+    ctaLabel: input.ctaLabel || "Open VYVA",
+    ctaUrl: input.ctaUrl || "https://v2.vyva.life",
+    language: input.language || "en",
+    designJson: {
+      generator: "marketing_ai_assist_fallback",
+      playLabel,
+      playCategory: input.playCategory,
+      tone: input.tone,
+      channel: input.channel,
+      audience,
+      campaignBrief: campaignBrief || null,
+    },
+  };
+}
+
+function normalizeMarketingAiCampaignDraft(value: unknown, fallback: MarketingAiCampaignDraft): MarketingAiCampaignDraft {
+  const record = asRecord(value);
+  return {
+    campaignName: clippedText(record.campaignName ?? record.campaign_name, fallback.campaignName, 180),
+    contentTitle: clippedText(record.contentTitle ?? record.content_title, fallback.contentTitle, 180),
+    objective: clippedText(record.objective, fallback.objective, 1400),
+    subject: clippedText(record.subject, fallback.subject, 240),
+    body: clippedText(record.body, fallback.body, 12000),
+    ctaLabel: clippedText(record.ctaLabel ?? record.cta_label, fallback.ctaLabel, 80),
+    ctaUrl: clippedText(record.ctaUrl ?? record.cta_url, fallback.ctaUrl, 500),
+    language: clippedText(record.language, fallback.language, 24),
+    designJson: {
+      ...fallback.designJson,
+      generator: "marketing_ai_assist",
+      modelHints: asRecord(record.designJson ?? record.design_json),
+    },
+  };
+}
+
+async function generateMarketingAiCampaignDraft(input: MarketingAiCampaignDraftInput) {
+  const fallback = fallbackMarketingAiCampaignDraft(input);
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      configured: false,
+      source: "fallback" as const,
+      draft: fallback,
+      note: "OPENAI_API_KEY is not configured, so VYVA used the built-in campaign assistant fallback.",
+    };
+  }
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_MARKETING_MODEL || "gpt-4o-mini",
+      temperature: 0.65,
+      max_tokens: 900,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You are VYVA's marketing campaign copilot.",
+            "Return only valid JSON with keys: campaignName, contentTitle, objective, subject, body, ctaLabel, ctaUrl, language, designJson.",
+            "Write attractive, practical, non-clinical campaign copy for older adults, families, caregivers, partners, or local community contacts.",
+            "Do not claim medical outcomes, do not diagnose, and do not imply provider dispatch or sending has happened.",
+            "Keep the body ready to paste into an email/social/WhatsApp draft and preserve simple merge tags such as {{first_name}} when useful.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            play: input.playLabel,
+            playCategory: input.playCategory,
+            audienceType: input.audienceType,
+            targetAudienceName: input.targetAudienceName,
+            targetAudienceSize: input.targetAudienceSize ?? null,
+            channel: input.channel,
+            tone: input.tone,
+            language: input.language,
+            campaignBrief: input.campaignBrief,
+            campaignNameSeed: input.campaignName,
+            contentTitleSeed: input.contentTitle,
+            objectiveSeed: input.objective,
+            subjectSeed: input.subjectSeed,
+            bodySeed: input.bodySeed,
+            ctaLabelSeed: input.ctaLabel,
+            ctaUrlSeed: input.ctaUrl,
+            toneDirection: marketingToneDirection[input.tone],
+            channelDirection: marketingChannelDirection[input.channel],
+          }),
+        },
+      ],
+    });
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) throw new Error("OpenAI returned an empty marketing draft.");
+    return {
+      configured: true,
+      source: "openai" as const,
+      draft: normalizeMarketingAiCampaignDraft(JSON.parse(raw), fallback),
+      note: null,
+    };
+  } catch (error) {
+    console.error("[admin/marketing] AI campaign draft failed", error);
+    return {
+      configured: true,
+      source: "fallback" as const,
+      draft: fallback,
+      note: "OpenAI could not generate this draft, so VYVA used the built-in campaign assistant fallback.",
+    };
+  }
 }
 
 function parseJsonLike(value: unknown) {
@@ -2066,6 +2261,14 @@ adminMarketingRouter.get("/analytics", async (req, res) => {
     console.error("[admin/marketing] analytics load failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing analytics could not be loaded.") });
   }
+});
+
+adminMarketingRouter.post("/ai/campaign-draft", async (req, res) => {
+  const parsed = marketingAiCampaignDraftSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const result = await generateMarketingAiCampaignDraft(parsed.data);
+  return res.json({ ok: true, ...result });
 });
 
 adminMarketingRouter.post("/campaigns", async (req, res) => {
