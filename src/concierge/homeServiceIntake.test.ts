@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildHomeServiceIntake,
+  homeServiceAccessNotesFromPreferences,
+  homeServiceAddressFromPreferences,
   homeServiceQuestionsFor,
   homeServiceIntakeFromPreferences,
   normalizeHomeServiceType,
@@ -111,5 +113,43 @@ describe("home service intake", () => {
 
     expect(intake.research_brief).toContain("Pest control needed");
     expect(intake.research_brief).not.toContain("Other service needed");
+  });
+
+  it("extracts the home visit address without repeating already-saved facts", () => {
+    expect(homeServiceAddressFromPreferences({
+      home_address: " Calle Home 10 ",
+      service_intake: {
+        answers: {
+          home_address: "Ignored nested address",
+        },
+      },
+    })).toBe("Calle Home 10");
+
+    expect(homeServiceAddressFromPreferences({
+      service_intake: {
+        answers: {
+          location: "Apt 4B, Marbella",
+        },
+      },
+    })).toBe("Apt 4B, Marbella");
+  });
+
+  it("extracts access and safety notes from direct or intake answers", () => {
+    expect(homeServiceAccessNotesFromPreferences({
+      home_access_or_safety_notes: " Ring side bell ",
+      service_intake: {
+        answers: {
+          access_notes: "Ignored nested notes",
+        },
+      },
+    })).toBe("Ring side bell");
+
+    expect(homeServiceAccessNotesFromPreferences({
+      service_intake: {
+        answers: {
+          access_notes: "Caregiver can open the door",
+        },
+      },
+    })).toBe("Caregiver can open the door");
   });
 });

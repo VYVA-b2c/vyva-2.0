@@ -32,6 +32,7 @@ const baseItem: OperatorConciergeQueueItem = {
 describe("concierge operator queue helpers", () => {
   it("normalizes execution and legacy statuses into operator statuses", () => {
     expect(normalizeOperatorConciergeQueueStatus("needs_info")).toBe("needs_info");
+    expect(normalizeOperatorConciergeQueueStatus("confirmed")).toBe("confirmed");
     expect(normalizeOperatorConciergeQueueStatus("calling")).toBe("in_progress");
     expect(normalizeOperatorConciergeQueueStatus("completed")).toBe("done");
     expect(normalizeOperatorConciergeQueueStatus("cancelled")).toBeNull();
@@ -60,6 +61,7 @@ describe("concierge operator queue helpers", () => {
     expect(buildOperatorConciergeQueueTotals(items)).toMatchObject({
       needs_info: 1,
       ready: 1,
+      confirmed: 0,
       in_progress: 0,
       done: 1,
       failed: 0,

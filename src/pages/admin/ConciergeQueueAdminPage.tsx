@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock3, Loader2, RefreshCw, ShieldCheck, Wrench, X } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -27,6 +27,7 @@ type QueueResponse = {
 const statusStyles: Record<OperatorConciergeQueueStatus, string> = {
   needs_info: "border-amber-200 bg-amber-50 text-amber-800",
   ready: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  confirmed: "border-purple-200 bg-purple-50 text-purple-800",
   in_progress: "border-blue-200 bg-blue-50 text-blue-800",
   done: "border-slate-200 bg-slate-50 text-slate-700",
   failed: "border-red-200 bg-red-50 text-red-700",
@@ -34,7 +35,8 @@ const statusStyles: Record<OperatorConciergeQueueStatus, string> = {
 
 const statusDescriptions: Record<OperatorConciergeQueueStatus, string> = {
   needs_info: "More details needed",
-  ready: "Can be handled",
+  ready: "Ready for user OK",
+  confirmed: "User approved",
   in_progress: "Being worked now",
   done: "Closed successfully",
   failed: "Needs attention",
@@ -43,6 +45,7 @@ const statusDescriptions: Record<OperatorConciergeQueueStatus, string> = {
 const statusIcons: Record<OperatorConciergeQueueStatus, typeof AlertCircle> = {
   needs_info: AlertCircle,
   ready: ShieldCheck,
+  confirmed: CheckCircle2,
   in_progress: Clock3,
   done: CheckCircle2,
   failed: AlertCircle,
@@ -87,7 +90,7 @@ export default function ConciergeQueueAdminPage() {
   const [savingAction, setSavingAction] = useState<QueueAction | null>(null);
   const [assigningId, setAssigningId] = useState<string | null>(null);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setMessage("");
     try {
@@ -104,20 +107,19 @@ export default function ConciergeQueueAdminPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void refresh();
+  }, [refresh]);
 
   const currentOperatorId = user?.id?.trim() || "";
   const currentOperatorEmail = user?.email?.trim().toLowerCase() || "";
-  const isAssignedToCurrentOperator = (item: OperatorConciergeQueueItem) => (
+  const isAssignedToCurrentOperator = useCallback((item: OperatorConciergeQueueItem) => (
     Boolean(currentOperatorId && item.operator_assigned_to === currentOperatorId)
       || Boolean(currentOperatorEmail && item.operator_assigned_email?.trim().toLowerCase() === currentOperatorEmail)
-  );
-  const isUnassigned = (item: OperatorConciergeQueueItem) => !item.operator_assigned_to && !item.operator_assigned_email;
+  ), [currentOperatorEmail, currentOperatorId]);
+  const isUnassigned = useCallback((item: OperatorConciergeQueueItem) => !item.operator_assigned_to && !item.operator_assigned_email, []);
   const canCurrentOperatorAct = (item: OperatorConciergeQueueItem) => isUnassigned(item) || isAssignedToCurrentOperator(item);
   const assignmentLabel = (item: OperatorConciergeQueueItem) => {
     if (isAssignedToCurrentOperator(item)) return "Assigned to me";
@@ -137,11 +139,10 @@ export default function ConciergeQueueAdminPage() {
     if (ownerFilter === "mine") return statusFiltered.filter(isAssignedToCurrentOperator);
     if (ownerFilter === "unassigned") return statusFiltered.filter(isUnassigned);
     return statusFiltered;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, items, ownerFilter, currentOperatorId, currentOperatorEmail]);
+  }, [filter, isAssignedToCurrentOperator, isUnassigned, items, ownerFilter]);
   const allCount = useMemo(() => OPERATOR_CONCIERGE_QUEUE_STATUSES.reduce((sum, status) => sum + totals[status], 0), [totals]);
-  const mineCount = useMemo(() => items.filter(isAssignedToCurrentOperator).length, [items, currentOperatorId, currentOperatorEmail]);
-  const unassignedCount = useMemo(() => items.filter(isUnassigned).length, [items]);
+  const mineCount = useMemo(() => items.filter(isAssignedToCurrentOperator).length, [isAssignedToCurrentOperator, items]);
+  const unassignedCount = useMemo(() => items.filter(isUnassigned).length, [isUnassigned, items]);
   const selectedCanAct = Boolean(
     selectedItem?.source === "pending"
       && selectedItem.user_confirmed
@@ -202,7 +203,7 @@ export default function ConciergeQueueAdminPage() {
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Concierge queue"
-          subtitle="See confirmed Concierge tasks by operator status. Seniors still approve before VYVA books, sends, calls, or shares anything."
+          subtitle="See Concierge tasks by operator status. Seniors still approve before VYVA books, sends, calls, uploads, or shares anything."
         >
           <button
             type="button"
@@ -236,7 +237,7 @@ export default function ConciergeQueueAdminPage() {
             )}
           </div>
 
-          <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+          <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-7">
             <button
               type="button"
               onClick={() => setFilter("all")}
