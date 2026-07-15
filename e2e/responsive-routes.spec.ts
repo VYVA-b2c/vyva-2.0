@@ -994,6 +994,7 @@ const socialAndGameRoutes: ResponsiveRoute[] = [
 
 const adminRoutes: ResponsiveRoute[] = [
   { name: "admin lifecycle", path: "/admin/lifecycle", role: "admin", requiresInteractive: false, minTextLength: 50 },
+  { name: "admin concierge readiness", path: "/admin/concierge-readiness", role: "admin", requiresInteractive: false, minTextLength: 80 },
 ];
 
 test.describe("responsive route smoke", () => {

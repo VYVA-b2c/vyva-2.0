@@ -12,12 +12,15 @@ import {
 } from "../../../shared/conciergeReadinessDashboard";
 import {
   CONCIERGE_MANUAL_QA_STATUS_OPTIONS,
+  CONCIERGE_MANUAL_QA_PRIORITY_FLOW_REFERENCES,
   buildConciergeManualQaJsonExport,
   buildConciergeManualQaMarkdownReport,
   buildConciergeManualQaNotes,
+  isConciergeManualQaPriorityFlow,
   normalizeConciergeManualQaRunnerState,
   parseConciergeManualQaImport,
   summarizeConciergeManualQaRunner,
+  summarizeConciergeManualQaPriorityRunner,
   updateConciergeManualQaRunnerStatus,
   type ConciergeManualQaRunnerState,
   type ConciergeManualQaStatus,
@@ -210,7 +213,7 @@ function ManualQaScriptCard({
 
   return (
     <article
-      className="rounded-[14px] border border-[#eadfd5] bg-[#fffaf4] p-4 shadow-sm"
+      className="min-w-0 rounded-[14px] border border-[#eadfd5] bg-[#fffaf4] p-4 shadow-sm"
       data-testid={`manual-qa-script-${row.reference.toLowerCase().replace(/_/g, "-")}`}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -229,8 +232,8 @@ function ManualQaScriptCard({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[0.8fr_1.2fr]">
-        <div className="rounded-[12px] border border-[#f0e7df] bg-white p-3">
+      <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-[0.8fr_1.2fr]">
+        <div className="min-w-0 rounded-[12px] border border-[#f0e7df] bg-white p-3">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Start entry points</p>
           <div className="mt-2 flex flex-col gap-2">
             {script.entryPoints.map((entry) => (
@@ -256,29 +259,29 @@ function ManualQaScriptCard({
           </div>
         </div>
 
-        <div className="rounded-[12px] border border-[#f0e7df] bg-white p-3">
+        <div className="min-w-0 rounded-[12px] border border-[#f0e7df] bg-white p-3">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Manual QA script</p>
           <ol className="mt-2 flex flex-col gap-2">
             {script.steps.map((step, index) => (
-              <li key={step.id} className="grid grid-cols-[28px_1fr] gap-2 rounded-[10px] bg-[#fbf8f5] px-2.5 py-2">
+              <li key={step.id} className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)] gap-2 rounded-[10px] bg-[#fbf8f5] px-2.5 py-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#f5f0ff] text-xs font-black text-purple-700">
                   {index + 1}
                 </span>
-                <div>
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="text-sm font-black text-[#2f2135]">{step.title}</p>
+                    <p className="break-words text-sm font-black text-[#2f2135]">{step.title}</p>
                     <Pill>{step.source.replace(/_/g, " ")}</Pill>
                     <Pill tone={statusTone(runnerState[step.id] ?? "not_tested")}>
                       {statusLabel(runnerState[step.id] ?? "not_tested")}
                     </Pill>
                   </div>
-                  <p className="mt-1 text-xs font-semibold leading-relaxed text-[#5b4a46]">{step.instruction}</p>
-                  <p className="mt-1 text-xs font-semibold leading-relaxed text-[#8b7a73]">{step.expectedResult}</p>
+                  <p className="mt-1 break-words text-xs font-semibold leading-relaxed text-[#5b4a46]">{step.instruction}</p>
+                  <p className="mt-1 break-words text-xs font-semibold leading-relaxed text-[#8b7a73]">{step.expectedResult}</p>
                   <label className="mt-2 flex max-w-[220px] flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
                     QA status
                     <select
                       aria-label={`QA status for ${step.title}`}
-                      className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-white px-2 text-sm font-black normal-case tracking-normal text-[#2f2135]"
+                      className="min-h-[38px] w-full rounded-[10px] border border-[#eadfd5] bg-white px-2 text-sm font-black normal-case tracking-normal text-[#2f2135]"
                       value={runnerState[step.id] ?? "not_tested"}
                       onChange={(event) => onStatusChange(step.id, event.target.value as ConciergeManualQaStatus)}
                     >
@@ -348,7 +351,15 @@ function ManualQaScriptSection({
 }) {
   const scripts = rows.map((row) => row.manualQaScript);
   const runnerSummary = summarizeConciergeManualQaRunner(scripts, runnerState);
+  const prioritySummary = summarizeConciergeManualQaPriorityRunner(scripts, runnerState);
   const flowResultsByReference = new Map(runnerSummary.flowResults.map((flow) => [flow.reference, flow]));
+  const priorityRows = rows
+    .filter((row) => isConciergeManualQaPriorityFlow(row.reference))
+    .sort((left, right) => (
+      CONCIERGE_MANUAL_QA_PRIORITY_FLOW_REFERENCES.indexOf(left.reference)
+      - CONCIERGE_MANUAL_QA_PRIORITY_FLOW_REFERENCES.indexOf(right.reference)
+    ));
+  const remainingRows = rows.filter((row) => !isConciergeManualQaPriorityFlow(row.reference));
 
   return (
     <section
@@ -389,6 +400,34 @@ function ManualQaScriptSection({
         <ManualQaRunnerMetric label="Failed checks" value={runnerSummary.failedCheckpoints} tone="bad" />
         <ManualQaRunnerMetric label="Not tested" value={runnerSummary.notTestedCheckpoints} />
       </div>
+
+      <section
+        className="mt-4 rounded-[12px] border border-purple-200 bg-[#fbf7ff] p-3"
+        data-testid="manual-qa-priority-pass"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Priority QA pass</p>
+            <h3 className="mt-1 text-lg font-black text-[#2f2135]">Test these six high-risk flows first</h3>
+            <p className="mt-1 text-sm font-semibold leading-relaxed text-[#7d6b65]">
+              These are the flows most likely to touch providers, personal information, documents, or user safety.
+            </p>
+          </div>
+          <div className="grid min-w-full gap-2 sm:grid-cols-2 lg:min-w-[520px] lg:grid-cols-4">
+            <ManualQaRunnerMetric label="Priority passed" value={prioritySummary.fullyPassedFlows} tone="good" />
+            <ManualQaRunnerMetric label="Priority blocked" value={prioritySummary.blockedFlows} tone="bad" />
+            <ManualQaRunnerMetric label="Priority review" value={prioritySummary.needsReviewFlows} tone="warn" />
+            <ManualQaRunnerMetric label="Priority untested" value={prioritySummary.notTestedCheckpoints} />
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {priorityRows.map((row) => (
+            <Pill key={row.reference} tone={flowStatusTone(flowResultsByReference.get(row.reference)?.status ?? "not_tested")}>
+              {row.actionName}: {flowStatusLabel(flowResultsByReference.get(row.reference)?.status ?? "not_tested")}
+            </Pill>
+          ))}
+        </div>
+      </section>
 
       <div className="mt-4 rounded-[12px] border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="manual-qa-export-import">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -442,7 +481,24 @@ function ManualQaScriptSection({
       </div>
 
       <div className="mt-4 grid gap-3">
-        {rows.map((row) => (
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Priority scripts</p>
+          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Complete these before the remaining Concierge flows.</p>
+        </div>
+        {priorityRows.map((row) => (
+          <ManualQaScriptCard
+            key={row.reference}
+            row={row}
+            runnerState={runnerState}
+            onStatusChange={onStatusChange}
+            flowStatus={flowResultsByReference.get(row.reference)?.status ?? "not_tested"}
+          />
+        ))}
+        <div className="pt-2">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Remaining scripts</p>
+          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Run these after the priority pass or when a priority flow points here.</p>
+        </div>
+        {remainingRows.map((row) => (
           <ManualQaScriptCard
             key={row.reference}
             row={row}
