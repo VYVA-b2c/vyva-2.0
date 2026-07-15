@@ -3910,6 +3910,18 @@ describe("MarketingAdminPage", () => {
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("44");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
+    expect(screen.getByTestId("marketing-campaign-relationship-follow-up")).toHaveTextContent("What should happen after this campaign?");
+    expect(screen.getByTestId("marketing-campaign-relationship-follow-up-responders")).toHaveTextContent("8 signals");
+    expect(screen.getByTestId("marketing-campaign-relationship-follow-up-responders")).toHaveTextContent("1 reply");
+    expect(screen.getByTestId("marketing-campaign-relationship-follow-up-handoff")).toHaveTextContent("1 route");
+    expect(screen.getByTestId("marketing-campaign-relationship-follow-up-next-campaign")).toHaveTextContent("Responder nurture");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-relationship-follow-up"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA relationship follow-up brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Segment responders"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Manual follow-ups needed: 0"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign relationship follow-up brief copied.");
     expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
     expect(screen.getByTestId("marketing-campaign-manual-publish-tracker")).toHaveTextContent("Record what happened outside VYVA");

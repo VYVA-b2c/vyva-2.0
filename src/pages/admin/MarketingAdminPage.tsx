@@ -654,6 +654,11 @@ type MarketingActionCenterItem = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type CampaignRelationshipFollowUpItem = CampaignReadinessItem & {
+  value: string;
+  icon: LucideIcon;
+};
+
 type MarketingLaunchLaneItem = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -13491,6 +13496,94 @@ export default function MarketingAdminPage() {
   }) : [];
   const manualPublishChannelOptions = campaignPublishKitItems.filter((item) => item.channel !== "email" && item.contentAsset);
   const manualPublishResults = manualPublishResultsFromMetadataText(campaignEditDraft.metadataText);
+  const manualPublishPublishedCount = manualPublishResults.filter((result) => result.result === "published").length;
+  const manualPublishScheduledCount = manualPublishResults.filter((result) => result.result === "scheduled").length;
+  const manualPublishFollowUpCount = manualPublishResults.filter((result) => result.result === "needs_follow_up").length;
+  const manualPublishBlockedCount = manualPublishResults.filter((result) => result.result === "blocked").length;
+  const manualPublishEngagementCount = manualPublishResults.reduce((total, result) => total + (result.engagements ?? 0), 0);
+  const campaignRelationshipSignalCount = selectedCampaignMetricTotals.clicked + selectedCampaignMetricTotals.replied + selectedCampaignMetricTotals.socialEngagement + manualPublishEngagementCount;
+  const campaignRelationshipFollowUpItems: CampaignRelationshipFollowUpItem[] = editingCampaign ? [
+    {
+      key: "responders",
+      title: "Responder follow-up",
+      value: campaignRelationshipSignalCount > 0
+        ? `${campaignRelationshipSignalCount} signal${campaignRelationshipSignalCount === 1 ? "" : "s"}`
+        : selectedCampaignMetrics.length ? "No response yet" : "Awaiting results",
+      state: campaignRelationshipSignalCount > 0 ? "ready" : selectedCampaignMetrics.length ? "planning" : "needs_action",
+      detail: campaignRelationshipSignalCount > 0
+        ? `Use ${selectedCampaignMetricTotals.replied} repl${selectedCampaignMetricTotals.replied === 1 ? "y" : "ies"}, ${selectedCampaignMetricTotals.clicked} click${selectedCampaignMetricTotals.clicked === 1 ? "" : "s"}, and ${selectedCampaignMetricTotals.socialEngagement + manualPublishEngagementCount} social/manual engagement${selectedCampaignMetricTotals.socialEngagement + manualPublishEngagementCount === 1 ? "" : "s"} to build the next nurture segment.`
+        : selectedCampaignMetrics.length
+          ? "Metrics are imported, but no engagement signal is strong yet. Adjust the offer, CTA, or channel before repeating."
+          : "Run or manually track the campaign, then import metrics so VYVA can recommend a relationship follow-up.",
+      icon: UsersRound,
+    },
+    {
+      key: "handoff",
+      title: "Manual handoff outcomes",
+      value: manualPublishResults.length
+        ? `${manualPublishResults.length} saved`
+        : planningOnlyCampaignChannels.length
+          ? `${planningOnlyCampaignChannels.length} route${planningOnlyCampaignChannels.length === 1 ? "" : "s"}`
+          : "No manual route",
+      state: manualPublishBlockedCount > 0 ? "needs_action" : manualPublishFollowUpCount > 0 ? "ready" : manualPublishResults.length > 0 ? "planning" : planningOnlyCampaignChannels.length > 0 ? "needs_action" : "planning",
+      detail: manualPublishResults.length
+        ? `${manualPublishPublishedCount} published, ${manualPublishScheduledCount} scheduled, ${manualPublishFollowUpCount} need follow-up, ${manualPublishBlockedCount} blocked.`
+        : planningOnlyCampaignChannels.length
+          ? `Track the outcome for ${planningOnlyCampaignChannels.map((channel) => channelLabel[channel.channel]).join(", ")} so offline/social activity becomes usable relationship data.`
+          : "This campaign is email-only, so follow-up is driven by email metrics and saved recipients.",
+      icon: Waypoints,
+    },
+    {
+      key: "next-campaign",
+      title: "Recommended next move",
+      value: campaignRelationshipSignalCount > 0
+        ? "Responder nurture"
+        : manualPublishFollowUpCount > 0
+          ? "Human follow-up"
+          : manualPublishResults.length > 0 || selectedCampaignMetrics.length > 0
+            ? "Optimize and repeat"
+            : "Capture outcomes",
+      state: campaignRelationshipSignalCount > 0 || manualPublishFollowUpCount > 0 ? "ready" : manualPublishResults.length > 0 || selectedCampaignMetrics.length > 0 ? "planning" : "needs_action",
+      detail: campaignRelationshipSignalCount > 0
+        ? "Create a smaller follow-up campaign for people who clicked, replied, engaged, or were manually marked for follow-up."
+        : manualPublishFollowUpCount > 0
+          ? "Start with the manual result notes, then create a phone, WhatsApp, or email follow-up for those relationships."
+          : manualPublishResults.length > 0 || selectedCampaignMetrics.length > 0
+            ? "Use the imported results to improve copy and choose a sharper channel mix before the next send."
+            : "Publish or track at least one channel result before creating a follow-up campaign.",
+      icon: Sparkles,
+    },
+  ] : [];
+  const campaignRelationshipFollowUpBrief = editingCampaign ? [
+    "VYVA relationship follow-up brief",
+    `Campaign: ${campaignEditDraft.name || editingCampaign.name}`,
+    `Audience: ${campaignEditDraft.audienceType.toUpperCase()}`,
+    selectedCampaignTargetAudience
+      ? `Target list: ${selectedCampaignTargetAudience.name} (${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} mapped)`
+      : "Target list: all eligible contacts",
+    `Status: ${campaignEditDraft.status}`,
+    `Schedule: ${campaignEditDraft.scheduleStartsAt ? formatDate(fromDateTimeLocal(campaignEditDraft.scheduleStartsAt)) : "Not scheduled"}`,
+    `Saved recipients: ${savedCampaignRecipientCount}`,
+    `Channels: ${campaignReadinessChannels.map((channel) => channelLabel[channel.channel]).join(", ")}`,
+    "",
+    "Engagement signals:",
+    `- Sent: ${selectedCampaignMetricTotals.sent}`,
+    `- Opened: ${selectedCampaignMetricTotals.opened}`,
+    `- Clicked: ${selectedCampaignMetricTotals.clicked}`,
+    `- Replied: ${selectedCampaignMetricTotals.replied}`,
+    `- Social/manual engagement: ${selectedCampaignMetricTotals.socialEngagement + manualPublishEngagementCount}`,
+    `- Manual results: ${manualPublishResults.length}`,
+    `- Manual follow-ups needed: ${manualPublishFollowUpCount}`,
+    "",
+    "Recommended relationship actions:",
+    ...campaignRelationshipFollowUpItems.map((item) => `- ${item.title}: ${item.value} (${readinessLabel(item.state)}) - ${item.detail}`),
+    "",
+    "AI task:",
+    "1. Turn these results into the next relationship campaign.",
+    "2. Segment responders, manual follow-up contacts, and low-engagement contacts separately.",
+    "3. Suggest the next channel, message angle, CTA, and follow-up owner.",
+    "4. Keep consent and channel availability in mind before proposing any live send.",
+  ].join("\n") : "";
   const selectedManualPublishChannel = manualPublishChannelOptions.some((item) => item.channel === manualPublishDraft.channel)
     ? manualPublishDraft.channel
     : manualPublishChannelOptions[0]?.channel ?? manualPublishDraft.channel;
@@ -16663,6 +16756,43 @@ export default function MarketingAdminPage() {
                             </div>
                           </div>
                         )}
+                      </div>
+
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm" data-testid="marketing-campaign-relationship-follow-up">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Relationship follow-up</p>
+                            <h3 className="mt-1 font-serif text-2xl text-[#241133]">What should happen after this campaign?</h3>
+                            <p className="mt-1 text-sm font-bold text-[#5f6f62]">Turn clicks, replies, social/manual outcomes, and saved recipients into the next audience move.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignHandoffText("Campaign relationship follow-up brief", campaignRelationshipFollowUpBrief)}
+                            disabled={!campaignRelationshipFollowUpBrief.trim()}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid="button-marketing-copy-relationship-follow-up"
+                          >
+                            <Sparkles size={15} /> Copy AI follow-up brief
+                          </button>
+                        </div>
+                        <div className="mt-4 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-relationship-follow-up-items">
+                          {campaignRelationshipFollowUpItems.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <article key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-relationship-follow-up-${item.key}`}>
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-800">
+                                    <Icon size={16} aria-hidden="true" />
+                                  </span>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </div>
+                                <p className="mt-3 text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{item.value}</p>
+                                <p className="mt-2 text-xs font-bold leading-relaxed text-[#5f6f62]">{item.detail}</p>
+                              </article>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <div className="grid gap-3">
