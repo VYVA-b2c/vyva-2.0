@@ -1095,6 +1095,225 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
+  it("turns deal contact links into confirmed Concierge review tasks", async () => {
+    let triggerBody: {
+      action_summary?: string;
+      action_payload?: Record<string, unknown>;
+      auto_start?: boolean;
+      use_case?: string;
+    } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/offers/search")) {
+        return jsonResponse({
+          category: "Household costs",
+          decision_explanation: "This option has the best mix of price, trust, ease, and fit.",
+          neutrality_note: "No provider paid for placement.",
+          source_guidance: ["official or regulated comparison sources"],
+          protection_summary: {
+            title: "Objective check",
+            checkpoints: ["No paid ranking."],
+            notification_triggers: ["price change"],
+            action_guardrail: "VYVA asks before contact, switching, or sharing details.",
+          },
+          options: [{
+            label: "Opcion recomendada",
+            name: "Senior Energy Saver",
+            category: "Household costs",
+            what_it_offers: "Lower-cost electric service.",
+            price_or_advantage: "Estimated 18% monthly saving with no early switch.",
+            why_good_option: "Strong fit for the current household profile.",
+            distance_or_availability: "Available online.",
+            contact_method: "Online or phone",
+            phone: "+34 600 333 444",
+            website: "https://example.com",
+            trust_note: "Official source and verified tariff.",
+            score: 91,
+          }],
+          next_step: "Confirm before contacting or switching.",
+        });
+      }
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "deal-review-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByRole("button", { name: /review available benefits/i }));
+    fireEvent.click(screen.getByTestId("button-offers-search"));
+
+    const prepareButton = await screen.findByTestId("button-offer-prepare-review-opcion-recomendada-senior-energy-saver");
+    expect(prepareButton).toHaveTextContent("Ask VYVA to review");
+    expect(screen.getByTestId("badge-offer-contact-gated-opcion-recomendada-senior-energy-saver")).toHaveTextContent("Contact after your OK");
+    expect(screen.queryByRole("link", { name: /open now|call now/i })).not.toBeInTheDocument();
+
+    fireEvent.click(prepareButton);
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Deal comparison ready");
+    expect(prefill).toHaveTextContent("Deal comparison prepared: Senior Energy Saver.");
+    expect(prefill).toHaveTextContent("Review deal");
+    expect(prefill).toHaveTextContent("Nothing is booked");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(triggerBody).toMatchObject({
+        use_case: "find_offers",
+        auto_start: false,
+        action_summary: "Deal comparison prepared: Senior Energy Saver.",
+        action_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          task_type: "deal_comparison",
+          offer_name: "Senior Energy Saver",
+          provider_name: "Senior Energy Saver",
+          phone: "+34 600 333 444",
+          website: "https://example.com",
+          requested_tool: "operator_review",
+          active_tool: "operator_review",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+          user_confirmed: false,
+        }),
+      });
+    });
+    expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not call, book, switch, or share details without asking me to confirm.");
+  });
+
+  it("gates utility comparison offer links behind a prepared Concierge switch review", async () => {
+    let triggerBody: {
+      action_summary?: string;
+      action_payload?: Record<string, unknown>;
+      auto_start?: boolean;
+      use_case?: string;
+    } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.includes("/api/utilities/normalize")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          can_compare: true,
+        });
+      }
+      if (target.includes("/api/utilities/compare")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          source_used: "CNMC",
+          source_status: "success",
+          source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+          summary: {
+            headline: "One tariff looks cheaper, but confirm terms first.",
+            current_monthly_cost: 92,
+            best_estimated_monthly_cost: 71,
+            estimated_monthly_savings: 21,
+          },
+          results: [{
+            provider: "Tarifa Clara",
+            tariff_name: "Luz Senior",
+            estimated_monthly_cost: 71,
+            estimated_annual_cost: 852,
+            estimated_monthly_savings: 21,
+            contract_type: "indexed",
+            permanence: "none",
+            price_stability: "variable",
+            green_energy: true,
+            source: "CNMC",
+            source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+            provider_url: "https://tarifaclara.example/luz-senior",
+            action_label: "View offers",
+            confidence: "high",
+            notes: ["Confirm taxes and permanence."],
+          }],
+          calculation_note: "Compared current bill against estimated tariffs.",
+          estimated_note: "Savings are estimates.",
+          neutrality_note: "No provider paid for placement.",
+          source_note: "CNMC comparison.",
+        });
+      }
+      if (target.includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "utility-switch-review-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByRole("button", { name: /Household costs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Fill manually/i }));
+    fireEvent.change(screen.getByPlaceholderText("Postcode"), { target: { value: "28013" } });
+    fireEvent.change(screen.getByPlaceholderText("Approx monthly cost"), { target: { value: "92" } });
+    fireEvent.change(screen.getByPlaceholderText("Current provider optional"), { target: { value: "Current Co" } });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare comparison/i }));
+
+    expect(await screen.findByTestId("button-utilities-compare")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("button-utilities-compare"));
+
+    const reviewButton = await screen.findByTestId("button-utility-option-review-0");
+    expect(reviewButton).toHaveTextContent("View offers");
+    expect(screen.getByTestId("badge-utility-option-gated-0")).toHaveTextContent("Link after your OK");
+    expect(screen.queryByRole("link", { name: /View offers/i })).not.toBeInTheDocument();
+
+    fireEvent.click(reviewButton);
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Deal comparison ready");
+    expect(prefill).toHaveTextContent("Deal comparison prepared: Tarifa Clara - Luz Senior.");
+    expect(prefill).toHaveTextContent("Review switch");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(triggerBody).toMatchObject({
+        use_case: "find_offers",
+        auto_start: false,
+        action_summary: "Deal comparison prepared: Tarifa Clara - Luz Senior.",
+        action_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          task_type: "utility_switch_review",
+          review_target: "Tarifa Clara - Luz Senior",
+          provider_name: "Tarifa Clara",
+          tariff_name: "Luz Senior",
+          estimated_monthly_cost: 71,
+          estimated_monthly_savings: 21,
+          website: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+          requested_tool: "operator_review",
+          active_tool: "operator_review",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+          user_confirmed: false,
+        }),
+      });
+    });
+    expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not open, switch, call, or share details without my confirmation.");
+  });
+
   it("turns provider results into clear prepared-contact tasks", async () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).includes("/api/offers/search")) {
@@ -3105,6 +3324,89 @@ describe("ConciergeScreen route prefill", () => {
           next_step: "Ask a trusted contact before replying.",
           reference: "SG-9",
           notes: "No upload or reply was sent.",
+          completed_from: "manual_review_outcome_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
+  });
+
+  it("records a completed selected deal review through the completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/deal-review-complete/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-deal-review-complete" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "deal-review-complete",
+            use_case: "find_offers",
+            provider_name: "Senior Energy Saver",
+            provider_phone: null,
+            action_summary: "Deal comparison prepared: Senior Energy Saver.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+              task_type: "deal_comparison",
+              requested_tool: "operator_review",
+              active_tool: "operator_review",
+              execution_channel: "manual",
+              offer_name: "Senior Energy Saver",
+              deal_name: "Senior Energy Saver",
+              review_target: "Senior Energy Saver",
+              shopping_context: "Household costs",
+              comparison_summary: "Strong fit for the current household profile.",
+              price_or_advantage: "Estimated 18% monthly saving with no early switch.",
+              website: "https://example.com",
+              phone: "+34 600 333 444",
+              confirmation_required_before_action: true,
+              no_external_action_without_confirmation: true,
+              user_confirmed: true,
+            },
+            status: "pending",
+            confirmed_at: "2026-07-15T10:00:00.000Z",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-manual-review-outcome-deal-review-complete");
+    expect(panel).toHaveTextContent("Review outcome");
+    expect(panel).toHaveTextContent("Senior Energy Saver");
+    fireEvent.change(screen.getByTestId("input-manual-review-summary-deal-review-complete"), {
+      target: { value: "Compared the price, commitment, trust notes, and contact route." },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-next-step-deal-review-complete"), {
+      target: { value: "Ask the user before opening the provider website." },
+    });
+    fireEvent.change(screen.getByTestId("input-manual-review-reference-deal-review-complete"), {
+      target: { value: "DEAL-7" },
+    });
+    fireEvent.click(screen.getByTestId("button-manual-review-save-deal-review-complete"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Completed: Senior Energy Saver. Reference: DEAL-7.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          execution_type: "manual_review_outcome_capture",
+          execution_channel: "operator_review",
+          review_outcome: "completed",
+          offer_name: "Senior Energy Saver",
+          deal_name: "Senior Energy Saver",
+          review_target: "Senior Energy Saver",
+          shopping_context: "Household costs",
+          website: "https://example.com",
+          phone: "+34 600 333 444",
+          review_summary: "Compared the price, commitment, trust notes, and contact route.",
+          next_step: "Ask the user before opening the provider website.",
+          reference: "DEAL-7",
           completed_from: "manual_review_outcome_panel",
           no_external_action_without_confirmation: true,
         }),

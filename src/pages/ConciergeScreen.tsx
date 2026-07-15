@@ -3749,6 +3749,9 @@ function manualReviewSubject(item: ConciergePendingItem, isSpanish: boolean): st
   return payloadString(item.action_payload, [
     "review_source",
     "scam_detail",
+    "review_target",
+    "offer_name",
+    "deal_name",
     "company_name",
     "document_type",
     "phone_number",
@@ -10129,6 +10132,59 @@ const ConciergeScreen = () => {
     return isSpanish ? "Ver opciones" : "View options";
   }
 
+  function handleUtilityOptionReview(option: UtilityComparisonResult, optionUrl: string) {
+    if (!utilityResult) return;
+    const target = `${option.provider} - ${option.tariff_name}`;
+    const message = isSpanish
+      ? [
+        `Ayudame a revisar esta opcion de tarifa antes de abrir o cambiar: ${target}.`,
+        `Coste estimado: ${formatEuro(option.estimated_monthly_cost, true)}/mes.`,
+        `Ahorro estimado: ${formatEuro(option.estimated_monthly_savings, true)}/mes.`,
+        optionUrl ? `Enlace disponible: ${optionUrl}.` : "",
+        "Comprueba condiciones, permanencia, precio real y pasos seguros. No abras, contrates, llames ni compartas datos sin mi confirmacion.",
+      ].filter(Boolean).join("\n")
+      : [
+        `Help me review this tariff option before opening or switching: ${target}.`,
+        `Estimated cost: ${formatEuro(option.estimated_monthly_cost, false)}/month.`,
+        `Estimated saving: ${formatEuro(option.estimated_monthly_savings, false)}/month.`,
+        optionUrl ? `Available link: ${optionUrl}.` : "",
+        "Check terms, commitment, real price, and safe steps. Do not open, switch, call, or share details without my confirmation.",
+      ].filter(Boolean).join("\n");
+    prepareConciergeRequest(message, {
+      flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+      requestedTool: "operator_review",
+      actionLabel: isSpanish ? "Revisar cambio" : "Review switch",
+      summary: isSpanish
+        ? `Comparacion preparada: ${target}.`
+        : `Deal comparison prepared: ${target}.`,
+      useCase: "find_offers",
+      payload: {
+        task_type: "utility_switch_review",
+        shopping_need: isSpanish ? `Revisar ${target}` : `Review ${target}`,
+        shopping_context: "utility_comparison",
+        review_target: target,
+        offer_name: target,
+        deal_name: target,
+        provider_name: option.provider,
+        tariff_name: option.tariff_name,
+        estimated_monthly_cost: option.estimated_monthly_cost,
+        estimated_monthly_savings: option.estimated_monthly_savings,
+        contract_type: option.contract_type,
+        permanence: option.permanence,
+        price_stability: option.price_stability,
+        source: option.source,
+        source_url: option.source_url || utilityResult.source_url || null,
+        provider_url: option.provider_url || null,
+        website: optionUrl || null,
+        comparison_summary: utilityResult.summary.headline,
+        current_monthly_cost: utilityResult.summary.current_monthly_cost,
+        best_estimated_monthly_cost: utilityResult.summary.best_estimated_monthly_cost,
+        calculation_note: utilityResult.calculation_note,
+        neutrality_note: utilityResult.neutrality_note,
+      },
+    });
+  }
+
   async function handleUtilityResultAction(action: "whatsapp" | "save" | "remind" | "switch") {
     if (!utilityResult) return;
     if (action === "whatsapp") {
@@ -14961,15 +15017,25 @@ const ConciergeScreen = () => {
                         </div>
                       </div>
                       {optionUrl && (
-                        <a
-                          href={optionUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-3 inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full border border-vyva-purple/20 bg-[#F5F3FF] px-4 py-2 font-body text-[13px] font-semibold text-vyva-purple"
-                        >
-                          <ExternalLink size={15} />
-                          {utilityOptionActionLabel(result, optionUrl)}
-                        </a>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleUtilityOptionReview(result, optionUrl)}
+                            data-testid={`button-utility-option-review-${index}`}
+                            className="h-[40px] rounded-full border-vyva-purple/20 bg-[#F5F3FF] px-4 font-body text-[13px] font-semibold text-vyva-purple"
+                          >
+                            <ShieldCheck size={15} className="mr-2" />
+                            {utilityOptionActionLabel(result, optionUrl)}
+                          </Button>
+                          <span
+                            data-testid={`badge-utility-option-gated-${index}`}
+                            className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-4 font-body text-[13px] font-bold text-vyva-purple"
+                          >
+                            <ShieldCheck size={15} />
+                            {isSpanish ? "Enlace tras tu OK" : "Link after your OK"}
+                          </span>
+                        </div>
                       )}
                     </div>
                   );
@@ -15312,14 +15378,7 @@ const ConciergeScreen = () => {
                       offersResult.options.map((option) => {
                         const optionKey = offerCardKey(option);
                         const scoreDetailsOpen = expandedOfferScoreKey === optionKey;
-                        const offerPhoneHref = phoneHref(option.phone);
-                        const offerUrl = option.website || option.maps_url || "";
-                        const primaryLabel = offerPhoneHref
-                          ? (isSpanish ? "Llamar ahora" : "Call now")
-                          : offerUrl
-                            ? (isSpanish ? "Abrir ahora" : "Open now")
-                            : (isSpanish ? "Pedir ayuda a VYVA" : "Ask VYVA to help");
-                        const PrimaryIcon = offerPhoneHref ? PhoneCall : offerUrl ? ExternalLink : Send;
+                        const contactAvailable = Boolean(option.phone || option.website || option.maps_url);
                         const overallScore = clampScore(option.score);
                         const providerBadges = providerSearchMode
                           ? providerResultBadges(option, providerSearchCriteria, isSpanish)
@@ -15426,35 +15485,25 @@ const ConciergeScreen = () => {
                                   <Send size={15} className="mr-2" />
                                   {isSpanish ? "Preparar contacto" : "Ask VYVA to prepare contact"}
                                 </Button>
-                              ) : offerPhoneHref || offerUrl ? (
-                                <a
-                                  href={offerPhoneHref || offerUrl}
-                                  target={offerUrl ? "_blank" : undefined}
-                                  rel={offerUrl ? "noopener noreferrer" : undefined}
-                                  className="vyva-tap inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold text-white"
-                                >
-                                  <PrimaryIcon size={15} />
-                                  {primaryLabel}
-                                </a>
                               ) : (
                                 <Button
                                   type="button"
                                   onClick={() => handleOfferAssistance(option)}
+                                  data-testid={`button-offer-prepare-review-${optionKey}`}
                                   className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
                                 >
                                   <Send size={15} className="mr-2" />
-                                  {primaryLabel}
+                                  {isSpanish ? "Que VYVA revise" : "Ask VYVA to review"}
                                 </Button>
                               )}
-                              {!providerSearchMode && (offerPhoneHref || offerUrl) && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => handleOfferAssistance(option)}
-                                  className="h-[40px] rounded-full border-vyva-border bg-white px-4 font-body text-[13px] font-bold text-vyva-purple"
+                              {!providerSearchMode && contactAvailable && (
+                                <span
+                                  data-testid={`badge-offer-contact-gated-${optionKey}`}
+                                  className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-[#F5F3FF] px-4 font-body text-[13px] font-bold text-vyva-purple"
                                 >
-                                  {isSpanish ? "Que VYVA ayude" : "Let VYVA help"}
-                                </Button>
+                                  <ShieldCheck size={15} />
+                                  {isSpanish ? "Contacto tras tu OK" : "Contact after your OK"}
+                                </span>
                               )}
                               {!providerSearchMode && (
                                 <Button
