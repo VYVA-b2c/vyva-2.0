@@ -3,13 +3,16 @@ import { CONCIERGE_FLOW_REFERENCES } from "../shared/conciergeFlowRegistry";
 import { buildConciergeManualQaScripts } from "../shared/conciergeManualQaScripts";
 import {
   CONCIERGE_MANUAL_QA_EXPORT_VERSION,
+  CONCIERGE_MANUAL_QA_PRIORITY_FLOW_REFERENCES,
   buildConciergeManualQaExportPayload,
   buildConciergeManualQaJsonExport,
   buildConciergeManualQaMarkdownReport,
+  filterConciergeManualQaPriorityScripts,
   buildConciergeManualQaNotes,
   normalizeConciergeManualQaRunnerState,
   parseConciergeManualQaImport,
   summarizeConciergeManualQaRunner,
+  summarizeConciergeManualQaPriorityRunner,
   updateConciergeManualQaRunnerStatus,
 } from "../shared/conciergeManualQaRunner";
 
@@ -51,6 +54,38 @@ describe("concierge manual QA runner", () => {
     expect(summary.blockedFlows).toBe(1);
     expect(summary.failedCheckpoints).toBe(1);
     expect(summary.needsReviewCheckpoints).toBe(1);
+  });
+
+  it("tracks the high-risk priority pass separately from the full flow set", () => {
+    const scripts = buildConciergeManualQaScripts();
+    const priorityScripts = filterConciergeManualQaPriorityScripts(scripts);
+    const priorityReferences = priorityScripts.map((script) => script.reference);
+
+    expect(priorityReferences).toEqual(CONCIERGE_MANUAL_QA_PRIORITY_FLOW_REFERENCES);
+    expect(priorityReferences).toEqual([
+      CONCIERGE_FLOW_REFERENCES.transportBooking,
+      CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+      CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+      CONCIERGE_FLOW_REFERENCES.homeService,
+      CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+      CONCIERGE_FLOW_REFERENCES.scamCheck,
+    ]);
+
+    const transport = priorityScripts.find((script) => script.reference === CONCIERGE_FLOW_REFERENCES.transportBooking)!;
+    const shopping = scripts.find((script) => script.reference === CONCIERGE_FLOW_REFERENCES.shoppingSupport)!;
+    let state = normalizeConciergeManualQaRunnerState(scripts, null);
+    for (const step of transport.steps) {
+      state = updateConciergeManualQaRunnerStatus(state, step.id, "pass");
+    }
+    state = updateConciergeManualQaRunnerStatus(state, shopping.steps[0].id, "fail");
+
+    const fullSummary = summarizeConciergeManualQaRunner(scripts, state);
+    const prioritySummary = summarizeConciergeManualQaPriorityRunner(scripts, state);
+
+    expect(fullSummary.blockedFlows).toBe(1);
+    expect(prioritySummary.totalFlows).toBe(6);
+    expect(prioritySummary.fullyPassedFlows).toBe(1);
+    expect(prioritySummary.blockedFlows).toBe(0);
   });
 
   it("normalizes stale or invalid stored statuses", () => {
@@ -99,6 +134,8 @@ describe("concierge manual QA runner", () => {
     expect(payload.runnerState[transport.steps[0].id]).toBe("fail");
     expect(payload.summary.failedCheckpoints).toBe(1);
     expect(payload.summary.needsReviewCheckpoints).toBe(1);
+    expect(payload.prioritySummary.failedCheckpoints).toBe(1);
+    expect(payload.prioritySummary.needsReviewCheckpoints).toBe(1);
     expect(transportFlow?.status).toBe("blocked");
     expect(transportFlow?.failedSteps).toHaveLength(1);
     expect(transportFlow?.failedSteps[0].title).toBe(transport.steps[0].title);
@@ -117,6 +154,8 @@ describe("concierge manual QA runner", () => {
 
     expect(markdown).toContain("# Concierge manual QA report");
     expect(markdown).toContain("Exported at: 2026-07-15T12:00:00.000Z");
+    expect(markdown).toContain("## Priority pass");
+    expect(markdown).toContain("Priority flows blocked: 1");
     expect(markdown).toContain("Status: blocked");
     expect(markdown).toContain("Failed steps:");
     expect(markdown).toContain(transport.steps[0].title);

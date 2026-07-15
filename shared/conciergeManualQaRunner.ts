@@ -2,7 +2,10 @@ import type {
   ConciergeManualQaScript,
   ConciergeManualQaStep,
 } from "./conciergeManualQaScripts";
-import type { ConciergeFlowReference } from "./conciergeFlowRegistry";
+import {
+  CONCIERGE_FLOW_REFERENCES,
+  type ConciergeFlowReference,
+} from "./conciergeFlowRegistry";
 
 export type ConciergeManualQaStatus = "not_tested" | "pass" | "fail" | "needs_review";
 export type ConciergeManualQaFlowStatus = "not_tested" | "in_progress" | "passed" | "blocked" | "needs_review";
@@ -19,6 +22,14 @@ export const CONCIERGE_MANUAL_QA_STATUS_OPTIONS: Array<{
 
 export type ConciergeManualQaRunnerState = Record<string, ConciergeManualQaStatus>;
 export const CONCIERGE_MANUAL_QA_EXPORT_VERSION = "concierge-manual-qa-runner-v1";
+export const CONCIERGE_MANUAL_QA_PRIORITY_FLOW_REFERENCES: ConciergeFlowReference[] = [
+  CONCIERGE_FLOW_REFERENCES.transportBooking,
+  CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+  CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+  CONCIERGE_FLOW_REFERENCES.homeService,
+  CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+  CONCIERGE_FLOW_REFERENCES.scamCheck,
+];
 
 export interface ConciergeManualQaStepResult {
   step: ConciergeManualQaStep;
@@ -72,6 +83,7 @@ export interface ConciergeManualQaExportPayload {
   exportedAt: string;
   runnerState: ConciergeManualQaRunnerState;
   summary: Omit<ConciergeManualQaRunnerSummary, "flowResults">;
+  prioritySummary: Omit<ConciergeManualQaRunnerSummary, "flowResults">;
   flows: ConciergeManualQaExportFlow[];
 }
 
@@ -175,6 +187,28 @@ export function summarizeConciergeManualQaRunner(
   };
 }
 
+export function isConciergeManualQaPriorityFlow(reference: ConciergeFlowReference): boolean {
+  return CONCIERGE_MANUAL_QA_PRIORITY_FLOW_REFERENCES.includes(reference);
+}
+
+export function filterConciergeManualQaPriorityScripts(
+  scripts: ConciergeManualQaScript[],
+): ConciergeManualQaScript[] {
+  return scripts
+    .filter((script) => isConciergeManualQaPriorityFlow(script.reference))
+    .sort((left, right) => (
+      CONCIERGE_MANUAL_QA_PRIORITY_FLOW_REFERENCES.indexOf(left.reference)
+      - CONCIERGE_MANUAL_QA_PRIORITY_FLOW_REFERENCES.indexOf(right.reference)
+    ));
+}
+
+export function summarizeConciergeManualQaPriorityRunner(
+  scripts: ConciergeManualQaScript[],
+  state: Partial<Record<string, unknown>> | null | undefined,
+): ConciergeManualQaRunnerSummary {
+  return summarizeConciergeManualQaRunner(filterConciergeManualQaPriorityScripts(scripts), state);
+}
+
 export function buildConciergeManualQaNotes(
   scripts: ConciergeManualQaScript[],
   state: Partial<Record<string, unknown>> | null | undefined,
@@ -227,12 +261,15 @@ export function buildConciergeManualQaExportPayload(
   const runnerState = normalizeConciergeManualQaRunnerState(scripts, state);
   const summary = summarizeConciergeManualQaRunner(scripts, runnerState);
   const { flowResults, ...summaryWithoutFlows } = summary;
+  const prioritySummary = summarizeConciergeManualQaPriorityRunner(scripts, runnerState);
+  const { flowResults: _priorityFlowResults, ...prioritySummaryWithoutFlows } = prioritySummary;
 
   return {
     version: CONCIERGE_MANUAL_QA_EXPORT_VERSION,
     exportedAt,
     runnerState,
     summary: summaryWithoutFlows,
+    prioritySummary: prioritySummaryWithoutFlows,
     flows: flowResults.map((flow) => ({
       reference: flow.reference,
       actionName: flow.actionName,
@@ -276,6 +313,15 @@ export function buildConciergeManualQaMarkdownReport(
     `- Failed checkpoints: ${payload.summary.failedCheckpoints}`,
     `- Needs-review checkpoints: ${payload.summary.needsReviewCheckpoints}`,
     `- Not-tested checkpoints: ${payload.summary.notTestedCheckpoints}`,
+    "",
+    "## Priority pass",
+    "",
+    `- Priority flows passed: ${payload.prioritySummary.fullyPassedFlows}/${payload.prioritySummary.totalFlows}`,
+    `- Priority flows blocked: ${payload.prioritySummary.blockedFlows}`,
+    `- Priority needs-review flows: ${payload.prioritySummary.needsReviewFlows}`,
+    `- Priority failed checkpoints: ${payload.prioritySummary.failedCheckpoints}`,
+    `- Priority needs-review checkpoints: ${payload.prioritySummary.needsReviewCheckpoints}`,
+    `- Priority not-tested checkpoints: ${payload.prioritySummary.notTestedCheckpoints}`,
     "",
     "## Flow status",
     "",

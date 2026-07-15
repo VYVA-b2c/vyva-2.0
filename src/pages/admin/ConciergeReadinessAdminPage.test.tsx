@@ -57,7 +57,31 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(screen.getByTestId("section-manual-qa-script")).toBeInTheDocument();
     expect(screen.getAllByTestId(/manual-qa-script-/)).toHaveLength(10);
     expect(screen.getByTestId("manual-qa-runner-summary")).toBeInTheDocument();
+    expect(screen.getByTestId("manual-qa-priority-pass")).toBeInTheDocument();
     expect(within(screen.getByTestId("manual-qa-metric-not-tested")).getByText(/\d+/)).toBeInTheDocument();
+  });
+
+  it("surfaces the high-risk manual QA pass before the remaining Concierge scripts", () => {
+    renderPage();
+
+    const priorityPass = screen.getByTestId("manual-qa-priority-pass");
+    expect(within(priorityPass).getByText("Test these six high-risk flows first")).toBeInTheDocument();
+    expect(within(priorityPass).getByText(/Book ride \/ transport: Not tested/i)).toBeInTheDocument();
+    expect(within(priorityPass).getByText(/OTC pharmacy help: Not tested/i)).toBeInTheDocument();
+    expect(within(priorityPass).getByText(/Medical appointment: Not tested/i)).toBeInTheDocument();
+    expect(within(priorityPass).getByText(/Home service: Not tested/i)).toBeInTheDocument();
+    expect(within(priorityPass).getByText(/Insurance \/ admin help: Not tested/i)).toBeInTheDocument();
+    expect(within(priorityPass).getByText(/Scam or safety check: Not tested/i)).toBeInTheDocument();
+    expect(within(priorityPass).queryByText(/Shopping \/ groceries \/ meals/i)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-metric-priority-untested")).getByText(/\d+/)).toBeInTheDocument();
+
+    const scriptCards = screen.getAllByTestId(/manual-qa-script-/);
+    expect(within(scriptCards[0]).getByRole("heading", { name: "Book ride / transport" })).toBeInTheDocument();
+    expect(within(scriptCards[1]).getByRole("heading", { name: "OTC pharmacy help" })).toBeInTheDocument();
+    expect(within(scriptCards[2]).getByRole("heading", { name: "Medical appointment" })).toBeInTheDocument();
+    expect(within(scriptCards[3]).getByRole("heading", { name: "Home service" })).toBeInTheDocument();
+    expect(within(scriptCards[4]).getByRole("heading", { name: "Insurance / admin help" })).toBeInTheDocument();
+    expect(within(scriptCards[5]).getByRole("heading", { name: "Scam or safety check" })).toBeInTheDocument();
   });
 
   it("shows provider setup, entry points, and tool dependencies for launch review", () => {
@@ -113,6 +137,7 @@ describe("ConciergeReadinessAdminPage", () => {
 
     expect(within(screen.getByTestId("manual-qa-metric-flows-blocked")).getByText("1")).toBeInTheDocument();
     expect(within(screen.getByTestId("manual-qa-metric-failed-checks")).getByText("1")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-metric-priority-blocked")).getByText("1")).toBeInTheDocument();
     expect(within(transportScript).getByText("Blocked")).toBeInTheDocument();
     expect(within(transportScript).getAllByText("Fail").length).toBeGreaterThan(0);
   });
