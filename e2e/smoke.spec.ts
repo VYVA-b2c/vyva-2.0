@@ -6,6 +6,7 @@ const futureToken = [
   "signature",
 ].join(".");
 const symptomCheckDraftKey = "vyva.symptomCheck.draft.v1";
+type OpenedWindowRecord = { url: string; target?: string; features?: string };
 
 async function fulfillJson(route: Route, status: number, body: unknown) {
   await route.fulfill({
@@ -172,6 +173,24 @@ async function continuePastSymptomEmergencyModal(page: Page) {
     await continueButton.click();
     await expect(page.getByTestId("symptom-emergency-modal")).toBeHidden();
   }
+}
+
+async function recordWindowOpen(page: Page) {
+  await page.addInitScript(() => {
+    const win = window as typeof window & { __vyvaOpenedUrls?: OpenedWindowRecord[] };
+    win.__vyvaOpenedUrls = [];
+    window.open = ((url?: string | URL, target?: string, features?: string) => {
+      win.__vyvaOpenedUrls?.push({ url: String(url ?? ""), target, features });
+      return null;
+    }) as typeof window.open;
+  });
+}
+
+async function openedWindowRecords(page: Page): Promise<OpenedWindowRecord[]> {
+  return page.evaluate(() => {
+    const win = window as typeof window & { __vyvaOpenedUrls?: OpenedWindowRecord[] };
+    return win.__vyvaOpenedUrls ?? [];
+  });
 }
 
 test("login screen renders auth controls", async ({ page }) => {
@@ -357,6 +376,104 @@ test("concierge shopping helper recommends and saves a choice", async ({ page })
   await page.getByLabel("What do you need help choosing?").fill("easy breakfast");
   await page.getByTestId("button-shopping-find").click();
   await expect(page.getByTestId("shopping-recommendation-results")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("concierge prepared email task requires review, final confirmation, and saved outcome", async ({ page }) => {
+  await mockApi(page, true);
+  await recordWindowOpen(page);
+
+  let completed = false;
+  let reviewConfirmCount = 0;
+  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  const pendingEmailTask = {
+    id: "email-smoke-1",
+    use_case: "admin_task",
+    provider_name: "Council Office",
+    provider_phone: null,
+    action_summary: "Email draft prepared for the council office.",
+    action_payload: {
+      flow_reference: "FLOW_TOOL_GATED_TASK",
+      execution_channel: "email",
+      provider_email: "office@example.com",
+      email_subject: "Application question",
+      email_body: "Hello, I need help with my application.",
+      confirmation_required_before_action: true,
+      no_external_action_without_confirmation: true,
+    },
+    status: "pending",
+    language: "en",
+  };
+
+  await page.route("**/api/concierge/actions/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/concierge/actions/pending") {
+      await fulfillJson(route, 200, { items: completed ? [] : [pendingEmailTask] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/sessions") {
+      await fulfillJson(route, 200, { items: [] });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/email-smoke-1/review-confirm") {
+      expect(route.request().method()).toBe("POST");
+      reviewConfirmCount += 1;
+      await fulfillJson(route, 200, { pendingId: "email-smoke-1", status: "pending" });
+      return;
+    }
+    if (url.pathname === "/api/concierge/actions/email-smoke-1/complete") {
+      expect(route.request().method()).toBe("POST");
+      completeBody = route.request().postDataJSON();
+      completed = true;
+      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-email-smoke-1" });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByTestId("button-concierge-confirm-email-smoke-1")).toHaveText("Open email draft");
+  await expect(page.getByTestId("panel-concierge-email-draft")).toHaveCount(0);
+
+  await page.getByTestId("button-concierge-confirm-email-smoke-1").click();
+
+  await expect.poll(() => reviewConfirmCount).toBe(1);
+  await expect(page.getByTestId("panel-concierge-email-draft")).toBeVisible();
+
+  await page.getByTestId("link-concierge-email-draft-open-email-smoke-1").click();
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+
+  await page.getByTestId("button-concierge-final-confirm").click();
+
+  await expect.poll(async () => {
+    const records = await openedWindowRecords(page);
+    return records[0]?.url ?? "";
+  }).toContain("mailto:office@example.com");
+
+  await page.getByTestId("input-email-draft-reference-email-smoke-1").fill("APP-42");
+  await page.getByTestId("input-email-draft-notes-email-smoke-1").fill("Sent from smoke test.");
+  await page.getByTestId("button-email-draft-sent-email-smoke-1").click();
+
+  await expect.poll(() => completeBody?.outcome_payload?.email_outcome ?? null).toBe("sent");
+  expect(completeBody).toMatchObject({
+    outcome_summary: "Email sent to Council Office. Reference: APP-42.",
+    outcome_payload: expect.objectContaining({
+      flow_reference: "FLOW_TOOL_GATED_TASK",
+      execution_channel: "email",
+      email_outcome: "sent",
+      provider_name: "Council Office",
+      provider_email: "office@example.com",
+      recipient_email: "office@example.com",
+      email_subject: "Application question",
+      reference: "APP-42",
+      notes: "Sent from smoke test.",
+      completed_from: "email_draft_outcome_panel",
+      no_external_action_without_confirmation: true,
+    }),
+  });
+  await expect(page.getByTestId("email-draft-notice")).toContainText("Email saved");
   await expectNoHorizontalOverflow(page);
 });
 
