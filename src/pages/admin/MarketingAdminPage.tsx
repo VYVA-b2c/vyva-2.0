@@ -7151,6 +7151,67 @@ export default function MarketingAdminPage() {
       },
     ];
   }, [contacts]);
+  const contactRelationshipCommandBriefText = useMemo(() => {
+    const activeQueues = contactRelationshipWorkQueues.filter((queue) => queue.count > 0);
+    const sourceQueues = activeQueues.length ? activeQueues : contactRelationshipWorkQueues;
+    const queueLines = sourceQueues
+      .slice()
+      .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title))
+      .map((queue) => [
+        `- ${queue.title}: ${queue.countLabel}`,
+        `  State: ${readinessLabel(queue.state)}`,
+        `  Channels: ${queue.channels.map((channel) => channelLabel[channel]).join(", ")}`,
+        `  Next move: ${queue.studioLabel}`,
+        queue.sampleContact ? `  Sample contact: ${queue.sampleContact.fullName || queue.sampleContact.email || queue.sampleContact.phoneNumber}` : "",
+        `  Note: ${queue.detail}`,
+      ].filter(Boolean).join("\n"));
+    const priorityQueue = activeQueues
+      .slice()
+      .sort((a, b) => {
+        const rank = (queue: ContactRelationshipWorkQueue) => (queue.state === "ready" ? 3 : queue.state === "needs_action" ? 2 : queue.state === "planning" ? 1 : 0);
+        return rank(b) - rank(a) || b.count - a.count;
+      })[0] ?? contactRelationshipWorkQueues[0] ?? null;
+    const promptChannels = priorityQueue?.channels.map((channel) => channelLabel[channel]).join(", ") ?? "Email and WhatsApp";
+
+    return [
+      "Relationship command brief",
+      `Visible contacts: ${contactHealthTotal}`,
+      `Relationship score: ${contactRelationshipScore}%`,
+      `Direct reach: ${contactHealthDirectReachable}/${contactHealthTotal} (${contactHealthEmailReachable} email, ${contactHealthWhatsappReachable} WhatsApp)`,
+      `Consent cleanup: ${contactHealthNeedsConsent} need review (${contactHealthPending} pending, ${contactHealthUnknown} unknown, ${contactHealthOptedOut} opted out)`,
+      `Segmentation: ${contactHealthSegmented}/${contactHealthTotal} enriched; ${contactHealthListed}/${contactHealthTotal} listed`,
+      `Top markets: ${contactHealthTopMarkets.join(" / ") || "Unknown"}`,
+      `Top verticals: ${contactHealthTopVerticals.join(" / ") || "Unknown"}`,
+      "",
+      "Relationship queues:",
+      ...(queueLines.length ? queueLines : ["- No queue data yet. Import or create contacts before planning outreach."]),
+      "",
+      "Recommended first move:",
+      priorityQueue
+        ? `${priorityQueue.title} - ${priorityQueue.studioLabel} for ${priorityQueue.countLabel}.`
+        : "Import contacts, confirm consent, then create the first relationship queue.",
+      "",
+      "AI planning prompt:",
+      priorityQueue
+        ? `Create a one-week relationship operating plan for ${priorityQueue.countLabel} in "${priorityQueue.title}". Use ${promptChannels}. Prioritize consent-safe outreach, one clear CTA, a human follow-up owner, and a simple outcome tracker.`
+        : "Create a one-week relationship operating plan after contacts are imported and segmented.",
+    ].join("\n");
+  }, [
+    contactHealthDirectReachable,
+    contactHealthEmailReachable,
+    contactHealthListed,
+    contactHealthNeedsConsent,
+    contactHealthOptedOut,
+    contactHealthPending,
+    contactHealthSegmented,
+    contactHealthTopMarkets,
+    contactHealthTopVerticals,
+    contactHealthTotal,
+    contactHealthUnknown,
+    contactHealthWhatsappReachable,
+    contactRelationshipScore,
+    contactRelationshipWorkQueues,
+  ]);
   const campaignStudioRelationshipQueues = useMemo(() => {
     const activeQueues = contactRelationshipWorkQueues.filter((queue) => queue.count > 0);
     const sourceQueues = activeQueues.length ? activeQueues : contactRelationshipWorkQueues;
@@ -10021,6 +10082,41 @@ export default function MarketingAdminPage() {
     } catch {
       const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
       setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyContactRelationshipCommandBrief() {
+    const label = "Relationship command brief";
+    if (!contactRelationshipCommandBriefText.trim()) {
+      const feedback = `${label} is empty.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contactRelationshipCommandBriefText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contactRelationshipCommandBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setContactFeedback(feedback);
       setMessage(feedback);
     }
   }
@@ -17364,6 +17460,39 @@ export default function MarketingAdminPage() {
                     </p>
                   </div>
                   <Pill className="bg-purple-50 text-purple-800">{contactRelationshipWorkQueues.filter((queue) => queue.count > 0).length} active queues</Pill>
+                </div>
+                <div className="mt-3 grid gap-3 rounded-xl border border-purple-100 bg-white p-3 shadow-sm xl:grid-cols-[1fr_minmax(320px,0.8fr)]" data-testid="marketing-contact-command-brief">
+                  <div>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Relationship command brief</p>
+                        <p className="mt-1 text-sm font-black text-[#241133]">One weekly operating plan for the current audience view.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void copyContactRelationshipCommandBrief()}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800"
+                        data-testid="button-marketing-copy-contact-command-brief"
+                      >
+                        <Copy size={13} /> Copy brief
+                      </button>
+                    </div>
+                    <div className="mt-3 grid gap-2 md:grid-cols-4">
+                      <Pill className="bg-emerald-50 text-emerald-800">{contactHealthDirectReachable}/{contactHealthTotal} reachable</Pill>
+                      <Pill className={contactHealthNeedsConsent ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}>{contactHealthNeedsConsent} consent reviews</Pill>
+                      <Pill className="bg-blue-50 text-blue-800">{contactHealthSegmented}/{contactHealthTotal} enriched</Pill>
+                      <Pill className="bg-purple-50 text-purple-800">{contactRelationshipScore}% relationship score</Pill>
+                    </div>
+                    <p className="mt-3 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                      Copy this before planning campaigns, weekly outreach, or AI-assisted relationship work. It keeps consent, channels, segmentation, and queue priorities in one place.
+                    </p>
+                  </div>
+                  <textarea
+                    className={`${textareaClass} min-h-[180px] text-xs`}
+                    value={contactRelationshipCommandBriefText}
+                    readOnly
+                    data-testid="textarea-marketing-contact-command-brief"
+                  />
                 </div>
                 <div className="mt-3 grid gap-3 xl:grid-cols-5">
                   {contactRelationshipWorkQueues.map((queue) => {

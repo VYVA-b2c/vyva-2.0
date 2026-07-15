@@ -944,6 +944,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-work-queue-family-onboarding")).toHaveTextContent("1 contact");
     expect(screen.getByTestId("marketing-contact-work-queue-local-market")).toHaveTextContent("1 localised");
     expect(screen.getByTestId("marketing-contact-work-queue-segmentation-gaps")).toHaveTextContent("1 gap");
+    expect(screen.getByTestId("marketing-contact-command-brief")).toHaveTextContent("Relationship command brief");
+    expect(screen.getByTestId("marketing-contact-command-brief")).toHaveTextContent("One weekly operating plan");
+    const commandBrief = screen.getByTestId("textarea-marketing-contact-command-brief") as HTMLTextAreaElement;
+    expect(commandBrief.value).toContain("Relationship command brief");
+    expect(commandBrief.value).toContain("B2B partner nurture: 1 partner");
+    expect(commandBrief.value).toContain("AI planning prompt");
+    const commandClipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: commandClipboardWriteText },
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-copy-contact-command-brief"));
+    await waitFor(() => {
+      expect(commandClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Relationship command brief"));
+    });
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Relationship command brief copied.");
     fireEvent.click(screen.getByTestId("button-marketing-contact-work-queue-show-partner-nurture"));
     expect(screen.getByTestId("select-marketing-contact-list-filter")).toHaveValue("all");
     expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Showing "B2B partner nurture" queue: 1 partner.');
