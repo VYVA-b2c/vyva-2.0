@@ -585,6 +585,14 @@ type ManualPublishResult = {
   recordedAt: string;
 };
 
+type ManualPublishSummary = {
+  count: number;
+  latest: ManualPublishResult | null;
+  reached: number;
+  engagements: number;
+  followUps: number;
+};
+
 type CampaignReadinessState = "ready" | "needs_action" | "blocked" | "planning";
 
 type CampaignReadinessItem = {
@@ -4307,6 +4315,21 @@ function manualPublishResultsFromMetadataText(value: string) {
   } catch {
     return [];
   }
+}
+
+function summarizeManualPublishResults(results: ManualPublishResult[]): ManualPublishSummary {
+  const datedResults = [...results].sort((a, b) => {
+    const bTime = new Date(b.recordedAt || b.publishedAt).getTime();
+    const aTime = new Date(a.recordedAt || a.publishedAt).getTime();
+    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+  });
+  return {
+    count: datedResults.length,
+    latest: datedResults[0] ?? null,
+    reached: datedResults.reduce((sum, result) => sum + (result.audienceReached ?? 0), 0),
+    engagements: datedResults.reduce((sum, result) => sum + (result.engagements ?? 0), 0),
+    followUps: datedResults.filter((result) => result.result === "needs_follow_up" || result.result === "blocked").length,
+  };
 }
 
 function campaignMetadataWithManualPublishResult(existingMetadata: unknown, result: ManualPublishResult) {
@@ -19601,12 +19624,15 @@ function EmptyState({ text }: { text: string }) {
 
 function CampaignPerformanceSummary({
   summary,
+  manualResults = [],
   testId,
 }: {
   summary?: CampaignMetricSummary | null;
+  manualResults?: ManualPublishResult[];
   testId: string;
 }) {
-  if (!summary || summary.metricCount === 0) {
+  const manualSummary = summarizeManualPublishResults(manualResults);
+  if ((!summary || summary.metricCount === 0) && manualSummary.count === 0) {
     return (
       <div className="grid gap-1" data-testid={testId}>
         <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">No imported metrics</Pill>
@@ -19616,18 +19642,38 @@ function CampaignPerformanceSummary({
 
   return (
     <div className="grid min-w-[170px] gap-1.5" data-testid={testId}>
-      <div className="flex flex-wrap gap-1.5">
-        <Pill className="bg-blue-50 text-blue-800">{summary.sent} sent</Pill>
-        <Pill className="bg-emerald-50 text-emerald-800">{summary.delivered} delivered</Pill>
-        <Pill className="bg-purple-50 text-purple-800">{summary.opened} opened</Pill>
-        <Pill className="bg-amber-50 text-amber-800">{summary.clicked} clicked</Pill>
-      </div>
-      <p className="text-xs font-bold text-[#8b7a73]">
-        {summary.metricCount} snapshot{summary.metricCount === 1 ? "" : "s"}
-        {summary.channels.length ? ` / ${summary.channels.join(", ")}` : ""}
-      </p>
-      {summary.latestMetricDate ? (
-        <p className="text-xs font-bold text-[#8b7a73]">Latest {formatDate(summary.latestMetricDate)}</p>
+      {summary && summary.metricCount > 0 ? (
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            <Pill className="bg-blue-50 text-blue-800">{summary.sent} sent</Pill>
+            <Pill className="bg-emerald-50 text-emerald-800">{summary.delivered} delivered</Pill>
+            <Pill className="bg-purple-50 text-purple-800">{summary.opened} opened</Pill>
+            <Pill className="bg-amber-50 text-amber-800">{summary.clicked} clicked</Pill>
+          </div>
+          <p className="text-xs font-bold text-[#8b7a73]">
+            {summary.metricCount} snapshot{summary.metricCount === 1 ? "" : "s"}
+            {summary.channels.length ? ` / ${summary.channels.join(", ")}` : ""}
+          </p>
+          {summary.latestMetricDate ? (
+            <p className="text-xs font-bold text-[#8b7a73]">Latest {formatDate(summary.latestMetricDate)}</p>
+          ) : null}
+        </>
+      ) : (
+        <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">No imported metrics</Pill>
+      )}
+      {manualSummary.count ? (
+        <div className="mt-1 grid gap-1 rounded-lg border border-purple-100 bg-purple-50 px-2 py-1.5" data-testid={`${testId}-manual`}>
+          <div className="flex flex-wrap gap-1.5">
+            <Pill className="bg-white text-purple-800">{manualSummary.count} tracked manual</Pill>
+            {manualSummary.latest ? <Pill className="bg-white text-[#5b4a46]">{channelLabel[manualSummary.latest.channel]} {manualPublishResultLabel[manualSummary.latest.result].toLowerCase()}</Pill> : null}
+            {manualSummary.reached > 0 ? <Pill className="bg-blue-50 text-blue-800">{manualSummary.reached} reached</Pill> : null}
+            {manualSummary.engagements > 0 ? <Pill className="bg-amber-50 text-amber-800">{manualSummary.engagements} engagements</Pill> : null}
+            {manualSummary.followUps > 0 ? <Pill className="bg-red-50 text-red-800">{manualSummary.followUps} follow-up</Pill> : null}
+          </div>
+          {manualSummary.latest ? (
+            <p className="text-xs font-bold text-[#7d6b65]">Latest manual result {formatDate(manualSummary.latest.publishedAt)}</p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -19714,6 +19760,7 @@ function CampaignTable({
             const deleteIsArmed = confirmingDeleteId === campaign.id;
             const targetAudience = campaignTargetAudience(campaign, audiences);
             const metricSummary = metricsByCampaignId.get(campaign.id);
+            const manualResults = manualPublishResultsFromMetadata(campaign.metadata);
             const rowReadiness = campaignRowReadiness(campaign, contentById, audiences);
             return (
             <tr
@@ -19794,7 +19841,7 @@ function CampaignTable({
                 {campaign.scheduleEndsAt ? <p className="text-xs">Ends {formatDate(campaign.scheduleEndsAt)}</p> : null}
               </td>
               <td className="px-4 py-3">
-                <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-campaign-performance-${campaign.id}`} />
+                <CampaignPerformanceSummary summary={metricSummary} manualResults={manualResults} testId={`marketing-campaign-performance-${campaign.id}`} />
               </td>
               <td className="px-4 py-3">
                 <div className={`min-w-[190px] rounded-xl border p-2 ${readinessClass(rowReadiness.state)}`} data-testid={`marketing-campaign-row-readiness-${campaign.id}`}>
@@ -20082,6 +20129,7 @@ function MarketingCalendarView({
               {day.campaigns.map((campaign) => {
                 const targetAudience = campaignTargetAudience(campaign, audiences);
                 const metricSummary = metricsByCampaignId.get(campaign.id);
+                const manualResults = manualPublishResultsFromMetadata(campaign.metadata);
                 return (
                 <article key={campaign.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -20105,7 +20153,7 @@ function MarketingCalendarView({
                     </div>
                   </div>
                   <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                    <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-calendar-performance-${campaign.id}`} />
+                    <CampaignPerformanceSummary summary={metricSummary} manualResults={manualResults} testId={`marketing-calendar-performance-${campaign.id}`} />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="grid gap-1.5">

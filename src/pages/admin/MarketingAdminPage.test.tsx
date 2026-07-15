@@ -1160,6 +1160,44 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
   });
 
+  it("shows tracked manual outcomes in campaign performance scans", async () => {
+    const manuallyTrackedCampaign = {
+      ...campaigns[1],
+      status: "scheduled",
+      scheduleStartsAt: "2026-07-07T09:00:00.000Z",
+      metadata: {
+        manualPublishResults: [{
+          channel: "linkedin",
+          result: "needs_follow_up",
+          url: "https://linkedin.com/posts/vyva-partner-outreach",
+          notes: "Follow up with two commenters.",
+          publishedAt: "2026-07-07T09:00:00.000Z",
+          recordedAt: "2026-07-07T10:00:00.000Z",
+          audienceReached: 88,
+          engagements: 6,
+        }],
+      },
+    };
+
+    renderPage({}, { campaigns: [campaigns[0], manuallyTrackedCampaign] });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    const performance = screen.getByTestId("marketing-campaign-performance-campaign-2");
+    expect(performance).toHaveTextContent("No imported metrics");
+    expect(performance).toHaveTextContent("1 tracked manual");
+    expect(performance).toHaveTextContent("LinkedIn needs follow-up");
+    expect(performance).toHaveTextContent("88 reached");
+    expect(performance).toHaveTextContent("6 engagements");
+    expect(performance).toHaveTextContent("1 follow-up");
+    expect(screen.getByTestId("marketing-campaign-performance-campaign-2-manual")).toHaveTextContent("Latest manual result");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+    const calendarPerformance = screen.getByTestId("marketing-calendar-performance-campaign-2");
+    expect(calendarPerformance).toHaveTextContent("1 tracked manual");
+    expect(calendarPerformance).toHaveTextContent("LinkedIn needs follow-up");
+  });
+
   it("turns imported campaign performance into editable experiment drafts", async () => {
     renderPage();
 
