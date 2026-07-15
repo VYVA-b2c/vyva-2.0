@@ -679,6 +679,10 @@ type CampaignPublishKitItem = CampaignReadinessItem & {
   icon: LucideIcon;
   disabled?: boolean;
   onSelect: () => void;
+  secondaryActionLabel?: string;
+  secondaryIcon?: LucideIcon;
+  secondaryDisabled?: boolean;
+  onSecondaryAction?: () => void;
 };
 
 type CampaignLaunchSequenceStep = CampaignReadinessItem & {
@@ -8557,6 +8561,14 @@ export default function MarketingAdminPage() {
     setTestEmailFeedback("");
   }
 
+  function markManualCampaignChannelPublished(channelId: string, channel: Channel) {
+    updateCampaignChannel(channelId, { status: "published" });
+    const label = channelLabel[channel];
+    setCampaignHandoffCopyFeedback(`${label} marked as published. Save campaign changes to keep this channel status.`);
+    setCampaignEmailFeedback(`${label} marked as published. Save campaign changes to keep this channel status.`);
+    setTestEmailFeedback("");
+  }
+
   async function sendTestCampaignEmail(campaignId: string) {
     setTestEmailSending(true);
     setTestEmailFeedback("Sending test email...");
@@ -10874,6 +10886,10 @@ export default function MarketingAdminPage() {
       onSelect: () => {
         previewContent(contentAsset);
       },
+      secondaryActionLabel: channelDraft.status === "published" ? "Published in VYVA" : "Mark published",
+      secondaryIcon: CheckCircle2,
+      secondaryDisabled: hasUnsavedCampaignSendChanges || channelDraft.status === "published",
+      onSecondaryAction: () => markManualCampaignChannelPublished(channelDraft.id, channelDraft.channel),
     };
   }) : [];
   const firstCampaignContentAsset = campaignReadinessChannels
@@ -13010,6 +13026,7 @@ export default function MarketingAdminPage() {
                         <div className="mt-4 grid gap-3 xl:grid-cols-3">
                           {campaignPublishKitItems.map((item) => {
                             const Icon = item.icon;
+                            const SecondaryIcon = item.secondaryIcon;
                             const linkedMediaAssets = item.contentAsset ? mediaAssets.filter((asset) => asset.contentAssetId === item.contentAsset?.id) : [];
                             const handoffBrief = item.contentAsset
                               ? campaignChannelHandoffBrief(editingCampaign, item.channel, item.contentAsset, linkedMediaAssets, item.recipients, item.scheduledAt)
@@ -13067,6 +13084,17 @@ export default function MarketingAdminPage() {
                                 >
                                   <Icon size={15} /> {item.actionLabel}
                                 </button>
+                                {item.onSecondaryAction && SecondaryIcon ? (
+                                  <button
+                                    type="button"
+                                    onClick={item.onSecondaryAction}
+                                    disabled={item.secondaryDisabled}
+                                    className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:bg-[#f7f1ea] disabled:text-[#9f918a]"
+                                    data-testid={`button-marketing-campaign-publish-kit-secondary-${item.channel}`}
+                                  >
+                                    <SecondaryIcon size={15} /> {item.secondaryActionLabel}
+                                  </button>
+                                ) : null}
                               </article>
                             );
                           })}

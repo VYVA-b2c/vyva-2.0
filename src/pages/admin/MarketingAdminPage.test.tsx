@@ -3346,6 +3346,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved recipient can be sent through VYVA email");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Manual publishing");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview the content, then publish or track it in the channel tool.");
+    expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toHaveTextContent("Mark published");
     fireEvent.click(screen.getByTestId("button-marketing-copy-launch-packet"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch packet"));
@@ -3378,6 +3379,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
     expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("LinkedIn marked as published.");
+    expect(screen.getByTestId("select-marketing-campaign-channel-status-1")).toHaveValue("published");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Save campaign changes so this channel uses the latest content");
+    expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toBeDisabled();
     const emailContentPreview = screen.getByTestId("marketing-campaign-channel-content-preview-0");
     expect(emailContentPreview).toHaveTextContent("Linked content");
     expect(emailContentPreview).toHaveTextContent("Welcome email");
@@ -3447,7 +3453,7 @@ describe("MarketingAdminPage", () => {
       },
       channels: [
         { channel: "email", contentAssetId: "content-1", status: "scheduled" },
-        { channel: "linkedin", contentAssetId: "content-2", status: "draft" },
+        { channel: "linkedin", contentAssetId: "content-2", status: "published" },
       ],
     });
     expect(patchBody.recipients).toHaveLength(1);
