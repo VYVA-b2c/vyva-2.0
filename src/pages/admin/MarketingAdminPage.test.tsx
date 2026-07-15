@@ -3609,6 +3609,21 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-operator-brief-reach")).toHaveTextContent("1 saved");
     expect(screen.getByTestId("marketing-campaign-operator-brief-creative")).toHaveTextContent("2/2 linked");
     expect(screen.getByTestId("marketing-campaign-operator-brief-channels")).toHaveTextContent("Email can send in VYVA; LinkedIn stay as manual handoff.");
+    expect(screen.getByTestId("marketing-campaign-ai-command-brief")).toHaveTextContent("AI command brief");
+    const aiCommandBrief = screen.getByTestId("textarea-marketing-campaign-ai-command-brief") as HTMLTextAreaElement;
+    expect(aiCommandBrief.value).toContain("VYVA campaign AI command brief");
+    expect(aiCommandBrief.value).toContain("Campaign: Caregiver welcome");
+    expect(aiCommandBrief.value).toContain("Current readiness:");
+    expect(aiCommandBrief.value).toContain("Channel plan:");
+    expect(aiCommandBrief.value).toContain("Linked content to improve:");
+    expect(aiCommandBrief.value).toContain("Performance signals:");
+    expect(aiCommandBrief.value).toContain("AI task:");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-ai-command-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign AI command brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Suggest the next relationship follow-up"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign AI command brief copied.");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Campaign readiness");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("5/6 ready");
     expect(screen.getByTestId("marketing-campaign-readiness-content")).toHaveTextContent("Ready");

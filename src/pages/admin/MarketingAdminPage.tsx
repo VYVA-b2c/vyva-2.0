@@ -12521,6 +12521,66 @@ export default function MarketingAdminPage() {
         : "All channels are planning or manual handoff until provider integrations are enabled.",
     },
   ] : [];
+  const campaignAiCommandBrief = editingCampaign && campaignForLaunchPacket ? [
+    "VYVA campaign AI command brief",
+    `Campaign: ${campaignForLaunchPacket.name}`,
+    `Audience: ${campaignForLaunchPacket.audienceType.toUpperCase()}`,
+    `Status: ${campaignForLaunchPacket.status}`,
+    `Objective: ${campaignForLaunchPacket.objective || "No objective yet."}`,
+    `Schedule: ${formatDate(campaignForLaunchPacket.scheduleStartsAt)} (${campaignForLaunchPacket.timezone})`,
+    selectedCampaignTargetAudience
+      ? `Target list: ${selectedCampaignTargetAudience.name} - ${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} mapped contacts.`
+      : "Target list: all eligible contacts for this audience.",
+    `Saved recipients: ${savedCampaignRecipientCount}`,
+    `Preview recipients if saved now: ${pendingCampaignSnapshotCount}`,
+    "",
+    "Current readiness:",
+    ...campaignReadinessItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Next best action:",
+    `- ${campaignNextLaunchStep?.title ?? "Review campaign"}: ${campaignNextLaunchStep?.detail ?? "Complete the first unfinished campaign step."}`,
+    "",
+    "Channel plan:",
+    ...campaignPublishKitItems.map((item) => {
+      const contentTitle = item.contentAsset?.title ?? "No content asset";
+      const mode = item.channel === "email" ? "VYVA email send" : item.title;
+      return `- ${channelLabel[item.channel]}: ${mode}; content: ${contentTitle}; recipients: ${item.recipients}; state: ${readinessLabel(item.state)}; next: ${item.detail}`;
+    }),
+    "",
+    "Linked content to improve:",
+    ...campaignReadinessChannels.map((channelDraft) => {
+      const contentAsset = channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null;
+      if (!contentAsset) return `- ${channelLabel[channelDraft.channel]}: missing content asset.`;
+      const mediaCount = mediaAssets.filter((asset) => asset.contentAssetId === contentAsset.id).length;
+      return [
+        `- ${channelLabel[channelDraft.channel]}: ${contentAsset.title}`,
+        contentAsset.subject ? `Subject: ${contentAsset.subject}` : "",
+        `Body: ${contentAsset.body || "No body copy."}`,
+        contentAsset.ctaLabel || contentAsset.ctaUrl ? `CTA: ${contentAsset.ctaLabel || "CTA"} ${contentAsset.ctaUrl || ""}`.trim() : "",
+        `Media references: ${mediaCount}`,
+      ].filter(Boolean).join(" | ");
+    }),
+    "",
+    "Performance signals:",
+    selectedCampaignMetrics.length
+      ? [
+        `- Metrics rows: ${selectedCampaignMetrics.length}`,
+        `- Sent: ${selectedCampaignMetricTotals.sent}`,
+        `- Delivered: ${selectedCampaignMetricTotals.delivered}`,
+        `- Opened: ${selectedCampaignMetricTotals.opened}`,
+        `- Clicked: ${selectedCampaignMetricTotals.clicked}`,
+        `- Replied: ${selectedCampaignMetricTotals.replied}`,
+        `- Failed: ${selectedCampaignMetricTotals.failed}`,
+      ].join("\n")
+      : "- No performance metrics imported yet.",
+    "",
+    "AI task:",
+    "1. Improve this campaign for clarity, consent, and channel fit.",
+    "2. Keep the audience promise practical and non-clinical.",
+    "3. Rewrite missing or weak channel copy without changing the core offer.",
+    "4. Suggest the next relationship follow-up after send or manual publish.",
+    "5. Return channel-specific copy, subject lines where relevant, CTA text, visual guidance, and launch notes.",
+  ].filter(Boolean).join("\n") : "";
   const unmappedAudienceMemberCount = latestSyncRun
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
@@ -14801,6 +14861,30 @@ export default function MarketingAdminPage() {
                                 <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
                               </div>
                             ))}
+                          </div>
+                        ) : null}
+                        {campaignAiCommandBrief ? (
+                          <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3" data-testid="marketing-campaign-ai-command-brief">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-700">AI command brief</p>
+                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#7d6b65]">Copy the saved campaign context into AI to improve copy, channel fit, visual direction, and follow-up without losing audience or consent details.</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignHandoffText("Campaign AI command brief", campaignAiCommandBrief)}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800"
+                                data-testid="button-marketing-copy-campaign-ai-command-brief"
+                              >
+                                <Sparkles size={14} /> Copy AI brief
+                              </button>
+                            </div>
+                            <textarea
+                              readOnly
+                              className={`${textareaClass} mt-3 min-h-[220px] bg-[#fffaf4] text-xs`}
+                              value={campaignAiCommandBrief}
+                              data-testid="textarea-marketing-campaign-ai-command-brief"
+                            />
                           </div>
                         ) : null}
                       </div>
