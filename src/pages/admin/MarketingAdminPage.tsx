@@ -8851,6 +8851,10 @@ export default function MarketingAdminPage() {
     selectedCampaignStudioTargetAudience,
     visibleContentTemplates,
   ]);
+  const bestContentTemplateRecommendation = contentTemplateRecommendations[0] ?? null;
+  const bestContentTemplatePack = bestContentTemplateRecommendation
+    ? contentTemplatePacksWithStats.find(({ pack }) => pack.templateIds.includes(bestContentTemplateRecommendation.template.id)) ?? null
+    : null;
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
   const selectedCampaignTargetAudience = useMemo(
@@ -15849,6 +15853,66 @@ export default function MarketingAdminPage() {
                 subtitle="Best-fit starters based on the current studio play, selected channels, audience reach, and active template filters."
                 action={<Pill className="bg-emerald-50 text-emerald-800">{contentTemplateRecommendations.length} recommended</Pill>}
               >
+                {bestContentTemplateRecommendation ? (
+                  <div className="mb-4 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-purple-50 p-4 shadow-sm" data-testid="marketing-template-matchmaker-brief">
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className="bg-emerald-100 text-emerald-800">Recommended starter</Pill>
+                          <Pill className={channelClass(bestContentTemplateRecommendation.template.channel)}>{channelLabel[bestContentTemplateRecommendation.template.channel]}</Pill>
+                          <Pill className="bg-white text-[#5b4a46]">{bestContentTemplateRecommendation.template.audienceType.toUpperCase()}</Pill>
+                          <Pill className="bg-white text-[#5b4a46]">Fit {bestContentTemplateRecommendation.score}</Pill>
+                        </div>
+                        <h3 className="mt-2 text-xl font-black text-[#241133]">{bestContentTemplateRecommendation.template.title}</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">{bestContentTemplateRecommendation.template.description}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Pill className="bg-white text-[#5b4a46]">{bestContentTemplateRecommendation.reachable} reachable via {channelLabel[bestContentTemplateRecommendation.template.channel]}</Pill>
+                          {bestContentTemplateRecommendation.reasons.map((reason) => (
+                            <Pill key={reason} className="bg-white text-[#5b4a46]">{reason}</Pill>
+                          ))}
+                          {bestContentTemplatePack ? <Pill className="bg-purple-50 text-purple-800">Pack: {bestContentTemplatePack.pack.title}</Pill> : null}
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startCampaignFromContentTemplate(bestContentTemplateRecommendation.template)}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          disabled={contentSaving}
+                          data-testid="button-marketing-matchmaker-start-best"
+                        >
+                          <Megaphone size={15} /> Start campaign
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyContentTemplate(bestContentTemplateRecommendation.template)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                          disabled={contentSaving}
+                          data-testid="button-marketing-matchmaker-use-best"
+                        >
+                          <Sparkles size={15} /> Use as content draft
+                        </button>
+                        {bestContentTemplatePack ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setContentTemplatePackFilter(bestContentTemplatePack.pack.id);
+                              setContentTemplateSearch("");
+                              setContentTemplateChannelFilter("all");
+                              setContentTemplateAudienceFilter("all");
+                              setContentTemplateCategoryFilter("all");
+                              setContentActionFeedback(`Showing ${bestContentTemplatePack.pack.title} template pack from recommendation.`);
+                            }}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-4 text-sm font-black text-[#241133]"
+                            data-testid="button-marketing-matchmaker-open-pack"
+                          >
+                            <Search size={15} /> Open matching pack
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-template-matchmaker">
                   {contentTemplateRecommendations.length ? contentTemplateRecommendations.map((recommendation, index) => {
                     const { template } = recommendation;

@@ -1884,6 +1884,12 @@ describe("MarketingAdminPage", () => {
     const matchmaker = within(screen.getByTestId("marketing-template-matchmaker"));
     expect(matchmaker.getByText("Caregiver welcome email")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-template-match-caregiver-email-welcome")).toHaveTextContent("1 reachable via Email");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Recommended starter");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Caregiver education mini-guide");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("1 reachable via Email");
+    fireEvent.click(screen.getByTestId("button-marketing-matchmaker-use-best"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Caregiver education mini-guide");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Template applied: Caregiver education mini-guide");
 
     fireEvent.change(screen.getByTestId("select-marketing-template-channel"), { target: { value: "linkedin" } });
     fireEvent.change(screen.getByTestId("select-marketing-template-audience"), { target: { value: "b2b" } });
@@ -1892,8 +1898,10 @@ describe("MarketingAdminPage", () => {
     const filteredMatchmaker = within(screen.getByTestId("marketing-template-matchmaker"));
     expect(filteredMatchmaker.getByText("Partner demo LinkedIn post")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-template-match-linkedin-partner-demo")).toHaveTextContent("1 reachable via LinkedIn");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Partner demo LinkedIn post");
+    expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Pack: Partner growth");
 
-    fireEvent.click(screen.getByTestId("button-marketing-match-start-linkedin-partner-demo"));
+    fireEvent.click(screen.getByTestId("button-marketing-matchmaker-start-best"));
 
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner demo LinkedIn post campaign");
     expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
