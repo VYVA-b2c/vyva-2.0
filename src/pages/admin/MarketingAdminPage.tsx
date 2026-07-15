@@ -493,6 +493,7 @@ type CampaignGoalPreset = {
   channels: Channel[];
   toneId: CampaignStudioToneId;
   angleId: CampaignStudioAngleId;
+  templatePackId: string;
 };
 
 type CampaignStudioPlay = {
@@ -1722,6 +1723,7 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     channels: ["email", "linkedin"],
     toneId: "expert",
     angleId: "proof",
+    templatePackId: "partner-growth",
   },
   {
     id: "reactivate-quiet-families",
@@ -1732,6 +1734,7 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     channels: ["email", "whatsapp"],
     toneId: "warm",
     angleId: "action",
+    templatePackId: "care-confidence-reactivation",
   },
   {
     id: "fill-local-event",
@@ -1742,6 +1745,7 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     channels: ["facebook", "instagram", "whatsapp", "linkedin"],
     toneId: "uplifting",
     angleId: "local",
+    templatePackId: "local-event-relationship",
   },
   {
     id: "complete-profiles",
@@ -1752,6 +1756,7 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     channels: ["email", "whatsapp"],
     toneId: "direct",
     angleId: "action",
+    templatePackId: "family-onboarding",
   },
   {
     id: "share-proof-story",
@@ -1762,6 +1767,7 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     channels: ["instagram", "facebook", "linkedin", "email"],
     toneId: "uplifting",
     angleId: "proof",
+    templatePackId: "trust-and-review",
   },
 ];
 
@@ -10269,12 +10275,34 @@ export default function MarketingAdminPage() {
   }
 
   function applyCampaignGoalPreset(preset: CampaignGoalPreset) {
+    const packMatch = contentTemplatePacksWithStats.find(({ pack }) => pack.id === preset.templatePackId) ?? null;
+    const packChannels = packMatch?.channels ?? [];
+    const selectedChannels = uniqueChannels([...preset.channels, ...packChannels]);
     applyCampaignIntentBriefText(preset.brief, "goal_preset", {
       toneId: preset.toneId,
       angleId: preset.angleId,
-      channel: preset.channels[0] ?? "email",
-      selectedChannels: preset.channels,
+      channel: preset.channels[0] ?? packMatch?.heroTemplate?.channel ?? "email",
+      selectedChannels,
     });
+    if (packMatch) {
+      setContentTemplatePackFilter(packMatch.pack.id);
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+      if (packMatch.heroTemplate) {
+        setContentDraft(contentDraftFromTemplate(packMatch.heroTemplate));
+        setSelectedContentId(null);
+        setEditingContentId(null);
+        setContentEditDraft(null);
+        setContentDrawerMode(null);
+      }
+      const feedback = `Goal preset matched to ${campaignIntentPlay(preset.brief).label} and loaded ${packMatch.pack.title} template pack.`;
+      setCampaignStudioFeedback(feedback);
+      setContentActionFeedback(`Loaded ${packMatch.pack.title} pack from goal: ${preset.title}.`);
+      setContentFeedback(packMatch.heroTemplate ? `Starter template applied: ${packMatch.heroTemplate.title}.` : `Template pack loaded: ${packMatch.pack.title}.`);
+      setMessage(`${preset.title} is ready with ${packMatch.pack.title} templates. Review the studio, improve with AI, then create the campaign.`);
+    }
   }
 
   function focusCampaignStudioChannel(channel: Channel) {
@@ -14398,25 +14426,33 @@ export default function MarketingAdminPage() {
                           <Pill className="bg-purple-50 text-purple-800">{campaignGoalPresets.length} outcomes</Pill>
                         </div>
                         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-                          {campaignGoalPresets.map((preset) => (
-                            <button
-                              key={preset.id}
-                              type="button"
-                              onClick={() => applyCampaignGoalPreset(preset)}
-                              className="min-h-[132px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
-                              data-testid={`button-marketing-campaign-goal-${preset.id}`}
-                            >
-                              <span className="block text-[11px] font-black uppercase tracking-[0.12em] text-purple-700">{preset.outcome}</span>
-                              <span className="mt-1 block font-black text-[#241133]">{preset.title}</span>
-                              <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{preset.detail}</span>
-                              <span className="mt-2 flex flex-wrap gap-1">
-                                {preset.channels.slice(0, 3).map((channel) => (
-                                  <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
-                                ))}
-                                {preset.channels.length > 3 ? <Pill className="bg-white text-[#5b4a46]">+{preset.channels.length - 3}</Pill> : null}
-                              </span>
-                            </button>
-                          ))}
+                          {campaignGoalPresets.map((preset) => {
+                            const linkedPack = contentTemplatePacks.find((pack) => pack.id === preset.templatePackId);
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => applyCampaignGoalPreset(preset)}
+                                className="min-h-[148px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                                data-testid={`button-marketing-campaign-goal-${preset.id}`}
+                              >
+                                <span className="block text-[11px] font-black uppercase tracking-[0.12em] text-purple-700">{preset.outcome}</span>
+                                <span className="mt-1 block font-black text-[#241133]">{preset.title}</span>
+                                <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{preset.detail}</span>
+                                <span className="mt-2 flex flex-wrap gap-1">
+                                  {preset.channels.slice(0, 3).map((channel) => (
+                                    <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                  ))}
+                                  {preset.channels.length > 3 ? <Pill className="bg-white text-[#5b4a46]">+{preset.channels.length - 3}</Pill> : null}
+                                </span>
+                                {linkedPack ? (
+                                  <span className="mt-2 block rounded-lg bg-white px-2 py-1 text-[11px] font-black text-purple-800">
+                                    Pack: {linkedPack.title}
+                                  </span>
+                                ) : null}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-intent-quick-starts">

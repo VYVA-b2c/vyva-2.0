@@ -3486,12 +3486,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-intent-brief")).toHaveTextContent("Tell VYVA what you want to run");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Grow partner pipeline");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Reactivate quiet families");
+    expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Pack: Care confidence reactivation");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Partner webinar");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-goal-reactivate-quiet-families"));
 
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Goal preset matched to Reactivation");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Care confidence reactivation template pack");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-recommendations")).toHaveTextContent("Care confidence reactivation");
     expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain("Reactivate quiet family contacts");
     expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
     expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
