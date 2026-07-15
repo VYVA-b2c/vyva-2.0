@@ -496,6 +496,22 @@ type CampaignGoalPreset = {
   templatePackId: string;
 };
 
+type CampaignGoalPresetInsight = {
+  preset: CampaignGoalPreset;
+  play: CampaignStudioPlay;
+  linkedPack: {
+    pack: ContentTemplatePack;
+    templates: ContentTemplate[];
+    channels: Channel[];
+    state: CampaignReadinessState;
+  } | null;
+  targetAudience: MarketingAudience | null;
+  selectedChannels: Channel[];
+  reachableContacts: number;
+  templateCount: number;
+  state: CampaignReadinessState;
+};
+
 type CampaignStudioPlay = {
   id: CampaignStudioPlayId;
   categoryId: Exclude<CampaignStudioCategoryId, "all">;
@@ -7354,6 +7370,33 @@ export default function MarketingAdminPage() {
       state: templates.length >= 6 ? "ready" as CampaignReadinessState : templates.length >= 4 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
     };
   }), []);
+  const campaignGoalPresetInsights = useMemo<CampaignGoalPresetInsight[]>(() => campaignGoalPresets.map((preset) => {
+    const play = campaignIntentPlay(preset.brief);
+    const linkedPack = contentTemplatePacksWithStats.find(({ pack }) => pack.id === preset.templatePackId) ?? null;
+    const selectedChannels = uniqueChannels([...preset.channels, ...(linkedPack?.channels ?? [])]);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const matchingContacts = contacts.filter((contact) => (
+      campaignAllowsContact(play.audienceType, contact.audienceType)
+      && contactMatchesAudienceList(contact, targetAudience)
+    ));
+    const reachableContacts = matchingContacts.filter((contact) => (
+      selectedChannels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+    )).length;
+    const templateCount = linkedPack?.templates.length ?? 0;
+    const state: CampaignReadinessState = reachableContacts > 0 && templateCount > 0
+      ? "ready"
+      : reachableContacts > 0 || templateCount > 0 ? "planning" : "needs_action";
+    return {
+      preset,
+      play,
+      linkedPack,
+      targetAudience,
+      selectedChannels,
+      reachableContacts,
+      templateCount,
+      state,
+    };
+  }), [audiences, contacts, contentTemplatePacksWithStats]);
   const visibleContentTemplates = useMemo(() => contentTemplateGallery.filter((template) => {
     const matchesText = matchesSearch(contentTemplateSearch, [
       template.id,
@@ -14423,20 +14466,22 @@ export default function MarketingAdminPage() {
                             <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Pick a goal</p>
                             <p className="mt-1 text-xs font-bold text-[#7d6b65]">Start from the outcome, then VYVA chooses the play, tone, channel pack, audience, and schedule.</p>
                           </div>
-                          <Pill className="bg-purple-50 text-purple-800">{campaignGoalPresets.length} outcomes</Pill>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignGoalPresetInsights.length} outcomes</Pill>
                         </div>
                         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-                          {campaignGoalPresets.map((preset) => {
-                            const linkedPack = contentTemplatePacks.find((pack) => pack.id === preset.templatePackId);
+                          {campaignGoalPresetInsights.map(({ preset, linkedPack, targetAudience, reachableContacts, templateCount, state }) => {
                             return (
                               <button
                                 key={preset.id}
                                 type="button"
                                 onClick={() => applyCampaignGoalPreset(preset)}
-                                className="min-h-[148px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                                className="min-h-[188px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
                                 data-testid={`button-marketing-campaign-goal-${preset.id}`}
                               >
-                                <span className="block text-[11px] font-black uppercase tracking-[0.12em] text-purple-700">{preset.outcome}</span>
+                                <span className="flex items-start justify-between gap-2">
+                                  <span className="block text-[11px] font-black uppercase tracking-[0.12em] text-purple-700">{preset.outcome}</span>
+                                  <Pill className={readinessPillClass(state)}>{readinessLabel(state)}</Pill>
+                                </span>
                                 <span className="mt-1 block font-black text-[#241133]">{preset.title}</span>
                                 <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{preset.detail}</span>
                                 <span className="mt-2 flex flex-wrap gap-1">
@@ -14447,9 +14492,14 @@ export default function MarketingAdminPage() {
                                 </span>
                                 {linkedPack ? (
                                   <span className="mt-2 block rounded-lg bg-white px-2 py-1 text-[11px] font-black text-purple-800">
-                                    Pack: {linkedPack.title}
+                                    Pack: {linkedPack.pack.title}
                                   </span>
                                 ) : null}
+                                <span className="mt-2 grid gap-1 rounded-lg border border-purple-100 bg-white/70 px-2 py-2 text-[11px] font-black text-[#6b5b54]">
+                                  <span>{reachableContacts} reachable contact{reachableContacts === 1 ? "" : "s"}</span>
+                                  <span>{templateCount} starter template{templateCount === 1 ? "" : "s"}</span>
+                                  <span>{targetAudience ? `Best list: ${targetAudience.name}` : "Best list: none yet"}</span>
+                                </span>
                               </button>
                             );
                           })}

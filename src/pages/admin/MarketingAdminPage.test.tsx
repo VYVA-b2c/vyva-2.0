@@ -3487,6 +3487,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Grow partner pipeline");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Reactivate quiet families");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Pack: Care confidence reactivation");
+    expect(screen.getByTestId("button-marketing-campaign-goal-grow-partner-pipeline")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("button-marketing-campaign-goal-grow-partner-pipeline")).toHaveTextContent("1 reachable contact");
+    expect(screen.getByTestId("button-marketing-campaign-goal-grow-partner-pipeline")).toHaveTextContent("starter template");
+    expect(screen.getByTestId("button-marketing-campaign-goal-grow-partner-pipeline")).toHaveTextContent("Best list: Partners");
+    expect(screen.getByTestId("button-marketing-campaign-goal-reactivate-quiet-families")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("button-marketing-campaign-goal-reactivate-quiet-families")).toHaveTextContent("1 reachable contact");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Partner webinar");
 
