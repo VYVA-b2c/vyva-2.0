@@ -672,6 +672,17 @@ type CampaignStudioPublishingRunSheetItem = {
   icon: LucideIcon;
 };
 
+type CampaignStudioFollowUpPlayItem = {
+  key: string;
+  title: string;
+  trigger: string;
+  owner: string;
+  detail: string;
+  text: string;
+  icon: LucideIcon;
+  state: CampaignReadinessState;
+};
+
 type CampaignStudioCreativeVariant = {
   key: string;
   label: string;
@@ -8002,6 +8013,109 @@ export default function MarketingAdminPage() {
     };
   });
   const campaignStudioPublishingRunSheetPacket = campaignStudioPublishingRunSheets.map((item) => item.text).join("\n\n---\n\n");
+  const campaignStudioFollowUpPlays: CampaignStudioFollowUpPlayItem[] = [
+    {
+      key: "warm-reply",
+      title: "Warm reply or demo request",
+      trigger: "Someone replies, asks a question, or requests a walkthrough.",
+      owner: selectedCampaignStudioPlay.audienceType === "b2b" ? "Partner/sales owner" : "Care-team owner",
+      detail: "Turn attention into a relationship, not another broadcast.",
+      state: "ready",
+      icon: UsersRound,
+      text: [
+        "Warm reply follow-up",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Owner: ${selectedCampaignStudioPlay.audienceType === "b2b" ? "Partner/sales owner" : "Care-team owner"}`,
+        "",
+        "Use when: someone replies, asks a question, clicks and asks for details, or requests a walkthrough.",
+        "",
+        "Suggested response:",
+        `Thanks for getting back to us. The useful next step is to connect this to your situation: ${campaignStudioOfflineMessageLine || selectedCampaignStudioPlay.brief}`,
+        `Would ${campaignStudioOfflineCta.toLowerCase()} be the right next step, or would a short call be easier?`,
+        "",
+        "Relationship notes to capture:",
+        "- Need / interest:",
+        "- Best contact route:",
+        "- Follow-up date:",
+        "- Owner:",
+      ].join("\n"),
+    },
+    {
+      key: "clicked-no-reply",
+      title: "Clicked or opened, no reply",
+      trigger: "The contact showed interest but did not respond.",
+      owner: "Campaign owner",
+      detail: "Use a short proof or reminder touch while the signal is still warm.",
+      state: campaignStudioHasEmailChannel ? "ready" : "planning",
+      icon: Send,
+      text: [
+        "Clicked/opened no-reply follow-up",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        "",
+        "Use when: a contact opened, clicked, watched, or engaged, but has not replied.",
+        "",
+        "Suggested follow-up:",
+        `Hi {{first_name}}, quick follow-up on ${campaignStudioPersonalizedSubject}.`,
+        `The main idea was: ${campaignStudioOfflineMessageLine || selectedCampaignStudioPlay.brief}`,
+        `If useful, ${campaignStudioOfflineCta.toLowerCase()}.`,
+        "",
+        "Keep it short. Do not repeat the full campaign; add one practical proof point or one easier next step.",
+      ].join("\n"),
+    },
+    {
+      key: "silent-audience",
+      title: "No response after 5 days",
+      trigger: "No reply, click, social response, or visible action.",
+      owner: "Marketing owner",
+      detail: "Decide whether to change angle, channel, timing, or audience before sending more.",
+      state: "planning",
+      icon: CalendarDays,
+      text: [
+        "Silent audience follow-up decision",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Channels used: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
+        "",
+        "Use when: there is no meaningful response after five days.",
+        "",
+        "Decision tree:",
+        "1. If reach was low: switch channel or clean contact data.",
+        "2. If opens/views were low: change subject/hook and timing.",
+        "3. If clicks/replies were low: change CTA or proof point.",
+        "4. If audience was too broad: create a smaller relationship list.",
+        "",
+        `Suggested next angle: ${selectedCampaignStudioPlay.objective}`,
+      ].join("\n"),
+    },
+    {
+      key: "opt-out-cleanup",
+      title: "Opt-out, wrong fit, or bad contact",
+      trigger: "Someone opts out, says it is not relevant, or contact data is wrong.",
+      owner: "Data/consent owner",
+      detail: "Protect trust by cleaning consent and relationship notes before the next campaign.",
+      state: campaignStudioConsentCounts.optedOut > 0 ? "needs_action" : "planning",
+      icon: CheckCircle2,
+      text: [
+        "Consent and relationship cleanup",
+        `Campaign: ${campaignStudioGenerated.campaignName}`,
+        `Current opt-outs in matching audience: ${campaignStudioConsentCounts.optedOut}`,
+        "",
+        "Use when: someone opts out, says they are not the right contact, asks not to be contacted, or data is inaccurate.",
+        "",
+        "Update before the next campaign:",
+        "- Consent status:",
+        "- Correct email/mobile/WhatsApp:",
+        "- Organization/list fit:",
+        "- Relationship note:",
+        "- Suppression or re-route needed:",
+        "",
+        "Do not send another campaign to this contact until consent and fit are clear.",
+      ].join("\n"),
+    },
+  ];
+  const campaignStudioFollowUpPlaybookText = campaignStudioFollowUpPlays.map((item) => item.text).join("\n\n---\n\n");
   const contentTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
     const candidateTemplates = contentTemplateFiltersActive ? visibleContentTemplates : contentTemplateGallery;
     const playCategoryLabel = campaignStudioCategories.find((category) => category.id === selectedCampaignStudioPlay.categoryId)?.label ?? selectedCampaignStudioPlay.categoryId;
@@ -12915,6 +13029,63 @@ export default function MarketingAdminPage() {
                                 data-testid={`button-marketing-campaign-studio-copy-publishing-${item.channel}`}
                               >
                                 <Copy size={14} /> Copy run sheet
+                              </button>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-rose-200 bg-rose-50/40 p-4" data-testid="marketing-campaign-studio-follow-up-loop">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-rose-800">Relationship follow-up loop</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Plan what happens after people respond</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7a5f66]">
+                            Use these plays after publishing so replies, clicks, silence, and opt-outs become cleaner relationship actions.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Relationship follow-up playbook", campaignStudioFollowUpPlaybookText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 text-sm font-black text-rose-800 hover:bg-rose-50"
+                          data-testid="button-marketing-campaign-studio-copy-follow-up-playbook"
+                        >
+                          <Copy size={14} /> Copy follow-up playbook
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-4" data-testid="marketing-campaign-studio-follow-up-plays">
+                        {campaignStudioFollowUpPlays.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <article key={item.key} className={`flex min-h-[320px] flex-col rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-follow-up-${item.key}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-rose-700 shadow-sm">
+                                    <Icon size={15} aria-hidden="true" />
+                                  </span>
+                                  <h4 className="mt-2 font-black text-[#241133]">{item.title}</h4>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed text-[#7a5f66]">{item.detail}</p>
+                                </div>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                              <div className="mt-3 grid gap-2 rounded-lg bg-white/80 p-2 text-xs font-bold text-[#6b4f59]">
+                                <p><span className="font-black text-[#241133]">When:</span> {item.trigger}</p>
+                                <p><span className="font-black text-[#241133]">Owner:</span> {item.owner}</p>
+                              </div>
+                              <textarea
+                                className="mt-3 min-h-[135px] flex-1 rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#6b4f59]"
+                                value={item.text}
+                                readOnly
+                                data-testid={`textarea-marketing-campaign-studio-follow-up-${item.key}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignStudioOfflineHandoff(item.title, item.text)}
+                                className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rose-700 px-3 text-sm font-black text-white hover:bg-rose-800"
+                                data-testid={`button-marketing-campaign-studio-copy-follow-up-${item.key}`}
+                              >
+                                <Copy size={14} /> Copy play
                               </button>
                             </article>
                           );

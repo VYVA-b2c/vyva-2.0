@@ -3001,6 +3001,22 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Track after publish"));
     });
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Channel publishing guide copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-follow-up-loop")).toHaveTextContent("Relationship follow-up loop");
+    expect(screen.getByTestId("marketing-campaign-studio-follow-up-warm-reply")).toHaveTextContent("Warm reply or demo request");
+    expect(screen.getByTestId("marketing-campaign-studio-follow-up-clicked-no-reply")).toHaveTextContent("Clicked or opened, no reply");
+    const warmReplyPlay = screen.getByTestId("textarea-marketing-campaign-studio-follow-up-warm-reply") as HTMLTextAreaElement;
+    expect(warmReplyPlay.value).toContain("Warm reply follow-up");
+    expect(warmReplyPlay.value).toContain("Relationship notes to capture");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-follow-up-warm-reply"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Warm reply follow-up"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Warm reply or demo request copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-follow-up-playbook"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Consent and relationship cleanup"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Relationship follow-up playbook copied.");
     expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Offline and human handoff");
     expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Phone call script");
     expect(screen.getByTestId("marketing-campaign-studio-offline-kit")).toHaveTextContent("Flyer / poster brief");
