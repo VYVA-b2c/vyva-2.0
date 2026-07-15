@@ -1125,6 +1125,13 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByTestId("marketing-dashboard-tab");
 
+    expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Next best move");
+    expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Finish Lovable sync setup");
+    expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("The export endpoint is ready");
+    fireEvent.click(screen.getByTestId("button-marketing-priority-action-sync-config"));
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Lovable sync");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Shortest path to a publishable campaign");
     expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Import");
     expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Audience");

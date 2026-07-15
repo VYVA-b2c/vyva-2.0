@@ -12303,6 +12303,8 @@ export default function MarketingAdminPage() {
       onSelect: () => startCampaignFromContentTemplate(starterTemplate),
     }] : []),
   ].slice(0, 8);
+  const primaryMarketingAction = marketingActionCenterItems[0] ?? null;
+  const PrimaryMarketingActionIcon = primaryMarketingAction?.icon ?? Sparkles;
 
   const launchLaneContentReadyCount = content.filter((item) => (
     item.status !== "archived"
@@ -12501,6 +12503,54 @@ export default function MarketingAdminPage() {
                 subtitle="See what can be sent, what needs content or audience work, and what should be handed off manually."
                 action={<Pill className={marketingActionCenterItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}>{marketingActionCenterItems.length ? `${marketingActionCenterItems.length} actions` : "Clear"}</Pill>}
               >
+                <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${primaryMarketingAction ? readinessClass(primaryMarketingAction.state) : "border-emerald-100 bg-emerald-50 text-emerald-950"}`} data-testid="marketing-command-priority-strip">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-purple-700 shadow-sm">
+                        <PrimaryMarketingActionIcon size={20} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Next best move</p>
+                          <Pill className={primaryMarketingAction ? readinessPillClass(primaryMarketingAction.state) : "bg-emerald-100 text-emerald-800"}>
+                            {primaryMarketingAction ? readinessLabel(primaryMarketingAction.state) : "Ready"}
+                          </Pill>
+                        </div>
+                        <h3 className="mt-1 text-xl font-black text-[#241133]">{primaryMarketingAction?.title ?? "No urgent setup work"}</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                          {primaryMarketingAction?.detail ?? "The marketing workspace is clear. Start from a campaign play, template, imported list, or performance insight."}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      {primaryMarketingAction ? (
+                        <button
+                          type="button"
+                          onClick={primaryMarketingAction.onSelect}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                          data-testid={`button-marketing-priority-action-${primaryMarketingAction.key}`}
+                        >
+                          <PrimaryMarketingActionIcon size={16} aria-hidden="true" />
+                          {primaryMarketingAction.actionLabel}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab("dashboard");
+                            setMessage("Use Smart campaign studio to choose a playbook, generate AI copy, and create a campaign.");
+                          }}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                          data-testid="button-marketing-priority-action-open-studio"
+                        >
+                          <Sparkles size={16} aria-hidden="true" />
+                          Open studio
+                        </button>
+                      )}
+                      <p className="text-xs font-bold leading-relaxed text-[#7d6b65]">One click takes you to the work area that unblocks the most marketing progress.</p>
+                    </div>
+                  </div>
+                </div>
                 <div className="mb-4 rounded-2xl border border-purple-100 bg-gradient-to-r from-purple-50 via-white to-[#fffaf4] p-4" data-testid="marketing-launch-lane">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
