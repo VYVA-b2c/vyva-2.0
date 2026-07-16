@@ -54,6 +54,13 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(table).getByText("Book ride / transport")).toBeInTheDocument();
     expect(within(table).getAllByText("OTC pharmacy help").length).toBeGreaterThan(0);
     expect(within(table).getByText("Scam or safety check")).toBeInTheDocument();
+    expect(screen.getByTestId("section-dry-run-qa-matrix")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/dry-run-qa-row-/)).toHaveLength(10);
+    expect(within(screen.getByTestId("manual-qa-metric-dry-run-pass")).getByText("10")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-metric-dry-run-fail")).getByText("0")).toBeInTheDocument();
+    expect(screen.getByTestId("dry-run-qa-row-flow-transport-booking")).toHaveTextContent("+12025550100");
+    expect(screen.getByTestId("dry-run-qa-row-flow-transport-booking")).toHaveTextContent("Saved and missing provider paths covered");
+    expect(screen.getByTestId("dry-run-qa-row-flow-scam-check")).toHaveTextContent("No saved provider required");
     expect(screen.getByTestId("section-manual-qa-script")).toBeInTheDocument();
     expect(screen.getAllByTestId(/manual-qa-script-/)).toHaveLength(10);
     expect(screen.getAllByTestId(/dry-run-fixture-/)).toHaveLength(10);
