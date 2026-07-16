@@ -998,6 +998,8 @@ const adminRoutes: ResponsiveRoute[] = [
 ];
 
 test.describe("responsive route smoke", () => {
+  test.describe.configure({ mode: "serial" });
+
   test("public and auth routes adapt across responsive viewports", async ({ page }) => {
     test.setTimeout(240_000);
     await runRoutes(page, publicRoutes, false);

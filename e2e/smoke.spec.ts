@@ -383,9 +383,8 @@ test("concierge prepared email task requires review, final confirmation, and sav
   await mockApi(page, true);
   await recordWindowOpen(page);
 
-  let completed = false;
   let reviewConfirmCount = 0;
-  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
   const pendingEmailTask = {
     id: "email-smoke-1",
     use_case: "admin_task",
@@ -408,7 +407,7 @@ test("concierge prepared email task requires review, final confirmation, and sav
   await page.route("**/api/concierge/actions/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/concierge/actions/pending") {
-      await fulfillJson(route, 200, { items: completed ? [] : [pendingEmailTask] });
+      await fulfillJson(route, 200, { items: [pendingEmailTask] });
       return;
     }
     if (url.pathname === "/api/concierge/actions/sessions") {
@@ -421,11 +420,10 @@ test("concierge prepared email task requires review, final confirmation, and sav
       await fulfillJson(route, 200, { pendingId: "email-smoke-1", status: "pending" });
       return;
     }
-    if (url.pathname === "/api/concierge/actions/email-smoke-1/complete") {
-      expect(route.request().method()).toBe("POST");
-      completeBody = route.request().postDataJSON();
-      completed = true;
-      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-email-smoke-1" });
+    if (url.pathname === "/api/concierge/actions/email-smoke-1/details") {
+      expect(route.request().method()).toBe("PATCH");
+      detailsBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, item: { id: "email-smoke-1" } });
       return;
     }
     await route.fallback();
@@ -456,10 +454,9 @@ test("concierge prepared email task requires review, final confirmation, and sav
   await page.getByTestId("input-email-draft-notes-email-smoke-1").fill("Sent from smoke test.");
   await page.getByTestId("button-email-draft-sent-email-smoke-1").click();
 
-  await expect.poll(() => completeBody?.outcome_payload?.email_outcome ?? null).toBe("sent");
-  expect(completeBody).toMatchObject({
-    outcome_summary: "Email sent to Council Office. Reference: APP-42.",
-    outcome_payload: expect.objectContaining({
+  await expect.poll(() => detailsBody?.action_payload?.email_outcome ?? null).toBe("sent");
+  expect(detailsBody).toMatchObject({
+    action_payload: expect.objectContaining({
       flow_reference: "FLOW_TOOL_GATED_TASK",
       execution_channel: "email",
       email_outcome: "sent",
@@ -469,11 +466,20 @@ test("concierge prepared email task requires review, final confirmation, and sav
       email_subject: "Application question",
       reference: "APP-42",
       notes: "Sent from smoke test.",
+      live_handoff_status: "waiting",
+      live_handoff_outcome: "email_sent",
+      provider_follow_up_status: "waiting",
+      provider_last_contact_channel: "email",
+      provider_last_contact_outcome: "email_sent",
+      provider_last_contact_summary: "Email sent to Council Office. Reference: APP-42.",
+      provider_contact_attempt_count: 1,
+      waiting_for_provider: true,
+      mission_status: "awaiting_provider_reply",
       completed_from: "email_draft_outcome_panel",
       no_external_action_without_confirmation: true,
     }),
   });
-  await expect(page.getByTestId("email-draft-notice")).toContainText("Email saved");
+  await expect(page.getByTestId("email-draft-notice")).toContainText("Email sent. Waiting for the provider.");
   await expectNoHorizontalOverflow(page);
 });
 
@@ -483,7 +489,7 @@ test("concierge booking form task requires final confirmation before handoff and
 
   let formConfirmed = false;
   let confirmCount = 0;
-  let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
   const bookingUrl = "https://booking.example.com/clinic";
   const prefilledUrl = `${bookingUrl}?slot=morning`;
   const pendingFormTask = () => ({
@@ -546,10 +552,10 @@ test("concierge booking form task requires final confirmation before handoff and
       await fulfillJson(route, 200, { pendingId: "form-smoke-1", status: "pending" });
       return;
     }
-    if (url.pathname === "/api/concierge/actions/form-smoke-1/complete") {
-      expect(route.request().method()).toBe("POST");
-      completeBody = route.request().postDataJSON();
-      await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-form-smoke-1" });
+    if (url.pathname === "/api/concierge/actions/form-smoke-1/details") {
+      expect(route.request().method()).toBe("PATCH");
+      detailsBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, item: { id: "form-smoke-1" } });
       return;
     }
     await route.fallback();
@@ -582,10 +588,9 @@ test("concierge booking form task requires final confirmation before handoff and
   await page.getByTestId("input-booking-form-notes-form-smoke-1").fill("Submitted from smoke test.");
   await page.getByTestId("button-booking-form-submitted-form-smoke-1").click();
 
-  await expect.poll(() => completeBody?.outcome_payload?.form_outcome ?? null).toBe("submitted");
-  expect(completeBody).toMatchObject({
-    outcome_summary: "Form submitted: The Good Clinic. Reference: CB-88.",
-    outcome_payload: expect.objectContaining({
+  await expect.poll(() => detailsBody?.action_payload?.form_outcome ?? null).toBe("submitted");
+  expect(detailsBody).toMatchObject({
+    action_payload: expect.objectContaining({
       flow_reference: "FLOW_MEDICAL_APPOINTMENT",
       execution_type: "form_booking_link_outcome_capture",
       execution_channel: "booking_url",
@@ -597,11 +602,20 @@ test("concierge booking form task requires final confirmation before handoff and
       missing_fields: [],
       reference: "CB-88",
       notes: "Submitted from smoke test.",
+      live_handoff_status: "waiting",
+      live_handoff_outcome: "form_submitted",
+      provider_follow_up_status: "waiting",
+      provider_last_contact_channel: "booking_url",
+      provider_last_contact_outcome: "form_submitted",
+      provider_last_contact_summary: "Form submitted: The Good Clinic. Reference: CB-88.",
+      provider_contact_attempt_count: 1,
+      waiting_for_provider: true,
+      mission_status: "awaiting_provider_reply",
       completed_from: "booking_form_support_panel",
       no_external_action_without_confirmation: true,
     }),
   });
-  await expect(page.getByTestId("booking-form-notice")).toContainText("Form saved");
+  await expect(page.getByTestId("booking-form-notice")).toContainText("Form submitted. Waiting for the provider.");
   await expectNoHorizontalOverflow(page);
 });
 
@@ -865,6 +879,7 @@ test("concierge home-service provider reply keeps pending paths and saves confir
   });
 
   let scheduledBody: Record<string, unknown> | null = null;
+  let noAnswerBody: { action_payload?: Record<string, unknown> } | null = null;
   let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
   let completeCount = 0;
   const pendingHomeServiceReply = {
@@ -912,6 +927,12 @@ test("concierge home-service provider reply keeps pending paths and saves confir
       await fulfillJson(route, 200, { items: [] });
       return;
     }
+    if (url.pathname === "/api/concierge/actions/reply-home-service-smoke-1/details") {
+      expect(route.request().method()).toBe("PATCH");
+      noAnswerBody = route.request().postDataJSON();
+      await fulfillJson(route, 200, { ok: true, item: { id: "reply-home-service-smoke-1" } });
+      return;
+    }
     if (url.pathname === "/api/concierge/actions/reply-home-service-smoke-1/complete") {
       expect(route.request().method()).toBe("POST");
       completeCount += 1;
@@ -925,8 +946,23 @@ test("concierge home-service provider reply keeps pending paths and saves confir
   await page.goto("/concierge", { waitUntil: "domcontentloaded" });
 
   await expect(page.getByTestId("panel-concierge-provider-reply")).toContainText("Provider reply");
-  await page.getByTestId("button-provider-reply-follow-up-reply-home-service-smoke-1").click();
-  await expect(page.getByTestId("provider-reply-notice")).toContainText("Follow-up prepared in chat.");
+  await page.getByTestId("button-provider-reply-no-answer-reply-home-service-smoke-1").click();
+  await expect.poll(() => noAnswerBody?.action_payload?.provider_last_contact_outcome ?? null).toBe("no_answer");
+  expect(noAnswerBody).toMatchObject({
+    action_payload: expect.objectContaining({
+      live_handoff_status: "waiting",
+      live_handoff_outcome: "no_answer",
+      provider_follow_up_status: "waiting",
+      provider_last_contact_channel: "whatsapp",
+      provider_last_contact_outcome: "no_answer",
+      provider_last_contact_summary: "No answer from Saved Plumber. The task remains open.",
+      provider_contact_attempt_count: 1,
+      waiting_for_provider: true,
+      mission_status: "awaiting_provider_reply",
+      no_external_action_without_confirmation: true,
+    }),
+  });
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("No answer saved. The task stays open");
   expect(completeCount).toBe(0);
   expect(scheduledBody).toBeNull();
 
