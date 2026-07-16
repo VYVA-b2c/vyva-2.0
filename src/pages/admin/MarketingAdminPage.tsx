@@ -4150,6 +4150,63 @@ function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
   };
 }
 
+function templateDesignItemText(value: unknown) {
+  const direct = displayText(value);
+  if (direct) return direct;
+  const record = recordValue(value);
+  const primary = displayText(record.text)
+    || displayText(record.title)
+    || displayText(record.heading)
+    || displayText(record.label)
+    || displayText(record.name)
+    || displayText(record.type)
+    || displayText(record.kind);
+  const items = Array.isArray(record.items)
+    ? record.items.map(displayText).filter(Boolean).slice(0, 3).join(", ")
+    : "";
+  if (primary && items) return `${primary}: ${items}`;
+  return primary || items;
+}
+
+function templateDesignItems(value: unknown, limit = 4) {
+  return Array.isArray(value)
+    ? value.map(templateDesignItemText).filter(Boolean).slice(0, limit)
+    : [];
+}
+
+function contentTemplateDesignBrief(template: ContentTemplate) {
+  const design = recordValue(template.designJson);
+  const layout = displayText(design.layout);
+  const tone = displayText(design.tone);
+  const visual = displayText(design.visualPrompt);
+  const proof = displayText(design.proofPoint);
+  const fields = templateDesignItems(design.mergeFields, 4);
+  const slides = templateDesignItems(design.slides, 4);
+  const beats = templateDesignItems(design.beats, 4);
+  const blocks = templateDesignItems(design.blocks, 4);
+  const structure = slides.length
+    ? { label: "Slides", items: slides }
+    : beats.length
+      ? { label: "Beats", items: beats }
+      : blocks.length
+        ? { label: "Blocks", items: blocks }
+        : null;
+
+  const tags = [
+    layout ? `Layout: ${layout}` : "",
+    tone ? `Tone: ${tone}` : "",
+    proof ? `Proof: ${proof}` : "",
+    fields.length ? `Fields: ${fields.join(", ")}` : "",
+  ].filter(Boolean);
+
+  return {
+    tags,
+    visual,
+    structure,
+    hasBrief: Boolean(tags.length || visual || structure),
+  };
+}
+
 function contentAssetMatchesTemplatePack(content: ContentAsset, pack: ContentTemplatePack, template: ContentTemplate) {
   if (content.channel !== template.channel || content.status === "archived") return false;
   const metadata = recordValue(content.metadata);
@@ -19155,8 +19212,10 @@ export default function MarketingAdminPage() {
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3 xl:grid-cols-3" data-testid="marketing-content-template-gallery">
-                  {visibleContentTemplates.length ? visibleContentTemplates.map((template) => (
-                      <article key={template.id} className="flex min-h-[230px] flex-col justify-between rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+                  {visibleContentTemplates.length ? visibleContentTemplates.map((template) => {
+                    const designBrief = contentTemplateDesignBrief(template);
+                    return (
+                      <article key={template.id} className="flex min-h-[330px] flex-col justify-between rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <Pill className={channelClass(template.channel)}>{channelLabel[template.channel]}</Pill>
@@ -19174,6 +19233,29 @@ export default function MarketingAdminPage() {
                               {template.body}
                             </p>
                           )}
+                          {designBrief.hasBrief ? (
+                            <div
+                              className="mt-3 rounded-2xl border border-purple-100 bg-purple-50/60 p-3"
+                              data-testid={`marketing-content-template-design-brief-${template.id}`}
+                            >
+                              <div className="flex flex-wrap gap-1.5">
+                                {designBrief.tags.map((tag) => (
+                                  <Pill key={tag} className="bg-white text-purple-800">{tag}</Pill>
+                                ))}
+                                {template.ctaLabel ? <Pill className="bg-white text-[#5b4a46]">CTA: {template.ctaLabel}</Pill> : null}
+                              </div>
+                              {designBrief.visual ? (
+                                <p className="mt-2 line-clamp-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                                  Visual: {designBrief.visual}
+                                </p>
+                              ) : null}
+                              {designBrief.structure ? (
+                                <p className="mt-2 line-clamp-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                                  {designBrief.structure.label}: {designBrief.structure.items.join(" / ")}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="mt-4 grid gap-2 sm:grid-cols-2">
                           <button
@@ -19196,7 +19278,8 @@ export default function MarketingAdminPage() {
                           </button>
                         </div>
                       </article>
-                    )) : (
+                    );
+                  }) : (
                     <div className="rounded-2xl border border-dashed border-[#d9c9bd] bg-[#fffaf4] p-5 text-sm font-bold text-[#6f5f59] xl:col-span-3" data-testid="marketing-content-template-empty">
                       No templates match these filters. Clear the filters or broaden the search to see more campaign starters.
                     </div>
