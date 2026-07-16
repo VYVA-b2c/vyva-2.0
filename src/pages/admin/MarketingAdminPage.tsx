@@ -977,6 +977,13 @@ type AudienceStrategyBrief = {
   promptText: string;
 };
 
+type AudienceLaunchChecklistItem = {
+  key: string;
+  title: string;
+  state: CampaignReadinessState;
+  detail: string;
+};
+
 type ContentTemplateRecommendation = {
   template: ContentTemplate;
   score: number;
@@ -7500,6 +7507,65 @@ function audienceStrategyBrief(audience: MarketingAudience, contacts: MarketingC
     cleanup,
     promptText,
   };
+}
+
+function audienceLaunchChecklist(audience: MarketingAudience, strategy: AudienceStrategyBrief): AudienceLaunchChecklistItem[] {
+  const unmappedCount = audience.unmappedContactExternalIds.length;
+  const mappedCount = strategy.mappedContacts.length;
+  const reachableCount = strategy.reachableContacts.length;
+  const missingSegments = Math.max(mappedCount - strategy.segmentedCount, 0);
+  const allMapped = mappedCount > 0 && unmappedCount === 0;
+  const consentClean = strategy.consentReviewCount === 0;
+  const optedOutOnly = mappedCount > 0 && strategy.optedOutCount >= mappedCount;
+  const hasSegments = mappedCount > 0 && missingSegments === 0;
+  const routeReady = reachableCount > 0 && consentClean;
+
+  return [
+    {
+      key: "mapping",
+      title: "List mapping",
+      state: mappedCount === 0 ? "blocked" : allMapped ? "ready" : "needs_action",
+      detail: mappedCount === 0
+        ? "No imported members are mapped to marketing contacts yet."
+        : allMapped
+          ? `${mappedCount}/${strategy.totalMembers} members are mapped and ready for snapshots.`
+          : `${mappedCount}/${strategy.totalMembers} mapped; ${unmappedCount} imported member ID${unmappedCount === 1 ? "" : "s"} still need matching.`,
+    },
+    {
+      key: "reach",
+      title: "Reachable channels",
+      state: reachableCount > 0 ? "ready" : "blocked",
+      detail: reachableCount > 0
+        ? `${reachableCount} contact${reachableCount === 1 ? "" : "s"} reachable: ${strategy.emailReady} email, ${strategy.whatsappReady} WhatsApp.`
+        : "Add email or WhatsApp details before this list can receive a campaign.",
+    },
+    {
+      key: "consent",
+      title: "Consent",
+      state: optedOutOnly ? "blocked" : consentClean ? "ready" : "needs_action",
+      detail: optedOutOnly
+        ? "Every mapped contact is opted out, so this list should not be launched."
+        : consentClean
+          ? "Consent is clean for the mapped contacts."
+          : `${strategy.consentReviewCount} contact${strategy.consentReviewCount === 1 ? "" : "s"} need consent review before automation.`,
+    },
+    {
+      key: "segments",
+      title: "Personalisation data",
+      state: mappedCount === 0 ? "blocked" : hasSegments ? "ready" : "needs_action",
+      detail: hasSegments
+        ? `Segments are ready: ${strategy.topMarkets.join(" / ") || "markets unknown"}, ${strategy.topLanguages.join(" / ") || "languages unknown"}.`
+        : `Add language, market, category, vertical, tag, or list data for ${missingSegments} contact${missingSegments === 1 ? "" : "s"}.`,
+    },
+    {
+      key: "route",
+      title: "Campaign route",
+      state: routeReady ? "ready" : reachableCount > 0 ? "needs_action" : "blocked",
+      detail: routeReady
+        ? `${channelLabel[strategy.primaryChannel]} is the first route; planned channels: ${strategy.channels.map((channel) => channelLabel[channel]).join(", ")}.`
+        : `${channelLabel[strategy.primaryChannel]} is recommended, but fix reach/consent before publishing.`,
+    },
+  ];
 }
 
 function valueMatchesFilter(value: string | null | undefined, filter: string) {
@@ -23261,6 +23327,7 @@ export default function MarketingAdminPage() {
                         const canExpandMembers = hiddenListMemberCount > 0 || hiddenUnmappedCount > 0 || audienceExpanded;
                         const timelineParts = recordTimelineParts(audience);
                         const strategy = audienceStrategyBrief(audience, contacts);
+                        const launchChecklist = audienceLaunchChecklist(audience, strategy);
                         return (
                           <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -23345,6 +23412,23 @@ export default function MarketingAdminPage() {
                                 <Pill className="bg-white text-[#7d6b65]">{strategy.segmentedCount}/{strategy.mappedContacts.length} segmented</Pill>
                               </div>
                               <p className="mt-2 text-xs font-bold leading-relaxed text-[#6f5f59]">{strategy.cleanup}</p>
+                              <div className="mt-3 grid gap-2 xl:grid-cols-5" data-testid={`marketing-audience-launch-checklist-${audience.id}`}>
+                                {launchChecklist.map((item) => {
+                                  const StatusIcon = item.state === "ready" ? CheckCircle2 : item.state === "blocked" ? X : Clock;
+                                  return (
+                                    <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-audience-launch-checklist-${audience.id}-${item.key}`}>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/80">
+                                          <StatusIcon size={14} />
+                                        </span>
+                                        <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                      </div>
+                                      <p className="mt-2 text-xs font-black uppercase tracking-[0.1em] opacity-75">{item.title}</p>
+                                      <p className="mt-1 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                               <details className="mt-2 rounded-lg border border-[#eadfd5] bg-[#fffaf4] px-3 py-2">
                                 <summary className="cursor-pointer text-xs font-black text-purple-700">AI brief text</summary>
                                 <textarea
