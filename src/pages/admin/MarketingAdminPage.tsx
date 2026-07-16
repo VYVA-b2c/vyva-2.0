@@ -33,7 +33,7 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 
-const CHANNELS = ["email", "whatsapp", "facebook", "instagram", "linkedin", "tiktok"] as const;
+const CHANNELS = ["email", "whatsapp", "sms", "phone", "print", "event", "facebook", "instagram", "linkedin", "tiktok"] as const;
 const AUDIENCES = ["b2c", "b2b", "both"] as const;
 const TABS = ["dashboard", "journeys", "content", "calendar", "contacts", "settings"] as const;
 const CAMPAIGN_STATUSES = ["draft", "scheduled", "published", "paused", "archived"] as const;
@@ -60,6 +60,14 @@ type ContentStatus = typeof CONTENT_STATUSES[number];
 type ConsentStatus = typeof CONSENT_STATUSES[number];
 type ContentLocalizationLanguage = typeof CONTENT_LOCALIZATION_LANGUAGES[number]["value"];
 type CountOption = { value: string; label: string; count: number };
+
+const campaignPlannerChannelPacks: Array<{ id: string; label: string; detail: string; channels: Channel[] }> = [
+  { id: "email", label: "Email", detail: "Send-ready VYVA email route.", channels: ["email"] },
+  { id: "care-team", label: "Email + WhatsApp", detail: "Direct nurture plus quick follow-up.", channels: ["email", "whatsapp"] },
+  { id: "partner", label: "Partner pack", detail: "Email plus LinkedIn relationship handoff.", channels: ["email", "linkedin"] },
+  { id: "local", label: "Local/social", detail: "Facebook, Instagram, and WhatsApp awareness.", channels: ["facebook", "instagram", "whatsapp"] },
+  { id: "full-launch", label: "Full launch", detail: "Email, WhatsApp, and core social channels.", channels: ["email", "whatsapp", "facebook", "instagram", "linkedin"] },
+];
 
 type MarketingSummary = {
   totals: {
@@ -127,6 +135,14 @@ type CampaignRecipient = {
   scheduledAt: string | null;
   snapshot: unknown;
   communicationLogId: string | null;
+};
+
+type CampaignRowReadiness = {
+  state: CampaignReadinessState;
+  label: string;
+  detail: string;
+  readyCount: number;
+  totalCount: number;
 };
 
 type ContentUsage = {
@@ -421,7 +437,9 @@ type CampaignDraft = {
   name: string;
   audienceType: Audience;
   channel: Channel;
+  channels: Channel[];
   contentAssetId: string;
+  channelContentAssetIds: Partial<Record<Channel, string>>;
   status: "draft" | "scheduled";
   scheduleStartsAt: string;
   scheduleEndsAt: string;
@@ -456,6 +474,42 @@ type CampaignIntentMatch = {
   channels: Channel[];
   targetAudience: MarketingAudience | null;
   reasons: string[];
+};
+
+type CampaignIntentQuickStart = {
+  id: string;
+  title: string;
+  detail: string;
+  brief: string;
+  channels: Channel[];
+};
+
+type CampaignGoalPreset = {
+  id: string;
+  title: string;
+  outcome: string;
+  detail: string;
+  brief: string;
+  channels: Channel[];
+  toneId: CampaignStudioToneId;
+  angleId: CampaignStudioAngleId;
+  templatePackId: string;
+};
+
+type CampaignGoalPresetInsight = {
+  preset: CampaignGoalPreset;
+  play: CampaignStudioPlay;
+  linkedPack: {
+    pack: ContentTemplatePack;
+    templates: ContentTemplate[];
+    channels: Channel[];
+    state: CampaignReadinessState;
+  } | null;
+  targetAudience: MarketingAudience | null;
+  selectedChannels: Channel[];
+  reachableContacts: number;
+  templateCount: number;
+  state: CampaignReadinessState;
 };
 
 type CampaignStudioPlay = {
@@ -554,6 +608,37 @@ type CampaignChannelDraft = {
   scheduledAt: string;
 };
 
+type ManualPublishResultStatus = "published" | "scheduled" | "blocked" | "needs_follow_up";
+
+type ManualPublishTrackerDraft = {
+  channel: Channel;
+  result: ManualPublishResultStatus;
+  url: string;
+  notes: string;
+  publishedAt: string;
+  audienceReached: string;
+  engagements: string;
+};
+
+type ManualPublishResult = {
+  channel: Channel;
+  result: ManualPublishResultStatus;
+  url?: string;
+  notes?: string;
+  publishedAt: string;
+  audienceReached?: number;
+  engagements?: number;
+  recordedAt: string;
+};
+
+type ManualPublishSummary = {
+  count: number;
+  latest: ManualPublishResult | null;
+  reached: number;
+  engagements: number;
+  followUps: number;
+};
+
 type CampaignReadinessState = "ready" | "needs_action" | "blocked" | "planning";
 
 type CampaignReadinessItem = {
@@ -567,6 +652,11 @@ type MarketingActionCenterItem = CampaignReadinessItem & {
   actionLabel: string;
   icon: LucideIcon;
   onSelect: () => void;
+};
+
+type CampaignRelationshipFollowUpItem = CampaignReadinessItem & {
+  value: string;
+  icon: LucideIcon;
 };
 
 type MarketingLaunchLaneItem = CampaignReadinessItem & {
@@ -790,6 +880,31 @@ type AudienceRecipe = CampaignReadinessItem & {
   studioLabel: string;
 };
 
+type AudienceStrategyBrief = {
+  audienceType: Audience;
+  state: CampaignReadinessState;
+  score: number;
+  playId: CampaignStudioPlayId;
+  toneId: CampaignStudioToneId;
+  angleId: CampaignStudioAngleId;
+  primaryChannel: Channel;
+  channels: Channel[];
+  totalMembers: number;
+  mappedContacts: MarketingContact[];
+  reachableContacts: MarketingContact[];
+  emailReady: number;
+  whatsappReady: number;
+  consentReviewCount: number;
+  optedOutCount: number;
+  segmentedCount: number;
+  topMarkets: string[];
+  topVerticals: string[];
+  topLanguages: string[];
+  nextMove: string;
+  cleanup: string;
+  promptText: string;
+};
+
 type ContentTemplateRecommendation = {
   template: ContentTemplate;
   score: number;
@@ -1008,7 +1123,11 @@ const emptySummary: MarketingSummary = {
     channel,
     sendCapability: channel === "email" ? "enabled" : channel === "whatsapp" ? "future_send_capable" : "planning_only",
     locked: channel !== "email",
-    note: channel === "email" ? "Email sends use VYVA communications." : "Marketing sends are locked in this foundation.",
+    note: channel === "email"
+      ? "Email sends use VYVA communications."
+      : ["sms", "phone", "print", "event"].includes(channel)
+        ? "Direct/offline channels are planning and handoff only."
+        : "Marketing sends are locked in this foundation.",
   })),
   emailScheduler: {
     enabled: false,
@@ -1035,10 +1154,28 @@ const emptySync: SyncState = {
 const channelLabel: Record<Channel, string> = {
   email: "Email",
   whatsapp: "WhatsApp",
+  sms: "SMS",
+  phone: "Phone call",
+  print: "Print / direct mail",
+  event: "Local event",
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
+};
+
+function formatChannelList(channels: Channel[]) {
+  const labels = channels.map((channel) => channelLabel[channel]);
+  if (labels.length <= 1) return labels[0] ?? "";
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}
+
+const manualPublishResultLabel: Record<ManualPublishResultStatus, string> = {
+  published: "Published",
+  scheduled: "Scheduled externally",
+  blocked: "Blocked",
+  needs_follow_up: "Needs follow-up",
 };
 
 const contentLocalizationLanguageLabel: Record<ContentLocalizationLanguage, string> = Object.fromEntries(
@@ -1076,6 +1213,10 @@ const campaignStudioAngleGuidance: Record<CampaignStudioAngleId, string> = {
 const campaignStudioChannelGuidance: Record<Channel, string> = {
   email: "Use a clear subject, one message, and one primary call to action.",
   whatsapp: "Keep it conversational, short, and easy to reply to.",
+  sms: "Keep it under 160 characters with one concrete reply or link action.",
+  phone: "Write a calm call script with an opener, qualifying question, and follow-up note.",
+  print: "Make the headline, offer, and handoff readable without app context.",
+  event: "Anchor the message around place, time, access needs, and the post-event next step.",
   facebook: "Frame it as a community update with a shareable hook.",
   instagram: "Use a visual-first caption with one crisp takeaway.",
   linkedin: "Make the professional value and outcome explicit.",
@@ -1123,6 +1264,30 @@ const campaignStudioLaunchTimingByChannel: Record<Channel, {
     title: "Direct reply nudge",
     owner: "Relationship owner",
     action: "Use the approved short copy as the close follow-up and log replies.",
+  },
+  sms: {
+    offsetHours: 3,
+    title: "SMS reminder",
+    owner: "Relationship owner",
+    action: "Send the short reminder from the approved contact tool and log replies or opt-outs.",
+  },
+  phone: {
+    offsetHours: 24,
+    title: "Phone follow-up",
+    owner: "Relationship owner",
+    action: "Use the call script, capture outcome notes, and schedule the next touch.",
+  },
+  print: {
+    offsetHours: -168,
+    title: "Print/direct mail handoff",
+    owner: "Operations owner",
+    action: "Export the copy/design brief, confirm delivery area, and track distribution status.",
+  },
+  event: {
+    offsetHours: -72,
+    title: "Local event handoff",
+    owner: "Community owner",
+    action: "Confirm venue, accessibility notes, RSVP route, and post-event follow-up owner.",
   },
 };
 
@@ -1326,6 +1491,23 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     ctaUrl: "https://v2.vyva.life",
   },
   {
+    id: "monthly-care-digest",
+    categoryId: "engagement",
+    label: "Monthly care digest",
+    brief: "Turn daily care signals into a recurring monthly family update and partner proof story.",
+    audienceType: "both",
+    defaultChannel: "email",
+    targetListHints: ["monthly", "digest", "summary", "caregiver", "family", "updates"],
+    scheduleDaysFromNow: 7,
+    campaignName: "Monthly care digest",
+    contentTitle: "Monthly care digest",
+    objective: "Create a recurring care digest that gives families one calm summary, one confidence signal, and one practical next step.",
+    subject: "{{month_name}} care update",
+    body: "Hi {{first_name}},\n\nHere is the monthly VYVA care digest: what stayed steady, what changed, and the one useful next step for the care team.\n\nKeep it calm, practical, and easy to act on.",
+    ctaLabel: "Review monthly update",
+    ctaUrl: "https://v2.vyva.life/caregiver/dashboard",
+  },
+  {
     id: "alert-preference-refresh",
     categoryId: "engagement",
     label: "Alert preference refresh",
@@ -1514,6 +1696,102 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
   },
 ];
 
+const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
+  {
+    id: "monthly-care-digest",
+    title: "Monthly care digest",
+    detail: "Family email, WhatsApp reply prompt, and social proof from monthly care signals.",
+    brief: "Create a monthly care digest for families and partners by email, WhatsApp, Instagram, Facebook, and LinkedIn. Use warm proof, stay non-clinical, and give one practical next step.",
+    channels: ["email", "whatsapp", "instagram", "facebook", "linkedin"],
+  },
+  {
+    id: "partner-webinar",
+    title: "Partner webinar",
+    detail: "Professional invite for clinics, pharmacies, and local partners.",
+    brief: "Invite Madrid partners to a practical webinar by email and LinkedIn. Make it expert, proof-led, and easy to book.",
+    channels: ["email", "linkedin"],
+  },
+  {
+    id: "local-event",
+    title: "Local event",
+    detail: "Local activity campaign with public post, direct reminder, and follow-up.",
+    brief: "Promote a local Madrid activity for families on Facebook, WhatsApp, and Instagram. Keep it local, accessible, and clear about the next step.",
+    channels: ["facebook", "whatsapp", "instagram"],
+  },
+  {
+    id: "caregiver-onboarding",
+    title: "Caregiver onboarding",
+    detail: "Warm welcome flow for new caregivers and family members.",
+    brief: "Welcome new caregivers with a warm email and WhatsApp onboarding campaign. Focus on profile completion, dashboard access, and one first useful action.",
+    channels: ["email", "whatsapp"],
+  },
+  {
+    id: "winback",
+    title: "Win-back",
+    detail: "Gentle reactivation for quiet families or dormant contacts.",
+    brief: "Reactivate quiet family contacts with a gentle email and WhatsApp campaign. Give one simple reason to return and one low-friction next step.",
+    channels: ["email", "whatsapp"],
+  },
+];
+
+const campaignGoalPresets: CampaignGoalPreset[] = [
+  {
+    id: "grow-partner-pipeline",
+    title: "Grow partner pipeline",
+    outcome: "B2B leads",
+    detail: "Professional outreach that turns clinics, pharmacies, and local partners into follow-up conversations.",
+    brief: "Grow the partner pipeline with an expert email and LinkedIn campaign for clinics, pharmacies, and local care partners. Lead with proof, make the professional value clear, and ask for one short intro call.",
+    channels: ["email", "linkedin"],
+    toneId: "expert",
+    angleId: "proof",
+    templatePackId: "partner-growth",
+  },
+  {
+    id: "reactivate-quiet-families",
+    title: "Reactivate quiet families",
+    outcome: "Return to care routine",
+    detail: "A gentle return path for contacts who stopped opening, replying, or completing setup.",
+    brief: "Reactivate quiet family contacts with a warm email and WhatsApp campaign. Give one simple reason to return, focus on profile completion and care-team confidence, and keep the action low friction.",
+    channels: ["email", "whatsapp"],
+    toneId: "warm",
+    angleId: "action",
+    templatePackId: "care-confidence-reactivation",
+  },
+  {
+    id: "fill-local-event",
+    title: "Fill a local event",
+    outcome: "Attendance",
+    detail: "Localized awareness, RSVP nudges, partner handoff, and post-event follow-up in one plan.",
+    brief: "Fill a local Madrid event with Facebook, Instagram, WhatsApp, and local partner outreach. Make the campaign specific to the area, practical for older adults and families, and clear about the RSVP or reminder step.",
+    channels: ["facebook", "instagram", "whatsapp", "linkedin"],
+    toneId: "uplifting",
+    angleId: "local",
+    templatePackId: "local-event-relationship",
+  },
+  {
+    id: "complete-profiles",
+    title: "Complete profiles",
+    outcome: "Cleaner user data",
+    detail: "Nudge people to finish required contact, language, and care-team details before workflows start.",
+    brief: "Improve profile completion with an email and WhatsApp campaign. Explain why name, phone, language, timezone, and care-team contact details matter, then ask for one quick profile update.",
+    channels: ["email", "whatsapp"],
+    toneId: "direct",
+    angleId: "action",
+    templatePackId: "family-onboarding",
+  },
+  {
+    id: "share-proof-story",
+    title: "Share proof story",
+    outcome: "Trust and awareness",
+    detail: "Repurpose care confidence signals into social proof and a partner-ready story.",
+    brief: "Share a VYVA proof story across Instagram, Facebook, LinkedIn, and email. Turn care confidence, monthly care updates, or family reassurance into one credible story with a clear next step.",
+    channels: ["instagram", "facebook", "linkedin", "email"],
+    toneId: "uplifting",
+    angleId: "proof",
+    templatePackId: "trust-and-review",
+  },
+];
+
 const tabLabel: Record<Tab, string> = {
   dashboard: "Dashboard",
   journeys: "Journeys",
@@ -1639,6 +1917,9 @@ function statusClass(status: string) {
 
 function channelClass(channel: Channel) {
   if (channel === "whatsapp") return "bg-emerald-50 text-emerald-700 border-emerald-100";
+  if (channel === "sms" || channel === "phone") return "bg-teal-50 text-teal-700 border-teal-100";
+  if (channel === "print") return "bg-orange-50 text-orange-700 border-orange-100";
+  if (channel === "event") return "bg-amber-50 text-amber-800 border-amber-100";
   if (channel === "email") return "bg-blue-50 text-blue-700 border-blue-100";
   if (channel === "instagram" || channel === "tiktok") return "bg-pink-50 text-pink-700 border-pink-100";
   if (channel === "linkedin" || channel === "facebook") return "bg-sky-50 text-sky-700 border-sky-100";
@@ -3029,6 +3310,91 @@ const contentTemplateGallery: ContentTemplate[] = [
     mediaAssets: [],
   },
   {
+    id: "sms-local-event-reminder",
+    title: "SMS local event reminder",
+    category: "Offline and direct",
+    audienceType: "both",
+    channel: "sms",
+    description: "A concise SMS reminder for people who need a simple local event prompt.",
+    subject: "",
+    body: "{{event_name}} is near {{area_name}} on {{event_date}}. Reply YES for a reminder or HELP if you want VYVA to plan the next step.",
+    ctaLabel: "Reply YES",
+    ctaUrl: "https://v2.vyva.life/social",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "sms-local-event-reminder",
+      category: "Offline and direct",
+      layout: "sms-reminder",
+      characterTarget: 160,
+      mergeFields: ["event_name", "area_name", "event_date"],
+      complianceNotes: ["Use only for opted-in direct contacts.", "Include opt-out wording when required by market."],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "phone-partner-followup-script",
+    title: "Phone partner follow-up script",
+    category: "Offline and direct",
+    audienceType: "b2b",
+    channel: "phone",
+    description: "A short call script for following up with clinics, pharmacies, venues, or local partners.",
+    subject: "Partner follow-up call",
+    body: "Opener: Hi {{first_name}}, this is {{owner_name}} from VYVA. I am following up on the idea of making daily care updates easier for families and local care partners.\n\nQuestion: Is there one group of families or clients where reminders, care-team updates, or post-visit follow-up are currently hard to coordinate?\n\nOffer: We can show a simple workflow and agree whether a referral or local event handoff makes sense.\n\nClose: Would it be useful to schedule a 15-minute review this week?",
+    ctaLabel: "Book review",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "phone-partner-followup-script",
+      category: "Offline and direct",
+      layout: "call-script",
+      callStages: ["opener", "qualifying question", "offer", "close", "outcome note"],
+      mergeFields: ["first_name", "owner_name"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "print-community-flyer",
+    title: "Community flyer copy",
+    category: "Offline and direct",
+    audienceType: "both",
+    channel: "print",
+    description: "A print/direct-mail starter for pharmacies, clinics, libraries, venues, and community boards.",
+    subject: "A calmer way for families to stay close to care",
+    body: "Headline: A calmer way for families to stay close to care.\n\nBody: VYVA helps older adults and families keep reminders, check-ins, useful local activities, and care-team updates in one clear place.\n\nUse it when you want fewer scattered messages and one practical next step.\n\nHandoff: Scan the code, visit v2.vyva.life, or ask the local partner for help getting started.",
+    ctaLabel: "Scan to start",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "print-community-flyer",
+      category: "Offline and direct",
+      layout: "a5-flyer",
+      printSpecs: { size: "A5", sides: 1, qr: true, largeType: true },
+      visualPrompt: "warm accessible community flyer for older adults and families, VYVA purple, large readable type",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "event-host-handoff-brief",
+    title: "Local event host handoff brief",
+    category: "Offline and direct",
+    audienceType: "both",
+    channel: "event",
+    description: "A practical event handoff for the person hosting, attending, or following up after a local activity.",
+    subject: "{{event_name}} host handoff",
+    body: "Event: {{event_name}}\nArea: {{area_name}}\nDate/time: {{event_date}}\n\nBefore: Confirm accessibility notes, meeting point, and who should receive the reminder.\nDuring: Capture attendance, questions, and any family/caregiver follow-up requests.\nAfter: Log outcomes, send the promised resource, and create the next contact task within 24 hours.",
+    ctaLabel: "Log event outcome",
+    ctaUrl: "https://v2.vyva.life/admin/marketing",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "event-host-handoff-brief",
+      category: "Offline and direct",
+      layout: "event-handoff-brief",
+      checklist: ["accessibility", "meeting point", "attendance", "questions", "follow-up owner"],
+      mergeFields: ["event_name", "area_name", "event_date"],
+    },
+    mediaAssets: [],
+  },
+  {
     id: "email-care-confidence-reactivation",
     title: "Care confidence reactivation email",
     category: "Care confidence",
@@ -3287,6 +3653,120 @@ const contentTemplateGallery: ContentTemplate[] = [
     },
     mediaAssets: [],
   },
+  {
+    id: "email-monthly-care-digest",
+    title: "Monthly care digest email",
+    category: "Monthly care",
+    audienceType: "b2c",
+    channel: "email",
+    description: "A recurring monthly family update that turns VYVA activity into a calm, useful care-team digest.",
+    subject: "{{month_name}} care update for {{elder_name}}",
+    body: "Hi {{first_name}},\n\nHere is the simple VYVA care update for {{elder_name}} this month.\n\nWhat stayed steady: {{steady_signal}}\nWhat changed: {{changed_signal}}\nUseful next step: {{next_step}}\n\nThe aim is not to send more noise. It is to give the family one calm summary, one point of confidence, and one practical action for the month ahead.",
+    htmlBody: "<h1>{{month_name}} care update</h1><p>One calm summary, one point of confidence, and one practical action for the month ahead.</p>",
+    ctaLabel: "Review monthly update",
+    ctaUrl: "https://v2.vyva.life/caregiver/dashboard",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "email-monthly-care-digest",
+      category: "Monthly care",
+      layout: "email-monthly-care-digest",
+      mergeFields: ["first_name", "elder_name", "month_name", "steady_signal", "changed_signal", "next_step"],
+      blocks: [
+        { type: "eyebrow", text: "{{month_name}} care update" },
+        { type: "headline", text: "A calmer monthly view for {{elder_name}}" },
+        { type: "signal", label: "Steady", text: "{{steady_signal}}" },
+        { type: "signal", label: "Changed", text: "{{changed_signal}}" },
+        { type: "cta", label: "Review monthly update" },
+      ],
+      visualPrompt: "warm monthly care digest email with simple cards, calm family tone, VYVA purple and soft green accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "whatsapp-monthly-care-checkin",
+    title: "Monthly care check-in WhatsApp",
+    category: "Monthly care",
+    audienceType: "b2c",
+    channel: "whatsapp",
+    description: "A short monthly WhatsApp prompt that invites one useful family reply.",
+    subject: "",
+    body: "Hi {{first_name}}, quick monthly VYVA check-in for {{elder_name}}: {{one_line_update}}\n\nReply 1 if everything looks fine, 2 if someone should review the profile, or 3 if you want a caregiver follow-up.",
+    ctaLabel: "Reply 1, 2, or 3",
+    ctaUrl: "https://v2.vyva.life/caregiver/dashboard",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "whatsapp-monthly-care-checkin",
+      category: "Monthly care",
+      layout: "whatsapp-monthly-checkin",
+      mergeFields: ["first_name", "elder_name", "one_line_update"],
+      replyOptions: ["1 everything fine", "2 review profile", "3 caregiver follow-up"],
+      complianceNotes: ["Use for opted-in WhatsApp contacts only.", "Keep the prompt operational and non-clinical."],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "facebook-monthly-care-story",
+    title: "Facebook monthly care story",
+    category: "Monthly care",
+    audienceType: "both",
+    channel: "facebook",
+    description: "A public monthly proof post showing how small care routines become family confidence.",
+    subject: "",
+    body: "A useful care month is not always dramatic. Sometimes it is one profile update, one reminder completed, one family member knowing what changed.\n\nVYVA helps turn those small care signals into a calmer monthly rhythm for families and care teams.",
+    ctaLabel: "See how VYVA works",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "facebook-monthly-care-story",
+      category: "Monthly care",
+      layout: "facebook-monthly-proof-story",
+      proofPoint: "small care signals become a calmer monthly rhythm",
+      visualPrompt: "family care monthly update scene with simple checklist and warm realistic photography",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "instagram-monthly-care-carousel",
+    title: "Instagram monthly care carousel",
+    category: "Monthly care",
+    audienceType: "both",
+    channel: "instagram",
+    description: "A saveable carousel turning the monthly care digest into visual proof and practical prompts.",
+    subject: "",
+    body: "Slide 1: One calmer care month.\nSlide 2: What stayed steady.\nSlide 3: What changed.\nSlide 4: One useful next step.\nSlide 5: VYVA helps families see the signal without chasing every message.",
+    ctaLabel: "Save the monthly check",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "instagram-monthly-care-carousel",
+      category: "Monthly care",
+      layout: "instagram-monthly-care-carousel",
+      slides: ["One calmer care month", "Steady", "Changed", "Next step", "Less chasing"],
+      visualPrompt: "soft monthly care carousel with readable cards, family confidence, and VYVA purple accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "linkedin-monthly-care-operations-note",
+    title: "LinkedIn monthly care operations note",
+    category: "Monthly care",
+    audienceType: "b2b",
+    channel: "linkedin",
+    description: "A partner-facing post that frames monthly family updates as a care operations rhythm.",
+    subject: "",
+    body: "For care partners, the monthly family update is more than a nice report. It is an operational rhythm.\n\nWhat stayed steady? What changed? Who needs the next action?\n\nVYVA helps convert daily signals into a clear monthly view, so partners and families can move from scattered updates to accountable follow-up.",
+    ctaLabel: "Discuss monthly care updates",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "linkedin-monthly-care-operations-note",
+      category: "Monthly care",
+      layout: "linkedin-care-operations-note",
+      proofPoint: "monthly updates as care operations rhythm",
+      visualPrompt: "professional care operations dashboard with monthly family update and partner workflow",
+    },
+    mediaAssets: [],
+  },
 ];
 
 const contentTemplatePacks: ContentTemplatePack[] = [
@@ -3313,6 +3793,31 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day 3", channel: "email", title: "Caregiver education", detail: "Teach one dashboard or alert benefit so the caregiver returns.", templateId: "email-caregiver-education-mini" },
     ],
     aiPrompt: "Adapt this family onboarding pack into a 7-day welcome sequence with one email, one WhatsApp reminder, and one caregiver education message.",
+  },
+  {
+    id: "monthly-care-digest",
+    title: "Monthly care digest",
+    focus: "Turn daily VYVA signals into a recurring family update and partner-ready proof story.",
+    description: "A recurring five-channel pack for monthly family summaries, WhatsApp replies, social proof, and partner operations notes.",
+    templateIds: [
+      "email-monthly-care-digest",
+      "whatsapp-monthly-care-checkin",
+      "facebook-monthly-care-story",
+      "instagram-monthly-care-carousel",
+      "linkedin-monthly-care-operations-note",
+    ],
+    heroTemplateId: "email-monthly-care-digest",
+    studioPlayId: "monthly-care-digest",
+    toneId: "warm",
+    angleId: "proof",
+    sequence: [
+      { offset: "Month end", channel: "email", title: "Family digest", detail: "Send the calm monthly care update with steady signals, changes, and one next step.", templateId: "email-monthly-care-digest" },
+      { offset: "Next day", channel: "whatsapp", title: "Reply prompt", detail: "Collect a simple family reply so follow-up is visible.", templateId: "whatsapp-monthly-care-checkin" },
+      { offset: "Day 3", channel: "instagram", title: "Saveable recap", detail: "Turn the monthly care routine into a visual story people can save.", templateId: "instagram-monthly-care-carousel" },
+      { offset: "Day 5", channel: "facebook", title: "Family proof", detail: "Share the public story of small care signals becoming calmer care.", templateId: "facebook-monthly-care-story" },
+      { offset: "Day 7", channel: "linkedin", title: "Partner operations note", detail: "Frame monthly updates as a partner-ready operating rhythm.", templateId: "linkedin-monthly-care-operations-note" },
+    ],
+    aiPrompt: "Adapt this monthly care digest pack for one audience segment, one market, and one month. Use real VYVA signal categories where available, stay non-clinical, and turn the update into a family email, reply prompt, social proof, and partner operations note.",
   },
   {
     id: "partner-growth",
@@ -3412,6 +3917,29 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day 1", channel: "linkedin", title: "Partner handoff", detail: "Share the partner angle and invite a community pathway conversation.", templateId: "linkedin-community-partner-invite" },
     ],
     aiPrompt: "Adapt this local event relationship pack for a specific country, city, neighbourhood, event type, audience, and care-team next step. Keep the online campaign, partner handoff, and post-event follow-up aligned.",
+  },
+  {
+    id: "offline-direct-outreach",
+    title: "Offline and direct outreach",
+    focus: "Coordinate SMS, phone, print, and in-person event handoffs with the online campaign.",
+    description: "Planning templates for real-world outreach: SMS reminders, partner call scripts, printable flyers, and local event host handoffs.",
+    templateIds: [
+      "sms-local-event-reminder",
+      "phone-partner-followup-script",
+      "print-community-flyer",
+      "event-host-handoff-brief",
+    ],
+    heroTemplateId: "event-host-handoff-brief",
+    studioPlayId: "local-event",
+    toneId: "direct",
+    angleId: "local",
+    sequence: [
+      { offset: "Week -2", channel: "print", title: "Print handoff", detail: "Prepare flyer or direct-mail copy for the local partner or venue.", templateId: "print-community-flyer" },
+      { offset: "Week -1", channel: "phone", title: "Partner call", detail: "Call the host or referral partner and agree the handoff route.", templateId: "phone-partner-followup-script" },
+      { offset: "Day -1", channel: "sms", title: "Direct reminder", detail: "Send the short reminder to opted-in direct contacts.", templateId: "sms-local-event-reminder" },
+      { offset: "Day 0", channel: "event", title: "Host handoff", detail: "Run the event checklist and log follow-up owners.", templateId: "event-host-handoff-brief" },
+    ],
+    aiPrompt: "Turn this offline/direct pack into an operational local outreach plan with owner, timing, consent checks, print handoff, call script, SMS reminder, and post-event follow-up.",
   },
   {
     id: "retention-feedback",
@@ -3525,12 +4053,20 @@ function newCampaignChannelDraft(channel: Channel = "email", status: CampaignSta
   };
 }
 
+function campaignDraftChannels(draft: Pick<CampaignDraft, "channel" | "channels">): Channel[] {
+  const channels = [draft.channel, ...(draft.channels ?? [])]
+    .filter((channel): channel is Channel => CHANNELS.includes(channel as Channel));
+  return Array.from(new Set(channels));
+}
+
 function emptyCampaignDraft(): CampaignDraft {
   return {
     name: "",
     audienceType: "b2c",
     channel: "email",
+    channels: ["email"],
     contentAssetId: "",
+    channelContentAssetIds: {},
     status: "draft",
     scheduleStartsAt: "",
     scheduleEndsAt: "",
@@ -3571,6 +4107,36 @@ function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
     designJsonText: JSON.stringify(template.designJson, null, 2),
     mediaAssetsText: JSON.stringify(template.mediaAssets ?? [], null, 2),
   };
+}
+
+function contentAssetMatchesTemplatePack(content: ContentAsset, pack: ContentTemplatePack, template: ContentTemplate) {
+  if (content.channel !== template.channel || content.status === "archived") return false;
+  const metadata = recordValue(content.metadata);
+  const designJson = recordValue(content.designJson);
+  const lovableId = lower(content.lovableExternalId);
+  const templateRefs = [
+    template.id,
+    `template:${template.id}`,
+    `content_template:${template.id}`,
+    `saved_email_template:${template.id}`,
+    `social_post:${template.id}`,
+  ].map(lower);
+  const metadataTemplateId = lower(displayText(metadata.templateId));
+  const metadataPackId = lower(displayText(metadata.packId));
+  const designTemplateId = lower(displayText(designJson.templateId));
+  const titleMatches = lower(content.title) === lower(template.title);
+  return templateRefs.includes(lovableId)
+    || templateRefs.includes(metadataTemplateId)
+    || templateRefs.includes(designTemplateId)
+    || (metadataPackId === lower(pack.id) && (metadataTemplateId === lower(template.id) || titleMatches));
+}
+
+function scheduleWithDelay(baseIso: string | null, delayHours: number) {
+  if (!baseIso) return null;
+  const date = new Date(baseIso);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(date.getHours() + Math.max(0, delayHours));
+  return date.toISOString();
 }
 
 function experimentCtaLabel(content: ContentAsset | null, campaign: Campaign) {
@@ -3708,6 +4274,30 @@ function contentDraftFromCampaignDraft(draft: CampaignDraft, targetAudience: Mar
     }),
     mediaAssetsText: "[]",
   };
+}
+
+function contentDraftFromCampaignEditChannel(
+  draft: CampaignEditDraft,
+  channelDraft: CampaignChannelDraft,
+  targetAudience: MarketingAudience | null,
+): ContentDraft {
+  const channels = campaignChannelsWithPrimary(draft);
+  const contentAssetIds = Object.fromEntries(channels.map((item) => [item.channel, item.contentAssetId])) as Partial<Record<Channel, string>>;
+  return contentDraftFromCampaignDraft({
+    name: draft.name,
+    audienceType: draft.audienceType,
+    channel: channelDraft.channel,
+    channels: channels.map((item) => item.channel),
+    contentAssetId: channelDraft.contentAssetId,
+    channelContentAssetIds: contentAssetIds,
+    status: draft.status === "scheduled" ? "scheduled" : "draft",
+    scheduleStartsAt: channelDraft.scheduledAt || draft.scheduleStartsAt,
+    scheduleEndsAt: draft.scheduleEndsAt,
+    objective: draft.objective,
+    targetAudienceId: draft.targetAudienceId,
+    recipientFilter: draft.recipientFilter,
+    snapshotRecipients: false,
+  }, targetAudience);
 }
 
 function templateGapStudioPlayId(channel: Channel, audienceType: Audience): CampaignStudioPlayId {
@@ -3938,6 +4528,105 @@ function campaignTargetAudience(campaign: Campaign, audiences: MarketingAudience
   return audiences.find((audience) => refs.some((reference) => audienceMatchesReference(audience, reference))) ?? null;
 }
 
+function campaignRowReadiness(campaign: Campaign, contentById: ReadonlyMap<string, ContentAsset>, audiences: MarketingAudience[]): CampaignRowReadiness {
+  const targetAudience = campaignTargetAudience(campaign, audiences);
+  const channels = campaign.channels;
+  const missingContentChannels = channels.filter((channel) => !channel.contentAssetId || !contentById.has(channel.contentAssetId));
+  const emailChannels = channels.filter((channel) => channel.channel === "email");
+  const hasEmailSendPath = emailChannels.some((channel) => Boolean(channel.contentAssetId && contentById.has(channel.contentAssetId)));
+  const hasPlanningOnlyChannels = channels.some((channel) => channel.channel !== "email");
+  const targetAudienceNeedsMapping = Boolean(targetAudience && targetAudience.memberCount > 0 && targetAudience.mappedMemberCount === 0);
+  const needsSchedule = ["scheduled", "published"].includes(campaign.status) && !campaign.scheduleStartsAt;
+  const needsRecipients = hasEmailSendPath && campaign.recipientCount <= 0;
+  const checks = [
+    channels.length > 0,
+    missingContentChannels.length === 0,
+    !targetAudienceNeedsMapping,
+    !needsSchedule,
+    !needsRecipients,
+  ];
+  const readyCount = checks.filter(Boolean).length;
+  const totalCount = checks.length;
+
+  if (channels.length === 0) {
+    return {
+      state: "blocked",
+      label: "No channels",
+      detail: "Add at least one channel before this can move forward.",
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (missingContentChannels.length > 0) {
+    return {
+      state: "blocked",
+      label: "Needs content",
+      detail: `Attach content for ${missingContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")}.`,
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (needsRecipients) {
+    return {
+      state: "blocked",
+      label: "Snapshot recipients",
+      detail: "Email has content, but no saved recipients yet.",
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (targetAudienceNeedsMapping) {
+    return {
+      state: "needs_action",
+      label: "Map audience",
+      detail: `${targetAudience?.name ?? "Audience"} has no mapped contacts yet.`,
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (needsSchedule) {
+    return {
+      state: "needs_action",
+      label: "Add schedule",
+      detail: "Scheduled or published campaigns need a start time.",
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (hasEmailSendPath) {
+    return {
+      state: "ready",
+      label: "Ready to send",
+      detail: `${campaign.recipientCount} saved recipient${campaign.recipientCount === 1 ? "" : "s"} and email content linked.`,
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (hasPlanningOnlyChannels) {
+    return {
+      state: "planning",
+      label: "Manual handoff",
+      detail: "Content is linked for planning/tracking channels.",
+      readyCount,
+      totalCount,
+    };
+  }
+
+  return {
+    state: "needs_action",
+    label: "Review",
+    detail: "Open details to finish campaign setup.",
+    readyCount,
+    totalCount,
+  };
+}
+
 function campaignMetadataWithTarget(existingMetadata: unknown, targetAudience: MarketingAudience | null) {
   const metadata = { ...recordValue(existingMetadata) };
   for (const key of ["targetAudience", "targetAudienceId", "audienceId", "audienceListId", "listId", "lovableAudienceId", "audienceExternalId", "audience_external_id", "audienceList"]) {
@@ -3952,6 +4641,94 @@ function campaignMetadataWithTarget(existingMetadata: unknown, targetAudience: M
         targetAudience: targetAudienceSnapshot,
       }
     : metadata;
+}
+
+function normalizeManualPublishResultStatus(value: unknown): ManualPublishResultStatus {
+  return value === "scheduled" || value === "blocked" || value === "needs_follow_up" ? value : "published";
+}
+
+function emptyManualPublishTrackerDraft(channel: Channel = "linkedin", scheduledAt = ""): ManualPublishTrackerDraft {
+  return {
+    channel,
+    result: "published",
+    url: "",
+    notes: "",
+    publishedAt: scheduledAt || toDateTimeLocal(new Date().toISOString()),
+    audienceReached: "",
+    engagements: "",
+  };
+}
+
+function manualPublishResultsFromMetadata(metadata: unknown): ManualPublishResult[] {
+  const results = recordValue(metadata).manualPublishResults;
+  if (!Array.isArray(results)) return [];
+  return results.flatMap((item) => {
+    const record = recordValue(item);
+    const channel = record.channel;
+    const publishedAt = record.publishedAt;
+    const recordedAt = record.recordedAt;
+    if (!CHANNELS.includes(channel as Channel) || typeof publishedAt !== "string" || !publishedAt) return [];
+    return [{
+      channel: channel as Channel,
+      result: normalizeManualPublishResultStatus(record.result),
+      url: typeof record.url === "string" && record.url.trim() ? record.url.trim() : undefined,
+      notes: typeof record.notes === "string" && record.notes.trim() ? record.notes.trim() : undefined,
+      publishedAt,
+      audienceReached: typeof record.audienceReached === "number" && Number.isFinite(record.audienceReached) ? record.audienceReached : undefined,
+      engagements: typeof record.engagements === "number" && Number.isFinite(record.engagements) ? record.engagements : undefined,
+      recordedAt: typeof recordedAt === "string" && recordedAt ? recordedAt : publishedAt,
+    }];
+  });
+}
+
+function manualPublishResultsFromMetadataText(value: string) {
+  try {
+    return manualPublishResultsFromMetadata(parseJsonText(value, "Campaign metadata"));
+  } catch {
+    return [];
+  }
+}
+
+function summarizeManualPublishResults(results: ManualPublishResult[]): ManualPublishSummary {
+  const datedResults = [...results].sort((a, b) => {
+    const bTime = new Date(b.recordedAt || b.publishedAt).getTime();
+    const aTime = new Date(a.recordedAt || a.publishedAt).getTime();
+    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+  });
+  return {
+    count: datedResults.length,
+    latest: datedResults[0] ?? null,
+    reached: datedResults.reduce((sum, result) => sum + (result.audienceReached ?? 0), 0),
+    engagements: datedResults.reduce((sum, result) => sum + (result.engagements ?? 0), 0),
+    followUps: datedResults.filter((result) => result.result === "needs_follow_up" || result.result === "blocked").length,
+  };
+}
+
+function campaignMetadataWithManualPublishResult(existingMetadata: unknown, result: ManualPublishResult) {
+  const metadata = { ...recordValue(existingMetadata) };
+  const previousResults = manualPublishResultsFromMetadata(metadata);
+  return {
+    ...metadata,
+    manualPublishResults: [result, ...previousResults].slice(0, 25),
+    lastManualPublishResult: result,
+  };
+}
+
+function optionalManualMetric(value: string, label: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${label} must be 0 or more.`);
+  }
+  return Math.round(parsed);
+}
+
+function isoDateTimeFromTracker(value: string) {
+  if (!value) return new Date().toISOString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error("Publish time must be a valid date.");
+  return date.toISOString();
 }
 
 function emptyCampaignEditDraft(): CampaignEditDraft {
@@ -4636,16 +5413,16 @@ function campaignStudioPlayById(id: CampaignStudioPlayId) {
 
 function campaignIntentPlay(brief: string) {
   const text = lower(brief);
+  if (campaignIntentHasAny(text, ["monthly", "newsletter", "digest", "roundup", "report", "summary"])) return campaignStudioPlayById("monthly-care-digest");
   if (campaignIntentHasAny(text, ["webinar", "session", "demo", "professional session"])) return campaignStudioPlayById("partner-webinar");
   if (campaignIntentHasAny(text, ["referral", "refer", "provider", "partner follow", "partner nurture"])) return campaignStudioPlayById("referral-partner-nurture");
   if (campaignIntentHasAny(text, ["partner", "b2b", "care home", "clinic", "pharmacy", "provider"])) return campaignStudioPlayById("b2b-partner-outreach");
   if (campaignIntentHasAny(text, ["event", "activity", "workshop", "community", "madrid", "barcelona", "valencia", "local"])) return campaignStudioPlayById("local-event");
+  if (campaignIntentHasAny(text, ["inactive", "quiet", "winback", "win back", "reactivate", "reactivation"])) return campaignStudioPlayById("reactivation");
   if (campaignIntentHasAny(text, ["caregiver", "family", "invite", "welcome", "onboard", "onboarding"])) return campaignStudioPlayById("caregiver-onboarding");
   if (campaignIntentHasAny(text, ["profile", "complete", "setup", "account"])) return campaignStudioPlayById("profile-completion");
   if (campaignIntentHasAny(text, ["medication", "medicine", "routine", "pill"])) return campaignStudioPlayById("medication-routine-education");
   if (campaignIntentHasAny(text, ["feedback", "survey", "questionnaire"])) return campaignStudioPlayById("feedback-survey");
-  if (campaignIntentHasAny(text, ["inactive", "quiet", "winback", "win back", "reactivate", "reactivation"])) return campaignStudioPlayById("reactivation");
-  if (campaignIntentHasAny(text, ["newsletter", "digest", "roundup"])) return campaignStudioPlayById("newsletter-digest");
   if (campaignIntentHasAny(text, ["instagram", "visual", "story", "reel"])) return campaignStudioPlayById("instagram-proof-point");
   if (campaignIntentHasAny(text, ["tiktok", "short video", "myth"])) return campaignStudioPlayById("tiktok-myth-buster");
   return campaignStudioPlayById("product-education");
@@ -4771,6 +5548,9 @@ function campaignDraftFromContentAsset(contentAsset: ContentAsset, play: Campaig
     audienceType: play.audienceType,
     channel: contentAsset.channel,
     contentAssetId: contentAsset.id,
+    channelContentAssetIds: {
+      [contentAsset.channel]: contentAsset.id,
+    },
     status: "draft",
     scheduleStartsAt: "",
     scheduleEndsAt: "",
@@ -5054,6 +5834,141 @@ function topCountLabels(values: Array<string | null | undefined>, fallback = "Un
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
     .slice(0, limit)
     .map((item) => `${item.label} ${item.count}`);
+}
+
+function audienceStrategyBrief(audience: MarketingAudience, contacts: MarketingContact[]): AudienceStrategyBrief {
+  const mappedContacts = contacts.filter((contact) => contactMatchesMemberIds(contact, audience.contactExternalIds));
+  const totalMembers = Math.max(audience.memberCount, audience.contactExternalIds.length, mappedContacts.length);
+  const emailReadyContacts = mappedContacts.filter((contact) => Boolean(recipientForChannel(contact, "email")));
+  const whatsappReadyContacts = mappedContacts.filter((contact) => Boolean(recipientForChannel(contact, "whatsapp")));
+  const reachableContacts = mappedContacts.filter((contact) => Boolean(recipientForChannel(contact, "email") || recipientForChannel(contact, "whatsapp")));
+  const consentReviewContacts = mappedContacts.filter((contact) => contact.consentStatus !== "opted_in");
+  const optedOutCount = mappedContacts.filter((contact) => contact.consentStatus === "opted_out").length;
+  const segmentedCount = mappedContacts.filter((contact) => Boolean(
+    contact.language
+    || contact.category
+    || contact.vertical
+    || contact.market
+    || contact.tags.length
+    || contact.lists.length,
+  )).length;
+  const b2bCount = mappedContacts.filter((contact) => (
+    contact.audienceType === "b2b"
+    || contact.audienceType === "both"
+    || Boolean(contact.companyName || contact.roleLabel)
+  )).length;
+  const b2cCount = mappedContacts.filter((contact) => contact.audienceType === "b2c" || contact.audienceType === "both").length;
+  const audienceHaystack = lower([
+    audience.name,
+    audience.description,
+    audience.listType,
+    audience.source,
+    audience.lovableExternalId,
+    JSON.stringify(audience.rules ?? {}),
+    JSON.stringify(audience.metadata ?? {}),
+  ].filter(Boolean).join(" "));
+  const partnerSignal = ["partner", "provider", "clinic", "pharmacy", "referral", "b2b", "organization", "organisation"].some((signal) => audienceHaystack.includes(signal));
+  const familySignal = ["family", "caregiver", "elder", "senior", "b2c", "user"].some((signal) => audienceHaystack.includes(signal));
+  const localSignal = mappedContacts.some((contact) => Boolean(contact.market)) || ["local", "madrid", "spain", "city", "community", "event"].some((signal) => audienceHaystack.includes(signal));
+  const audienceType: Audience = (b2bCount > 0 && b2cCount > 0)
+    ? "both"
+    : b2bCount > b2cCount || partnerSignal
+      ? "b2b"
+      : b2cCount > 0 || familySignal
+        ? "b2c"
+        : "both";
+  const playId: CampaignStudioPlayId = audienceType === "b2b"
+    ? "b2b-partner-outreach"
+    : localSignal
+      ? "local-event"
+      : consentReviewContacts.length > 0
+        ? "reactivation"
+        : "caregiver-onboarding";
+  const toneId: CampaignStudioToneId = audienceType === "b2b" ? "expert" : localSignal ? "uplifting" : "warm";
+  const angleId: CampaignStudioAngleId = audienceType === "b2b" ? "proof" : localSignal ? "local" : consentReviewContacts.length > 0 ? "balanced" : "action";
+  const primaryChannel: Channel = emailReadyContacts.length >= whatsappReadyContacts.length ? "email" : "whatsapp";
+  const channels = uniqueChannels(audienceType === "b2b"
+    ? [primaryChannel, "linkedin", "email", "whatsapp"]
+    : localSignal
+      ? [primaryChannel, "facebook", "instagram", "whatsapp"]
+      : [primaryChannel, "whatsapp", "email"]);
+  const percent = (value: number, total: number) => total > 0 ? Math.round((value / total) * 100) : 0;
+  const mappedScore = percent(mappedContacts.length, totalMembers || mappedContacts.length);
+  const reachScore = percent(reachableContacts.length, mappedContacts.length);
+  const consentScore = percent(mappedContacts.length - consentReviewContacts.length, mappedContacts.length);
+  const segmentationScore = percent(segmentedCount, mappedContacts.length);
+  const score = mappedContacts.length
+    ? Math.round((mappedScore + reachScore + consentScore + segmentationScore) / 4)
+    : 0;
+  const state: CampaignReadinessState = totalMembers === 0 || mappedContacts.length === 0 || reachableContacts.length === 0
+    ? "blocked"
+    : audience.unmappedContactExternalIds.length > 0 || consentReviewContacts.length > 0 || segmentedCount < mappedContacts.length
+      ? "needs_action"
+      : "ready";
+  const topMarkets = topCountLabels(mappedContacts.map((contact) => contact.market), "Unknown", 2);
+  const topVerticals = topCountLabels(mappedContacts.map((contact) => contact.vertical), "Unknown", 2);
+  const topLanguages = topCountLabels(mappedContacts.map((contact) => contact.language), "Unknown", 2);
+  const nextMove = playId === "b2b-partner-outreach"
+    ? "Build a proof-led partner sequence with one clear intro or demo ask."
+    : playId === "local-event"
+      ? "Build a localised campaign around one place, moment, or community CTA."
+      : playId === "reactivation"
+        ? "Run a soft reactivation campaign after consent and channel cleanup."
+        : "Build a warm onboarding campaign that moves people to one useful care-team action.";
+  const cleanup = audience.unmappedContactExternalIds.length > 0
+    ? `Map ${audience.unmappedContactExternalIds.length} imported list member ID${audience.unmappedContactExternalIds.length === 1 ? "" : "s"} before relying on this list for snapshots.`
+    : consentReviewContacts.length > 0
+      ? `Review consent for ${consentReviewContacts.length} mapped contact${consentReviewContacts.length === 1 ? "" : "s"} before automation.`
+      : segmentedCount < mappedContacts.length
+        ? `Add language, market, tag, category, or vertical data for ${mappedContacts.length - segmentedCount} contact${mappedContacts.length - segmentedCount === 1 ? "" : "s"}.`
+        : "List is ready for campaign planning and recipient snapshots.";
+  const sampleContacts = reachableContacts.slice(0, 3).map((contact) => [
+    contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact",
+    contact.email || contact.whatsappNumber || contact.phoneNumber || "no direct route",
+    contact.companyName || contact.roleLabel || contact.market || "",
+  ].filter(Boolean).join(" - "));
+  const promptText = [
+    `VYVA audience strategy brief: ${audience.name}`,
+    `List type/source: ${audience.listType} / ${audience.source}`,
+    `Audience fit: ${audienceType.toUpperCase()}`,
+    `Readiness: ${readinessLabel(state)} (${score}%)`,
+    `Members: ${mappedContacts.length}/${totalMembers} mapped; ${reachableContacts.length} reachable; ${audience.unmappedContactExternalIds.length} unmapped imported IDs`,
+    `Channels: ${channels.map((channel) => channelLabel[channel]).join(", ")}; primary ${channelLabel[primaryChannel]}`,
+    `Consent: ${consentReviewContacts.length} need review, ${optedOutCount} opted out`,
+    `Segments: markets ${topMarkets.join(" / ") || "Unknown"}; verticals ${topVerticals.join(" / ") || "Unknown"}; languages ${topLanguages.join(" / ") || "Unknown"}`,
+    "",
+    `Recommended move: ${nextMove}`,
+    `Cleanup: ${cleanup}`,
+    sampleContacts.length ? `Sample contacts: ${sampleContacts.join("; ")}` : "Sample contacts: none mapped yet",
+    "",
+    "AI task:",
+    `Create a concise campaign plan for this list. Use ${channels.map((channel) => channelLabel[channel]).join(", ")}. Keep the offer practical, consent-safe, localized when market data exists, and include one human relationship follow-up step after replies or clicks.`,
+  ].join("\n");
+
+  return {
+    audienceType,
+    state,
+    score,
+    playId,
+    toneId,
+    angleId,
+    primaryChannel,
+    channels,
+    totalMembers,
+    mappedContacts,
+    reachableContacts,
+    emailReady: emailReadyContacts.length,
+    whatsappReady: whatsappReadyContacts.length,
+    consentReviewCount: consentReviewContacts.length,
+    optedOutCount,
+    segmentedCount,
+    topMarkets,
+    topVerticals,
+    topLanguages,
+    nextMove,
+    cleanup,
+    promptText,
+  };
 }
 
 function valueMatchesFilter(value: string | null | undefined, filter: string) {
@@ -5997,6 +6912,9 @@ export default function MarketingAdminPage() {
   const [campaignEmailSending, setCampaignEmailSending] = useState(false);
   const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
   const [campaignHandoffCopyFeedback, setCampaignHandoffCopyFeedback] = useState("");
+  const [manualPublishDraft, setManualPublishDraft] = useState<ManualPublishTrackerDraft>(() => emptyManualPublishTrackerDraft());
+  const [manualPublishSaving, setManualPublishSaving] = useState(false);
+  const [manualPublishFeedback, setManualPublishFeedback] = useState("");
   const [dueEmailSending, setDueEmailSending] = useState(false);
   const [dueEmailFeedback, setDueEmailFeedback] = useState("");
   const [message, setMessage] = useState("");
@@ -6243,8 +7161,13 @@ export default function MarketingAdminPage() {
   }, [campaignMetrics]);
 
   const startCampaignEdit = useCallback((campaign: Campaign) => {
+    const firstManualChannel = campaign.channels.find((channel) => channel.channel !== "email" && channel.contentAssetId)?.channel
+      ?? campaign.channels.find((channel) => channel.channel !== "email")?.channel
+      ?? "linkedin";
     setEditingCampaignId(campaign.id);
     setCampaignEditDraft(campaignEditDraftFromCampaign(campaign, audiences));
+    setManualPublishDraft(emptyManualPublishTrackerDraft(firstManualChannel, toDateTimeLocal(campaign.scheduleStartsAt)));
+    setManualPublishFeedback("");
     setConfirmingCampaignDeleteId(null);
     setConfirmingCampaignSendId(null);
     setMessage("");
@@ -6506,6 +7429,33 @@ export default function MarketingAdminPage() {
       state: templates.length >= 6 ? "ready" as CampaignReadinessState : templates.length >= 4 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
     };
   }), []);
+  const campaignGoalPresetInsights = useMemo<CampaignGoalPresetInsight[]>(() => campaignGoalPresets.map((preset) => {
+    const play = campaignIntentPlay(preset.brief);
+    const linkedPack = contentTemplatePacksWithStats.find(({ pack }) => pack.id === preset.templatePackId) ?? null;
+    const selectedChannels = uniqueChannels([...preset.channels, ...(linkedPack?.channels ?? [])]);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const matchingContacts = contacts.filter((contact) => (
+      campaignAllowsContact(play.audienceType, contact.audienceType)
+      && contactMatchesAudienceList(contact, targetAudience)
+    ));
+    const reachableContacts = matchingContacts.filter((contact) => (
+      selectedChannels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+    )).length;
+    const templateCount = linkedPack?.templates.length ?? 0;
+    const state: CampaignReadinessState = reachableContacts > 0 && templateCount > 0
+      ? "ready"
+      : reachableContacts > 0 || templateCount > 0 ? "planning" : "needs_action";
+    return {
+      preset,
+      play,
+      linkedPack,
+      targetAudience,
+      selectedChannels,
+      reachableContacts,
+      templateCount,
+      state,
+    };
+  }), [audiences, contacts, contentTemplatePacksWithStats]);
   const visibleContentTemplates = useMemo(() => contentTemplateGallery.filter((template) => {
     const matchesText = matchesSearch(contentTemplateSearch, [
       template.id,
@@ -7791,6 +8741,10 @@ export default function MarketingAdminPage() {
     () => content.filter((item) => item.channel === campaignDraft.channel && item.status !== "archived"),
     [campaignDraft.channel, content],
   );
+  const campaignDraftContentOptionsByChannel = useMemo(() => new Map(CHANNELS.map((channel) => [
+    channel,
+    content.filter((item) => item.channel === channel && item.status !== "archived"),
+  ] as const)), [content]);
   const campaignEditPrimaryContentOptions = useMemo(() => {
     const options = content.filter((item) => item.channel === campaignEditDraft.channel && item.status !== "archived");
     const selected = campaignEditDraft.contentAssetId ? content.find((item) => item.id === campaignEditDraft.contentAssetId) ?? null : null;
@@ -7803,6 +8757,35 @@ export default function MarketingAdminPage() {
   const selectedCampaignDraftContent = useMemo(
     () => campaignDraft.contentAssetId ? contentById.get(campaignDraft.contentAssetId) ?? null : null,
     [campaignDraft.contentAssetId, contentById],
+  );
+  const campaignDraftSelectedChannels = useMemo(
+    () => campaignDraftChannels(campaignDraft),
+    [campaignDraft],
+  );
+  const campaignDraftContentIdByChannel = useMemo(() => {
+    const contentAssetIds = campaignDraft.channelContentAssetIds ?? {};
+    const entries = campaignDraftSelectedChannels.map((channel) => [
+      channel,
+      channel === campaignDraft.channel
+        ? campaignDraft.contentAssetId || contentAssetIds[channel] || ""
+        : contentAssetIds[channel] || "",
+    ] as const);
+    return Object.fromEntries(entries) as Partial<Record<Channel, string>>;
+  }, [campaignDraft, campaignDraftSelectedChannels]);
+  const selectedCampaignDraftContentByChannel = useMemo(() => new Map(campaignDraftSelectedChannels.map((channel) => {
+    const contentId = campaignDraftContentIdByChannel[channel];
+    return [channel, contentId ? contentById.get(contentId) ?? null : null] as const;
+  })), [campaignDraftContentIdByChannel, campaignDraftSelectedChannels, contentById]);
+  const campaignDraftMissingContentChannels = useMemo(
+    () => campaignDraftSelectedChannels.filter((channel) => !selectedCampaignDraftContentByChannel.get(channel)),
+    [campaignDraftSelectedChannels, selectedCampaignDraftContentByChannel],
+  );
+  const campaignDraftPack = useMemo(
+    () => campaignPlannerChannelPacks.find((pack) => (
+      pack.channels.length === campaignDraftSelectedChannels.length
+      && pack.channels.every((channel, index) => channel === campaignDraftSelectedChannels[index])
+    )) ?? null,
+    [campaignDraftSelectedChannels],
   );
   const visibleCampaignStudioPlays = useMemo(
     () => campaignStudioCategory === "all"
@@ -9181,13 +10164,16 @@ export default function MarketingAdminPage() {
     return contacts.filter((contact) => {
       if (!campaignAllowsContact(campaignDraft.audienceType, contact.audienceType)) return false;
       if (!contactMatchesAudienceList(contact, selectedCampaignDraftTargetAudience)) return false;
-      if (!recipientForChannel(contact, campaignDraft.channel)) return false;
+      if (!campaignDraftSelectedChannels.some((channel) => recipientForChannel(contact, channel))) return false;
       return !filter || contactSearchText(contact).includes(filter);
     });
-  }, [campaignDraft, contacts, selectedCampaignDraftTargetAudience]);
+  }, [campaignDraft, campaignDraftSelectedChannels, contacts, selectedCampaignDraftTargetAudience]);
   const campaignDraftReadinessItems = useMemo<CampaignReadinessItem[]>(() => {
     const channelCapability = sendCapabilityByChannel.get(campaignDraft.channel);
     const emailSendEnabled = campaignDraft.channel === "email" && channelCapability?.sendCapability === "enabled" && !channelCapability.locked;
+    const manualChannels = campaignDraftSelectedChannels.filter((channel) => channel !== "email");
+    const linkedContentCount = campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length;
+    const primaryHasContent = Boolean(selectedCampaignDraftContent);
     return [
       {
         key: "name",
@@ -9198,12 +10184,24 @@ export default function MarketingAdminPage() {
       {
         key: "content",
         title: "Content",
-        state: selectedCampaignDraftContent ? "ready" : campaignDraftContentOptions.length ? "needs_action" : "blocked",
-        detail: selectedCampaignDraftContent
-          ? `${selectedCampaignDraftContent.title} is linked for ${channelLabel[campaignDraft.channel]}.`
-          : campaignDraftContentOptions.length
-            ? `${campaignDraftContentOptions.length} ${channelLabel[campaignDraft.channel]} asset${campaignDraftContentOptions.length === 1 ? "" : "s"} available. Pick one before launch.`
-            : `No active ${channelLabel[campaignDraft.channel]} content assets yet.`,
+        state: campaignDraftMissingContentChannels.length === 0
+          ? "ready"
+          : primaryHasContent || campaignDraftContentOptions.length ? "needs_action" : "blocked",
+        detail: campaignDraftMissingContentChannels.length === 0
+          ? `${linkedContentCount} content asset${linkedContentCount === 1 ? "" : "s"} linked across ${formatChannelList(campaignDraftSelectedChannels)}.`
+          : primaryHasContent
+            ? `${selectedCampaignDraftContent.title} is linked for ${channelLabel[campaignDraft.channel]}; add content for ${formatChannelList(campaignDraftMissingContentChannels)} before launch.`
+            : campaignDraftContentOptions.length
+              ? `${campaignDraftContentOptions.length} ${channelLabel[campaignDraft.channel]} asset${campaignDraftContentOptions.length === 1 ? "" : "s"} available. Pick one before launch.`
+              : `No active ${channelLabel[campaignDraft.channel]} content assets yet.`,
+      },
+      {
+        key: "channels",
+        title: "Channel pack",
+        state: campaignDraftSelectedChannels.length > 1 ? "planning" : "ready",
+        detail: campaignDraftSelectedChannels.length > 1
+          ? `${campaignDraftSelectedChannels.length} routes will be created: ${formatChannelList(campaignDraftSelectedChannels)}. Link route content below before save when available.`
+          : `${channelLabel[campaignDraft.channel]} only.`,
       },
       {
         key: "audience",
@@ -9222,7 +10220,7 @@ export default function MarketingAdminPage() {
         detail: campaignDraft.snapshotRecipients
           ? campaignDraftRecipientPreview.length > 0
             ? `${campaignDraftRecipientPreview.length} recipient${campaignDraftRecipientPreview.length === 1 ? "" : "s"} will be snapshotted.`
-            : "No eligible recipients match this channel, list, and filter."
+            : "No eligible recipients match these channels, list, and filter."
           : "Snapshot is off; recipients can be saved later.",
       },
       {
@@ -9238,14 +10236,18 @@ export default function MarketingAdminPage() {
         title: "Channel mode",
         state: emailSendEnabled ? "ready" : "planning",
         detail: emailSendEnabled
-          ? "Email sending is enabled through Resend after save."
-          : `${channelLabel[campaignDraft.channel]} will be saved for planning or manual handoff.`,
+          ? manualChannels.length
+            ? `Email can send through Resend; ${formatChannelList(manualChannels)} stay as manual handoff routes.`
+            : "Email sending is enabled through Resend after save."
+          : `${formatChannelList(campaignDraftSelectedChannels)} will be saved for planning or manual handoff.`,
       },
     ];
   }, [
     campaignDraft,
     campaignDraftContentOptions.length,
+    campaignDraftMissingContentChannels,
     campaignDraftRecipientPreview.length,
+    campaignDraftSelectedChannels,
     selectedCampaignDraftContent,
     selectedCampaignDraftTargetAudience,
     sendCapabilityByChannel,
@@ -9318,25 +10320,33 @@ export default function MarketingAdminPage() {
     setMessage(`Playbook loaded: ${recommendation.play.label}. Review the channel pack, then improve with AI or create the campaign.`);
   }
 
-  function applyCampaignIntentBrief() {
-    const brief = campaignIntentBrief.trim();
+  function applyCampaignIntentBriefText(
+    rawBrief: string,
+    source: "brief" | "quick_start" | "goal_preset" = "brief",
+    overrides: Partial<Pick<CampaignStudioState, "toneId" | "angleId" | "channel" | "selectedChannels" | "scheduleStartsAt" | "targetAudienceId">> = {},
+  ) {
+    const brief = rawBrief.trim();
     if (!brief) {
       setCampaignStudioFeedback("Add a short campaign brief first.");
       return;
     }
 
+    setCampaignIntentBrief(brief);
     const match = campaignIntentMatch(brief, audiences);
-    const primaryChannel = match.channels[0] ?? match.play.defaultChannel;
-    const scheduleStartsAt = campaignStudioDefaultSchedule(match.play);
+    const primaryChannel = overrides.channel ?? match.channels[0] ?? match.play.defaultChannel;
+    const selectedChannels = normalizeCampaignStudioChannels(primaryChannel, overrides.selectedChannels ?? match.channels);
+    const scheduleStartsAt = overrides.scheduleStartsAt ?? campaignStudioDefaultSchedule(match.play);
+    const targetAudienceId = overrides.targetAudienceId ?? match.targetAudience?.id ?? "";
+    const targetAudience = targetAudienceId ? audiences.find((audience) => audience.id === targetAudienceId) ?? null : match.targetAudience;
     setCampaignStudioCategory(match.play.categoryId);
     updateCampaignStudio({
       playId: match.play.id,
-      toneId: match.toneId,
-      angleId: match.angleId,
+      toneId: overrides.toneId ?? match.toneId,
+      angleId: overrides.angleId ?? match.angleId,
       channel: primaryChannel,
-      selectedChannels: match.channels,
+      selectedChannels,
       scheduleStartsAt,
-      targetAudienceId: match.targetAudience?.id ?? "",
+      targetAudienceId,
     });
     setCampaignDraft((draft) => ({
       ...draft,
@@ -9348,12 +10358,53 @@ export default function MarketingAdminPage() {
       scheduleStartsAt,
       scheduleEndsAt: "",
       objective: [match.play.objective, "", `Campaign brief: ${brief}`].join("\n"),
-      targetAudienceId: match.targetAudience?.id ?? "",
-      recipientFilter: match.targetAudience?.name ?? "",
-      snapshotRecipients: Boolean(match.targetAudience?.mappedMemberCount || match.targetAudience?.memberCount),
+      targetAudienceId,
+      recipientFilter: targetAudience?.name ?? "",
+      snapshotRecipients: Boolean(targetAudience?.mappedMemberCount || targetAudience?.memberCount),
     }));
-    setCampaignStudioFeedback(`Brief matched to ${match.play.label}: ${match.reasons.join(", ")}.`);
-    setMessage(`Campaign brief matched to ${match.play.label}. Review the studio plan, then improve with AI or create the campaign.`);
+    const feedbackPrefix = source === "goal_preset" ? "Goal preset matched to" : source === "quick_start" ? "Quick idea matched to" : "Brief matched to";
+    const messagePrefix = source === "goal_preset" ? "Goal preset matched to" : source === "quick_start" ? "Quick idea matched to" : "Campaign brief matched to";
+    setCampaignStudioFeedback(`${feedbackPrefix} ${match.play.label}: ${match.reasons.join(", ")}.`);
+    setMessage(`${messagePrefix} ${match.play.label}. Review the studio plan, then improve with AI or create the campaign.`);
+  }
+
+  function applyCampaignIntentBrief() {
+    applyCampaignIntentBriefText(campaignIntentBrief);
+  }
+
+  function applyCampaignIntentQuickStart(quickStart: CampaignIntentQuickStart) {
+    applyCampaignIntentBriefText(quickStart.brief, "quick_start");
+  }
+
+  function applyCampaignGoalPreset(preset: CampaignGoalPreset) {
+    const packMatch = contentTemplatePacksWithStats.find(({ pack }) => pack.id === preset.templatePackId) ?? null;
+    const packChannels = packMatch?.channels ?? [];
+    const selectedChannels = uniqueChannels([...preset.channels, ...packChannels]);
+    applyCampaignIntentBriefText(preset.brief, "goal_preset", {
+      toneId: preset.toneId,
+      angleId: preset.angleId,
+      channel: preset.channels[0] ?? packMatch?.heroTemplate?.channel ?? "email",
+      selectedChannels,
+    });
+    if (packMatch) {
+      setContentTemplatePackFilter(packMatch.pack.id);
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+      if (packMatch.heroTemplate) {
+        setContentDraft(contentDraftFromTemplate(packMatch.heroTemplate));
+        setSelectedContentId(null);
+        setEditingContentId(null);
+        setContentEditDraft(null);
+        setContentDrawerMode(null);
+      }
+      const feedback = `Goal preset matched to ${campaignIntentPlay(preset.brief).label} and loaded ${packMatch.pack.title} template pack.`;
+      setCampaignStudioFeedback(feedback);
+      setContentActionFeedback(`Loaded ${packMatch.pack.title} pack from goal: ${preset.title}.`);
+      setContentFeedback(packMatch.heroTemplate ? `Starter template applied: ${packMatch.heroTemplate.title}.` : `Template pack loaded: ${packMatch.pack.title}.`);
+      setMessage(`${preset.title} is ready with ${packMatch.pack.title} templates. Review the studio, improve with AI, then create the campaign.`);
+    }
   }
 
   function focusCampaignStudioChannel(channel: Channel) {
@@ -9416,12 +10467,21 @@ export default function MarketingAdminPage() {
   }
 
   function applyCampaignPlannerRecipe(recipe: CampaignPlannerRecipe) {
+    const recipeChannels = recipe.recommendation.channels.length ? recipe.recommendation.channels : [recipe.channel];
+    const recipeContentIds = Object.fromEntries(recipeChannels.map((channel) => {
+      const matchedContent = channel === recipe.channel
+        ? recipe.matchedContent
+        : content.find((item) => item.channel === channel && item.status !== "archived") ?? null;
+      return [channel, matchedContent?.id ?? ""];
+    })) as Partial<Record<Channel, string>>;
     setCampaignDraft({
       ...emptyCampaignDraft(),
       name: recipe.play.campaignName,
       audienceType: recipe.play.audienceType,
       channel: recipe.channel,
-      contentAssetId: recipe.matchedContent?.id ?? "",
+      channels: recipeChannels,
+      contentAssetId: recipeContentIds[recipe.channel] ?? "",
+      channelContentAssetIds: recipeContentIds,
       status: recipe.status,
       scheduleStartsAt: recipe.scheduleStartsAt,
       scheduleEndsAt: "",
@@ -9457,6 +10517,10 @@ export default function MarketingAdminPage() {
         ...current,
         channel: result.content.channel,
         contentAssetId: result.content.id,
+        channelContentAssetIds: {
+          ...current.channelContentAssetIds,
+          [result.content.channel]: result.content.id,
+        },
       }));
       setSelectedContentId(result.content.id);
       setEditingContentId(result.content.id);
@@ -9740,17 +10804,23 @@ export default function MarketingAdminPage() {
     const scheduledAt = campaignDraft.scheduleStartsAt ? new Date(campaignDraft.scheduleStartsAt).toISOString() : null;
     const scheduleEndsAt = campaignDraft.scheduleEndsAt ? new Date(campaignDraft.scheduleEndsAt).toISOString() : null;
     const targetAudienceSnapshot = audienceSnapshot(selectedCampaignDraftTargetAudience);
+    const draftChannels = campaignDraftSelectedChannels;
     const recipients = campaignDraft.snapshotRecipients
-      ? campaignDraftRecipientPreview.map((contact) => ({
-        contactId: contact.id,
-        channel: campaignDraft.channel,
-        recipient: recipientForChannel(contact, campaignDraft.channel) ?? contact.id,
-        status: "planned",
-        scheduledAt,
-        snapshot: {
-          ...recipientSnapshot(contact),
-          ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
-        },
+      ? campaignDraftRecipientPreview.flatMap((contact) => draftChannels.flatMap((channel) => {
+        const recipient = recipientForChannel(contact, channel);
+        if (!recipient) return [];
+        return [{
+          contactId: contact.id,
+          channel,
+          recipient,
+          status: "planned",
+          scheduledAt,
+          snapshot: {
+            ...recipientSnapshot(contact),
+            ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
+            plannerChannel: channel,
+          },
+        }];
       }))
       : undefined;
     setCampaignSaving(true);
@@ -9765,13 +10835,20 @@ export default function MarketingAdminPage() {
           objective: campaignDraft.objective,
           scheduleStartsAt: scheduledAt,
           scheduleEndsAt,
-          metadata: campaignMetadataWithTarget({}, selectedCampaignDraftTargetAudience),
-          channels: [{
-            channel: campaignDraft.channel,
-            contentAssetId: campaignDraft.contentAssetId || null,
+          metadata: campaignMetadataWithTarget({
+            planner: {
+              primaryChannel: campaignDraft.channel,
+              selectedChannels: draftChannels,
+              channelPack: campaignDraftPack?.id ?? "custom",
+              contentAssetIds: campaignDraftContentIdByChannel,
+            },
+          }, selectedCampaignDraftTargetAudience),
+          channels: draftChannels.map((channel) => ({
+            channel,
+            contentAssetId: campaignDraftContentIdByChannel[channel] || null,
             status: campaignDraft.status,
             scheduledAt,
-          }],
+          })),
           ...(recipients ? { recipients } : {}),
         }),
       });
@@ -9800,6 +10877,8 @@ export default function MarketingAdminPage() {
     setConfirmingCampaignSendId(null);
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
+    setManualPublishDraft(emptyManualPublishTrackerDraft());
+    setManualPublishFeedback("");
     setCampaignEditDraft(emptyCampaignEditDraft());
   }
 
@@ -9882,6 +10961,7 @@ export default function MarketingAdminPage() {
     });
     setCampaignEmailFeedback("");
     setTestEmailFeedback("");
+    setManualPublishFeedback("");
   }
 
   function addCampaignChannel() {
@@ -9894,6 +10974,7 @@ export default function MarketingAdminPage() {
     }));
     setCampaignEmailFeedback("");
     setTestEmailFeedback("");
+    setManualPublishFeedback("");
   }
 
   function removeCampaignChannel(channelId: string) {
@@ -9912,14 +10993,183 @@ export default function MarketingAdminPage() {
     });
     setCampaignEmailFeedback("");
     setTestEmailFeedback("");
+    setManualPublishFeedback("");
   }
 
-  function markManualCampaignChannelPublished(channelId: string, channel: Channel) {
+  async function createAndLinkCampaignChannelContent(channelId: string) {
+    if (!editingCampaignId) return;
+    const channelDraft = campaignChannelsWithPrimary(campaignEditDraft).find((channel) => channel.id === channelId);
+    if (!channelDraft) {
+      setCampaignEmailFeedback("Campaign channel could not be found.");
+      return;
+    }
+    if (channelDraft.contentAssetId) {
+      setCampaignEmailFeedback(`${channelLabel[channelDraft.channel]} already has content linked.`);
+      return;
+    }
+    if (!campaignEditDraft.name.trim()) {
+      setCampaignEmailFeedback("Campaign name is required before creating channel content.");
+      return;
+    }
+
+    const label = channelLabel[channelDraft.channel];
+    setContentSaving(true);
+    setCampaignSaving(true);
+    setCampaignEmailFeedback(`Creating and linking ${label} content...`);
+    try {
+      const contentDraft = contentDraftFromCampaignEditChannel(campaignEditDraft, channelDraft, selectedCampaignTargetAudience);
+      const contentResult = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+        method: "POST",
+        body: JSON.stringify(contentCreatePayloadFromDraft(contentDraft)),
+      });
+      const channels = campaignChannelsWithPrimary(campaignEditDraft).map((channel) => (
+        channel.id === channelId ? { ...channel, contentAssetId: contentResult.content.id } : channel
+      ));
+      const primary = channels[0] ?? newCampaignChannelDraft();
+      const nextDraft: CampaignEditDraft = {
+        ...campaignEditDraft,
+        channel: primary.channel,
+        contentAssetId: primary.contentAssetId,
+        status: primary.status,
+        scheduleStartsAt: primary.scheduledAt,
+        channels,
+      };
+      const existingMetadata = parseJsonText(nextDraft.metadataText, "Campaign metadata");
+      const result = await api<{ ok?: boolean; campaign?: Campaign }>(`/api/admin/marketing/campaigns/${editingCampaignId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: nextDraft.name,
+          audienceType: nextDraft.audienceType,
+          status: nextDraft.status,
+          objective: nextDraft.objective,
+          scheduleStartsAt: fromDateTimeLocal(nextDraft.scheduleStartsAt),
+          scheduleEndsAt: fromDateTimeLocal(nextDraft.scheduleEndsAt),
+          timezone: nextDraft.timezone,
+          source: nextDraft.source.trim() || "vyva",
+          lovableExternalId: nextDraft.lovableExternalId.trim() || null,
+          metadata: campaignMetadataWithTarget(existingMetadata, selectedCampaignTargetAudience),
+          channels: campaignChannelsPayload(nextDraft),
+        }),
+      });
+      setContent((current) => [contentResult.content, ...current.filter((item) => item.id !== contentResult.content.id)]);
+      setSelectedContentId(contentResult.content.id);
+      setEditingContentId(contentResult.content.id);
+      setContentEditDraft(contentEditDraftFromContent(contentResult.content));
+      setContentDrawerMode("edit");
+      if (result.campaign) {
+        setCampaigns((current) => current.map((campaign) => campaign.id === result.campaign?.id ? result.campaign : campaign));
+        setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
+      } else {
+        setCampaignEditDraft(nextDraft);
+      }
+      const feedback = `${label} content created, linked, and saved to this campaign.`;
+      setContentFeedback(feedback);
+      setContentActionFeedback(feedback);
+      setCampaignEmailFeedback(feedback);
+      setCampaignHandoffCopyFeedback(feedback);
+      setMessage(feedback);
+      setTestEmailFeedback("");
+      setManualPublishFeedback("");
+      await refreshAll();
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : `${label} content could not be created and linked.`;
+      setContentFeedback(messageText);
+      setContentActionFeedback(messageText);
+      setCampaignEmailFeedback(messageText);
+      setMessage(messageText);
+    } finally {
+      setCampaignSaving(false);
+      setContentSaving(false);
+    }
+  }
+
+  function prepareManualCampaignChannelTracking(channelId: string, channel: Channel, scheduledAt: string | null) {
     updateCampaignChannel(channelId, { status: "published" });
+    setManualPublishDraft((draft) => ({
+      ...emptyManualPublishTrackerDraft(channel, toDateTimeLocal(fromDateTimeLocal(scheduledAt || campaignEditDraft.scheduleStartsAt) || new Date().toISOString())),
+      ...(draft.channel === channel ? draft : {}),
+      channel,
+    }));
     const label = channelLabel[channel];
-    setCampaignHandoffCopyFeedback(`${label} marked as published. Save campaign changes to keep this channel status.`);
-    setCampaignEmailFeedback(`${label} marked as published. Save campaign changes to keep this channel status.`);
-    setTestEmailFeedback("");
+    setManualPublishFeedback(`Add the ${label} publish result below, then save it to this campaign.`);
+    setCampaignHandoffCopyFeedback(`${label} result tracker opened.`);
+  }
+
+  async function saveManualPublishResult(campaignId: string) {
+    if (!campaignEditDraft.name.trim()) {
+      setManualPublishFeedback("Campaign name is required before saving a publish result.");
+      return;
+    }
+    if (manualPublishDraft.channel === "email") {
+      setManualPublishFeedback("Use the email send controls for email. Manual tracking is for social, WhatsApp, phone, event, print, and other handoff channels.");
+      return;
+    }
+    setManualPublishSaving(true);
+    setManualPublishFeedback("Saving manual publish result...");
+    try {
+      const existingMetadata = parseJsonText(campaignEditDraft.metadataText, "Campaign metadata");
+      const publishedAt = isoDateTimeFromTracker(manualPublishDraft.publishedAt);
+      const manualResult: ManualPublishResult = {
+        channel: manualPublishDraft.channel,
+        result: manualPublishDraft.result,
+        url: manualPublishDraft.url.trim() || undefined,
+        notes: manualPublishDraft.notes.trim() || undefined,
+        publishedAt,
+        audienceReached: optionalManualMetric(manualPublishDraft.audienceReached, "Audience reached"),
+        engagements: optionalManualMetric(manualPublishDraft.engagements, "Engagements"),
+        recordedAt: new Date().toISOString(),
+      };
+      const metadata = campaignMetadataWithTarget(
+        campaignMetadataWithManualPublishResult(existingMetadata, manualResult),
+        selectedCampaignTargetAudience,
+      );
+      const scheduledAt = fromDateTimeLocal(campaignEditDraft.scheduleStartsAt);
+      const scheduleEndsAt = fromDateTimeLocal(campaignEditDraft.scheduleEndsAt);
+      const channels = campaignChannelsPayload(campaignEditDraft).map((channel) => (
+        channel.channel === manualResult.channel ? { ...channel, status: "published" } : channel
+      ));
+      const result = await api<{ ok?: boolean; campaign?: Campaign }>(`/api/admin/marketing/campaigns/${campaignId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: campaignEditDraft.name,
+          audienceType: campaignEditDraft.audienceType,
+          status: campaignEditDraft.status,
+          objective: campaignEditDraft.objective,
+          scheduleStartsAt: scheduledAt,
+          scheduleEndsAt,
+          timezone: campaignEditDraft.timezone,
+          source: campaignEditDraft.source.trim() || "vyva",
+          lovableExternalId: campaignEditDraft.lovableExternalId.trim() || null,
+          metadata,
+          channels,
+        }),
+      });
+      const label = channelLabel[manualResult.channel];
+      setCampaignEditDraft((draft) => ({
+        ...draft,
+        metadataText: jsonText(metadata),
+        channels: campaignChannelsWithPrimary(draft).map((channel) => (
+          channel.channel === manualResult.channel ? { ...channel, status: "published" } : channel
+        )),
+      }));
+      if (result.campaign) {
+        setCampaigns((current) => current.map((campaign) => campaign.id === result.campaign?.id ? result.campaign : campaign));
+        setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
+      }
+      setManualPublishDraft(emptyManualPublishTrackerDraft(manualResult.channel));
+      setManualPublishFeedback(`${label} publish result saved.`);
+      setCampaignHandoffCopyFeedback(`${label} publish result saved to campaign history.`);
+      setMessage(`${label} publish result saved.`);
+      setCampaignEmailFeedback("");
+      setTestEmailFeedback("");
+      await refreshAll();
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Manual publish result could not be saved.";
+      setManualPublishFeedback(messageText);
+      setMessage(messageText);
+    } finally {
+      setManualPublishSaving(false);
+    }
   }
 
   async function sendTestCampaignEmail(campaignId: string) {
@@ -10784,6 +12034,261 @@ export default function MarketingAdminPage() {
     setCampaignStudioFeedback(`Template pack loaded: ${pack.title}. Review ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")} and improve the sequence with AI.`);
     setMessage(`Template pack loaded: ${pack.title}. Review the studio sequence, then create the campaign pack.`);
     setActiveTab("dashboard");
+  }
+
+  async function createContentAssetsFromTemplatePack(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+    if (!templates.length) {
+      const feedback = `${pack.title} has no templates to save.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    setContentSaving(true);
+    setContentActionFeedback(`Creating ${templates.length} ${pack.title} content asset${templates.length === 1 ? "" : "s"}...`);
+    setContentFeedback("");
+    setMessage(`Creating content assets from ${pack.title}...`);
+    try {
+      const created: ContentAsset[] = [];
+      for (const template of templates) {
+        const draft = contentDraftFromTemplate(template);
+        const response = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+          method: "POST",
+          body: JSON.stringify({
+            ...contentCreatePayloadFromDraft(draft),
+            source: "vyva",
+            lovableExternalId: null,
+            metadata: {
+              generatedFrom: "template_pack",
+              packId: pack.id,
+              packTitle: pack.title,
+              packFocus: pack.focus,
+              templateId: template.id,
+              templateTitle: template.title,
+              studioPlayId: pack.studioPlayId,
+              tone: pack.toneId,
+              angle: pack.angleId,
+              aiPrompt: pack.aiPrompt,
+            },
+          }),
+        });
+        created.push(response.content);
+      }
+
+      const firstCreated = created[0] ?? null;
+      const createdById = new Map(created.map((item) => [item.id, item]));
+      setContent((current) => [
+        ...createdById.values(),
+        ...current.filter((item) => !createdById.has(item.id)),
+      ]);
+      if (firstCreated) {
+        setSelectedContentId(firstCreated.id);
+        setEditingContentId(firstCreated.id);
+        setContentEditDraft(contentEditDraftFromContent(firstCreated));
+        setContentDrawerMode("edit");
+      }
+      setContentTemplatePackFilter(pack.id);
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+      const feedback = `Created ${created.length} ${pack.title} content asset${created.length === 1 ? "" : "s"}. ${firstCreated ? "First asset opened for review." : ""}`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+      await refreshAll();
+      scrollToContentPanel(contentEditorPanelRef);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : `${pack.title} content assets could not be created.`;
+      setContentActionFeedback(errorMessage);
+      setContentFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentSaving(false);
+    }
+  }
+
+  async function createCampaignPlanFromTemplatePack(pack: ContentTemplatePack, templates: ContentTemplate[], heroTemplate: ContentTemplate | null) {
+    if (!templates.length) {
+      const feedback = `${pack.title} has no templates to turn into a campaign.`;
+      setContentActionFeedback(feedback);
+      setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    const play = campaignStudioPlays.find((item) => item.id === pack.studioPlayId) ?? campaignStudioPlays[0];
+    const audienceType = templatePackAudience(pack, heroTemplate, play);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const targetAudienceSnapshot = audienceSnapshot(targetAudience);
+    const scheduleStartsAt = fromDateTimeLocal(campaignStudioDefaultSchedule(play));
+    const routeChannels = uniqueChannels([
+      heroTemplate?.channel ?? play.defaultChannel,
+      ...pack.sequence.map((step) => step.channel),
+      ...templates.map((template) => template.channel),
+    ]);
+    const sequenceTemplates = pack.sequence.map((step) => ({
+      step,
+      template: step.templateId
+        ? templates.find((template) => template.id === step.templateId) ?? contentTemplateGallery.find((template) => template.id === step.templateId) ?? null
+        : null,
+    }));
+    const routeTemplateByChannel = new Map<Channel, ContentTemplate>();
+    for (const channel of routeChannels) {
+      const sequenceTemplate = sequenceTemplates.find((item) => item.step.channel === channel && item.template)?.template;
+      const fallbackTemplate = templates.find((template) => template.channel === channel) ?? heroTemplate ?? templates[0];
+      if (sequenceTemplate || fallbackTemplate) routeTemplateByChannel.set(channel, sequenceTemplate ?? fallbackTemplate);
+    }
+    const eligibleContacts = contacts.filter((contact) => (
+      campaignAllowsContact(audienceType, contact.audienceType)
+      && contactMatchesAudienceList(contact, targetAudience)
+    ));
+
+    setContentSaving(true);
+    setCampaignSaving(true);
+    setContentActionFeedback(`Creating ${pack.title} campaign plan...`);
+    setCampaignStudioFeedback(`Creating ${pack.title} campaign plan with content, channels, and recipient snapshots...`);
+    setMessage(`Creating campaign plan from ${pack.title}...`);
+    try {
+      const contentByTemplateId = new Map<string, ContentAsset>();
+      const createdContent: ContentAsset[] = [];
+
+      for (const template of templates) {
+        const existing = content.find((item) => contentAssetMatchesTemplatePack(item, pack, template));
+        if (existing) {
+          contentByTemplateId.set(template.id, existing);
+          continue;
+        }
+        const draft = contentDraftFromTemplate(template);
+        const response = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+          method: "POST",
+          body: JSON.stringify({
+            ...contentCreatePayloadFromDraft(draft),
+            source: "vyva",
+            lovableExternalId: null,
+            metadata: {
+              generatedFrom: "template_pack_campaign_plan",
+              packId: pack.id,
+              packTitle: pack.title,
+              packFocus: pack.focus,
+              templateId: template.id,
+              templateTitle: template.title,
+              studioPlayId: pack.studioPlayId,
+              tone: pack.toneId,
+              angle: pack.angleId,
+              aiPrompt: pack.aiPrompt,
+            },
+          }),
+        });
+        contentByTemplateId.set(template.id, response.content);
+        createdContent.push(response.content);
+      }
+
+      const channelContentAssetIds = Object.fromEntries(routeChannels.map((channel) => {
+        const template = routeTemplateByChannel.get(channel);
+        return [channel, template ? contentByTemplateId.get(template.id)?.id ?? null : null];
+      })) as Partial<Record<Channel, string | null>>;
+      const channels = routeChannels.map((channel, index) => {
+        const sequenceIndex = pack.sequence.findIndex((step) => step.channel === channel);
+        const sequenceStep = sequenceIndex >= 0 ? pack.sequence[sequenceIndex] : null;
+        const scheduledAt = scheduleWithDelay(
+          scheduleStartsAt,
+          sequenceStep ? templateSequenceDelayHours(sequenceStep.offset, sequenceIndex) : index * 24,
+        );
+        return {
+          channel,
+          contentAssetId: channelContentAssetIds[channel] ?? null,
+          status: "draft",
+          scheduledAt,
+          sendCapability: channel === "email" ? "enabled" : "planning_only",
+        };
+      });
+      const recipients = routeChannels.flatMap((channel) => eligibleContacts.flatMap((contact) => {
+        const recipient = recipientForChannel(contact, channel);
+        if (!recipient) return [];
+        const scheduledAt = channels.find((item) => item.channel === channel)?.scheduledAt ?? scheduleStartsAt;
+        return [{
+          contactId: contact.id,
+          channel,
+          recipient,
+          status: "planned",
+          scheduledAt,
+          snapshot: {
+            ...recipientSnapshot(contact),
+            ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
+            templatePackId: pack.id,
+            templatePackTitle: pack.title,
+            plannerChannel: channel,
+          },
+        }];
+      }));
+      const campaignResult = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
+        method: "POST",
+        body: JSON.stringify({
+          name: `${pack.title} campaign plan`,
+          audienceType,
+          status: "draft",
+          objective: [
+            pack.focus,
+            "",
+            pack.description,
+            "",
+            `AI direction: ${pack.aiPrompt}`,
+            "",
+            "Review note: this creates a draft plan only. Email still requires explicit review/send from campaign details; social, phone, print, and event routes remain manual handoffs.",
+          ].join("\n"),
+          scheduleStartsAt,
+          scheduleEndsAt: null,
+          metadata: campaignMetadataWithTarget({
+            templatePackPlan: {
+              generatedFrom: "template_pack_campaign_plan",
+              packId: pack.id,
+              packTitle: pack.title,
+              studioPlayId: pack.studioPlayId,
+              tone: pack.toneId,
+              angle: pack.angleId,
+              aiPrompt: pack.aiPrompt,
+              routeChannels,
+              templateIds: templates.map((template) => template.id),
+              contentAssetIds: channelContentAssetIds,
+              sequence: pack.sequence,
+            },
+          }, targetAudience),
+          channels,
+          recipients,
+        }),
+      });
+
+      await refreshAll();
+      const createdById = new Map(createdContent.map((item) => [item.id, item]));
+      setContent((current) => [
+        ...createdById.values(),
+        ...current.filter((item) => !createdById.has(item.id)),
+      ]);
+      setCampaigns((current) => [campaignResult.campaign, ...current.filter((campaign) => campaign.id !== campaignResult.campaign.id)]);
+      setEditingCampaignId(campaignResult.campaign.id);
+      setCampaignEditDraft(campaignEditDraftFromCampaign(campaignResult.campaign, audiences));
+      setContentTemplatePackFilter(pack.id);
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+      setActiveTab("dashboard");
+      const reusedCount = templates.length - createdContent.length;
+      const feedback = `Created ${pack.title} campaign plan with ${routeChannels.length} channel route${routeChannels.length === 1 ? "" : "s"}, ${recipients.length} recipient snapshot${recipients.length === 1 ? "" : "s"}, ${createdContent.length} new content asset${createdContent.length === 1 ? "" : "s"}${reusedCount ? `, and ${reusedCount} reused asset${reusedCount === 1 ? "" : "s"}` : ""}.`;
+      setContentActionFeedback(feedback);
+      setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : `${pack.title} campaign plan could not be created.`;
+      setContentActionFeedback(errorMessage);
+      setCampaignStudioFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setCampaignSaving(false);
+      setContentSaving(false);
+    }
   }
 
   function loadContentTemplatePackAsJourney(pack: ContentTemplatePack, heroTemplate: ContentTemplate | null) {
@@ -11989,6 +13494,76 @@ export default function MarketingAdminPage() {
     setMessage(`${recipe.title} campaign recipe loaded.`);
   }
 
+  async function copyAudienceStrategyBrief(strategy: AudienceStrategyBrief) {
+    const label = "Audience strategy brief";
+    if (!strategy.promptText.trim()) {
+      const feedback = `${label} is empty.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(strategy.promptText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = strategy.promptText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  function loadAudienceStrategyInStudio(audience: MarketingAudience, strategy: AudienceStrategyBrief) {
+    const play = campaignStudioPlays.find((item) => item.id === strategy.playId) ?? campaignStudioPlays[0];
+    const selectedChannels = uniqueChannels(strategy.channels.length ? strategy.channels : recommendedCampaignStudioChannels(play));
+    const primaryChannel = selectedChannels[0] ?? play.defaultChannel;
+    const scheduleStartsAt = campaignStudioDefaultSchedule(play);
+    setActiveTab("dashboard");
+    setCampaignStudioCategory(play.categoryId);
+    updateCampaignStudio({
+      playId: play.id,
+      toneId: strategy.toneId,
+      angleId: strategy.angleId,
+      channel: primaryChannel,
+      selectedChannels,
+      targetAudienceId: audience.id,
+      scheduleStartsAt,
+    });
+    setCampaignIntentBrief(strategy.promptText);
+    setCampaignDraft((draft) => ({
+      ...draft,
+      name: play.campaignName,
+      audienceType: strategy.audienceType,
+      channel: primaryChannel,
+      contentAssetId: "",
+      status: scheduleStartsAt ? "scheduled" : "draft",
+      scheduleStartsAt,
+      scheduleEndsAt: "",
+      objective: [strategy.nextMove, "", strategy.promptText].join("\n"),
+      targetAudienceId: audience.id,
+      recipientFilter: audience.name,
+      snapshotRecipients: strategy.reachableContacts.length > 0,
+    }));
+    setCampaignStudioFeedback(`Audience loaded: ${audience.name}. ${strategy.nextMove}`);
+    setMessage(`Audience "${audience.name}" is ready in the campaign studio.`);
+  }
+
   function addAudienceEditContact(contactId: string) {
     const contact = contacts.find((item) => item.id === contactId);
     if (!contact) return;
@@ -12257,14 +13832,15 @@ export default function MarketingAdminPage() {
         channel: channelDraft.channel,
         title: `${channelLabel[channelDraft.channel]} content`,
         state: "blocked",
-        detail: noContentDetail,
+        detail: `${noContentDetail} Create a starter asset here and VYVA will save the link back to this campaign.`,
         contentAsset,
         recipients,
         scheduledAt,
-        actionLabel: "Attach content",
-        icon: FileText,
+        actionLabel: contentSaving || campaignSaving ? "Creating..." : "Create & link content",
+        icon: Sparkles,
+        disabled: contentSaving || campaignSaving,
         onSelect: () => {
-          setCampaignEmailFeedback(noContentDetail);
+          void createAndLinkCampaignChannelContent(channelDraft.id);
         },
       };
     }
@@ -12309,12 +13885,196 @@ export default function MarketingAdminPage() {
       onSelect: () => {
         previewContent(contentAsset);
       },
-      secondaryActionLabel: channelDraft.status === "published" ? "Published in VYVA" : "Mark published",
+      secondaryActionLabel: channelDraft.status === "published" ? "Published in VYVA" : "Track result",
       secondaryIcon: CheckCircle2,
       secondaryDisabled: hasUnsavedCampaignSendChanges || channelDraft.status === "published",
-      onSecondaryAction: () => markManualCampaignChannelPublished(channelDraft.id, channelDraft.channel),
+      onSecondaryAction: () => prepareManualCampaignChannelTracking(channelDraft.id, channelDraft.channel, scheduledAt),
     };
   }) : [];
+  const manualPublishChannelOptions = campaignPublishKitItems.filter((item) => item.channel !== "email" && item.contentAsset);
+  const manualPublishResults = manualPublishResultsFromMetadataText(campaignEditDraft.metadataText);
+  const manualPublishPublishedCount = manualPublishResults.filter((result) => result.result === "published").length;
+  const manualPublishScheduledCount = manualPublishResults.filter((result) => result.result === "scheduled").length;
+  const manualPublishFollowUpCount = manualPublishResults.filter((result) => result.result === "needs_follow_up").length;
+  const manualPublishBlockedCount = manualPublishResults.filter((result) => result.result === "blocked").length;
+  const manualPublishEngagementCount = manualPublishResults.reduce((total, result) => total + (result.engagements ?? 0), 0);
+  const campaignRelationshipSignalCount = selectedCampaignMetricTotals.clicked + selectedCampaignMetricTotals.replied + selectedCampaignMetricTotals.socialEngagement + manualPublishEngagementCount;
+  const campaignRelationshipFollowUpItems: CampaignRelationshipFollowUpItem[] = editingCampaign ? [
+    {
+      key: "responders",
+      title: "Responder follow-up",
+      value: campaignRelationshipSignalCount > 0
+        ? `${campaignRelationshipSignalCount} signal${campaignRelationshipSignalCount === 1 ? "" : "s"}`
+        : selectedCampaignMetrics.length ? "No response yet" : "Awaiting results",
+      state: campaignRelationshipSignalCount > 0 ? "ready" : selectedCampaignMetrics.length ? "planning" : "needs_action",
+      detail: campaignRelationshipSignalCount > 0
+        ? `Use ${selectedCampaignMetricTotals.replied} repl${selectedCampaignMetricTotals.replied === 1 ? "y" : "ies"}, ${selectedCampaignMetricTotals.clicked} click${selectedCampaignMetricTotals.clicked === 1 ? "" : "s"}, and ${selectedCampaignMetricTotals.socialEngagement + manualPublishEngagementCount} social/manual engagement${selectedCampaignMetricTotals.socialEngagement + manualPublishEngagementCount === 1 ? "" : "s"} to build the next nurture segment.`
+        : selectedCampaignMetrics.length
+          ? "Metrics are imported, but no engagement signal is strong yet. Adjust the offer, CTA, or channel before repeating."
+          : "Run or manually track the campaign, then import metrics so VYVA can recommend a relationship follow-up.",
+      icon: UsersRound,
+    },
+    {
+      key: "handoff",
+      title: "Manual handoff outcomes",
+      value: manualPublishResults.length
+        ? `${manualPublishResults.length} saved`
+        : planningOnlyCampaignChannels.length
+          ? `${planningOnlyCampaignChannels.length} route${planningOnlyCampaignChannels.length === 1 ? "" : "s"}`
+          : "No manual route",
+      state: manualPublishBlockedCount > 0 ? "needs_action" : manualPublishFollowUpCount > 0 ? "ready" : manualPublishResults.length > 0 ? "planning" : planningOnlyCampaignChannels.length > 0 ? "needs_action" : "planning",
+      detail: manualPublishResults.length
+        ? `${manualPublishPublishedCount} published, ${manualPublishScheduledCount} scheduled, ${manualPublishFollowUpCount} need follow-up, ${manualPublishBlockedCount} blocked.`
+        : planningOnlyCampaignChannels.length
+          ? `Track the outcome for ${planningOnlyCampaignChannels.map((channel) => channelLabel[channel.channel]).join(", ")} so offline/social activity becomes usable relationship data.`
+          : "This campaign is email-only, so follow-up is driven by email metrics and saved recipients.",
+      icon: Waypoints,
+    },
+    {
+      key: "next-campaign",
+      title: "Recommended next move",
+      value: campaignRelationshipSignalCount > 0
+        ? "Responder nurture"
+        : manualPublishFollowUpCount > 0
+          ? "Human follow-up"
+          : manualPublishResults.length > 0 || selectedCampaignMetrics.length > 0
+            ? "Optimize and repeat"
+            : "Capture outcomes",
+      state: campaignRelationshipSignalCount > 0 || manualPublishFollowUpCount > 0 ? "ready" : manualPublishResults.length > 0 || selectedCampaignMetrics.length > 0 ? "planning" : "needs_action",
+      detail: campaignRelationshipSignalCount > 0
+        ? "Create a smaller follow-up campaign for people who clicked, replied, engaged, or were manually marked for follow-up."
+        : manualPublishFollowUpCount > 0
+          ? "Start with the manual result notes, then create a phone, WhatsApp, or email follow-up for those relationships."
+          : manualPublishResults.length > 0 || selectedCampaignMetrics.length > 0
+            ? "Use the imported results to improve copy and choose a sharper channel mix before the next send."
+            : "Publish or track at least one channel result before creating a follow-up campaign.",
+      icon: Sparkles,
+    },
+  ] : [];
+  const campaignRelationshipFollowUpBrief = editingCampaign ? [
+    "VYVA relationship follow-up brief",
+    `Campaign: ${campaignEditDraft.name || editingCampaign.name}`,
+    `Audience: ${campaignEditDraft.audienceType.toUpperCase()}`,
+    selectedCampaignTargetAudience
+      ? `Target list: ${selectedCampaignTargetAudience.name} (${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} mapped)`
+      : "Target list: all eligible contacts",
+    `Status: ${campaignEditDraft.status}`,
+    `Schedule: ${campaignEditDraft.scheduleStartsAt ? formatDate(fromDateTimeLocal(campaignEditDraft.scheduleStartsAt)) : "Not scheduled"}`,
+    `Saved recipients: ${savedCampaignRecipientCount}`,
+    `Channels: ${campaignReadinessChannels.map((channel) => channelLabel[channel.channel]).join(", ")}`,
+    "",
+    "Engagement signals:",
+    `- Sent: ${selectedCampaignMetricTotals.sent}`,
+    `- Opened: ${selectedCampaignMetricTotals.opened}`,
+    `- Clicked: ${selectedCampaignMetricTotals.clicked}`,
+    `- Replied: ${selectedCampaignMetricTotals.replied}`,
+    `- Social/manual engagement: ${selectedCampaignMetricTotals.socialEngagement + manualPublishEngagementCount}`,
+    `- Manual results: ${manualPublishResults.length}`,
+    `- Manual follow-ups needed: ${manualPublishFollowUpCount}`,
+    "",
+    "Recommended relationship actions:",
+    ...campaignRelationshipFollowUpItems.map((item) => `- ${item.title}: ${item.value} (${readinessLabel(item.state)}) - ${item.detail}`),
+    "",
+    "AI task:",
+    "1. Turn these results into the next relationship campaign.",
+    "2. Segment responders, manual follow-up contacts, and low-engagement contacts separately.",
+    "3. Suggest the next channel, message angle, CTA, and follow-up owner.",
+    "4. Keep consent and channel availability in mind before proposing any live send.",
+  ].join("\n") : "";
+
+  function startFollowUpCampaignFromCurrentCampaign() {
+    if (!editingCampaign) return;
+    const sourceName = (campaignEditDraft.name || editingCampaign.name || "Campaign").trim();
+    const audienceType = campaignEditDraft.audienceType;
+    const play = campaignStudioPlayById(
+      audienceType === "b2b"
+        ? "referral-partner-nurture"
+        : audienceType === "both"
+          ? "reactivation"
+          : "family-confidence",
+    );
+    const primaryChannel: Channel = "email";
+    const selectedChannels = uniqueChannels([
+      primaryChannel,
+      ...recommendedCampaignStudioChannels(play),
+      ...planningOnlyCampaignChannels.map((channel) => channel.channel),
+    ]);
+    const targetAudience = selectedCampaignTargetAudience ?? bestCampaignStudioAudience(play, audiences);
+    const scheduleStartsAt = campaignStudioDefaultSchedule(play);
+    const originalContentByChannel = new Map(campaignReadinessChannels.map((channelDraft) => [
+      channelDraft.channel,
+      channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null,
+    ]));
+    const channelContentAssetIds = Object.fromEntries(selectedChannels.map((channel) => {
+      const matchedContent = bestCampaignPlannerContent(play, channel, content) ?? originalContentByChannel.get(channel) ?? null;
+      return [channel, matchedContent?.id ?? ""];
+    })) as Partial<Record<Channel, string>>;
+    const signalLabel = campaignRelationshipSignalCount > 0
+      ? `${campaignRelationshipSignalCount} engagement signal${campaignRelationshipSignalCount === 1 ? "" : "s"}`
+      : "no strong engagement signal yet";
+    const manualOutcomeLabel = manualPublishResults.length
+      ? `${manualPublishResults.length} manual result${manualPublishResults.length === 1 ? "" : "s"} recorded`
+      : planningOnlyCampaignChannels.length
+        ? `${planningOnlyCampaignChannels.length} manual route${planningOnlyCampaignChannels.length === 1 ? "" : "s"} to track`
+        : "email-only route";
+    const intentBrief = [
+      `Relationship follow-up from "${sourceName}".`,
+      `Original audience: ${campaignEditDraft.audienceType.toUpperCase()}.`,
+      targetAudience ? `Target list: ${targetAudience.name}.` : "Target list: all eligible contacts.",
+      `Recommended channels: ${formatChannelList(selectedChannels)}.`,
+      `Signals: ${signalLabel}; ${manualOutcomeLabel}.`,
+      `Saved recipients on original campaign: ${savedCampaignRecipientCount}.`,
+      "",
+      "Goal: create the next campaign for people who clicked, replied, engaged, or need a clearer second touch.",
+      "AI direction: keep this follow-up specific, relationship-led, consent-aware, and lighter than the original campaign.",
+      "",
+      campaignRelationshipFollowUpBrief,
+    ].join("\n");
+
+    setActiveTab("dashboard");
+    setCampaignStudioCategory(play.categoryId);
+    setCampaignStudioAiDrafts({});
+    setCampaignStudio({
+      playId: play.id,
+      toneId: audienceType === "b2b" ? "expert" : "warm",
+      angleId: campaignRelationshipSignalCount > 0 ? "action" : "balanced",
+      channel: primaryChannel,
+      selectedChannels,
+      scheduleStartsAt,
+      targetAudienceId: targetAudience?.id ?? "",
+    });
+    setCampaignIntentBrief(intentBrief);
+    setCampaignDraft({
+      ...emptyCampaignDraft(),
+      name: `${sourceName} ${campaignRelationshipSignalCount > 0 ? "responder" : "relationship"} follow-up`,
+      audienceType: play.audienceType,
+      channel: primaryChannel,
+      channels: selectedChannels,
+      contentAssetId: channelContentAssetIds[primaryChannel] ?? "",
+      channelContentAssetIds,
+      status: scheduleStartsAt ? "scheduled" : "draft",
+      scheduleStartsAt,
+      objective: [
+        `Follow-up campaign generated from "${sourceName}".`,
+        `Use ${signalLabel} and ${manualOutcomeLabel} to decide who gets a second touch.`,
+        targetAudience ? `Audience/list: ${targetAudience.name}.` : "",
+        `Channels: ${formatChannelList(selectedChannels)}.`,
+        "Next step: review linked content, generate or improve AI copy, then add the campaign.",
+      ].filter(Boolean).join("\n"),
+      targetAudienceId: targetAudience?.id ?? "",
+      recipientFilter: targetAudience?.name ?? "",
+      snapshotRecipients: Boolean(targetAudience?.mappedMemberCount || savedCampaignRecipientCount),
+    });
+    setEditingCampaignId(null);
+    setConfirmingCampaignDeleteId(null);
+    setConfirmingCampaignSendId(null);
+    setCampaignStudioFeedback(`Follow-up campaign starter loaded from "${sourceName}". Review AI copy, linked content, and recipients before creating it.`);
+    setMessage(`Follow-up campaign starter loaded from "${sourceName}".`);
+  }
+
+  const selectedManualPublishChannel = manualPublishChannelOptions.some((item) => item.channel === manualPublishDraft.channel)
+    ? manualPublishDraft.channel
+    : manualPublishChannelOptions[0]?.channel ?? manualPublishDraft.channel;
   const firstCampaignContentAsset = campaignReadinessChannels
     .map((channelDraft) => channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null)
     .find((item): item is ContentAsset => Boolean(item)) ?? null;
@@ -12521,6 +14281,66 @@ export default function MarketingAdminPage() {
         : "All channels are planning or manual handoff until provider integrations are enabled.",
     },
   ] : [];
+  const campaignAiCommandBrief = editingCampaign && campaignForLaunchPacket ? [
+    "VYVA campaign AI command brief",
+    `Campaign: ${campaignForLaunchPacket.name}`,
+    `Audience: ${campaignForLaunchPacket.audienceType.toUpperCase()}`,
+    `Status: ${campaignForLaunchPacket.status}`,
+    `Objective: ${campaignForLaunchPacket.objective || "No objective yet."}`,
+    `Schedule: ${formatDate(campaignForLaunchPacket.scheduleStartsAt)} (${campaignForLaunchPacket.timezone})`,
+    selectedCampaignTargetAudience
+      ? `Target list: ${selectedCampaignTargetAudience.name} - ${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} mapped contacts.`
+      : "Target list: all eligible contacts for this audience.",
+    `Saved recipients: ${savedCampaignRecipientCount}`,
+    `Preview recipients if saved now: ${pendingCampaignSnapshotCount}`,
+    "",
+    "Current readiness:",
+    ...campaignReadinessItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Next best action:",
+    `- ${campaignNextLaunchStep?.title ?? "Review campaign"}: ${campaignNextLaunchStep?.detail ?? "Complete the first unfinished campaign step."}`,
+    "",
+    "Channel plan:",
+    ...campaignPublishKitItems.map((item) => {
+      const contentTitle = item.contentAsset?.title ?? "No content asset";
+      const mode = item.channel === "email" ? "VYVA email send" : item.title;
+      return `- ${channelLabel[item.channel]}: ${mode}; content: ${contentTitle}; recipients: ${item.recipients}; state: ${readinessLabel(item.state)}; next: ${item.detail}`;
+    }),
+    "",
+    "Linked content to improve:",
+    ...campaignReadinessChannels.map((channelDraft) => {
+      const contentAsset = channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null;
+      if (!contentAsset) return `- ${channelLabel[channelDraft.channel]}: missing content asset.`;
+      const mediaCount = mediaAssets.filter((asset) => asset.contentAssetId === contentAsset.id).length;
+      return [
+        `- ${channelLabel[channelDraft.channel]}: ${contentAsset.title}`,
+        contentAsset.subject ? `Subject: ${contentAsset.subject}` : "",
+        `Body: ${contentAsset.body || "No body copy."}`,
+        contentAsset.ctaLabel || contentAsset.ctaUrl ? `CTA: ${contentAsset.ctaLabel || "CTA"} ${contentAsset.ctaUrl || ""}`.trim() : "",
+        `Media references: ${mediaCount}`,
+      ].filter(Boolean).join(" | ");
+    }),
+    "",
+    "Performance signals:",
+    selectedCampaignMetrics.length
+      ? [
+        `- Metrics rows: ${selectedCampaignMetrics.length}`,
+        `- Sent: ${selectedCampaignMetricTotals.sent}`,
+        `- Delivered: ${selectedCampaignMetricTotals.delivered}`,
+        `- Opened: ${selectedCampaignMetricTotals.opened}`,
+        `- Clicked: ${selectedCampaignMetricTotals.clicked}`,
+        `- Replied: ${selectedCampaignMetricTotals.replied}`,
+        `- Failed: ${selectedCampaignMetricTotals.failed}`,
+      ].join("\n")
+      : "- No performance metrics imported yet.",
+    "",
+    "AI task:",
+    "1. Improve this campaign for clarity, consent, and channel fit.",
+    "2. Keep the audience promise practical and non-clinical.",
+    "3. Rewrite missing or weak channel copy without changing the core offer.",
+    "4. Suggest the next relationship follow-up after send or manual publish.",
+    "5. Return channel-specific copy, subject lines where relevant, CTA text, visual guidance, and launch notes.",
+  ].filter(Boolean).join("\n") : "";
   const unmappedAudienceMemberCount = latestSyncRun
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
@@ -13219,6 +15039,80 @@ export default function MarketingAdminPage() {
                               </button>
                             ))}
                           </div>
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-goal-presets">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Pick a goal</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Start from the outcome, then VYVA chooses the play, tone, channel pack, audience, and schedule.</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignGoalPresetInsights.length} outcomes</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                          {campaignGoalPresetInsights.map(({ preset, linkedPack, targetAudience, reachableContacts, templateCount, state }) => {
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => applyCampaignGoalPreset(preset)}
+                                className="min-h-[188px] rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                                data-testid={`button-marketing-campaign-goal-${preset.id}`}
+                              >
+                                <span className="flex items-start justify-between gap-2">
+                                  <span className="block text-[11px] font-black uppercase tracking-[0.12em] text-purple-700">{preset.outcome}</span>
+                                  <Pill className={readinessPillClass(state)}>{readinessLabel(state)}</Pill>
+                                </span>
+                                <span className="mt-1 block font-black text-[#241133]">{preset.title}</span>
+                                <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{preset.detail}</span>
+                                <span className="mt-2 flex flex-wrap gap-1">
+                                  {preset.channels.slice(0, 3).map((channel) => (
+                                    <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                  ))}
+                                  {preset.channels.length > 3 ? <Pill className="bg-white text-[#5b4a46]">+{preset.channels.length - 3}</Pill> : null}
+                                </span>
+                                {linkedPack ? (
+                                  <span className="mt-2 block rounded-lg bg-white px-2 py-1 text-[11px] font-black text-purple-800">
+                                    Pack: {linkedPack.pack.title}
+                                  </span>
+                                ) : null}
+                                <span className="mt-2 grid gap-1 rounded-lg border border-purple-100 bg-white/70 px-2 py-2 text-[11px] font-black text-[#6b5b54]">
+                                  <span>{reachableContacts} reachable contact{reachableContacts === 1 ? "" : "s"}</span>
+                                  <span>{templateCount} starter template{templateCount === 1 ? "" : "s"}</span>
+                                  <span>{targetAudience ? `Best list: ${targetAudience.name}` : "Best list: none yet"}</span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-intent-quick-starts">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Quick starts</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Choose a common communication job and VYVA will fill the brief, channels, list, and planner.</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignIntentQuickStarts.length} ideas</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                          {campaignIntentQuickStarts.map((quickStart) => (
+                            <button
+                              key={quickStart.id}
+                              type="button"
+                              onClick={() => applyCampaignIntentQuickStart(quickStart)}
+                              className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                              data-testid={`button-marketing-campaign-intent-quick-${quickStart.id}`}
+                            >
+                              <span className="block font-black text-[#241133]">{quickStart.title}</span>
+                              <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{quickStart.detail}</span>
+                              <span className="mt-2 flex flex-wrap gap-1">
+                                {quickStart.channels.slice(0, 3).map((channel) => (
+                                  <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                ))}
+                                {quickStart.channels.length > 3 ? <Pill className="bg-white text-[#5b4a46]">+{quickStart.channels.length - 3}</Pill> : null}
+                              </span>
+                            </button>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -14612,6 +16506,58 @@ export default function MarketingAdminPage() {
                       ))}
                     </div>
                   ) : null}
+                  <div className="rounded-2xl border border-purple-100 bg-purple-50/50 p-4" data-testid="marketing-campaign-channel-packs">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Channel pack</p>
+                        <h3 className="mt-1 text-base font-black text-[#241133]">Choose the routes this campaign should prepare</h3>
+                        <p className="mt-1 text-xs font-bold text-[#6b5b54]">Email can send from VYVA; WhatsApp, social, print, event, and phone routes are saved as manual handoff steps.</p>
+                      </div>
+                      <Pill className="bg-white text-purple-800">
+                        {campaignDraftSelectedChannels.length} route{campaignDraftSelectedChannels.length === 1 ? "" : "s"}
+                      </Pill>
+                    </div>
+                    <div className="mt-3 grid gap-2 lg:grid-cols-5">
+                      {campaignPlannerChannelPacks.map((pack) => {
+                        const isSelected = campaignDraftPack?.id === pack.id;
+                        return (
+                          <button
+                            key={pack.id}
+                            type="button"
+                            onClick={() => setCampaignDraft((draft) => {
+                              const primaryChannel = pack.channels[0];
+                              const currentDraftContentIds = draft.channelContentAssetIds ?? {};
+                              const currentContentMap = {
+                                ...currentDraftContentIds,
+                                [draft.channel]: draft.contentAssetId || currentDraftContentIds[draft.channel] || "",
+                              };
+                              const nextContentMap = Object.fromEntries(pack.channels.map((channel) => [
+                                channel,
+                                currentContentMap[channel] ?? "",
+                              ])) as Partial<Record<Channel, string>>;
+                              return {
+                                ...draft,
+                                channel: primaryChannel,
+                                channels: [...pack.channels],
+                                contentAssetId: nextContentMap[primaryChannel] ?? "",
+                                channelContentAssetIds: nextContentMap,
+                              };
+                            })}
+                            className={`rounded-xl border p-3 text-left shadow-sm transition focus:outline-none focus:ring-4 focus:ring-purple-100 ${
+                              isSelected ? "border-purple-300 bg-purple-700 text-white" : "border-purple-100 bg-white text-[#241133] hover:border-purple-300"
+                            }`}
+                            data-testid={`button-marketing-campaign-pack-${pack.id}`}
+                          >
+                            <span className="block text-sm font-black">{pack.label}</span>
+                            <span className={`mt-1 block text-xs font-bold leading-relaxed ${isSelected ? "text-white/80" : "text-[#7d6b65]"}`}>{pack.detail}</span>
+                            <span className="mt-2 flex flex-wrap gap-1">
+                              {pack.channels.map((channel) => <Pill key={channel} className={isSelected ? "bg-white/15 text-white" : channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
                     <Field label="Campaign name">
@@ -14622,18 +16568,52 @@ export default function MarketingAdminPage() {
                         {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
                       </select>
                     </Field>
-                    <Field label="Channel">
+                    <Field label="Primary channel">
                       <select
                         className={inputClass}
                         value={campaignDraft.channel}
-                        onChange={(event) => setCampaignDraft((draft) => ({ ...draft, channel: event.target.value as Channel, contentAssetId: "" }))}
+                        onChange={(event) => {
+                          const channel = event.target.value as Channel;
+                          setCampaignDraft((draft) => {
+                            const currentDraftContentIds = draft.channelContentAssetIds ?? {};
+                            const currentContentMap = {
+                              ...currentDraftContentIds,
+                              [draft.channel]: draft.contentAssetId || currentDraftContentIds[draft.channel] || "",
+                            };
+                            const channels = draft.channels.length > 1
+                              ? [channel, ...draft.channels.filter((item) => item !== channel)]
+                              : [channel];
+                            return {
+                              ...draft,
+                              channel,
+                              channels,
+                              contentAssetId: currentContentMap[channel] ?? "",
+                              channelContentAssetIds: currentContentMap,
+                            };
+                          });
+                        }}
                         data-testid="select-marketing-campaign-channel"
                       >
                         {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
                       </select>
                     </Field>
                     <Field label="Content asset">
-                      <select className={inputClass} value={campaignDraft.contentAssetId} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, contentAssetId: event.target.value }))} data-testid="select-marketing-campaign-content">
+                      <select
+                        className={inputClass}
+                        value={campaignDraft.contentAssetId}
+                        onChange={(event) => {
+                          const contentAssetId = event.target.value;
+                          setCampaignDraft((draft) => ({
+                            ...draft,
+                            contentAssetId,
+                            channelContentAssetIds: {
+                              ...draft.channelContentAssetIds,
+                              [draft.channel]: contentAssetId,
+                            },
+                          }));
+                        }}
+                        data-testid="select-marketing-campaign-content"
+                      >
                         <option value="">No content asset</option>
                         {campaignDraftContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
                       </select>
@@ -14677,6 +16657,50 @@ export default function MarketingAdminPage() {
                       <p className="mt-1 text-2xl font-black text-[#241133]">{campaignDraft.snapshotRecipients ? campaignDraftRecipientPreview.length : "-"}</p>
                     </div>
                   </div>
+                  {campaignDraftSelectedChannels.length > 1 ? (
+                    <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-route-content-map">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Route content</p>
+                          <p className="mt-1 text-sm font-bold text-[#6b5b54]">Attach content to each non-primary route before save when it exists.</p>
+                        </div>
+                        <Pill className={campaignDraftMissingContentChannels.length ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                          {campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length}/{campaignDraftSelectedChannels.length} linked
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+                        {campaignDraftSelectedChannels.filter((channel) => channel !== campaignDraft.channel).map((channel) => {
+                          const options = campaignDraftContentOptionsByChannel.get(channel) ?? [];
+                          const selectedId = campaignDraftContentIdByChannel[channel] ?? "";
+                          return (
+                            <Field key={channel} label={`${channelLabel[channel]} content`}>
+                              <select
+                                className={inputClass}
+                                value={selectedId}
+                                onChange={(event) => {
+                                  const contentAssetId = event.target.value;
+                                  setCampaignDraft((draft) => ({
+                                    ...draft,
+                                    channelContentAssetIds: {
+                                      ...draft.channelContentAssetIds,
+                                      [channel]: contentAssetId,
+                                    },
+                                  }));
+                                }}
+                                data-testid={`select-marketing-campaign-route-content-${channel}`}
+                              >
+                                <option value="">No content for this route</option>
+                                {options.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                              </select>
+                              <p className="mt-1 text-xs font-bold text-[#8b7a73]">
+                                {options.length ? `${options.length} available ${channelLabel[channel]} asset${options.length === 1 ? "" : "s"}.` : `No active ${channelLabel[channel]} content yet.`}
+                              </p>
+                            </Field>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                   {selectedCampaignDraftTargetAudience ? (
                     <p className="rounded-xl border border-purple-100 bg-white px-4 py-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-draft-target-audience-summary">
                       {selectedCampaignDraftTargetAudience.name}: {selectedCampaignDraftTargetAudience.mappedMemberCount} mapped / {selectedCampaignDraftTargetAudience.unmappedContactExternalIds.length} unmapped contacts.
@@ -14801,6 +16825,30 @@ export default function MarketingAdminPage() {
                                 <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
                               </div>
                             ))}
+                          </div>
+                        ) : null}
+                        {campaignAiCommandBrief ? (
+                          <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3" data-testid="marketing-campaign-ai-command-brief">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-700">AI command brief</p>
+                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#7d6b65]">Copy the saved campaign context into AI to improve copy, channel fit, visual direction, and follow-up without losing audience or consent details.</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignHandoffText("Campaign AI command brief", campaignAiCommandBrief)}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800"
+                                data-testid="button-marketing-copy-campaign-ai-command-brief"
+                              >
+                                <Sparkles size={14} /> Copy AI brief
+                              </button>
+                            </div>
+                            <textarea
+                              readOnly
+                              className={`${textareaClass} mt-3 min-h-[220px] bg-[#fffaf4] text-xs`}
+                              value={campaignAiCommandBrief}
+                              data-testid="textarea-marketing-campaign-ai-command-brief"
+                            />
                           </div>
                         ) : null}
                       </div>
@@ -15010,6 +17058,135 @@ export default function MarketingAdminPage() {
                             );
                           })}
                         </div>
+                        {manualPublishChannelOptions.length ? (
+                          <div className="mt-4 rounded-2xl border border-purple-100 bg-white p-4" data-testid="marketing-campaign-manual-publish-tracker">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Manual result tracker</p>
+                                <h4 className="mt-1 font-serif text-xl text-[#241133]">Record what happened outside VYVA</h4>
+                                <p className="mt-1 text-sm font-bold text-[#7d6b65]">Save the live post, handoff, event, call, or print outcome back to the campaign.</p>
+                              </div>
+                              <Pill className="bg-purple-50 text-purple-800">{manualPublishResults.length} saved result{manualPublishResults.length === 1 ? "" : "s"}</Pill>
+                            </div>
+                            {manualPublishFeedback ? (
+                              <p
+                                className={`mt-3 rounded-xl px-3 py-2 text-sm font-black ${/fail|error|could not|must|required/i.test(manualPublishFeedback) ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}
+                                data-testid="marketing-campaign-manual-publish-feedback"
+                              >
+                                {manualPublishFeedback}
+                              </p>
+                            ) : null}
+                            <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                              <Field label="Channel">
+                                <select
+                                  className={inputClass}
+                                  value={selectedManualPublishChannel}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, channel: event.target.value as Channel }))}
+                                  data-testid="select-marketing-manual-publish-channel"
+                                >
+                                  {manualPublishChannelOptions.map((item) => (
+                                    <option key={item.channel} value={item.channel}>{channelLabel[item.channel]}</option>
+                                  ))}
+                                </select>
+                              </Field>
+                              <Field label="Result">
+                                <select
+                                  className={inputClass}
+                                  value={manualPublishDraft.result}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, result: event.target.value as ManualPublishResultStatus }))}
+                                  data-testid="select-marketing-manual-publish-result"
+                                >
+                                  {(Object.keys(manualPublishResultLabel) as ManualPublishResultStatus[]).map((status) => (
+                                    <option key={status} value={status}>{manualPublishResultLabel[status]}</option>
+                                  ))}
+                                </select>
+                              </Field>
+                              <Field label="Published or scheduled time">
+                                <input
+                                  className={inputClass}
+                                  type="datetime-local"
+                                  value={manualPublishDraft.publishedAt}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, publishedAt: event.target.value }))}
+                                  data-testid="input-marketing-manual-publish-at"
+                                />
+                              </Field>
+                            </div>
+                            <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                              <Field label="Live URL or proof link">
+                                <input
+                                  className={inputClass}
+                                  value={manualPublishDraft.url}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, url: event.target.value }))}
+                                  placeholder="https://..."
+                                  data-testid="input-marketing-manual-publish-url"
+                                />
+                              </Field>
+                              <Field label="Audience reached">
+                                <input
+                                  className={inputClass}
+                                  inputMode="numeric"
+                                  value={manualPublishDraft.audienceReached}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, audienceReached: event.target.value }))}
+                                  placeholder="Optional"
+                                  data-testid="input-marketing-manual-publish-reached"
+                                />
+                              </Field>
+                              <Field label="Engagements">
+                                <input
+                                  className={inputClass}
+                                  inputMode="numeric"
+                                  value={manualPublishDraft.engagements}
+                                  onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, engagements: event.target.value }))}
+                                  placeholder="Optional"
+                                  data-testid="input-marketing-manual-publish-engagements"
+                                />
+                              </Field>
+                            </div>
+                            <Field label="Result notes">
+                              <textarea
+                                className={`${textareaClass} min-h-[92px]`}
+                                value={manualPublishDraft.notes}
+                                onChange={(event) => setManualPublishDraft((draft) => ({ ...draft, notes: event.target.value }))}
+                                placeholder="What was published, where, and what follow-up is needed?"
+                                data-testid="textarea-marketing-manual-publish-notes"
+                              />
+                            </Field>
+                            <div className="mt-3 flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => editingCampaign ? void saveManualPublishResult(editingCampaign.id) : undefined}
+                                disabled={manualPublishSaving || campaignSaving || !editingCampaign}
+                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                data-testid="button-marketing-save-manual-publish-result"
+                              >
+                                <Save size={15} /> {manualPublishSaving ? "Saving..." : "Save result"}
+                              </button>
+                              <span className="text-xs font-bold text-[#7d6b65]">This also marks the selected channel as published.</span>
+                            </div>
+                            <div className="mt-4 border-t border-[#eadfd5] pt-3" data-testid="marketing-campaign-manual-publish-results">
+                              {manualPublishResults.length ? (
+                                <div className="grid gap-2">
+                                  {manualPublishResults.map((result, index) => (
+                                    <div key={`${result.channel}-${result.publishedAt}-${index}`} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-sm font-bold text-[#6f5f59]">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="font-black text-[#241133]">{channelLabel[result.channel]} - {manualPublishResultLabel[result.result]}</span>
+                                        <span className="text-xs text-[#8b7a73]">{formatDate(result.publishedAt)}</span>
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                        {typeof result.audienceReached === "number" ? <Pill className="bg-blue-50 text-blue-800">{result.audienceReached} reached</Pill> : null}
+                                        {typeof result.engagements === "number" ? <Pill className="bg-purple-50 text-purple-800">{result.engagements} engagements</Pill> : null}
+                                        {result.url ? <a className="inline-flex items-center gap-1 text-purple-800 underline" href={result.url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Proof link</a> : null}
+                                      </div>
+                                      {result.notes ? <p className="mt-2 text-xs leading-relaxed">{result.notes}</p> : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="rounded-xl border border-dashed border-[#eadfd5] bg-white p-3 text-sm font-bold text-[#8b7a73]">No manual results recorded yet.</p>
+                              )}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="grid gap-3 xl:grid-cols-2">
@@ -15067,6 +17244,53 @@ export default function MarketingAdminPage() {
                             </div>
                           </div>
                         )}
+                      </div>
+
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm" data-testid="marketing-campaign-relationship-follow-up">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Relationship follow-up</p>
+                            <h3 className="mt-1 font-serif text-2xl text-[#241133]">What should happen after this campaign?</h3>
+                            <p className="mt-1 text-sm font-bold text-[#5f6f62]">Turn clicks, replies, social/manual outcomes, and saved recipients into the next audience move.</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={startFollowUpCampaignFromCurrentCampaign}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-black text-white hover:bg-emerald-800"
+                              data-testid="button-marketing-start-relationship-follow-up"
+                            >
+                              <Waypoints size={15} /> Start follow-up campaign
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void copyCampaignHandoffText("Campaign relationship follow-up brief", campaignRelationshipFollowUpBrief)}
+                              disabled={!campaignRelationshipFollowUpBrief.trim()}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-copy-relationship-follow-up"
+                            >
+                              <Sparkles size={15} /> Copy AI follow-up brief
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-relationship-follow-up-items">
+                          {campaignRelationshipFollowUpItems.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <article key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-relationship-follow-up-${item.key}`}>
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-800">
+                                    <Icon size={16} aria-hidden="true" />
+                                  </span>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </div>
+                                <p className="mt-3 text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{item.value}</p>
+                                <p className="mt-2 text-xs font-bold leading-relaxed text-[#5f6f62]">{item.detail}</p>
+                              </article>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <div className="grid gap-3">
@@ -15981,6 +18205,24 @@ export default function MarketingAdminPage() {
                             data-testid={`button-marketing-template-pack-studio-${pack.id}`}
                           >
                             <Sparkles size={14} /> Load pack in studio
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void createContentAssetsFromTemplatePack(pack, templates)}
+                            disabled={contentSaving || templates.length === 0}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                            data-testid={`button-marketing-template-pack-create-assets-${pack.id}`}
+                          >
+                            <FileText size={14} /> Create pack assets
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void createCampaignPlanFromTemplatePack(pack, templates, heroTemplate)}
+                            disabled={contentSaving || campaignSaving || templates.length === 0}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:bg-[#f1eee8] disabled:text-[#9d8b73]"
+                            data-testid={`button-marketing-template-pack-create-campaign-${pack.id}`}
+                          >
+                            <CalendarDays size={14} /> Create campaign plan
                           </button>
                           <button
                             type="button"
@@ -18340,6 +20582,7 @@ export default function MarketingAdminPage() {
                         const hiddenUnmappedCount = Math.max(unmappedCount - visibleUnmappedIds.length, 0);
                         const canExpandMembers = hiddenListMemberCount > 0 || hiddenUnmappedCount > 0 || audienceExpanded;
                         const timelineParts = recordTimelineParts(audience);
+                        const strategy = audienceStrategyBrief(audience, contacts);
                         return (
                           <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -18399,6 +20642,60 @@ export default function MarketingAdminPage() {
                             ) : (
                               <p className="mt-3 rounded-lg bg-[#f5eee8] px-3 py-2 text-xs font-bold text-[#8b7a73]">No imported list members to preview yet.</p>
                             )}
+                            <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid={`marketing-audience-strategy-${audience.id}`}>
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="flex items-start gap-2">
+                                  <span className="grid min-h-8 min-w-8 place-items-center rounded-xl bg-purple-50 text-purple-700">
+                                    <Sparkles size={15} />
+                                  </span>
+                                  <div>
+                                    <p className="text-sm font-black text-[#241133]">AI audience strategy</p>
+                                    <p className="mt-1 text-xs font-bold text-[#7d6b65]">{strategy.nextMove}</p>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap justify-end gap-1.5">
+                                  <Pill className={readinessPillClass(strategy.state)}>{readinessLabel(strategy.state)}</Pill>
+                                  <Pill className="bg-purple-50 text-purple-800">{strategy.score}%</Pill>
+                                </div>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                <Pill className="bg-blue-50 text-blue-800">{strategy.reachableContacts.length}/{strategy.mappedContacts.length} reachable</Pill>
+                                <Pill className={channelClass(strategy.primaryChannel)}>Best: {channelLabel[strategy.primaryChannel]}</Pill>
+                                <Pill className="bg-white text-[#7d6b65]">{strategy.emailReady} email</Pill>
+                                <Pill className="bg-white text-[#7d6b65]">{strategy.whatsappReady} WhatsApp</Pill>
+                                <Pill className={strategy.consentReviewCount ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>{strategy.consentReviewCount} consent review</Pill>
+                                <Pill className="bg-white text-[#7d6b65]">{strategy.segmentedCount}/{strategy.mappedContacts.length} segmented</Pill>
+                              </div>
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-[#6f5f59]">{strategy.cleanup}</p>
+                              <details className="mt-2 rounded-lg border border-[#eadfd5] bg-[#fffaf4] px-3 py-2">
+                                <summary className="cursor-pointer text-xs font-black text-purple-700">AI brief text</summary>
+                                <textarea
+                                  className={`${textareaClass} mt-2 min-h-[120px] font-mono text-xs`}
+                                  readOnly
+                                  value={strategy.promptText}
+                                  data-testid={`textarea-marketing-audience-strategy-${audience.id}`}
+                                />
+                              </details>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void copyAudienceStrategyBrief(strategy)}
+                                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
+                                  data-testid={`button-marketing-copy-audience-strategy-${audience.id}`}
+                                >
+                                  <Copy size={13} /> Copy brief
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => loadAudienceStrategyInStudio(audience, strategy)}
+                                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                  disabled={campaignStudioSaving || strategy.reachableContacts.length === 0}
+                                  data-testid={`button-marketing-build-audience-campaign-${audience.id}`}
+                                >
+                                  <Megaphone size={13} /> Build campaign
+                                </button>
+                              </div>
+                            </div>
                             {canExpandMembers ? (
                               <button
                                 type="button"
@@ -18647,12 +20944,15 @@ function EmptyState({ text }: { text: string }) {
 
 function CampaignPerformanceSummary({
   summary,
+  manualResults = [],
   testId,
 }: {
   summary?: CampaignMetricSummary | null;
+  manualResults?: ManualPublishResult[];
   testId: string;
 }) {
-  if (!summary || summary.metricCount === 0) {
+  const manualSummary = summarizeManualPublishResults(manualResults);
+  if ((!summary || summary.metricCount === 0) && manualSummary.count === 0) {
     return (
       <div className="grid gap-1" data-testid={testId}>
         <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">No imported metrics</Pill>
@@ -18662,18 +20962,38 @@ function CampaignPerformanceSummary({
 
   return (
     <div className="grid min-w-[170px] gap-1.5" data-testid={testId}>
-      <div className="flex flex-wrap gap-1.5">
-        <Pill className="bg-blue-50 text-blue-800">{summary.sent} sent</Pill>
-        <Pill className="bg-emerald-50 text-emerald-800">{summary.delivered} delivered</Pill>
-        <Pill className="bg-purple-50 text-purple-800">{summary.opened} opened</Pill>
-        <Pill className="bg-amber-50 text-amber-800">{summary.clicked} clicked</Pill>
-      </div>
-      <p className="text-xs font-bold text-[#8b7a73]">
-        {summary.metricCount} snapshot{summary.metricCount === 1 ? "" : "s"}
-        {summary.channels.length ? ` / ${summary.channels.join(", ")}` : ""}
-      </p>
-      {summary.latestMetricDate ? (
-        <p className="text-xs font-bold text-[#8b7a73]">Latest {formatDate(summary.latestMetricDate)}</p>
+      {summary && summary.metricCount > 0 ? (
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            <Pill className="bg-blue-50 text-blue-800">{summary.sent} sent</Pill>
+            <Pill className="bg-emerald-50 text-emerald-800">{summary.delivered} delivered</Pill>
+            <Pill className="bg-purple-50 text-purple-800">{summary.opened} opened</Pill>
+            <Pill className="bg-amber-50 text-amber-800">{summary.clicked} clicked</Pill>
+          </div>
+          <p className="text-xs font-bold text-[#8b7a73]">
+            {summary.metricCount} snapshot{summary.metricCount === 1 ? "" : "s"}
+            {summary.channels.length ? ` / ${summary.channels.join(", ")}` : ""}
+          </p>
+          {summary.latestMetricDate ? (
+            <p className="text-xs font-bold text-[#8b7a73]">Latest {formatDate(summary.latestMetricDate)}</p>
+          ) : null}
+        </>
+      ) : (
+        <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">No imported metrics</Pill>
+      )}
+      {manualSummary.count ? (
+        <div className="mt-1 grid gap-1 rounded-lg border border-purple-100 bg-purple-50 px-2 py-1.5" data-testid={`${testId}-manual`}>
+          <div className="flex flex-wrap gap-1.5">
+            <Pill className="bg-white text-purple-800">{manualSummary.count} tracked manual</Pill>
+            {manualSummary.latest ? <Pill className="bg-white text-[#5b4a46]">{channelLabel[manualSummary.latest.channel]} {manualPublishResultLabel[manualSummary.latest.result].toLowerCase()}</Pill> : null}
+            {manualSummary.reached > 0 ? <Pill className="bg-blue-50 text-blue-800">{manualSummary.reached} reached</Pill> : null}
+            {manualSummary.engagements > 0 ? <Pill className="bg-amber-50 text-amber-800">{manualSummary.engagements} engagements</Pill> : null}
+            {manualSummary.followUps > 0 ? <Pill className="bg-red-50 text-red-800">{manualSummary.followUps} follow-up</Pill> : null}
+          </div>
+          {manualSummary.latest ? (
+            <p className="text-xs font-bold text-[#7d6b65]">Latest manual result {formatDate(manualSummary.latest.publishedAt)}</p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -18746,6 +21066,7 @@ function CampaignTable({
             <th className="px-4 py-3">Channels</th>
             <th className="px-4 py-3">Schedule</th>
             <th className="px-4 py-3">Performance</th>
+            <th className="px-4 py-3">Launch readiness</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Recipients</th>
             {showActions ? <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th> : null}
@@ -18753,12 +21074,14 @@ function CampaignTable({
         </thead>
         <tbody>
           {campaigns.length === 0 ? (
-            <tr><td colSpan={showActions ? 8 : 7} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
+            <tr><td colSpan={showActions ? 9 : 8} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
           ) : campaigns.map((campaign) => {
             const isActive = activeCampaignId === campaign.id;
             const deleteIsArmed = confirmingDeleteId === campaign.id;
             const targetAudience = campaignTargetAudience(campaign, audiences);
             const metricSummary = metricsByCampaignId.get(campaign.id);
+            const manualResults = manualPublishResultsFromMetadata(campaign.metadata);
+            const rowReadiness = campaignRowReadiness(campaign, contentById, audiences);
             return (
             <tr
               key={campaign.id}
@@ -18838,7 +21161,16 @@ function CampaignTable({
                 {campaign.scheduleEndsAt ? <p className="text-xs">Ends {formatDate(campaign.scheduleEndsAt)}</p> : null}
               </td>
               <td className="px-4 py-3">
-                <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-campaign-performance-${campaign.id}`} />
+                <CampaignPerformanceSummary summary={metricSummary} manualResults={manualResults} testId={`marketing-campaign-performance-${campaign.id}`} />
+              </td>
+              <td className="px-4 py-3">
+                <div className={`min-w-[190px] rounded-xl border p-2 ${readinessClass(rowReadiness.state)}`} data-testid={`marketing-campaign-row-readiness-${campaign.id}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill className={readinessPillClass(rowReadiness.state)}>{rowReadiness.label}</Pill>
+                    <span className="text-xs font-black">{rowReadiness.readyCount}/{rowReadiness.totalCount}</span>
+                  </div>
+                  <p className="mt-1 text-xs font-bold leading-relaxed">{rowReadiness.detail}</p>
+                </div>
               </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
               <td className="px-4 py-3 font-black">{campaign.recipientCount}</td>
@@ -18920,6 +21252,12 @@ function MarketingCalendarView({
     && channelHasCalendarContent(channel)
   )));
   const missingContentCampaigns = campaigns.filter((campaign) => campaign.channels.some((channel) => !channelHasCalendarContent(channel)));
+  const scheduledCampaignsWithoutRecipients = scheduledCampaigns.filter((campaign) => (
+    campaign.status === "scheduled"
+    && campaign.recipientCount <= 0
+    && campaign.channels.some(channelHasCalendarContent)
+  ));
+  const unscheduledReadyCampaigns = unscheduledCampaigns.filter((campaign) => campaign.channels.some(channelHasCalendarContent));
   const calendarCommandItems = [
     {
       key: "due-email",
@@ -18954,6 +21292,75 @@ function MarketingCalendarView({
       tone: missingContentCampaigns.length ? "bg-red-50 text-red-900 border-red-100" : "bg-white text-[#5b4a46] border-[#eadfd5]",
     },
   ];
+  const calendarWindowLabel = (campaign: Campaign) => {
+    const channels = campaign.channels.map((channel) => channel.channel);
+    if (channels.includes("email")) return "Next weekday morning";
+    if (channels.some((channel) => ["whatsapp", "sms"].includes(channel))) return "Late afternoon reply window";
+    if (channels.some((channel) => ["linkedin", "facebook", "instagram", "tiktok"].includes(channel))) return "Midday social review window";
+    return "Next practical window";
+  };
+  const calendarPlannerItems: Array<CampaignReadinessItem & { campaign: Campaign; channels: Channel[]; windowLabel: string }> = [
+    ...(dueEmailCampaigns[0] ? [{
+      key: "due-email",
+      title: "Send due email now",
+      detail: `"${dueEmailCampaigns[0].name}" is scheduled, has saved recipients, and has email content ready. Review it, then run the explicit send from campaign details or the due-email control.`,
+      state: "ready" as CampaignReadinessState,
+      actionLabel: "Open send review",
+      icon: Send,
+      campaign: dueEmailCampaigns[0],
+      channels: dueEmailCampaigns[0].channels.map((channel) => channel.channel),
+      windowLabel: "Due now",
+      onSelect: () => onEdit(dueEmailCampaigns[0]),
+    }] : []),
+    ...(scheduledCampaignsWithoutRecipients[0] ? [{
+      key: "recipient-gap",
+      title: "Snapshot recipients first",
+      detail: `"${scheduledCampaignsWithoutRecipients[0].name}" is scheduled but has no saved recipients. Snapshot the audience before launch so sends are auditable.`,
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Open recipients",
+      icon: UsersRound,
+      campaign: scheduledCampaignsWithoutRecipients[0],
+      channels: scheduledCampaignsWithoutRecipients[0].channels.map((channel) => channel.channel),
+      windowLabel: formatCalendarTime(scheduledCampaignsWithoutRecipients[0].scheduleStartsAt),
+      onSelect: () => onEdit(scheduledCampaignsWithoutRecipients[0]),
+    }] : []),
+    ...(missingContentCampaigns[0] ? [{
+      key: "content-gap",
+      title: "Fix content gap",
+      detail: `"${missingContentCampaigns[0].name}" has a campaign route without linked content. Attach or draft content before choosing a publish window.`,
+      state: "blocked" as CampaignReadinessState,
+      actionLabel: "Open content gap",
+      icon: FileText,
+      campaign: missingContentCampaigns[0],
+      channels: missingContentCampaigns[0].channels.map((channel) => channel.channel),
+      windowLabel: "Before scheduling",
+      onSelect: () => onEdit(missingContentCampaigns[0]),
+    }] : []),
+    ...(unscheduledReadyCampaigns[0] ? [{
+      key: "schedule-draft",
+      title: "Schedule ready draft",
+      detail: `"${unscheduledReadyCampaigns[0].name}" has linked content and can be given a practical publish window.`,
+      state: "planning" as CampaignReadinessState,
+      actionLabel: "Open schedule",
+      icon: CalendarDays,
+      campaign: unscheduledReadyCampaigns[0],
+      channels: unscheduledReadyCampaigns[0].channels.map((channel) => channel.channel),
+      windowLabel: calendarWindowLabel(unscheduledReadyCampaigns[0]),
+      onSelect: () => onEdit(unscheduledReadyCampaigns[0]),
+    }] : []),
+    ...(manualHandoffCampaigns[0] ? [{
+      key: "manual-handoff",
+      title: "Prepare manual handoff",
+      detail: `"${manualHandoffCampaigns[0].name}" has social or offline channel content. Prepare the channel handoff and track the result after publishing.`,
+      state: "planning" as CampaignReadinessState,
+      actionLabel: "Open handoff",
+      icon: Sparkles,
+      campaign: manualHandoffCampaigns[0],
+      channels: manualHandoffCampaigns[0].channels.filter((channel) => channel.channel !== "email").map((channel) => channel.channel),
+      windowLabel: calendarWindowLabel(manualHandoffCampaigns[0]),
+      onSelect: () => onEdit(manualHandoffCampaigns[0]),
+    }] : []),
+  ].slice(0, 5);
 
   if (!campaigns.length) return <EmptyState text="No campaigns match the filters." />;
 
@@ -18976,6 +21383,58 @@ function MarketingCalendarView({
           </button>
         ))}
       </div>
+      <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-4 shadow-sm" data-testid="marketing-calendar-ai-planner">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">AI schedule planner</p>
+            <h3 className="mt-1 text-lg font-black text-[#241133]">Best next publishing moves</h3>
+            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+              Uses schedule, recipients, linked content, and channel type to point the admin to the next useful action.
+            </p>
+          </div>
+          <Pill className={calendarPlannerItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : calendarPlannerItems.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+            {calendarPlannerItems.length ? `${calendarPlannerItems.length} moves` : "Clear"}
+          </Pill>
+        </div>
+        {calendarPlannerItems.length ? (
+          <div className="mt-3 grid gap-3 xl:grid-cols-5">
+            {calendarPlannerItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={item.onSelect}
+                  className={`min-h-[172px] rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                  data-testid={`button-marketing-calendar-ai-plan-${item.key}`}
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                      <Icon size={16} aria-hidden="true" />
+                    </span>
+                    <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                  </span>
+                  <span className="mt-3 block text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.windowLabel}</span>
+                  <span className="mt-1 block font-black text-[#241133]">{item.title}</span>
+                  <span className="mt-2 line-clamp-3 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                  <span className="mt-3 flex flex-wrap gap-1">
+                    {(item.channels.length ? item.channels : item.campaign.channels.map((channel) => channel.channel)).map((channel) => (
+                      <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                    ))}
+                  </span>
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                    {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-xl border border-dashed border-purple-100 bg-white px-4 py-3 text-sm font-bold text-[#6b5b54]">
+            No urgent schedule moves. Add a draft, schedule a campaign, or attach content to create a planner recommendation.
+          </p>
+        )}
+      </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="grid content-start gap-3" data-testid="marketing-calendar-timeline">
         {days.length === 0 ? (
@@ -18990,6 +21449,7 @@ function MarketingCalendarView({
               {day.campaigns.map((campaign) => {
                 const targetAudience = campaignTargetAudience(campaign, audiences);
                 const metricSummary = metricsByCampaignId.get(campaign.id);
+                const manualResults = manualPublishResultsFromMetadata(campaign.metadata);
                 return (
                 <article key={campaign.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -19013,7 +21473,7 @@ function MarketingCalendarView({
                     </div>
                   </div>
                   <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                    <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-calendar-performance-${campaign.id}`} />
+                    <CampaignPerformanceSummary summary={metricSummary} manualResults={manualResults} testId={`marketing-calendar-performance-${campaign.id}`} />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="grid gap-1.5">

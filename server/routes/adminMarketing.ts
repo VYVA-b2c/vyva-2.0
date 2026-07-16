@@ -56,7 +56,7 @@ function marketingSchemaErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-const marketingChannels = ["email", "whatsapp", "facebook", "instagram", "linkedin", "tiktok"] as const;
+const marketingChannels = ["email", "whatsapp", "sms", "phone", "print", "event", "facebook", "instagram", "linkedin", "tiktok"] as const;
 const audienceTypes = ["b2c", "b2b", "both"] as const;
 const campaignStatuses = ["draft", "scheduled", "published", "paused", "archived"] as const;
 const contentStatuses = ["draft", "review", "approved", "published", "archived"] as const;
@@ -364,6 +364,10 @@ const marketingToneDirection: Record<z.infer<typeof marketingAiToneSchema>, stri
 const marketingChannelDirection: Record<typeof marketingChannels[number], string> = {
   email: "Use a crisp subject, one central idea, and one primary call to action.",
   whatsapp: "Keep the copy conversational, brief, and easy to reply to.",
+  sms: "Keep the message short, consent-aware, and focused on one reply or link action.",
+  phone: "Write a practical call script with opener, qualifying question, close, and outcome note.",
+  print: "Make the copy readable offline with a clear headline, handoff, and QR/link route.",
+  event: "Include place, timing, accessibility, owner, and post-event follow-up instructions.",
   facebook: "Make the hook shareable and community-friendly.",
   instagram: "Make the copy visual-first with a strong caption opening.",
   linkedin: "Lead with the professional value and practical outcome.",
@@ -1553,6 +1557,10 @@ function fieldCoverageForPayload(payload: unknown[], aliasGroups: readonly (read
 function normalizeChannel(value: string) {
   const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (normalized === "whats_app") return "whatsapp";
+  if (["text", "text_message", "sms_message"].includes(normalized)) return "sms";
+  if (["call", "phone_call", "voice", "voice_call", "telephone"].includes(normalized)) return "phone";
+  if (["direct_mail", "mail", "mailer", "flyer", "poster", "postcard", "print_mail"].includes(normalized)) return "print";
+  if (["local_event", "offline_event", "in_person", "in_person_event", "venue", "workshop"].includes(normalized)) return "event";
   if ((marketingChannels as readonly string[]).includes(normalized)) return normalized as typeof marketingChannels[number];
   return "email";
 }
@@ -2078,7 +2086,9 @@ function channelSendCapabilities() {
       ? "Email campaign dispatch uses the existing communications dispatcher and Resend provider."
       : channel === "whatsapp"
         ? "WhatsApp marketing dispatch remains locked until consent and template controls are enabled."
-        : "Planning/tracking only until social platform integrations are added.",
+        : ["sms", "phone", "print", "event"].includes(channel)
+          ? "Planning/tracking only for direct or offline execution. No provider dispatch is triggered."
+          : "Planning/tracking only until social platform integrations are added.",
   }));
 }
 
@@ -3693,6 +3703,7 @@ async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string
 function recipientValueForContact(contact: MarketingContactRow, channel: typeof marketingChannels[number]) {
   if (channel === "email") return contact.email;
   if (channel === "whatsapp") return contact.whatsapp_number || contact.phone_number;
+  if (channel === "sms" || channel === "phone") return contact.phone_number || contact.whatsapp_number;
   return contact.email || contact.whatsapp_number || contact.phone_number || contact.id;
 }
 
