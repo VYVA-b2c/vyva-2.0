@@ -4620,6 +4620,107 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("No answer saved. The task stays open");
   });
 
+  it.each([
+    {
+      label: "ride phone call",
+      id: "persisted-waiting-ride",
+      useCase: "book_ride",
+      providerName: "QA Transport",
+      providerPhone: "+34 600 000 101",
+      payload: {
+        flow_reference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+        execution_channel: "phone",
+        pickup_address: "Saved home",
+        destination_address: "QA clinic",
+      },
+    },
+    {
+      label: "OTC pharmacy WhatsApp",
+      id: "persisted-waiting-otc",
+      useCase: "order_medicine",
+      providerName: "QA Pharmacy",
+      providerPhone: "+34 600 000 102",
+      payload: {
+        flow_reference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+        execution_channel: "whatsapp",
+        provider_whatsapp: "+34 600 000 102",
+        item_text: "OTC test item",
+      },
+    },
+    {
+      label: "appointment email",
+      id: "persisted-waiting-appointment",
+      useCase: "book_appointment",
+      providerName: "QA Clinic",
+      providerPhone: null,
+      payload: {
+        flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+        execution_channel: "email",
+        provider_email: "qa-clinic@example.com",
+        appointment_type: "medical",
+        appointment_reason: "QA follow-up",
+      },
+    },
+    {
+      label: "home-service booking form",
+      id: "persisted-waiting-home",
+      useCase: "home_service",
+      providerName: "QA Home Service",
+      providerPhone: null,
+      payload: {
+        flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+        execution_channel: "booking_url",
+        booking_url: "https://example.com/qa-home-service",
+        appointment_type: "home-service",
+        service_type: "plumber",
+        problem_summary: "QA leak check",
+      },
+    },
+  ])("restores the persisted Waiting for provider state after reload for $label", async ({
+    id,
+    useCase,
+    providerName,
+    providerPhone,
+    payload,
+  }) => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id,
+            use_case: useCase,
+            provider_name: providerName,
+            provider_phone: providerPhone,
+            action_summary: `Waiting for ${providerName}.`,
+            action_payload: {
+              ...payload,
+              mission_status: "awaiting_provider_reply",
+              live_handoff_status: "waiting",
+              provider_follow_up_status: "waiting",
+              provider_waiting_since: "2026-07-16T08:00:00.000Z",
+              provider_contact_attempt_count: 1,
+              waiting_for_provider: true,
+              no_external_action_without_confirmation: true,
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const handoff = await screen.findByTestId("panel-concierge-live-handoff");
+    expect(handoff).toHaveAttribute("data-state", "waiting");
+    expect(handoff).toHaveTextContent("Waiting for provider");
+    expect(screen.getByTestId("item-live-handoff-provider")).toHaveTextContent(providerName);
+    expect(screen.getByTestId(`button-provider-reply-confirmed-${id}`)).toHaveTextContent("I got a reply");
+    expect(screen.getByTestId(`button-provider-reply-no-answer-${id}`)).toHaveTextContent("No answer");
+    expect(screen.getByTestId(`button-provider-reply-unavailable-${id}`)).toHaveTextContent("Try another provider");
+  });
+
   it("closes a waiting provider task only when the user marks it complete", async () => {
     let completionBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
@@ -5147,6 +5248,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("keeps a sent email draft waiting for the provider", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
@@ -5224,6 +5326,16 @@ describe("ConciergeScreen route prefill", () => {
     });
     expect(screen.getByTestId("panel-concierge-email-draft")).toBeVisible();
     expect(screen.getByTestId("email-draft-notice")).toHaveTextContent("Email sent. Waiting for the provider.");
+
+    fireEvent.click(screen.getByTestId("link-concierge-email-draft-open-email-sent-1"));
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+    expect(openMock).toHaveBeenCalledWith(
+      "mailto:claims@example.com?subject=Claim%20documents&body=Hello%2C%20please%20review%20my%20claim%20documents.",
+      "_self",
+      undefined,
+    );
   });
 
   it("keeps a sent tool-gated email draft waiting for the provider", async () => {

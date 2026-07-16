@@ -16,6 +16,10 @@ import {
   type ConciergeLaunchSmokeFlowAudit,
 } from "./conciergeLaunchSmokeAudit";
 import type { WorkflowEntryPoint } from "./workflowRegistry";
+import {
+  getConciergeLiveHandoffQaJourney,
+  type ConciergeLiveHandoffQaJourney,
+} from "./conciergeLiveHandoffQa";
 
 export type ConciergeManualQaStepKind =
   | "start_entry_point"
@@ -23,9 +27,11 @@ export type ConciergeManualQaStepKind =
   | "saved_provider_path"
   | "detail_collection"
   | "final_confirmation"
-  | "handoff_history";
+  | "handoff_history"
+  | "waiting_persistence"
+  | "follow_up_confirmation";
 
-export type ConciergeManualQaStepSource = "registry" | "coverage" | "smoke_audit";
+export type ConciergeManualQaStepSource = "registry" | "coverage" | "smoke_audit" | "live_handoff_contract";
 
 export interface ConciergeManualQaStep {
   id: string;
@@ -67,7 +73,9 @@ export interface ConciergeManualQaScript {
   entryPoints: ConciergeManualQaEntryPoint[];
   detailsToAsk: string[];
   providerPath: ConciergeManualQaProviderPath;
+  liveHandoffJourney: ConciergeLiveHandoffQaJourney | null;
   finalConfirmationStep: ConciergeManualQaStep;
+  liveFollowUpSteps: ConciergeManualQaStep[];
   handoffHistorySteps: ConciergeManualQaStep[];
   steps: ConciergeManualQaStep[];
 }
@@ -175,16 +183,56 @@ function finalConfirmationStep(
   });
 }
 
-function handoffHistorySteps(reference: ConciergeFlowReference): ConciergeManualQaStep[] {
+function handoffHistorySteps(
+  reference: ConciergeFlowReference,
+  liveJourney: ConciergeLiveHandoffQaJourney | null,
+): ConciergeManualQaStep[] {
   const coverage = getConciergeFlowCoverage(reference);
   return (["action_handoff", "outcome_capture", "completed_history"] as const).map((stage) => qaStep({
     id: `${reference}:${stage}`,
     kind: "handoff_history",
     title: CONCIERGE_FLOW_COVERAGE_STAGE_LABELS[stage],
-    instruction: `Complete the ${CONCIERGE_FLOW_COVERAGE_STAGE_LABELS[stage].toLowerCase()} check.`,
-    expectedResult: coverage.evidence[stage] ?? `The ${CONCIERGE_FLOW_COVERAGE_STAGE_LABELS[stage].toLowerCase()} stage is visible and traceable.`,
-    source: "coverage",
+    instruction: liveJourney
+      ? stage === "action_handoff"
+        ? liveJourney.launchInstruction
+        : stage === "outcome_capture"
+          ? liveJourney.replyInstruction
+          : liveJourney.historyInstruction
+      : `Complete the ${CONCIERGE_FLOW_COVERAGE_STAGE_LABELS[stage].toLowerCase()} check.`,
+    expectedResult: liveJourney
+      ? stage === "action_handoff"
+        ? liveJourney.launchExpectedResult
+        : stage === "outcome_capture"
+          ? liveJourney.replyExpectedResult
+          : liveJourney.historyExpectedResult
+      : coverage.evidence[stage] ?? `The ${CONCIERGE_FLOW_COVERAGE_STAGE_LABELS[stage].toLowerCase()} stage is visible and traceable.`,
+    source: liveJourney ? "live_handoff_contract" : "coverage",
   }));
+}
+
+function liveFollowUpSteps(
+  reference: ConciergeFlowReference,
+  liveJourney: ConciergeLiveHandoffQaJourney | null,
+): ConciergeManualQaStep[] {
+  if (!liveJourney) return [];
+  return [
+    qaStep({
+      id: `${reference}:waiting-persistence`,
+      kind: "waiting_persistence",
+      title: "Waiting survives reload",
+      instruction: liveJourney.waitingInstruction,
+      expectedResult: liveJourney.waitingExpectedResult,
+      source: "live_handoff_contract",
+    }),
+    qaStep({
+      id: `${reference}:follow-up-confirmation`,
+      kind: "follow_up_confirmation",
+      title: "No answer and retry confirmation",
+      instruction: liveJourney.noAnswerInstruction,
+      expectedResult: liveJourney.noAnswerExpectedResult,
+      source: "live_handoff_contract",
+    }),
+  ];
 }
 
 function smokeAuditSummary(audit: ConciergeLaunchSmokeFlowAudit | undefined): ConciergeManualQaSmokeAudit {
@@ -215,10 +263,12 @@ export function buildConciergeManualQaScripts(options?: {
   return CONCIERGE_FLOW_REGISTRY.map((flow) => {
     const entryPoints = conciergeFlowCoverageEntryPoints(flow.reference).map(entryPointSummary);
     const providerPath = providerPathForFlow(flow.reference, flow.actionName);
+    const liveHandoffJourney = getConciergeLiveHandoffQaJourney(flow.reference);
     const entrySteps = startEntryPointSteps(flow.reference, entryPoints);
     const detailStep = detailCollectionStep(flow.reference, flow.firstQuestions);
     const finalStep = finalConfirmationStep(flow.reference, flow.confirmationRule);
-    const historySteps = handoffHistorySteps(flow.reference);
+    const historySteps = handoffHistorySteps(flow.reference, liveHandoffJourney);
+    const followUpSteps = liveFollowUpSteps(flow.reference, liveHandoffJourney);
     const providerSteps = [
       providerPath.missingProviderStep,
       providerPath.savedProviderStep,
@@ -231,14 +281,18 @@ export function buildConciergeManualQaScripts(options?: {
       entryPoints,
       detailsToAsk: flow.firstQuestions,
       providerPath,
+      liveHandoffJourney,
       finalConfirmationStep: finalStep,
+      liveFollowUpSteps: followUpSteps,
       handoffHistorySteps: historySteps,
       steps: [
         ...entrySteps,
         ...providerSteps,
         detailStep,
         finalStep,
-        ...historySteps,
+        historySteps[0],
+        ...followUpSteps,
+        ...historySteps.slice(1),
       ],
     };
   });

@@ -162,3 +162,14 @@ These were intentionally left `Not tested` in this priority pass:
 - Fail found: Concierge readiness admin page overflowed horizontally at 320px.
 - Fix shipped in PR #769: bounded script-card grid columns and wrapped checkpoint text.
 - Verification: `npx playwright test e2e/responsive-routes.spec.ts --project=chromium -g "admin workspace"` passed after the fix.
+
+## Live Handoff Hardening Follow-up
+
+The readiness dashboard now replaces the generic handoff checks for the four priority provider journeys with explicit channel tests:
+
+- Ride: QA phone call.
+- OTC pharmacy: QA WhatsApp draft.
+- Medical appointment: QA email draft.
+- Home service: QA booking form.
+
+Each journey also includes `Waiting survives reload` and `No answer and retry confirmation`. Automated evidence for these paths is passing, but the live checkpoints remain `Needs review` until a tester uses QA-controlled destinations and records the received contact and reply/no-answer outcome. See `docs/audits/concierge-live-handoff-qa-v1.md`.

@@ -17,7 +17,7 @@ This pass focuses the manual QA runner on the highest-risk Concierge flows:
 
 The automated readiness checks and generated manual QA scripts are passing for the priority flows. The first runtime blocker found in this pass was fixed: the Concierge readiness admin page overflowed horizontally on a 320px viewport.
 
-The marked dashboard export for this pass is saved in `docs/audits/concierge-priority-qa-dashboard-export.md`.
+The marked dashboard export for this pass is saved in `docs/audits/concierge-priority-qa-dashboard-export.md`. The follow-up live-handoff hardening evidence is recorded in `docs/audits/concierge-live-handoff-qa-v1.md`.
 
 ## Priority Flow Status
 
@@ -44,4 +44,6 @@ The marked dashboard export for this pass is saved in `docs/audits/concierge-pri
 
 ## Remaining Manual QA
 
-Use the Concierge readiness dashboard priority pass to mark each checkpoint as `Pass`, `Fail`, `Needs review`, or `Not tested` after live/manual testing. Export Markdown or JSON from the dashboard when sharing results across testers.
+The readiness dashboard now generates channel-specific live checks for ride phone calls, pharmacy WhatsApp, appointment email, and home-service booking forms. Each includes reload persistence, no-answer retry confirmation, reply capture, and completed-history checks.
+
+Use only QA-controlled destinations. Mark each checkpoint as `Pass`, `Fail`, `Needs review`, or `Not tested` after live/manual testing, then export Markdown or JSON from the dashboard when sharing results across testers.

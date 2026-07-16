@@ -228,6 +228,9 @@ function ManualQaScriptCard({
           <Pill tone={script.providerPath.required ? "warn" : "good"}>
             {script.providerPath.required ? "Provider path" : "No provider setup required"}
           </Pill>
+          {script.liveHandoffJourney ? (
+            <Pill tone="warn">Live {script.liveHandoffJourney.channelLabel} test</Pill>
+          ) : null}
           <Pill tone={flowStatusTone(flowStatus)}>{flowStatusLabel(flowStatus)}</Pill>
         </div>
       </div>
@@ -411,6 +414,9 @@ function ManualQaScriptSection({
             <h3 className="mt-1 text-lg font-black text-[#2f2135]">Test these six high-risk flows first</h3>
             <p className="mt-1 text-sm font-semibold leading-relaxed text-[#7d6b65]">
               These are the flows most likely to touch providers, personal information, documents, or user safety.
+            </p>
+            <p className="mt-2 text-sm font-black leading-relaxed text-[#8a4b10]">
+              Use only QA-controlled phone numbers, inboxes, WhatsApp accounts, and booking pages. Never contact a real provider during a test run.
             </p>
           </div>
           <div className="grid min-w-full gap-2 sm:grid-cols-2 lg:min-w-[520px] lg:grid-cols-4">
