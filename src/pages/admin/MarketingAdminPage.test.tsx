@@ -2491,6 +2491,44 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("creates and links missing campaign route content from the planner", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Care team nudge" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-objective"), { target: { value: "Invite families to try a calmer care-team update." } });
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-pack-care-team"));
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-content"), { target: { value: "content-1" } });
+
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("WhatsApp content");
+    expect(screen.getByTestId("select-marketing-campaign-route-content-whatsapp")).toHaveValue("");
+    fireEvent.click(screen.getByTestId("button-marketing-create-link-route-content-whatsapp"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const routeContentPost = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")))
+      .find((body) => body.channel === "whatsapp");
+
+    expect(routeContentPost).toMatchObject({
+      title: "Care team nudge WhatsApp content",
+      channel: "whatsapp",
+      status: "draft",
+      body: expect.stringContaining("Invite families to try a calmer care-team update."),
+      designJson: expect.objectContaining({
+        generator: "marketing_campaign_planner",
+        channel: "whatsapp",
+      }),
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("select-marketing-campaign-route-content-whatsapp")).toHaveValue("content-created");
+    });
+    expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("2 content assets linked across Email and WhatsApp.");
+    expect(screen.getByText("Created and linked WhatsApp route content.")).toBeInTheDocument();
+  });
+
   it("edits and deletes imported content assets", async () => {
     renderPage();
 
