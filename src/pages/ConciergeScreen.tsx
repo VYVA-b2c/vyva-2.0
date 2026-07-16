@@ -104,7 +104,10 @@ import type {
   ConciergeExecutionTask,
   ConciergeExecutionTaskStatus,
 } from "../../shared/conciergeActionExecution";
-import { isConciergeDryRunPayload } from "../../shared/conciergeDryRun";
+import {
+  CONCIERGE_DRY_RUN_TEST_MODE,
+  isConciergeDryRunPayload,
+} from "../../shared/conciergeDryRun";
 import {
   isShowVyvaPreparedTask,
   type ShowVyvaExecutionGuide,
@@ -3985,6 +3988,41 @@ function manualReviewOutcomePayload(
   };
 }
 
+function dryRunOutcomeSummary(item: ConciergePendingItem, isSpanish: boolean): string {
+  const subject = payloadString(item.action_payload, [
+    "task_goal",
+    "action_label",
+    "reason",
+    "service_label",
+    "item_text",
+    "document_type",
+    "review_source",
+    "provider_search_query",
+  ]) || item.action_summary;
+
+  return isSpanish
+    ? `Resultado simulado de prueba: ${subject}`
+    : `Simulated dry-run outcome: ${subject}`;
+}
+
+function dryRunOutcomePayload(item: ConciergePendingItem): Record<string, unknown> {
+  const payload = item.action_payload ?? {};
+  const flowReference = payloadString(payload, ["flow_reference"]) || manualReviewFlowReference(item);
+  return {
+    ...payload,
+    flow_reference: flowReference,
+    dry_run: true,
+    test_mode: CONCIERGE_DRY_RUN_TEST_MODE,
+    simulated_outcome: true,
+    no_real_provider_contact: true,
+    no_external_action_without_confirmation: true,
+    live_handoff_status: "completed",
+    live_handoff_outcome: "dry_run_simulated",
+    completed_from: "concierge_dry_run_outcome_panel",
+    simulated_at: new Date().toISOString(),
+  };
+}
+
 function isManualReviewOutcomePendingAction(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
   if (!item || (item.status !== "pending" && item.status !== "calling")) return false;
   if (isWebSearchPendingAction(item)) return false;
@@ -5643,6 +5681,7 @@ function BookingFormSupportPanel({
   bookingUrl,
   canOpenForm,
   externalLinksAllowed,
+  isDryRun,
   form,
   notice,
   error,
@@ -5659,6 +5698,7 @@ function BookingFormSupportPanel({
   bookingUrl: string;
   canOpenForm: boolean;
   externalLinksAllowed: boolean;
+  isDryRun: boolean;
   form: BookingFormOutcomeForm;
   notice: string | null;
   error: string | null;
@@ -5723,7 +5763,9 @@ function BookingFormSupportPanel({
                 data-testid={`text-booking-form-confirm-first-${item.id}`}
                 className="rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
               >
-                {isSpanish ? "Confirma arriba antes de abrir el formulario." : "Confirm above before opening the form."}
+                {isDryRun
+                  ? (isSpanish ? "Modo prueba: no se abrira ni enviara ningun formulario real." : "Test mode: no real form will open or submit.")
+                  : (isSpanish ? "Confirma arriba antes de abrir el formulario." : "Confirm above before opening the form.")}
               </p>
             )}
             <Button
@@ -5759,11 +5801,13 @@ function BookingFormSupportPanel({
                 type="button"
                 data-testid={`button-booking-form-submitted-${item.id}`}
                 onClick={onSubmitted}
-                disabled={isSaving}
+                disabled={isSaving || isDryRun}
                 className="vyva-primary-action mt-3 h-auto w-full bg-[#047857] hover:bg-[#065F46]"
               >
                 {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-                {isSpanish ? "Ya lo envie" : "I submitted it"}
+                {isDryRun
+                  ? (isSpanish ? "Usa la simulacion arriba" : "Use simulated outcome above")
+                  : (isSpanish ? "Ya lo envie" : "I submitted it")}
               </Button>
             </>
           ) : null}
@@ -5825,6 +5869,7 @@ function PhoneCallOutcomePanel({
   notice,
   error,
   isSaving,
+  isDryRun,
   isSpanish,
   onFormChange,
   onCall,
@@ -5835,6 +5880,7 @@ function PhoneCallOutcomePanel({
   notice: string | null;
   error: string | null;
   isSaving: boolean;
+  isDryRun: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof PhoneCallOutcomeForm, value: string) => void;
   onCall: (href: string, label: string) => void;
@@ -5873,11 +5919,12 @@ function PhoneCallOutcomePanel({
             type="button"
             onClick={() => onCall(href, isSpanish ? "Llamar" : "Call now")}
             data-testid={`link-concierge-phone-call-${item.id}`}
-            className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
+            disabled={isDryRun}
+            className={`vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full px-4 font-body text-[13px] font-black text-white shadow-sm ${isDryRun ? "bg-emerald-700 opacity-80" : "bg-vyva-purple"}`}
             aria-label={`${isSpanish ? "Llamar" : "Call"} ${phone}`}
           >
             <PhoneCall size={14} />
-            {isSpanish ? "Llamar" : "Call now"}
+            {isDryRun ? (isSpanish ? "Prueba" : "Test mode") : (isSpanish ? "Llamar" : "Call now")}
           </button>
         ) : null}
       </div>
@@ -5939,11 +5986,13 @@ function PhoneCallOutcomePanel({
         type="button"
         data-testid={`button-phone-outcome-save-${item.id}`}
         onClick={onSave}
-        disabled={isSaving}
+        disabled={isSaving || isDryRun}
         className="vyva-primary-action mt-3 h-auto w-full"
       >
         {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-        {isSpanish ? "Guardar resultado" : "Save result"}
+        {isDryRun
+          ? (isSpanish ? "Usa la simulacion arriba" : "Use simulated outcome above")
+          : (isSpanish ? "Guardar resultado" : "Save result")}
       </Button>
 
       {notice ? (
@@ -5968,6 +6017,7 @@ function EmailDraftOutcomePanel({
   notice,
   error,
   isSaving,
+  isDryRun,
   isSpanish,
   onFormChange,
   onOpenDraft,
@@ -5980,6 +6030,7 @@ function EmailDraftOutcomePanel({
   notice: string | null;
   error: string | null;
   isSaving: boolean;
+  isDryRun: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof EmailDraftOutcomeForm, value: string) => void;
   onOpenDraft: (href: string, label: string) => void;
@@ -6002,20 +6053,23 @@ function EmailDraftOutcomePanel({
             {draft.address}
           </span>
           <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
-            {isSpanish
-              ? "Abre el borrador, envialo desde tu correo y guarda que ya salio."
-              : "Open the draft, send it from your email, then save that it went out."}
+            {isDryRun
+              ? (isSpanish ? "Modo prueba: no se abrira ni enviara ningun email real." : "Test mode: no real email will open or send.")
+              : (isSpanish
+                ? "Abre el borrador, envialo desde tu correo y guarda que ya salio."
+                : "Open the draft, send it from your email, then save that it went out.")}
           </span>
         </span>
         <button
           type="button"
           onClick={() => onOpenDraft(href, isSpanish ? "Abrir email" : "Open email")}
           data-testid={`link-concierge-email-draft-open-${item.id}`}
-          className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
+          disabled={isDryRun}
+          className={`vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full px-4 font-body text-[13px] font-black text-white shadow-sm ${isDryRun ? "bg-emerald-700 opacity-80" : "bg-vyva-purple"}`}
           aria-label={`${isSpanish ? "Abrir email" : "Open email"} ${draft.address}`}
         >
           <ExternalLink size={14} />
-          {isSpanish ? "Abrir" : "Open"}
+          {isDryRun ? (isSpanish ? "Prueba" : "Test mode") : (isSpanish ? "Abrir" : "Open")}
         </button>
       </div>
 
@@ -6054,11 +6108,13 @@ function EmailDraftOutcomePanel({
         type="button"
         data-testid={`button-email-draft-sent-${item.id}`}
         onClick={onSent}
-        disabled={isSaving}
+        disabled={isSaving || isDryRun}
         className="vyva-primary-action mt-3 h-auto w-full"
       >
         {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-        {isSpanish ? "Ya lo envie" : "I sent it"}
+        {isDryRun
+          ? (isSpanish ? "Usa la simulacion arriba" : "Use simulated outcome above")
+          : (isSpanish ? "Ya lo envie" : "I sent it")}
       </Button>
 
       {notice ? (
@@ -6083,6 +6139,7 @@ function WhatsAppDraftOutcomePanel({
   notice,
   error,
   isSaving,
+  isDryRun,
   isSpanish,
   onFormChange,
   onOpenDraft,
@@ -6095,6 +6152,7 @@ function WhatsAppDraftOutcomePanel({
   notice: string | null;
   error: string | null;
   isSaving: boolean;
+  isDryRun: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof WhatsAppDraftOutcomeForm, value: string) => void;
   onOpenDraft: (href: string, label: string) => void;
@@ -6117,20 +6175,23 @@ function WhatsAppDraftOutcomePanel({
             {draft.number}
           </span>
           <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
-            {isSpanish
-              ? "Abre el borrador, envialo en WhatsApp y guarda que ya salio."
-              : "Open the draft, send it in WhatsApp, then save that it went out."}
+            {isDryRun
+              ? (isSpanish ? "Modo prueba: no se abrira ni enviara ningun WhatsApp real." : "Test mode: no real WhatsApp will open or send.")
+              : (isSpanish
+                ? "Abre el borrador, envialo en WhatsApp y guarda que ya salio."
+                : "Open the draft, send it in WhatsApp, then save that it went out.")}
           </span>
         </span>
         <button
           type="button"
           onClick={() => onOpenDraft(href, isSpanish ? "Abrir WhatsApp" : "Open WhatsApp")}
           data-testid={`link-concierge-whatsapp-draft-open-${item.id}`}
-          className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[13px] font-black text-white shadow-sm"
+          disabled={isDryRun}
+          className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[13px] font-black text-white shadow-sm disabled:opacity-80"
           aria-label={`${isSpanish ? "Abrir WhatsApp" : "Open WhatsApp"} ${draft.number}`}
         >
           <ExternalLink size={14} />
-          {isSpanish ? "Abrir" : "Open"}
+          {isDryRun ? (isSpanish ? "Prueba" : "Test mode") : (isSpanish ? "Abrir" : "Open")}
         </button>
       </div>
 
@@ -6166,11 +6227,13 @@ function WhatsAppDraftOutcomePanel({
         type="button"
         data-testid={`button-whatsapp-draft-sent-${item.id}`}
         onClick={onSent}
-        disabled={isSaving}
+        disabled={isSaving || isDryRun}
         className="vyva-primary-action mt-3 h-auto w-full"
       >
         {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-        {isSpanish ? "Ya lo envie" : "I sent it"}
+        {isDryRun
+          ? (isSpanish ? "Usa la simulacion arriba" : "Use simulated outcome above")
+          : (isSpanish ? "Ya lo envie" : "I sent it")}
       </Button>
 
       {notice ? (
@@ -6727,6 +6790,83 @@ function ManualReviewOutcomePanel({
       ) : null}
       {error ? (
         <p data-testid="manual-review-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function DryRunOutcomePanel({
+  item,
+  canSave,
+  isSaving,
+  notice,
+  error,
+  isSpanish,
+  onSave,
+}: {
+  item: ConciergePendingItem;
+  canSave: boolean;
+  isSaving: boolean;
+  notice: string | null;
+  error: string | null;
+  isSpanish: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-emerald-200 bg-emerald-50 p-4"
+      data-testid={`panel-concierge-dry-run-outcome-${item.id}`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-emerald-700 shadow-sm">
+          <ShieldCheck size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-emerald-800">
+            {isSpanish ? "Modo prueba" : "Test mode"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-emerald-950">
+            {isSpanish ? "Guardar resultado simulado" : "Save simulated outcome"}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-emerald-900">
+            {isSpanish
+              ? "No se llamara, enviara, subira ni abrira nada real. Esto solo guarda el ensayo en el historial completado."
+              : "No real call, email, upload, form, or provider contact will happen. This only saves the rehearsal to completed history."}
+          </span>
+        </span>
+      </div>
+
+      {!canSave ? (
+        <p
+          className="mt-3 rounded-[14px] bg-white px-3 py-2 font-body text-[12px] font-black text-emerald-900"
+          data-testid={`text-concierge-dry-run-confirm-first-${item.id}`}
+        >
+          {isSpanish
+            ? "Confirma el paso preparado antes de guardar el resultado simulado."
+            : "Confirm the prepared step before saving the simulated result."}
+        </p>
+      ) : null}
+
+      <Button
+        type="button"
+        data-testid={`button-concierge-dry-run-complete-${item.id}`}
+        onClick={onSave}
+        disabled={!canSave || isSaving}
+        className="vyva-primary-action mt-3 h-auto w-full bg-emerald-700 hover:bg-emerald-800"
+      >
+        {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+        {isSpanish ? "Guardar simulacion" : "Save simulation"}
+      </Button>
+
+      {notice ? (
+        <p data-testid="dry-run-outcome-notice" className="mt-3 rounded-[14px] bg-white px-3 py-2 font-body text-[12px] font-black text-emerald-800">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="dry-run-outcome-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
           {error}
         </p>
       ) : null}
@@ -8436,6 +8576,8 @@ const ConciergeScreen = () => {
   const [manualReviewOutcomeForm, setManualReviewOutcomeForm] = useState<ManualReviewOutcomeForm>(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
   const [manualReviewNotice, setManualReviewNotice] = useState<string | null>(null);
   const [manualReviewError, setManualReviewError] = useState<string | null>(null);
+  const [dryRunOutcomeNotice, setDryRunOutcomeNotice] = useState<string | null>(null);
+  const [dryRunOutcomeError, setDryRunOutcomeError] = useState<string | null>(null);
   const [confirmedReviewActionIds, setConfirmedReviewActionIds] = useState<Set<string>>(() => new Set());
   const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
@@ -9711,6 +9853,30 @@ const ConciergeScreen = () => {
     },
     onError: (error) => {
       setManualReviewError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la revision." : "I could not save the review."));
+    },
+  });
+
+  const dryRunOutcomeMutation = useMutation({
+    mutationFn: ({ item }: { item: ConciergePendingItem }) => completePendingConciergeAction({
+      pendingId: item.id,
+      outcomeSummary: dryRunOutcomeSummary(item, isSpanish),
+      outcomePayload: dryRunOutcomePayload(item),
+    }),
+    onMutate: () => {
+      setDryRunOutcomeNotice(null);
+      setDryRunOutcomeError(null);
+    },
+    onSuccess: async () => {
+      setDryRunOutcomeNotice(isSpanish
+        ? "Simulacion guardada en historial completado. No se contacto con ningun proveedor real."
+        : "Simulation saved to completed history. No real provider was contacted.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setDryRunOutcomeError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la simulacion." : "I could not save the simulation."));
     },
   });
 
@@ -12413,6 +12579,8 @@ const ConciergeScreen = () => {
     setManualReviewOutcomeForm(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
     setManualReviewNotice(null);
     setManualReviewError(null);
+    setDryRunOutcomeNotice(null);
+    setDryRunOutcomeError(null);
   }, [activeAction?.id]);
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -12466,6 +12634,16 @@ const ConciergeScreen = () => {
   const activeActionAlreadyConfirmed = activeAction ? conciergeActionAlreadyConfirmed(activeAction) : false;
   const activeActionReviewConfirmed = activeAction ? confirmedReviewActionIds.has(activeAction.id) : false;
   const activeActionNeedsUserConfirmation = Boolean(activeAction?.status === "pending" && !activeActionAlreadyConfirmed);
+  const activeActionCanSaveDryRunOutcome = Boolean(
+    activeActionIsDryRun &&
+    activeAction &&
+    (
+      activeActionReviewConfirmed ||
+      activeActionAlreadyConfirmed ||
+      activeActionExecutionTask?.user_confirmed ||
+      activeAction.status === "calling"
+    ),
+  );
   const activeActionGuidedDetails = activeAction
     ? buildConciergeGuidedDetailCapture({
         useCase: activeAction.use_case,
@@ -14508,6 +14686,18 @@ const ConciergeScreen = () => {
               </div>
             ) : null}
 
+            {activeActionIsDryRun && activeAction ? (
+              <DryRunOutcomePanel
+                item={activeAction}
+                canSave={activeActionCanSaveDryRunOutcome}
+                isSaving={dryRunOutcomeMutation.isPending}
+                notice={dryRunOutcomeNotice}
+                error={dryRunOutcomeError}
+                isSpanish={isSpanish}
+                onSave={() => dryRunOutcomeMutation.mutate({ item: activeAction })}
+              />
+            ) : null}
+
             {activeActionProviderSearchDetails ? (
               <ProviderSearchFollowThroughPanel
                 item={activeAction}
@@ -14558,6 +14748,7 @@ const ConciergeScreen = () => {
                 notice={phoneCallOutcomeNotice}
                 error={phoneCallOutcomeError}
                 isSaving={phoneCallOutcomeMutation.isPending}
+                isDryRun={activeActionIsDryRun}
                 isSpanish={isSpanish}
                 onFormChange={updatePhoneCallOutcomeForm}
                 onCall={(href, label) => requestExternalConfirmation({
@@ -14579,6 +14770,7 @@ const ConciergeScreen = () => {
                 notice={whatsAppDraftNotice}
                 error={whatsAppDraftError}
                 isSaving={whatsAppDraftOutcomeMutation.isPending}
+                isDryRun={activeActionIsDryRun}
                 isSpanish={isSpanish}
                 onFormChange={updateWhatsAppDraftOutcome}
                 onOpenDraft={(href, label) => requestExternalConfirmation({
@@ -14601,6 +14793,7 @@ const ConciergeScreen = () => {
                 notice={emailDraftNotice}
                 error={emailDraftError}
                 isSaving={emailDraftOutcomeMutation.isPending}
+                isDryRun={activeActionIsDryRun}
                 isSpanish={isSpanish}
                 onFormChange={updateEmailDraftOutcome}
                 onOpenDraft={(href, label) => requestExternalConfirmation({
@@ -14699,6 +14892,7 @@ const ConciergeScreen = () => {
                 bookingUrl={activeActionBookingUrl}
                 canOpenForm={activeActionCanOpenForm}
                 externalLinksAllowed={activeActionExternalLinksAllowed}
+                isDryRun={activeActionIsDryRun}
                 form={bookingFormOutcomeForm}
                 notice={bookingFormNotice}
                 error={bookingFormError}

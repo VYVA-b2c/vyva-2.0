@@ -17,6 +17,7 @@ import {
   confirmPendingConciergeActionReview,
   startPendingConciergeAction,
 } from "./conciergeActions.js";
+import { CONCIERGE_DRY_RUN_FIXTURES } from "../../shared/conciergeDryRun";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -328,5 +329,40 @@ describe("confirmed Concierge action execution", () => {
       dry_run: true,
       lifecycle_status: "done",
     });
+  });
+
+  it("stores every dry-run fixture completion as simulated completed history", async () => {
+    for (const fixture of CONCIERGE_DRY_RUN_FIXTURES) {
+      dbMock.pool.query.mockReset();
+      dbMock.pool.connect.mockReset();
+      mockPendingRow({
+        id: "66666666-6666-4666-8666-666666666666",
+        user_id: "user-1",
+        use_case: fixture.useCase,
+        provider_id: null,
+        provider_name: fixture.provider?.name ?? null,
+        provider_phone: fixture.provider?.phone ?? null,
+        found_externally: false,
+        action_summary: fixture.actionSummary,
+        action_payload: fixture.actionPayload,
+        language: "en",
+        status: "pending",
+      });
+      const client = mockCompletionClient();
+
+      const result = await completePendingConciergeAction("66666666-6666-4666-8666-666666666666", "user-1");
+
+      expect(result.status, fixture.reference).toBe("completed");
+      const insertCall = client.query.mock.calls.find(([sql]) => String(sql).includes("insert into concierge_sessions"));
+      expect(insertCall, fixture.reference).toBeTruthy();
+      const params = insertCall?.[1] as unknown[];
+      const outcomePayload = JSON.parse(params[9] as string) as Record<string, unknown>;
+      expect(params[10], fixture.reference).toContain("Simulated dry-run outcome");
+      expect(outcomePayload, fixture.reference).toMatchObject({
+        dry_run: true,
+        simulated_outcome: true,
+        no_real_provider_contact: true,
+      });
+    }
   });
 });
