@@ -1557,6 +1557,23 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     ctaUrl: "https://v2.vyva.life/profile",
   },
   {
+    id: "routine-activation",
+    categoryId: "onboarding",
+    label: "Routine activation",
+    brief: "Move new or interested users into one repeatable VYVA routine.",
+    audienceType: "b2c",
+    defaultChannel: "email",
+    targetListHints: ["activation", "signup", "new", "profile", "routine", "users", "b2c"],
+    scheduleDaysFromNow: 1,
+    campaignName: "Daily routine activation",
+    contentTitle: "Daily routine activation",
+    objective: "Move contacts from interest or signup into one practical routine: profile, daily signal, and update route.",
+    subject: "Start with one useful VYVA routine",
+    body: "Hi {{first_name}},\n\nThe easiest way to make VYVA useful is to start with one routine: confirm the profile, check today's signal, and choose who should receive important updates.\n\nDo that once, then VYVA becomes much easier for the care circle to follow.",
+    ctaLabel: "Start the routine",
+    ctaUrl: "https://v2.vyva.life/profile",
+  },
+  {
     id: "daily-summary-education",
     categoryId: "education",
     label: "Daily summary explainer",
@@ -1807,6 +1824,13 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     detail: "Warm welcome flow for new caregivers and family members.",
     brief: "Welcome new caregivers with a warm email and WhatsApp onboarding campaign. Focus on profile completion, dashboard access, and one first useful action.",
     channels: ["email", "whatsapp"],
+  },
+  {
+    id: "routine-activation",
+    title: "Routine activation",
+    detail: "Profile, daily signal, update route, SMS reminder, and social proof.",
+    brief: "Activate new users into one repeatable VYVA routine across email, WhatsApp, SMS, Instagram, Facebook, and TikTok. Focus on profile completion, daily signal review, update contacts, and one consent-safe reminder.",
+    channels: ["email", "whatsapp", "sms", "instagram", "facebook", "tiktok"],
   },
   {
     id: "winback",
@@ -4235,7 +4259,7 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "tiktok-routine-demo-script",
     ],
     heroTemplateId: "email-routine-activation-checklist",
-    studioPlayId: "product-education",
+    studioPlayId: "routine-activation",
     toneId: "warm",
     angleId: "action",
     sequence: [
@@ -6017,9 +6041,13 @@ function campaignIntentPlay(brief: string) {
   if (campaignIntentHasAny(text, ["partner", "b2b", "care home", "clinic", "pharmacy", "provider"])) return campaignStudioPlayById("b2b-partner-outreach");
   if (campaignIntentHasAny(text, ["event", "activity", "workshop", "community", "madrid", "barcelona", "valencia", "local"])) return campaignStudioPlayById("local-event");
   if (campaignIntentHasAny(text, ["inactive", "quiet", "winback", "win back", "reactivate", "reactivation"])) return campaignStudioPlayById("reactivation");
+  if (campaignIntentHasAny(text, ["medication", "medicine", "pill"])) return campaignStudioPlayById("medication-routine-education");
+  if (
+    campaignIntentHasAny(text, ["activation", "activate", "daily signal", "daily routine", "first useful", "first action", "routine activation", "update route"])
+    || (campaignIntentHasAny(text, ["routine"]) && campaignIntentHasAny(text, ["profile", "signup", "new user", "new users", "daily", "contact", "care circle"]))
+  ) return campaignStudioPlayById("routine-activation");
   if (campaignIntentHasAny(text, ["caregiver", "family", "invite", "welcome", "onboard", "onboarding"])) return campaignStudioPlayById("caregiver-onboarding");
   if (campaignIntentHasAny(text, ["profile", "complete", "setup", "account"])) return campaignStudioPlayById("profile-completion");
-  if (campaignIntentHasAny(text, ["medication", "medicine", "routine", "pill"])) return campaignStudioPlayById("medication-routine-education");
   if (campaignIntentHasAny(text, ["feedback", "survey", "questionnaire"])) return campaignStudioPlayById("feedback-survey");
   if (campaignIntentHasAny(text, ["instagram", "visual", "story", "reel"])) return campaignStudioPlayById("instagram-proof-point");
   if (campaignIntentHasAny(text, ["tiktok", "short video", "myth"])) return campaignStudioPlayById("tiktok-myth-buster");
@@ -6030,7 +6058,8 @@ function campaignIntentChannels(brief: string, play: CampaignStudioPlay) {
   const text = lower(brief);
   const channels: Channel[] = [];
   if (campaignIntentHasAny(text, ["email", "newsletter"])) channels.push("email");
-  if (campaignIntentHasAny(text, ["whatsapp", "whats app", "sms", "text message"])) channels.push("whatsapp");
+  if (campaignIntentHasAny(text, ["whatsapp", "whats app"])) channels.push("whatsapp");
+  if (campaignIntentHasAny(text, ["sms", "text message", "text reminder"])) channels.push("sms");
   if (campaignIntentHasAny(text, ["facebook", "fb"])) channels.push("facebook");
   if (campaignIntentHasAny(text, ["instagram", "insta", "reel", "story"])) channels.push("instagram");
   if (campaignIntentHasAny(text, ["linkedin", "linked in"])) channels.push("linkedin");
