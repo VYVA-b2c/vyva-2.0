@@ -2037,6 +2037,83 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-edit-content-metadata") as HTMLTextAreaElement).value).toContain("template_pack");
   });
 
+  it("creates a reviewable campaign plan from a curated template pack", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-create-campaign-partner-growth"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Creating Partner growth campaign plan");
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
+    });
+
+    const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(contentPosts).toHaveLength(7);
+    const contentBodies = contentPosts.map(([, init]) => JSON.parse(String(init?.body ?? "{}")));
+    expect(contentBodies[0]).toMatchObject({
+      title: "Partner demo LinkedIn post",
+      channel: "linkedin",
+      source: "vyva",
+      lovableExternalId: null,
+      metadata: expect.objectContaining({
+        generatedFrom: "template_pack_campaign_plan",
+        packId: "partner-growth",
+        packTitle: "Partner growth",
+        templateId: "linkedin-partner-demo",
+        studioPlayId: "b2b-partner-outreach",
+      }),
+    });
+    expect(new Set(contentBodies.map((body) => body.metadata.templateId)).size).toBe(7);
+
+    const campaignPost = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns" && init?.method === "POST");
+    const campaignPayload = JSON.parse(String(campaignPost?.[1]?.body ?? "{}"));
+    expect(campaignPayload).toMatchObject({
+      name: "Partner growth campaign plan",
+      audienceType: "b2b",
+      status: "draft",
+      metadata: {
+        targetAudienceId: "audience-1",
+        audienceExternalId: "lovable-audience-1",
+        templatePackPlan: expect.objectContaining({
+          generatedFrom: "template_pack_campaign_plan",
+          packId: "partner-growth",
+          routeChannels: ["linkedin", "whatsapp", "email", "facebook"],
+        }),
+      },
+    });
+    expect(campaignPayload.objective).toContain("Open and nurture B2B relationships");
+    expect(campaignPayload.objective).toContain("Review note: this creates a draft plan only");
+    expect(campaignPayload.channels).toHaveLength(4);
+    expect(campaignPayload.channels).toEqual(expect.arrayContaining([
+      expect.objectContaining({ channel: "linkedin", contentAssetId: "content-created", status: "draft", sendCapability: "planning_only" }),
+      expect.objectContaining({ channel: "whatsapp", contentAssetId: "content-created", status: "draft", sendCapability: "planning_only" }),
+      expect.objectContaining({ channel: "email", contentAssetId: "content-created", status: "draft", sendCapability: "enabled" }),
+      expect.objectContaining({ channel: "facebook", contentAssetId: "content-created", status: "draft", sendCapability: "planning_only" }),
+    ]));
+    expect(campaignPayload.recipients).toHaveLength(4);
+    expect(campaignPayload.recipients[0]).toMatchObject({
+      contactId: "contact-2",
+      channel: "linkedin",
+      status: "planned",
+      snapshot: expect.objectContaining({
+        templatePackId: "partner-growth",
+        audienceList: expect.objectContaining({ id: "audience-1", name: "Partners" }),
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created Partner growth campaign plan with 4 channel routes");
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("4 recipient snapshots");
+    expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Partner growth campaign plan");
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner growth campaign plan");
+  });
+
   it("loads template packs into editable journey drafts with visible sequence steps", async () => {
     renderPage();
 

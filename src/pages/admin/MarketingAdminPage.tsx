@@ -4109,6 +4109,36 @@ function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
   };
 }
 
+function contentAssetMatchesTemplatePack(content: ContentAsset, pack: ContentTemplatePack, template: ContentTemplate) {
+  if (content.channel !== template.channel || content.status === "archived") return false;
+  const metadata = recordValue(content.metadata);
+  const designJson = recordValue(content.designJson);
+  const lovableId = lower(content.lovableExternalId);
+  const templateRefs = [
+    template.id,
+    `template:${template.id}`,
+    `content_template:${template.id}`,
+    `saved_email_template:${template.id}`,
+    `social_post:${template.id}`,
+  ].map(lower);
+  const metadataTemplateId = lower(displayText(metadata.templateId));
+  const metadataPackId = lower(displayText(metadata.packId));
+  const designTemplateId = lower(displayText(designJson.templateId));
+  const titleMatches = lower(content.title) === lower(template.title);
+  return templateRefs.includes(lovableId)
+    || templateRefs.includes(metadataTemplateId)
+    || templateRefs.includes(designTemplateId)
+    || (metadataPackId === lower(pack.id) && (metadataTemplateId === lower(template.id) || titleMatches));
+}
+
+function scheduleWithDelay(baseIso: string | null, delayHours: number) {
+  if (!baseIso) return null;
+  const date = new Date(baseIso);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(date.getHours() + Math.max(0, delayHours));
+  return date.toISOString();
+}
+
 function experimentCtaLabel(content: ContentAsset | null, campaign: Campaign) {
   const current = lower(content?.ctaLabel ?? "");
   if (current.includes("demo") || campaign.audienceType === "b2b") return "Book a VYVA demo";
@@ -12079,6 +12109,188 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function createCampaignPlanFromTemplatePack(pack: ContentTemplatePack, templates: ContentTemplate[], heroTemplate: ContentTemplate | null) {
+    if (!templates.length) {
+      const feedback = `${pack.title} has no templates to turn into a campaign.`;
+      setContentActionFeedback(feedback);
+      setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    const play = campaignStudioPlays.find((item) => item.id === pack.studioPlayId) ?? campaignStudioPlays[0];
+    const audienceType = templatePackAudience(pack, heroTemplate, play);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const targetAudienceSnapshot = audienceSnapshot(targetAudience);
+    const scheduleStartsAt = fromDateTimeLocal(campaignStudioDefaultSchedule(play));
+    const routeChannels = uniqueChannels([
+      heroTemplate?.channel ?? play.defaultChannel,
+      ...pack.sequence.map((step) => step.channel),
+      ...templates.map((template) => template.channel),
+    ]);
+    const sequenceTemplates = pack.sequence.map((step) => ({
+      step,
+      template: step.templateId
+        ? templates.find((template) => template.id === step.templateId) ?? contentTemplateGallery.find((template) => template.id === step.templateId) ?? null
+        : null,
+    }));
+    const routeTemplateByChannel = new Map<Channel, ContentTemplate>();
+    for (const channel of routeChannels) {
+      const sequenceTemplate = sequenceTemplates.find((item) => item.step.channel === channel && item.template)?.template;
+      const fallbackTemplate = templates.find((template) => template.channel === channel) ?? heroTemplate ?? templates[0];
+      if (sequenceTemplate || fallbackTemplate) routeTemplateByChannel.set(channel, sequenceTemplate ?? fallbackTemplate);
+    }
+    const eligibleContacts = contacts.filter((contact) => (
+      campaignAllowsContact(audienceType, contact.audienceType)
+      && contactMatchesAudienceList(contact, targetAudience)
+    ));
+
+    setContentSaving(true);
+    setCampaignSaving(true);
+    setContentActionFeedback(`Creating ${pack.title} campaign plan...`);
+    setCampaignStudioFeedback(`Creating ${pack.title} campaign plan with content, channels, and recipient snapshots...`);
+    setMessage(`Creating campaign plan from ${pack.title}...`);
+    try {
+      const contentByTemplateId = new Map<string, ContentAsset>();
+      const createdContent: ContentAsset[] = [];
+
+      for (const template of templates) {
+        const existing = content.find((item) => contentAssetMatchesTemplatePack(item, pack, template));
+        if (existing) {
+          contentByTemplateId.set(template.id, existing);
+          continue;
+        }
+        const draft = contentDraftFromTemplate(template);
+        const response = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+          method: "POST",
+          body: JSON.stringify({
+            ...contentCreatePayloadFromDraft(draft),
+            source: "vyva",
+            lovableExternalId: null,
+            metadata: {
+              generatedFrom: "template_pack_campaign_plan",
+              packId: pack.id,
+              packTitle: pack.title,
+              packFocus: pack.focus,
+              templateId: template.id,
+              templateTitle: template.title,
+              studioPlayId: pack.studioPlayId,
+              tone: pack.toneId,
+              angle: pack.angleId,
+              aiPrompt: pack.aiPrompt,
+            },
+          }),
+        });
+        contentByTemplateId.set(template.id, response.content);
+        createdContent.push(response.content);
+      }
+
+      const channelContentAssetIds = Object.fromEntries(routeChannels.map((channel) => {
+        const template = routeTemplateByChannel.get(channel);
+        return [channel, template ? contentByTemplateId.get(template.id)?.id ?? null : null];
+      })) as Partial<Record<Channel, string | null>>;
+      const channels = routeChannels.map((channel, index) => {
+        const sequenceIndex = pack.sequence.findIndex((step) => step.channel === channel);
+        const sequenceStep = sequenceIndex >= 0 ? pack.sequence[sequenceIndex] : null;
+        const scheduledAt = scheduleWithDelay(
+          scheduleStartsAt,
+          sequenceStep ? templateSequenceDelayHours(sequenceStep.offset, sequenceIndex) : index * 24,
+        );
+        return {
+          channel,
+          contentAssetId: channelContentAssetIds[channel] ?? null,
+          status: "draft",
+          scheduledAt,
+          sendCapability: channel === "email" ? "enabled" : "planning_only",
+        };
+      });
+      const recipients = routeChannels.flatMap((channel) => eligibleContacts.flatMap((contact) => {
+        const recipient = recipientForChannel(contact, channel);
+        if (!recipient) return [];
+        const scheduledAt = channels.find((item) => item.channel === channel)?.scheduledAt ?? scheduleStartsAt;
+        return [{
+          contactId: contact.id,
+          channel,
+          recipient,
+          status: "planned",
+          scheduledAt,
+          snapshot: {
+            ...recipientSnapshot(contact),
+            ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
+            templatePackId: pack.id,
+            templatePackTitle: pack.title,
+            plannerChannel: channel,
+          },
+        }];
+      }));
+      const campaignResult = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
+        method: "POST",
+        body: JSON.stringify({
+          name: `${pack.title} campaign plan`,
+          audienceType,
+          status: "draft",
+          objective: [
+            pack.focus,
+            "",
+            pack.description,
+            "",
+            `AI direction: ${pack.aiPrompt}`,
+            "",
+            "Review note: this creates a draft plan only. Email still requires explicit review/send from campaign details; social, phone, print, and event routes remain manual handoffs.",
+          ].join("\n"),
+          scheduleStartsAt,
+          scheduleEndsAt: null,
+          metadata: campaignMetadataWithTarget({
+            templatePackPlan: {
+              generatedFrom: "template_pack_campaign_plan",
+              packId: pack.id,
+              packTitle: pack.title,
+              studioPlayId: pack.studioPlayId,
+              tone: pack.toneId,
+              angle: pack.angleId,
+              aiPrompt: pack.aiPrompt,
+              routeChannels,
+              templateIds: templates.map((template) => template.id),
+              contentAssetIds: channelContentAssetIds,
+              sequence: pack.sequence,
+            },
+          }, targetAudience),
+          channels,
+          recipients,
+        }),
+      });
+
+      await refreshAll();
+      const createdById = new Map(createdContent.map((item) => [item.id, item]));
+      setContent((current) => [
+        ...createdById.values(),
+        ...current.filter((item) => !createdById.has(item.id)),
+      ]);
+      setCampaigns((current) => [campaignResult.campaign, ...current.filter((campaign) => campaign.id !== campaignResult.campaign.id)]);
+      setEditingCampaignId(campaignResult.campaign.id);
+      setCampaignEditDraft(campaignEditDraftFromCampaign(campaignResult.campaign, audiences));
+      setContentTemplatePackFilter(pack.id);
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+      setActiveTab("dashboard");
+      const reusedCount = templates.length - createdContent.length;
+      const feedback = `Created ${pack.title} campaign plan with ${routeChannels.length} channel route${routeChannels.length === 1 ? "" : "s"}, ${recipients.length} recipient snapshot${recipients.length === 1 ? "" : "s"}, ${createdContent.length} new content asset${createdContent.length === 1 ? "" : "s"}${reusedCount ? `, and ${reusedCount} reused asset${reusedCount === 1 ? "" : "s"}` : ""}.`;
+      setContentActionFeedback(feedback);
+      setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : `${pack.title} campaign plan could not be created.`;
+      setContentActionFeedback(errorMessage);
+      setCampaignStudioFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setCampaignSaving(false);
+      setContentSaving(false);
+    }
+  }
+
   function loadContentTemplatePackAsJourney(pack: ContentTemplatePack, heroTemplate: ContentTemplate | null) {
     const play = campaignStudioPlays.find((item) => item.id === pack.studioPlayId) ?? campaignStudioPlays[0];
     const audienceType = templatePackAudience(pack, heroTemplate, play);
@@ -18002,6 +18214,15 @@ export default function MarketingAdminPage() {
                             data-testid={`button-marketing-template-pack-create-assets-${pack.id}`}
                           >
                             <FileText size={14} /> Create pack assets
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void createCampaignPlanFromTemplatePack(pack, templates, heroTemplate)}
+                            disabled={contentSaving || campaignSaving || templates.length === 0}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:bg-[#f1eee8] disabled:text-[#9d8b73]"
+                            data-testid={`button-marketing-template-pack-create-campaign-${pack.id}`}
+                          >
+                            <CalendarDays size={14} /> Create campaign plan
                           </button>
                           <button
                             type="button"
