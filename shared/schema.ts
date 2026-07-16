@@ -2592,6 +2592,19 @@ export const insertConciergePendingSchema = createInsertSchema(conciergePending)
 export type InsertConciergePending = z.infer<typeof insertConciergePendingSchema>;
 export type ConciergePending = typeof conciergePending.$inferSelect;
 
+export const conciergeChannelReadinessSettings = pgTable("concierge_channel_readiness_settings", {
+  channel:       text("channel").primaryKey(),
+  admin_enabled: boolean("admin_enabled").notNull().default(false),
+  verified:      boolean("verified").notNull().default(false),
+  notes:         text("notes"),
+  updated_by:    text("updated_by"),
+  updated_at:    timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertConciergeChannelReadinessSettingsSchema = createInsertSchema(conciergeChannelReadinessSettings).omit({ updated_at: true });
+export type InsertConciergeChannelReadinessSettings = z.infer<typeof insertConciergeChannelReadinessSettingsSchema>;
+export type ConciergeChannelReadinessSettings = typeof conciergeChannelReadinessSettings.$inferSelect;
+
 export const conciergeSessions = pgTable("concierge_sessions", {
   id:                    uuid("id").primaryKey().defaultRandom(),
   user_id:               text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
