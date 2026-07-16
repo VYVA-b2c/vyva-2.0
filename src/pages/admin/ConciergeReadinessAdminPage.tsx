@@ -26,6 +26,12 @@ import {
   type ConciergeManualQaStatus,
   type ConciergeManualQaFlowStatus,
 } from "../../../shared/conciergeManualQaRunner";
+import {
+  buildConciergeDryRunQaMatrix,
+  summarizeConciergeDryRunQaMatrix,
+  type ConciergeDryRunQaMatrixRow,
+  type ConciergeDryRunQaStatus,
+} from "../../../shared/conciergeDryRunQaMatrix";
 
 const MANUAL_QA_RUNNER_STORAGE_KEY = "vyva:conciergeManualQaRunner:v1";
 
@@ -94,6 +100,21 @@ function flowStatusTone(status: ConciergeManualQaFlowStatus): "neutral" | "good"
   if (status === "blocked") return "bad";
   if (status === "needs_review") return "warn";
   return "neutral";
+}
+
+function dryRunQaStatusLabel(status: ConciergeDryRunQaStatus) {
+  const labels: Record<ConciergeDryRunQaStatus, string> = {
+    pass: "Pass",
+    fail: "Fail",
+    needs_review: "Needs review",
+  };
+  return labels[status];
+}
+
+function dryRunQaStatusTone(status: ConciergeDryRunQaStatus): "good" | "warn" | "bad" {
+  if (status === "pass") return "good";
+  if (status === "fail") return "bad";
+  return "warn";
 }
 
 function MetricTile({ icon: Icon, label, value, sub, testId }: {
@@ -341,6 +362,86 @@ function ManualQaRunnerMetric({ label, value, tone = "neutral" }: {
       <p className="text-xs font-black uppercase tracking-[0.14em] opacity-80">{label}</p>
       <p className="mt-1 text-2xl font-black">{value}</p>
     </div>
+  );
+}
+
+function DryRunQaMatrixSection({ rows }: { rows: ConciergeDryRunQaMatrixRow[] }) {
+  const summary = summarizeConciergeDryRunQaMatrix(rows);
+
+  return (
+    <section
+      className="mt-5 overflow-hidden rounded-[14px] border border-emerald-200 bg-white shadow-sm"
+      data-testid="section-dry-run-qa-matrix"
+    >
+      <div className="flex flex-col gap-3 border-b border-emerald-100 bg-emerald-50 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-emerald-800">
+            <ShieldCheck size={14} aria-hidden="true" />
+            Dry-run rehearsal
+          </div>
+          <h2 className="mt-2 font-serif text-2xl text-[#2f2135]">10-flow dry-run QA matrix</h2>
+          <p className="mt-1 text-sm font-semibold text-emerald-900">
+            Pass/fail notes for the saved-provider path, missing-provider path, contact guard, and simulated completion history.
+          </p>
+        </div>
+        <div className="grid min-w-full gap-2 sm:grid-cols-3 lg:min-w-[420px]">
+          <ManualQaRunnerMetric label="Dry-run pass" value={summary.passedFlows} tone="good" />
+          <ManualQaRunnerMetric label="Dry-run review" value={summary.needsReviewFlows} tone="warn" />
+          <ManualQaRunnerMetric label="Dry-run fail" value={summary.failedFlows} tone="bad" />
+        </div>
+      </div>
+
+      <div className="overflow-x-auto" data-testid="table-dry-run-qa-matrix">
+        <table className="min-w-full border-collapse text-left">
+          <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+            <tr>
+              <th className="px-4 py-3">Flow</th>
+              <th className="px-4 py-3">Result</th>
+              <th className="px-4 py-3">Saved provider</th>
+              <th className="px-4 py-3">Missing provider</th>
+              <th className="px-4 py-3">No real contact</th>
+              <th className="px-4 py-3">History</th>
+              <th className="min-w-[320px] px-4 py-3">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr
+                key={row.reference}
+                className="align-top"
+                data-testid={`dry-run-qa-row-${row.reference.toLowerCase().replace(/_/g, "-")}`}
+              >
+                <td className="border-t border-[#f0e7df] px-4 py-4">
+                  <p className="text-sm font-black text-[#2f2135]">{row.actionName}</p>
+                  <p className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b7a73]">{row.reference}</p>
+                  <p className="mt-1 break-words text-xs font-semibold text-emerald-900">
+                    {row.fixture.endpoint.label}: {row.fixture.endpoint.value}
+                  </p>
+                </td>
+                <td className="border-t border-[#f0e7df] px-4 py-4">
+                  <Pill tone={dryRunQaStatusTone(row.status)}>{dryRunQaStatusLabel(row.status)}</Pill>
+                </td>
+                <td className="border-t border-[#f0e7df] px-4 py-4">
+                  <Pill tone={dryRunQaStatusTone(row.savedProviderStatus)}>{dryRunQaStatusLabel(row.savedProviderStatus)}</Pill>
+                </td>
+                <td className="border-t border-[#f0e7df] px-4 py-4">
+                  <Pill tone={dryRunQaStatusTone(row.missingProviderStatus)}>{dryRunQaStatusLabel(row.missingProviderStatus)}</Pill>
+                </td>
+                <td className="border-t border-[#f0e7df] px-4 py-4">
+                  <Pill tone={dryRunQaStatusTone(row.contactGuardStatus)}>{dryRunQaStatusLabel(row.contactGuardStatus)}</Pill>
+                </td>
+                <td className="border-t border-[#f0e7df] px-4 py-4">
+                  <Pill tone={dryRunQaStatusTone(row.completionHistoryStatus)}>{dryRunQaStatusLabel(row.completionHistoryStatus)}</Pill>
+                </td>
+                <td className="border-t border-[#f0e7df] px-4 py-4">
+                  <p className="text-sm font-semibold leading-relaxed text-[#5b4a46]">{row.notes}</p>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -630,6 +731,7 @@ export default function ConciergeReadinessAdminPage({ rowsOverride }: { rowsOver
   const rows = useMemo(() => rowsOverride ?? buildConciergeReadinessRows(), [rowsOverride]);
   const summary = useMemo(() => summarizeConciergeReadiness(rows), [rows]);
   const scripts = useMemo(() => rows.map((row) => row.manualQaScript), [rows]);
+  const dryRunQaRows = useMemo(() => buildConciergeDryRunQaMatrix(), []);
   const [manualQaState, setManualQaState] = useState<ConciergeManualQaRunnerState>(() => (
     normalizeConciergeManualQaRunnerState(scripts, readStoredManualQaState())
   ));
@@ -771,6 +873,8 @@ export default function ConciergeReadinessAdminPage({ rowsOverride }: { rowsOver
             </table>
           </div>
         </section>
+
+        <DryRunQaMatrixSection rows={dryRunQaRows} />
 
         <ManualQaScriptSection
           rows={rows}
