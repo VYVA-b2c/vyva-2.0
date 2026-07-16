@@ -56,6 +56,7 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(table).getByText("Scam or safety check")).toBeInTheDocument();
     expect(screen.getByTestId("section-manual-qa-script")).toBeInTheDocument();
     expect(screen.getAllByTestId(/manual-qa-script-/)).toHaveLength(10);
+    expect(screen.getAllByTestId(/dry-run-fixture-/)).toHaveLength(10);
     expect(screen.getByTestId("manual-qa-runner-summary")).toBeInTheDocument();
     expect(screen.getByTestId("manual-qa-priority-pass")).toBeInTheDocument();
     expect(within(screen.getByTestId("manual-qa-metric-not-tested")).getByText(/\d+/)).toBeInTheDocument();
@@ -116,6 +117,9 @@ describe("ConciergeReadinessAdminPage", () => {
     const transportScript = screen.getByTestId("manual-qa-script-flow-transport-booking");
     expect(within(transportScript).getByText("Provider path")).toBeInTheDocument();
     expect(within(transportScript).getByText("Live Phone call test")).toBeInTheDocument();
+    expect(within(transportScript).getByTestId("dry-run-fixture-flow-transport-booking")).toHaveTextContent("Test mode");
+    expect(within(transportScript).getByTestId("dry-run-fixture-flow-transport-booking")).toHaveTextContent("+12025550100");
+    expect(within(transportScript).getByText("Dry-run test fixture")).toBeInTheDocument();
     expect(within(transportScript).getByText("Missing provider path")).toBeInTheDocument();
     expect(within(transportScript).getByText("Saved provider path")).toBeInTheDocument();
     expect(within(transportScript).getByText(/confirm pickup, destination, time/i)).toBeInTheDocument();
