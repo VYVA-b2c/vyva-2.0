@@ -1676,6 +1676,23 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     ctaUrl: "https://v2.vyva.life",
   },
   {
+    id: "clinic-referral",
+    categoryId: "partner",
+    label: "Clinic referral pathway",
+    brief: "Help clinics, pharmacies, and local providers hand families into VYVA.",
+    audienceType: "b2b",
+    defaultChannel: "email",
+    targetListHints: ["clinic", "pharmacy", "provider", "referral", "partner", "healthcare", "b2b", "professional"],
+    scheduleDaysFromNow: 4,
+    campaignName: "Clinic referral pathway",
+    contentTitle: "Clinic referral pathway",
+    objective: "Give clinics, pharmacies, and local providers one simple referral handoff for families who need more support after a care conversation.",
+    subject: "A practical VYVA referral path for your families",
+    body: "Hi {{first_name}},\n\nFamilies often leave a clinic or pharmacy conversation knowing support is needed, but not knowing what to do first.\n\nVYVA gives your team a simple referral path: profile setup, gentle check-ins, medication reminders, family updates, and a clearer support loop after the appointment.\n\nIf useful, I can show the one-page handoff your team could use.",
+    ctaLabel: "Review referral pathway",
+    ctaUrl: "https://v2.vyva.life/demo",
+  },
+  {
     id: "community-cohost",
     categoryId: "community",
     label: "Community co-host",
@@ -1812,6 +1829,13 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     channels: ["email", "linkedin"],
   },
   {
+    id: "clinic-referral",
+    title: "Clinic referral",
+    detail: "Provider intro, pharmacy nudge, social proof, and a referral handoff.",
+    brief: "Create a clinic and pharmacy referral pathway by email, WhatsApp, LinkedIn, Facebook, Instagram, and TikTok. Make the partner value practical, include a one-page handoff, and give each warm provider one clear next step.",
+    channels: ["email", "whatsapp", "linkedin", "facebook", "instagram", "tiktok"],
+  },
+  {
     id: "local-event",
     title: "Local event",
     detail: "Local activity campaign with public post, direct reminder, and follow-up.",
@@ -1852,6 +1876,17 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     toneId: "expert",
     angleId: "proof",
     templatePackId: "partner-growth",
+  },
+  {
+    id: "clinic-referral-pathway",
+    title: "Build clinic referral path",
+    outcome: "Provider referrals",
+    detail: "Turn clinics, pharmacies, and local providers into a clear referral handoff.",
+    brief: "Create a clinic and pharmacy referral pathway by email, WhatsApp, LinkedIn, Facebook, Instagram, and TikTok. Lead with the practical post-visit support gap, explain the one-page handoff, and ask for a short referral workflow review.",
+    channels: ["email", "whatsapp", "linkedin", "facebook", "instagram", "tiktok"],
+    toneId: "expert",
+    angleId: "proof",
+    templatePackId: "clinic-pharmacy-referral",
   },
   {
     id: "reactivate-quiet-families",
@@ -4114,7 +4149,7 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "tiktok-referral-pathway-script",
     ],
     heroTemplateId: "email-clinic-referral-intro",
-    studioPlayId: "b2b-partner-outreach",
+    studioPlayId: "clinic-referral",
     toneId: "expert",
     angleId: "proof",
     sequence: [
@@ -6037,6 +6072,10 @@ function campaignIntentPlay(brief: string) {
   const text = lower(brief);
   if (campaignIntentHasAny(text, ["monthly", "newsletter", "digest", "roundup", "report", "summary"])) return campaignStudioPlayById("monthly-care-digest");
   if (campaignIntentHasAny(text, ["webinar", "session", "demo", "professional session"])) return campaignStudioPlayById("partner-webinar");
+  if (
+    campaignIntentHasAny(text, ["clinic referral", "pharmacy referral", "referral pathway", "referral path", "clinic", "pharmacy"])
+    || (campaignIntentHasAny(text, ["provider", "referral", "refer"]) && campaignIntentHasAny(text, ["handoff", "pathway", "path", "clinic", "pharmacy", "post visit", "post-visit"]))
+  ) return campaignStudioPlayById("clinic-referral");
   if (campaignIntentHasAny(text, ["referral", "refer", "provider", "partner follow", "partner nurture"])) return campaignStudioPlayById("referral-partner-nurture");
   if (campaignIntentHasAny(text, ["partner", "b2b", "care home", "clinic", "pharmacy", "provider"])) return campaignStudioPlayById("b2b-partner-outreach");
   if (campaignIntentHasAny(text, ["event", "activity", "workshop", "community", "madrid", "barcelona", "valencia", "local"])) return campaignStudioPlayById("local-event");
@@ -6069,8 +6108,8 @@ function campaignIntentChannels(brief: string, play: CampaignStudioPlay) {
 
 function campaignIntentTone(brief: string, play: CampaignStudioPlay): CampaignStudioToneId {
   const text = lower(brief);
-  if (campaignIntentHasAny(text, ["urgent", "direct", "clear", "quick", "now"])) return "direct";
   if (campaignIntentHasAny(text, ["partner", "provider", "professional", "expert", "b2b", "demo", "webinar"]) || play.audienceType === "b2b") return "expert";
+  if (campaignIntentHasAny(text, ["urgent", "direct", "clear", "quick", "now"])) return "direct";
   if (campaignIntentHasAny(text, ["inspiring", "positive", "community", "celebrate", "social", "story"])) return "uplifting";
   return "warm";
 }
