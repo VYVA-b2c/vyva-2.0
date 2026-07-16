@@ -4246,6 +4246,39 @@ describe("MarketingAdminPage", () => {
           generatedSource: "openai",
           selectedChannels: ["linkedin", "email"],
         },
+        studioLaunchKit: {
+          generatedFrom: "marketing_campaign_studio",
+          playId: "b2b-partner-outreach",
+          playTitle: "Partner outreach",
+          selectedChannels: ["linkedin", "email"],
+          primaryChannel: "linkedin",
+          launchPacketText: expect.stringContaining("VYVA campaign launch packet"),
+          routeSummary: "LinkedIn + Email",
+          executionPlan: [
+            expect.objectContaining({
+              channel: "linkedin",
+              sendMode: "Manual publishing",
+              nextAction: expect.stringContaining("publish or track it outside VYVA"),
+              recipientCount: 1,
+            }),
+            expect.objectContaining({
+              channel: "email",
+              sendMode: "VYVA email send",
+              nextAction: expect.stringContaining("send from the campaign details"),
+              recipientCount: 1,
+            }),
+          ],
+          publishingRunSheets: [
+            expect.objectContaining({
+              channel: "linkedin",
+              text: expect.stringContaining("LinkedIn publishing run sheet"),
+            }),
+            expect.objectContaining({
+              channel: "email",
+              text: expect.stringContaining("Email publishing run sheet"),
+            }),
+          ],
+        },
         targetAudience: {
           name: "Partners",
           lovableExternalId: "lovable-audience-1",
@@ -4256,6 +4289,10 @@ describe("MarketingAdminPage", () => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Created "Partner outreach AI campaign" across 2 channels with 2 recipient snapshots ready.');
     });
     expect(screen.getByTestId("marketing-campaign-edit-form")).toHaveTextContent("Partner outreach AI campaign");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("2 routes");
+    expect((screen.getByTestId("textarea-marketing-campaign-saved-launch-packet") as HTMLTextAreaElement).value).toContain("VYVA campaign launch packet");
+    expect((screen.getByTestId("textarea-marketing-campaign-saved-launch-packet") as HTMLTextAreaElement).value).toContain("Channel plan:");
   });
 
   it("creates campaign metadata without auto-dispatching", async () => {

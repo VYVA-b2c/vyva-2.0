@@ -12039,6 +12039,85 @@ export default function MarketingAdminPage() {
     "- Publishing owner:",
     "- Notes:",
   ].join("\n");
+  const campaignStudioLaunchKit = {
+    generatedFrom: "marketing_campaign_studio",
+    version: 1,
+    playId: selectedCampaignStudioPlay.id,
+    playTitle: selectedCampaignStudioPlay.label,
+    playCategory: selectedCampaignStudioPlay.categoryId,
+    audienceType: selectedCampaignStudioPlay.audienceType,
+    targetAudience: selectedCampaignStudioTargetAudience ? audienceSnapshot(selectedCampaignStudioTargetAudience) : null,
+    tone: campaignStudio.toneId,
+    angle: campaignStudio.angleId,
+    primaryChannel: campaignStudio.channel,
+    selectedChannels: campaignStudioSelectedChannels,
+    launchPacketText: campaignStudioLaunchPacketText,
+    routeSummary: campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(" + "),
+    executionPlan: campaignStudioExecutionPlan.map((item) => ({
+      channel: item.channel,
+      channelLabel: channelLabel[item.channel],
+      title: item.title,
+      sendMode: item.sendMode,
+      nextAction: item.nextAction,
+      detail: item.detail,
+      state: item.state,
+      recipients: item.recipients,
+      recipientCount: item.recipients,
+    })),
+    launchTimeline: campaignStudioLaunchTimeline.map((item) => ({
+      channel: item.channel,
+      channelLabel: channelLabel[item.channel],
+      title: item.title,
+      timingLabel: item.timingLabel,
+      plannedAt: item.plannedAt,
+      owner: item.owner,
+      action: item.action,
+      recipients: item.recipients,
+      route: item.route,
+    })),
+    publishingRunSheets: campaignStudioPublishingRunSheets.map((item) => ({
+      key: item.key,
+      channel: item.channel,
+      channelLabel: channelLabel[item.channel],
+      title: item.title,
+      format: item.format,
+      detail: item.detail,
+      actionLabel: item.actionLabel,
+      state: item.state,
+      text: item.text,
+    })),
+    approvalPack: campaignStudioApprovalPack.map((item) => ({
+      key: item.key,
+      title: item.title,
+      format: item.format,
+      detail: item.detail,
+      text: item.text,
+    })),
+    visualBriefs: campaignStudioVisualAssets.map((item) => ({
+      key: item.key,
+      title: item.title,
+      format: item.format,
+      detail: item.detail,
+      text: item.text,
+    })),
+    followUpPlays: campaignStudioFollowUpPlays.map((item) => ({
+      key: item.key,
+      title: item.title,
+      trigger: item.trigger,
+      owner: item.owner,
+      detail: item.detail,
+      state: item.state,
+      text: item.text,
+    })),
+    outcomeTrackers: campaignStudioOutcomeTrackerItems.map((item) => ({
+      key: item.key,
+      title: item.title,
+      metric: item.metric,
+      target: item.target,
+      source: item.source,
+      text: item.text,
+    })),
+  };
   const contentTemplateRecommendations = useMemo<ContentTemplateRecommendation[]>(() => {
     const candidateTemplates = contentTemplateFiltersActive ? visibleContentTemplates : contentTemplateGallery;
     const playCategoryLabel = campaignStudioCategories.find((category) => category.id === selectedCampaignStudioPlay.categoryId)?.label ?? selectedCampaignStudioPlay.categoryId;
@@ -12942,6 +13021,7 @@ export default function MarketingAdminPage() {
               generatedSource: campaignStudioGenerated.source ?? "template",
               selectedChannels: campaignStudioSelectedChannels,
             },
+            studioLaunchKit: campaignStudioLaunchKit,
             generatedContentAssetId: primaryContent?.id ?? null,
             generatedContentAssetIds: Object.fromEntries(contentResults.map((result) => [result.content.channel, result.content.id])),
           }, targetAudience),
@@ -16050,13 +16130,22 @@ export default function MarketingAdminPage() {
   const selectedCampaignMetricTotals = sumMarketingMetrics(selectedCampaignMetrics);
   const campaignReadinessChannels = campaignChannelsWithPrimary(campaignEditDraft);
   const campaignTemplatePackPlan = editingCampaign ? recordValue(recordValue(editingCampaign.metadata).templatePackPlan) : {};
+  const campaignStudioSavedLaunchKit = editingCampaign ? recordValue(recordValue(editingCampaign.metadata).studioLaunchKit) : {};
   const campaignSavedLaunchPacket = recordValue(campaignTemplatePackPlan.launchPacket);
-  const campaignSavedLaunchPacketRoutes = recordArray(campaignSavedLaunchPacket.channels);
-  const campaignSavedLaunchPacketVisualBriefs = recordArray(campaignSavedLaunchPacket.visualBriefs);
-  const campaignSavedLaunchPacketFollowUps = recordArray(campaignSavedLaunchPacket.followUpPlays);
+  const hasTemplatePackLaunchPacket = Object.keys(campaignSavedLaunchPacket).length > 0;
+  const campaignSavedLaunchPacketSource = hasTemplatePackLaunchPacket ? campaignSavedLaunchPacket : campaignStudioSavedLaunchKit;
+  const campaignSavedLaunchPacketRoutes = hasTemplatePackLaunchPacket
+    ? recordArray(campaignSavedLaunchPacket.channels)
+    : recordArray(campaignStudioSavedLaunchKit.executionPlan);
+  const campaignSavedLaunchPacketVisualBriefs = hasTemplatePackLaunchPacket
+    ? recordArray(campaignSavedLaunchPacket.visualBriefs)
+    : recordArray(campaignStudioSavedLaunchKit.visualBriefs);
+  const campaignSavedLaunchPacketFollowUps = hasTemplatePackLaunchPacket
+    ? recordArray(campaignSavedLaunchPacket.followUpPlays)
+    : recordArray(campaignStudioSavedLaunchKit.followUpPlays);
   const campaignSavedLaunchPacketText = Object.keys(campaignSavedLaunchPacket).length
     ? launchPacketTextFromMetadata(campaignSavedLaunchPacket)
-    : "";
+    : displayText(campaignStudioSavedLaunchKit.launchPacketText);
   const missingCampaignContentChannels = campaignReadinessChannels.filter((channel) => !channel.contentAssetId);
   const planningOnlyCampaignChannels = campaignReadinessChannels.filter((channel) => channel.channel !== "email");
   const savedCampaignRecipientCount = editingCampaign?.recipientCount ?? 0;
@@ -19304,8 +19393,8 @@ export default function MarketingAdminPage() {
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div>
                                 <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Saved launch packet</p>
-                                <h4 className="mt-1 text-base font-black text-[#241133]">{displayText(campaignSavedLaunchPacket.packTitle) || "Template campaign plan"}</h4>
-                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">{displayText(campaignSavedLaunchPacket.routeSummary) || "Review the channel route, creative, follow-up, and outcome plan saved with this campaign."}</p>
+                                <h4 className="mt-1 text-base font-black text-[#241133]">{displayText(campaignSavedLaunchPacketSource.packTitle) || displayText(campaignSavedLaunchPacketSource.playTitle) || "Campaign launch plan"}</h4>
+                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">{displayText(campaignSavedLaunchPacketSource.routeSummary) || "Review the channel route, creative, follow-up, and outcome plan saved with this campaign."}</p>
                               </div>
                               <div className="flex flex-wrap items-center justify-end gap-2">
                                 <Pill className="bg-emerald-50 text-emerald-800">{campaignSavedLaunchPacketRoutes.length} route{campaignSavedLaunchPacketRoutes.length === 1 ? "" : "s"}</Pill>
