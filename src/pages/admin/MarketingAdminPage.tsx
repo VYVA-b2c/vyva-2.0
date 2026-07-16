@@ -48,6 +48,37 @@ const CONTENT_LOCALIZATION_LANGUAGES = [
   { value: "it", label: "Italian" },
   { value: "pt", label: "Portuguese" },
 ] as const;
+const MARKETING_CONTACT_LANGUAGE_OPTIONS = CONTENT_LOCALIZATION_LANGUAGES;
+const MARKETING_CONTACT_CATEGORY_OPTIONS = [
+  { value: "lead", label: "Lead" },
+  { value: "partner", label: "Partner" },
+  { value: "caregiver", label: "Caregiver" },
+  { value: "family", label: "Family" },
+  { value: "provider", label: "Provider" },
+  { value: "customer", label: "Customer" },
+  { value: "media", label: "Media" },
+  { value: "investor", label: "Investor" },
+] as const;
+const MARKETING_CONTACT_VERTICAL_OPTIONS = [
+  { value: "healthcare", label: "Healthcare" },
+  { value: "elder care", label: "Elder care" },
+  { value: "social care", label: "Social care" },
+  { value: "pharmacy", label: "Pharmacy" },
+  { value: "insurance", label: "Insurance" },
+  { value: "public sector", label: "Public sector" },
+  { value: "technology", label: "Technology" },
+  { value: "community", label: "Community" },
+] as const;
+const MARKETING_CONTACT_MARKET_OPTIONS = [
+  { value: "Spain", label: "Spain" },
+  { value: "Madrid", label: "Madrid" },
+  { value: "Barcelona", label: "Barcelona" },
+  { value: "Valencia", label: "Valencia" },
+  { value: "United Kingdom", label: "UK" },
+  { value: "London", label: "London" },
+  { value: "European Union", label: "EU" },
+  { value: "United States", label: "US" },
+] as const;
 const TEMPLATE_GAP_BATCH_LIMIT = 4;
 
 type Channel = typeof CHANNELS[number];
@@ -7190,6 +7221,71 @@ function LovableDestinationMap({ summary }: { summary: Record<string, unknown> }
 const inputClass = "h-11 w-full rounded-xl border border-[#E5D8CA] bg-white px-3 text-sm font-semibold text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const floatingContentPanelClass = "fixed bottom-6 left-1/2 top-20 z-[9999] w-[min(980px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-300 bg-white p-4 shadow-[0_24px_80px_rgba(36,17,51,0.35)]";
+
+type SmartContactOption = { value: string; label: string };
+
+function optionTestSlug(value: string) {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "option";
+}
+
+function SmartContactField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+  inputTestId,
+  optionTestPrefix,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly SmartContactOption[];
+  placeholder: string;
+  disabled?: boolean;
+  inputTestId: string;
+  optionTestPrefix: string;
+}) {
+  const datalistId = `${inputTestId}-options`;
+  return (
+    <div className="block">
+      <span className="mb-1 block text-sm font-black text-[#4d4351]">{label}</span>
+      <input
+        className={inputClass}
+        list={datalistId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        aria-label={label}
+        data-testid={inputTestId}
+      />
+      <datalist id={datalistId}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </datalist>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {options.slice(0, 6).map((option) => {
+          const active = value.trim().toLowerCase() === option.value.toLowerCase();
+          return (
+            <button
+              key={option.value}
+              type="button"
+              className={`inline-flex min-h-8 items-center rounded-full border px-2.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-60 ${active ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46] hover:border-purple-200 hover:bg-purple-50 hover:text-purple-800"}`}
+              onClick={() => onChange(option.value)}
+              disabled={disabled}
+              data-testid={`${optionTestPrefix}-${optionTestSlug(option.value)}`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function MarketingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
@@ -20798,18 +20894,46 @@ export default function MarketingAdminPage() {
                     </Field>
                   </div>
                   <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]">
-                    <Field label="Language">
-                      <input className={inputClass} value={contactDraft.language} onChange={(event) => setContactDraft((draft) => ({ ...draft, language: event.target.value }))} placeholder="en, es..." disabled={contactSaving} data-testid="input-marketing-contact-language" />
-                    </Field>
-                    <Field label="Category">
-                      <input className={inputClass} value={contactDraft.category} onChange={(event) => setContactDraft((draft) => ({ ...draft, category: event.target.value }))} placeholder="Lead category" disabled={contactSaving} data-testid="input-marketing-contact-category" />
-                    </Field>
-                    <Field label="Vertical">
-                      <input className={inputClass} value={contactDraft.vertical} onChange={(event) => setContactDraft((draft) => ({ ...draft, vertical: event.target.value }))} placeholder="Healthcare, public..." disabled={contactSaving} data-testid="input-marketing-contact-vertical" />
-                    </Field>
-                    <Field label="Market">
-                      <input className={inputClass} value={contactDraft.market} onChange={(event) => setContactDraft((draft) => ({ ...draft, market: event.target.value }))} placeholder="Spain, UK..." disabled={contactSaving} data-testid="input-marketing-contact-market" />
-                    </Field>
+                    <SmartContactField
+                      label="Language"
+                      value={contactDraft.language}
+                      onChange={(value) => setContactDraft((draft) => ({ ...draft, language: value }))}
+                      options={MARKETING_CONTACT_LANGUAGE_OPTIONS}
+                      placeholder="Pick or type"
+                      disabled={contactSaving}
+                      inputTestId="input-marketing-contact-language"
+                      optionTestPrefix="button-marketing-contact-language-option"
+                    />
+                    <SmartContactField
+                      label="Category"
+                      value={contactDraft.category}
+                      onChange={(value) => setContactDraft((draft) => ({ ...draft, category: value }))}
+                      options={MARKETING_CONTACT_CATEGORY_OPTIONS}
+                      placeholder="Pick or type"
+                      disabled={contactSaving}
+                      inputTestId="input-marketing-contact-category"
+                      optionTestPrefix="button-marketing-contact-category-option"
+                    />
+                    <SmartContactField
+                      label="Vertical"
+                      value={contactDraft.vertical}
+                      onChange={(value) => setContactDraft((draft) => ({ ...draft, vertical: value }))}
+                      options={MARKETING_CONTACT_VERTICAL_OPTIONS}
+                      placeholder="Pick or type"
+                      disabled={contactSaving}
+                      inputTestId="input-marketing-contact-vertical"
+                      optionTestPrefix="button-marketing-contact-vertical-option"
+                    />
+                    <SmartContactField
+                      label="Market"
+                      value={contactDraft.market}
+                      onChange={(value) => setContactDraft((draft) => ({ ...draft, market: value }))}
+                      options={MARKETING_CONTACT_MARKET_OPTIONS}
+                      placeholder="Pick or type"
+                      disabled={contactSaving}
+                      inputTestId="input-marketing-contact-market"
+                      optionTestPrefix="button-marketing-contact-market-option"
+                    />
                     <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" type="submit" disabled={contactSaving} data-testid="button-marketing-add-contact">
                       <UsersRound size={16} /> {contactSaving ? "Saving..." : "Add contact"}
                     </button>
@@ -20867,18 +20991,46 @@ export default function MarketingAdminPage() {
                       </Field>
                     </div>
                     <div className="grid gap-3 xl:grid-cols-4">
-                      <Field label="Language">
-                        <input className={inputClass} value={contactEditDraft.language} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, language: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-language" />
-                      </Field>
-                      <Field label="Category">
-                        <input className={inputClass} value={contactEditDraft.category} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, category: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-category" />
-                      </Field>
-                      <Field label="Vertical">
-                        <input className={inputClass} value={contactEditDraft.vertical} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, vertical: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-vertical" />
-                      </Field>
-                      <Field label="Market">
-                        <input className={inputClass} value={contactEditDraft.market} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, market: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-market" />
-                      </Field>
+                      <SmartContactField
+                        label="Language"
+                        value={contactEditDraft.language}
+                        onChange={(value) => setContactEditDraft((draft) => draft ? ({ ...draft, language: value }) : draft)}
+                        options={MARKETING_CONTACT_LANGUAGE_OPTIONS}
+                        placeholder="Pick or type"
+                        disabled={contactSaving}
+                        inputTestId="input-marketing-edit-contact-language"
+                        optionTestPrefix="button-marketing-edit-contact-language-option"
+                      />
+                      <SmartContactField
+                        label="Category"
+                        value={contactEditDraft.category}
+                        onChange={(value) => setContactEditDraft((draft) => draft ? ({ ...draft, category: value }) : draft)}
+                        options={MARKETING_CONTACT_CATEGORY_OPTIONS}
+                        placeholder="Pick or type"
+                        disabled={contactSaving}
+                        inputTestId="input-marketing-edit-contact-category"
+                        optionTestPrefix="button-marketing-edit-contact-category-option"
+                      />
+                      <SmartContactField
+                        label="Vertical"
+                        value={contactEditDraft.vertical}
+                        onChange={(value) => setContactEditDraft((draft) => draft ? ({ ...draft, vertical: value }) : draft)}
+                        options={MARKETING_CONTACT_VERTICAL_OPTIONS}
+                        placeholder="Pick or type"
+                        disabled={contactSaving}
+                        inputTestId="input-marketing-edit-contact-vertical"
+                        optionTestPrefix="button-marketing-edit-contact-vertical-option"
+                      />
+                      <SmartContactField
+                        label="Market"
+                        value={contactEditDraft.market}
+                        onChange={(value) => setContactEditDraft((draft) => draft ? ({ ...draft, market: value }) : draft)}
+                        options={MARKETING_CONTACT_MARKET_OPTIONS}
+                        placeholder="Pick or type"
+                        disabled={contactSaving}
+                        inputTestId="input-marketing-edit-contact-market"
+                        optionTestPrefix="button-marketing-edit-contact-market-option"
+                      />
                     </div>
                     <div className="grid gap-3 xl:grid-cols-4">
                       <Field label="Source">

@@ -2955,10 +2955,14 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-contact-whatsapp"), { target: { value: "+34 600 000 003" } });
     fireEvent.change(screen.getByTestId("input-marketing-contact-role"), { target: { value: "Director" } });
     fireEvent.change(screen.getByTestId("input-marketing-contact-company"), { target: { value: "New Org" } });
-    fireEvent.change(screen.getByTestId("input-marketing-contact-language"), { target: { value: "es" } });
-    fireEvent.change(screen.getByTestId("input-marketing-contact-category"), { target: { value: "partner" } });
-    fireEvent.change(screen.getByTestId("input-marketing-contact-vertical"), { target: { value: "health" } });
-    fireEvent.change(screen.getByTestId("input-marketing-contact-market"), { target: { value: "Spain" } });
+    fireEvent.click(screen.getByTestId("button-marketing-contact-language-option-es"));
+    fireEvent.click(screen.getByTestId("button-marketing-contact-category-option-partner"));
+    fireEvent.click(screen.getByTestId("button-marketing-contact-vertical-option-healthcare"));
+    fireEvent.click(screen.getByTestId("button-marketing-contact-market-option-spain"));
+    expect(screen.getByTestId("input-marketing-contact-language")).toHaveValue("es");
+    expect(screen.getByTestId("input-marketing-contact-category")).toHaveValue("partner");
+    expect(screen.getByTestId("input-marketing-contact-vertical")).toHaveValue("healthcare");
+    expect(screen.getByTestId("input-marketing-contact-market")).toHaveValue("Spain");
     fireEvent.change(screen.getByTestId("input-marketing-contact-tags"), { target: { value: "partner, madrid" } });
     fireEvent.click(screen.getByTestId("button-marketing-add-contact"));
 
@@ -2975,14 +2979,14 @@ describe("MarketingAdminPage", () => {
       companyName: "New Org",
       language: "es",
       category: "partner",
-      vertical: "health",
+      vertical: "healthcare",
       market: "Spain",
       tags: ["partner", "madrid"],
       metadata: {
         segmentation: {
           language: "es",
           category: "partner",
-          vertical: "health",
+          vertical: "healthcare",
           market: "Spain",
         },
       },
@@ -2994,7 +2998,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
     fireEvent.change(screen.getByTestId("input-marketing-audience-name"), { target: { value: "Madrid partners" } });
     fireEvent.change(screen.getByTestId("input-marketing-audience-description"), { target: { value: "Partners in Spain" } });
-    fireEvent.change(screen.getByTestId("input-marketing-audience-rules"), { target: { value: "{\"market\":\"Spain\",\"vertical\":\"health\"}" } });
+    fireEvent.change(screen.getByTestId("input-marketing-audience-rules"), { target: { value: "{\"market\":\"Spain\",\"vertical\":\"healthcare\"}" } });
     fireEvent.change(screen.getByTestId("input-marketing-audience-contact-ids"), { target: { value: "lovable-contact-2\nmissing-contact" } });
     fireEvent.click(screen.getByTestId("button-marketing-add-audience"));
 
@@ -3006,7 +3010,7 @@ describe("MarketingAdminPage", () => {
       name: "Madrid partners",
       description: "Partners in Spain",
       listType: "dynamic",
-      rules: { market: "Spain", vertical: "health" },
+      rules: { market: "Spain", vertical: "healthcare" },
       contactExternalIds: ["lovable-contact-2", "missing-contact"],
     });
   });
@@ -3045,10 +3049,14 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-whatsapp"), { target: { value: "+34 600 000 005" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-role"), { target: { value: "Growth lead" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-company"), { target: { value: "Updated Org" } });
-    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-language"), { target: { value: "es" } });
-    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-category"), { target: { value: "partner" } });
-    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-vertical"), { target: { value: "care" } });
-    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-market"), { target: { value: "Madrid" } });
+    fireEvent.click(screen.getByTestId("button-marketing-edit-contact-language-option-es"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-contact-category-option-partner"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-contact-vertical-option-elder-care"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-contact-market-option-madrid"));
+    expect(screen.getByTestId("input-marketing-edit-contact-language")).toHaveValue("es");
+    expect(screen.getByTestId("input-marketing-edit-contact-category")).toHaveValue("partner");
+    expect(screen.getByTestId("input-marketing-edit-contact-vertical")).toHaveValue("elder care");
+    expect(screen.getByTestId("input-marketing-edit-contact-market")).toHaveValue("Madrid");
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-tags"), { target: { value: "partner, priority" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-contact-channel-availability"), {
       target: { value: JSON.stringify({ email: true, linkedin: true, whatsapp: false, source: "lovable" }, null, 2) },
@@ -3074,7 +3082,7 @@ describe("MarketingAdminPage", () => {
       companyName: "Updated Org",
       language: "es",
       category: "partner",
-      vertical: "care",
+      vertical: "elder care",
       market: "Madrid",
       consentStatus: "opted_in",
       source: "lovable",
@@ -3093,7 +3101,7 @@ describe("MarketingAdminPage", () => {
           lifecycle: "lead",
           language: "es",
           category: "partner",
-          vertical: "care",
+          vertical: "elder care",
           market: "Madrid",
         },
         notes: "edited",
