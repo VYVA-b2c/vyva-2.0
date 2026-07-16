@@ -798,6 +798,39 @@ type CampaignStudioOutcomeTrackerItem = {
   state: CampaignReadinessState;
 };
 
+type TemplatePackLaunchPacketRoute = {
+  channel: Channel;
+  channelLabel: string;
+  scheduledAt: string | null;
+  contentAssetId: string | null;
+  contentTitle: string;
+  templateId: string | null;
+  templateTitle: string;
+  sendMode: string;
+  owner: string;
+  nextAction: string;
+  recipientCount: number;
+  status: string;
+};
+
+type TemplatePackLaunchPacket = {
+  version: 1;
+  generatedFrom: "template_pack_campaign_plan";
+  packId: string;
+  packTitle: string;
+  focus: string;
+  audienceType: Audience;
+  targetAudience: Record<string, unknown> | null;
+  scheduleStartsAt: string | null;
+  routeSummary: string;
+  channels: TemplatePackLaunchPacketRoute[];
+  reviewChecklist: string[];
+  visualBriefs: Array<{ key: string; title: string; format: string; text: string }>;
+  followUpPlays: Array<{ key: string; trigger: string; owner: string; action: string }>;
+  outcomeTrackers: Array<{ key: string; metric: string; target: string; source: string }>;
+  aiPrompt: string;
+};
+
 type CampaignStudioCreativeVariant = {
   key: string;
   label: string;
@@ -4139,6 +4172,151 @@ function scheduleWithDelay(baseIso: string | null, delayHours: number) {
   return date.toISOString();
 }
 
+function templatePackRouteSendMode(channel: Channel) {
+  if (channel === "email") return "VYVA email review/send";
+  if (channel === "whatsapp") return "WhatsApp relationship handoff until provider dispatch is enabled";
+  if (channel === "phone") return "Human call task";
+  if (channel === "print") return "Print/offline handoff";
+  if (channel === "event") return "Event/community handoff";
+  if (channel === "sms") return "SMS planning record";
+  return "Manual social publishing/tracking";
+}
+
+function templatePackRouteOwner(channel: Channel) {
+  if (channel === "email") return "Marketing admin";
+  if (channel === "whatsapp" || channel === "phone") return "Relationship owner";
+  if (channel === "print" || channel === "event") return "Local operations";
+  return "Social/content owner";
+}
+
+function templatePackRouteNextAction(channel: Channel, hasContent: boolean, recipientCount: number) {
+  if (!hasContent) return `Attach ${channelLabel[channel]} content before launch.`;
+  if (channel === "email") {
+    return recipientCount > 0
+      ? "Review content, send a test, then use explicit VYVA email send."
+      : "Review content, snapshot recipients, send a test, then send explicitly.";
+  }
+  if (channel === "whatsapp") return "Preview copy, publish manually, and track replies in the campaign.";
+  if (channel === "phone") return "Turn the message into a call list and log outcomes.";
+  if (channel === "print") return "Export the copy into print collateral and track distribution.";
+  if (channel === "event") return "Use as event promotion or follow-up notes and track RSVPs.";
+  return "Preview the content, publish in the platform, then save the result in VYVA.";
+}
+
+function buildTemplatePackLaunchPacket({
+  pack,
+  audienceType,
+  targetAudience,
+  scheduleStartsAt,
+  routeChannels,
+  routeTemplateByChannel,
+  contentByTemplateId,
+  channels,
+  recipients,
+}: {
+  pack: ContentTemplatePack;
+  audienceType: Audience;
+  targetAudience: Record<string, unknown> | null;
+  scheduleStartsAt: string | null;
+  routeChannels: Channel[];
+  routeTemplateByChannel: Map<Channel, ContentTemplate>;
+  contentByTemplateId: Map<string, ContentAsset>;
+  channels: Array<{ channel: Channel; contentAssetId: string | null; status: string; scheduledAt: string | null; sendCapability: string }>;
+  recipients: Array<{ channel: Channel }>;
+}): TemplatePackLaunchPacket {
+  const channelPlans = routeChannels.map((channel) => {
+    const template = routeTemplateByChannel.get(channel) ?? null;
+    const contentAsset = template ? contentByTemplateId.get(template.id) ?? null : null;
+    const channelPlan = channels.find((item) => item.channel === channel);
+    const recipientCount = recipients.filter((recipient) => recipient.channel === channel).length;
+    return {
+      channel,
+      channelLabel: channelLabel[channel],
+      scheduledAt: channelPlan?.scheduledAt ?? scheduleStartsAt,
+      contentAssetId: contentAsset?.id ?? channelPlan?.contentAssetId ?? null,
+      contentTitle: contentAsset?.title ?? template?.title ?? "No content linked",
+      templateId: template?.id ?? null,
+      templateTitle: template?.title ?? "No template linked",
+      sendMode: templatePackRouteSendMode(channel),
+      owner: templatePackRouteOwner(channel),
+      nextAction: templatePackRouteNextAction(channel, Boolean(contentAsset ?? channelPlan?.contentAssetId), recipientCount),
+      recipientCount,
+      status: channelPlan?.status ?? "draft",
+    };
+  });
+
+  const channelNames = channelPlans.map((item) => item.channelLabel).join(" + ");
+  const hasSocial = routeChannels.some((channel) => ["facebook", "instagram", "linkedin", "tiktok"].includes(channel));
+  const hasDirect = routeChannels.some((channel) => ["whatsapp", "sms", "phone", "print"].includes(channel));
+
+  return {
+    version: 1,
+    generatedFrom: "template_pack_campaign_plan",
+    packId: pack.id,
+    packTitle: pack.title,
+    focus: pack.focus,
+    audienceType,
+    targetAudience,
+    scheduleStartsAt,
+    routeSummary: `${channelNames || "No channels"} plan with ${recipients.length} planned recipient route${recipients.length === 1 ? "" : "s"}.`,
+    channels: channelPlans,
+    reviewChecklist: [
+      "Review every linked content asset before launch.",
+      "Confirm the target list and mapped contacts.",
+      "Save or refresh recipient snapshots before any email send.",
+      "Send a test email when the route includes Email.",
+      "Use manual tracking for social, WhatsApp, phone, print, and event handoffs.",
+      "Log outcomes so follow-up campaigns can use real relationship signals.",
+    ],
+    visualBriefs: [
+      {
+        key: "hero",
+        title: "Campaign hero",
+        format: "Email/social hero",
+        text: `Create a warm VYVA visual for "${pack.title}" focused on: ${pack.focus}`,
+      },
+      ...(hasSocial ? [{
+        key: "social",
+        title: "Social creative set",
+        format: "Square post + short caption visual",
+        text: `Turn "${pack.description}" into a clear social proof visual for ${routeChannels.filter((channel) => ["facebook", "instagram", "linkedin", "tiktok"].includes(channel)).map((channel) => channelLabel[channel]).join(", ")}.`,
+      }] : []),
+      ...(hasDirect ? [{
+        key: "direct",
+        title: "Direct outreach card",
+        format: "WhatsApp/phone/print handoff",
+        text: "Prepare a concise human follow-up card with the promise, CTA, and one note field for the relationship owner.",
+      }] : []),
+    ],
+    followUpPlays: [
+      {
+        key: "reply",
+        trigger: "Reply, comment, or WhatsApp response",
+        owner: "Relationship owner",
+        action: "Move the contact into a warm follow-up and respond with one practical next step.",
+      },
+      {
+        key: "click",
+        trigger: "Email click or social engagement",
+        owner: "Marketing admin",
+        action: "Create a smaller proof or demo follow-up using the same offer.",
+      },
+      {
+        key: "no-response",
+        trigger: "No signal after 5-7 days",
+        owner: "Marketing admin",
+        action: "Rework the CTA or move to a lighter channel before repeating.",
+      },
+    ],
+    outcomeTrackers: [
+      { key: "reach", metric: "Reach / saved recipients", target: "Know exactly who was planned or reached.", source: "recipient snapshots and manual results" },
+      { key: "response", metric: "Replies, clicks, and social engagement", target: "Identify warm relationships for follow-up.", source: "campaign metrics and tracked manual outcomes" },
+      { key: "handoff", metric: "Manual handoff completion", target: "Avoid losing non-email campaign work outside VYVA.", source: "manual publish tracker" },
+    ],
+    aiPrompt: pack.aiPrompt,
+  };
+}
+
 function experimentCtaLabel(content: ContentAsset | null, campaign: Campaign) {
   const current = lower(content?.ctaLabel ?? "");
   if (current.includes("demo") || campaign.audienceType === "b2b") return "Book a VYVA demo";
@@ -6135,6 +6313,56 @@ const lovableDestinationRows: Array<{
 
 function recordValue(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function recordArray(value: unknown) {
+  return Array.isArray(value) ? value.map(recordValue).filter((item) => Object.keys(item).length > 0) : [];
+}
+
+function launchPacketTextFromMetadata(packet: Record<string, unknown>) {
+  const channels = recordArray(packet.channels);
+  const reviewChecklist = Array.isArray(packet.reviewChecklist) ? packet.reviewChecklist.map(displayText).filter(Boolean) : [];
+  const visualBriefs = recordArray(packet.visualBriefs);
+  const followUpPlays = recordArray(packet.followUpPlays);
+  const outcomeTrackers = recordArray(packet.outcomeTrackers);
+  const targetAudience = recordValue(packet.targetAudience);
+  const targetAudienceName = displayText(targetAudience.name);
+
+  return [
+    "VYVA saved launch packet",
+    `Template pack: ${displayText(packet.packTitle) || "Unknown"}`,
+    `Audience: ${displayText(packet.audienceType).toUpperCase() || "UNKNOWN"}`,
+    targetAudienceName ? `Target list: ${targetAudienceName}` : "",
+    displayText(packet.scheduleStartsAt) ? `Starts: ${formatDate(displayText(packet.scheduleStartsAt))}` : "Starts: Not scheduled",
+    displayText(packet.focus) ? `Focus: ${displayText(packet.focus)}` : "",
+    displayText(packet.routeSummary) ? `Route summary: ${displayText(packet.routeSummary)}` : "",
+    "",
+    "Launch order:",
+    ...(channels.length ? channels.map((route, index) => [
+      `${index + 1}. ${displayText(route.channelLabel) || displayText(route.channel) || "Channel"}`,
+      `Content: ${displayText(route.contentTitle) || "Missing"}`,
+      `When: ${displayText(route.scheduledAt) ? formatDate(displayText(route.scheduledAt)) : "Not scheduled"}`,
+      `Mode: ${displayText(route.sendMode) || "Review"}`,
+      `Owner: ${displayText(route.owner) || "Marketing admin"}`,
+      `Recipients: ${displayText(route.recipientCount) || "0"}`,
+      `Next: ${displayText(route.nextAction) || "Review before launch."}`,
+    ].join(" | ")) : ["No channels saved."]),
+    "",
+    "Review checklist:",
+    ...(reviewChecklist.length ? reviewChecklist.map((item) => `- ${item}`) : ["- Review campaign setup before launch."]),
+    "",
+    "Visual briefs:",
+    ...(visualBriefs.length ? visualBriefs.map((item) => `- ${displayText(item.title) || "Visual"} (${displayText(item.format) || "format"}): ${displayText(item.text)}`) : ["- No visual brief saved."]),
+    "",
+    "Follow-up plays:",
+    ...(followUpPlays.length ? followUpPlays.map((item) => `- ${displayText(item.trigger) || "Trigger"}: ${displayText(item.action)} Owner: ${displayText(item.owner) || "Marketing admin"}`) : ["- No follow-up play saved."]),
+    "",
+    "Outcome trackers:",
+    ...(outcomeTrackers.length ? outcomeTrackers.map((item) => `- ${displayText(item.metric) || "Metric"}: ${displayText(item.target)} Source: ${displayText(item.source)}`) : ["- No outcome tracker saved."]),
+    "",
+    "AI prompt:",
+    displayText(packet.aiPrompt) || "Improve this campaign while preserving the target audience, channels, consent, and relationship follow-up.",
+  ].filter((line) => line !== "").join("\n");
 }
 
 function numberValue(value: unknown) {
@@ -12223,6 +12451,17 @@ export default function MarketingAdminPage() {
           },
         }];
       }));
+      const launchPacket = buildTemplatePackLaunchPacket({
+        pack,
+        audienceType,
+        targetAudience: targetAudienceSnapshot,
+        scheduleStartsAt,
+        routeChannels,
+        routeTemplateByChannel,
+        contentByTemplateId,
+        channels,
+        recipients,
+      });
       const campaignResult = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
         method: "POST",
         body: JSON.stringify({
@@ -12253,6 +12492,7 @@ export default function MarketingAdminPage() {
               templateIds: templates.map((template) => template.id),
               contentAssetIds: channelContentAssetIds,
               sequence: pack.sequence,
+              launchPacket,
             },
           }, targetAudience),
           channels,
@@ -13739,6 +13979,14 @@ export default function MarketingAdminPage() {
     : [];
   const selectedCampaignMetricTotals = sumMarketingMetrics(selectedCampaignMetrics);
   const campaignReadinessChannels = campaignChannelsWithPrimary(campaignEditDraft);
+  const campaignTemplatePackPlan = editingCampaign ? recordValue(recordValue(editingCampaign.metadata).templatePackPlan) : {};
+  const campaignSavedLaunchPacket = recordValue(campaignTemplatePackPlan.launchPacket);
+  const campaignSavedLaunchPacketRoutes = recordArray(campaignSavedLaunchPacket.channels);
+  const campaignSavedLaunchPacketVisualBriefs = recordArray(campaignSavedLaunchPacket.visualBriefs);
+  const campaignSavedLaunchPacketFollowUps = recordArray(campaignSavedLaunchPacket.followUpPlays);
+  const campaignSavedLaunchPacketText = Object.keys(campaignSavedLaunchPacket).length
+    ? launchPacketTextFromMetadata(campaignSavedLaunchPacket)
+    : "";
   const missingCampaignContentChannels = campaignReadinessChannels.filter((channel) => !channel.contentAssetId);
   const planningOnlyCampaignChannels = campaignReadinessChannels.filter((channel) => channel.channel !== "email");
   const savedCampaignRecipientCount = editingCampaign?.recipientCount ?? 0;
@@ -16825,6 +17073,60 @@ export default function MarketingAdminPage() {
                                 <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
                               </div>
                             ))}
+                          </div>
+                        ) : null}
+                        {campaignSavedLaunchPacketText ? (
+                          <div className="mt-3 rounded-xl border border-emerald-200 bg-white p-3" data-testid="marketing-campaign-saved-launch-packet">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Saved launch packet</p>
+                                <h4 className="mt-1 text-base font-black text-[#241133]">{displayText(campaignSavedLaunchPacket.packTitle) || "Template campaign plan"}</h4>
+                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">{displayText(campaignSavedLaunchPacket.routeSummary) || "Review the channel route, creative, follow-up, and outcome plan saved with this campaign."}</p>
+                              </div>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <Pill className="bg-emerald-50 text-emerald-800">{campaignSavedLaunchPacketRoutes.length} route{campaignSavedLaunchPacketRoutes.length === 1 ? "" : "s"}</Pill>
+                                <Pill className="bg-purple-50 text-purple-800">{campaignSavedLaunchPacketVisualBriefs.length} visual brief{campaignSavedLaunchPacketVisualBriefs.length === 1 ? "" : "s"}</Pill>
+                                <button
+                                  type="button"
+                                  onClick={() => void copyCampaignHandoffText("Saved launch packet", campaignSavedLaunchPacketText)}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white hover:bg-emerald-800"
+                                  data-testid="button-marketing-copy-saved-launch-packet"
+                                >
+                                  <Copy size={14} /> Copy packet
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-2 xl:grid-cols-2" data-testid="marketing-campaign-saved-launch-packet-routes">
+                              {campaignSavedLaunchPacketRoutes.map((route, index) => {
+                                const channel = displayText(route.channel);
+                                const typedChannel = CHANNELS.includes(channel as Channel) ? channel as Channel : null;
+                                return (
+                                  <div key={`${channel || "route"}-${index}`} className="rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <Pill className={typedChannel ? channelClass(typedChannel) : "bg-purple-50 text-purple-800"}>{displayText(route.channelLabel) || channel || "Channel"}</Pill>
+                                      <span className="text-xs font-black text-[#7d6b65]">{displayText(route.scheduledAt) ? formatDate(displayText(route.scheduledAt)) : "Not scheduled"}</span>
+                                    </div>
+                                    <p className="mt-2 text-sm font-black text-[#241133]">{displayText(route.contentTitle) || "No content linked"}</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{displayText(route.nextAction) || "Review before launch."}</p>
+                                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                      <Pill className="bg-white text-[#5f4a44]">{displayText(route.sendMode) || "Review"}</Pill>
+                                      <Pill className="bg-white text-[#5f4a44]">{displayText(route.recipientCount) || "0"} recipient{displayText(route.recipientCount) === "1" ? "" : "s"}</Pill>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {campaignSavedLaunchPacketFollowUps.length ? (
+                              <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
+                                Follow-up plays saved: {campaignSavedLaunchPacketFollowUps.map((item) => displayText(item.trigger)).filter(Boolean).join("; ")}
+                              </div>
+                            ) : null}
+                            <textarea
+                              readOnly
+                              className={`${textareaClass} mt-3 min-h-[180px] bg-[#fffaf4] text-xs`}
+                              value={campaignSavedLaunchPacketText}
+                              data-testid="textarea-marketing-campaign-saved-launch-packet"
+                            />
                           </div>
                         ) : null}
                         {campaignAiCommandBrief ? (

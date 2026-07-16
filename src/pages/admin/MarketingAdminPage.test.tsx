@@ -2082,6 +2082,42 @@ describe("MarketingAdminPage", () => {
           generatedFrom: "template_pack_campaign_plan",
           packId: "partner-growth",
           routeChannels: ["linkedin", "whatsapp", "email", "facebook"],
+          launchPacket: expect.objectContaining({
+            version: 1,
+            generatedFrom: "template_pack_campaign_plan",
+            packTitle: "Partner growth",
+            routeSummary: expect.stringContaining("4 planned recipient routes"),
+            channels: expect.arrayContaining([
+              expect.objectContaining({
+                channel: "linkedin",
+                channelLabel: "LinkedIn",
+                contentTitle: "Partner demo LinkedIn post",
+                sendMode: "Manual social publishing/tracking",
+                owner: "Social/content owner",
+                recipientCount: 1,
+              }),
+              expect.objectContaining({
+                channel: "email",
+                channelLabel: "Email",
+                sendMode: "VYVA email review/send",
+                nextAction: expect.stringContaining("send a test"),
+              }),
+            ]),
+            reviewChecklist: expect.arrayContaining([
+              "Review every linked content asset before launch.",
+              "Log outcomes so follow-up campaigns can use real relationship signals.",
+            ]),
+            visualBriefs: expect.arrayContaining([
+              expect.objectContaining({ key: "hero", title: "Campaign hero" }),
+              expect.objectContaining({ key: "social", title: "Social creative set" }),
+            ]),
+            followUpPlays: expect.arrayContaining([
+              expect.objectContaining({ key: "reply", trigger: "Reply, comment, or WhatsApp response" }),
+            ]),
+            outcomeTrackers: expect.arrayContaining([
+              expect.objectContaining({ key: "response", metric: "Replies, clicks, and social engagement" }),
+            ]),
+          }),
         }),
       },
     });
@@ -2112,6 +2148,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Partner growth campaign plan");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner growth campaign plan");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("Saved launch packet");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("Partner growth");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-packet-routes")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-packet-routes")).toHaveTextContent("VYVA email review/send");
+    expect((screen.getByTestId("textarea-marketing-campaign-saved-launch-packet") as HTMLTextAreaElement).value).toContain("VYVA saved launch packet");
+    expect((screen.getByTestId("textarea-marketing-campaign-saved-launch-packet") as HTMLTextAreaElement).value).toContain("Follow-up plays:");
   });
 
   it("loads template packs into editable journey drafts with visible sequence steps", async () => {
