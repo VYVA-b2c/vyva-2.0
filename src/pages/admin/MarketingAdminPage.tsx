@@ -721,6 +721,14 @@ type CampaignStudioLaunchStep = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type CampaignStudioLaunchPathItem = CampaignReadinessItem & {
+  value: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
 type CampaignPerformanceInsight = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -796,6 +804,39 @@ type CampaignStudioOutcomeTrackerItem = {
   text: string;
   icon: LucideIcon;
   state: CampaignReadinessState;
+};
+
+type TemplatePackLaunchPacketRoute = {
+  channel: Channel;
+  channelLabel: string;
+  scheduledAt: string | null;
+  contentAssetId: string | null;
+  contentTitle: string;
+  templateId: string | null;
+  templateTitle: string;
+  sendMode: string;
+  owner: string;
+  nextAction: string;
+  recipientCount: number;
+  status: string;
+};
+
+type TemplatePackLaunchPacket = {
+  version: 1;
+  generatedFrom: "template_pack_campaign_plan";
+  packId: string;
+  packTitle: string;
+  focus: string;
+  audienceType: Audience;
+  targetAudience: Record<string, unknown> | null;
+  scheduleStartsAt: string | null;
+  routeSummary: string;
+  channels: TemplatePackLaunchPacketRoute[];
+  reviewChecklist: string[];
+  visualBriefs: Array<{ key: string; title: string; format: string; text: string }>;
+  followUpPlays: Array<{ key: string; trigger: string; owner: string; action: string }>;
+  outcomeTrackers: Array<{ key: string; metric: string; target: string; source: string }>;
+  aiPrompt: string;
 };
 
 type CampaignStudioCreativeVariant = {
@@ -973,6 +1014,17 @@ type JourneyStarterRecommendation = CampaignReadinessItem & {
   goalConfig: Record<string, unknown>;
   exitOnGoal: boolean;
   steps: JourneyStepDraft[];
+};
+
+type JourneyCommandItem = CampaignReadinessItem & {
+  value: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+};
+
+type JourneyCommandStat = CampaignReadinessItem & {
+  value: string;
 };
 
 type ContentDraft = {
@@ -4109,6 +4161,63 @@ function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
   };
 }
 
+function templateDesignItemText(value: unknown) {
+  const direct = displayText(value);
+  if (direct) return direct;
+  const record = recordValue(value);
+  const primary = displayText(record.text)
+    || displayText(record.title)
+    || displayText(record.heading)
+    || displayText(record.label)
+    || displayText(record.name)
+    || displayText(record.type)
+    || displayText(record.kind);
+  const items = Array.isArray(record.items)
+    ? record.items.map(displayText).filter(Boolean).slice(0, 3).join(", ")
+    : "";
+  if (primary && items) return `${primary}: ${items}`;
+  return primary || items;
+}
+
+function templateDesignItems(value: unknown, limit = 4) {
+  return Array.isArray(value)
+    ? value.map(templateDesignItemText).filter(Boolean).slice(0, limit)
+    : [];
+}
+
+function contentTemplateDesignBrief(template: ContentTemplate) {
+  const design = recordValue(template.designJson);
+  const layout = displayText(design.layout);
+  const tone = displayText(design.tone);
+  const visual = displayText(design.visualPrompt);
+  const proof = displayText(design.proofPoint);
+  const fields = templateDesignItems(design.mergeFields, 4);
+  const slides = templateDesignItems(design.slides, 4);
+  const beats = templateDesignItems(design.beats, 4);
+  const blocks = templateDesignItems(design.blocks, 4);
+  const structure = slides.length
+    ? { label: "Slides", items: slides }
+    : beats.length
+      ? { label: "Beats", items: beats }
+      : blocks.length
+        ? { label: "Blocks", items: blocks }
+        : null;
+
+  const tags = [
+    layout ? `Layout: ${layout}` : "",
+    tone ? `Tone: ${tone}` : "",
+    proof ? `Proof: ${proof}` : "",
+    fields.length ? `Fields: ${fields.join(", ")}` : "",
+  ].filter(Boolean);
+
+  return {
+    tags,
+    visual,
+    structure,
+    hasBrief: Boolean(tags.length || visual || structure),
+  };
+}
+
 function contentAssetMatchesTemplatePack(content: ContentAsset, pack: ContentTemplatePack, template: ContentTemplate) {
   if (content.channel !== template.channel || content.status === "archived") return false;
   const metadata = recordValue(content.metadata);
@@ -4137,6 +4246,151 @@ function scheduleWithDelay(baseIso: string | null, delayHours: number) {
   if (Number.isNaN(date.getTime())) return null;
   date.setHours(date.getHours() + Math.max(0, delayHours));
   return date.toISOString();
+}
+
+function templatePackRouteSendMode(channel: Channel) {
+  if (channel === "email") return "VYVA email review/send";
+  if (channel === "whatsapp") return "WhatsApp relationship handoff until provider dispatch is enabled";
+  if (channel === "phone") return "Human call task";
+  if (channel === "print") return "Print/offline handoff";
+  if (channel === "event") return "Event/community handoff";
+  if (channel === "sms") return "SMS planning record";
+  return "Manual social publishing/tracking";
+}
+
+function templatePackRouteOwner(channel: Channel) {
+  if (channel === "email") return "Marketing admin";
+  if (channel === "whatsapp" || channel === "phone") return "Relationship owner";
+  if (channel === "print" || channel === "event") return "Local operations";
+  return "Social/content owner";
+}
+
+function templatePackRouteNextAction(channel: Channel, hasContent: boolean, recipientCount: number) {
+  if (!hasContent) return `Attach ${channelLabel[channel]} content before launch.`;
+  if (channel === "email") {
+    return recipientCount > 0
+      ? "Review content, send a test, then use explicit VYVA email send."
+      : "Review content, snapshot recipients, send a test, then send explicitly.";
+  }
+  if (channel === "whatsapp") return "Preview copy, publish manually, and track replies in the campaign.";
+  if (channel === "phone") return "Turn the message into a call list and log outcomes.";
+  if (channel === "print") return "Export the copy into print collateral and track distribution.";
+  if (channel === "event") return "Use as event promotion or follow-up notes and track RSVPs.";
+  return "Preview the content, publish in the platform, then save the result in VYVA.";
+}
+
+function buildTemplatePackLaunchPacket({
+  pack,
+  audienceType,
+  targetAudience,
+  scheduleStartsAt,
+  routeChannels,
+  routeTemplateByChannel,
+  contentByTemplateId,
+  channels,
+  recipients,
+}: {
+  pack: ContentTemplatePack;
+  audienceType: Audience;
+  targetAudience: Record<string, unknown> | null;
+  scheduleStartsAt: string | null;
+  routeChannels: Channel[];
+  routeTemplateByChannel: Map<Channel, ContentTemplate>;
+  contentByTemplateId: Map<string, ContentAsset>;
+  channels: Array<{ channel: Channel; contentAssetId: string | null; status: string; scheduledAt: string | null; sendCapability: string }>;
+  recipients: Array<{ channel: Channel }>;
+}): TemplatePackLaunchPacket {
+  const channelPlans = routeChannels.map((channel) => {
+    const template = routeTemplateByChannel.get(channel) ?? null;
+    const contentAsset = template ? contentByTemplateId.get(template.id) ?? null : null;
+    const channelPlan = channels.find((item) => item.channel === channel);
+    const recipientCount = recipients.filter((recipient) => recipient.channel === channel).length;
+    return {
+      channel,
+      channelLabel: channelLabel[channel],
+      scheduledAt: channelPlan?.scheduledAt ?? scheduleStartsAt,
+      contentAssetId: contentAsset?.id ?? channelPlan?.contentAssetId ?? null,
+      contentTitle: contentAsset?.title ?? template?.title ?? "No content linked",
+      templateId: template?.id ?? null,
+      templateTitle: template?.title ?? "No template linked",
+      sendMode: templatePackRouteSendMode(channel),
+      owner: templatePackRouteOwner(channel),
+      nextAction: templatePackRouteNextAction(channel, Boolean(contentAsset ?? channelPlan?.contentAssetId), recipientCount),
+      recipientCount,
+      status: channelPlan?.status ?? "draft",
+    };
+  });
+
+  const channelNames = channelPlans.map((item) => item.channelLabel).join(" + ");
+  const hasSocial = routeChannels.some((channel) => ["facebook", "instagram", "linkedin", "tiktok"].includes(channel));
+  const hasDirect = routeChannels.some((channel) => ["whatsapp", "sms", "phone", "print"].includes(channel));
+
+  return {
+    version: 1,
+    generatedFrom: "template_pack_campaign_plan",
+    packId: pack.id,
+    packTitle: pack.title,
+    focus: pack.focus,
+    audienceType,
+    targetAudience,
+    scheduleStartsAt,
+    routeSummary: `${channelNames || "No channels"} plan with ${recipients.length} planned recipient route${recipients.length === 1 ? "" : "s"}.`,
+    channels: channelPlans,
+    reviewChecklist: [
+      "Review every linked content asset before launch.",
+      "Confirm the target list and mapped contacts.",
+      "Save or refresh recipient snapshots before any email send.",
+      "Send a test email when the route includes Email.",
+      "Use manual tracking for social, WhatsApp, phone, print, and event handoffs.",
+      "Log outcomes so follow-up campaigns can use real relationship signals.",
+    ],
+    visualBriefs: [
+      {
+        key: "hero",
+        title: "Campaign hero",
+        format: "Email/social hero",
+        text: `Create a warm VYVA visual for "${pack.title}" focused on: ${pack.focus}`,
+      },
+      ...(hasSocial ? [{
+        key: "social",
+        title: "Social creative set",
+        format: "Square post + short caption visual",
+        text: `Turn "${pack.description}" into a clear social proof visual for ${routeChannels.filter((channel) => ["facebook", "instagram", "linkedin", "tiktok"].includes(channel)).map((channel) => channelLabel[channel]).join(", ")}.`,
+      }] : []),
+      ...(hasDirect ? [{
+        key: "direct",
+        title: "Direct outreach card",
+        format: "WhatsApp/phone/print handoff",
+        text: "Prepare a concise human follow-up card with the promise, CTA, and one note field for the relationship owner.",
+      }] : []),
+    ],
+    followUpPlays: [
+      {
+        key: "reply",
+        trigger: "Reply, comment, or WhatsApp response",
+        owner: "Relationship owner",
+        action: "Move the contact into a warm follow-up and respond with one practical next step.",
+      },
+      {
+        key: "click",
+        trigger: "Email click or social engagement",
+        owner: "Marketing admin",
+        action: "Create a smaller proof or demo follow-up using the same offer.",
+      },
+      {
+        key: "no-response",
+        trigger: "No signal after 5-7 days",
+        owner: "Marketing admin",
+        action: "Rework the CTA or move to a lighter channel before repeating.",
+      },
+    ],
+    outcomeTrackers: [
+      { key: "reach", metric: "Reach / saved recipients", target: "Know exactly who was planned or reached.", source: "recipient snapshots and manual results" },
+      { key: "response", metric: "Replies, clicks, and social engagement", target: "Identify warm relationships for follow-up.", source: "campaign metrics and tracked manual outcomes" },
+      { key: "handoff", metric: "Manual handoff completion", target: "Avoid losing non-email campaign work outside VYVA.", source: "manual publish tracker" },
+    ],
+    aiPrompt: pack.aiPrompt,
+  };
 }
 
 function experimentCtaLabel(content: ContentAsset | null, campaign: Campaign) {
@@ -6137,6 +6391,56 @@ function recordValue(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+function recordArray(value: unknown) {
+  return Array.isArray(value) ? value.map(recordValue).filter((item) => Object.keys(item).length > 0) : [];
+}
+
+function launchPacketTextFromMetadata(packet: Record<string, unknown>) {
+  const channels = recordArray(packet.channels);
+  const reviewChecklist = Array.isArray(packet.reviewChecklist) ? packet.reviewChecklist.map(displayText).filter(Boolean) : [];
+  const visualBriefs = recordArray(packet.visualBriefs);
+  const followUpPlays = recordArray(packet.followUpPlays);
+  const outcomeTrackers = recordArray(packet.outcomeTrackers);
+  const targetAudience = recordValue(packet.targetAudience);
+  const targetAudienceName = displayText(targetAudience.name);
+
+  return [
+    "VYVA saved launch packet",
+    `Template pack: ${displayText(packet.packTitle) || "Unknown"}`,
+    `Audience: ${displayText(packet.audienceType).toUpperCase() || "UNKNOWN"}`,
+    targetAudienceName ? `Target list: ${targetAudienceName}` : "",
+    displayText(packet.scheduleStartsAt) ? `Starts: ${formatDate(displayText(packet.scheduleStartsAt))}` : "Starts: Not scheduled",
+    displayText(packet.focus) ? `Focus: ${displayText(packet.focus)}` : "",
+    displayText(packet.routeSummary) ? `Route summary: ${displayText(packet.routeSummary)}` : "",
+    "",
+    "Launch order:",
+    ...(channels.length ? channels.map((route, index) => [
+      `${index + 1}. ${displayText(route.channelLabel) || displayText(route.channel) || "Channel"}`,
+      `Content: ${displayText(route.contentTitle) || "Missing"}`,
+      `When: ${displayText(route.scheduledAt) ? formatDate(displayText(route.scheduledAt)) : "Not scheduled"}`,
+      `Mode: ${displayText(route.sendMode) || "Review"}`,
+      `Owner: ${displayText(route.owner) || "Marketing admin"}`,
+      `Recipients: ${displayText(route.recipientCount) || "0"}`,
+      `Next: ${displayText(route.nextAction) || "Review before launch."}`,
+    ].join(" | ")) : ["No channels saved."]),
+    "",
+    "Review checklist:",
+    ...(reviewChecklist.length ? reviewChecklist.map((item) => `- ${item}`) : ["- Review campaign setup before launch."]),
+    "",
+    "Visual briefs:",
+    ...(visualBriefs.length ? visualBriefs.map((item) => `- ${displayText(item.title) || "Visual"} (${displayText(item.format) || "format"}): ${displayText(item.text)}`) : ["- No visual brief saved."]),
+    "",
+    "Follow-up plays:",
+    ...(followUpPlays.length ? followUpPlays.map((item) => `- ${displayText(item.trigger) || "Trigger"}: ${displayText(item.action)} Owner: ${displayText(item.owner) || "Marketing admin"}`) : ["- No follow-up play saved."]),
+    "",
+    "Outcome trackers:",
+    ...(outcomeTrackers.length ? outcomeTrackers.map((item) => `- ${displayText(item.metric) || "Metric"}: ${displayText(item.target)} Source: ${displayText(item.source)}`) : ["- No outcome tracker saved."]),
+    "",
+    "AI prompt:",
+    displayText(packet.aiPrompt) || "Improve this campaign while preserving the target audience, channels, consent, and relationship follow-up.",
+  ].filter((line) => line !== "").join("\n");
+}
+
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
@@ -7534,6 +7838,20 @@ export default function MarketingAdminPage() {
     }),
   })), []);
   const contentTemplateGapSuggestions = useMemo(() => templateGapSuggestionsFor(contentTemplateGallery), []);
+  const contentTemplateGapAutopilot = useMemo(() => {
+    const batch = contentTemplateGapSuggestions.slice(0, TEMPLATE_GAP_BATCH_LIMIT);
+    const totalMissing = contentTemplateGapSuggestions.reduce((sum, suggestion) => (
+      sum + Math.max(suggestion.coverageTarget - suggestion.existingCount, 0)
+    ), 0);
+    const batchMissing = batch.reduce((sum, suggestion) => (
+      sum + Math.max(suggestion.coverageTarget - suggestion.existingCount, 0)
+    ), 0);
+    const batchChannels = uniqueChannels(batch.map((suggestion) => suggestion.channel));
+    const batchAudiences = Array.from(new Set(batch.map((suggestion) => suggestion.audienceType)));
+    const topSuggestion = batch[0] ?? null;
+    const state: CampaignReadinessState = topSuggestion ? "needs_action" : "ready";
+    return { batch, totalMissing, batchMissing, batchChannels, batchAudiences, topSuggestion, state };
+  }, [contentTemplateGapSuggestions]);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
   const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
@@ -8731,6 +9049,237 @@ export default function MarketingAdminPage() {
   }, [content.length, latestSyncRun, visibleContent.length]);
   const enrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments, (item) => item.journeyId), [journeyEnrollments]);
   const activeEnrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments.filter((item) => item.status === "active"), (item) => item.journeyId), [journeyEnrollments]);
+  const journeyStepStats = useMemo(() => {
+    let total = 0;
+    let linked = 0;
+    const channels = new Set<Channel>();
+    for (const journey of journeys) {
+      for (const step of journey.steps ?? []) {
+        total += 1;
+        channels.add(step.channel);
+        const linkedContent = contentAssetByReference(content, step.contentAssetId) ?? contentAssetByReference(content, step.templateRef);
+        if (linkedContent) linked += 1;
+      }
+    }
+    return { total, linked, missing: Math.max(0, total - linked), channels: Array.from(channels) };
+  }, [content, journeys]);
+  const journeyEventCount = useMemo(
+    () => journeyEnrollments.reduce((count, enrollment) => count + (enrollment.events?.length ?? 0), 0),
+    [journeyEnrollments],
+  );
+  const journeysWithLogicCount = useMemo(
+    () => journeys.filter((journey) => Boolean(journey.triggerType || journey.goalType || journeyTargetAudience(journey, audiences))).length,
+    [audiences, journeys],
+  );
+  const activeJourneyCount = journeys.filter((journey) => normalizeJourneyStatus(journey.status) === "active").length;
+  const journeyWithoutSteps = visibleJourneys.find((journey) => (journey.steps ?? []).length === 0) ?? journeys.find((journey) => (journey.steps ?? []).length === 0) ?? null;
+  const journeyMissingContent = visibleJourneys.find((journey) => (journey.steps ?? []).some((step) => !contentAssetByReference(content, step.contentAssetId) && !contentAssetByReference(content, step.templateRef)))
+    ?? journeys.find((journey) => (journey.steps ?? []).some((step) => !contentAssetByReference(content, step.contentAssetId) && !contentAssetByReference(content, step.templateRef)))
+    ?? null;
+  const journeyReadyDraft = visibleJourneys.find((journey) => (
+    normalizeJourneyStatus(journey.status) === "draft"
+    && (journey.steps ?? []).length > 0
+    && Boolean(journey.triggerType)
+    && Boolean(journey.goalType)
+    && (journey.steps ?? []).every((step) => contentAssetByReference(content, step.contentAssetId) || contentAssetByReference(content, step.templateRef))
+  )) ?? journeys.find((journey) => (
+    normalizeJourneyStatus(journey.status) === "draft"
+    && (journey.steps ?? []).length > 0
+    && Boolean(journey.triggerType)
+    && Boolean(journey.goalType)
+    && (journey.steps ?? []).every((step) => contentAssetByReference(content, step.contentAssetId) || contentAssetByReference(content, step.templateRef))
+  )) ?? null;
+  const activeJourneyWithoutActivity = journeys.find((journey) => normalizeJourneyStatus(journey.status) === "active" && !enrollmentsByJourneyId.get(journey.id)) ?? null;
+  const journeyWithActivity = journeyEnrollments
+    .map((enrollment) => journeyById.get(enrollment.journeyId) ?? null)
+    .find((journey): journey is Journey => Boolean(journey)) ?? null;
+  const journeyCommandState: CampaignReadinessState = journeys.length === 0
+    ? "planning"
+    : journeyWithoutSteps || journeyMissingContent
+      ? "needs_action"
+      : activeJourneyCount === 0
+        ? "planning"
+        : activeJourneyWithoutActivity
+          ? "needs_action"
+          : "ready";
+  const journeyCommandTitle = journeys.length === 0
+    ? "Create the first lifecycle journey"
+    : journeyWithoutSteps
+      ? "Add visible steps before this journey can work"
+      : journeyMissingContent
+        ? "Attach or draft content for missing journey steps"
+        : journeyReadyDraft
+          ? "Review this draft and decide whether it should go active"
+          : activeJourneyWithoutActivity
+            ? "Connect an active journey to real audience activity"
+            : "Journey automation is organized";
+  const journeyCommandDetail = journeys.length === 0
+    ? "Start from a guided sequence instead of a blank automation record."
+    : journeyWithoutSteps
+      ? `"${journeyWithoutSteps.name}" has no steps yet. Add at least one timed channel step.`
+      : journeyMissingContent
+        ? `"${journeyMissingContent.name}" has step(s) without linked content.`
+        : journeyReadyDraft
+          ? `"${journeyReadyDraft.name}" has trigger, goal, and linked content.`
+          : activeJourneyWithoutActivity
+            ? `"${activeJourneyWithoutActivity.name}" is active but has no imported enrollment activity yet.`
+            : `${journeyEnrollments.length} imported enrollment${journeyEnrollments.length === 1 ? "" : "s"} and ${journeyEventCount} event${journeyEventCount === 1 ? "" : "s"} are available for review.`;
+  const bestJourneyStarter = journeyStarterRecommendations[0] ?? null;
+  const journeyCommandStats: JourneyCommandStat[] = [
+    {
+      key: "structure",
+      title: "Structure",
+      value: `${journeys.length} journey${journeys.length === 1 ? "" : "s"}`,
+      detail: journeyWithoutSteps ? `"${journeyWithoutSteps.name}" needs steps.` : `${journeyStepStats.total} visible step${journeyStepStats.total === 1 ? "" : "s"} across journey records.`,
+      state: journeys.length === 0 ? "planning" : journeyWithoutSteps ? "needs_action" : "ready",
+    },
+    {
+      key: "logic",
+      title: "Trigger and goal",
+      value: `${journeysWithLogicCount}/${journeys.length || 1}`,
+      detail: journeys.length === 0 ? "No trigger logic yet." : `${journeysWithLogicCount} journey${journeysWithLogicCount === 1 ? "" : "s"} include trigger, goal, or list logic.`,
+      state: journeys.length === 0 ? "planning" : journeysWithLogicCount === journeys.length ? "ready" : "needs_action",
+    },
+    {
+      key: "content",
+      title: "Step content",
+      value: `${journeyStepStats.linked}/${journeyStepStats.total || 1}`,
+      detail: journeyStepStats.total === 0 ? "No step content needed until steps exist." : journeyStepStats.missing ? `${journeyStepStats.missing} step${journeyStepStats.missing === 1 ? "" : "s"} need content.` : "Every visible step has linked content or a template reference.",
+      state: journeyStepStats.total === 0 ? "planning" : journeyStepStats.missing ? "needs_action" : "ready",
+    },
+    {
+      key: "activity",
+      title: "Activity",
+      value: `${journeyEnrollments.length} enrollment${journeyEnrollments.length === 1 ? "" : "s"}`,
+      detail: journeyEnrollments.length ? `${journeyEventCount} imported event${journeyEventCount === 1 ? "" : "s"} available for journey review.` : "No imported journey enrollment activity yet.",
+      state: journeyEnrollments.length ? "ready" : activeJourneyCount ? "needs_action" : "planning",
+    },
+  ];
+  const journeyCommandItems: JourneyCommandItem[] = [
+    ...(journeys.length === 0 && bestJourneyStarter ? [{
+      key: "starter",
+      title: "Use the best journey starter",
+      value: bestJourneyStarter.value,
+      detail: `${bestJourneyStarter.title}: ${bestJourneyStarter.detail}`,
+      state: bestJourneyStarter.state,
+      actionLabel: "Load starter",
+      icon: Sparkles,
+      onSelect: () => applyJourneyStarter(bestJourneyStarter),
+    }] : []),
+    ...(journeys.length === 0 ? [{
+      key: "new",
+      title: "Create a blank journey",
+      value: "Draft",
+      detail: "Open the journey editor with trigger, goal, and visible step controls.",
+      state: "planning" as CampaignReadinessState,
+      actionLabel: "New journey",
+      icon: Plus,
+      onSelect: startNewJourney,
+    }] : []),
+    ...(journeyWithoutSteps ? [{
+      key: "add-steps",
+      title: "Add journey steps",
+      value: journeyWithoutSteps.name,
+      detail: "A journey without steps cannot guide contacts. Open it and add a timed channel sequence.",
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Open builder",
+      icon: Waypoints,
+      onSelect: () => {
+        startJourneyEdit(journeyWithoutSteps);
+        setMessage(`Opened "${journeyWithoutSteps.name}" to add journey steps.`);
+      },
+    }] : []),
+    ...(journeyMissingContent ? [{
+      key: "draft-content",
+      title: "Draft missing step content",
+      value: `${journeyStepStats.missing} missing`,
+      detail: `"${journeyMissingContent.name}" has one or more steps without linked content. Open it and use Draft missing content.`,
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Open content gaps",
+      icon: FileText,
+      onSelect: () => {
+        startJourneyEdit(journeyMissingContent);
+        setMessage(`Opened "${journeyMissingContent.name}" so missing step content can be drafted or linked.`);
+      },
+    }] : []),
+    ...(journeyReadyDraft ? [{
+      key: "launch-ready",
+      title: "Review ready draft journey",
+      value: journeyReadyDraft.name,
+      detail: "This draft has trigger, goal, steps, and content. Review it before changing status to active.",
+      state: "ready" as CampaignReadinessState,
+      actionLabel: "Open review",
+      icon: CheckCircle2,
+      onSelect: () => {
+        startJourneyEdit(journeyReadyDraft);
+        setMessage(`Opened "${journeyReadyDraft.name}" for activation review.`);
+      },
+    }] : []),
+    ...(activeJourneyWithoutActivity ? [{
+      key: "activity-gap",
+      title: "Check active journey activity",
+      value: activeJourneyWithoutActivity.name,
+      detail: "Active journeys should show enrollments or event history after sync. Review target list and imported activity.",
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Review activity",
+      icon: Activity,
+      onSelect: () => {
+        startJourneyEdit(activeJourneyWithoutActivity);
+        setMessage(`Review "${activeJourneyWithoutActivity.name}" target list and imported activity.`);
+      },
+    }] : []),
+    ...(journeyWithActivity ? [{
+      key: "review-progress",
+      title: "Review imported journey progress",
+      value: `${journeyEnrollments.length} enrollment${journeyEnrollments.length === 1 ? "" : "s"}`,
+      detail: `${journeyWithActivity.name} has imported activity. Use the progress section to inspect contacts and step events.`,
+      state: "ready" as CampaignReadinessState,
+      actionLabel: "Show progress",
+      icon: Activity,
+      onSelect: () => {
+        setActiveTab("journeys");
+        setMessage("Showing imported journey progress and event history below.");
+      },
+    }] : []),
+    {
+      key: "templates",
+      title: "Build a journey from templates",
+      value: `${contentTemplatePacksWithStats.length} packs`,
+      detail: "Template packs can become multi-step journey drafts with channel-specific content guidance.",
+      state: contentTemplatePacksWithStats.length ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      actionLabel: "Open templates",
+      icon: Sparkles,
+      onSelect: () => {
+        setActiveTab("content");
+        setMessage("Open Content templates and use Build journey on a suitable pack.");
+      },
+    },
+  ].slice(0, 6);
+  const primaryJourneyCommand = journeyCommandItems[0] ?? null;
+  const PrimaryJourneyCommandIcon = primaryJourneyCommand?.icon ?? Waypoints;
+  const journeyAiCommandBrief = [
+    "VYVA journey AI command brief",
+    `Overall state: ${readinessLabel(journeyCommandState)}`,
+    `Focus: ${journeyCommandTitle}`,
+    `Why: ${journeyCommandDetail}`,
+    "",
+    "Current journey inventory:",
+    `- Journeys: ${journeys.length}`,
+    `- Active journeys: ${activeJourneyCount}`,
+    `- Steps: ${journeyStepStats.total} total, ${journeyStepStats.linked} linked, ${journeyStepStats.missing} missing content`,
+    `- Channels: ${journeyStepStats.channels.map((channel) => channelLabel[channel]).join(", ") || "none yet"}`,
+    `- Enrollments/events: ${journeyEnrollments.length} enrollments / ${journeyEventCount} events`,
+    "",
+    "Recommended next actions:",
+    ...journeyCommandItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Journey records:",
+    ...(visibleJourneys.length ? visibleJourneys.slice(0, 6).map((journey) => {
+      const targetAudience = journeyTargetAudience(journey, audiences);
+      const linkedSteps = (journey.steps ?? []).filter((step) => contentAssetByReference(content, step.contentAssetId) || contentAssetByReference(content, step.templateRef)).length;
+      return `- ${journey.name}: ${journey.status}; ${journey.audienceType.toUpperCase()}; trigger ${journey.triggerType || "none"}; goal ${journey.goalType || "none"}; list ${targetAudience?.name ?? "none"}; steps ${linkedSteps}/${journey.steps.length} linked; enrollments ${enrollmentsByJourneyId.get(journey.id) ?? 0}`;
+    }) : ["- No journey records yet."]),
+  ].join("\n");
   const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && item.status !== "archived"), [content]);
   const draftEmailChannel = campaignChannelsWithPrimary(campaignEditDraft).find((channel) => channel.channel === "email") ?? null;
   const selectedEmailContent = useMemo(
@@ -10143,6 +10692,97 @@ export default function MarketingAdminPage() {
   const bestContentTemplatePack = bestContentTemplateRecommendation
     ? contentTemplatePacksWithStats.find(({ pack }) => pack.templateIds.includes(bestContentTemplateRecommendation.template.id)) ?? null
     : null;
+  const bestCampaignStudioTemplatePack = campaignStudioTemplatePackRecommendations[0] ?? bestContentTemplatePack;
+  const campaignStudioLaunchPathItems: CampaignStudioLaunchPathItem[] = [
+    {
+      key: "goal",
+      title: "Goal",
+      value: campaignStudioGenerated.campaignName,
+      state: campaignIntentBrief.trim() ? "ready" : "planning",
+      detail: campaignIntentBrief.trim()
+        ? `Matched from the current brief: ${campaignIntentBrief.trim().slice(0, 92)}${campaignIntentBrief.trim().length > 92 ? "..." : ""}`
+        : `${selectedCampaignStudioPlay.label}: ${selectedCampaignStudioPlay.objective}`,
+      actionLabel: campaignIntentBrief.trim() ? "Refine brief" : "Pick quick idea",
+      icon: Sparkles,
+      onSelect: () => {
+        const intentNode = document.querySelector('[data-testid="textarea-marketing-campaign-intent"]');
+        if (intentNode instanceof HTMLElement && typeof intentNode.scrollIntoView === "function") {
+          intentNode.scrollIntoView({ behavior: "smooth", block: "center" });
+          intentNode.focus({ preventScroll: true });
+        }
+        setCampaignStudioFeedback(campaignIntentBrief.trim()
+          ? `Goal path is built around ${selectedCampaignStudioPlay.label}. Refine the brief or choose a goal preset to reshape it.`
+          : "Choose a goal preset or quick start, or describe the campaign in plain language.");
+      },
+    },
+    {
+      key: "audience",
+      title: "Audience",
+      value: selectedCampaignStudioTargetAudience?.name ?? `${campaignStudioAudiencePool.length} matched contacts`,
+      state: campaignStudioPackRecipientCount > 0 ? "ready" : campaignStudioAudiencePool.length > 0 ? "planning" : "blocked",
+      detail: selectedCampaignStudioTargetAudience
+        ? `${selectedCampaignStudioTargetAudience.mappedMemberCount}/${selectedCampaignStudioTargetAudience.memberCount} list members are mapped; ${campaignStudioPackRecipientCount} channel recipient snapshot${campaignStudioPackRecipientCount === 1 ? "" : "s"} can be prepared.`
+        : `${campaignStudioAudiencePool.length} contacts match the play without a saved audience list.`,
+      actionLabel: selectedCampaignStudioTargetAudience ? "Review list" : "Open contacts",
+      icon: UsersRound,
+      onSelect: () => campaignStudioLaunchSteps.find((step) => step.key === "audience")?.onSelect(),
+    },
+    {
+      key: "channels",
+      title: "Channels",
+      value: formatChannelList(campaignStudioSelectedChannels),
+      state: campaignStudioSelectedChannels.length ? "ready" : "blocked",
+      detail: campaignStudioSelectedChannels.length === campaignStudioRecommendedChannels.length
+        && campaignStudioRecommendedChannels.every((channel) => campaignStudioSelectedChannels.includes(channel))
+        ? "Using the recommended channel pack for this play."
+        : `Recommended route: ${formatChannelList(campaignStudioRecommendedChannels)}.`,
+      actionLabel: "Use recommended pack",
+      icon: Waypoints,
+      onSelect: () => {
+        applyCampaignStudioRecommendedPack();
+        setCampaignStudioFeedback(`Recommended channel pack applied: ${formatChannelList(campaignStudioRecommendedChannels)}.`);
+      },
+    },
+    {
+      key: "templates",
+      title: "Template pack",
+      value: bestCampaignStudioTemplatePack?.pack.title ?? `${contentTemplateRecommendations.length} template match${contentTemplateRecommendations.length === 1 ? "" : "es"}`,
+      state: bestCampaignStudioTemplatePack ? bestCampaignStudioTemplatePack.state : contentTemplateRecommendations.length ? "planning" : "needs_action",
+      detail: bestCampaignStudioTemplatePack
+        ? `${bestCampaignStudioTemplatePack.templates.length} templates cover ${formatChannelList(bestCampaignStudioTemplatePack.channels)} for this campaign route.`
+        : "No full pack is selected yet. Review template matches or improve drafts with AI.",
+      actionLabel: bestCampaignStudioTemplatePack ? "Load pack" : "Review templates",
+      icon: FileText,
+      onSelect: () => {
+        if (bestCampaignStudioTemplatePack) {
+          loadContentTemplatePackInStudio(bestCampaignStudioTemplatePack.pack, bestCampaignStudioTemplatePack.heroTemplate, bestCampaignStudioTemplatePack.channels);
+          return;
+        }
+        setActiveTab("content");
+        setContentTemplateSearch(selectedCampaignStudioPlay.label);
+        setContentActionFeedback(`Reviewing templates for ${selectedCampaignStudioPlay.label}.`);
+      },
+    },
+    {
+      key: "plan",
+      title: "Campaign plan",
+      value: bestCampaignStudioTemplatePack ? "One-click pack plan" : "Studio campaign record",
+      state: campaignStudioCreateDisabled ? "blocked" : bestCampaignStudioTemplatePack ? "ready" : "planning",
+      detail: bestCampaignStudioTemplatePack
+        ? `Create a linked campaign plan with ${bestCampaignStudioTemplatePack.templates.length} content assets, ${bestCampaignStudioTemplatePack.channels.length} channel route${bestCampaignStudioTemplatePack.channels.length === 1 ? "" : "s"}, and saved launch packet metadata.`
+        : "Create from the current studio draft, or load a template pack first for a richer launch plan.",
+      actionLabel: bestCampaignStudioTemplatePack ? "Create pack plan" : "Create from studio",
+      icon: CalendarDays,
+      disabled: bestCampaignStudioTemplatePack ? campaignSaving || contentSaving : campaignStudioCreateDisabled,
+      onSelect: () => {
+        if (bestCampaignStudioTemplatePack) {
+          void createCampaignPlanFromTemplatePack(bestCampaignStudioTemplatePack.pack, bestCampaignStudioTemplatePack.templates, bestCampaignStudioTemplatePack.heroTemplate);
+          return;
+        }
+        void createCampaignAndContentFromStudio();
+      },
+    },
+  ];
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
   const selectedCampaignTargetAudience = useMemo(
@@ -11406,6 +12046,41 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function copyJourneyAiCommandBrief() {
+    const label = "Journey AI command brief";
+    if (!journeyAiCommandBrief.trim()) {
+      const feedback = `${label} is empty.`;
+      setJourneyFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(journeyAiCommandBrief);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = journeyAiCommandBrief;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setJourneyFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setJourneyFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
   function startNewJourney() {
     setEditingJourneyId("new");
     setJourneyEditDraft(emptyJourneyEditDraft());
@@ -12223,6 +12898,17 @@ export default function MarketingAdminPage() {
           },
         }];
       }));
+      const launchPacket = buildTemplatePackLaunchPacket({
+        pack,
+        audienceType,
+        targetAudience: targetAudienceSnapshot,
+        scheduleStartsAt,
+        routeChannels,
+        routeTemplateByChannel,
+        contentByTemplateId,
+        channels,
+        recipients,
+      });
       const campaignResult = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
         method: "POST",
         body: JSON.stringify({
@@ -12253,6 +12939,7 @@ export default function MarketingAdminPage() {
               templateIds: templates.map((template) => template.id),
               contentAssetIds: channelContentAssetIds,
               sequence: pack.sequence,
+              launchPacket,
             },
           }, targetAudience),
           channels,
@@ -13739,6 +14426,14 @@ export default function MarketingAdminPage() {
     : [];
   const selectedCampaignMetricTotals = sumMarketingMetrics(selectedCampaignMetrics);
   const campaignReadinessChannels = campaignChannelsWithPrimary(campaignEditDraft);
+  const campaignTemplatePackPlan = editingCampaign ? recordValue(recordValue(editingCampaign.metadata).templatePackPlan) : {};
+  const campaignSavedLaunchPacket = recordValue(campaignTemplatePackPlan.launchPacket);
+  const campaignSavedLaunchPacketRoutes = recordArray(campaignSavedLaunchPacket.channels);
+  const campaignSavedLaunchPacketVisualBriefs = recordArray(campaignSavedLaunchPacket.visualBriefs);
+  const campaignSavedLaunchPacketFollowUps = recordArray(campaignSavedLaunchPacket.followUpPlays);
+  const campaignSavedLaunchPacketText = Object.keys(campaignSavedLaunchPacket).length
+    ? launchPacketTextFromMetadata(campaignSavedLaunchPacket)
+    : "";
   const missingCampaignContentChannels = campaignReadinessChannels.filter((channel) => !channel.contentAssetId);
   const planningOnlyCampaignChannels = campaignReadinessChannels.filter((channel) => channel.channel !== "email");
   const savedCampaignRecipientCount = editingCampaign?.recipientCount ?? 0;
@@ -15179,6 +15874,46 @@ export default function MarketingAdminPage() {
                             <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-launch-path">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Recommended launch path</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Follow the campaign from goal to audience, channels, templates, and saved plan without leaving the studio.</p>
+                          </div>
+                          <Pill className={readinessPillClass(campaignStudioCommandCenterState)}>{readinessLabel(campaignStudioCommandCenterState)}</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 xl:grid-cols-5">
+                          {campaignStudioLaunchPathItems.map((item, index) => {
+                            const Icon = item.icon;
+                            return (
+                              <button
+                                key={item.key}
+                                type="button"
+                                onClick={item.onSelect}
+                                disabled={item.disabled}
+                                className={`min-h-[174px] rounded-xl border p-3 text-left transition focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)} ${item.disabled ? "" : "hover:border-purple-300 hover:shadow-sm"}`}
+                                data-testid={`button-marketing-campaign-studio-launch-path-${item.key}`}
+                              >
+                                <span className="flex items-start justify-between gap-2">
+                                  <span className="inline-flex items-center gap-2">
+                                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-white shadow-sm">
+                                      <Icon size={15} aria-hidden="true" />
+                                    </span>
+                                    <span className="text-xs font-black uppercase tracking-[0.1em] opacity-75">Path {index + 1}</span>
+                                  </span>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </span>
+                                <span className="mt-3 block text-[11px] font-black uppercase tracking-[0.08em] opacity-75">{item.title}</span>
+                                <span className="mt-1 block font-black text-[#241133]">{item.value}</span>
+                                <span className="mt-2 line-clamp-3 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                                <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                                  {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
@@ -16827,6 +17562,60 @@ export default function MarketingAdminPage() {
                             ))}
                           </div>
                         ) : null}
+                        {campaignSavedLaunchPacketText ? (
+                          <div className="mt-3 rounded-xl border border-emerald-200 bg-white p-3" data-testid="marketing-campaign-saved-launch-packet">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Saved launch packet</p>
+                                <h4 className="mt-1 text-base font-black text-[#241133]">{displayText(campaignSavedLaunchPacket.packTitle) || "Template campaign plan"}</h4>
+                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">{displayText(campaignSavedLaunchPacket.routeSummary) || "Review the channel route, creative, follow-up, and outcome plan saved with this campaign."}</p>
+                              </div>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <Pill className="bg-emerald-50 text-emerald-800">{campaignSavedLaunchPacketRoutes.length} route{campaignSavedLaunchPacketRoutes.length === 1 ? "" : "s"}</Pill>
+                                <Pill className="bg-purple-50 text-purple-800">{campaignSavedLaunchPacketVisualBriefs.length} visual brief{campaignSavedLaunchPacketVisualBriefs.length === 1 ? "" : "s"}</Pill>
+                                <button
+                                  type="button"
+                                  onClick={() => void copyCampaignHandoffText("Saved launch packet", campaignSavedLaunchPacketText)}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white hover:bg-emerald-800"
+                                  data-testid="button-marketing-copy-saved-launch-packet"
+                                >
+                                  <Copy size={14} /> Copy packet
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-2 xl:grid-cols-2" data-testid="marketing-campaign-saved-launch-packet-routes">
+                              {campaignSavedLaunchPacketRoutes.map((route, index) => {
+                                const channel = displayText(route.channel);
+                                const typedChannel = CHANNELS.includes(channel as Channel) ? channel as Channel : null;
+                                return (
+                                  <div key={`${channel || "route"}-${index}`} className="rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <Pill className={typedChannel ? channelClass(typedChannel) : "bg-purple-50 text-purple-800"}>{displayText(route.channelLabel) || channel || "Channel"}</Pill>
+                                      <span className="text-xs font-black text-[#7d6b65]">{displayText(route.scheduledAt) ? formatDate(displayText(route.scheduledAt)) : "Not scheduled"}</span>
+                                    </div>
+                                    <p className="mt-2 text-sm font-black text-[#241133]">{displayText(route.contentTitle) || "No content linked"}</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{displayText(route.nextAction) || "Review before launch."}</p>
+                                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                      <Pill className="bg-white text-[#5f4a44]">{displayText(route.sendMode) || "Review"}</Pill>
+                                      <Pill className="bg-white text-[#5f4a44]">{displayText(route.recipientCount) || "0"} recipient{displayText(route.recipientCount) === "1" ? "" : "s"}</Pill>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {campaignSavedLaunchPacketFollowUps.length ? (
+                              <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
+                                Follow-up plays saved: {campaignSavedLaunchPacketFollowUps.map((item) => displayText(item.trigger)).filter(Boolean).join("; ")}
+                              </div>
+                            ) : null}
+                            <textarea
+                              readOnly
+                              className={`${textareaClass} mt-3 min-h-[180px] bg-[#fffaf4] text-xs`}
+                              value={campaignSavedLaunchPacketText}
+                              data-testid="textarea-marketing-campaign-saved-launch-packet"
+                            />
+                          </div>
+                        ) : null}
                         {campaignAiCommandBrief ? (
                           <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3" data-testid="marketing-campaign-ai-command-brief">
                             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -17628,6 +18417,110 @@ export default function MarketingAdminPage() {
           {activeTab === "journeys" && (
             <div className="grid gap-4" data-testid="marketing-journeys-tab">
               <SectionCard
+                title="Journey command center"
+                subtitle="One place to see whether lifecycle journeys are structured, linked to content, and producing imported activity."
+              >
+                <div className={`rounded-2xl border p-4 shadow-sm ${readinessClass(journeyCommandState)}`} data-testid="marketing-journey-command-center">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="max-w-3xl">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-purple-700 shadow-sm">
+                          <PrimaryJourneyCommandIcon size={18} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] opacity-75">Recommended next journey move</p>
+                          <h3 className="text-xl font-black text-[#241133]" data-testid="marketing-journey-command-title">{journeyCommandTitle}</h3>
+                        </div>
+                        <Pill className={readinessPillClass(journeyCommandState)}>{readinessLabel(journeyCommandState)}</Pill>
+                      </div>
+                      <p className="mt-3 text-sm font-bold leading-relaxed text-[#5b4a46]" data-testid="marketing-journey-command-detail">{journeyCommandDetail}</p>
+                      <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-journey-command-channels">
+                        {journeyStepStats.channels.length ? journeyStepStats.channels.map((channel) => (
+                          <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                        )) : (
+                          <Pill className="bg-[#f5eee8] text-[#7d6b65]">No journey channels yet</Pill>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => primaryJourneyCommand?.onSelect()}
+                      disabled={!primaryJourneyCommand || journeySaving}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                      data-testid="button-marketing-journey-command-primary"
+                    >
+                      <ExternalLink size={15} aria-hidden="true" /> {primaryJourneyCommand?.actionLabel ?? "No action"}
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 md:grid-cols-4" data-testid="marketing-journey-command-stats">
+                    {journeyCommandStats.map((item) => (
+                      <div key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-journey-command-stat-${item.key}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">{item.title}</p>
+                          <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                        </div>
+                        <p className="mt-2 text-2xl font-black text-[#241133]">{item.value}</p>
+                        <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 xl:grid-cols-3" data-testid="marketing-journey-command-actions">
+                    {journeyCommandItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={item.onSelect}
+                          disabled={journeySaving}
+                          className={`min-h-[156px] rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)}`}
+                          data-testid={`button-marketing-journey-command-${item.key}`}
+                        >
+                          <span className="flex items-start justify-between gap-2">
+                            <span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                              <Icon size={16} aria-hidden="true" />
+                            </span>
+                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                          </span>
+                          <span className="mt-3 block text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.value}</span>
+                          <span className="mt-1 block font-black text-[#241133]">{item.title}</span>
+                          <span className="mt-2 line-clamp-3 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                          <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                            {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-purple-200 bg-white p-3" data-testid="marketing-journey-ai-command-brief">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">AI journey brief</p>
+                        <p className="mt-1 text-sm font-bold text-[#6b5b54]">Copy this into the AI workflow when you want better steps, copy, triggers, or handoff notes.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void copyJourneyAiCommandBrief()}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-700"
+                        data-testid="button-marketing-copy-journey-ai-command-brief"
+                      >
+                        <Copy size={14} /> Copy brief
+                      </button>
+                    </div>
+                    <textarea
+                      readOnly
+                      value={journeyAiCommandBrief}
+                      className="mt-3 min-h-[150px] w-full rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 font-mono text-xs font-bold text-[#3d2d38]"
+                      data-testid="textarea-marketing-journey-ai-command-brief"
+                    />
+                  </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard
                 title="Journey starters"
                 subtitle="Use imported lists, contacts, and content to draft lifecycle flows without starting from a blank page."
               >
@@ -18386,6 +19279,60 @@ export default function MarketingAdminPage() {
                 subtitle="Suggested starter drafts for weak channel or audience coverage."
                 action={<Pill className="bg-amber-50 text-amber-800">{contentTemplateGapSuggestions.length} suggestions</Pill>}
               >
+                <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${readinessClass(contentTemplateGapAutopilot.state)}`} data-testid="marketing-template-gap-autopilot">
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-center">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill className="bg-white text-purple-800">AI coverage autopilot</Pill>
+                        <Pill className={readinessPillClass(contentTemplateGapAutopilot.state)}>{readinessLabel(contentTemplateGapAutopilot.state)}</Pill>
+                        {contentTemplateGapAutopilot.batch.length ? (
+                          <Pill className="bg-white text-[#5b4a46]">Next batch: {contentTemplateGapAutopilot.batch.length} AI drafts</Pill>
+                        ) : null}
+                      </div>
+                      <h3 className="mt-2 font-serif text-xl text-[#241133]">
+                        {contentTemplateGapAutopilot.topSuggestion
+                          ? `Fill ${contentTemplateGapAutopilot.batchMissing} missing template slots next`
+                          : "Template coverage is balanced"}
+                      </h3>
+                      <p className="mt-1 max-w-4xl text-sm font-bold leading-relaxed text-[#6f5f59]">
+                        {contentTemplateGapAutopilot.topSuggestion
+                          ? `Start with ${contentTemplateGapAutopilot.topSuggestion.title}, then generate a practical pack for ${formatChannelList(contentTemplateGapAutopilot.batchChannels)} across ${contentTemplateGapAutopilot.batchAudiences.map((audience) => audience.toUpperCase()).join(" and ")} audiences. ${contentTemplateGapAutopilot.totalMissing} high-priority reusable template slot${contentTemplateGapAutopilot.totalMissing === 1 ? "" : "s"} remain in the top coverage scan.`
+                          : "The reusable gallery has enough channel and audience coverage for the current target. Use the matchmaker or campaign studio to adapt the best starter."}
+                      </p>
+                      {contentTemplateGapAutopilot.topSuggestion ? (
+                        <div className="mt-3 flex flex-wrap gap-2" data-testid="marketing-template-gap-autopilot-batch">
+                          {contentTemplateGapAutopilot.batch.map((suggestion) => (
+                            <Pill key={suggestion.id} className={channelClass(suggestion.channel)}>
+                              {channelLabel[suggestion.channel]} {suggestion.audienceType.toUpperCase()} {suggestion.existingCount}/{suggestion.coverageTarget}
+                            </Pill>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void generateTemplateGapPack()}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        disabled={!contentTemplateGapAutopilot.batch.length || contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
+                        data-testid="button-marketing-template-gap-autopilot-generate"
+                      >
+                        <Sparkles size={16} /> {templateGapPackRunning ? "Creating pack..." : "Generate next pack"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (contentTemplateGapAutopilot.topSuggestion) openTemplateGapInCampaignStudio(contentTemplateGapAutopilot.topSuggestion);
+                        }}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f2edf2] disabled:text-[#8d7d8d]"
+                        disabled={!contentTemplateGapAutopilot.topSuggestion || contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
+                        data-testid="button-marketing-template-gap-autopilot-studio"
+                      >
+                        <Zap size={14} /> Open top gap in studio
+                      </button>
+                    </div>
+                  </div>
+                </div>
                 {contentTemplateGapSuggestions.length ? (
                   <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-purple-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between" data-testid="marketing-template-gap-pack">
                     <div>
@@ -18646,8 +19593,10 @@ export default function MarketingAdminPage() {
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3 xl:grid-cols-3" data-testid="marketing-content-template-gallery">
-                  {visibleContentTemplates.length ? visibleContentTemplates.map((template) => (
-                      <article key={template.id} className="flex min-h-[230px] flex-col justify-between rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+                  {visibleContentTemplates.length ? visibleContentTemplates.map((template) => {
+                    const designBrief = contentTemplateDesignBrief(template);
+                    return (
+                      <article key={template.id} className="flex min-h-[330px] flex-col justify-between rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <Pill className={channelClass(template.channel)}>{channelLabel[template.channel]}</Pill>
@@ -18665,6 +19614,29 @@ export default function MarketingAdminPage() {
                               {template.body}
                             </p>
                           )}
+                          {designBrief.hasBrief ? (
+                            <div
+                              className="mt-3 rounded-2xl border border-purple-100 bg-purple-50/60 p-3"
+                              data-testid={`marketing-content-template-design-brief-${template.id}`}
+                            >
+                              <div className="flex flex-wrap gap-1.5">
+                                {designBrief.tags.map((tag) => (
+                                  <Pill key={tag} className="bg-white text-purple-800">{tag}</Pill>
+                                ))}
+                                {template.ctaLabel ? <Pill className="bg-white text-[#5b4a46]">CTA: {template.ctaLabel}</Pill> : null}
+                              </div>
+                              {designBrief.visual ? (
+                                <p className="mt-2 line-clamp-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                                  Visual: {designBrief.visual}
+                                </p>
+                              ) : null}
+                              {designBrief.structure ? (
+                                <p className="mt-2 line-clamp-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                                  {designBrief.structure.label}: {designBrief.structure.items.join(" / ")}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="mt-4 grid gap-2 sm:grid-cols-2">
                           <button
@@ -18687,7 +19659,8 @@ export default function MarketingAdminPage() {
                           </button>
                         </div>
                       </article>
-                    )) : (
+                    );
+                  }) : (
                     <div className="rounded-2xl border border-dashed border-[#d9c9bd] bg-[#fffaf4] p-5 text-sm font-bold text-[#6f5f59] xl:col-span-3" data-testid="marketing-content-template-empty">
                       No templates match these filters. Clear the filters or broaden the search to see more campaign starters.
                     </div>
