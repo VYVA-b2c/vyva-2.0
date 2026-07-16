@@ -7,8 +7,17 @@ export const PROVIDER_COMPARISON_CRITERIA = [
   "coverage",
 ] as const;
 
+export const PROVIDER_SHORTLIST_RECHECK_CRITERIA = [
+  "price",
+  "availability",
+  "accessibility",
+  "coverage",
+  "reputation",
+] as const;
+
 export type ProviderComparisonCriterion = typeof PROVIDER_COMPARISON_CRITERIA[number];
 export type ProviderComparisonEvidenceStatus = "verified" | "reported" | "unknown";
+export type ProviderShortlistRecheckCriterion = typeof PROVIDER_SHORTLIST_RECHECK_CRITERIA[number];
 
 export interface ProviderComparisonFact {
   criterion: ProviderComparisonCriterion;
@@ -76,12 +85,38 @@ export type ProviderShortlistStatus = "open" | "preferred_selected" | "dismissed
 
 export interface ProviderShortlistState {
   options: ProviderComparisonOption[];
+  latestOptions: ProviderComparisonOption[];
   context: ProviderComparisonContext;
   capturedAt: string | null;
   updatedAt: string | null;
+  recheckedAt: string | null;
   preferredProviderId: string | null;
   preferredProviderName: string | null;
   status: ProviderShortlistStatus;
+}
+
+export type ProviderShortlistFactChangeKind = "changed" | "added" | "removed" | "verification_changed";
+
+export interface ProviderShortlistFactChange {
+  criterion: ProviderShortlistRecheckCriterion;
+  before: ProviderComparisonFact;
+  after: ProviderComparisonFact;
+  kind: ProviderShortlistFactChangeKind;
+}
+
+export interface ProviderShortlistReviewOption {
+  original: ProviderComparisonOption;
+  current: ProviderComparisonOption;
+  latest: ProviderComparisonOption | null;
+  available: boolean;
+  changes: ProviderShortlistFactChange[];
+}
+
+export interface ProviderShortlistReview {
+  recheckedAt: string | null;
+  items: ProviderShortlistReviewOption[];
+  changedCount: number;
+  unavailableCount: number;
 }
 
 export interface ProviderShortlistFreshness {
@@ -128,6 +163,38 @@ function shortlistStatus(value: unknown): ProviderShortlistStatus {
   return value === "preferred_selected" || value === "dismissed" || value === "contact_prepared"
     ? value
     : "open";
+}
+
+function normalizedIdentity(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function factsMatch(left: ProviderComparisonFact, right: ProviderComparisonFact): boolean {
+  return normalizedIdentity(left.value ?? "") === normalizedIdentity(right.value ?? "")
+    && left.status === right.status;
+}
+
+function factChange(
+  criterion: ProviderShortlistRecheckCriterion,
+  before: ProviderComparisonFact,
+  after: ProviderComparisonFact,
+): ProviderShortlistFactChange | null {
+  if (factsMatch(before, after)) return null;
+  const hadValue = Boolean(before.value);
+  const hasValue = Boolean(after.value);
+  const kind: ProviderShortlistFactChangeKind = !hadValue && hasValue
+    ? "added"
+    : hadValue && !hasValue
+      ? "removed"
+      : normalizedIdentity(before.value ?? "") === normalizedIdentity(after.value ?? "")
+        ? "verification_changed"
+        : "changed";
+  return { criterion, before, after, kind };
 }
 
 function fallbackFact(
@@ -325,8 +392,12 @@ export function parseProviderShortlistPayload(payload: unknown): ProviderShortli
   if (options.length === 0) return null;
   const executionTask = recordOrNull(record.execution_task);
   const capturedAt = stringOrNull(record.shortlist_captured_at) ?? stringOrNull(executionTask?.created_at);
+  const latestOptions = Array.isArray(record.shortlist_latest_options)
+    ? record.shortlist_latest_options.map(parseShortlistOption).filter((option): option is ProviderComparisonOption => Boolean(option)).slice(0, 3)
+    : [];
   return {
     options,
+    latestOptions,
     context: {
       mode: stringOrNull(record.provider_search_mode),
       query: stringOrNull(record.provider_search_query),
@@ -337,9 +408,79 @@ export function parseProviderShortlistPayload(payload: unknown): ProviderShortli
     },
     capturedAt,
     updatedAt: stringOrNull(record.shortlist_updated_at) ?? capturedAt,
+    recheckedAt: stringOrNull(record.shortlist_rechecked_at),
     preferredProviderId: stringOrNull(record.preferred_provider_id),
     preferredProviderName: stringOrNull(record.preferred_provider_name),
     status: shortlistStatus(record.shortlist_status),
+  };
+}
+
+export function buildProviderShortlistReview(shortlist: ProviderShortlistState): ProviderShortlistReview {
+  const unusedLatest = new Set(shortlist.latestOptions.map((_, index) => index));
+  const items = shortlist.options.map((original) => {
+    let latestIndex = shortlist.latestOptions.findIndex((candidate, index) => (
+      unusedLatest.has(index) && candidate.id === original.id
+    ));
+    if (latestIndex < 0) {
+      const originalName = normalizedIdentity(original.name);
+      latestIndex = shortlist.latestOptions.findIndex((candidate, index) => (
+        unusedLatest.has(index) && normalizedIdentity(candidate.name) === originalName
+      ));
+    }
+    const latest = latestIndex >= 0 ? shortlist.latestOptions[latestIndex] : null;
+    if (latestIndex >= 0) unusedLatest.delete(latestIndex);
+    const current = latest ? { ...latest, id: original.id } : original;
+    const changes = latest
+      ? PROVIDER_SHORTLIST_RECHECK_CRITERIA
+        .map((criterion) => factChange(criterion, original.facts[criterion], latest.facts[criterion]))
+        .filter((change): change is ProviderShortlistFactChange => Boolean(change))
+      : [];
+    return {
+      original,
+      current,
+      latest,
+      available: shortlist.recheckedAt ? Boolean(latest) : true,
+      changes,
+    };
+  });
+  return {
+    recheckedAt: shortlist.recheckedAt,
+    items,
+    changedCount: items.reduce((count, item) => count + item.changes.length, 0),
+    unavailableCount: items.filter((item) => !item.available).length,
+  };
+}
+
+export function buildProviderShortlistRecheckPayload(
+  payload: Record<string, unknown>,
+  latestOptions: ProviderComparisonOption[],
+  recheckedAt = new Date().toISOString(),
+): Record<string, unknown> {
+  const parsed = parseProviderShortlistPayload(payload);
+  if (!parsed) return payload;
+  const nextPayload = {
+    ...payload,
+    shortlist_recheck_version: 1,
+    shortlist_rechecked_at: recheckedAt,
+    shortlist_updated_at: recheckedAt,
+    shortlist_latest_options: latestOptions.slice(0, 3).map(providerComparisonSnapshot),
+    no_external_action_without_confirmation: true,
+  };
+  const review = buildProviderShortlistReview({
+    ...parsed,
+    latestOptions: latestOptions.slice(0, 3),
+    recheckedAt,
+    updatedAt: recheckedAt,
+  });
+  return {
+    ...nextPayload,
+    shortlist_recheck_status: review.unavailableCount > 0
+      ? "providers_unavailable"
+      : review.changedCount > 0
+        ? "changes_found"
+        : "no_checked_changes",
+    shortlist_recheck_changed_count: review.changedCount,
+    shortlist_recheck_unavailable_count: review.unavailableCount,
   };
 }
 
