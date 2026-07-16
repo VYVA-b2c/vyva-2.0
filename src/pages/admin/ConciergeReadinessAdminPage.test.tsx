@@ -2,6 +2,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ConciergeReadinessAdminPage from "./ConciergeReadinessAdminPage";
+import {
+  conciergeToolForProductionChannel,
+  evaluateConciergeChannelReadiness,
+  type ConciergeProductionChannel,
+} from "../../../shared/conciergeChannelReadiness";
 import { CONCIERGE_FLOW_REFERENCES } from "../../../shared/conciergeFlowRegistry";
 import { buildConciergeLaunchSmokeAudit } from "../../../shared/conciergeLaunchSmokeAudit";
 import { buildConciergeReadinessRows, type ConciergeReadinessRow } from "../../../shared/conciergeReadinessDashboard";
@@ -11,6 +16,12 @@ import {
   updateConciergeManualQaRunnerStatus,
 } from "../../../shared/conciergeManualQaRunner";
 
+const apiFetchMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/queryClient", () => ({
+  apiFetch: apiFetchMock,
+}));
+
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
     user: { id: "admin-1", email: "karim.assad@mokadigital.net", role: "admin" },
@@ -18,16 +29,78 @@ vi.mock("@/contexts/AuthContext", () => ({
   }),
 }));
 
-function renderPage(rowsOverride?: ConciergeReadinessRow[]) {
+function channelRow(input: {
+  channel: ConciergeProductionChannel;
+  adminEnabled?: boolean;
+  configured?: boolean;
+  verified?: boolean;
+  notes?: string | null;
+}) {
+  const tool = conciergeToolForProductionChannel(input.channel);
+  const flags = {
+    [input.channel]: {
+      adminEnabled: input.adminEnabled === true,
+      configured: input.configured === true,
+      verified: input.verified === true,
+      notes: input.notes ?? null,
+    },
+  };
+  const live = evaluateConciergeChannelReadiness({ tool, dryRun: false, flags });
+  const testMode = evaluateConciergeChannelReadiness({ tool, dryRun: true, flags });
+  const canMarkReady = live.configured && live.verified;
+  return {
+    channel: input.channel,
+    label: live.label,
+    tool,
+    test_mode: testMode,
+    live,
+    configured: live.configured,
+    verified: live.verified,
+    admin_enabled: live.admin_enabled,
+    ready: live.ready,
+    external_action_allowed: live.external_action_allowed,
+    blockers: live.blockers,
+    can_mark_ready: canMarkReady,
+    ready_blocker: !live.configured
+      ? "Required setup has not been configured on the server."
+      : !live.verified
+        ? "Required setup has not been verified by an admin."
+        : null,
+    notes: input.notes ?? null,
+    updated_by: "admin-1",
+    updated_at: "2026-07-16T10:00:00.000Z",
+  };
+}
+
+function defaultChannelRows() {
+  return [
+    channelRow({ channel: "phone_call", configured: false, verified: false, adminEnabled: false, notes: "Caller setup missing." }),
+    channelRow({ channel: "email", configured: true, verified: true, adminEnabled: true, notes: "QA inbox verified." }),
+    channelRow({ channel: "whatsapp", configured: false, verified: false, adminEnabled: false }),
+    channelRow({ channel: "form_application", configured: true, verified: false, adminEnabled: false }),
+    channelRow({ channel: "document_upload", configured: true, verified: true, adminEnabled: false }),
+  ];
+}
+
+function jsonResponse(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function renderPage(rowsOverride?: ConciergeReadinessRow[], channelRowsOverride = defaultChannelRows()) {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/concierge-readiness"]}>
-      <ConciergeReadinessAdminPage rowsOverride={rowsOverride} />
+      <ConciergeReadinessAdminPage rowsOverride={rowsOverride} channelRowsOverride={channelRowsOverride} />
     </MemoryRouter>,
   );
 }
 
 describe("ConciergeReadinessAdminPage", () => {
   beforeEach(() => {
+    apiFetchMock.mockReset();
+    apiFetchMock.mockResolvedValue(jsonResponse({ channels: defaultChannelRows(), generated_at: "2026-07-16T10:00:00.000Z" }));
     window.localStorage.clear();
     Object.assign(navigator, {
       clipboard: {
@@ -49,6 +122,15 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(screen.getByTestId("metric-concierge-readiness-needs-attention")).getByText("0")).toBeInTheDocument();
     expect(within(screen.getByTestId("metric-concierge-readiness-qa-checks")).getByText("50")).toBeInTheDocument();
 
+    const channelSection = screen.getByTestId("section-concierge-channel-readiness");
+    expect(within(channelSection).getByRole("heading", { name: /live action readiness gates/i })).toBeInTheDocument();
+    expect(screen.getAllByTestId(/row-concierge-channel-/)).toHaveLength(5);
+    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Not configured");
+    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Test mode blocks live contact");
+    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Live-capable after confirmation");
+    expect(screen.getByTestId("row-concierge-channel-whatsapp")).toHaveTextContent("Cannot contact providers");
+    expect(JSON.stringify(channelSection.textContent)).not.toContain("secret");
+
     const table = screen.getByTestId("table-concierge-readiness");
     expect(screen.getAllByTestId(/row-concierge-readiness-/)).toHaveLength(10);
     expect(within(table).getByText("Book ride / transport")).toBeInTheDocument();
@@ -67,6 +149,48 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(screen.getByTestId("manual-qa-runner-summary")).toBeInTheDocument();
     expect(screen.getByTestId("manual-qa-priority-pass")).toBeInTheDocument();
     expect(within(screen.getByTestId("manual-qa-metric-not-tested")).getByText(/\d+/)).toBeInTheDocument();
+  });
+
+  it("keeps live-ready controls disabled until setup is configured and verified", () => {
+    renderPage();
+
+    const phoneRow = screen.getByTestId("row-concierge-channel-phone-call");
+    expect(within(phoneRow).getByLabelText("Verified")).toBeDisabled();
+    expect(within(phoneRow).getByLabelText("Live-ready")).toBeDisabled();
+
+    const formRow = screen.getByTestId("row-concierge-channel-form-application");
+    expect(within(formRow).getByLabelText("Verified")).not.toBeDisabled();
+    expect(within(formRow).getByLabelText("Live-ready")).toBeDisabled();
+
+    const emailRow = screen.getByTestId("row-concierge-channel-email");
+    expect(within(emailRow).getByLabelText("Verified")).toBeChecked();
+    expect(within(emailRow).getByLabelText("Live-ready")).toBeChecked();
+    expect(within(emailRow).getByLabelText("Live-ready")).not.toBeDisabled();
+  });
+
+  it("saves a ready channel through the admin channel-readiness API", async () => {
+    const initialEmail = channelRow({ channel: "email", configured: true, verified: true, adminEnabled: false });
+    const readyEmail = channelRow({ channel: "email", configured: true, verified: true, adminEnabled: true, notes: "QA inbox verified." });
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({ channel: readyEmail }));
+
+    renderPage(undefined, [
+      initialEmail,
+      channelRow({ channel: "phone_call", configured: false, verified: false, adminEnabled: false }),
+      channelRow({ channel: "whatsapp", configured: false, verified: false, adminEnabled: false }),
+      channelRow({ channel: "form_application", configured: true, verified: false, adminEnabled: false }),
+      channelRow({ channel: "document_upload", configured: true, verified: true, adminEnabled: false }),
+    ]);
+
+    fireEvent.click(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Live-ready"));
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/admin/concierge/channel-readiness/email",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    const body = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
+    expect(body).toEqual({ admin_enabled: true });
+    expect(await screen.findByText("Email readiness updated.")).toBeInTheDocument();
+    expect(within(screen.getByTestId("row-concierge-channel-email")).getByText("Live-capable after confirmation")).toBeInTheDocument();
   });
 
   it("surfaces the high-risk manual QA pass before the remaining Concierge scripts", () => {

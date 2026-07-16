@@ -19,7 +19,10 @@ import {
   type ConciergeChannelReadinessResult,
   type ConciergeExecutionMode,
 } from "../../shared/conciergeChannelReadiness.js";
-import { conciergeChannelReadinessForTool } from "./conciergeChannelReadiness.js";
+import {
+  conciergeChannelReadinessForTool,
+  conciergeChannelReadinessForToolWithAdminSettings,
+} from "./conciergeChannelReadiness.js";
 
 export const CONCIERGE_USE_CASES = [
   "book_ride",
@@ -173,7 +176,7 @@ function isDryRunPending(pending: PendingRow): boolean {
   return isConciergeDryRunPayload(pending.action_payload);
 }
 
-function planForPendingConciergeAction(pending: PendingRow): ConciergeConfirmedExecutionPlan {
+async function planForPendingConciergeAction(pending: PendingRow): Promise<ConciergeConfirmedExecutionPlan> {
   const preliminaryTask = buildConciergeExecutionTask({
     useCase: pending.use_case,
     payload: pending.action_payload ?? {},
@@ -182,7 +185,7 @@ function planForPendingConciergeAction(pending: PendingRow): ConciergeConfirmedE
     summary: pending.action_summary,
     pendingStatus: pending.status,
   });
-  const channelReadiness = conciergeChannelReadinessForTool({
+  const channelReadiness = await conciergeChannelReadinessForToolWithAdminSettings({
     tool: preliminaryTask.active_tool,
     dryRun: Boolean(preliminaryTask.dry_run),
   });
@@ -224,6 +227,16 @@ function withServerConciergeExecutionTask(
     channelReadiness,
     externalActionAllowed,
     executionMode,
+  });
+}
+
+async function adminChannelReadinessForBuildInput(
+  input: ConciergeExecutionBuildInput,
+): Promise<ConciergeChannelReadinessResult> {
+  const preliminaryTask = buildConciergeExecutionTask(input);
+  return conciergeChannelReadinessForToolWithAdminSettings({
+    tool: preliminaryTask.active_tool,
+    dryRun: Boolean(preliminaryTask.dry_run),
   });
 }
 
@@ -337,7 +350,7 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
     },
   };
   const now = new Date().toISOString();
-  const actionPayload = withServerConciergeExecutionTask({
+  const buildInput = {
     useCase: input.useCase,
     payload: appendConciergeExecutionAudit(basePayload, {
       event: "created",
@@ -353,6 +366,10 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
     pendingStatus: "pending",
     userConfirmed: false,
     now,
+  } satisfies ConciergeExecutionBuildInput;
+  const actionPayload = withServerConciergeExecutionTask({
+    ...buildInput,
+    channelReadiness: await adminChannelReadinessForBuildInput(buildInput),
   });
 
   const result = await pool.query<PendingRow>(
@@ -534,13 +551,17 @@ export async function updatePendingConciergeActionDetails(
     },
   };
 
-  const actionPayload = withServerConciergeExecutionTask({
+  const buildInput = {
     useCase: pending.use_case,
     payload: nextPayloadBase,
     providerName: pending.provider_name,
     providerPhone: pending.provider_phone,
     summary: pending.action_summary,
     pendingStatus: pending.status,
+  } satisfies ConciergeExecutionBuildInput;
+  const actionPayload = withServerConciergeExecutionTask({
+    ...buildInput,
+    channelReadiness: await adminChannelReadinessForBuildInput(buildInput),
   });
 
   const result = await pool.query<PendingRow>(
@@ -766,7 +787,7 @@ async function confirmLoadedPendingConciergeAction(
   profile: BasicProfile,
   confirmationSource = "confirm_endpoint",
 ): Promise<TriggerResult> {
-  const plan = planForPendingConciergeAction(pending);
+  const plan = await planForPendingConciergeAction(pending);
 
   if (plan.mode === "needs_info") {
     await markPendingNeedsInfo(pending, confirmationSource, plan);
@@ -830,7 +851,7 @@ export async function confirmPendingConciergeActionReview(
     throw new Error(`Concierge action cannot be confirmed from status "${pending.status}".`);
   }
 
-  const plan = planForPendingConciergeAction(pending);
+  const plan = await planForPendingConciergeAction(pending);
 
   if (plan.mode === "needs_info") {
     await markPendingNeedsInfo(pending, confirmationSource, plan);
