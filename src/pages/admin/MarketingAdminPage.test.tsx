@@ -1271,6 +1271,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review audience mapping");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Attach campaign content");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Prepare manual channel handoff");
+    expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-1")).toHaveTextContent("Review send");
+    expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-2")).toHaveTextContent("Attach content");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-row-next-campaign-2"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Content");
+    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Add content for LinkedIn");
 
     fireEvent.click(screen.getByTestId("button-marketing-action-ready-email"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
