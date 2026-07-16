@@ -1898,6 +1898,13 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     channels: ["facebook", "whatsapp", "instagram"],
   },
   {
+    id: "local-event-operations",
+    title: "Event run sheet",
+    detail: "Neighbourhood event plan with host brief, partner SMS, and post-event follow-up.",
+    brief: "Create a local event operations campaign for families, partners, and hosts by event handoff, SMS, LinkedIn, WhatsApp, print, Facebook, and Instagram. Include postcode/neighbourhood context, accessibility notes, RSVP route, host owner, and the post-event follow-up task.",
+    channels: ["event", "sms", "linkedin", "whatsapp", "print", "facebook", "instagram"],
+  },
+  {
     id: "caregiver-onboarding",
     title: "Caregiver onboarding",
     detail: "Warm welcome flow for new caregivers and family members.",
@@ -1997,6 +2004,17 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     toneId: "uplifting",
     angleId: "local",
     templatePackId: "local-event-relationship",
+  },
+  {
+    id: "run-local-event-operations",
+    title: "Run local event operations",
+    outcome: "Clear event follow-up",
+    detail: "Host run sheet, opted-in SMS, partner update, and next relationship task after a local event.",
+    brief: "Run a local community event with a practical operations pack for families, partners, and hosts. Use event handoff, SMS, LinkedIn, WhatsApp, print, Facebook, and Instagram. Include neighbourhood/postcode, accessibility, RSVP, host owner, attendance notes, and post-event follow-up.",
+    channels: ["event", "sms", "linkedin", "whatsapp", "print", "facebook", "instagram"],
+    toneId: "direct",
+    angleId: "local",
+    templatePackId: "local-event-operations",
   },
   {
     id: "complete-profiles",
@@ -3640,6 +3658,113 @@ const contentTemplateGallery: ContentTemplate[] = [
     mediaAssets: [],
   },
   {
+    id: "event-neighbourhood-run-sheet",
+    title: "Neighbourhood event run sheet",
+    category: "Local event ops",
+    audienceType: "both",
+    channel: "event",
+    description: "A live event run sheet for local hosts, family helpers, and VYVA operators.",
+    subject: "{{event_name}} run sheet",
+    body: "Event: {{event_name}}\nNeighbourhood: {{area_name}}\nPostcode/anchor: {{postcode_or_anchor}}\nOwner: {{owner_name}}\n\nBefore: Confirm address, accessibility, weather plan, reminder route, and who is expected.\nDuring: Note attendance, transport issues, care-team questions, and any consent-sensitive follow-up.\nAfter: Send the promised resource, update the contact record, and assign the next relationship owner within 24 hours.",
+    ctaLabel: "Save event notes",
+    ctaUrl: "https://v2.vyva.life/admin/marketing",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "event-neighbourhood-run-sheet",
+      category: "Local event ops",
+      layout: "local-event-run-sheet",
+      mergeFields: ["event_name", "area_name", "postcode_or_anchor", "owner_name"],
+      checklist: ["address", "accessibility", "weather plan", "reminder route", "attendance", "follow-up owner"],
+      visualPrompt: "clean local event operations run sheet with neighbourhood anchor and accessibility checklist",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "event-partner-follow-up-log",
+    title: "Partner event follow-up log",
+    category: "Local event ops",
+    audienceType: "both",
+    channel: "event",
+    description: "A structured post-event log so attendance, partner promises, and next tasks are not lost.",
+    subject: "{{event_name}} follow-up log",
+    body: "Event: {{event_name}}\nPartner/venue: {{partner_name}}\nAttendance: {{attendance_count}}\n\nSignals to capture:\n- Who asked for more information?\n- Which families or care partners need a direct follow-up?\n- What did the host promise to send?\n- Which contact list should be updated?\n\nNext action: create a follow-up campaign or task for every warm contact within one working day.",
+    ctaLabel: "Create follow-up",
+    ctaUrl: "https://v2.vyva.life/admin/marketing",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "event-partner-follow-up-log",
+      category: "Local event ops",
+      layout: "event-follow-up-log",
+      mergeFields: ["event_name", "partner_name", "attendance_count"],
+      fields: ["warm contacts", "promised resources", "list updates", "owner"],
+      visualPrompt: "post-event relationship follow-up log with warm contacts and owner assignments",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "sms-partner-event-confirmation",
+    title: "Partner event confirmation SMS",
+    category: "Local event ops",
+    audienceType: "b2b",
+    channel: "sms",
+    description: "A short confirmation text for a local partner, venue, or host before the event.",
+    subject: "",
+    body: "Hi {{first_name}}, confirming {{event_name}} at {{venue_name}} on {{event_date}}. VYVA will bring the host notes and follow-up route. Reply if access, timing, or meeting point changes.",
+    ctaLabel: "Confirm details",
+    ctaUrl: "https://v2.vyva.life/admin/marketing",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "sms-partner-event-confirmation",
+      category: "Local event ops",
+      layout: "sms-partner-confirmation",
+      mergeFields: ["first_name", "event_name", "venue_name", "event_date"],
+      complianceNotes: ["Use only for opted-in direct partner contacts.", "Keep the message operational and non-promotional."],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "sms-partner-event-follow-up",
+    title: "Partner event follow-up SMS",
+    category: "Local event ops",
+    audienceType: "b2b",
+    channel: "sms",
+    description: "A concise partner follow-up after a local event, with one clear next action.",
+    subject: "",
+    body: "Thanks for hosting {{event_name}}. We noted {{attendance_count}} attendees and {{follow_up_count}} follow-ups. Next step: can we send the promised VYVA resource and agree the owner for warm contacts?",
+    ctaLabel: "Agree next owner",
+    ctaUrl: "https://v2.vyva.life/admin/marketing",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "sms-partner-event-follow-up",
+      category: "Local event ops",
+      layout: "sms-partner-follow-up",
+      mergeFields: ["event_name", "attendance_count", "follow_up_count"],
+      complianceNotes: ["Use after a real event or partner interaction.", "Avoid clinical details in SMS."],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "linkedin-family-event-recap",
+    title: "LinkedIn family event recap",
+    category: "Local event ops",
+    audienceType: "b2c",
+    channel: "linkedin",
+    description: "A family-facing LinkedIn recap that turns a local activity into a practical care relationship story.",
+    subject: "",
+    body: "Local support often becomes real through small, specific moments: a nearby activity, a family reminder, a partner who knows the area, and one follow-up owner.\n\nVYVA helps turn those community moments into practical care coordination: who attended, what was promised, and who follows up next.",
+    ctaLabel: "Plan local follow-up",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "linkedin-family-event-recap",
+      category: "Local event ops",
+      layout: "linkedin-family-event-recap",
+      proofPoint: "local activity to practical follow-up",
+      visualPrompt: "warm community event recap showing family, local partner, and clear follow-up owner",
+    },
+    mediaAssets: [],
+  },
+  {
     id: "email-care-confidence-reactivation",
     title: "Care confidence reactivation email",
     category: "Care confidence",
@@ -4896,6 +5021,38 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day 1", channel: "linkedin", title: "Partner handoff", detail: "Share the partner angle and invite a community pathway conversation.", templateId: "linkedin-community-partner-invite" },
     ],
     aiPrompt: "Adapt this local event relationship pack for a specific country, city, neighbourhood, event type, audience, and care-team next step. Keep the online campaign, partner handoff, and post-event follow-up aligned.",
+  },
+  {
+    id: "local-event-operations",
+    title: "Local event operations",
+    focus: "Run the event itself with hosts, partners, direct reminders, and post-event relationship follow-up.",
+    description: "Operational templates for neighbourhood activities: event run sheets, partner SMS confirmations, post-event logs, and LinkedIn recap content.",
+    templateIds: [
+      "event-neighbourhood-run-sheet",
+      "event-partner-follow-up-log",
+      "sms-partner-event-confirmation",
+      "sms-partner-event-follow-up",
+      "linkedin-family-event-recap",
+      "print-community-flyer",
+      "whatsapp-local-event-rsvp",
+      "facebook-neighbourhood-event",
+      "instagram-event-story-sequence",
+    ],
+    heroTemplateId: "event-neighbourhood-run-sheet",
+    studioPlayId: "local-event",
+    toneId: "direct",
+    angleId: "local",
+    sequence: [
+      { offset: "Week -2", channel: "print", title: "Partner handout", detail: "Prepare the flyer or one-page event explainer for the venue or host.", templateId: "print-community-flyer" },
+      { offset: "Week -1", channel: "sms", title: "Host confirmation", detail: "Confirm the time, place, accessibility notes, and owner with the partner.", templateId: "sms-partner-event-confirmation" },
+      { offset: "Day -3", channel: "facebook", title: "Neighbourhood post", detail: "Make the activity visible to families and local partners.", templateId: "facebook-neighbourhood-event" },
+      { offset: "Day -1", channel: "whatsapp", title: "RSVP nudge", detail: "Send a practical reminder to opted-in direct contacts.", templateId: "whatsapp-local-event-rsvp" },
+      { offset: "Day 0", channel: "event", title: "Run sheet", detail: "Capture attendance, access issues, questions, and follow-up owners.", templateId: "event-neighbourhood-run-sheet" },
+      { offset: "Day 1", channel: "sms", title: "Partner follow-up", detail: "Agree the promised resource and next owner for warm contacts.", templateId: "sms-partner-event-follow-up" },
+      { offset: "Day 2", channel: "event", title: "Follow-up log", detail: "Record warm contacts, promised resources, and next relationship tasks.", templateId: "event-partner-follow-up-log" },
+      { offset: "Day 3", channel: "linkedin", title: "Family recap", detail: "Turn the community moment into a practical relationship story.", templateId: "linkedin-family-event-recap" },
+    ],
+    aiPrompt: "Adapt this local event operations pack for a specific country, city, neighbourhood, postcode, venue, accessibility context, and partner owner. Produce a practical run sheet, opted-in SMS copy, social reminders, host follow-up, and the next relationship task. Keep all care details non-clinical and consent-aware.",
   },
   {
     id: "offline-direct-outreach",
@@ -6638,6 +6795,7 @@ function templatePackTriggerType(pack: ContentTemplatePack) {
   if (pack.id === "partner-growth") return "list_joined";
   if (pack.id === "local-community") return "event_interest";
   if (pack.id === "local-event-relationship") return "local_event_discovered";
+  if (pack.id === "local-event-operations") return "event_scheduled";
   if (pack.id === "retention-feedback") return "inactive_30_days";
   if (pack.id === "care-confidence-reactivation") return "inactive_or_incomplete_profile";
   if (pack.id === "social-launch") return "campaign_launch";
@@ -6649,6 +6807,7 @@ function templatePackGoalType(pack: ContentTemplatePack) {
   if (pack.id === "partner-growth") return "reply";
   if (pack.id === "local-community") return "event_response";
   if (pack.id === "local-event-relationship") return "event_rsvp_or_followup";
+  if (pack.id === "local-event-operations") return "event_follow_up_completed";
   if (pack.id === "retention-feedback") return "feedback_or_reply";
   if (pack.id === "care-confidence-reactivation") return "care_routine_restarted";
   if (pack.id === "social-launch") return "engagement";
@@ -6776,9 +6935,12 @@ function campaignIntentPlay(brief: string) {
     campaignIntentHasAny(text, ["seasonal", "heatwave", "heat wave", "hot weather", "winter", "cold weather", "holiday", "holidays", "weather", "summer", "autumn", "fall", "spring"])
     || (campaignIntentHasAny(text, ["hydration", "warmth", "travel", "transport"]) && campaignIntentHasAny(text, ["check-in", "check in", "care details", "profile", "support owner"]))
   ) return campaignStudioPlayById("seasonal-check-in");
+  if (
+    campaignIntentHasAny(text, ["event", "activity", "workshop", "community", "madrid", "barcelona", "valencia", "local", "venue", "host", "rsvp"])
+    || (campaignIntentHasAny(text, ["neighbourhood", "neighborhood", "postcode", "postal code", "area"]) && campaignIntentHasAny(text, ["run sheet", "operations", "attendance", "follow-up", "follow up"]))
+  ) return campaignStudioPlayById("local-event");
   if (campaignIntentHasAny(text, ["referral", "refer", "provider", "partner follow", "partner nurture"])) return campaignStudioPlayById("referral-partner-nurture");
   if (campaignIntentHasAny(text, ["partner", "b2b", "care home", "clinic", "pharmacy", "provider"])) return campaignStudioPlayById("b2b-partner-outreach");
-  if (campaignIntentHasAny(text, ["event", "activity", "workshop", "community", "madrid", "barcelona", "valencia", "local"])) return campaignStudioPlayById("local-event");
   if (campaignIntentHasAny(text, ["inactive", "quiet", "winback", "win back", "reactivate", "reactivation"])) return campaignStudioPlayById("reactivation");
   if (campaignIntentHasAny(text, ["medication", "medicine", "pill"])) return campaignStudioPlayById("medication-routine-education");
   if (
