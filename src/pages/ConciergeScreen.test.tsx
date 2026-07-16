@@ -1139,10 +1139,11 @@ describe("ConciergeScreen action hub", () => {
     expect(proofDetails).toHaveTextContent("official or regulated comparison sources");
     expect(proofDetails).toHaveTextContent("Validates price, trust, ease, and fit.");
     expect(proofDetails).toHaveTextContent("price change");
-    expect(screen.queryByText("Price or value")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /score details/i }));
-    expect(await screen.findByText("Price or value")).toBeVisible();
+    const comparison = screen.getByTestId("provider-comparison-panel");
+    expect(comparison).toHaveTextContent("Price");
+    expect(comparison).toHaveTextContent("Not provided");
+    expect(comparison).not.toHaveTextContent("/100");
+    expect(screen.queryByRole("button", { name: /score details/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /watch changes/i }));
 
@@ -1209,9 +1210,9 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: /review available benefits/i }));
     fireEvent.click(screen.getByTestId("button-offers-search"));
 
-    const prepareButton = await screen.findByTestId("button-offer-prepare-review-opcion-recomendada-senior-energy-saver");
-    expect(prepareButton).toHaveTextContent("Ask VYVA to review");
-    expect(screen.getByTestId("badge-offer-contact-gated-opcion-recomendada-senior-energy-saver")).toHaveTextContent("Contact after your OK");
+    const prepareButton = await screen.findByTestId("button-provider-comparison-contact-senior-energy-saver-1");
+    expect(prepareButton).toHaveTextContent("Prepare contact");
+    expect(screen.getByTestId("provider-comparison-panel")).not.toHaveTextContent("/100");
     expect(screen.queryByRole("link", { name: /open now|call now/i })).not.toBeInTheDocument();
 
     fireEvent.click(prepareButton);
@@ -1231,7 +1232,7 @@ describe("ConciergeScreen action hub", () => {
         action_summary: "Deal comparison prepared: Senior Energy Saver.",
         action_payload: expect.objectContaining({
           flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
-          task_type: "deal_comparison",
+          task_type: "provider_contact_preparation",
           offer_name: "Senior Energy Saver",
           provider_name: "Senior Energy Saver",
           phone: "+34 600 333 444",
@@ -1241,6 +1242,10 @@ describe("ConciergeScreen action hub", () => {
           confirmation_required_before_action: true,
           no_external_action_without_confirmation: true,
           user_confirmed: false,
+          comparison: expect.objectContaining({
+            name: "Senior Energy Saver",
+            source_status: "unknown",
+          }),
         }),
       });
     });
@@ -1404,6 +1409,16 @@ describe("ConciergeScreen action hub", () => {
             contact_method: "Phone",
             phone: "+34 600 111 222",
             trust_note: "Verified reviews and published contact.",
+            source_label: "Verified local directory",
+            source_status: "verified",
+            comparison: {
+              distance: { value: "1.2 km", status: "verified", source: "Verified local directory" },
+              price: { value: "Clear first-visit price", status: "reported", source: "Clinic website" },
+              reputation: { value: "Verified public reviews", status: "reported", source: "Public reviews" },
+              availability: { value: "Available this week", status: "reported", source: "Clinic website" },
+              accessibility: { value: "Step-free entrance", status: "reported", source: "Clinic website" },
+              coverage: { value: null, status: "unknown", source: null },
+            },
             score: 88,
             score_breakdown: {
               distance: 90,
@@ -1430,7 +1445,6 @@ describe("ConciergeScreen action hub", () => {
           selected_provider_name: "Marbella Care Clinic",
           provider_name: "Marbella Care Clinic",
           provider_phone: "+34 600 111 222",
-          score: 88,
           confirmation_required_before_action: true,
           no_external_action_without_confirmation: true,
         });
@@ -1447,19 +1461,17 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-provider-criterion-clear-price"));
     fireEvent.click(screen.getByTestId("button-offers-search"));
 
-    const badges = await screen.findByTestId("panel-provider-result-badges-opcion-recomendada-marbella-care-clinic");
-    expect(badges).toHaveTextContent("Nearby");
-    expect(badges).toHaveTextContent("Good reputation");
-    expect(badges).toHaveTextContent("Easy access");
-    expect(badges).toHaveTextContent("Clear price");
-
-    const fit = screen.getByTestId("panel-provider-result-fit-opcion-recomendada-marbella-care-clinic");
-    expect(fit).toHaveTextContent("Why this fits");
-    expect(fit).toHaveTextContent("Close, trusted, and accessible.");
-    expect(fit).toHaveTextContent("1.2 km away and available this week.");
+    const comparison = await screen.findByTestId("provider-comparison-panel");
+    expect(comparison).toHaveTextContent("1.2 km");
+    expect(comparison).toHaveTextContent("Clear first-visit price");
+    expect(comparison).toHaveTextContent("Step-free entrance");
+    expect(comparison).toHaveTextContent("Insurance / coverage");
+    expect(comparison).toHaveTextContent("Not provided");
+    expect(comparison).toHaveTextContent("Why this may suit you");
+    expect(comparison).not.toHaveTextContent("/100");
     expect(screen.queryByRole("button", { name: /watch changes/i })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-provider-prepare-contact-opcion-recomendada-marbella-care-clinic"));
+    fireEvent.click(screen.getByTestId("button-provider-comparison-contact-marbella-care-clinic-1"));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
     expect(prefill).toHaveTextContent("Care search ready");
@@ -1475,6 +1487,97 @@ describe("ConciergeScreen action hub", () => {
       }));
     });
   }, 60000);
+
+  it("saves a provider shortlist without contact and preserves search context when saving a trusted provider", async () => {
+    let shortlistTrigger: Record<string, unknown> | null = null;
+    let shortlistCompletion: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.includes("/api/offers/search")) {
+        return jsonResponse({
+          category: "Care options",
+          decision_explanation: "Compare known facts and keep gaps visible.",
+          neutrality_note: "No provider paid for placement.",
+          source_guidance: ["verified local directories"],
+          options: [
+            {
+              label: "Option 1",
+              name: "Harbour Clinic",
+              category: "Care",
+              what_it_offers: "Care assessment",
+              price_or_advantage: "EUR 60 first visit",
+              why_good_option: "Nearby",
+              distance_or_availability: "1.2 km | Tuesday",
+              contact_method: "Phone",
+              phone: "+34 600 111 222",
+              trust_note: "Public reviews",
+              source_label: "Regional directory",
+              source_status: "verified",
+              score: 90,
+            },
+            {
+              label: "Option 2",
+              name: "Garden Care",
+              category: "Care",
+              what_it_offers: "Home assessment",
+              price_or_advantage: "Price not provided",
+              why_good_option: "Home visits",
+              distance_or_availability: "3 km | This week",
+              contact_method: "Website",
+              website: "https://garden.example.test",
+              trust_note: "Community listing",
+              source_label: "Community directory",
+              source_status: "reported",
+              score: 76,
+            },
+          ],
+          next_step: "Confirm before contacting anyone.",
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/trigger")) {
+        shortlistTrigger = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "shortlist-1", status: "pending" });
+      }
+      if (target.endsWith("/api/concierge/actions/shortlist-1/complete")) {
+        shortlistCompletion = JSON.parse(String(init?.body));
+        return jsonResponse({ success: true });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByTestId("button-offers-search"));
+
+    fireEvent.click(await screen.findByTestId("button-provider-shortlist-harbour-clinic-1"));
+    fireEvent.click(screen.getByTestId("button-provider-shortlist-garden-care-2"));
+    fireEvent.click(screen.getByTestId("button-provider-shortlist-save"));
+
+    await waitFor(() => {
+      expect(shortlistTrigger).toMatchObject({
+        use_case: "find_provider",
+        auto_start: false,
+        action_payload: expect.objectContaining({
+          task_type: "provider_shortlist",
+          selected_provider_names: ["Harbour Clinic", "Garden Care"],
+          no_external_action_without_confirmation: true,
+        }),
+      });
+      expect(shortlistCompletion).toMatchObject({
+        outcome_payload: expect.objectContaining({
+          shortlist_saved: true,
+          no_external_action_taken: true,
+        }),
+      });
+    });
+    expect(screen.getByTestId("notice-provider-shortlist")).toHaveTextContent("Nobody was contacted");
+
+    fireEvent.click(screen.getByTestId("button-provider-comparison-save-harbour-clinic-1"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Harbour Clinic");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("provider_search");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("personal-care");
+  });
 
   it("adds provider search criteria to care option searches", async () => {
     let searchBody: { query?: string; locale?: string } | null = null;
@@ -4968,7 +5071,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Transport search prepared with the same details.");
 
     fireEvent.click(screen.getByTestId("button-offers-search"));
-    const prepareButton = await screen.findByTestId("button-provider-prepare-contact-opcion-recomendada-city-taxi");
+    const prepareButton = await screen.findByTestId("button-provider-comparison-contact-city-taxi-1");
     fireEvent.click(prepareButton);
     fireEvent.click(await screen.findByTestId("button-concierge-prefill-send"));
 

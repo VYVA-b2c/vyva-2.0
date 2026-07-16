@@ -62,6 +62,7 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
+import ProviderComparisonPanel from "@/components/ProviderComparisonPanel";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
@@ -117,6 +118,14 @@ import {
   type ConciergeGuidedDetailCapture,
   type ConciergeGuidedDetailQuestion,
 } from "../../shared/conciergeGuidedDetails";
+import {
+  buildProviderComparisonOptions,
+  buildProviderContactPayload,
+  buildProviderShortlistPayload,
+  buildTrustedProviderPrefill,
+  type ProviderComparisonOption,
+  type ProviderComparisonSourceOption,
+} from "../../shared/providerComparison";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -351,7 +360,7 @@ function isAppointmentType(value: unknown): value is AppointmentType {
 }
 
 function isProviderSearchMode(value: unknown): value is ProviderSearchMode {
-  return typeof value === "string" && ["personal-care", "specialist", "residence", "care", "transport", "pharmacy", "home-service"].includes(value);
+  return typeof value === "string" && ["personal-care", "specialist", "residence", "care", "transport", "pharmacy", "home-service", "shopping-seller"].includes(value);
 }
 
 function isProviderSearchCriterion(value: unknown): value is ProviderSearchCriterionKey {
@@ -1001,7 +1010,7 @@ interface OfferScoreBreakdown {
   preference_match: number;
 }
 
-interface OfferOption {
+interface OfferOption extends ProviderComparisonSourceOption {
   label: "Opcion recomendada" | "Alternativa 1" | "Alternativa 2";
   name: string;
   category: string;
@@ -1014,6 +1023,8 @@ interface OfferOption {
   website?: string;
   maps_url?: string;
   trust_note: string;
+  source_label?: string;
+  source_status?: "verified" | "reported" | "unknown";
   score: number;
   score_breakdown?: OfferScoreBreakdown;
 }
@@ -1042,7 +1053,6 @@ function offerReviewStructuredPayload(option: OfferOption, params: {
     website: option.website || option.maps_url || null,
     phone: option.phone || null,
     provider_name: option.name,
-    score: option.score,
     trust_note: option.trust_note,
     contact,
   };
@@ -1105,7 +1115,7 @@ type BillDocumentAnalysis = {
 type UtilityInputMethod = "upload" | "photo" | "voice" | "manual";
 type UtilityType = "electricity" | "gas" | "dual";
 type SavingsPanelView = "overview" | "utilities";
-type ProviderSearchMode = "personal-care" | "specialist" | "residence" | "care" | "transport" | "pharmacy" | "home-service";
+type ProviderSearchMode = "personal-care" | "specialist" | "residence" | "care" | "transport" | "pharmacy" | "home-service" | "shopping-seller";
 type ProviderSearchCriterionKey = "nearby" | "reputation" | "accessible" | "clear-price" | "available-soon" | "coverage";
 
 interface NormalizedUtilityInput {
@@ -2694,6 +2704,60 @@ async function searchOffers(query: string, locale: string, documentContext?: Bil
   return await res.json() as OffersSearchResponse;
 }
 
+async function saveProviderShortlistAction(params: {
+  options: ProviderComparisonOption[];
+  mode: ProviderSearchMode;
+  query: string;
+  criteria: ProviderSearchCriterionKey[];
+  flowReference: ConciergeFlowReference;
+  locale: string;
+}) {
+  const payload = buildProviderShortlistPayload(params.options, {
+    mode: params.mode,
+    query: params.query,
+    criteria: params.criteria,
+    flowReference: params.flowReference,
+    resumeContext: {
+      kind: "provider_search",
+      mode: params.mode,
+      query: params.query,
+      criteria: params.criteria,
+    },
+  });
+  const names = params.options.map((option) => option.name).join(", ");
+  const trigger = await apiFetch("/api/concierge/actions/trigger", {
+    method: "POST",
+    body: JSON.stringify({
+      use_case: params.mode === "shopping-seller" ? "find_offers" : "find_provider",
+      provider_name: params.options[0]?.name ?? null,
+      provider_phone: params.options[0]?.contact.phone ?? null,
+      found_externally: true,
+      action_summary: `Provider shortlist saved: ${names}.`,
+      action_payload: payload,
+      language: params.locale,
+      trigger_source: "user_request",
+      auto_start: false,
+    }),
+  });
+  if (!trigger.ok) {
+    const data = (await trigger.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not save provider shortlist");
+  }
+  const result = await trigger.json() as { pendingId?: string | null };
+  if (!result.pendingId) throw new Error("Could not save provider shortlist");
+  await completePendingConciergeAction({
+    pendingId: result.pendingId,
+    outcomeSummary: `Shortlist saved: ${names}.`,
+    outcomePayload: {
+      ...payload,
+      shortlist_saved: true,
+      completed_from: "provider_comparison",
+      no_external_action_taken: true,
+    },
+  });
+  return { pendingId: result.pendingId };
+}
+
 function compressBillImage(file: File, targetChars = 1_500_000): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -2910,6 +2974,7 @@ function providerSearchModeLabel(mode: ProviderSearchMode | null, es: boolean): 
   if (mode === "transport") return es ? "transporte" : "transport";
   if (mode === "pharmacy") return es ? "farmacia" : "pharmacy";
   if (mode === "home-service") return es ? "servicio en casa" : "home service";
+  if (mode === "shopping-seller") return es ? "vendedor o tienda" : "seller or shop";
   return es ? "proveedor" : "provider";
 }
 
@@ -2926,6 +2991,7 @@ function providerSearchFlowReference(mode: ProviderSearchMode | null): Concierge
   if (mode === "transport") return TRANSPORT_BOOKING_FLOW_REFERENCE;
   if (mode === "pharmacy") return OTC_PHARMACY_FLOW_REFERENCE;
   if (mode === "home-service") return CONCIERGE_FLOW_REFERENCES.homeService;
+  if (mode === "shopping-seller") return SHOPPING_SUPPORT_FLOW_REFERENCE;
   if (mode === "personal-care" || mode === "specialist" || mode === "residence" || mode === "care") {
     return CARE_NAVIGATION_FLOW_REFERENCE;
   }
@@ -2942,18 +3008,6 @@ function providerCriterionLabels(criteria: ProviderSearchCriterionKey[], es: boo
   return PROVIDER_SEARCH_CRITERIA
     .filter((item) => criteria.includes(item.key))
     .map((item) => es ? item.es : item.en);
-}
-
-function providerResultBadges(option: OfferOption, criteria: ProviderSearchCriterionKey[], es: boolean): string[] {
-  const selected = providerCriterionLabels(criteria, es);
-  const score = option.score_breakdown;
-  const scoreBadges = [
-    score?.distance != null && score.distance >= 70 ? (es ? "Cerca" : "Nearby") : null,
-    score?.trust != null && score.trust >= 70 ? (es ? "Confiable" : "Trusted") : null,
-    score?.price_value != null && score.price_value >= 70 ? (es ? "Precio claro" : "Clear price") : null,
-    score?.simplicity != null && score.simplicity >= 70 ? (es ? "Facil" : "Easy") : null,
-  ].filter(Boolean) as string[];
-  return Array.from(new Set([...selected.slice(0, 4), ...scoreBadges])).slice(0, 5);
 }
 
 function buildProviderSearchQuery(query: string, criteria: ProviderSearchCriterionKey[], mode: ProviderSearchMode | null, es: boolean): string {
@@ -3754,23 +3808,6 @@ function sourceGuidanceFor(result: OffersSearchResponse, isSpanish: boolean): st
   return isSpanish
     ? ["fuentes oficiales o reguladas", "negocios locales verificables", "programas publicos o comunitarios"]
     : ["official or regulated sources", "verifiable local businesses", "public or community programmes"];
-}
-
-function offerScoreRows(option: OfferOption, isSpanish: boolean) {
-  const breakdown = option.score_breakdown;
-  if (!breakdown) {
-    return [
-      { key: "overall", label: isSpanish ? "Puntuacion global" : "Overall score", value: option.score },
-    ];
-  }
-
-  return [
-    { key: "price_value", label: isSpanish ? "Precio o valor" : "Price or value", value: breakdown.price_value },
-    { key: "trust", label: isSpanish ? "Confianza" : "Trust", value: breakdown.trust },
-    { key: "simplicity", label: isSpanish ? "Facilidad" : "Ease", value: breakdown.simplicity },
-    { key: "preference_match", label: isSpanish ? "Encaje personal" : "Personal fit", value: breakdown.preference_match },
-    { key: "distance", label: isSpanish ? "Cercania" : "Proximity", value: breakdown.distance },
-  ];
 }
 
 function clampScore(value: number): number {
@@ -8600,10 +8637,16 @@ const ConciergeScreen = () => {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersResult, setOffersResult] = useState<OffersSearchResponse | null>(null);
   const [offersError, setOffersError] = useState<string | null>(null);
+  const [providerShortlistIds, setProviderShortlistIds] = useState<string[]>([]);
+  const [providerShortlistNotice, setProviderShortlistNotice] = useState<string | null>(null);
+  const [providerShortlistError, setProviderShortlistError] = useState<string | null>(null);
+  const providerComparisonOptions = useMemo(
+    () => buildProviderComparisonOptions(offersResult?.options ?? []),
+    [offersResult],
+  );
   const [webSearchResultsByActionId, setWebSearchResultsByActionId] = useState<Record<string, WebSearchActionResult>>({});
   const [webSearchErrorsByActionId, setWebSearchErrorsByActionId] = useState<Record<string, string>>({});
   const [objectiveProofOpen, setObjectiveProofOpen] = useState(false);
-  const [expandedOfferScoreKey, setExpandedOfferScoreKey] = useState<string | null>(null);
   const [billAnalysis, setBillAnalysis] = useState<BillDocumentAnalysis | null>(null);
   const [billAnalysisLoading, setBillAnalysisLoading] = useState(false);
   const [billAnalysisError, setBillAnalysisError] = useState<string | null>(null);
@@ -9707,6 +9750,35 @@ const ConciergeScreen = () => {
     },
   });
 
+  const providerShortlistMutation = useMutation({
+    mutationFn: (options: ProviderComparisonOption[]) => saveProviderShortlistAction({
+      options,
+      mode: providerSearchMode ?? "shopping-seller",
+      query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode ?? "shopping-seller", isSpanish),
+      criteria: providerSearchCriteria,
+      flowReference: providerSearchFlowReference(providerSearchMode ?? "shopping-seller"),
+      locale,
+    }),
+    onMutate: () => {
+      setProviderShortlistError(null);
+      setProviderShortlistNotice(null);
+    },
+    onSuccess: async () => {
+      setProviderShortlistNotice(isSpanish
+        ? "Seleccion guardada. No se ha contactado con nadie."
+        : "Shortlist saved. Nobody was contacted.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setProviderShortlistError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido guardar la seleccion." : "I could not save the shortlist."));
+    },
+  });
+
   const transportOptionsMutation = useMutation({
     mutationFn: () => fetchTransportOptions({
       pickupAddress: transportPickup,
@@ -10396,6 +10468,12 @@ const ConciergeScreen = () => {
     }
   }
 
+  function resetProviderShortlistState() {
+    setProviderShortlistIds([]);
+    setProviderShortlistNotice(null);
+    setProviderShortlistError(null);
+  }
+
   function openSavingsPanel(query?: string) {
     setOffersOpen(true);
     setSavingsPanelView("overview");
@@ -10406,6 +10484,7 @@ const ConciergeScreen = () => {
     setScamCheckOpen(false);
     setOtcPharmacyOpen(false);
     setOffersError(null);
+    resetProviderShortlistState();
     if (query) {
       setOffersQuery(query);
       return;
@@ -10431,7 +10510,7 @@ const ConciergeScreen = () => {
     setBillAnalysis(null);
     setUtilityResult(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    resetProviderShortlistState();
     setOffersQuery(query);
   }
 
@@ -10800,7 +10879,7 @@ const ConciergeScreen = () => {
     setOffersLoading(true);
     setOffersError(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    resetProviderShortlistState();
     try {
       const criteriaQuery = buildProviderSearchQuery(query, providerSearchCriteria, providerSearchMode, isSpanish);
       const result = await searchOffers(criteriaQuery, language, documentContext);
@@ -10823,7 +10902,7 @@ const ConciergeScreen = () => {
     setBillAnalysis(null);
     setUtilityResult(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    resetProviderShortlistState();
     handleSearchOffers(query);
   }
 
@@ -10834,7 +10913,7 @@ const ConciergeScreen = () => {
     setOffersResult(null);
     setOffersError(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    resetProviderShortlistState();
   }
 
   function closeOffersPanel() {
@@ -10842,7 +10921,7 @@ const ConciergeScreen = () => {
     setSavingsPanelView("overview");
     setProviderSearchMode(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    resetProviderShortlistState();
   }
 
   function resetUtilityReview(method?: UtilityInputMethod) {
@@ -12012,16 +12091,23 @@ const ConciergeScreen = () => {
   function handleOfferAssistance(option: OfferOption) {
     const contact = option.phone || option.website || option.maps_url || (isSpanish ? "sin contacto publicado" : "no published contact");
     const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish);
+    const comparison = buildProviderComparisonOptions([option])[0];
+    const comparisonPayload = comparison
+      ? buildProviderContactPayload(comparison, {
+          mode: "shopping-seller",
+          query: offersQuery.trim(),
+          criteria: providerSearchCriteria,
+          flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+        })
+      : {};
     const message = isSpanish
       ? [
         `Ayudame a revisar ${option.name} antes de contactar.`,
-        `Puntuacion VYVA: ${option.score}/100.`,
         `Contacto disponible: ${contact}.`,
         "Comprueba condiciones, precio real, permanencia, opiniones y riesgos. No llames, contrates ni compartas datos sin pedirme confirmacion.",
       ].join("\n")
       : [
         `Help me review ${option.name} before contacting them.`,
-        `VYVA score: ${option.score}/100.`,
         `Available contact: ${contact}.`,
         "Check terms, real price, commitment, reviews, and risks. Do not call, book, switch, or share details without asking me to confirm.",
       ].join("\n");
@@ -12032,12 +12118,15 @@ const ConciergeScreen = () => {
       summary: isSpanish
         ? `Comparacion preparada: ${option.name}.`
         : `Deal comparison prepared: ${option.name}.`,
-      payload: offerReviewStructuredPayload(option, {
-        intent: "compare",
-        query: offersQuery.trim(),
-        criteria,
-        category: offersResult?.category,
-      }),
+      payload: {
+        ...offerReviewStructuredPayload(option, {
+          intent: "compare",
+          query: offersQuery.trim(),
+          criteria,
+          category: offersResult?.category,
+        }),
+        ...comparisonPayload,
+      },
       useCase: "find_offers",
     });
   }
@@ -12045,6 +12134,21 @@ const ConciergeScreen = () => {
   function handleProviderSearchAssistance(option: OfferOption) {
     const contact = option.phone || option.website || option.maps_url || (isSpanish ? "sin contacto publicado" : "no published contact");
     const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish).join(", ");
+    const comparison = buildProviderComparisonOptions([option])[0];
+    const comparisonPayload = comparison
+      ? buildProviderContactPayload(comparison, {
+          mode: providerSearchMode,
+          query: offersQuery.trim(),
+          criteria: providerSearchCriteria,
+          flowReference: providerSearchFlowReference(providerSearchMode),
+          resumeContext: {
+            kind: "provider_search",
+            mode: providerSearchMode,
+            query: offersQuery.trim(),
+            criteria: providerSearchCriteria,
+          },
+        })
+      : {};
     const message = isSpanish
       ? [
         `Ayudame a preparar el contacto con ${option.name}.`,
@@ -12078,6 +12182,7 @@ const ConciergeScreen = () => {
       providerSearchCriteria: providerSearchCriteria,
       providerSearchQuery: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
       payload: {
+        ...comparisonPayload,
         provider_search_mode: providerSearchMode ?? null,
         provider_search_query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
         criteria: providerSearchCriteria,
@@ -12090,9 +12195,49 @@ const ConciergeScreen = () => {
         price_or_advantage: option.price_or_advantage,
         distance_or_availability: option.distance_or_availability,
         contact_method: option.contact_method,
-        score: option.score,
       },
     });
+  }
+
+  function toggleProviderShortlist(option: ProviderComparisonOption) {
+    setProviderShortlistNotice(null);
+    setProviderShortlistError(null);
+    setProviderShortlistIds((current) => current.includes(option.id)
+      ? current.filter((id) => id !== option.id)
+      : [...current, option.id].slice(0, 3));
+  }
+
+  function handleSaveComparisonProvider(option: ProviderComparisonOption) {
+    const mode = providerSearchMode ?? "shopping-seller";
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: providerSearchSetupFocus(mode),
+        setupFlow: providerSearchFlowReference(mode),
+        setupReason: "Save provider from comparison",
+        conciergeResume: {
+          kind: "provider_search",
+          mode,
+          query: offersQuery.trim(),
+          criteria: providerSearchCriteria,
+        },
+        providerPrefill: buildTrustedProviderPrefill(option, providerSearchSetupFocus(mode)),
+        notice: isSpanish
+          ? "Guarda este proveedor de confianza. Volveras a la comparacion despues."
+          : "Save this trusted provider. You will return to the comparison afterwards.",
+      },
+    });
+  }
+
+  function handlePrepareComparisonContact(option: ProviderComparisonOption) {
+    const comparisonIndex = providerComparisonOptions.findIndex((candidate) => candidate.id === option.id);
+    const raw = comparisonIndex >= 0 ? offersResult?.options[comparisonIndex] : undefined;
+    if (!raw) return;
+    if (providerSearchMode) {
+      handleProviderSearchAssistance(raw);
+      return;
+    }
+    handleOfferAssistance(raw);
   }
 
   function handleProviderManualSearch() {
@@ -16583,151 +16728,37 @@ const ConciergeScreen = () => {
                         )}
                       </div>
                     ) : (
-                      offersResult.options.map((option) => {
-                        const optionKey = offerCardKey(option);
-                        const scoreDetailsOpen = expandedOfferScoreKey === optionKey;
-                        const contactAvailable = Boolean(option.phone || option.website || option.maps_url);
-                        const overallScore = clampScore(option.score);
-                        const providerBadges = providerSearchMode
-                          ? providerResultBadges(option, providerSearchCriteria, isSpanish)
-                          : [];
-
-                        return (
-                          <div key={`${option.label}-${option.name}`} className="rounded-[20px] border border-vyva-border bg-white p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-vyva-purple">
-                                  {option.label}
-                                </p>
-                                <p className="mt-1 font-body text-[17px] font-semibold leading-tight text-vyva-text-1">
-                                  {option.name}
-                                </p>
-                              </div>
-                              <span
-                                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full p-1"
-                                style={{ background: `conic-gradient(#0A7C4E ${overallScore * 3.6}deg, #ECFDF5 0deg)` }}
-                                aria-label={`${isSpanish ? "Puntuacion" : "Score"} ${overallScore} de 100`}
-                                title={`${overallScore}/100`}
-                              >
-                                <span className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white font-body text-[15px] font-black leading-none text-[#0A7C4E]">
-                                  {overallScore}
-                                  <span className="mt-0.5 text-[9px] font-semibold text-vyva-text-2">/100</span>
-                                </span>
-                              </span>
-                            </div>
-                            {providerBadges.length > 0 && (
-                              <div className="mt-3 flex flex-wrap gap-2" data-testid={`panel-provider-result-badges-${optionKey}`}>
-                                {providerBadges.map((badge) => (
-                                  <span
-                                    key={badge}
-                                    className="inline-flex min-h-[30px] items-center rounded-full bg-[#F0FDFA] px-3 font-body text-[12px] font-semibold text-[#0F766E]"
-                                  >
-                                    {badge}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            <p className="mt-3 rounded-[14px] bg-[#F5F3FF] px-3 py-2 font-body text-[13px] leading-relaxed text-vyva-text-1">
-                              {option.price_or_advantage || option.what_it_offers}
-                            </p>
-                            {providerSearchMode && (
-                              <div className="mt-2 rounded-[14px] border border-[#C7E9E3] bg-[#F0FDFA] px-3 py-2" data-testid={`panel-provider-result-fit-${optionKey}`}>
-                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0F766E]">
-                                  {isSpanish ? "Por que encaja" : "Why this fits"}
-                                </p>
-                                <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-1">
-                                  {option.why_good_option || option.trust_note || option.what_it_offers}
-                                </p>
-                                <p className="mt-1 font-body text-[12px] leading-relaxed text-vyva-text-2">
-                                  {option.distance_or_availability}
-                                </p>
-                              </div>
-                            )}
-                            <p className="mt-2 font-body text-[12px] leading-relaxed text-vyva-text-2">
-                              {option.trust_note}
-                            </p>
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              <button
-                                type="button"
-                                data-testid={`button-offer-score-details-${optionKey}`}
-                                onClick={() => setExpandedOfferScoreKey((current) => current === optionKey ? null : optionKey)}
-                                aria-expanded={scoreDetailsOpen}
-                                className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-[#E8DCCF] bg-[#FFFCF7] px-3 font-body text-[12px] font-semibold text-vyva-text-2"
-                              >
-                                {scoreDetailsOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
-                                {isSpanish ? "Detalles" : "Score details"}
-                              </button>
-                              <span className="inline-flex min-h-[34px] items-center rounded-full bg-[#FBF8F4] px-3 font-body text-[12px] text-vyva-text-2">
-                                {option.contact_method}
-                              </span>
-                            </div>
-                            {scoreDetailsOpen && (
-                              <div data-testid={`panel-offer-score-${optionKey}`} className="mt-3 rounded-[16px] border border-[#E8DCCF] bg-[#FFFCF7] p-3">
-                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                                  {isSpanish ? "Por que esta puntuacion" : "Why this score"}
-                                </p>
-                                <div className="mt-2 grid gap-2">
-                                  {offerScoreRows(option, isSpanish).map((row) => {
-                                    const score = clampScore(row.value);
-                                    return (
-                                      <div key={row.key} className="grid grid-cols-[minmax(82px,1fr)_minmax(80px,1.2fr)_34px] items-center gap-2">
-                                        <span className="font-body text-[12px] leading-tight text-vyva-text-2">{row.label}</span>
-                                        <span className="h-2 rounded-full bg-[#EFE7DB]">
-                                          <span className="block h-2 rounded-full bg-[#0A7C4E]" style={{ width: `${score}%` }} />
-                                        </span>
-                                        <span className="text-right font-body text-[12px] font-semibold text-vyva-text-1">{score}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {providerSearchMode ? (
-                                <Button
-                                  type="button"
-                                  onClick={() => handleProviderSearchAssistance(option)}
-                                  className="h-[44px] rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold hover:bg-vyva-purple/90"
-                                  data-testid={`button-provider-prepare-contact-${optionKey}`}
-                                >
-                                  <Send size={15} className="mr-2" />
-                                  {isSpanish ? "Preparar contacto" : "Ask VYVA to prepare contact"}
-                                </Button>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  onClick={() => handleOfferAssistance(option)}
-                                  data-testid={`button-offer-prepare-review-${optionKey}`}
-                                  className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
-                                >
-                                  <Send size={15} className="mr-2" />
-                                  {isSpanish ? "Que VYVA revise" : "Ask VYVA to review"}
-                                </Button>
-                              )}
-                              {!providerSearchMode && contactAvailable && (
-                                <span
-                                  data-testid={`badge-offer-contact-gated-${optionKey}`}
-                                  className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-[#F5F3FF] px-4 font-body text-[13px] font-bold text-vyva-purple"
-                                >
-                                  <ShieldCheck size={15} />
-                                  {isSpanish ? "Contacto tras tu OK" : "Contact after your OK"}
-                                </span>
-                              )}
-                              {!providerSearchMode && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => handleOfferWatch(option)}
-                                  className="h-[40px] rounded-full border-[#BBF7D0] bg-[#F0FDF4] px-4 font-body text-[13px] font-bold text-[#0A7C4E]"
-                                >
-                                  <BellRing size={15} className="mr-2" />
-                                  {isSpanish ? "Vigilar cambios" : "Watch changes"}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
+                      <div className="space-y-3">
+                        <ProviderComparisonPanel
+                          options={providerComparisonOptions}
+                          locale={locale}
+                          shortlistedIds={providerShortlistIds}
+                          shortlistSaved={Boolean(providerShortlistNotice)}
+                          shortlistSaving={providerShortlistMutation.isPending}
+                          onToggleShortlist={toggleProviderShortlist}
+                          onSaveShortlist={(options) => providerShortlistMutation.mutate(options)}
+                          onSaveProvider={handleSaveComparisonProvider}
+                          onPrepareContact={handlePrepareComparisonContact}
+                          onWatch={providerSearchMode ? undefined : (option) => {
+                            const comparisonIndex = providerComparisonOptions.findIndex((candidate) => candidate.id === option.id);
+                            const raw = comparisonIndex >= 0 ? offersResult.options[comparisonIndex] : undefined;
+                            if (raw) handleOfferWatch(raw);
+                          }}
+                        />
+                        {providerShortlistNotice && (
+                          <p
+                            data-testid="notice-provider-shortlist"
+                            className="rounded-lg border border-[#BFE7E1] bg-[#F0FDFA] px-3 py-2 font-body text-[13px] font-semibold text-[#0F766E]"
+                          >
+                            {providerShortlistNotice}
+                          </p>
+                        )}
+                        {providerShortlistError && (
+                          <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-body text-[13px] text-red-700">
+                            {providerShortlistError}
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     <p className="rounded-[16px] border border-vyva-border bg-white px-3 py-2 font-body text-[12px] leading-relaxed text-vyva-text-2">
