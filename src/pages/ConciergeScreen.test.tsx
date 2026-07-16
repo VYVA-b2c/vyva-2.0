@@ -3433,6 +3433,8 @@ describe("ConciergeScreen route prefill", () => {
           next_step: "Ask a trusted contact before replying.",
           reference: "SG-9",
           notes: "No upload or reply was sent.",
+          live_handoff_status: "needs_human_help",
+          live_handoff_outcome: "review_pending",
           completed_from: "manual_review_outcome_panel",
           no_external_action_without_confirmation: true,
         }),
@@ -3516,6 +3518,8 @@ describe("ConciergeScreen route prefill", () => {
           review_summary: "Compared the price, commitment, trust notes, and contact route.",
           next_step: "Ask the user before opening the provider website.",
           reference: "DEAL-7",
+          live_handoff_status: "completed",
+          live_handoff_outcome: "completed",
           completed_from: "manual_review_outcome_panel",
           no_external_action_without_confirmation: true,
         }),
@@ -3897,6 +3901,13 @@ describe("ConciergeScreen route prefill", () => {
 
     const checklist = await screen.findByTestId("panel-concierge-flow-checklist");
     expect(checklist).toHaveTextContent("Item needed");
+    const liveHandoff = screen.getByTestId("panel-concierge-live-handoff");
+    expect(liveHandoff).toHaveAttribute("data-state", "ready");
+    expect(screen.getByTestId("item-live-handoff-provider")).toHaveTextContent("Neighborhood Pharmacy");
+    expect(screen.getByTestId("item-live-handoff-contact")).toHaveTextContent("Phone call");
+    expect(screen.getByTestId("item-live-handoff-details")).toHaveTextContent("Item needed");
+    expect(screen.getByTestId("item-live-handoff-time")).toHaveTextContent("today");
+    expect(screen.getByTestId("item-live-handoff-confirmation")).toHaveAttribute("data-ready", "false");
 
     fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
 
@@ -4319,6 +4330,8 @@ describe("ConciergeScreen route prefill", () => {
           reference: "RT-42",
           pickup_address: "Saved home",
           destination_address: "City Clinic",
+          live_handoff_status: "completed",
+          live_handoff_outcome: "provider_confirmed",
           completed_from: "provider_reply_panel",
         }),
       });
@@ -4364,6 +4377,11 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
+    const liveHandoff = await screen.findByTestId("panel-concierge-live-handoff");
+    expect(liveHandoff).toHaveAttribute("data-state", "waiting");
+    expect(liveHandoff).toHaveTextContent("Waiting for provider");
+    expect(screen.getByTestId("item-live-handoff-provider")).toHaveTextContent("Clinica Lopez");
+    expect(screen.getByTestId("item-live-handoff-details")).toHaveTextContent("Reason needed");
     expect(await screen.findByTestId("panel-concierge-provider-reply")).toHaveTextContent("Provider reply");
     fireEvent.click(screen.getByTestId("button-provider-reply-confirmed-reply-appointment-1"));
     expect(screen.getByTestId("panel-provider-reply-confirmed-reply-appointment-1")).toHaveTextContent(
@@ -4412,6 +4430,8 @@ describe("ConciergeScreen route prefill", () => {
           reference: "AP-77",
           location: "Marbella",
           scheduled_event_id: "scheduled-appointment-reply",
+          live_handoff_status: "completed",
+          live_handoff_outcome: "provider_confirmed",
         }),
       });
     });
@@ -4459,6 +4479,11 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
+    const liveHandoff = await screen.findByTestId("panel-concierge-live-handoff");
+    expect(liveHandoff).toHaveAttribute("data-state", "waiting");
+    expect(liveHandoff).toHaveTextContent("Waiting for provider");
+    expect(screen.getByTestId("item-live-handoff-provider")).toHaveTextContent("Saved Plumber");
+    expect(screen.getByTestId("item-live-handoff-details")).toHaveTextContent("Leak under kitchen sink");
     expect(await screen.findByTestId("panel-concierge-provider-reply")).toHaveTextContent("Provider reply");
     fireEvent.click(screen.getByTestId("button-provider-reply-confirmed-reply-home-service-1"));
     expect(screen.getByTestId("panel-provider-reply-confirmed-reply-home-service-1")).toHaveTextContent(
@@ -4525,6 +4550,8 @@ describe("ConciergeScreen route prefill", () => {
           location: "Home kitchen",
           notes: "Caregiver will be home during the visit.",
           scheduled_event_id: "scheduled-home-reply",
+          live_handoff_status: "completed",
+          live_handoff_outcome: "provider_confirmed",
         }),
       });
     });
@@ -5114,6 +5141,8 @@ describe("ConciergeScreen route prefill", () => {
           email_subject: "Claim documents",
           reference: "CL-11",
           notes: "Sent from Gmail.",
+          live_handoff_status: "sent_or_called",
+          live_handoff_outcome: "email_sent",
           completed_from: "email_draft_outcome_panel",
           no_external_action_without_confirmation: true,
         }),
@@ -5175,6 +5204,8 @@ describe("ConciergeScreen route prefill", () => {
           email_outcome: "sent",
           provider_name: "Council Office",
           provider_email: "office@example.com",
+          live_handoff_status: "sent_or_called",
+          live_handoff_outcome: "email_sent",
           completed_from: "email_draft_outcome_panel",
           no_external_action_without_confirmation: true,
         }),
@@ -5287,6 +5318,8 @@ describe("ConciergeScreen route prefill", () => {
           recipient_whatsapp: "34600111222",
           reference: "OTC-77",
           notes: "Sent in WhatsApp.",
+          live_handoff_status: "sent_or_called",
+          live_handoff_outcome: "whatsapp_sent",
           completed_from: "whatsapp_draft_outcome_panel",
           no_external_action_without_confirmation: true,
         }),
@@ -5486,6 +5519,8 @@ describe("ConciergeScreen route prefill", () => {
           missing_fields: [],
           reference: "TF-88",
           notes: "Submitted for tomorrow evening.",
+          live_handoff_status: "sent_or_called",
+          live_handoff_outcome: "form_submitted",
           completed_from: "booking_form_support_panel",
           no_external_action_without_confirmation: true,
         }),
