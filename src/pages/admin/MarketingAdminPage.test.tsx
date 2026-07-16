@@ -4291,6 +4291,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-edit-form")).toHaveTextContent("Partner outreach AI campaign");
     expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("2 routes");
+    expect(screen.getByTestId("marketing-campaign-saved-run-sheets")).toHaveTextContent("Operator run sheets");
+    expect(screen.getByTestId("marketing-campaign-saved-run-sheet-list")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-saved-run-sheet-list")).toHaveTextContent("Email review and send");
+    expect(screen.getByTestId("marketing-campaign-saved-approval-pack")).toHaveTextContent("Approval brief");
+    expect(screen.getByTestId("button-marketing-copy-saved-run-sheet-linkedin")).toBeInTheDocument();
     expect((screen.getByTestId("textarea-marketing-campaign-saved-launch-packet") as HTMLTextAreaElement).value).toContain("VYVA campaign launch packet");
     expect((screen.getByTestId("textarea-marketing-campaign-saved-launch-packet") as HTMLTextAreaElement).value).toContain("Channel plan:");
   });

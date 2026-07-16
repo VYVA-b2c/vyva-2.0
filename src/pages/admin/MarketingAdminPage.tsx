@@ -16143,6 +16143,12 @@ export default function MarketingAdminPage() {
   const campaignSavedLaunchPacketFollowUps = hasTemplatePackLaunchPacket
     ? recordArray(campaignSavedLaunchPacket.followUpPlays)
     : recordArray(campaignStudioSavedLaunchKit.followUpPlays);
+  const campaignSavedLaunchPacketRunSheets = recordArray(campaignStudioSavedLaunchKit.publishingRunSheets);
+  const campaignSavedLaunchPacketApprovalPack = recordArray(campaignStudioSavedLaunchKit.approvalPack);
+  const campaignSavedLaunchPacketRunSheetText = campaignSavedLaunchPacketRunSheets
+    .map((item) => displayText(item.text))
+    .filter(Boolean)
+    .join("\n\n---\n\n");
   const campaignSavedLaunchPacketText = Object.keys(campaignSavedLaunchPacket).length
     ? launchPacketTextFromMetadata(campaignSavedLaunchPacket)
     : displayText(campaignStudioSavedLaunchKit.launchPacketText);
@@ -19429,6 +19435,88 @@ export default function MarketingAdminPage() {
                                 );
                               })}
                             </div>
+                            {campaignSavedLaunchPacketRunSheets.length || campaignSavedLaunchPacketApprovalPack.length ? (
+                              <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/60 p-3" data-testid="marketing-campaign-saved-run-sheets">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-sky-800">Operator run sheets</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-sky-900">Copy the exact route handoff for each channel without searching through the full packet.</p>
+                                  </div>
+                                  {campaignSavedLaunchPacketRunSheetText ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyCampaignHandoffText("Saved channel run sheets", campaignSavedLaunchPacketRunSheetText)}
+                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-3 text-xs font-black text-sky-800 hover:bg-sky-100"
+                                      data-testid="button-marketing-copy-saved-run-sheets"
+                                    >
+                                      <Copy size={14} /> Copy all run sheets
+                                    </button>
+                                  ) : null}
+                                </div>
+                                {campaignSavedLaunchPacketRunSheets.length ? (
+                                  <div className="mt-3 grid gap-2 xl:grid-cols-2" data-testid="marketing-campaign-saved-run-sheet-list">
+                                    {campaignSavedLaunchPacketRunSheets.map((runSheet, index) => {
+                                      const channel = displayText(runSheet.channel);
+                                      const typedChannel = CHANNELS.includes(channel as Channel) ? channel as Channel : null;
+                                      const runSheetText = displayText(runSheet.text);
+                                      return (
+                                        <div key={`${channel || "run-sheet"}-${index}`} className="rounded-lg border border-sky-100 bg-white p-3" data-testid={`marketing-campaign-saved-run-sheet-${channel || index}`}>
+                                          <div className="flex flex-wrap items-start justify-between gap-2">
+                                            <div>
+                                              <Pill className={typedChannel ? channelClass(typedChannel) : "bg-sky-50 text-sky-800"}>{displayText(runSheet.channelLabel) || channel || "Channel"}</Pill>
+                                              <p className="mt-2 text-sm font-black text-[#241133]">{displayText(runSheet.title) || "Publishing run sheet"}</p>
+                                            </div>
+                                            {runSheetText ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => void copyCampaignHandoffText(`${displayText(runSheet.channelLabel) || channel || "Channel"} run sheet`, runSheetText)}
+                                                className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-sky-700 px-2 text-[11px] font-black text-white hover:bg-sky-800"
+                                                data-testid={`button-marketing-copy-saved-run-sheet-${channel || index}`}
+                                              >
+                                                <Copy size={12} /> Copy
+                                              </button>
+                                            ) : null}
+                                          </div>
+                                          <p className="mt-2 text-xs font-bold leading-relaxed text-[#6f5f59]">{displayText(runSheet.detail) || displayText(runSheet.actionLabel) || "Review before launch."}</p>
+                                          <div className="mt-2 flex flex-wrap gap-2">
+                                            <Pill className="bg-sky-50 text-sky-800">{displayText(runSheet.format) || "Handoff"}</Pill>
+                                            <Pill className={readinessPillClass((displayText(runSheet.state) || "planning") as CampaignReadinessState)}>{readinessLabel((displayText(runSheet.state) || "planning") as CampaignReadinessState)}</Pill>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
+                                {campaignSavedLaunchPacketApprovalPack.length ? (
+                                  <div className="mt-3 grid gap-2 xl:grid-cols-2" data-testid="marketing-campaign-saved-approval-pack">
+                                    {campaignSavedLaunchPacketApprovalPack.map((item, index) => {
+                                      const approvalText = displayText(item.text);
+                                      return (
+                                        <div key={`${displayText(item.key) || "approval"}-${index}`} className="rounded-lg border border-emerald-100 bg-white p-3">
+                                          <div className="flex flex-wrap items-start justify-between gap-2">
+                                            <div>
+                                              <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">{displayText(item.format) || "Approval"}</p>
+                                              <p className="mt-1 text-sm font-black text-[#241133]">{displayText(item.title) || "Approval note"}</p>
+                                            </div>
+                                            {approvalText ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => void copyCampaignHandoffText(displayText(item.title) || "Approval note", approvalText)}
+                                                className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[11px] font-black text-emerald-800 hover:bg-emerald-100"
+                                                data-testid={`button-marketing-copy-saved-approval-${displayText(item.key) || index}`}
+                                              >
+                                                <Copy size={12} /> Copy
+                                              </button>
+                                            ) : null}
+                                          </div>
+                                          <p className="mt-2 text-xs font-bold leading-relaxed text-[#6f5f59]">{displayText(item.detail) || "Use before final launch."}</p>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
                             {campaignSavedLaunchPacketFollowUps.length ? (
                               <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
                                 Follow-up plays saved: {campaignSavedLaunchPacketFollowUps.map((item) => displayText(item.trigger)).filter(Boolean).join("; ")}
