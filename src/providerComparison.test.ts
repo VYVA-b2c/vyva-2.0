@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildProviderComparisonOptions,
+  buildProviderContactPayload,
+  buildProviderShortlistPayload,
+  buildTrustedProviderPrefill,
+} from "../shared/providerComparison";
+
+const sourceOptions = [
+  {
+    id: "clinic-1",
+    name: "Harbour Clinic",
+    category: "Doctor",
+    what_it_offers: "General appointments",
+    phone: "+34 600 111 222",
+    booking_url: "https://example.test/book",
+    source_label: "Regional health directory",
+    source_status: "verified" as const,
+    comparison: {
+      distance: { criterion: "distance" as const, value: "1.2 km", status: "verified" as const, source: "Map listing" },
+      price: { criterion: "price" as const, value: "First visit EUR 60", status: "reported" as const, source: "Provider website" },
+      reputation: { criterion: "reputation" as const, value: "4.6 from 120 reviews", status: "reported" as const, source: "Public reviews" },
+      availability: { criterion: "availability" as const, value: "Tuesday morning", status: "reported" as const, source: "Provider website" },
+      accessibility: { criterion: "accessibility" as const, value: null, status: "unknown" as const, source: null },
+      coverage: { criterion: "coverage" as const, value: null, status: "unknown" as const, source: null },
+    },
+  },
+  { name: "Second Clinic", category: "Doctor" },
+  { name: "Third Clinic", category: "Doctor" },
+  { name: "Fourth Clinic", category: "Doctor" },
+];
+
+describe("provider comparison contract", () => {
+  it("keeps at most three options and preserves explicit unknown facts", () => {
+    const options = buildProviderComparisonOptions(sourceOptions);
+
+    expect(options).toHaveLength(3);
+    expect(options[0].facts.distance).toMatchObject({ value: "1.2 km", status: "verified" });
+    expect(options[0].facts.accessibility).toMatchObject({ value: null, status: "unknown" });
+    expect(options[0].facts.coverage).toMatchObject({ value: null, status: "unknown" });
+    expect(options[0].whyMaySuitYou).toContain("1.2 km");
+  });
+
+  it("builds a saved shortlist without authorizing external action", () => {
+    const selected = buildProviderComparisonOptions(sourceOptions).slice(0, 2);
+    const payload = buildProviderShortlistPayload(selected, {
+      mode: "specialist",
+      query: "dermatologist nearby",
+      criteria: ["nearby", "coverage"],
+      flowReference: "CF_MEDICAL_APPOINTMENT",
+      resumeContext: { kind: "provider_search", mode: "specialist" },
+    });
+
+    expect(payload).toMatchObject({
+      task_type: "provider_shortlist",
+      shortlist_only: true,
+      selected_provider_names: ["Harbour Clinic", "Second Clinic"],
+      no_external_action_without_confirmation: true,
+      resume_context: { kind: "provider_search", mode: "specialist" },
+    });
+  });
+
+  it("requires final confirmation for contact and supports trusted-provider setup", () => {
+    const option = buildProviderComparisonOptions(sourceOptions)[0];
+    const contact = buildProviderContactPayload(option, { mode: "specialist" });
+    const prefill = buildTrustedProviderPrefill(option, "doctor_clinic");
+
+    expect(contact).toMatchObject({
+      task_type: "provider_contact_preparation",
+      provider_phone: "+34 600 111 222",
+      confirmation_required_before_action: true,
+      no_external_action_without_confirmation: true,
+      user_confirmed: false,
+    });
+    expect(prefill).toMatchObject({
+      name: "Harbour Clinic",
+      category: "doctor_clinic",
+      phone: "+34 600 111 222",
+      booking_url: "https://example.test/book",
+      can_contact_after_confirmation: true,
+    });
+  });
+});

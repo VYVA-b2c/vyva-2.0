@@ -38,17 +38,13 @@ describe("cross-app workflow completion audit", () => {
 
     expect(crossAppWorkflowAuditEntriesForStatus("partial").map((entry) => entry.id)).toEqual(
       expect.arrayContaining([
-        "health.show-vyva-review",
-        "scam-guard.review-router",
-        "concierge.care-provider-search",
+        "health.medication-research",
+        "learning.read-aloud",
+        "admin.content-management",
       ]),
     );
-    expect(crossAppWorkflowAuditEntriesForStatus("blocked_provider_setup").map((entry) => entry.id)).toEqual([
-      "providers.missing-provider-paths",
-    ]);
-    expect(crossAppWorkflowAuditEntriesForStatus("blocked_tool_setup").map((entry) => entry.id)).toEqual([
-      "tools.external-actions",
-    ]);
+    expect(crossAppWorkflowAuditEntriesForStatus("blocked_provider_setup")).toEqual([]);
+    expect(crossAppWorkflowAuditEntriesForStatus("blocked_tool_setup")).toEqual([]);
   });
 
   it("covers the required cross-app areas and surfaces", () => {
@@ -121,14 +117,12 @@ describe("cross-app workflow completion audit", () => {
 
   it("names the next implementation priorities in order", () => {
     expect(CROSS_APP_WORKFLOW_NEXT_IMPLEMENTATION_ORDER.map((item) => item.id)).toEqual([
-      "next.show-vyva-contract",
-      "next.provider-setup-return",
-      "next.external-action-gate",
-      "next.provider-search-summary",
+      "next.medication-research-sources",
       "next.learning-voice",
+      "next.admin-content-index",
     ]);
     expect(CROSS_APP_WORKFLOW_NEXT_IMPLEMENTATION_ORDER[0].auditEntryIds).toEqual(
-      expect.arrayContaining(["health.show-vyva-review", "scam-guard.review-router"]),
+      ["health.medication-research"],
     );
   });
 });
