@@ -3430,6 +3430,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-channels")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-reach")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-ai")).toHaveTextContent("0/1");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-path")).toHaveTextContent("Recommended launch path");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-goal")).toHaveTextContent("B2B partner introduction");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-audience")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-channels")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-templates")).toHaveTextContent("Template pack");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-templates")).toHaveTextContent("templates cover");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-templates")).toHaveTextContent("Load pack");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-plan")).toHaveTextContent("Create pack plan");
     expect(screen.getByTestId("button-marketing-campaign-studio-command-primary")).toHaveTextContent("Improve with AI");
     expect(screen.getByTestId("button-marketing-campaign-studio-command-secondary")).toHaveTextContent("Create now");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-command-copy-packet"));

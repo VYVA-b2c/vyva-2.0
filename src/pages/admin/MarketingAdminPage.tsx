@@ -721,6 +721,14 @@ type CampaignStudioLaunchStep = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type CampaignStudioLaunchPathItem = CampaignReadinessItem & {
+  value: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
 type CampaignPerformanceInsight = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -10371,6 +10379,97 @@ export default function MarketingAdminPage() {
   const bestContentTemplatePack = bestContentTemplateRecommendation
     ? contentTemplatePacksWithStats.find(({ pack }) => pack.templateIds.includes(bestContentTemplateRecommendation.template.id)) ?? null
     : null;
+  const bestCampaignStudioTemplatePack = campaignStudioTemplatePackRecommendations[0] ?? bestContentTemplatePack;
+  const campaignStudioLaunchPathItems: CampaignStudioLaunchPathItem[] = [
+    {
+      key: "goal",
+      title: "Goal",
+      value: campaignStudioGenerated.campaignName,
+      state: campaignIntentBrief.trim() ? "ready" : "planning",
+      detail: campaignIntentBrief.trim()
+        ? `Matched from the current brief: ${campaignIntentBrief.trim().slice(0, 92)}${campaignIntentBrief.trim().length > 92 ? "..." : ""}`
+        : `${selectedCampaignStudioPlay.label}: ${selectedCampaignStudioPlay.objective}`,
+      actionLabel: campaignIntentBrief.trim() ? "Refine brief" : "Pick quick idea",
+      icon: Sparkles,
+      onSelect: () => {
+        const intentNode = document.querySelector('[data-testid="textarea-marketing-campaign-intent"]');
+        if (intentNode instanceof HTMLElement && typeof intentNode.scrollIntoView === "function") {
+          intentNode.scrollIntoView({ behavior: "smooth", block: "center" });
+          intentNode.focus({ preventScroll: true });
+        }
+        setCampaignStudioFeedback(campaignIntentBrief.trim()
+          ? `Goal path is built around ${selectedCampaignStudioPlay.label}. Refine the brief or choose a goal preset to reshape it.`
+          : "Choose a goal preset or quick start, or describe the campaign in plain language.");
+      },
+    },
+    {
+      key: "audience",
+      title: "Audience",
+      value: selectedCampaignStudioTargetAudience?.name ?? `${campaignStudioAudiencePool.length} matched contacts`,
+      state: campaignStudioPackRecipientCount > 0 ? "ready" : campaignStudioAudiencePool.length > 0 ? "planning" : "blocked",
+      detail: selectedCampaignStudioTargetAudience
+        ? `${selectedCampaignStudioTargetAudience.mappedMemberCount}/${selectedCampaignStudioTargetAudience.memberCount} list members are mapped; ${campaignStudioPackRecipientCount} channel recipient snapshot${campaignStudioPackRecipientCount === 1 ? "" : "s"} can be prepared.`
+        : `${campaignStudioAudiencePool.length} contacts match the play without a saved audience list.`,
+      actionLabel: selectedCampaignStudioTargetAudience ? "Review list" : "Open contacts",
+      icon: UsersRound,
+      onSelect: () => campaignStudioLaunchSteps.find((step) => step.key === "audience")?.onSelect(),
+    },
+    {
+      key: "channels",
+      title: "Channels",
+      value: formatChannelList(campaignStudioSelectedChannels),
+      state: campaignStudioSelectedChannels.length ? "ready" : "blocked",
+      detail: campaignStudioSelectedChannels.length === campaignStudioRecommendedChannels.length
+        && campaignStudioRecommendedChannels.every((channel) => campaignStudioSelectedChannels.includes(channel))
+        ? "Using the recommended channel pack for this play."
+        : `Recommended route: ${formatChannelList(campaignStudioRecommendedChannels)}.`,
+      actionLabel: "Use recommended pack",
+      icon: Waypoints,
+      onSelect: () => {
+        applyCampaignStudioRecommendedPack();
+        setCampaignStudioFeedback(`Recommended channel pack applied: ${formatChannelList(campaignStudioRecommendedChannels)}.`);
+      },
+    },
+    {
+      key: "templates",
+      title: "Template pack",
+      value: bestCampaignStudioTemplatePack?.pack.title ?? `${contentTemplateRecommendations.length} template match${contentTemplateRecommendations.length === 1 ? "" : "es"}`,
+      state: bestCampaignStudioTemplatePack ? bestCampaignStudioTemplatePack.state : contentTemplateRecommendations.length ? "planning" : "needs_action",
+      detail: bestCampaignStudioTemplatePack
+        ? `${bestCampaignStudioTemplatePack.templates.length} templates cover ${formatChannelList(bestCampaignStudioTemplatePack.channels)} for this campaign route.`
+        : "No full pack is selected yet. Review template matches or improve drafts with AI.",
+      actionLabel: bestCampaignStudioTemplatePack ? "Load pack" : "Review templates",
+      icon: FileText,
+      onSelect: () => {
+        if (bestCampaignStudioTemplatePack) {
+          loadContentTemplatePackInStudio(bestCampaignStudioTemplatePack.pack, bestCampaignStudioTemplatePack.heroTemplate, bestCampaignStudioTemplatePack.channels);
+          return;
+        }
+        setActiveTab("content");
+        setContentTemplateSearch(selectedCampaignStudioPlay.label);
+        setContentActionFeedback(`Reviewing templates for ${selectedCampaignStudioPlay.label}.`);
+      },
+    },
+    {
+      key: "plan",
+      title: "Campaign plan",
+      value: bestCampaignStudioTemplatePack ? "One-click pack plan" : "Studio campaign record",
+      state: campaignStudioCreateDisabled ? "blocked" : bestCampaignStudioTemplatePack ? "ready" : "planning",
+      detail: bestCampaignStudioTemplatePack
+        ? `Create a linked campaign plan with ${bestCampaignStudioTemplatePack.templates.length} content assets, ${bestCampaignStudioTemplatePack.channels.length} channel route${bestCampaignStudioTemplatePack.channels.length === 1 ? "" : "s"}, and saved launch packet metadata.`
+        : "Create from the current studio draft, or load a template pack first for a richer launch plan.",
+      actionLabel: bestCampaignStudioTemplatePack ? "Create pack plan" : "Create from studio",
+      icon: CalendarDays,
+      disabled: bestCampaignStudioTemplatePack ? campaignSaving || contentSaving : campaignStudioCreateDisabled,
+      onSelect: () => {
+        if (bestCampaignStudioTemplatePack) {
+          void createCampaignPlanFromTemplatePack(bestCampaignStudioTemplatePack.pack, bestCampaignStudioTemplatePack.templates, bestCampaignStudioTemplatePack.heroTemplate);
+          return;
+        }
+        void createCampaignAndContentFromStudio();
+      },
+    },
+  ];
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
   const selectedCampaignTargetAudience = useMemo(
@@ -15427,6 +15526,46 @@ export default function MarketingAdminPage() {
                             <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-launch-path">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Recommended launch path</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Follow the campaign from goal to audience, channels, templates, and saved plan without leaving the studio.</p>
+                          </div>
+                          <Pill className={readinessPillClass(campaignStudioCommandCenterState)}>{readinessLabel(campaignStudioCommandCenterState)}</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 xl:grid-cols-5">
+                          {campaignStudioLaunchPathItems.map((item, index) => {
+                            const Icon = item.icon;
+                            return (
+                              <button
+                                key={item.key}
+                                type="button"
+                                onClick={item.onSelect}
+                                disabled={item.disabled}
+                                className={`min-h-[174px] rounded-xl border p-3 text-left transition focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)} ${item.disabled ? "" : "hover:border-purple-300 hover:shadow-sm"}`}
+                                data-testid={`button-marketing-campaign-studio-launch-path-${item.key}`}
+                              >
+                                <span className="flex items-start justify-between gap-2">
+                                  <span className="inline-flex items-center gap-2">
+                                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-white shadow-sm">
+                                      <Icon size={15} aria-hidden="true" />
+                                    </span>
+                                    <span className="text-xs font-black uppercase tracking-[0.1em] opacity-75">Path {index + 1}</span>
+                                  </span>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </span>
+                                <span className="mt-3 block text-[11px] font-black uppercase tracking-[0.08em] opacity-75">{item.title}</span>
+                                <span className="mt-1 block font-black text-[#241133]">{item.value}</span>
+                                <span className="mt-2 line-clamp-3 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                                <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                                  {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
