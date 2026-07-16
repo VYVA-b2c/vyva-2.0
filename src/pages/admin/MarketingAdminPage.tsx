@@ -4264,6 +4264,103 @@ function contentTemplateDesignBrief(template: ContentTemplate) {
   };
 }
 
+const templatePreviewFallbackPalettes: Record<Channel, string[]> = {
+  email: ["#6d28d9", "#fff7ed", "#10b981"],
+  whatsapp: ["#059669", "#ecfdf5", "#6d28d9"],
+  sms: ["#2563eb", "#eff6ff", "#6d28d9"],
+  phone: ["#7c2d12", "#fff7ed", "#f59e0b"],
+  print: ["#241133", "#f5eee8", "#8b5cf6"],
+  event: ["#0f766e", "#ecfeff", "#f59e0b"],
+  facebook: ["#2563eb", "#eff6ff", "#6d28d9"],
+  instagram: ["#db2777", "#fdf2f8", "#f59e0b"],
+  linkedin: ["#0369a1", "#e0f2fe", "#6d28d9"],
+  tiktok: ["#111827", "#f9fafb", "#db2777"],
+};
+
+function safeTemplatePreviewColor(value: unknown, fallback: string) {
+  const text = displayText(value);
+  return /^#[0-9a-fA-F]{6}$/.test(text) ? text : fallback;
+}
+
+function contentTemplatePreviewPalette(template: ContentTemplate) {
+  const design = recordValue(template.designJson);
+  const fallback = templatePreviewFallbackPalettes[template.channel];
+  const palette = Array.isArray(design.palette)
+    ? design.palette
+      .map((value, index) => safeTemplatePreviewColor(value, fallback[index] ?? fallback[0]))
+      .filter(Boolean)
+    : [];
+  return [...palette, ...fallback].slice(0, 3);
+}
+
+function contentTemplatePreviewLines(template: ContentTemplate, designBrief: ReturnType<typeof contentTemplateDesignBrief>) {
+  const structureLines = (designBrief.structure?.items ?? []).slice(0, 2);
+  return [
+    template.subject,
+    firstMeaningfulPreviewLine(template.body || template.description),
+    ...structureLines,
+    template.ctaLabel ? `CTA: ${template.ctaLabel}` : "",
+  ].filter(Boolean).slice(0, 5);
+}
+
+function ContentTemplateVisualPreview({
+  template,
+  designBrief,
+}: {
+  template: ContentTemplate;
+  designBrief: ReturnType<typeof contentTemplateDesignBrief>;
+}) {
+  const design = recordValue(template.designJson);
+  const layout = displayText(design.layout) || `${channelLabel[template.channel]} layout`;
+  const palette = contentTemplatePreviewPalette(template);
+  const lines = contentTemplatePreviewLines(template, designBrief);
+  const visualCue = designBrief.visual || displayText(design.visualPrompt) || displayText(design.proofPoint) || template.description;
+  const headline = template.subject || `${channelLabel[template.channel]} starter`;
+
+  return (
+    <div
+      className="mt-3 overflow-hidden rounded-xl border border-purple-100 bg-[#fffaf4] shadow-sm"
+      data-testid={`marketing-content-template-visual-preview-${template.id}`}
+    >
+      <div
+        className="h-2"
+        style={{ background: `linear-gradient(90deg, ${palette[0]}, ${palette[1]}, ${palette[2]})` }}
+        aria-hidden="true"
+      />
+      <div className="grid gap-3 p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-[11px] font-black uppercase tracking-[0.1em] text-purple-700">{layout}</p>
+            <p className="mt-1 line-clamp-2 text-sm font-black leading-snug text-[#241133]">{headline}</p>
+          </div>
+          <div className="flex shrink-0 gap-1" data-testid={`marketing-content-template-palette-${template.id}`}>
+            {palette.map((color) => (
+              <span
+                key={color}
+                className="h-5 w-5 rounded-full border border-white shadow-sm"
+                style={{ backgroundColor: color }}
+                aria-label={`Template color ${color}`}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-1.5" data-testid={`marketing-content-template-preview-lines-${template.id}`}>
+          {lines.map((line, index) => (
+            <p key={`${template.id}-preview-line-${index}`} className={`rounded-lg px-3 py-2 text-xs font-bold leading-relaxed ${index === 0 ? "bg-white text-[#241133]" : "bg-[#fbf7f2] text-[#6f5f59]"}`}>
+              {line}
+            </p>
+          ))}
+        </div>
+        {visualCue ? (
+          <p className="line-clamp-2 rounded-lg border border-purple-100 bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#6f5f59]">
+            Visual: {visualCue}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function contentAssetMatchesTemplatePack(content: ContentAsset, pack: ContentTemplatePack, template: ContentTemplate) {
   if (content.channel !== template.channel || content.status === "archived") return false;
   const metadata = recordValue(content.metadata);
@@ -19933,6 +20030,7 @@ export default function MarketingAdminPage() {
                             <Pill className="bg-[#f5eee8] text-[#5b4a46]">{template.audienceType.toUpperCase()}</Pill>
                             <Pill className="bg-amber-50 text-amber-800">{template.category}</Pill>
                           </div>
+                          <ContentTemplateVisualPreview template={template} designBrief={designBrief} />
                           <h3 className="mt-3 font-serif text-xl text-[#241133]">{template.title}</h3>
                           <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{template.description}</p>
                           {template.subject ? (

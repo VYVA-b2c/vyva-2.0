@@ -1722,9 +1722,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event host handoff brief");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("62 templates");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
+    expect(screen.getByTestId("marketing-content-template-palette-caregiver-email-welcome").querySelectorAll("span")).toHaveLength(3);
     expect(screen.getByTestId("marketing-content-template-design-brief-caregiver-email-welcome")).toHaveTextContent("Layout: email-card");
     expect(screen.getByTestId("marketing-content-template-design-brief-caregiver-email-welcome")).toHaveTextContent("Blocks: Care team access");
     expect(screen.getByTestId("marketing-content-template-design-brief-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-instagram-trust-carousel")).toHaveTextContent("instagram-proof-carousel");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-instagram-trust-carousel")).toHaveTextContent("What changed today?");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-instagram-trust-carousel")).toHaveTextContent("Visual: warm illustrated care loop");
     expect(screen.getByTestId("marketing-content-template-design-brief-instagram-trust-carousel")).toHaveTextContent("Layout: instagram-proof-carousel");
     expect(screen.getByTestId("marketing-content-template-design-brief-instagram-trust-carousel")).toHaveTextContent("Visual: warm illustrated care loop");
     expect(screen.getByTestId("marketing-content-template-design-brief-instagram-trust-carousel")).toHaveTextContent("Slides: What changed today?");
