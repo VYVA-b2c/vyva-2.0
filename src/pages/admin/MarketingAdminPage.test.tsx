@@ -1895,6 +1895,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
     expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("Phone call B2C starter");
     expect(screen.getByTestId("marketing-template-gap-phone-b2c")).toHaveTextContent("AI starter prompt");
+    expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("AI coverage autopilot");
+    expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Phone call B2C starter");
+    expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Next batch: 4 AI drafts");
+    expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("Phone call B2C 0/3");
+    expect(screen.getByTestId("button-marketing-template-gap-autopilot-generate")).toHaveTextContent("Generate next pack");
+    expect(screen.getByTestId("button-marketing-template-gap-autopilot-studio")).toHaveTextContent("Open top gap in studio");
     expect(screen.getByTestId("marketing-template-gap-pack")).toHaveTextContent("Build a starter pack");
     expect(screen.getByTestId("button-marketing-template-gap-pack-ai")).toHaveTextContent("Draft top 4 with AI");
 

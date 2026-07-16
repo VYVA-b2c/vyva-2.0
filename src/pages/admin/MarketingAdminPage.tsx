@@ -7770,6 +7770,20 @@ export default function MarketingAdminPage() {
     }),
   })), []);
   const contentTemplateGapSuggestions = useMemo(() => templateGapSuggestionsFor(contentTemplateGallery), []);
+  const contentTemplateGapAutopilot = useMemo(() => {
+    const batch = contentTemplateGapSuggestions.slice(0, TEMPLATE_GAP_BATCH_LIMIT);
+    const totalMissing = contentTemplateGapSuggestions.reduce((sum, suggestion) => (
+      sum + Math.max(suggestion.coverageTarget - suggestion.existingCount, 0)
+    ), 0);
+    const batchMissing = batch.reduce((sum, suggestion) => (
+      sum + Math.max(suggestion.coverageTarget - suggestion.existingCount, 0)
+    ), 0);
+    const batchChannels = uniqueChannels(batch.map((suggestion) => suggestion.channel));
+    const batchAudiences = Array.from(new Set(batch.map((suggestion) => suggestion.audienceType)));
+    const topSuggestion = batch[0] ?? null;
+    const state: CampaignReadinessState = topSuggestion ? "needs_action" : "ready";
+    return { batch, totalMissing, batchMissing, batchChannels, batchAudiences, topSuggestion, state };
+  }, [contentTemplateGapSuggestions]);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
   const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
@@ -18827,6 +18841,60 @@ export default function MarketingAdminPage() {
                 subtitle="Suggested starter drafts for weak channel or audience coverage."
                 action={<Pill className="bg-amber-50 text-amber-800">{contentTemplateGapSuggestions.length} suggestions</Pill>}
               >
+                <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${readinessClass(contentTemplateGapAutopilot.state)}`} data-testid="marketing-template-gap-autopilot">
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-center">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill className="bg-white text-purple-800">AI coverage autopilot</Pill>
+                        <Pill className={readinessPillClass(contentTemplateGapAutopilot.state)}>{readinessLabel(contentTemplateGapAutopilot.state)}</Pill>
+                        {contentTemplateGapAutopilot.batch.length ? (
+                          <Pill className="bg-white text-[#5b4a46]">Next batch: {contentTemplateGapAutopilot.batch.length} AI drafts</Pill>
+                        ) : null}
+                      </div>
+                      <h3 className="mt-2 font-serif text-xl text-[#241133]">
+                        {contentTemplateGapAutopilot.topSuggestion
+                          ? `Fill ${contentTemplateGapAutopilot.batchMissing} missing template slots next`
+                          : "Template coverage is balanced"}
+                      </h3>
+                      <p className="mt-1 max-w-4xl text-sm font-bold leading-relaxed text-[#6f5f59]">
+                        {contentTemplateGapAutopilot.topSuggestion
+                          ? `Start with ${contentTemplateGapAutopilot.topSuggestion.title}, then generate a practical pack for ${formatChannelList(contentTemplateGapAutopilot.batchChannels)} across ${contentTemplateGapAutopilot.batchAudiences.map((audience) => audience.toUpperCase()).join(" and ")} audiences. ${contentTemplateGapAutopilot.totalMissing} high-priority reusable template slot${contentTemplateGapAutopilot.totalMissing === 1 ? "" : "s"} remain in the top coverage scan.`
+                          : "The reusable gallery has enough channel and audience coverage for the current target. Use the matchmaker or campaign studio to adapt the best starter."}
+                      </p>
+                      {contentTemplateGapAutopilot.topSuggestion ? (
+                        <div className="mt-3 flex flex-wrap gap-2" data-testid="marketing-template-gap-autopilot-batch">
+                          {contentTemplateGapAutopilot.batch.map((suggestion) => (
+                            <Pill key={suggestion.id} className={channelClass(suggestion.channel)}>
+                              {channelLabel[suggestion.channel]} {suggestion.audienceType.toUpperCase()} {suggestion.existingCount}/{suggestion.coverageTarget}
+                            </Pill>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void generateTemplateGapPack()}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        disabled={!contentTemplateGapAutopilot.batch.length || contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
+                        data-testid="button-marketing-template-gap-autopilot-generate"
+                      >
+                        <Sparkles size={16} /> {templateGapPackRunning ? "Creating pack..." : "Generate next pack"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (contentTemplateGapAutopilot.topSuggestion) openTemplateGapInCampaignStudio(contentTemplateGapAutopilot.topSuggestion);
+                        }}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f2edf2] disabled:text-[#8d7d8d]"
+                        disabled={!contentTemplateGapAutopilot.topSuggestion || contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
+                        data-testid="button-marketing-template-gap-autopilot-studio"
+                      >
+                        <Zap size={14} /> Open top gap in studio
+                      </button>
+                    </div>
+                  </div>
+                </div>
                 {contentTemplateGapSuggestions.length ? (
                   <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-purple-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between" data-testid="marketing-template-gap-pack">
                     <div>
