@@ -1729,7 +1729,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Daily routine activation email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Routine reminder SMS");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("68 templates");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("75 templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -1784,6 +1784,31 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Monthly care digest");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
+    expect(screen.getByTestId("marketing-template-pack-care-transition-support")).toHaveTextContent("Care transition support");
+    expect(screen.getByTestId("marketing-template-pack-care-transition-support")).toHaveTextContent("7 templates");
+    expect(screen.getByTestId("marketing-template-pack-care-transition-support")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-care-transition-support"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Care transition support template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care transition checklist email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care transition phone follow-up script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable care transition handoff");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-care-transition-support")).toHaveTextContent("Transition checklist");
+    expect(screen.getByTestId("marketing-template-pack-sequence-care-transition-support")).toHaveTextContent("Follow-up call");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-care-transition-support"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Care transition support");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Phone call");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Care transition support pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("Trust and review");
     expect(screen.getByTestId("marketing-template-pack-trust-and-review")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-trust-and-review"));
@@ -1963,7 +1988,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("13");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("14");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("8");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
@@ -1976,9 +2001,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("Phone call B2C starter");
     expect(screen.getByTestId("marketing-template-gap-phone-b2c")).toHaveTextContent("AI starter prompt");
     expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("AI coverage autopilot");
-    expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Phone call B2C starter");
+    expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Phone call B2C 1/3");
     expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Next batch: 4 AI drafts");
-    expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("Phone call B2C 0/3");
+    expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("Phone call B2C 1/3");
     expect(screen.getByTestId("button-marketing-template-gap-autopilot-generate")).toHaveTextContent("Generate next pack");
     expect(screen.getByTestId("button-marketing-template-gap-autopilot-studio")).toHaveTextContent("Open top gap in studio");
     expect(screen.getByTestId("marketing-template-gap-pack")).toHaveTextContent("Build a starter pack");
@@ -3549,7 +3574,7 @@ describe("MarketingAdminPage", () => {
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("All plays");
-    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("25");
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("26");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Best next campaigns from your data");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Event reminder");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-playbook-event-reminder"));
@@ -3864,6 +3889,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-intent-brief")).toHaveTextContent("Tell VYVA what you want to run");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Grow partner pipeline");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Build clinic referral path");
+    expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Support care transition");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Reactivate quiet families");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Pack: Care confidence reactivation");
     expect(screen.getByTestId("button-marketing-campaign-goal-grow-partner-pipeline")).toHaveTextContent("Ready");
@@ -3875,6 +3901,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Partner webinar");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Clinic referral");
+    expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Care transition");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Routine activation");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-goal-reactivate-quiet-families"));
@@ -3926,6 +3953,20 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Clinic referral pathway");
     expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-intent-quick-care-transition"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Quick idea matched to Care transition support");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-recommendations")).toHaveTextContent("Care transition support");
+    expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain("care transition campaign");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("SMS");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Phone call");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Care transition support");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("both");
     expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
 
     fireEvent.change(screen.getByTestId("textarea-marketing-campaign-intent"), {

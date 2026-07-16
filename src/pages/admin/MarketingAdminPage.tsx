@@ -1421,6 +1421,23 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     ctaUrl: "https://v2.vyva.life/profile",
   },
   {
+    id: "care-transition-support",
+    categoryId: "education",
+    label: "Care transition support",
+    brief: "Guide families and providers through the first days after discharge or a care change.",
+    audienceType: "both",
+    defaultChannel: "email",
+    targetListHints: ["discharge", "hospital", "rehab", "transition", "care change", "clinic", "family", "provider", "handoff"],
+    scheduleDaysFromNow: 1,
+    campaignName: "Care transition support",
+    contentTitle: "Care transition support",
+    objective: "Give families and providers a calm follow-up path after discharge or a care change: what to check, who to update, and when to ask for help.",
+    subject: "A simple follow-up path after the care change",
+    body: "Hi {{first_name}},\n\nThe first few days after a hospital visit, rehab stay, or care change can feel scattered. VYVA helps turn the next steps into a visible routine: confirm the profile, note medication or support changes, and make sure the right family or provider contact is updated.\n\nStart with the care transition checklist and keep the follow-up simple.",
+    ctaLabel: "Open transition checklist",
+    ctaUrl: "https://v2.vyva.life/profile",
+  },
+  {
     id: "b2b-partner-outreach",
     categoryId: "partner",
     label: "Partner outreach",
@@ -1836,6 +1853,13 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     channels: ["email", "whatsapp", "linkedin", "facebook", "instagram", "tiktok"],
   },
   {
+    id: "care-transition",
+    title: "Care transition",
+    detail: "Discharge checklist, family nudge, direct reminder, and provider handoff.",
+    brief: "Create a care transition campaign after hospital discharge, rehab, or a major care change by email, WhatsApp, SMS, phone, print, LinkedIn, and Facebook. Keep it calm, practical, consent-aware, and focused on the first 72 hours.",
+    channels: ["email", "whatsapp", "sms", "phone", "print", "linkedin", "facebook"],
+  },
+  {
     id: "local-event",
     title: "Local event",
     detail: "Local activity campaign with public post, direct reminder, and follow-up.",
@@ -1887,6 +1911,17 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     toneId: "expert",
     angleId: "proof",
     templatePackId: "clinic-pharmacy-referral",
+  },
+  {
+    id: "care-transition-support",
+    title: "Support care transition",
+    outcome: "Follow-up clarity",
+    detail: "Guide families and providers through the first days after discharge or a care change.",
+    brief: "Create a care transition support campaign after hospital discharge, rehab, or a major care change by email, WhatsApp, SMS, phone, print, LinkedIn, and Facebook. Focus on the first 72 hours, medication/support changes, family updates, and one clear follow-up owner.",
+    channels: ["email", "whatsapp", "sms", "phone", "print", "linkedin", "facebook"],
+    toneId: "warm",
+    angleId: "action",
+    templatePackId: "care-transition-support",
   },
   {
     id: "reactivate-quiet-families",
@@ -4058,6 +4093,161 @@ const contentTemplateGallery: ContentTemplate[] = [
     },
     mediaAssets: [],
   },
+  {
+    id: "email-care-transition-checklist",
+    title: "Care transition checklist email",
+    category: "Care transition",
+    audienceType: "both",
+    channel: "email",
+    description: "A calm email that turns discharge or care-change follow-up into one visible checklist.",
+    subject: "A simple follow-up path after the care change",
+    body: "Hi {{first_name}},\n\nThe first few days after a hospital visit, rehab stay, or care change can feel scattered. VYVA helps make the follow-up visible: confirm the profile, record medication or support changes, and make sure the right family or provider contact is updated.\n\nStart with the care transition checklist. One clear route is easier than five separate messages.",
+    htmlBody: "<h1>A simple follow-up path</h1><p>Confirm the profile, record medication or support changes, and make sure the right contact is updated.</p>",
+    ctaLabel: "Open transition checklist",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "email-care-transition-checklist",
+      category: "Care transition",
+      layout: "email-care-transition-checklist",
+      mergeFields: ["first_name"],
+      blocks: [
+        { type: "eyebrow", text: "Care transition" },
+        { type: "headline", text: "The first 72 hours need one clear route" },
+        { type: "checklist", items: ["Confirm profile", "Record changes", "Update family/provider contact"] },
+        { type: "cta", label: "Open transition checklist" },
+      ],
+      visualPrompt: "warm care transition checklist email with clear first 72 hours cards and VYVA purple accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "whatsapp-care-transition-family-nudge",
+    title: "Care transition WhatsApp nudge",
+    category: "Care transition",
+    audienceType: "b2c",
+    channel: "whatsapp",
+    description: "A short WhatsApp nudge for families after discharge, rehab, or a care change.",
+    subject: "",
+    body: "Hi {{first_name}}, quick VYVA step after the care change: confirm the profile, note any medication/support changes, and choose who should get updates. Reply if you need help.",
+    ctaLabel: "Open VYVA",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "whatsapp-care-transition-family-nudge",
+      category: "Care transition",
+      layout: "whatsapp-transition-nudge",
+      tone: "warm-direct",
+      replyOptions: ["done", "need help", "later"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "sms-care-transition-reminder",
+    title: "Care transition SMS reminder",
+    category: "Care transition",
+    audienceType: "b2c",
+    channel: "sms",
+    description: "A compact opted-in SMS reminder for the first days after a care change.",
+    subject: "",
+    body: "VYVA follow-up: confirm profile, note care changes, and choose update contacts. Start here: https://v2.vyva.life/profile",
+    ctaLabel: "Open profile",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "sms-care-transition-reminder",
+      category: "Care transition",
+      layout: "sms-transition-reminder",
+      maxCharacters: 160,
+      complianceNotes: ["Use only for opted-in SMS contacts.", "Do not include clinical instructions or urgent medical advice."],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "phone-care-transition-followup-script",
+    title: "Care transition phone follow-up script",
+    category: "Care transition",
+    audienceType: "both",
+    channel: "phone",
+    description: "A calm call script for checking whether a family or provider has the right follow-up route.",
+    subject: "",
+    body: "Opener: Hi {{first_name}}, I am calling from VYVA to make sure the care transition follow-up is clear.\n\nQuestion 1: Has anything changed since the hospital, rehab, or care update that the family should capture?\nQuestion 2: Who should receive the next update?\nQuestion 3: Would a simple profile/checklist link help the family stay aligned?\n\nClose: I will send the checklist and note the preferred follow-up owner.",
+    ctaLabel: "Send checklist",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "phone-care-transition-followup-script",
+      category: "Care transition",
+      layout: "phone-script",
+      callStages: ["opener", "change check", "owner check", "checklist offer", "outcome note"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "print-care-transition-handoff",
+    title: "Printable care transition handoff",
+    category: "Care transition",
+    audienceType: "both",
+    channel: "print",
+    description: "A one-page handoff for clinics, pharmacies, families, or discharge desks.",
+    subject: "",
+    body: "Headline: One clear follow-up route after a care change.\n\nUse VYVA to help families capture the practical next steps: profile details, medication/support changes, key contacts, and reminders.\n\nHandoff steps:\n1. Open the VYVA profile.\n2. Confirm what changed.\n3. Choose who receives updates.\n4. Save the next follow-up owner.",
+    ctaLabel: "Open VYVA checklist",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "print-care-transition-handoff",
+      category: "Care transition",
+      layout: "one-page-print-handoff",
+      blocks: [
+        { type: "headline", text: "One clear follow-up route after a care change" },
+        { type: "steps", items: ["Open profile", "Confirm changes", "Choose update contacts", "Save owner"] },
+      ],
+      visualPrompt: "printable care transition one-pager with checklist, family/provider handoff, and VYVA purple accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "linkedin-care-transition-partner-note",
+    title: "Care transition partner LinkedIn note",
+    category: "Care transition",
+    audienceType: "b2b",
+    channel: "linkedin",
+    description: "A provider-facing LinkedIn post about reducing confusion after discharge or a care change.",
+    subject: "",
+    body: "The handoff after discharge, rehab, or a care change is often where families feel most alone.\n\nVYVA is building a practical follow-up layer: visible profile details, family update routes, reminders, and clearer next ownership.\n\nFor clinics, pharmacies, and local providers, the value is simple: help families leave the conversation with a route they can actually follow.",
+    ctaLabel: "Discuss care transitions",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "linkedin-care-transition-partner-note",
+      category: "Care transition",
+      layout: "linkedin-care-transition-note",
+      proofPoint: "clear follow-up ownership after care changes",
+      visualPrompt: "professional care transition workflow showing provider handoff, family update route, and follow-up owner",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "facebook-care-transition-family-proof",
+    title: "Care transition Facebook proof post",
+    category: "Care transition",
+    audienceType: "both",
+    channel: "facebook",
+    description: "A community-facing post about making the first days after a care change easier to follow.",
+    subject: "",
+    body: "After a hospital visit, rehab stay, or care change, families often ask the same thing: what do we do first?\n\nA simple checklist can reduce the back-and-forth: confirm the profile, record changes, choose update contacts, and agree the next owner.\n\nVYVA helps make that follow-up visible.",
+    ctaLabel: "See the checklist",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "facebook-care-transition-family-proof",
+      category: "Care transition",
+      layout: "facebook-care-transition-proof",
+      visualPrompt: "community Facebook post showing family care checklist after a hospital or rehab transition",
+    },
+    mediaAssets: [],
+  },
 ];
 
 const contentTemplatePacks: ContentTemplatePack[] = [
@@ -4109,6 +4299,35 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day 7", channel: "linkedin", title: "Partner operations note", detail: "Frame monthly updates as a partner-ready operating rhythm.", templateId: "linkedin-monthly-care-operations-note" },
     ],
     aiPrompt: "Adapt this monthly care digest pack for one audience segment, one market, and one month. Use real VYVA signal categories where available, stay non-clinical, and turn the update into a family email, reply prompt, social proof, and partner operations note.",
+  },
+  {
+    id: "care-transition-support",
+    title: "Care transition support",
+    focus: "Give families and providers a clear first-72-hours route after discharge, rehab, or a care change.",
+    description: "A seven-channel pack for discharge follow-up, family nudges, direct reminders, phone scripts, printable handoffs, partner posts, and community proof.",
+    templateIds: [
+      "email-care-transition-checklist",
+      "whatsapp-care-transition-family-nudge",
+      "sms-care-transition-reminder",
+      "phone-care-transition-followup-script",
+      "print-care-transition-handoff",
+      "linkedin-care-transition-partner-note",
+      "facebook-care-transition-family-proof",
+    ],
+    heroTemplateId: "email-care-transition-checklist",
+    studioPlayId: "care-transition-support",
+    toneId: "warm",
+    angleId: "action",
+    sequence: [
+      { offset: "Day 0", channel: "print", title: "Handoff sheet", detail: "Prepare the one-page checklist for the family, clinic, pharmacy, or discharge desk.", templateId: "print-care-transition-handoff" },
+      { offset: "Day 0", channel: "email", title: "Transition checklist", detail: "Send the practical follow-up route with profile, changes, contacts, and owner.", templateId: "email-care-transition-checklist" },
+      { offset: "Day 1", channel: "whatsapp", title: "Family nudge", detail: "Prompt the first profile/update step and invite a simple reply.", templateId: "whatsapp-care-transition-family-nudge" },
+      { offset: "Day 2", channel: "sms", title: "Direct reminder", detail: "Send a compact reminder only to opted-in SMS contacts.", templateId: "sms-care-transition-reminder" },
+      { offset: "Day 3", channel: "phone", title: "Follow-up call", detail: "Check whether changes, update contacts, and next owner are clear.", templateId: "phone-care-transition-followup-script" },
+      { offset: "Day 5", channel: "linkedin", title: "Provider pathway", detail: "Explain the partner value of a cleaner care-transition handoff.", templateId: "linkedin-care-transition-partner-note" },
+      { offset: "Day 7", channel: "facebook", title: "Community proof", detail: "Make the care-transition checklist understandable to families and local partners.", templateId: "facebook-care-transition-family-proof" },
+    ],
+    aiPrompt: "Adapt this care transition support pack for a specific discharge, rehab, or care-change moment. Keep it non-clinical and consent-aware, define the first 72 hours, clarify family/provider handoff ownership, and produce email, WhatsApp, SMS, phone, print, LinkedIn, and Facebook copy.",
   },
   {
     id: "partner-growth",
@@ -6073,6 +6292,10 @@ function campaignIntentPlay(brief: string) {
   if (campaignIntentHasAny(text, ["monthly", "newsletter", "digest", "roundup", "report", "summary"])) return campaignStudioPlayById("monthly-care-digest");
   if (campaignIntentHasAny(text, ["webinar", "session", "demo", "professional session"])) return campaignStudioPlayById("partner-webinar");
   if (
+    campaignIntentHasAny(text, ["discharge", "hospital", "rehab", "care transition", "transition support", "post-discharge", "post discharge", "care change"])
+    || (campaignIntentHasAny(text, ["first 72 hours", "72 hours"]) && campaignIntentHasAny(text, ["follow-up", "follow up", "provider", "family"]))
+  ) return campaignStudioPlayById("care-transition-support");
+  if (
     campaignIntentHasAny(text, ["clinic referral", "pharmacy referral", "referral pathway", "referral path", "clinic", "pharmacy"])
     || (campaignIntentHasAny(text, ["provider", "referral", "refer"]) && campaignIntentHasAny(text, ["handoff", "pathway", "path", "clinic", "pharmacy", "post visit", "post-visit"]))
   ) return campaignStudioPlayById("clinic-referral");
@@ -6099,6 +6322,9 @@ function campaignIntentChannels(brief: string, play: CampaignStudioPlay) {
   if (campaignIntentHasAny(text, ["email", "newsletter"])) channels.push("email");
   if (campaignIntentHasAny(text, ["whatsapp", "whats app"])) channels.push("whatsapp");
   if (campaignIntentHasAny(text, ["sms", "text message", "text reminder"])) channels.push("sms");
+  if (campaignIntentHasAny(text, ["phone", "call", "call script", "phone call"])) channels.push("phone");
+  if (campaignIntentHasAny(text, ["print", "flyer", "direct mail", "one-page", "one page", "handoff sheet"])) channels.push("print");
+  if (campaignIntentHasAny(text, ["event", "workshop", "venue", "rsvp"])) channels.push("event");
   if (campaignIntentHasAny(text, ["facebook", "fb"])) channels.push("facebook");
   if (campaignIntentHasAny(text, ["instagram", "insta", "reel", "story"])) channels.push("instagram");
   if (campaignIntentHasAny(text, ["linkedin", "linked in"])) channels.push("linkedin");
