@@ -4243,6 +4243,55 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-home-service-type-plumber")).toBeInTheDocument();
   });
 
+  it("marks completed dry-run sessions as test mode in history receipts", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [],
+          serviceReadiness: {},
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: [] });
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({
+          items: [{
+            id: "session-dry-run-admin",
+            pending_id: "dry-admin-1",
+            use_case: "insurance_admin",
+            provider_name: null,
+            outcome: "completed",
+            outcome_payload: {
+              dry_run: true,
+              simulated_outcome: true,
+              no_real_provider_contact: true,
+              recipient_email: "concierge-dry-run+admin@example.test",
+              execution_task: {
+                dry_run: true,
+                lifecycle_status: "done",
+              },
+            },
+            outcome_summary: "Dry-run admin task completed without emailing real documents.",
+            completed_at: "2026-08-06T12:00:00.000Z",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const history = await screen.findByTestId("section-concierge-completed-history");
+    expect(history).toHaveTextContent("Done recently");
+    expect(screen.getByTestId("badge-concierge-completed-dry-run-session-dry-run-admin")).toHaveTextContent("Test mode");
+
+    fireEvent.click(screen.getByTestId("card-concierge-completed-session-dry-run-admin"));
+    const receipt = await screen.findByTestId("panel-concierge-completed-receipt");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Mode");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Test mode, no real contact");
+    expect(within(receipt).queryByTestId("link-concierge-receipt-contact")).not.toBeInTheDocument();
+  });
+
   it("labels completed shopping support sessions in history", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
@@ -5282,6 +5331,55 @@ describe("ConciergeScreen route prefill", () => {
     );
     expect(screen.getByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
     expect(screen.getByTestId("button-email-draft-sent-email-1")).toHaveTextContent("I sent it");
+  });
+
+  it("labels dry-run tasks and blocks browser opens after final confirmation", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/dry-email-1/review-confirm")) {
+        return jsonResponse({ pendingId: "dry-email-1", status: "pending" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "dry-email-1",
+            use_case: "send_message",
+            provider_name: "VYVA Test Clinic",
+            provider_phone: null,
+            action_summary: "Dry-run email draft prepared for the clinic.",
+            action_payload: {
+              dry_run: true,
+              test_mode: "concierge_dry_run",
+              no_real_provider_contact: true,
+              execution_channel: "email",
+              provider_email: "concierge-dry-run+clinic@example.test",
+              email_subject: "Dry-run appointment request",
+              email_body: "Dry-run only: please ignore this appointment rehearsal email.",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("badge-concierge-dry-run-dry-email-1")).toHaveTextContent("Test mode");
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-dry-email-1"));
+
+    const emailLink = await screen.findByTestId("link-concierge-email-draft-open-dry-email-1");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/dry-email-1/review-confirm", { method: "POST" });
+    });
+    fireEvent.click(emailLink);
+    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
+    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
+
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("link-concierge-email-dry-email-1")).not.toBeInTheDocument();
   });
 
   it("shows Show VYVA prepared tasks and blocks handoff until final confirmation", async () => {

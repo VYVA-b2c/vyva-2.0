@@ -15,6 +15,10 @@ import {
   buildConciergeLaunchSmokeAudit,
   type ConciergeLaunchSmokeFlowAudit,
 } from "./conciergeLaunchSmokeAudit";
+import {
+  getConciergeDryRunFixture,
+  type ConciergeDryRunFixture,
+} from "./conciergeDryRun";
 import type { WorkflowEntryPoint } from "./workflowRegistry";
 import {
   getConciergeLiveHandoffQaJourney,
@@ -29,9 +33,10 @@ export type ConciergeManualQaStepKind =
   | "final_confirmation"
   | "handoff_history"
   | "waiting_persistence"
-  | "follow_up_confirmation";
+  | "follow_up_confirmation"
+  | "dry_run_fixture";
 
-export type ConciergeManualQaStepSource = "registry" | "coverage" | "smoke_audit" | "live_handoff_contract";
+export type ConciergeManualQaStepSource = "registry" | "coverage" | "smoke_audit" | "live_handoff_contract" | "dry_run_fixture";
 
 export interface ConciergeManualQaStep {
   id: string;
@@ -73,6 +78,7 @@ export interface ConciergeManualQaScript {
   entryPoints: ConciergeManualQaEntryPoint[];
   detailsToAsk: string[];
   providerPath: ConciergeManualQaProviderPath;
+  dryRunFixture: ConciergeDryRunFixture;
   liveHandoffJourney: ConciergeLiveHandoffQaJourney | null;
   finalConfirmationStep: ConciergeManualQaStep;
   liveFollowUpSteps: ConciergeManualQaStep[];
@@ -164,6 +170,20 @@ function detailCollectionStep(
     instruction: `Confirm VYVA asks only for missing details: ${detailsToAsk.join(", ")}.`,
     expectedResult: "The user can answer naturally by voice or touch, and the task stays in the same Concierge flow.",
     source: "registry",
+  });
+}
+
+function dryRunFixtureStep(
+  reference: ConciergeFlowReference,
+  fixture: ConciergeDryRunFixture,
+): ConciergeManualQaStep {
+  return qaStep({
+    id: `${reference}:dry-run-fixture`,
+    kind: "dry_run_fixture",
+    title: "Dry-run test fixture",
+    instruction: `${fixture.checklistPrompt} Use ${fixture.endpoint.label}: ${fixture.endpoint.value}.`,
+    expectedResult: "The task is labelled Test mode, no real call/email/form/upload opens, and the simulated outcome can be saved to completed history.",
+    source: "dry_run_fixture",
   });
 }
 
@@ -263,9 +283,11 @@ export function buildConciergeManualQaScripts(options?: {
   return CONCIERGE_FLOW_REGISTRY.map((flow) => {
     const entryPoints = conciergeFlowCoverageEntryPoints(flow.reference).map(entryPointSummary);
     const providerPath = providerPathForFlow(flow.reference, flow.actionName);
+    const dryRunFixture = getConciergeDryRunFixture(flow.reference);
     const liveHandoffJourney = getConciergeLiveHandoffQaJourney(flow.reference);
     const entrySteps = startEntryPointSteps(flow.reference, entryPoints);
     const detailStep = detailCollectionStep(flow.reference, flow.firstQuestions);
+    const dryRunStep = dryRunFixtureStep(flow.reference, dryRunFixture);
     const finalStep = finalConfirmationStep(flow.reference, flow.confirmationRule);
     const historySteps = handoffHistorySteps(flow.reference, liveHandoffJourney);
     const followUpSteps = liveFollowUpSteps(flow.reference, liveHandoffJourney);
@@ -281,6 +303,7 @@ export function buildConciergeManualQaScripts(options?: {
       entryPoints,
       detailsToAsk: flow.firstQuestions,
       providerPath,
+      dryRunFixture,
       liveHandoffJourney,
       finalConfirmationStep: finalStep,
       liveFollowUpSteps: followUpSteps,
@@ -288,6 +311,7 @@ export function buildConciergeManualQaScripts(options?: {
       steps: [
         ...entrySteps,
         ...providerSteps,
+        dryRunStep,
         detailStep,
         finalStep,
         historySteps[0],

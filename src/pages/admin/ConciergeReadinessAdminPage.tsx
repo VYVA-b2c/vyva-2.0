@@ -260,6 +260,27 @@ function ManualQaScriptCard({
               <Pill key={tool.id}>{tool.label}</Pill>
             ))}
           </div>
+          <div
+            className="mt-3 rounded-[12px] border border-emerald-200 bg-emerald-50 p-3"
+            data-testid={`dry-run-fixture-${row.reference.toLowerCase().replace(/_/g, "-")}`}
+          >
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Pill tone="good">Test mode</Pill>
+              <Pill>{script.dryRunFixture.endpoint.tool.replace(/_/g, " ")}</Pill>
+            </div>
+            <p className="mt-2 text-sm font-black leading-snug text-emerald-950">
+              {script.dryRunFixture.title}
+            </p>
+            <p className="mt-1 break-words text-xs font-semibold leading-relaxed text-emerald-900">
+              {script.dryRunFixture.endpoint.label}: {script.dryRunFixture.endpoint.value}
+            </p>
+            <p className="mt-2 break-words text-xs font-semibold leading-relaxed text-emerald-900">
+              {script.dryRunFixture.savedProviderPath}
+            </p>
+            <p className="mt-1 break-words text-xs font-semibold leading-relaxed text-emerald-900">
+              {script.dryRunFixture.missingProviderPath}
+            </p>
+          </div>
         </div>
 
         <div className="min-w-0 rounded-[12px] border border-[#f0e7df] bg-white p-3">

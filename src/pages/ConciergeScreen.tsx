@@ -105,6 +105,7 @@ import type {
   ConciergeExecutionTask,
   ConciergeExecutionTaskStatus,
 } from "../../shared/conciergeActionExecution";
+import { isConciergeDryRunPayload } from "../../shared/conciergeDryRun";
 import {
   isShowVyvaPreparedTask,
   type ShowVyvaExecutionGuide,
@@ -3096,6 +3097,7 @@ function billClientMessage(locale: string, key: "unsupported" | "read_failed"): 
 }
 
 async function confirmPendingAction(item: ConciergePendingItem) {
+  const isDryRun = isConciergeDryRunPayload(item.action_payload);
   const bookingUrl = getBookingUrl(item);
   const emailDraft = getActionEmailDraft(item);
   const whatsAppDraft = getActionWhatsAppDraft(item);
@@ -3113,7 +3115,7 @@ async function confirmPendingAction(item: ConciergePendingItem) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Failed to confirm concierge action");
   }
-  if (followUpUrl) window.open(followUpUrl, "_blank", "noopener,noreferrer");
+  if (followUpUrl && !isDryRun) window.open(followUpUrl, "_blank", "noopener,noreferrer");
 }
 
 async function confirmPendingActionReview(item: ConciergePendingItem) {
@@ -4395,6 +4397,10 @@ function completedSessionReceiptDetails(
       label: isSpanish ? "Completado" : "Completed",
       value: completedAt,
     },
+    ...(isConciergeDryRunPayload(session.outcome_payload) ? [{
+      label: isSpanish ? "Modo" : "Mode",
+      value: isSpanish ? "Prueba sin contacto real" : "Test mode, no real contact",
+    }] : []),
     ...completedSessionDetails(session, isSpanish),
   ].filter((entry) => entry.value);
 }
@@ -4403,6 +4409,7 @@ function completedSessionContactLink(
   session: ConciergeCompletedSession,
   isSpanish: boolean,
 ): { href: string; label: string; external: boolean } | null {
+  if (isConciergeDryRunPayload(session.outcome_payload)) return null;
   const payload = session.outcome_payload;
   const phone = payloadString(payload, ["provider_phone", "phone", "contact_phone"]);
   const email = payloadString(payload, ["provider_email", "recipient_email", "email"]);
@@ -9355,7 +9362,7 @@ const ConciergeScreen = () => {
       return;
     }
 
-    if (request.href) {
+    if (request.href && !isConciergeDryRunPayload(request.item.action_payload)) {
       window.open(
         request.href,
         request.target ?? "_self",
@@ -12472,6 +12479,7 @@ const ConciergeScreen = () => {
   }
 
   const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
+  const activeActionIsDryRun = activeAction ? isConciergeDryRunPayload(activeAction.action_payload) : false;
   const queuedActions = activeAction ? pendingActions.filter((action) => action.id !== activeAction.id) : [];
   const queuedActionCount = queuedActions.length;
   const recentCompletedSessions = completedSessions
@@ -12687,7 +12695,7 @@ const ConciergeScreen = () => {
   )
     ? recentEmailDraftCompletion.notice
     : null;
-  const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation;
+  const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation && !activeActionIsDryRun;
   const activeActionCanShowManualReviewOutcome = Boolean(
     activeAction &&
     isManualReviewOutcomePendingAction(activeAction) &&
@@ -14507,6 +14515,14 @@ const ConciergeScreen = () => {
                 ) : null}
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
+                {activeActionIsDryRun ? (
+                  <span
+                    className="rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-black text-emerald-800"
+                    data-testid={`badge-concierge-dry-run-${activeAction.id}`}
+                  >
+                    {isSpanish ? "Modo prueba" : "Test mode"}
+                  </span>
+                ) : null}
                 <span
                   className="rounded-full px-3 py-1 text-[12px] font-medium"
                   style={{
@@ -14962,6 +14978,7 @@ const ConciergeScreen = () => {
               {recentCompletedSessions.map((session) => {
                 const details = completedSessionDetails(session, isSpanish);
                 const completedAt = formatConciergeCompletedAt(session.completed_at, locale);
+                const sessionIsDryRun = isConciergeDryRunPayload(session.outcome_payload);
 
                 return (
                   <button
@@ -14985,6 +15002,14 @@ const ConciergeScreen = () => {
                               {completedAt}
                             </span>
                           )}
+                          {sessionIsDryRun ? (
+                            <span
+                              className="rounded-full bg-emerald-50 px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800"
+                              data-testid={`badge-concierge-completed-dry-run-${session.id}`}
+                            >
+                              {isSpanish ? "Prueba" : "Test mode"}
+                            </span>
+                          ) : null}
                         </div>
                         <p className="mt-1 truncate font-body text-[14px] font-black text-vyva-text-1">
                           {completedSessionProvider(session, isSpanish)}

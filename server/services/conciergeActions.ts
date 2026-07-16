@@ -10,6 +10,7 @@ import {
   type ConciergeExecutionAuditEvent,
   type ConciergeExecutionTaskStatus,
 } from "../../shared/conciergeActionExecution.js";
+import { isConciergeDryRunPayload } from "../../shared/conciergeDryRun.js";
 
 export const CONCIERGE_USE_CASES = [
   "book_ride",
@@ -157,6 +158,10 @@ function missingLabels(plan: ConciergeConfirmedExecutionPlan): string {
     .map((requirement) => requirement.label_en)
     .filter(Boolean)
     .join(", ");
+}
+
+function isDryRunPending(pending: PendingRow): boolean {
+  return isConciergeDryRunPayload(pending.action_payload);
 }
 
 function outboundCallerReadiness(pending: PendingRow): { ready: true } | { ready: false; reason: string } {
@@ -347,6 +352,7 @@ async function updatePendingStatus(
   } = {},
 ) {
   const now = new Date().toISOString();
+  const dryRun = isDryRunPending(pending);
   const basePayload = options.auditEvent
     ? appendConciergeExecutionAudit(pending.action_payload ?? {}, {
         event: options.auditEvent,
@@ -360,6 +366,7 @@ async function updatePendingStatus(
         action_type: options.auditPlan?.action_type,
         user_confirmed: options.userConfirmed,
         external_action_allowed: options.externalActionAllowed ?? false,
+        dry_run: options.auditPlan?.dry_run ?? dryRun,
         reason: options.auditReason ?? options.failureReason,
         missing_requirements: options.auditPlan?.missing_requirements,
       })
@@ -608,7 +615,7 @@ async function queueConfirmedConciergeAction(
     outcome: pending.action_summary,
     auditEvent: "operator_handoff_queued",
     auditMode: "operator_queue",
-    auditReason: reason,
+    auditReason: reason ?? plan.operator_fallback_reason,
     auditPlan: plan,
     externalActionAllowed: false,
   });
@@ -618,9 +625,11 @@ async function queueConfirmedConciergeAction(
     status: "pending",
     conversationId: null,
     callSid: null,
-    message: reason
-      ? `Concierge action confirmed and queued for VYVA review (${reason}).`
-      : plan.message,
+    message: plan.dry_run
+      ? plan.message
+      : (reason
+        ? `Concierge action confirmed and queued for VYVA review (${reason}).`
+        : plan.message),
   };
 }
 
@@ -741,7 +750,7 @@ export async function confirmPendingConciergeActionReview(
     auditEvent: "user_confirmed",
     auditMode: "user_controlled_handoff",
     auditPlan: plan,
-    externalActionAllowed: true,
+    externalActionAllowed: !plan.dry_run,
   });
 
   return {
@@ -749,7 +758,9 @@ export async function confirmPendingConciergeActionReview(
     status: "pending",
     conversationId: null,
     callSid: null,
-    message: "Concierge action confirmed. You can open the prepared draft or call link.",
+    message: plan.dry_run
+      ? "Dry-run confirmed. VYVA records the simulated handoff without opening or sending anything."
+      : "Concierge action confirmed. You can open the prepared draft or call link.",
   };
 }
 
@@ -804,6 +815,10 @@ export async function completePendingConciergeAction(
     throw new Error(`Concierge action cannot be completed from status "${pending.status}".`);
   }
 
+  const dryRun = isDryRunPending(pending);
+  const outcomeSummary = input.outcomeSummary?.trim()
+    || (dryRun ? `Simulated dry-run outcome: ${pending.action_summary}` : pending.action_summary)
+    || "completed";
   const finalActionPayload = withConciergeExecutionTask({
     useCase: pending.use_case,
     payload: appendConciergeExecutionAudit(pending.action_payload ?? {}, {
@@ -814,6 +829,7 @@ export async function completePendingConciergeAction(
       lifecycle_status: "done",
       user_confirmed: true,
       external_action_allowed: false,
+      dry_run: dryRun,
     }),
     providerName: pending.provider_name,
     providerPhone: pending.provider_phone,
@@ -822,10 +838,15 @@ export async function completePendingConciergeAction(
     lifecycleStatus: "done",
     userConfirmed: true,
     confirmationSource: "completion_endpoint",
-    outcome: input.outcomeSummary?.trim() || pending.action_summary || "completed",
+    outcome: outcomeSummary,
   });
   const finalOutcomePayload = {
     ...(input.outcomePayload ?? {}),
+    ...(dryRun ? {
+      dry_run: true,
+      simulated_outcome: true,
+      no_real_provider_contact: true,
+    } : {}),
     execution_task: finalActionPayload.execution_task,
   };
 
@@ -863,7 +884,7 @@ export async function completePendingConciergeAction(
         pending.action_summary,
         JSON.stringify(finalActionPayload),
         JSON.stringify(finalOutcomePayload),
-        input.outcomeSummary?.trim() || pending.action_summary || null,
+        outcomeSummary,
       ],
     );
 

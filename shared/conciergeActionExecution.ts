@@ -7,6 +7,7 @@ import {
   evaluateConciergeFlowRequirements,
   type ConciergeFlowRequirementKey,
 } from "./conciergeFlowRequirements";
+import { isConciergeDryRunPayload } from "./conciergeDryRun";
 
 export type ConciergeExecutionActionType =
   | "phone_call"
@@ -44,6 +45,7 @@ export type ConciergeExecutionTask = {
   missing_requirements: ConciergeExecutionMissingRequirement[];
   confirmation_required: true;
   user_confirmed: boolean;
+  dry_run?: boolean;
   confirmation_source?: string;
   confirmed_at?: string;
   created_at: string;
@@ -67,6 +69,7 @@ export type ConciergeConfirmedExecutionPlan = {
   action_type: ConciergeExecutionActionType;
   missing_requirements: ConciergeExecutionMissingRequirement[];
   external_action_allowed: boolean;
+  dry_run?: boolean;
   operator_fallback_reason?: string;
   message: string;
 };
@@ -94,6 +97,7 @@ export type ConciergeExecutionAuditEntry = {
   action_type?: ConciergeExecutionActionType;
   user_confirmed?: boolean;
   external_action_allowed?: boolean;
+  dry_run?: boolean;
   reason?: string;
   missing_requirements?: ConciergeExecutionMissingRequirement[];
 };
@@ -219,6 +223,7 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
   const payload = input.payload ?? {};
   const existing = executionTaskFromPayload(payload);
   const now = input.now ?? new Date().toISOString();
+  const dryRun = isConciergeDryRunPayload(payload);
   const requirements = evaluateConciergeFlowRequirements({
     useCase: input.useCase,
     payload,
@@ -266,6 +271,7 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
     missing_requirements: missingRequirements,
     confirmation_required: true,
     user_confirmed: userConfirmed,
+    ...(dryRun ? { dry_run: true } : {}),
     ...(input.confirmationSource || existing?.confirmation_source
       ? { confirmation_source: input.confirmationSource ?? existing?.confirmation_source }
       : {}),
@@ -327,11 +333,28 @@ export function planConciergeConfirmedExecution(input: ConciergeExecutionBuildIn
       action_type: task.action_type,
       missing_requirements: task.missing_requirements,
       external_action_allowed: false,
+      ...(task.dry_run ? { dry_run: true } : {}),
       message: "Complete the missing details before confirming this Concierge action.",
     };
   }
 
   if (task.active_tool === "phone_call") {
+    if (task.dry_run) {
+      return {
+        mode: "operator_queue",
+        pending_status: "pending",
+        lifecycle_status: "confirmed",
+        requested_tool: task.requested_tool,
+        active_tool: task.active_tool,
+        action_type: task.action_type,
+        missing_requirements: [],
+        external_action_allowed: false,
+        dry_run: true,
+        operator_fallback_reason: "dry_run_simulation",
+        message: "Dry-run confirmed. VYVA records a simulated handoff instead of contacting anyone.",
+      };
+    }
+
     return {
       mode: "direct_phone_call",
       pending_status: "calling",
@@ -354,6 +377,12 @@ export function planConciergeConfirmedExecution(input: ConciergeExecutionBuildIn
     action_type: task.action_type,
     missing_requirements: [],
     external_action_allowed: false,
-    message: "Concierge action confirmed and queued for VYVA review.",
+    ...(task.dry_run ? {
+      dry_run: true,
+      operator_fallback_reason: "dry_run_simulation",
+      message: "Dry-run confirmed. VYVA records a simulated handoff instead of contacting anyone.",
+    } : {
+      message: "Concierge action confirmed and queued for VYVA review.",
+    }),
   };
 }
