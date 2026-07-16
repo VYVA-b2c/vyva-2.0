@@ -977,6 +977,22 @@ async function completePendingConciergeAction(params: {
   return await res.json() as { ok: true; status: "completed"; sessionId?: string | null };
 }
 
+async function patchPendingConciergeAction(params: {
+  pendingId: string;
+  actionPayload: Record<string, unknown>;
+}) {
+  const res = await apiFetch(`/api/concierge/actions/${params.pendingId}/details`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action_payload: params.actionPayload }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not update concierge action");
+  }
+  return await res.json() as { ok: true; item: ConciergePendingItem };
+}
+
 interface OfferScoreBreakdown {
   distance: number;
   price_value: number;
@@ -6172,15 +6188,15 @@ function ProviderReplyPanel({
   notice,
   error,
   isSaving,
-  isCancelling,
+  isUpdating,
   isSpanish,
   onMode,
   onFormChange,
-  onFollowUp,
+  onNoAnswer,
   onSaveConfirmed,
   onUnavailable,
   onNeedMoreInfo,
-  onCancel,
+  onMarkComplete,
 }: {
   item: ConciergePendingItem;
   mode: ProviderReplyMode;
@@ -6189,15 +6205,15 @@ function ProviderReplyPanel({
   notice: string | null;
   error: string | null;
   isSaving: boolean;
-  isCancelling: boolean;
+  isUpdating: boolean;
   isSpanish: boolean;
   onMode: (mode: ProviderReplyMode) => void;
   onFormChange: (field: keyof ProviderReplyForm, value: string) => void;
-  onFollowUp: () => void;
+  onNoAnswer: () => void;
   onSaveConfirmed: () => void;
   onUnavailable: () => void;
   onNeedMoreInfo: () => void;
-  onCancel: () => void;
+  onMarkComplete: () => void;
 }) {
   const needsScheduledTime = isMedicalAppointmentPendingAction(item) || isHomeServicePendingAction(item);
   const scheduledTimeLabel = isHomeServicePendingAction(item)
@@ -6206,7 +6222,7 @@ function ProviderReplyPanel({
   const hasProviderReply = Boolean(form.providerReply.trim());
   const canSave = (needsScheduledTime
     ? providerReplyHasValidScheduledTime(form) && hasProviderReply
-    : providerReplyFormHasDetails(form)) && !isSaving && !isCancelling;
+    : providerReplyFormHasDetails(form)) && !isSaving && !isUpdating;
   return (
     <div
       className="mt-3 rounded-[22px] border border-[#BFDBFE] bg-[#F8FBFF] p-4"
@@ -6237,21 +6253,23 @@ function ProviderReplyPanel({
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
         <Button
           type="button"
-          data-testid={`button-provider-reply-follow-up-${item.id}`}
-          onClick={onFollowUp}
-          variant="outline"
-          className="vyva-secondary-action h-auto border-[#BFDBFE] text-[#1D4ED8]"
-        >
-          {isSpanish ? "Seguimiento" : "Follow up"}
-        </Button>
-        <Button
-          type="button"
           data-testid={`button-provider-reply-confirmed-${item.id}`}
           onClick={() => onMode("confirmed")}
           variant={mode === "confirmed" ? "default" : "outline"}
           className={mode === "confirmed" ? "vyva-primary-action h-auto" : "vyva-secondary-action h-auto border-[#BFDBFE] text-[#1D4ED8]"}
         >
           {isSpanish ? "Tengo respuesta" : "I got a reply"}
+        </Button>
+        <Button
+          type="button"
+          data-testid={`button-provider-reply-no-answer-${item.id}`}
+          onClick={onNoAnswer}
+          disabled={isSaving || isUpdating}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#BFDBFE] text-[#1D4ED8]"
+        >
+          {isUpdating ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
+          {isSpanish ? "Sin respuesta" : "No answer"}
         </Button>
         <Button
           type="button"
@@ -6269,18 +6287,17 @@ function ProviderReplyPanel({
           variant={mode === "more_info" ? "default" : "outline"}
           className={mode === "more_info" ? "vyva-primary-action h-auto" : "vyva-secondary-action h-auto border-[#BFDBFE] text-[#1D4ED8]"}
         >
-          {isSpanish ? "Piden datos" : "Need info"}
+          {isSpanish ? "Pedidme los datos" : "Ask me for missing info"}
         </Button>
         <Button
           type="button"
-          data-testid={`button-provider-reply-cancel-${item.id}`}
-          onClick={onCancel}
-          disabled={isSaving || isCancelling}
+          data-testid={`button-provider-reply-mark-complete-${item.id}`}
+          onClick={onMarkComplete}
+          disabled={isSaving || isUpdating}
           variant="outline"
-          className="vyva-secondary-action h-auto border-[#FCA5A5] text-[#B91C1C]"
+          className="vyva-secondary-action h-auto border-[#BBF7D0] text-[#047857]"
         >
-          {isCancelling ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
-          {isSpanish ? "Cancelar" : "Cancel"}
+          {isSpanish ? "Marcar completado" : "Mark complete"}
         </Button>
       </div>
 
@@ -7750,20 +7767,109 @@ function phoneCallOutcomePayload(item: ConciergePendingItem, form: PhoneCallOutc
   };
 }
 
+type ProviderFollowUpState = "waiting" | "needs_human_help";
+
+type ProviderFollowUpAttempt = {
+  at: string;
+  channel: string;
+  outcome: string;
+  summary: string;
+};
+
+function providerFollowUpAttempts(payload: Record<string, unknown> | null | undefined): ProviderFollowUpAttempt[] {
+  const attempts = payload?.provider_contact_attempts;
+  if (!Array.isArray(attempts)) return [];
+  return attempts.filter(isRecord).map((attempt) => ({
+    at: typeof attempt.at === "string" ? attempt.at : "",
+    channel: typeof attempt.channel === "string" ? attempt.channel : "manual",
+    outcome: typeof attempt.outcome === "string" ? attempt.outcome : "contacted",
+    summary: typeof attempt.summary === "string" ? attempt.summary : "",
+  })).filter((attempt) => Boolean(attempt.at));
+}
+
+function buildProviderFollowUpPatch(params: {
+  item: ConciergePendingItem;
+  outcomePayload: Record<string, unknown>;
+  outcomeSummary: string;
+  outcome: string;
+  channel: string;
+  state?: ProviderFollowUpState;
+}): Record<string, unknown> {
+  const now = new Date().toISOString();
+  const state = params.state ?? "waiting";
+  const payload = params.item.action_payload ?? {};
+  const previousAttempts = providerFollowUpAttempts(payload);
+  const previousCount = typeof payload.provider_contact_attempt_count === "number"
+    ? payload.provider_contact_attempt_count
+    : previousAttempts.length;
+  const waitingSince = payloadString(payload, ["provider_waiting_since", "waiting_since"]) || now;
+  const previousMissionStatus = payloadString(payload, ["mission_status"]);
+  const attempt: ProviderFollowUpAttempt = {
+    at: now,
+    channel: params.channel,
+    outcome: params.outcome,
+    summary: params.outcomeSummary,
+  };
+
+  return {
+    ...params.outcomePayload,
+    live_handoff_status: state,
+    live_handoff_outcome: params.outcome,
+    provider_follow_up_status: state,
+    provider_waiting_since: waitingSince,
+    provider_last_contact_at: now,
+    provider_last_contact_channel: params.channel,
+    provider_last_contact_outcome: params.outcome,
+    provider_last_contact_summary: params.outcomeSummary,
+    provider_contact_attempt_count: previousCount + 1,
+    provider_contact_attempts: [...previousAttempts, attempt].slice(-10),
+    waiting_for_provider: state === "waiting",
+    mission_status: state === "waiting" ? "awaiting_provider_reply" : previousMissionStatus || "needs_info",
+    no_external_action_without_confirmation: true,
+  };
+}
+
+async function recordPendingConciergeFollowUp(params: {
+  item: ConciergePendingItem;
+  outcomePayload: Record<string, unknown>;
+  outcomeSummary: string;
+  outcome: string;
+  channel: string;
+  state?: ProviderFollowUpState;
+}) {
+  return patchPendingConciergeAction({
+    pendingId: params.item.id,
+    actionPayload: buildProviderFollowUpPatch(params),
+  });
+}
+
 function providerWaitingDate(item: ConciergePendingItem): Date | null {
-  const rawDate = item.confirmed_at
-    || payloadString(item.action_payload, ["requested_at", "started_at", "contacted_at", "created_at"]);
+  const rawDate = payloadString(item.action_payload, [
+    "provider_waiting_since",
+    "waiting_since",
+    "provider_last_contact_at",
+    "contacted_at",
+  ]) || item.confirmed_at
+    || payloadString(item.action_payload, ["requested_at", "started_at", "created_at"]);
   if (!rawDate) return null;
   const parsed = new Date(rawDate);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function formatProviderWaitingSince(item: ConciergePendingItem, locale: string, isSpanish: boolean): string {
+function formatProviderWaitingSince(item: ConciergePendingItem, locale: string, isSpanish: boolean, nowMs: number): string {
   const waitingDate = providerWaitingDate(item);
   if (!waitingDate) return isSpanish ? "Esperando respuesta" : "Waiting for reply";
 
+  const elapsedMinutes = Math.max(0, Math.floor((nowMs - waitingDate.getTime()) / 60_000));
+  if (elapsedMinutes < 1) return isSpanish ? "Enviado ahora" : "Sent just now";
+  if (elapsedMinutes < 60) return isSpanish ? `${elapsedMinutes} min esperando` : `${elapsedMinutes} min waiting`;
+  if (elapsedMinutes < 24 * 60) {
+    const hours = Math.floor(elapsedMinutes / 60);
+    return isSpanish ? `${hours} h esperando` : `${hours} hr waiting`;
+  }
+
   const displayLocale = isSpanish || locale === "es" ? "es-ES" : "en-GB";
-  const now = new Date();
+  const now = new Date(nowMs);
   const sameDay =
     waitingDate.getFullYear() === now.getFullYear()
     && waitingDate.getMonth() === now.getMonth()
@@ -8297,6 +8403,7 @@ const ConciergeScreen = () => {
   const [chatError, setChatError] = useState<string | null>(null);
   const [visibleActionId, setVisibleActionId] = useState<string | null>(null);
   const [isRightNowHidden, setIsRightNowHidden] = useState(false);
+  const [providerWaitingClockMs, setProviderWaitingClockMs] = useState(() => Date.now());
   const [selectedCompletedSessionId, setSelectedCompletedSessionId] = useState<string | null>(null);
   const [externalConfirmationRequest, setExternalConfirmationRequest] = useState<ConciergeExternalConfirmationRequest | null>(null);
   const [guidedDetailDraft, setGuidedDetailDraft] = useState("");
@@ -8336,6 +8443,11 @@ const ConciergeScreen = () => {
   const lastRoutePrefillKeyRef = useRef<string | null>(null);
   const lastCompletedTemplateKeyRef = useRef<string | null>(null);
   const lastProviderRouteActionKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setProviderWaitingClockMs(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const lastTrustedProviderSavedKeyRef = useRef<string | null>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
@@ -9375,25 +9487,99 @@ const ConciergeScreen = () => {
     },
   });
 
+  const providerNoAnswerMutation = useMutation({
+    mutationFn: ({ item }: { item: ConciergePendingItem }) => {
+      const provider = providerSearchProviderName(item, isSpanish)
+        || item.provider_name?.trim()
+        || (isSpanish ? "el proveedor" : "the provider");
+      const summary = isSpanish
+        ? `Sin respuesta de ${provider}. La tarea sigue abierta.`
+        : `No answer from ${provider}. The task remains open.`;
+      return recordPendingConciergeFollowUp({
+        item,
+        outcomeSummary: summary,
+        outcomePayload: {
+          ...(item.action_payload ?? {}),
+          provider_no_answer_at: new Date().toISOString(),
+        },
+        outcome: "no_answer",
+        channel: getPreferredHandoffChannel(item)
+          || getExecutionChannel(item)
+          || (item.provider_phone?.trim() ? "phone" : "manual"),
+      });
+    },
+    onMutate: () => {
+      setProviderReplyError(null);
+      setProviderReplyNotice(null);
+    },
+    onSuccess: async (_result, { item }) => {
+      setProviderReplyMode(null);
+      setProviderReplyNotice(isSpanish
+        ? "Sin respuesta guardado. La tarea sigue abierta y el seguimiento necesita tu OK."
+        : "No answer saved. The task stays open, and any follow-up still needs your OK.");
+      setInput(providerFollowUpPrompt(item, isSpanish, locale));
+      setIsRightNowHidden(false);
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+      window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
+    },
+    onError: (error) => {
+      setProviderReplyError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido guardar que no respondieron." : "I could not save the no-answer result."));
+    },
+  });
+
+  const providerMarkCompleteMutation = useMutation({
+    mutationFn: ({ item }: { item: ConciergePendingItem }) => completePendingConciergeAction({
+      pendingId: item.id,
+      outcomeSummary: isSpanish ? "Tarea marcada como completada." : "Task marked complete.",
+      outcomePayload: {
+        ...(item.action_payload ?? {}),
+        live_handoff_status: "completed",
+        live_handoff_outcome: "user_marked_complete",
+        completed_from: "provider_follow_up_panel",
+        no_external_action_without_confirmation: true,
+      },
+    }),
+    onMutate: () => {
+      setProviderReplyError(null);
+      setProviderReplyNotice(null);
+    },
+    onSuccess: async () => {
+      setProviderReplyMode(null);
+      setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
+      setProviderReplyNotice(isSpanish ? "Tarea completada." : "Task completed.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setProviderReplyError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido completar la tarea." : "I could not complete the task."));
+    },
+  });
+
   const bookingFormOutcomeMutation = useMutation({
-    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: BookingFormOutcomeForm }) => (
-      completePendingConciergeAction({
-        pendingId: item.id,
-        outcomeSummary: bookingFormOutcomeSummary(item, form, isSpanish),
+    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: BookingFormOutcomeForm }) => {
+      const outcomeSummary = bookingFormOutcomeSummary(item, form, isSpanish);
+      return recordPendingConciergeFollowUp({
+        item,
+        outcomeSummary,
         outcomePayload: bookingFormOutcomePayload(item, form),
-      })
-    ),
+        outcome: "form_submitted",
+        channel: "booking_url",
+      });
+    },
     onMutate: () => {
       setBookingFormError(null);
       setBookingFormNotice(null);
     },
     onSuccess: async () => {
       setBookingFormOutcomeForm(EMPTY_BOOKING_FORM_OUTCOME_FORM);
-      setBookingFormNotice(isSpanish ? "Formulario guardado. La tarea queda cerrada." : "Form saved. The task is closed.");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
-      ]);
+      setBookingFormNotice(isSpanish ? "Formulario enviado. Esperando al proveedor." : "Form submitted. Waiting for the provider.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
     },
     onError: (error) => {
       setBookingFormError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el formulario." : "I could not save the form."));
@@ -9401,20 +9587,36 @@ const ConciergeScreen = () => {
   });
 
   const phoneCallOutcomeMutation = useMutation({
-    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: PhoneCallOutcomeForm }) => (
-      completePendingConciergeAction({
-        pendingId: item.id,
-        outcomeSummary: phoneCallOutcomeSummary(item, form, isSpanish),
-        outcomePayload: phoneCallOutcomePayload(item, form, isSpanish),
-      })
-    ),
+    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: PhoneCallOutcomeForm }) => {
+      const outcomeSummary = phoneCallOutcomeSummary(item, form, isSpanish);
+      const outcomePayload = phoneCallOutcomePayload(item, form, isSpanish);
+      if (form.status === "confirmed" || form.status === "cancelled") {
+        return completePendingConciergeAction({
+          pendingId: item.id,
+          outcomeSummary,
+          outcomePayload,
+        });
+      }
+      return recordPendingConciergeFollowUp({
+        item,
+        outcomeSummary,
+        outcomePayload,
+        outcome: form.status,
+        channel: "phone",
+        state: form.status === "needs_info" ? "needs_human_help" : "waiting",
+      });
+    },
     onMutate: () => {
       setPhoneCallOutcomeError(null);
       setPhoneCallOutcomeNotice(null);
     },
-    onSuccess: async () => {
+    onSuccess: async (_result, { form }) => {
       setPhoneCallOutcomeForm(EMPTY_PHONE_CALL_OUTCOME_FORM);
-      setPhoneCallOutcomeNotice(isSpanish ? "Llamada guardada. La tarea queda cerrada." : "Call saved. The task is closed.");
+      setPhoneCallOutcomeNotice(form.status === "no_answer"
+        ? (isSpanish ? "Sin respuesta. La tarea sigue abierta." : "No answer. The task stays open.")
+        : form.status === "needs_info"
+          ? (isSpanish ? "Faltan datos. La tarea sigue abierta." : "More information is needed. The task stays open.")
+          : (isSpanish ? "Llamada guardada. La tarea queda cerrada." : "Call saved. The task is closed."));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
@@ -9426,27 +9628,27 @@ const ConciergeScreen = () => {
   });
 
   const emailDraftOutcomeMutation = useMutation({
-    mutationFn: ({ item, draft, form }: { item: ConciergePendingItem; draft: ConciergeEmailDraft; form: EmailDraftOutcomeForm }) => (
-      completePendingConciergeAction({
-        pendingId: item.id,
-        outcomeSummary: emailDraftOutcomeSummary(item, draft, form, isSpanish),
+    mutationFn: ({ item, draft, form }: { item: ConciergePendingItem; draft: ConciergeEmailDraft; form: EmailDraftOutcomeForm }) => {
+      const outcomeSummary = emailDraftOutcomeSummary(item, draft, form, isSpanish);
+      return recordPendingConciergeFollowUp({
+        item,
+        outcomeSummary,
         outcomePayload: emailDraftOutcomePayload(item, draft, form),
-      })
-    ),
+        outcome: "email_sent",
+        channel: "email",
+      });
+    },
     onMutate: () => {
       setEmailDraftError(null);
       setEmailDraftNotice(null);
       setRecentEmailDraftCompletion(null);
     },
     onSuccess: async (_completion, variables) => {
-      const notice = isSpanish ? "Email guardado. La tarea queda cerrada." : "Email saved. The task is closed.";
+      const notice = isSpanish ? "Email enviado. Esperando al proveedor." : "Email sent. Waiting for the provider.";
       setEmailDraftOutcomeForm(EMPTY_EMAIL_DRAFT_OUTCOME_FORM);
       setEmailDraftNotice(notice);
       setRecentEmailDraftCompletion({ actionId: variables.item.id, notice });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
-      ]);
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
     },
     onError: (error) => {
       setEmailDraftError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el email." : "I could not save the email."));
@@ -9454,24 +9656,24 @@ const ConciergeScreen = () => {
   });
 
   const whatsAppDraftOutcomeMutation = useMutation({
-    mutationFn: ({ item, draft, form }: { item: ConciergePendingItem; draft: ConciergeWhatsAppDraft; form: WhatsAppDraftOutcomeForm }) => (
-      completePendingConciergeAction({
-        pendingId: item.id,
-        outcomeSummary: whatsAppDraftOutcomeSummary(item, draft, form, isSpanish),
+    mutationFn: ({ item, draft, form }: { item: ConciergePendingItem; draft: ConciergeWhatsAppDraft; form: WhatsAppDraftOutcomeForm }) => {
+      const outcomeSummary = whatsAppDraftOutcomeSummary(item, draft, form, isSpanish);
+      return recordPendingConciergeFollowUp({
+        item,
+        outcomeSummary,
         outcomePayload: whatsAppDraftOutcomePayload(item, draft, form),
-      })
-    ),
+        outcome: "whatsapp_sent",
+        channel: "whatsapp",
+      });
+    },
     onMutate: () => {
       setWhatsAppDraftError(null);
       setWhatsAppDraftNotice(null);
     },
     onSuccess: async () => {
       setWhatsAppDraftOutcomeForm(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
-      setWhatsAppDraftNotice(isSpanish ? "WhatsApp guardado. La tarea queda cerrada." : "WhatsApp saved. The task is closed.");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
-      ]);
+      setWhatsAppDraftNotice(isSpanish ? "WhatsApp enviado. Esperando al proveedor." : "WhatsApp sent. Waiting for the provider.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
     },
     onError: (error) => {
       setWhatsAppDraftError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el WhatsApp." : "I could not save the WhatsApp."));
@@ -11430,6 +11632,14 @@ const ConciergeScreen = () => {
 
   function handleSaveProviderReply(item: ConciergePendingItem) {
     providerReplyCompletionMutation.mutate({ item, form: providerReplyForm });
+  }
+
+  function handleProviderNoAnswer(item: ConciergePendingItem) {
+    providerNoAnswerMutation.mutate({ item });
+  }
+
+  function handleProviderMarkComplete(item: ConciergePendingItem) {
+    providerMarkCompleteMutation.mutate({ item });
   }
 
   function handleProviderUnavailable(item: ConciergePendingItem) {
@@ -14392,19 +14602,19 @@ const ConciergeScreen = () => {
                 item={activeAction}
                 mode={providerReplyMode}
                 form={providerReplyForm}
-                waitingSinceLabel={formatProviderWaitingSince(activeAction, locale, isSpanish)}
+                waitingSinceLabel={formatProviderWaitingSince(activeAction, locale, isSpanish, providerWaitingClockMs)}
                 notice={providerReplyNotice}
                 error={providerReplyError}
                 isSaving={providerReplyCompletionMutation.isPending}
-                isCancelling={cancelMutation.isPending}
+                isUpdating={providerNoAnswerMutation.isPending || providerMarkCompleteMutation.isPending}
                 isSpanish={isSpanish}
                 onMode={(mode) => openProviderReplyMode(activeAction, mode)}
                 onFormChange={updateProviderReplyForm}
-                onFollowUp={() => handleProviderFollowUp(activeAction)}
+                onNoAnswer={() => handleProviderNoAnswer(activeAction)}
                 onSaveConfirmed={() => handleSaveProviderReply(activeAction)}
                 onUnavailable={() => handleProviderUnavailable(activeAction)}
                 onNeedMoreInfo={() => handleProviderNeedMoreInfo(activeAction)}
-                onCancel={() => cancelMutation.mutate(activeAction.id)}
+                onMarkComplete={() => handleProviderMarkComplete(activeAction)}
               />
             ) : null}
 
