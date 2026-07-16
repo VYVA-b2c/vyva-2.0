@@ -1891,6 +1891,7 @@ describe("ConciergeScreen action hub", () => {
     }];
     let searchBody: {
       query?: string;
+      provider_mode?: string;
       recheck_context?: {
         preferred_sources?: string[];
         criteria?: string[];
@@ -1941,6 +1942,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(await screen.findByTestId("button-provider-shortlist-recheck"));
 
     await waitFor(() => expect(searchBody?.query).toContain("doctor nearby"));
+    expect(searchBody?.provider_mode).toBe("specialist");
     expect(searchBody?.recheck_context).toMatchObject({
       preferred_sources: ["official", "provider_owned", "regulated", "directory"],
       criteria: ["price", "availability", "accessibility", "coverage", "reputation"],
@@ -2064,7 +2066,7 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("adds provider search criteria to care option searches", async () => {
-    let searchBody: { query?: string; locale?: string } | null = null;
+    let searchBody: { query?: string; locale?: string; provider_mode?: string } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).includes("/api/offers/search")) {
         searchBody = JSON.parse(String(init?.body));
@@ -2101,6 +2103,7 @@ describe("ConciergeScreen action hub", () => {
       expect(searchBody?.query).toContain("compare a specialist, personal care, or residence");
     });
     expect(searchBody?.locale).toBe("en");
+    expect(searchBody?.provider_mode).toBe("personal-care");
     expect(searchBody?.query).toContain("nearby or easy to reach");
     expect(searchBody?.query).toContain("strong reputation with verifiable reviews");
     expect(searchBody?.query).toContain("accessible for older adults");

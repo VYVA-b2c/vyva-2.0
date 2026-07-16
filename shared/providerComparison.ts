@@ -350,6 +350,49 @@ function dedupeEvidence(evidence: ProviderComparisonEvidence[]): ProviderCompari
   });
 }
 
+function numericMatches(value: string, pattern: RegExp): number[] {
+  return Array.from(value.matchAll(pattern))
+    .map((match) => Number(String(match.slice(1).find((item) => item != null) ?? "").replace(",", ".")))
+    .filter(Number.isFinite);
+}
+
+function opposingClaims(values: string[], positive: RegExp, negative: RegExp): boolean {
+  return values.some((value) => negative.test(value)) && values.some((value) => positive.test(value) && !negative.test(value));
+}
+
+function evidenceConflicts(
+  criterion: ProviderComparisonCriterion,
+  evidence: ProviderComparisonEvidence[],
+): boolean {
+  const values = evidence.map((item) => item.value ?? "").filter(Boolean);
+  if (values.length < 2) return false;
+  if (criterion === "price") {
+    const amounts = values.flatMap((value) => numericMatches(
+      value,
+      /(?:EUR|USD|GBP|€|\$|£)\s*([0-9]+(?:[.,][0-9]{1,2})?)|([0-9]+(?:[.,][0-9]{1,2})?)\s*(?:EUR|USD|GBP|€|\$|£)/gi,
+    ));
+    return new Set(amounts.map((amount) => amount.toFixed(2))).size > 1;
+  }
+  if (criterion === "reputation") {
+    const ratings = values.flatMap((value) => numericMatches(value, /([0-5](?:[.,][0-9]+)?)\s*\/\s*5/gi));
+    return ratings.length > 1 && Math.max(...ratings) - Math.min(...ratings) >= 0.5;
+  }
+  if (criterion === "distance") {
+    const distances = values.flatMap((value) => numericMatches(value, /([0-9]+(?:[.,][0-9]+)?)\s*(?:km|mi|miles?)/gi));
+    return new Set(distances.map((distance) => distance.toFixed(1))).size > 1;
+  }
+  if (criterion === "availability") {
+    return opposingClaims(values, /\b(?:open|available|abiert|disponible)\b/i, /\b(?:closed|unavailable|not available|cerrad|sin disponibilidad)\b/i);
+  }
+  if (criterion === "accessibility") {
+    return opposingClaims(values, /\b(?:accessible|wheelchair|adaptad|accesible|sin escalones|step[- ]free)\b/i, /\b(?:not accessible|no wheelchair|no adaptad|inaccesible)\b/i);
+  }
+  if (criterion === "coverage") {
+    return opposingClaims(values, /\b(?:accept|cover|serve|insured|acepta|cubre|opera)\b/i, /\b(?:not accepted|not covered|does not serve|no acepta|no cubre)\b/i);
+  }
+  return false;
+}
+
 export function buildProviderComparisonFact(
   criterion: ProviderComparisonCriterion,
   evidence: ProviderComparisonEvidence[],
@@ -371,12 +414,7 @@ export function buildProviderComparisonFact(
       - (left.checkedAt ? new Date(left.checkedAt).getTime() : 0);
   });
   const primary = normalizedEvidence.find((item) => Boolean(item.value)) ?? normalizedEvidence[0] ?? null;
-  const distinctValues = new Set(
-    normalizedEvidence
-      .map((item) => normalizedIdentity(item.value ?? ""))
-      .filter(Boolean),
-  );
-  const conflict = distinctValues.size > 1;
+  const conflict = evidenceConflicts(criterion, normalizedEvidence);
   return {
     criterion,
     value: primary?.value ?? null,

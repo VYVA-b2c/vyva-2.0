@@ -110,6 +110,48 @@ describe("provider comparison contract", () => {
     expect(fact.evidence[0].sourceUrl).toBeNull();
   });
 
+  it("keeps complementary availability and reputation evidence without a false conflict", () => {
+    const availability = buildProviderComparisonFact("availability", [
+      {
+        value: "Opening hours Mo-Fr 09:00-18:00",
+        status: "verified",
+        source: "Clinic website",
+        sourceType: "provider_owned",
+        sourceUrl: "https://clinic.example/hours",
+        checkedAt: "2026-07-10T08:00:00.000Z",
+      },
+      {
+        value: "Appears open now",
+        status: "reported",
+        source: "Google Places",
+        sourceType: "directory",
+        sourceUrl: "https://maps.example/clinic",
+        checkedAt: "2026-07-10T08:05:00.000Z",
+      },
+    ]);
+    const reputation = buildProviderComparisonFact("reputation", [
+      {
+        value: "Listed in a regulated directory",
+        status: "verified",
+        source: "Health register",
+        sourceType: "regulated",
+        sourceUrl: "https://health.gov/clinic",
+        checkedAt: "2026-07-10T08:00:00.000Z",
+      },
+      {
+        value: "4.6/5 (120 reviews)",
+        status: "reported",
+        source: "Google Places",
+        sourceType: "directory",
+        sourceUrl: "https://maps.example/clinic",
+        checkedAt: "2026-07-10T08:05:00.000Z",
+      },
+    ]);
+
+    expect(availability).toMatchObject({ conflict: false, status: "verified" });
+    expect(reputation).toMatchObject({ conflict: false, status: "verified" });
+  });
+
   it("builds a saved shortlist without authorizing external action", () => {
     const selected = buildProviderComparisonOptions(sourceOptions).slice(0, 2);
     const payload = buildProviderShortlistPayload(selected, {

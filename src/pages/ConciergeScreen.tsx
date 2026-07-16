@@ -2719,12 +2719,14 @@ async function searchOffers(
   locale: string,
   documentContext?: BillDocumentAnalysis,
   recheckContext?: ProviderRecheckContext,
+  providerMode?: ProviderSearchMode | null,
 ): Promise<OffersSearchResponse> {
   const res = await apiFetch("/api/offers/search", {
     method: "POST",
     body: JSON.stringify({
       query,
       locale,
+      provider_mode: providerMode ?? undefined,
       document_context: documentContext,
       recheck_context: recheckContext
         ? {
@@ -10064,6 +10066,7 @@ const ConciergeScreen = () => {
         language,
         undefined,
         buildProviderRecheckContext(shortlist),
+        mode,
       );
       const latestOptions = buildProviderComparisonOptions(result.options);
       return patchPendingConciergeAction({
@@ -11278,7 +11281,7 @@ const ConciergeScreen = () => {
     resetProviderShortlistState();
     try {
       const criteriaQuery = buildProviderSearchQuery(query, providerSearchCriteria, providerSearchMode, isSpanish);
-      const result = await searchOffers(criteriaQuery, language, documentContext);
+      const result = await searchOffers(criteriaQuery, language, documentContext, undefined, providerSearchMode);
       setOffersResult(result);
     } catch {
       setOffersError(isSpanish
