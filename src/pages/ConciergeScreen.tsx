@@ -722,6 +722,28 @@ interface ConciergeCompletedSession {
   completed_at: string | null;
 }
 
+type ConciergeLiveHandoffState =
+  | "ready"
+  | "sent_or_called"
+  | "waiting"
+  | "completed"
+  | "failed"
+  | "needs_human_help";
+
+type ConciergeLiveHandoffReadinessItem = {
+  key: string;
+  label: string;
+  value: string;
+  ready: boolean;
+};
+
+type ConciergeLiveHandoffSummary = {
+  state: ConciergeLiveHandoffState;
+  label: string;
+  helper: string;
+  items: ConciergeLiveHandoffReadinessItem[];
+};
+
 function coerceConciergeCompletedTemplate(value: unknown): ConciergeCompletedSession | null {
   if (!isRecord(value)) return null;
   const useCase = typeof value.use_case === "string" && value.use_case.trim() ? value.use_case.trim() : "";
@@ -2343,6 +2365,19 @@ async function prepareTransportConciergeAction(params: {
         booking_url: bookingUrl || null,
         preferred_channel: preferredChannel,
         execution_channel: preferredChannel,
+        live_handoff_flow: "transport_booking_v1",
+        live_handoff_status: "ready",
+        handoff_readiness: {
+          provider_saved: params.option.kind === "saved_provider" || params.hasSavedTransportProvider,
+          provider_name: params.option.providerName || params.option.label,
+          contact_channel: preferredChannel,
+          has_contact_channel: preferredChannel !== "manual",
+          has_pickup: Boolean(params.pickupAddress.trim()),
+          has_destination: Boolean(params.destinationAddress.trim()),
+          has_time: Boolean(params.requestedTime.trim() || "now"),
+          has_mobility_needs: params.hasSavedMobilityInfo || params.mobilityNeeds.length > 0,
+          final_confirmation_required: true,
+        },
         email_subject: "Ride request",
         email_body: messageBody,
         whatsapp_message: messageBody,
@@ -2444,6 +2479,9 @@ async function saveConfirmedRide(params: {
       outcomeSummary: `Ride saved with ${providerName}.`,
       outcomePayload: {
         flow_reference: TRANSPORT_BOOKING_FLOW_REFERENCE,
+        live_handoff_flow: "transport_booking_v1",
+        live_handoff_status: "completed",
+        live_handoff_outcome: "ride_confirmed",
         scheduled_for: scheduledDate.toISOString(),
         provider_name: providerName,
         provider_reply: params.providerReply.trim(),
@@ -3921,6 +3959,8 @@ function manualReviewOutcomePayload(
     next_step: nextStep || null,
     reference: reference || payloadString(payload, ["reference", "case_reference", "claim_reference"]) || null,
     notes: notes || null,
+    live_handoff_status: form.status === "review_pending" ? "needs_human_help" : "completed",
+    live_handoff_outcome: form.status,
     completed_from: "manual_review_outcome_panel",
     no_external_action_without_confirmation: true,
     reviewed_at: new Date().toISOString(),
@@ -4024,6 +4064,8 @@ function emailDraftOutcomePayload(
     email_body: draft.body,
     reference: form.reference.trim() || payloadString(payload, ["email_reference", "reference"]) || null,
     notes: form.notes.trim() || null,
+    live_handoff_status: "sent_or_called",
+    live_handoff_outcome: "email_sent",
     completed_from: "email_draft_outcome_panel",
     no_external_action_without_confirmation: true,
     sent_at: new Date().toISOString(),
@@ -4076,6 +4118,8 @@ function whatsAppDraftOutcomePayload(
     whatsapp_message: draft.message,
     reference: form.reference.trim() || payloadString(payload, ["whatsapp_reference", "reference"]) || null,
     notes: form.notes.trim() || null,
+    live_handoff_status: "sent_or_called",
+    live_handoff_outcome: "whatsapp_sent",
     completed_from: "whatsapp_draft_outcome_panel",
     no_external_action_without_confirmation: true,
     sent_at: new Date().toISOString(),
@@ -4454,6 +4498,288 @@ function handoffChannelLabel(item: ConciergePendingItem, isSpanish: boolean): st
   if (getActionEmailDraft(item)) return isSpanish ? "Email" : "Email";
   if (getBookingUrl(item)) return isSpanish ? "Enlace o formulario" : "Booking link or form";
   return isSpanish ? "Revision VYVA" : "VYVA review";
+}
+
+function isConciergeLiveHandoffState(value: string): value is ConciergeLiveHandoffState {
+  return ["ready", "sent_or_called", "waiting", "completed", "failed", "needs_human_help"].includes(value);
+}
+
+function isRideLiveHandoffAction(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
+  if (!item) return false;
+  return item.use_case === "book_ride" || payloadString(item.action_payload, ["flow_reference"]) === TRANSPORT_BOOKING_FLOW_REFERENCE;
+}
+
+function isReusableLiveHandoffAction(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
+  if (!item) return false;
+  if (isRideLiveHandoffAction(item)) return true;
+  if (item.use_case === "order_medicine" || item.use_case === "book_appointment" || isHomeServicePendingAction(item)) return true;
+  const flowReference = payloadString(item.action_payload, ["flow_reference"]);
+  return flowReference === OTC_PHARMACY_FLOW_REFERENCE ||
+    flowReference === MEDICAL_APPOINTMENT_FLOW_REFERENCE ||
+    flowReference === CONCIERGE_FLOW_REFERENCES.homeService ||
+    flowReference === CONCIERGE_FLOW_REFERENCES.safeHomeSupport;
+}
+
+function handoffReadinessFlag(
+  payload: Record<string, unknown> | null | undefined,
+  key: string,
+  fallback: boolean,
+): boolean {
+  const readiness = payload?.handoff_readiness;
+  if (isRecord(readiness) && typeof readiness[key] === "boolean") return readiness[key] as boolean;
+  return fallback;
+}
+
+function liveHandoffStateFromAction(item: ConciergePendingItem): ConciergeLiveHandoffState {
+  const explicit = payloadString(item.action_payload, ["live_handoff_status"]);
+  if (isConciergeLiveHandoffState(explicit)) return explicit;
+
+  const callOutcome = payloadString(item.action_payload, ["call_outcome"]);
+  if (callOutcome === "confirmed") return "completed";
+  if (callOutcome === "no_answer") return "waiting";
+  if (callOutcome === "needs_info") return "needs_human_help";
+  if (callOutcome === "cancelled") return "failed";
+  if (payloadString(item.action_payload, ["provider_reply_status"]) === "confirmed") return "completed";
+  if (payloadString(item.action_payload, ["review_outcome"]) === "review_pending") return "needs_human_help";
+  if (
+    payloadString(item.action_payload, ["email_outcome"]) === "sent" ||
+    payloadString(item.action_payload, ["whatsapp_outcome"]) === "sent" ||
+    payloadString(item.action_payload, ["form_outcome"]) === "submitted"
+  ) {
+    return "sent_or_called";
+  }
+
+  const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
+  if (missionStatus.includes("awaiting_provider")) return "waiting";
+
+  const task = getConciergeExecutionTask(item);
+  if (task?.lifecycle_status === "done") return "completed";
+  if (task?.lifecycle_status === "failed" || task?.lifecycle_status === "cancelled") return "failed";
+  if (task?.lifecycle_status === "in_progress") return "sent_or_called";
+  if (task?.lifecycle_status === "confirmed") return "waiting";
+  if (task?.lifecycle_status === "needs_info") return "needs_human_help";
+
+  if (item.status === "completed") return "completed";
+  if (item.status === "failed" || item.status === "cancelled") return "failed";
+  if (item.status === "calling") return "sent_or_called";
+  if (conciergeActionAlreadyConfirmed(item)) return "waiting";
+  return "ready";
+}
+
+function liveHandoffStateLabel(state: ConciergeLiveHandoffState, isSpanish: boolean): { label: string; helper: string } {
+  const copy: Record<ConciergeLiveHandoffState, { en: string; es: string; helperEn: string; helperEs: string }> = {
+    ready: {
+      en: "Ready for your OK",
+      es: "Listo para tu OK",
+      helperEn: "Everything stays paused until the user confirms.",
+      helperEs: "Todo queda pausado hasta que la persona confirme.",
+    },
+    sent_or_called: {
+      en: "Sent or called",
+      es: "Enviado o llamado",
+      helperEn: "The contact step happened. Save the result next.",
+      helperEs: "El contacto ya se hizo. Guarda el resultado despues.",
+    },
+    waiting: {
+      en: "Waiting for provider",
+      es: "Esperando al proveedor",
+      helperEn: "VYVA is waiting for a provider reply or final detail.",
+      helperEs: "VYVA espera respuesta o el ultimo dato.",
+    },
+    completed: {
+      en: "Completed",
+      es: "Completado",
+      helperEn: "The outcome is saved in Concierge history.",
+      helperEs: "El resultado esta guardado en el historial.",
+    },
+    failed: {
+      en: "Could not complete",
+      es: "No se pudo completar",
+      helperEn: "Review the issue before trying again.",
+      helperEs: "Revisa el problema antes de intentarlo otra vez.",
+    },
+    needs_human_help: {
+      en: "Needs human help",
+      es: "Necesita ayuda humana",
+      helperEn: "A person should review the task before it moves on.",
+      helperEs: "Una persona debe revisar antes de seguir.",
+    },
+  };
+  const entry = copy[state] ?? copy.ready;
+  return {
+    label: isSpanish ? entry.es : entry.en,
+    helper: isSpanish ? entry.helperEs : entry.helperEn,
+  };
+}
+
+function buildRideLiveHandoffSummary(item: ConciergePendingItem, isSpanish: boolean): ConciergeLiveHandoffSummary {
+  const payload = item.action_payload;
+  const state = liveHandoffStateFromAction(item);
+  const stateCopy = liveHandoffStateLabel(state, isSpanish);
+  const providerName = item.provider_name?.trim() || payloadString(payload, ["provider_name", "selected_provider_name"]);
+  const channel = handoffChannelLabel(item, isSpanish);
+  const pickup = payloadString(payload, ["pickup_address", "pickup"]);
+  const destination = payloadString(payload, ["destination_address", "destination"]);
+  const requestedTime = payloadString(payload, ["requested_time", "time"]) || (isSpanish ? "Ahora" : "Now");
+  const mobilityNeeds = stringList(payload?.mobility_needs);
+  const mobilitySource = payloadString(payload, ["mobility_info_source"]);
+  const hasFinalOk = conciergeActionAlreadyConfirmed(item) || state === "sent_or_called" || state === "waiting" || state === "completed";
+  const providerSaved = handoffReadinessFlag(payload, "provider_saved", Boolean(payload?.saved_transport_provider_first));
+  const contactReady = handoffReadinessFlag(payload, "has_contact_channel", !/review|revision|manual/i.test(channel));
+  const mobilityReady = handoffReadinessFlag(payload, "has_mobility_needs", mobilityNeeds.length > 0 || mobilitySource === "profile");
+
+  return {
+    state,
+    label: stateCopy.label,
+    helper: stateCopy.helper,
+    items: [
+      {
+        key: "provider",
+        label: isSpanish ? "Proveedor" : "Provider",
+        value: providerName
+          ? `${providerName}${providerSaved ? (isSpanish ? " - guardado" : " - saved") : ""}`
+          : (isSpanish ? "Falta proveedor" : "Provider needed"),
+        ready: Boolean(providerName),
+      },
+      {
+        key: "contact",
+        label: isSpanish ? "Contacto" : "Contact",
+        value: channel,
+        ready: contactReady,
+      },
+      {
+        key: "pickup",
+        label: isSpanish ? "Recogida" : "Pickup",
+        value: pickup || (isSpanish ? "Falta recogida" : "Pickup needed"),
+        ready: handoffReadinessFlag(payload, "has_pickup", Boolean(pickup)),
+      },
+      {
+        key: "destination",
+        label: isSpanish ? "Destino" : "Destination",
+        value: destination || (isSpanish ? "Falta destino" : "Destination needed"),
+        ready: handoffReadinessFlag(payload, "has_destination", Boolean(destination)),
+      },
+      {
+        key: "time",
+        label: isSpanish ? "Hora" : "Time",
+        value: requestedTime,
+        ready: handoffReadinessFlag(payload, "has_time", Boolean(requestedTime)),
+      },
+      {
+        key: "mobility",
+        label: isSpanish ? "Movilidad" : "Mobility",
+        value: mobilityNeeds.length
+          ? mobilityNeeds.join(", ")
+          : mobilitySource === "profile"
+            ? (isSpanish ? "Guardada en perfil" : "Saved in profile")
+            : (isSpanish ? "Pregunta si hace falta" : "Ask if needed"),
+        ready: mobilityReady,
+      },
+      {
+        key: "confirmation",
+        label: isSpanish ? "OK final" : "Final OK",
+        value: hasFinalOk
+          ? (isSpanish ? "Confirmado" : "Confirmed")
+          : (isSpanish ? "Pendiente" : "Pending"),
+        ready: hasFinalOk,
+      },
+    ],
+  };
+}
+
+function genericHandoffDetailLabel(item: ConciergePendingItem, isSpanish: boolean): string {
+  if (item.use_case === "order_medicine") return isSpanish ? "Producto" : "Item";
+  if (isHomeServicePendingAction(item)) return isSpanish ? "Servicio" : "Service";
+  if (item.use_case === "book_appointment") return isSpanish ? "Motivo" : "Reason";
+  return isSpanish ? "Detalle" : "Detail";
+}
+
+function genericHandoffDetailValue(item: ConciergePendingItem, isSpanish: boolean): string {
+  const payload = item.action_payload;
+  if (item.use_case === "order_medicine") {
+    return payloadString(payload, ["item_text", "items", "item"]) || (isSpanish ? "Falta producto" : "Item needed");
+  }
+  if (isHomeServicePendingAction(item)) {
+    return payloadString(payload, ["service_needed", "problem_summary", "service_type", "reason", "detail"]) ||
+      (isSpanish ? "Falta servicio" : "Service needed");
+  }
+  if (item.use_case === "book_appointment") {
+    return payloadString(payload, ["reason", "detail", "problem_summary", "provider_notes"]) ||
+      (isSpanish ? "Falta motivo" : "Reason needed");
+  }
+  return payloadString(payload, ["reason", "detail", "draft_message", "message"]) || (isSpanish ? "Falta detalle" : "Detail needed");
+}
+
+function buildGenericLiveHandoffSummary(item: ConciergePendingItem, isSpanish: boolean): ConciergeLiveHandoffSummary {
+  const payload = item.action_payload;
+  const state = liveHandoffStateFromAction(item);
+  const stateCopy = liveHandoffStateLabel(state, isSpanish);
+  const providerName = activeTaskProviderLabel(item, isSpanish);
+  const channel = handoffChannelLabel(item, isSpanish);
+  const detailValue = genericHandoffDetailValue(item, isSpanish);
+  const timeValue = payloadString(payload, ["requested_time", "preferred_time", "scheduled_for", "time"]);
+  const requirements = evaluateConciergeFlowRequirements({
+    useCase: item.use_case,
+    payload,
+    providerName,
+    summary: item.action_summary,
+  });
+  const firstMissing = requirements.firstMissingRequirement;
+  const detailsReady = requirements.missingRequirements.length === 0;
+  const hasFinalOk = conciergeActionAlreadyConfirmed(item) || state === "sent_or_called" || state === "waiting" || state === "completed";
+
+  return {
+    state,
+    label: stateCopy.label,
+    helper: stateCopy.helper,
+    items: [
+      {
+        key: "provider",
+        label: isSpanish ? "Proveedor" : "Provider",
+        value: providerName || (requirements.needsProvider ? (isSpanish ? "Falta proveedor" : "Provider needed") : (isSpanish ? "VYVA" : "VYVA")),
+        ready: Boolean(providerName) || !requirements.needsProvider,
+      },
+      {
+        key: "contact",
+        label: isSpanish ? "Contacto" : "Contact",
+        value: channel,
+        ready: !/review|revision|manual/i.test(channel),
+      },
+      {
+        key: "details",
+        label: genericHandoffDetailLabel(item, isSpanish),
+        value: detailsReady
+          ? detailValue
+          : firstMissing
+            ? (isSpanish ? `Falta ${firstMissing.labelEs}` : `${firstMissing.labelEn} needed`)
+            : detailValue,
+        ready: detailsReady,
+      },
+      {
+        key: "time",
+        label: isSpanish ? "Hora" : "Time",
+        value: timeValue || (isSpanish ? "Por confirmar" : "To confirm"),
+        ready: Boolean(timeValue) || !requirements.missingRequirements.some((requirement) => requirement.key === "time"),
+      },
+      {
+        key: "confirmation",
+        label: isSpanish ? "OK final" : "Final OK",
+        value: hasFinalOk
+          ? (isSpanish ? "Confirmado" : "Confirmed")
+          : (isSpanish ? "Pendiente" : "Pending"),
+        ready: hasFinalOk,
+      },
+    ],
+  };
+}
+
+function buildConciergeLiveHandoffSummary(
+  item: ConciergePendingItem | null | undefined,
+  isSpanish: boolean,
+): ConciergeLiveHandoffSummary | null {
+  if (isRideLiveHandoffAction(item)) return buildRideLiveHandoffSummary(item, isSpanish);
+  if (isReusableLiveHandoffAction(item)) return buildGenericLiveHandoffSummary(item, isSpanish);
+  return null;
 }
 
 function addReviewDetail(
@@ -4901,6 +5227,78 @@ function ActiveTaskChecklistPanel({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function liveHandoffStateClasses(state: ConciergeLiveHandoffState): string {
+  switch (state) {
+    case "completed":
+      return "border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]";
+    case "sent_or_called":
+    case "waiting":
+      return "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]";
+    case "needs_human_help":
+      return "border-[#FED7AA] bg-[#FFF7ED] text-[#9A3412]";
+    case "failed":
+      return "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]";
+    case "ready":
+    default:
+      return "border-[#DDD6FE] bg-[#F5F3FF] text-vyva-purple";
+  }
+}
+
+function ConciergeLiveHandoffPanel({ summary, isSpanish }: { summary: ConciergeLiveHandoffSummary; isSpanish: boolean }) {
+  return (
+    <div
+      className="mt-3 rounded-[20px] border border-[#CCFBF1] bg-[#F8FFFC] p-3"
+      data-testid="panel-concierge-live-handoff"
+      data-state={summary.state}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+            {isSpanish ? "Traspaso real" : "Live handoff"}
+          </p>
+          <p className="mt-1 font-body text-[15px] font-black leading-tight text-vyva-text-1">
+            {summary.label}
+          </p>
+          <p className="mt-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {summary.helper}
+          </p>
+        </div>
+        <span
+          className={`rounded-full border px-3 py-1 font-body text-[11px] font-black ${liveHandoffStateClasses(summary.state)}`}
+          data-testid="chip-concierge-live-handoff-state"
+        >
+          {summary.label}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {summary.items.map((item) => (
+          <div
+            key={item.key}
+            className={`min-h-[68px] rounded-[15px] border px-3 py-2 ${
+              item.ready
+                ? "border-[#BBF7D0] bg-white text-[#047857]"
+                : "border-[#FED7AA] bg-[#FFFBF5] text-[#9A3412]"
+            }`}
+            data-testid={`item-live-handoff-${item.key}`}
+            data-ready={item.ready ? "true" : "false"}
+          >
+            <div className="flex items-center gap-1.5">
+              {item.ready ? <CircleCheck size={13} aria-hidden="true" /> : <AlertTriangle size={13} aria-hidden="true" />}
+              <p className="font-body text-[10px] font-black uppercase tracking-[0.08em]">
+                {item.label}
+              </p>
+            </div>
+            <p className="mt-1 font-body text-[12px] font-black leading-tight text-vyva-text-1">
+              {item.value}
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -7129,6 +7527,8 @@ function providerReplyOutcomePayload(item: ConciergePendingItem, form: ProviderR
     reference: form.reference.trim() || payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]) || null,
     location: form.location.trim() || payloadString(payload, ["location", "address", "destination_address", "home_address"]) || null,
     notes: form.notes.trim() || null,
+    live_handoff_status: "completed",
+    live_handoff_outcome: "provider_confirmed",
     completed_from: "provider_reply_panel",
   };
 }
@@ -7203,6 +7603,8 @@ function bookingFormOutcomePayload(item: ConciergePendingItem, form: BookingForm
     missing_fields: plan?.missingFields ?? [],
     reference: form.reference.trim() || payloadString(payload, ["booking_reference", "reference"]) || null,
     notes: form.notes.trim() || null,
+    live_handoff_status: "sent_or_called",
+    live_handoff_outcome: "form_submitted",
     completed_from: "booking_form_support_panel",
     no_external_action_without_confirmation: true,
   };
@@ -7295,6 +7697,13 @@ function phoneCallOutcomeStatusLabel(status: PhoneCallOutcomeStatus, isSpanish: 
   }
 }
 
+function liveHandoffStatusForPhoneOutcome(status: PhoneCallOutcomeStatus): ConciergeLiveHandoffState {
+  if (status === "confirmed") return "completed";
+  if (status === "no_answer") return "waiting";
+  if (status === "needs_info") return "needs_human_help";
+  return "failed";
+}
+
 function phoneCallOutcomeSummary(item: ConciergePendingItem, form: PhoneCallOutcomeForm, isSpanish: boolean): string {
   const provider = phoneCallProviderName(item, isSpanish);
   const statusLabel = phoneCallOutcomeStatusLabel(form.status, isSpanish).toLowerCase();
@@ -7334,6 +7743,8 @@ function phoneCallOutcomePayload(item: ConciergePendingItem, form: PhoneCallOutc
     scheduled_for: form.scheduledFor.trim() || payloadString(payload, ["scheduled_for", "requested_time", "time"]) || null,
     reference: form.reference.trim() || payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]) || null,
     notes: form.notes.trim() || null,
+    live_handoff_status: liveHandoffStatusForPhoneOutcome(form.status),
+    live_handoff_outcome: form.status,
     completed_from: "phone_call_outcome_panel",
     no_external_action_without_confirmation: true,
   };
@@ -11733,6 +12144,9 @@ const ConciergeScreen = () => {
   const activeActionUserUpdate = activeAction && activeActionExecutionStatus
     ? buildConciergeUserUpdateSummary(activeAction, activeActionExecutionStatus, isSpanish)
     : null;
+  const activeActionLiveHandoff = activeAction
+    ? buildConciergeLiveHandoffSummary(activeAction, isSpanish)
+    : null;
   const activeActionCanRecordProviderReply = canRecordProviderReply(activeActionTimeline);
   const activeActionProviderSearchDetails = isProviderSearchPendingAction(activeAction)
     ? providerSearchActionDetails(activeAction, isSpanish)
@@ -13751,6 +14165,13 @@ const ConciergeScreen = () => {
               <ConciergeExecutionStatusPanel
                 summary={activeActionExecutionStatus}
                 update={activeActionUserUpdate}
+              />
+            ) : null}
+
+            {activeActionLiveHandoff ? (
+              <ConciergeLiveHandoffPanel
+                summary={activeActionLiveHandoff}
+                isSpanish={isSpanish}
               />
             ) : null}
 
