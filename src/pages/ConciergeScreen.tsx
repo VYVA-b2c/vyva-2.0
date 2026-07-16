@@ -126,6 +126,7 @@ import {
 import {
   buildProviderComparisonOptions,
   buildProviderContactPayload,
+  buildProviderShortlistRecheckPayload,
   buildProviderShortlistPayload,
   buildTrustedProviderPrefill,
   parseProviderShortlistPayload,
@@ -9997,6 +9998,43 @@ const ConciergeScreen = () => {
     },
   });
 
+  const recheckProviderShortlistMutation = useMutation({
+    mutationFn: async ({
+      item,
+      shortlist,
+    }: {
+      item: ConciergePendingItem;
+      shortlist: ProviderShortlistState;
+    }) => {
+      if (!item.action_payload) throw new Error("Could not reopen provider shortlist");
+      const mode = providerShortlistMode(shortlist);
+      const criteria = (shortlist.context.criteria ?? []).filter(isProviderSearchCriterion);
+      const query = shortlist.context.query?.trim() || providerSearchModeLabel(mode, isSpanish);
+      const criteriaQuery = buildProviderSearchQuery(query, criteria, mode, isSpanish);
+      const result = await searchOffers(criteriaQuery, language);
+      const latestOptions = buildProviderComparisonOptions(result.options);
+      return patchPendingConciergeAction({
+        pendingId: item.id,
+        actionPayload: buildProviderShortlistRecheckPayload(item.action_payload, latestOptions),
+      });
+    },
+    onMutate: () => {
+      setActiveProviderShortlistError(null);
+      setActiveProviderShortlistNotice(null);
+    },
+    onSuccess: async () => {
+      setActiveProviderShortlistNotice(isSpanish
+        ? "Comprobacion actualizada. Revisa los cambios antes de elegir."
+        : "Latest check saved. Review any changes before choosing.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setActiveProviderShortlistError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido comprobar la seleccion." : "I could not check the shortlist."));
+    },
+  });
+
   const completeProviderShortlistMutation = useMutation({
     mutationFn: ({ item, shortlist, decision }: { item: ConciergePendingItem; shortlist: ProviderShortlistState; decision: "dismissed" | "preferred_selected" }) => {
       const preferred = shortlist.options.find((option) => option.id === shortlist.preferredProviderId) ?? null;
@@ -12578,6 +12616,10 @@ const ConciergeScreen = () => {
     });
   }
 
+  function handleRecheckActiveShortlist(item: ConciergePendingItem, shortlist: ProviderShortlistState) {
+    recheckProviderShortlistMutation.mutate({ item, shortlist });
+  }
+
   function handleSaveActiveShortlistProvider(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
     const mode = providerShortlistMode(shortlist);
     navigate("/onboarding/profile/providers", {
@@ -14985,7 +15027,8 @@ const ConciergeScreen = () => {
               <ProviderShortlistFollowUpPanel
                 shortlist={activeActionProviderShortlist}
                 locale={locale}
-                busy={activeProviderShortlistMutation.isPending || completeProviderShortlistMutation.isPending}
+                busy={activeProviderShortlistMutation.isPending || completeProviderShortlistMutation.isPending || recheckProviderShortlistMutation.isPending}
+                rechecking={recheckProviderShortlistMutation.isPending}
                 notice={activeProviderShortlistNotice}
                 error={activeProviderShortlistError}
                 onRemove={(option) => handleRemoveActiveShortlistOption(activeAction, activeActionProviderShortlist, option)}
@@ -14993,6 +15036,7 @@ const ConciergeScreen = () => {
                 onSelectPreferred={(option) => handleSelectActiveShortlistProvider(activeAction, activeActionProviderShortlist, option)}
                 onSaveProvider={(option) => handleSaveActiveShortlistProvider(activeAction, activeActionProviderShortlist, option)}
                 onPrepareContact={(option) => handlePrepareActiveShortlistContact(activeAction, activeActionProviderShortlist, option)}
+                onRecheck={() => handleRecheckActiveShortlist(activeAction, activeActionProviderShortlist)}
                 onDismiss={() => completeProviderShortlistMutation.mutate({ item: activeAction, shortlist: activeActionProviderShortlist, decision: "dismissed" })}
                 onFinish={() => completeProviderShortlistMutation.mutate({ item: activeAction, shortlist: activeActionProviderShortlist, decision: "preferred_selected" })}
               />

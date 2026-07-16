@@ -1672,6 +1672,112 @@ describe("ConciergeScreen action hub", () => {
     }));
   });
 
+  it("rechecks an active shortlist without replacing its saved snapshot", async () => {
+    const shortlistOption = (id: string, name: string, price: string, availability: string) => ({
+      id,
+      name,
+      category: "Doctor",
+      summary: "Appointments",
+      why_may_suit_you: "Nearby",
+      facts: {
+        distance: { criterion: "distance", value: "2 km", status: "reported" },
+        price: { criterion: "price", value: price, status: "reported" },
+        reputation: { criterion: "reputation", value: "4.4/5", status: "reported" },
+        availability: { criterion: "availability", value: availability, status: "reported" },
+        accessibility: { criterion: "accessibility", value: null, status: "unknown" },
+        coverage: { criterion: "coverage", value: null, status: "unknown" },
+      },
+      contact: {},
+      source_label: "Saved directory",
+      source_status: "reported",
+    });
+    const originalOptions = [
+      shortlistOption("harbour", "Harbour Clinic", "EUR 60", "Tuesday"),
+      shortlistOption("garden", "Garden Care", "EUR 55", "Friday"),
+    ];
+    let pendingItems = [{
+      id: "shortlist-recheck-1",
+      use_case: "find_provider",
+      provider_name: "Harbour Clinic",
+      provider_phone: null,
+      action_summary: "Provider shortlist saved: Harbour Clinic, Garden Care.",
+      action_payload: {
+        task_type: "provider_shortlist",
+        shortlist_version: 1,
+        shortlist_only: true,
+        shortlist_captured_at: "2020-01-01T10:00:00.000Z",
+        shortlist_updated_at: "2020-01-01T10:00:00.000Z",
+        shortlist_status: "open",
+        preferred_provider_id: null,
+        preferred_provider_name: null,
+        provider_search_mode: "specialist",
+        provider_search_query: "doctor nearby",
+        criteria: ["nearby", "reputation"],
+        flow_reference: "CF_MEDICAL_APPOINTMENT",
+        selected_provider_names: ["Harbour Clinic", "Garden Care"],
+        provider_shortlist: originalOptions,
+        no_external_action_without_confirmation: true,
+      },
+      status: "pending" as const,
+      language: "en",
+    }];
+    let searchBody: { query?: string } | null = null;
+    let patchedPayload: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: pendingItems });
+      if (target.endsWith("/api/concierge/actions/sessions")) return jsonResponse({ items: [] });
+      if (target.endsWith("/api/offers/search")) {
+        searchBody = JSON.parse(String(init?.body));
+        return jsonResponse({
+          category: "Doctor",
+          options: [{
+            name: "Harbour Clinic",
+            category: "Doctor",
+            what_it_offers: "Appointments",
+            phone: "+34 600 999 888",
+            source_label: "Current directory",
+            source_status: "verified",
+            comparison: {
+              price: { criterion: "price", value: "EUR 75", status: "verified", source: "Clinic website" },
+              availability: { criterion: "availability", value: "Wednesday", status: "reported", source: "Clinic website" },
+              reputation: { criterion: "reputation", value: "4.4/5", status: "reported", source: "Public reviews" },
+            },
+          }],
+          decision_explanation: "Current options",
+          neutrality_note: "Neutral search",
+          source_guidance: [],
+          next_step: "Review changes",
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/shortlist-recheck-1/details")) {
+        const body = JSON.parse(String(init?.body)) as { action_payload: Record<string, unknown> };
+        patchedPayload = body.action_payload;
+        pendingItems = [{ ...pendingItems[0], action_payload: body.action_payload }];
+        return jsonResponse({ ok: true, item: pendingItems[0] });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{ pathname: "/concierge", state: { focusRightNow: true, conciergePendingId: "shortlist-recheck-1" } }]);
+    fireEvent.click(await screen.findByTestId("button-provider-shortlist-recheck"));
+
+    await waitFor(() => expect(searchBody?.query).toContain("doctor nearby"));
+    await waitFor(() => expect(patchedPayload).toMatchObject({
+      provider_shortlist: originalOptions,
+      shortlist_recheck_status: "providers_unavailable",
+      shortlist_recheck_changed_count: 2,
+      shortlist_recheck_unavailable_count: 1,
+      shortlist_latest_options: [expect.objectContaining({ name: "Harbour Clinic" })],
+      no_external_action_without_confirmation: true,
+    }));
+    expect(await screen.findByTestId("provider-shortlist-change-review")).toHaveTextContent("What changed");
+    expect(screen.getByTestId("provider-shortlist-review-harbour")).toHaveTextContent("EUR 60");
+    expect(screen.getByTestId("provider-shortlist-review-harbour")).toHaveTextContent("EUR 75");
+    expect(screen.getByTestId("provider-shortlist-review-garden")).toHaveTextContent("Not found in the latest check");
+    expect(screen.getByTestId("button-provider-comparison-contact-garden")).toBeDisabled();
+  });
+
   it("keeps final confirmation when a shortlist choice becomes a contact task", async () => {
     const shortlistPayload = {
       task_type: "provider_shortlist",

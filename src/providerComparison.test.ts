@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildProviderComparisonOptions,
   buildProviderContactPayload,
+  buildProviderShortlistRecheckPayload,
+  buildProviderShortlistReview,
   buildProviderShortlistPayload,
   buildTrustedProviderPrefill,
   parseProviderShortlistPayload,
@@ -101,6 +103,46 @@ describe("provider comparison contract", () => {
       status: "stale",
     });
     expect(providerShortlistFreshness(null)).toEqual({ status: "unknown", ageMs: null });
+  });
+
+  it("keeps the saved snapshot while recording changed and unavailable providers", () => {
+    const selected = buildProviderComparisonOptions(sourceOptions).slice(0, 2);
+    const payload = buildProviderShortlistPayload(selected, {
+      mode: "specialist",
+      query: "dermatologist nearby",
+      capturedAt: "2026-07-01T10:00:00.000Z",
+    });
+    const originalSnapshot = structuredClone(payload.provider_shortlist);
+    const latest = buildProviderComparisonOptions([{
+      ...sourceOptions[0],
+      id: "new-search-id",
+      comparison: {
+        ...sourceOptions[0].comparison,
+        price: { criterion: "price", value: "First visit EUR 75", status: "verified", source: "Provider website" },
+        availability: { criterion: "availability", value: "Wednesday afternoon", status: "reported", source: "Provider website" },
+      },
+    }]);
+    const recheckedPayload = buildProviderShortlistRecheckPayload(payload, latest, "2026-07-10T12:00:00.000Z");
+    const parsed = parseProviderShortlistPayload(recheckedPayload)!;
+    const review = buildProviderShortlistReview(parsed);
+
+    expect(recheckedPayload.provider_shortlist).toEqual(originalSnapshot);
+    expect(recheckedPayload).toMatchObject({
+      shortlist_rechecked_at: "2026-07-10T12:00:00.000Z",
+      shortlist_recheck_status: "providers_unavailable",
+      shortlist_recheck_changed_count: 2,
+      shortlist_recheck_unavailable_count: 1,
+      no_external_action_without_confirmation: true,
+    });
+    expect(review.items[0]).toMatchObject({
+      available: true,
+      current: { id: "clinic-1", name: "Harbour Clinic" },
+      changes: [
+        { criterion: "price", kind: "changed" },
+        { criterion: "availability", kind: "changed" },
+      ],
+    });
+    expect(review.items[1]).toMatchObject({ available: false, latest: null });
   });
 
   it("requires final confirmation for contact and supports trusted-provider setup", () => {

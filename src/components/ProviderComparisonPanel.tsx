@@ -42,6 +42,7 @@ interface ProviderComparisonCopy {
   savedShortlist: string;
   choose: string;
   chosen: string;
+  unavailable: string;
   shortlistCount: (count: number) => string;
   criteria: Record<ProviderComparisonCriterion, string>;
 }
@@ -67,6 +68,7 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     savedShortlist: "Shortlist saved",
     choose: "Choose this option",
     chosen: "Preferred choice",
+    unavailable: "Unavailable in latest check",
     shortlistCount: (count) => `${count} of 3 shortlisted`,
     criteria: { distance: "Distance", price: "Price", reputation: "Reputation", availability: "Availability", accessibility: "Accessibility", coverage: "Insurance / coverage" },
   },
@@ -90,6 +92,7 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     savedShortlist: "Seleccion guardada",
     choose: "Elegir esta opcion",
     chosen: "Opcion preferida",
+    unavailable: "No disponible en la ultima comprobacion",
     shortlistCount: (count) => `${count} de 3 seleccionados`,
     criteria: { distance: "Distancia", price: "Precio", reputation: "Reputacion", availability: "Disponibilidad", accessibility: "Accesibilidad", coverage: "Seguro / cobertura" },
   },
@@ -113,6 +116,7 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     savedShortlist: "Auswahl gespeichert",
     choose: "Diese Option waehlen",
     chosen: "Bevorzugte Wahl",
+    unavailable: "Bei der letzten Pruefung nicht verfuegbar",
     shortlistCount: (count) => `${count} von 3 ausgewaehlt`,
     criteria: { distance: "Entfernung", price: "Preis", reputation: "Bewertungen", availability: "Verfuegbarkeit", accessibility: "Barrierefreiheit", coverage: "Versicherung / Deckung" },
   },
@@ -136,6 +140,7 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     savedShortlist: "Selection enregistree",
     choose: "Choisir cette option",
     chosen: "Choix prefere",
+    unavailable: "Indisponible lors de la derniere verification",
     shortlistCount: (count) => `${count} sur 3 selectionnes`,
     criteria: { distance: "Distance", price: "Prix", reputation: "Reputation", availability: "Disponibilite", accessibility: "Accessibilite", coverage: "Assurance / couverture" },
   },
@@ -159,6 +164,7 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     savedShortlist: "Selezione salvata",
     choose: "Scegli questa opzione",
     chosen: "Scelta preferita",
+    unavailable: "Non disponibile nell'ultimo controllo",
     shortlistCount: (count) => `${count} su 3 selezionati`,
     criteria: { distance: "Distanza", price: "Prezzo", reputation: "Reputazione", availability: "Disponibilita", accessibility: "Accessibilita", coverage: "Assicurazione / copertura" },
   },
@@ -182,6 +188,7 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     savedShortlist: "Selecao guardada",
     choose: "Escolher esta opcao",
     chosen: "Opcao preferida",
+    unavailable: "Indisponivel na ultima verificacao",
     shortlistCount: (count) => `${count} de 3 selecionados`,
     criteria: { distance: "Distancia", price: "Preco", reputation: "Reputacao", availability: "Disponibilidade", accessibility: "Acessibilidade", coverage: "Seguro / cobertura" },
   },
@@ -224,6 +231,7 @@ export interface ProviderComparisonPanelProps {
   onWatch?: (option: ProviderComparisonOption) => void;
   preferredId?: string | null;
   onSelectPreferred?: (option: ProviderComparisonOption) => void;
+  unavailableIds?: string[];
 }
 
 export function ProviderComparisonPanel({
@@ -239,6 +247,7 @@ export function ProviderComparisonPanel({
   onWatch,
   preferredId = null,
   onSelectPreferred,
+  unavailableIds = [],
 }: ProviderComparisonPanelProps) {
   const copy = COPY[supportedLocale(locale)];
   const visibleOptions = options.slice(0, 3);
@@ -259,6 +268,7 @@ export function ProviderComparisonPanel({
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleOptions.map((option, index) => {
           const selected = shortlistedIds.includes(option.id);
+          const unavailable = unavailableIds.includes(option.id);
           return (
             <article
               key={option.id}
@@ -272,6 +282,12 @@ export function ProviderComparisonPanel({
                   </p>
                   <h4 className="mt-1 break-words font-body text-[17px] font-black leading-tight text-vyva-text-1">{option.name}</h4>
                   <p className="mt-1 font-body text-[12px] leading-snug text-vyva-text-2">{option.category}</p>
+                  {unavailable ? (
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 font-body text-[10px] font-black text-red-700" data-testid={`badge-provider-unavailable-${option.id}`}>
+                      <CircleAlert size={12} aria-hidden="true" />
+                      {copy.unavailable}
+                    </span>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -325,6 +341,7 @@ export function ProviderComparisonPanel({
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={unavailable}
                   onClick={() => onSaveProvider(option)}
                   className="h-11 rounded-lg border-[#C7E9E3] bg-[#F0FDFA] font-body text-[13px] font-bold text-[#0F766E]"
                   data-testid={`button-provider-comparison-save-${option.id}`}
@@ -334,6 +351,7 @@ export function ProviderComparisonPanel({
                 </Button>
                 <Button
                   type="button"
+                  disabled={unavailable}
                   onClick={() => onPrepareContact(option)}
                   className="h-11 rounded-lg bg-vyva-purple font-body text-[13px] font-bold hover:bg-vyva-purple/90"
                   data-testid={`button-provider-comparison-contact-${option.id}`}
@@ -345,6 +363,7 @@ export function ProviderComparisonPanel({
                   <Button
                     type="button"
                     variant="outline"
+                    disabled={unavailable}
                     onClick={() => onSelectPreferred(option)}
                     className={`h-11 rounded-lg font-body text-[13px] font-bold ${preferredId === option.id ? "border-[#7C3AED] bg-[#F5F3FF] text-vyva-purple" : "border-vyva-border bg-white text-vyva-text-1"}`}
                     data-testid={`button-provider-comparison-choose-${option.id}`}

@@ -121,4 +121,25 @@ describe("ProviderComparisonPanel", () => {
     );
     expect(screen.getByTestId("button-provider-comparison-choose-provider-a")).toHaveTextContent("Preferred choice");
   });
+
+  it("keeps unavailable options visible but disables decision and contact actions", () => {
+    const onPrepareContact = vi.fn();
+    render(
+      <ProviderComparisonPanel
+        options={options}
+        locale="en"
+        shortlistedIds={["provider-a"]}
+        unavailableIds={["provider-a"]}
+        onToggleShortlist={vi.fn()}
+        onSaveProvider={vi.fn()}
+        onPrepareContact={onPrepareContact}
+        onSelectPreferred={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("badge-provider-unavailable-provider-a")).toHaveTextContent("Unavailable in latest check");
+    expect(screen.getByTestId("button-provider-comparison-save-provider-a")).toBeDisabled();
+    expect(screen.getByTestId("button-provider-comparison-contact-provider-a")).toBeDisabled();
+    expect(screen.getByTestId("button-provider-comparison-choose-provider-a")).toBeDisabled();
+  });
 });
