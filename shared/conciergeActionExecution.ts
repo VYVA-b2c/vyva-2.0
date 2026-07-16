@@ -8,6 +8,12 @@ import {
   type ConciergeFlowRequirementKey,
 } from "./conciergeFlowRequirements";
 import { isConciergeDryRunPayload } from "./conciergeDryRun";
+import {
+  conciergeExecutionModeFromState,
+  evaluateConciergeChannelReadiness,
+  type ConciergeChannelReadinessResult,
+  type ConciergeExecutionMode,
+} from "./conciergeChannelReadiness";
 
 export type ConciergeExecutionActionType =
   | "phone_call"
@@ -45,6 +51,9 @@ export type ConciergeExecutionTask = {
   missing_requirements: ConciergeExecutionMissingRequirement[];
   confirmation_required: true;
   user_confirmed: boolean;
+  external_action_allowed: boolean;
+  execution_mode: ConciergeExecutionMode;
+  channel_readiness: ConciergeChannelReadinessResult;
   dry_run?: boolean;
   confirmation_source?: string;
   confirmed_at?: string;
@@ -68,6 +77,8 @@ export type ConciergeConfirmedExecutionPlan = {
   active_tool: ConciergeToolRequirement;
   action_type: ConciergeExecutionActionType;
   missing_requirements: ConciergeExecutionMissingRequirement[];
+  channel_readiness: ConciergeChannelReadinessResult;
+  execution_mode: ConciergeExecutionMode;
   external_action_allowed: boolean;
   dry_run?: boolean;
   operator_fallback_reason?: string;
@@ -77,6 +88,7 @@ export type ConciergeConfirmedExecutionPlan = {
 export type ConciergeExecutionAuditEvent =
   | "created"
   | "blocked_missing_info"
+  | "blocked_channel_not_ready"
   | "user_confirmed"
   | "direct_call_started"
   | "operator_handoff_queued"
@@ -97,6 +109,8 @@ export type ConciergeExecutionAuditEntry = {
   action_type?: ConciergeExecutionActionType;
   user_confirmed?: boolean;
   external_action_allowed?: boolean;
+  execution_mode?: ConciergeExecutionMode;
+  channel_readiness?: ConciergeChannelReadinessResult;
   dry_run?: boolean;
   reason?: string;
   missing_requirements?: ConciergeExecutionMissingRequirement[];
@@ -113,6 +127,9 @@ export type ConciergeExecutionBuildInput = {
   userConfirmed?: boolean;
   confirmationSource?: string;
   confirmedAt?: string;
+  channelReadiness?: ConciergeChannelReadinessResult;
+  externalActionAllowed?: boolean;
+  executionMode?: ConciergeExecutionMode;
   now?: string;
   failureReason?: string;
   outcome?: string;
@@ -240,6 +257,19 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
 
   const requestedTool = toolFromPayload(payload, input.providerPhone);
   const actionType = actionTypeFromPayload(input.useCase, requirements.flowReference, payload, requestedTool);
+  const channelReadiness = input.channelReadiness
+    ?? existing?.channel_readiness
+    ?? evaluateConciergeChannelReadiness({ tool: requestedTool, dryRun });
+  const externalActionAllowed = input.externalActionAllowed
+    ?? existing?.external_action_allowed
+    ?? false;
+  const executionMode = input.executionMode
+    ?? existing?.execution_mode
+    ?? conciergeExecutionModeFromState({
+      dryRun,
+      externalActionAllowed,
+      channelReadiness,
+    });
   const toolMissingRequirement = toolSpecificMissingRequirement(requestedTool, payload, input.providerPhone);
   const missingKeys = new Set(missingRequirements.map((requirement) => requirement.key));
   if (
@@ -271,6 +301,9 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
     missing_requirements: missingRequirements,
     confirmation_required: true,
     user_confirmed: userConfirmed,
+    external_action_allowed: externalActionAllowed,
+    execution_mode: executionMode,
+    channel_readiness: channelReadiness,
     ...(dryRun ? { dry_run: true } : {}),
     ...(input.confirmationSource || existing?.confirmation_source
       ? { confirmation_source: input.confirmationSource ?? existing?.confirmation_source }
@@ -332,6 +365,8 @@ export function planConciergeConfirmedExecution(input: ConciergeExecutionBuildIn
       active_tool: task.active_tool,
       action_type: task.action_type,
       missing_requirements: task.missing_requirements,
+      channel_readiness: task.channel_readiness,
+      execution_mode: "blocked",
       external_action_allowed: false,
       ...(task.dry_run ? { dry_run: true } : {}),
       message: "Complete the missing details before confirming this Concierge action.",
@@ -348,10 +383,29 @@ export function planConciergeConfirmedExecution(input: ConciergeExecutionBuildIn
         active_tool: task.active_tool,
         action_type: task.action_type,
         missing_requirements: [],
+        channel_readiness: task.channel_readiness,
+        execution_mode: "simulated",
         external_action_allowed: false,
         dry_run: true,
         operator_fallback_reason: "dry_run_simulation",
         message: "Dry-run confirmed. VYVA records a simulated handoff instead of contacting anyone.",
+      };
+    }
+
+    if (!task.channel_readiness.external_action_allowed) {
+      return {
+        mode: "operator_queue",
+        pending_status: "pending",
+        lifecycle_status: "confirmed",
+        requested_tool: task.requested_tool,
+        active_tool: task.active_tool,
+        action_type: task.action_type,
+        missing_requirements: [],
+        channel_readiness: task.channel_readiness,
+        execution_mode: "blocked",
+        external_action_allowed: false,
+        operator_fallback_reason: task.channel_readiness.blockers[0] ?? "channel_not_ready",
+        message: `The ${task.channel_readiness.label.toLowerCase()} channel is not ready for live Concierge actions. VYVA will not contact the provider.`,
       };
     }
 
@@ -363,6 +417,8 @@ export function planConciergeConfirmedExecution(input: ConciergeExecutionBuildIn
       active_tool: task.active_tool,
       action_type: task.action_type,
       missing_requirements: [],
+      channel_readiness: task.channel_readiness,
+      execution_mode: "live",
       external_action_allowed: true,
       message: "Outbound concierge call started.",
     };
@@ -376,6 +432,8 @@ export function planConciergeConfirmedExecution(input: ConciergeExecutionBuildIn
     active_tool: task.active_tool,
     action_type: task.action_type,
     missing_requirements: [],
+    channel_readiness: task.channel_readiness,
+    execution_mode: task.dry_run ? "simulated" : "manual_review",
     external_action_allowed: false,
     ...(task.dry_run ? {
       dry_run: true,

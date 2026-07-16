@@ -119,6 +119,51 @@ function errorResponse(status: number, body: unknown) {
   });
 }
 
+function liveReadyExecutionTask(
+  tool: "phone_call" | "email" | "whatsapp" | "booking_link",
+  overrides: Record<string, unknown> = {},
+) {
+  const channel = tool === "booking_link" ? "form_application" : tool;
+  const label = tool === "phone_call"
+    ? "Phone calls"
+    : tool === "booking_link"
+      ? "Forms / applications"
+      : tool === "email"
+        ? "Email"
+        : "WhatsApp";
+  return {
+    version: 1,
+    flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+    action_type: tool === "phone_call" ? "phone_call" : tool === "booking_link" ? "booking_link" : "message",
+    requested_tool: tool,
+    active_tool: tool,
+    lifecycle_status: "confirmed",
+    provider_ready: true,
+    missing_requirements: [],
+    confirmation_required: true,
+    user_confirmed: true,
+    external_action_allowed: true,
+    execution_mode: "live",
+    channel_readiness: {
+      version: 1,
+      tool,
+      channel,
+      label,
+      status: "ready",
+      ready: true,
+      admin_enabled: true,
+      configured: true,
+      verified: true,
+      dry_run: false,
+      external_action_allowed: true,
+      blockers: [],
+    },
+    created_at: "2026-07-14T10:00:00.000Z",
+    updated_at: "2026-07-14T10:01:00.000Z",
+    ...overrides,
+  };
+}
+
 function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge"]) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -1383,6 +1428,129 @@ describe("ConciergeScreen action hub", () => {
       });
     });
     expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not open, switch, call, or share details without my confirmation.");
+  });
+
+  it("prepares utility WhatsApp summaries inside Concierge instead of opening WhatsApp directly", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    let triggerBody: {
+      action_summary?: string;
+      action_payload?: Record<string, unknown>;
+      auto_start?: boolean;
+      use_case?: string;
+    } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.includes("/api/utilities/normalize")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          can_compare: true,
+        });
+      }
+      if (target.includes("/api/utilities/compare")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          source_used: "CNMC",
+          source_status: "success",
+          source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+          summary: {
+            headline: "One tariff looks cheaper, but confirm terms first.",
+            current_monthly_cost: 92,
+            best_estimated_monthly_cost: 71,
+            estimated_monthly_savings: 21,
+          },
+          results: [{
+            provider: "Tarifa Clara",
+            tariff_name: "Luz Senior",
+            estimated_monthly_cost: 71,
+            estimated_annual_cost: 852,
+            estimated_monthly_savings: 21,
+            contract_type: "indexed",
+            permanence: "none",
+            price_stability: "variable",
+            green_energy: true,
+            source: "CNMC",
+            source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+            provider_url: "https://tarifaclara.example/luz-senior",
+            action_label: "View offers",
+            confidence: "high",
+            notes: ["Confirm taxes and permanence."],
+          }],
+          calculation_note: "Compared current bill against estimated tariffs.",
+          estimated_note: "Savings are estimates.",
+          neutrality_note: "No provider paid for placement.",
+          source_note: "CNMC comparison.",
+        });
+      }
+      if (target.includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "utility-whatsapp-summary-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByRole("button", { name: /Household costs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Fill manually/i }));
+    fireEvent.change(screen.getByPlaceholderText("Postcode"), { target: { value: "28013" } });
+    fireEvent.change(screen.getByPlaceholderText("Approx monthly cost"), { target: { value: "92" } });
+    fireEvent.change(screen.getByPlaceholderText("Current provider optional"), { target: { value: "Current Co" } });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare comparison/i }));
+
+    expect(await screen.findByTestId("button-utilities-compare")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("button-utilities-compare"));
+    fireEvent.click(await screen.findByRole("button", { name: /Send summary by WhatsApp/i }));
+
+    expect(openMock).not.toHaveBeenCalled();
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Deal comparison ready");
+    expect(prefill).toHaveTextContent("Comparison summary prepared for WhatsApp.");
+    expect(prefill).toHaveTextContent("Prepare WhatsApp");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(triggerBody).toMatchObject({
+        use_case: "find_offers",
+        auto_start: false,
+        action_summary: "Comparison summary prepared for WhatsApp.",
+        action_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          task_type: "utility_whatsapp_summary",
+          requested_tool: "whatsapp",
+          active_tool: "operator_review",
+          execution_channel: "manual",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+          user_confirmed: false,
+        }),
+      });
+    });
+    expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not open WhatsApp or send anything without my confirmation.");
   });
 
   it("turns provider results into clear prepared-contact tasks", async () => {
@@ -4000,6 +4168,14 @@ describe("ConciergeScreen route prefill", () => {
           pickup_address: "Saved home",
           destination_address: "City Clinic",
           requested_time: "tomorrow 09:00",
+          execution_channel: "phone",
+          execution_task: liveReadyExecutionTask("phone_call", {
+            flow_reference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+            lifecycle_status: "ready",
+            user_confirmed: false,
+            external_action_allowed: false,
+            execution_mode: "manual_review",
+          }),
         },
         status: "pending",
         language: "en",
@@ -4012,8 +4188,9 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.queryByTestId("link-concierge-phone-call-ride-1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-concierge-phone-call")).not.toBeInTheDocument();
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveAttribute("data-phase", "needs_ok");
-    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Needs your OK");
-    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("You confirm before anything is sent, called, or booked.");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Ready for your OK");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("VYVA has what it needs to prepare the call.");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Nothing is sent, called, or booked without your permission.");
     const liveHandoff = screen.getByTestId("panel-concierge-live-handoff");
     expect(liveHandoff).toHaveAttribute("data-state", "ready");
     expect(liveHandoff).toHaveTextContent("Ready for your OK");
@@ -4143,6 +4320,12 @@ describe("ConciergeScreen route prefill", () => {
               execution_channel: "phone_call",
               call_script: "Hello, I am calling about claim CL-9.",
               requested_time: "today",
+              execution_task: liveReadyExecutionTask("phone_call", {
+                flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+                user_confirmed: false,
+                external_action_allowed: false,
+                execution_mode: "manual_review",
+              }),
             },
             status: "pending",
             language: "en",
@@ -4517,6 +4700,7 @@ describe("ConciergeScreen route prefill", () => {
               completed_at: "2026-08-04T09:30:00.000Z",
               outcome_payload: {
                 flow_reference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+                execution_mode: "live",
                 provider_phone: "+34 612 345 678",
                 pickup_address: "Saved home",
                 destination_address: "City Clinic",
@@ -4713,6 +4897,7 @@ describe("ConciergeScreen route prefill", () => {
             completed_at: "2026-08-05T11:30:00.000Z",
             outcome_payload: {
               flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+              execution_mode: "live",
               appointment_type: "medical",
               appointment_reason: "dermatology follow-up",
               scheduled_for: "2026-08-12T09:30",
@@ -5659,6 +5844,11 @@ describe("ConciergeScreen route prefill", () => {
           provider_email: "clinic@example.com",
           email_subject: "Question about my appointment",
           email_body: "Hello, I would like to confirm my appointment details.",
+          execution_task: liveReadyExecutionTask("email", {
+            user_confirmed: false,
+            external_action_allowed: false,
+            execution_mode: "manual_review",
+          }),
         },
         status: "pending",
         language: "en",
@@ -5688,6 +5878,54 @@ describe("ConciergeScreen route prefill", () => {
     );
     expect(screen.getByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
     expect(screen.getByTestId("button-email-draft-sent-email-1")).toHaveTextContent("I sent it");
+  });
+
+  it("blocks live email handoff when the admin channel gate is not ready", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "email-blocked-1",
+        use_case: "send_message",
+        provider_name: "Clinic desk",
+        provider_phone: null,
+        action_summary: "Email draft prepared for the clinic.",
+        action_payload: {
+          execution_channel: "email",
+          provider_email: "clinic@example.com",
+          email_subject: "Question about my appointment",
+          email_body: "Hello, I would like to confirm my appointment details.",
+          execution_task: liveReadyExecutionTask("email", {
+            external_action_allowed: false,
+            execution_mode: "blocked",
+            channel_readiness: {
+              version: 1,
+              tool: "email",
+              channel: "email",
+              label: "Email",
+              status: "disabled",
+              ready: false,
+              admin_enabled: false,
+              configured: true,
+              verified: true,
+              dry_run: false,
+              external_action_allowed: false,
+              blockers: ["email_admin_disabled"],
+            },
+          }),
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    const blockedPanel = await screen.findByTestId("panel-concierge-channel-readiness-blocked");
+    expect(blockedPanel).toHaveTextContent("Channel not ready");
+    expect(blockedPanel).toHaveTextContent("Email");
+    expect(blockedPanel).toHaveTextContent("VYVA will not open or contact a provider until an admin enables, configures, and verifies this channel.");
+    expect(screen.queryByTestId("link-concierge-email-email-blocked-1")).not.toBeInTheDocument();
+    expect(openMock).not.toHaveBeenCalled();
   });
 
   it("labels dry-run tasks, blocks browser opens, and saves simulated completion history", async () => {
@@ -5911,6 +6149,11 @@ describe("ConciergeScreen route prefill", () => {
           no_external_action_without_confirmation: true,
           executor_version: 1,
           user_confirmed: false,
+          execution_task: liveReadyExecutionTask("email", {
+            user_confirmed: false,
+            external_action_allowed: false,
+            execution_mode: "manual_review",
+          }),
         },
         status: "pending",
         language: "en",
@@ -5972,6 +6215,12 @@ describe("ConciergeScreen route prefill", () => {
               provider_email: "claims@example.com",
               email_subject: "Claim documents",
               email_body: "Hello, please review my claim documents.",
+              execution_task: liveReadyExecutionTask("email", {
+                flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+                user_confirmed: false,
+                external_action_allowed: false,
+                execution_mode: "manual_review",
+              }),
             },
             status: "pending",
             language: "en",
@@ -6120,7 +6369,13 @@ describe("ConciergeScreen route prefill", () => {
         action_summary: "WhatsApp draft prepared for the care coordinator.",
         action_payload: {
           preferred_channel: "whatsapp",
+          execution_channel: "whatsapp",
           whatsapp_message: "Hello, can we confirm the visit time?",
+          execution_task: liveReadyExecutionTask("whatsapp", {
+            user_confirmed: false,
+            external_action_allowed: false,
+            execution_mode: "manual_review",
+          }),
         },
         status: "pending",
         language: "en",
@@ -6290,6 +6545,11 @@ describe("ConciergeScreen route prefill", () => {
             next_step: "Use the supported booking page with the gathered details.",
             prefilled_url: "https://www.thefork.es/restaurante/example?date=tomorrow",
           },
+          execution_task: liveReadyExecutionTask("booking_link", {
+            flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+            lifecycle_status: "ready",
+            user_confirmed: false,
+          }),
         },
         status: "pending",
         language: "en",
@@ -6359,22 +6619,12 @@ describe("ConciergeScreen route prefill", () => {
                 prefilled_url: "https://www.thefork.es/restaurante/example?date=tomorrow",
               },
               ...(formConfirmed ? {
-                execution_task: {
-                  version: 1,
+                execution_task: liveReadyExecutionTask("booking_link", {
                   flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
-                  action_type: "booking_link",
-                  requested_tool: "booking_link",
-                  active_tool: "booking_link",
-                  lifecycle_status: "confirmed",
-                  provider_ready: true,
-                  missing_requirements: [],
-                  confirmation_required: true,
-                  user_confirmed: true,
                   confirmation_source: "confirm_endpoint",
                   confirmed_at: "2026-07-14T10:10:00.000Z",
-                  created_at: "2026-07-14T10:00:00.000Z",
                   updated_at: "2026-07-14T10:10:00.000Z",
-                },
+                }),
               } : {}),
             },
             status: "pending",
