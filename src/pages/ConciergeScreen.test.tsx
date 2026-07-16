@@ -1222,7 +1222,7 @@ describe("ConciergeScreen action hub", () => {
     expect(prefill).toHaveTextContent("Deal comparison ready");
     expect(prefill).toHaveTextContent("Deal comparison prepared: Senior Energy Saver.");
     expect(prefill).toHaveTextContent("Review deal");
-    expect(prefill).toHaveTextContent("Nothing is booked");
+    expect(prefill).toHaveTextContent("Nothing is sent, called, or opened until you confirm");
 
     fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
 
@@ -1478,7 +1478,7 @@ describe("ConciergeScreen action hub", () => {
     expect(prefill).toHaveTextContent("Care search ready");
     expect(prefill).toHaveTextContent("Provider search prepared: Marbella Care Clinic.");
     expect(prefill).toHaveTextContent("Prepare contact");
-    expect(prefill).toHaveTextContent("Add to Right now");
+    expect(screen.getByTestId("button-concierge-prefill-send")).toHaveTextContent("Prepare contact");
 
     fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
 
@@ -1561,16 +1561,14 @@ describe("ConciergeScreen action hub", () => {
         action_payload: expect.objectContaining({
           task_type: "provider_shortlist",
           selected_provider_names: ["Harbour Clinic", "Garden Care"],
+          shortlist_status: "open",
+          shortlist_captured_at: expect.any(String),
           no_external_action_without_confirmation: true,
         }),
       });
-      expect(shortlistCompletion).toMatchObject({
-        outcome_payload: expect.objectContaining({
-          shortlist_saved: true,
-          no_external_action_taken: true,
-        }),
-      });
     });
+    expect(shortlistCompletion).toBeNull();
+    expect(screen.getByTestId("notice-provider-shortlist")).toHaveTextContent("In progress");
     expect(screen.getByTestId("notice-provider-shortlist")).toHaveTextContent("Nobody was contacted");
 
     fireEvent.click(screen.getByTestId("button-provider-comparison-save-harbour-clinic-1"));
@@ -1578,6 +1576,189 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("route-state")).toHaveTextContent("Harbour Clinic");
     expect(screen.getByTestId("route-state")).toHaveTextContent("provider_search");
     expect(screen.getByTestId("route-state")).toHaveTextContent("personal-care");
+  });
+
+  it("reopens an active provider shortlist and lets the user edit and finish a preferred choice", async () => {
+    const shortlistOption = (id: string, name: string) => ({
+      id,
+      name,
+      category: "Doctor",
+      summary: "Appointments",
+      why_may_suit_you: "Nearby",
+      facts: {
+        distance: { criterion: "distance", value: "2 km", status: "reported" },
+        price: { criterion: "price", value: null, status: "unknown" },
+        reputation: { criterion: "reputation", value: null, status: "unknown" },
+        availability: { criterion: "availability", value: null, status: "unknown" },
+        accessibility: { criterion: "accessibility", value: null, status: "unknown" },
+        coverage: { criterion: "coverage", value: null, status: "unknown" },
+      },
+      contact: {},
+      source_label: "Local directory",
+      source_status: "reported",
+    });
+    let pendingItems = [{
+      id: "shortlist-active-1",
+      use_case: "find_provider",
+      provider_name: "Harbour Clinic",
+      provider_phone: null,
+      action_summary: "Provider shortlist saved: Harbour Clinic, Garden Care.",
+      action_payload: {
+        task_type: "provider_shortlist",
+        shortlist_version: 1,
+        shortlist_only: true,
+        shortlist_captured_at: "2020-01-01T10:00:00.000Z",
+        shortlist_updated_at: "2020-01-01T10:00:00.000Z",
+        shortlist_status: "open",
+        preferred_provider_id: null,
+        preferred_provider_name: null,
+        provider_search_mode: "specialist",
+        provider_search_query: "doctor nearby",
+        criteria: ["nearby", "reputation"],
+        flow_reference: "CF_MEDICAL_APPOINTMENT",
+        selected_provider_names: ["Harbour Clinic", "Garden Care"],
+        provider_shortlist: [
+          shortlistOption("harbour", "Harbour Clinic"),
+          shortlistOption("garden", "Garden Care"),
+        ],
+        no_external_action_without_confirmation: true,
+      },
+      status: "pending" as const,
+      language: "en",
+    }];
+    const patches: Record<string, unknown>[] = [];
+    let completion: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: pendingItems });
+      if (target.endsWith("/api/concierge/actions/sessions")) return jsonResponse({ items: [] });
+      if (target.endsWith("/api/concierge/actions/shortlist-active-1/details")) {
+        const body = JSON.parse(String(init?.body)) as { action_payload: Record<string, unknown> };
+        patches.push(body.action_payload);
+        pendingItems = [{ ...pendingItems[0], action_payload: body.action_payload }];
+        return jsonResponse({ ok: true, item: pendingItems[0] });
+      }
+      if (target.endsWith("/api/concierge/actions/shortlist-active-1/complete")) {
+        completion = JSON.parse(String(init?.body));
+        pendingItems = [];
+        return jsonResponse({ ok: true, status: "completed" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{ pathname: "/concierge", state: { focusRightNow: true, conciergePendingId: "shortlist-active-1" } }]);
+
+    expect(await screen.findByTestId("provider-shortlist-follow-up")).toHaveTextContent("2 saved options");
+    expect(screen.getByTestId("provider-shortlist-stale-warning")).toHaveTextContent("Details may have changed");
+    expect(screen.queryByTestId("panel-concierge-next-action")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-provider-shortlist-garden"));
+    await waitFor(() => expect(patches.at(-1)).toMatchObject({ selected_provider_names: ["Harbour Clinic"] }));
+
+    fireEvent.click(screen.getByTestId("button-provider-comparison-choose-harbour"));
+    await waitFor(() => expect(patches.at(-1)).toMatchObject({
+      preferred_provider_id: "harbour",
+      preferred_provider_name: "Harbour Clinic",
+    }));
+
+    await waitFor(() => expect(screen.getByTestId("button-provider-shortlist-finish")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("button-provider-shortlist-finish"));
+    await waitFor(() => expect(completion).toMatchObject({
+      outcome_payload: expect.objectContaining({
+        shortlist_status: "preferred_selected",
+        preferred_provider_name: "Harbour Clinic",
+        no_external_action_taken: true,
+      }),
+    }));
+  });
+
+  it("keeps final confirmation when a shortlist choice becomes a contact task", async () => {
+    const shortlistPayload = {
+      task_type: "provider_shortlist",
+      shortlist_version: 1,
+      shortlist_only: true,
+      shortlist_captured_at: "2026-07-15T10:00:00.000Z",
+      shortlist_updated_at: "2026-07-15T10:00:00.000Z",
+      shortlist_status: "open",
+      preferred_provider_id: null,
+      preferred_provider_name: null,
+      provider_search_mode: "specialist",
+      provider_search_query: "doctor nearby",
+      criteria: ["nearby"],
+      flow_reference: "CF_MEDICAL_APPOINTMENT",
+      selected_provider_names: ["Harbour Clinic"],
+      provider_shortlist: [{
+        id: "harbour",
+        name: "Harbour Clinic",
+        category: "Doctor",
+        summary: "Appointments",
+        why_may_suit_you: "Nearby",
+        facts: {},
+        contact: { phone: "+34 600 111 222", preferredChannel: "phone" },
+        source_label: "Local directory",
+        source_status: "reported",
+      }],
+      no_external_action_without_confirmation: true,
+    };
+    let pendingItems = [{
+      id: "shortlist-contact-1",
+      use_case: "find_provider",
+      provider_name: "Harbour Clinic",
+      provider_phone: "+34 600 111 222",
+      action_summary: "Provider shortlist saved: Harbour Clinic.",
+      action_payload: shortlistPayload,
+      status: "pending" as const,
+      language: "en",
+    }];
+    let contactTrigger: Record<string, unknown> | null = null;
+    let shortlistCompletion: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: pendingItems });
+      if (target.endsWith("/api/concierge/actions/sessions")) return jsonResponse({ items: [] });
+      if (target.endsWith("/api/concierge/actions/shortlist-contact-1/details")) {
+        const body = JSON.parse(String(init?.body)) as { action_payload: typeof shortlistPayload };
+        pendingItems = [{ ...pendingItems[0], action_payload: body.action_payload }];
+        return jsonResponse({ ok: true, item: pendingItems[0] });
+      }
+      if (target.endsWith("/api/concierge/actions/trigger")) {
+        contactTrigger = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "contact-task-1", status: "pending" });
+      }
+      if (target.endsWith("/api/concierge/actions/shortlist-contact-1/complete")) {
+        shortlistCompletion = JSON.parse(String(init?.body));
+        pendingItems = [];
+        return jsonResponse({ ok: true, status: "completed" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{ pathname: "/concierge", state: { focusRightNow: true, conciergePendingId: "shortlist-contact-1" } }]);
+    fireEvent.click(await screen.findByTestId("button-provider-comparison-contact-harbour"));
+
+    expect(await screen.findByTestId("button-concierge-prefill-send")).toHaveTextContent("Prepare contact");
+    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Nothing is sent, called, or opened until you confirm");
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => expect(contactTrigger).toMatchObject({
+      auto_start: false,
+      action_payload: expect.objectContaining({
+        source_shortlist_pending_id: "shortlist-contact-1",
+        selected_provider_name: "Harbour Clinic",
+        confirmation_required_before_action: true,
+        no_external_action_without_confirmation: true,
+        user_confirmed: false,
+      }),
+    }));
+    await waitFor(() => expect(shortlistCompletion).toMatchObject({
+      outcome_payload: expect.objectContaining({
+        shortlist_status: "contact_prepared",
+        preferred_provider_name: "Harbour Clinic",
+        related_contact_task_pending_id: "contact-task-1",
+        confirmation_still_required: true,
+        no_external_action_taken: true,
+      }),
+    }));
   });
 
   it("adds provider search criteria to care option searches", async () => {
@@ -3077,6 +3258,75 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("input-transport-pickup")).toHaveValue("Saved home");
     expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
     expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow morning");
+    expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
+  });
+
+  it("returns from trusted provider setup to the original active shortlist", async () => {
+    const pendingShortlist = {
+      id: "shortlist-return-1",
+      use_case: "find_provider",
+      provider_name: "Harbour Clinic",
+      provider_phone: "+34 600 111 222",
+      action_summary: "Provider shortlist saved: Harbour Clinic.",
+      action_payload: {
+        task_type: "provider_shortlist",
+        shortlist_version: 1,
+        shortlist_only: true,
+        shortlist_captured_at: "2026-07-15T10:00:00.000Z",
+        shortlist_updated_at: "2026-07-15T10:00:00.000Z",
+        shortlist_status: "open",
+        preferred_provider_id: "harbour",
+        preferred_provider_name: "Harbour Clinic",
+        provider_search_mode: "specialist",
+        provider_search_query: "doctor nearby",
+        criteria: ["nearby"],
+        flow_reference: "CF_MEDICAL_APPOINTMENT",
+        selected_provider_names: ["Harbour Clinic"],
+        provider_shortlist: [{
+          id: "harbour",
+          name: "Harbour Clinic",
+          category: "Doctor",
+          summary: "Appointments",
+          why_may_suit_you: "Nearby",
+          facts: {},
+          contact: { phone: "+34 600 111 222", preferredChannel: "phone" },
+          source_label: "Local directory",
+          source_status: "reported",
+        }],
+        no_external_action_without_confirmation: true,
+      },
+      status: "pending",
+      language: "en",
+    };
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") return jsonResponse({ savedProviders: [] });
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: [pendingShortlist] });
+      if (target.endsWith("/api/concierge/actions/sessions")) return jsonResponse({ items: [] });
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        trustedProviderSaved: {
+          name: "Harbour Clinic",
+          category: "doctor_clinic",
+          conciergeResume: {
+            kind: "provider_shortlist",
+            pendingId: "shortlist-return-1",
+            preferredProviderId: "harbour",
+          },
+        },
+      },
+    }]);
+
+    const resume = await screen.findByTestId("panel-concierge-provider-resume");
+    expect(resume).toHaveTextContent("Harbour Clinic");
+    fireEvent.click(screen.getByTestId("button-provider-resume-continue"));
+
+    expect(await screen.findByTestId("provider-shortlist-follow-up")).toHaveTextContent("Harbour Clinic");
+    expect(await screen.findByText("Harbour Clinic saved. Your shortlist is still in progress.")).toBeVisible();
     expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
   });
 

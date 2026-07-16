@@ -4,6 +4,9 @@ import {
   buildProviderContactPayload,
   buildProviderShortlistPayload,
   buildTrustedProviderPrefill,
+  parseProviderShortlistPayload,
+  providerShortlistFreshness,
+  updateProviderShortlistPayload,
 } from "../shared/providerComparison";
 
 const sourceOptions = [
@@ -49,6 +52,7 @@ describe("provider comparison contract", () => {
       criteria: ["nearby", "coverage"],
       flowReference: "CF_MEDICAL_APPOINTMENT",
       resumeContext: { kind: "provider_search", mode: "specialist" },
+      capturedAt: "2026-07-01T10:00:00.000Z",
     });
 
     expect(payload).toMatchObject({
@@ -57,7 +61,46 @@ describe("provider comparison contract", () => {
       selected_provider_names: ["Harbour Clinic", "Second Clinic"],
       no_external_action_without_confirmation: true,
       resume_context: { kind: "provider_search", mode: "specialist" },
+      shortlist_captured_at: "2026-07-01T10:00:00.000Z",
+      shortlist_status: "open",
+      preferred_provider_id: null,
     });
+  });
+
+  it("reopens, edits, and chooses from a saved shortlist without changing its capture time", () => {
+    const selected = buildProviderComparisonOptions(sourceOptions).slice(0, 2);
+    const payload = buildProviderShortlistPayload(selected, {
+      mode: "specialist",
+      query: "dermatologist nearby",
+      capturedAt: "2026-07-01T10:00:00.000Z",
+    });
+    const updated = updateProviderShortlistPayload(payload, selected.slice(0, 1), {
+      preferredProviderId: selected[0].id,
+      status: "preferred_selected",
+      updatedAt: "2026-07-03T12:00:00.000Z",
+    });
+
+    expect(parseProviderShortlistPayload(updated)).toMatchObject({
+      options: [{ id: "clinic-1", name: "Harbour Clinic" }],
+      capturedAt: "2026-07-01T10:00:00.000Z",
+      updatedAt: "2026-07-03T12:00:00.000Z",
+      preferredProviderId: "clinic-1",
+      preferredProviderName: "Harbour Clinic",
+      status: "preferred_selected",
+    });
+  });
+
+  it("flags old shortlist details and supports older payloads with execution timestamps", () => {
+    const selected = buildProviderComparisonOptions(sourceOptions).slice(0, 1);
+    const payload = buildProviderShortlistPayload(selected, { mode: "specialist" });
+    delete payload.shortlist_captured_at;
+    payload.execution_task = { created_at: "2026-07-01T10:00:00.000Z" };
+
+    expect(parseProviderShortlistPayload(payload)?.capturedAt).toBe("2026-07-01T10:00:00.000Z");
+    expect(providerShortlistFreshness("2026-07-01T10:00:00.000Z", new Date("2026-07-10T10:00:00.000Z"))).toMatchObject({
+      status: "stale",
+    });
+    expect(providerShortlistFreshness(null)).toEqual({ status: "unknown", ageMs: null });
   });
 
   it("requires final confirmation for contact and supports trusted-provider setup", () => {

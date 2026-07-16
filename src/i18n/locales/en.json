@@ -392,14 +392,17 @@
       "kickerConfirm": "Needs your OK",
       "kickerReview": "Needs review",
       "kickerWaiting": "Waiting",
+      "kickerProviderShortlist": "Saved shortlist",
       "titlePrefix": "VYVA is working on your",
       "titleConfirmPrefix": "Confirm your",
       "titleReviewPrefix": "Review your",
+      "titleProviderShortlistPrefix": "Review your",
       "task": {
         "ride": "ride",
         "appointment": "appointment",
         "pharmacy": "pharmacy request",
         "homeService": "home service",
+        "providerShortlist": "saved options",
         "default": "request"
       },
       "fastStatus": {
@@ -407,6 +410,7 @@
         "appointment": "Check appointment",
         "pharmacy": "Check pharmacy request",
         "homeService": "Check home service",
+        "providerShortlist": "Review shortlist",
         "default": "Check request"
       },
       "step": {
@@ -415,7 +419,8 @@
         "form": "Preparing form",
         "save": "Ready to save",
         "attention": "Needs your review",
-        "confirm": "Waiting for your confirmation"
+        "confirm": "Waiting for your confirmation",
+        "providerShortlist": "Review saved options"
       },
       "open": "Open Right Now"
     },

@@ -40,6 +40,8 @@ interface ProviderComparisonCopy {
   watchChanges: string;
   saveShortlist: string;
   savedShortlist: string;
+  choose: string;
+  chosen: string;
   shortlistCount: (count: number) => string;
   criteria: Record<ProviderComparisonCriterion, string>;
 }
@@ -63,6 +65,8 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     watchChanges: "Watch changes",
     saveShortlist: "Keep shortlist",
     savedShortlist: "Shortlist saved",
+    choose: "Choose this option",
+    chosen: "Preferred choice",
     shortlistCount: (count) => `${count} of 3 shortlisted`,
     criteria: { distance: "Distance", price: "Price", reputation: "Reputation", availability: "Availability", accessibility: "Accessibility", coverage: "Insurance / coverage" },
   },
@@ -84,6 +88,8 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     watchChanges: "Vigilar cambios",
     saveShortlist: "Guardar seleccion",
     savedShortlist: "Seleccion guardada",
+    choose: "Elegir esta opcion",
+    chosen: "Opcion preferida",
     shortlistCount: (count) => `${count} de 3 seleccionados`,
     criteria: { distance: "Distancia", price: "Precio", reputation: "Reputacion", availability: "Disponibilidad", accessibility: "Accesibilidad", coverage: "Seguro / cobertura" },
   },
@@ -105,6 +111,8 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     watchChanges: "Aenderungen beobachten",
     saveShortlist: "Auswahl speichern",
     savedShortlist: "Auswahl gespeichert",
+    choose: "Diese Option waehlen",
+    chosen: "Bevorzugte Wahl",
     shortlistCount: (count) => `${count} von 3 ausgewaehlt`,
     criteria: { distance: "Entfernung", price: "Preis", reputation: "Bewertungen", availability: "Verfuegbarkeit", accessibility: "Barrierefreiheit", coverage: "Versicherung / Deckung" },
   },
@@ -126,6 +134,8 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     watchChanges: "Suivre les changements",
     saveShortlist: "Garder la selection",
     savedShortlist: "Selection enregistree",
+    choose: "Choisir cette option",
+    chosen: "Choix prefere",
     shortlistCount: (count) => `${count} sur 3 selectionnes`,
     criteria: { distance: "Distance", price: "Prix", reputation: "Reputation", availability: "Disponibilite", accessibility: "Accessibilite", coverage: "Assurance / couverture" },
   },
@@ -147,6 +157,8 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     watchChanges: "Segui cambiamenti",
     saveShortlist: "Salva selezione",
     savedShortlist: "Selezione salvata",
+    choose: "Scegli questa opzione",
+    chosen: "Scelta preferita",
     shortlistCount: (count) => `${count} su 3 selezionati`,
     criteria: { distance: "Distanza", price: "Prezzo", reputation: "Reputazione", availability: "Disponibilita", accessibility: "Accessibilita", coverage: "Assicurazione / copertura" },
   },
@@ -168,6 +180,8 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     watchChanges: "Acompanhar alteracoes",
     saveShortlist: "Guardar selecao",
     savedShortlist: "Selecao guardada",
+    choose: "Escolher esta opcao",
+    chosen: "Opcao preferida",
     shortlistCount: (count) => `${count} de 3 selecionados`,
     criteria: { distance: "Distancia", price: "Preco", reputation: "Reputacao", availability: "Disponibilidade", accessibility: "Acessibilidade", coverage: "Seguro / cobertura" },
   },
@@ -208,6 +222,8 @@ export interface ProviderComparisonPanelProps {
   onSaveProvider: (option: ProviderComparisonOption) => void;
   onPrepareContact: (option: ProviderComparisonOption) => void;
   onWatch?: (option: ProviderComparisonOption) => void;
+  preferredId?: string | null;
+  onSelectPreferred?: (option: ProviderComparisonOption) => void;
 }
 
 export function ProviderComparisonPanel({
@@ -221,6 +237,8 @@ export function ProviderComparisonPanel({
   onSaveProvider,
   onPrepareContact,
   onWatch,
+  preferredId = null,
+  onSelectPreferred,
 }: ProviderComparisonPanelProps) {
   const copy = COPY[supportedLocale(locale)];
   const visibleOptions = options.slice(0, 3);
@@ -323,6 +341,18 @@ export function ProviderComparisonPanel({
                   <Send size={16} className="mr-2" aria-hidden="true" />
                   {copy.prepareContact}
                 </Button>
+                {onSelectPreferred ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onSelectPreferred(option)}
+                    className={`h-11 rounded-lg font-body text-[13px] font-bold ${preferredId === option.id ? "border-[#7C3AED] bg-[#F5F3FF] text-vyva-purple" : "border-vyva-border bg-white text-vyva-text-1"}`}
+                    data-testid={`button-provider-comparison-choose-${option.id}`}
+                  >
+                    {preferredId === option.id ? <CircleCheck size={16} className="mr-2" aria-hidden="true" /> : <Star size={16} className="mr-2" aria-hidden="true" />}
+                    {preferredId === option.id ? copy.chosen : copy.choose}
+                  </Button>
+                ) : null}
                 {onWatch ? (
                   <Button
                     type="button"

@@ -380,14 +380,17 @@
       "kickerConfirm": "Necesita tu OK",
       "kickerReview": "Revisar",
       "kickerWaiting": "Esperando",
+      "kickerProviderShortlist": "Seleccion guardada",
       "titlePrefix": "VYVA trabaja en tu",
       "titleConfirmPrefix": "Confirma tu",
       "titleReviewPrefix": "Revisa tu",
+      "titleProviderShortlistPrefix": "Revisa tus",
       "task": {
         "ride": "transporte",
         "appointment": "cita",
         "pharmacy": "solicitud de farmacia",
         "homeService": "servicio en casa",
+        "providerShortlist": "opciones guardadas",
         "default": "solicitud"
       },
       "fastStatus": {
@@ -395,6 +398,7 @@
         "appointment": "Ver cita",
         "pharmacy": "Ver farmacia",
         "homeService": "Ver servicio",
+        "providerShortlist": "Revisar seleccion",
         "default": "Ver solicitud"
       },
       "step": {
@@ -403,7 +407,8 @@
         "form": "Preparando formulario",
         "save": "Listo para guardar",
         "attention": "Necesita tu revision",
-        "confirm": "Esperando tu confirmacion"
+        "confirm": "Esperando tu confirmacion",
+        "providerShortlist": "Revisar opciones guardadas"
       },
       "open": "Abrir ahora"
     },

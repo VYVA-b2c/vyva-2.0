@@ -260,14 +260,17 @@
       "kickerConfirm": "Votre accord",
       "kickerReview": "A revoir",
       "kickerWaiting": "En attente",
+      "kickerProviderShortlist": "Selection enregistree",
       "titlePrefix": "VYVA s'occupe de votre",
       "titleConfirmPrefix": "Confirmez votre",
       "titleReviewPrefix": "Verifiez votre",
+      "titleProviderShortlistPrefix": "Verifiez vos",
       "task": {
         "ride": "trajet",
         "appointment": "rendez-vous",
         "pharmacy": "demande pharmacie",
         "homeService": "service a domicile",
+        "providerShortlist": "options enregistrees",
         "default": "demande"
       },
       "fastStatus": {
@@ -275,6 +278,7 @@
         "appointment": "Voir le rendez-vous",
         "pharmacy": "Voir la pharmacie",
         "homeService": "Voir le service",
+        "providerShortlist": "Voir la selection",
         "default": "Voir la demande"
       },
       "step": {
@@ -283,7 +287,8 @@
         "form": "Preparation du formulaire",
         "save": "Pret a enregistrer",
         "attention": "A revoir",
-        "confirm": "En attente de votre confirmation"
+        "confirm": "En attente de votre confirmation",
+        "providerShortlist": "Verifier les options enregistrees"
       },
       "open": "Ouvrir maintenant"
     },

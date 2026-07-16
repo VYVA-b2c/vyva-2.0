@@ -63,6 +63,7 @@ import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPane
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
 import ProviderComparisonPanel from "@/components/ProviderComparisonPanel";
+import ProviderShortlistFollowUpPanel from "@/components/ProviderShortlistFollowUpPanel";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
@@ -127,8 +128,11 @@ import {
   buildProviderContactPayload,
   buildProviderShortlistPayload,
   buildTrustedProviderPrefill,
+  parseProviderShortlistPayload,
+  updateProviderShortlistPayload,
   type ProviderComparisonOption,
   type ProviderComparisonSourceOption,
+  type ProviderShortlistState,
 } from "../../shared/providerComparison";
 
 interface ChatMessage {
@@ -158,6 +162,7 @@ type ConciergeLocationState = {
   trustedProviderSaved?: unknown;
   voiceActionPayload?: Record<string, unknown>;
   focusRightNow?: boolean;
+  conciergePendingId?: unknown;
 } | null;
 
 type ConciergeProviderRouteAction = {
@@ -199,6 +204,11 @@ type ConciergeProviderResumeContext =
       mode?: ProviderSearchMode | null;
       query?: string;
       criteria?: ProviderSearchCriterionKey[];
+    }
+  | {
+      kind: "provider_shortlist";
+      pendingId: string;
+      preferredProviderId?: string;
     }
   | {
       kind: "generic";
@@ -422,6 +432,15 @@ function coerceConciergeResumeContext(value: unknown): ConciergeProviderResumeCo
       mode: isProviderSearchMode(value.mode) ? value.mode : null,
       query: routeText(value, ["query"]),
       criteria,
+    };
+  }
+  if (kind === "provider_shortlist") {
+    const pendingId = routeText(value, ["pendingId", "pending_id"]);
+    if (!pendingId) return null;
+    return {
+      kind,
+      pendingId,
+      preferredProviderId: routeText(value, ["preferredProviderId", "preferred_provider_id"]) || undefined,
     };
   }
   if (kind === "generic") {
@@ -2749,16 +2768,6 @@ async function saveProviderShortlistAction(params: {
   }
   const result = await trigger.json() as { pendingId?: string | null };
   if (!result.pendingId) throw new Error("Could not save provider shortlist");
-  await completePendingConciergeAction({
-    pendingId: result.pendingId,
-    outcomeSummary: `Shortlist saved: ${names}.`,
-    outcomePayload: {
-      ...payload,
-      shortlist_saved: true,
-      completed_from: "provider_comparison",
-      no_external_action_taken: true,
-    },
-  });
   return { pendingId: result.pendingId };
 }
 
@@ -8789,6 +8798,9 @@ const ConciergeScreen = () => {
   const [providerShortlistIds, setProviderShortlistIds] = useState<string[]>([]);
   const [providerShortlistNotice, setProviderShortlistNotice] = useState<string | null>(null);
   const [providerShortlistError, setProviderShortlistError] = useState<string | null>(null);
+  const [editingProviderShortlistId, setEditingProviderShortlistId] = useState<string | null>(null);
+  const [activeProviderShortlistNotice, setActiveProviderShortlistNotice] = useState<string | null>(null);
+  const [activeProviderShortlistError, setActiveProviderShortlistError] = useState<string | null>(null);
   const providerComparisonOptions = useMemo(
     () => buildProviderComparisonOptions(offersResult?.options ?? []),
     [offersResult],
@@ -9900,31 +9912,124 @@ const ConciergeScreen = () => {
   });
 
   const providerShortlistMutation = useMutation({
-    mutationFn: (options: ProviderComparisonOption[]) => saveProviderShortlistAction({
-      options,
-      mode: providerSearchMode ?? "shopping-seller",
-      query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode ?? "shopping-seller", isSpanish),
-      criteria: providerSearchCriteria,
-      flowReference: providerSearchFlowReference(providerSearchMode ?? "shopping-seller"),
-      locale,
-    }),
+    mutationFn: async (options: ProviderComparisonOption[]) => {
+      if (editingProviderShortlistId) {
+        const existing = pendingActions.find((item) => item.id === editingProviderShortlistId);
+        const parsed = parseProviderShortlistPayload(existing?.action_payload);
+        if (!existing?.action_payload || !parsed) throw new Error("Could not reopen provider shortlist");
+        const merged = [...parsed.options, ...options].filter((option, index, all) => (
+          all.findIndex((candidate) => candidate.id === option.id || candidate.name.toLowerCase() === option.name.toLowerCase()) === index
+        )).slice(0, 3);
+        await patchPendingConciergeAction({
+          pendingId: existing.id,
+          actionPayload: updateProviderShortlistPayload(existing.action_payload, merged, {
+            preferredProviderId: parsed.preferredProviderId,
+          }),
+        });
+        return { pendingId: existing.id, edited: true };
+      }
+      return {
+        ...await saveProviderShortlistAction({
+          options,
+          mode: providerSearchMode ?? "shopping-seller",
+          query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode ?? "shopping-seller", isSpanish),
+          criteria: providerSearchCriteria,
+          flowReference: providerSearchFlowReference(providerSearchMode ?? "shopping-seller"),
+          locale,
+        }),
+        edited: false,
+      };
+    },
     onMutate: () => {
       setProviderShortlistError(null);
       setProviderShortlistNotice(null);
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setProviderShortlistNotice(isSpanish
-        ? "Seleccion guardada. No se ha contactado con nadie."
-        : "Shortlist saved. Nobody was contacted.");
+        ? "Seleccion guardada en En curso. No se ha contactado con nadie."
+        : "Shortlist saved in In progress. Nobody was contacted.");
+      setEditingProviderShortlistId(null);
+      setVisibleActionId(result.pendingId);
+      setIsRightNowHidden(false);
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+      if (result.edited) {
+        setOffersOpen(false);
+        window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
+      }
+    },
+    onError: (error) => {
+      setProviderShortlistError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido guardar la seleccion." : "I could not save the shortlist."));
+    },
+  });
+
+  const activeProviderShortlistMutation = useMutation({
+    mutationFn: async ({
+      item,
+      shortlist,
+      options,
+      preferredProviderId,
+    }: {
+      item: ConciergePendingItem;
+      shortlist: ProviderShortlistState;
+      options: ProviderComparisonOption[];
+      preferredProviderId?: string | null;
+    }) => {
+      if (!item.action_payload || options.length === 0) throw new Error("A shortlist needs at least one option");
+      return patchPendingConciergeAction({
+        pendingId: item.id,
+        actionPayload: updateProviderShortlistPayload(item.action_payload, options, {
+          preferredProviderId: preferredProviderId === undefined ? shortlist.preferredProviderId : preferredProviderId,
+        }),
+      });
+    },
+    onMutate: () => {
+      setActiveProviderShortlistError(null);
+      setActiveProviderShortlistNotice(null);
+    },
+    onSuccess: async () => {
+      setActiveProviderShortlistNotice(isSpanish ? "Seleccion actualizada." : "Shortlist updated.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setActiveProviderShortlistError(error instanceof Error ? error.message : (isSpanish ? "No he podido actualizar la seleccion." : "I could not update the shortlist."));
+    },
+  });
+
+  const completeProviderShortlistMutation = useMutation({
+    mutationFn: ({ item, shortlist, decision }: { item: ConciergePendingItem; shortlist: ProviderShortlistState; decision: "dismissed" | "preferred_selected" }) => {
+      const preferred = shortlist.options.find((option) => option.id === shortlist.preferredProviderId) ?? null;
+      return completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: decision === "dismissed"
+          ? "Provider shortlist dismissed."
+          : `Provider selected: ${preferred?.name ?? "provider"}.`,
+        outcomePayload: {
+          ...(item.action_payload ?? {}),
+          shortlist_status: decision,
+          shortlist_completed_at: new Date().toISOString(),
+          preferred_provider_id: preferred?.id ?? null,
+          preferred_provider_name: preferred?.name ?? null,
+          no_external_action_taken: true,
+        },
+      });
+    },
+    onMutate: () => {
+      setActiveProviderShortlistError(null);
+      setActiveProviderShortlistNotice(null);
+    },
+    onSuccess: async (_result, { decision }) => {
+      setActiveProviderShortlistNotice(decision === "dismissed"
+        ? (isSpanish ? "Seleccion descartada." : "Shortlist dismissed.")
+        : (isSpanish ? "Eleccion guardada." : "Choice saved."));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
       ]);
     },
     onError: (error) => {
-      setProviderShortlistError(error instanceof Error
-        ? error.message
-        : (isSpanish ? "No he podido guardar la seleccion." : "I could not save the shortlist."));
+      setActiveProviderShortlistError(error instanceof Error ? error.message : (isSpanish ? "No he podido cerrar la seleccion." : "I could not finish the shortlist."));
     },
   });
 
@@ -10120,10 +10225,33 @@ const ConciergeScreen = () => {
     onMutate: () => {
       setRoutePrefillError(null);
     },
-    onSuccess: async () => {
+    onSuccess: async (_result, prefill) => {
       setRoutePrefill(null);
       setIsRightNowHidden(false);
-      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+      const sourceShortlistId = typeof prefill.payload?.source_shortlist_pending_id === "string"
+        ? prefill.payload.source_shortlist_pending_id.trim()
+        : "";
+      if (sourceShortlistId) {
+        const sourceShortlistPayload = isRecord(prefill.payload?.source_shortlist_payload)
+          ? prefill.payload.source_shortlist_payload
+          : {};
+        await completePendingConciergeAction({
+          pendingId: sourceShortlistId,
+          outcomeSummary: "Provider selected and contact preparation started.",
+          outcomePayload: {
+            ...sourceShortlistPayload,
+            shortlist_status: "contact_prepared",
+            selected_provider_name: prefill.payload?.selected_provider_name ?? null,
+            related_contact_task_pending_id: _result.pendingId ?? null,
+            no_external_action_taken: true,
+            confirmation_still_required: true,
+          },
+        });
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        sourceShortlistId ? queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }) : Promise.resolve(),
+      ]);
     },
     onError: (error) => {
       setRoutePrefillError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar la tarea." : "I could not prepare the task."));
@@ -10420,12 +10548,16 @@ const ConciergeScreen = () => {
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
     if (!routeState?.focusRightNow) return undefined;
+    const pendingId = typeof routeState.conciergePendingId === "string" ? routeState.conciergePendingId.trim() : "";
+    if (pendingId && pendingActions.some((item) => item.id === pendingId)) {
+      setVisibleActionId(pendingId);
+    }
     setIsRightNowHidden(false);
     const timer = window.setTimeout(() => {
       scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" });
     }, 80);
     return () => window.clearTimeout(timer);
-  }, [location.state]);
+  }, [location.state, pendingActions]);
 
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -11094,6 +11226,7 @@ const ConciergeScreen = () => {
     setSavingsPanelView("overview");
     setProviderSearchMode(null);
     setObjectiveProofOpen(false);
+    setEditingProviderShortlistId(null);
     resetProviderShortlistState();
   }
 
@@ -12413,6 +12546,104 @@ const ConciergeScreen = () => {
     handleOfferAssistance(raw);
   }
 
+  function providerShortlistMode(shortlist: ProviderShortlistState): ProviderSearchMode {
+    return isProviderSearchMode(shortlist.context.mode) ? shortlist.context.mode : "shopping-seller";
+  }
+
+  function handleRemoveActiveShortlistOption(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
+    const options = shortlist.options.filter((candidate) => candidate.id !== option.id);
+    if (options.length === 0) {
+      setActiveProviderShortlistError(isSpanish ? "Conserva una opcion o descarta la seleccion." : "Keep one option or dismiss the shortlist.");
+      return;
+    }
+    activeProviderShortlistMutation.mutate({ item, shortlist, options });
+  }
+
+  function handleAddActiveShortlistOption(item: ConciergePendingItem, shortlist: ProviderShortlistState) {
+    const mode = providerShortlistMode(shortlist);
+    openProviderSearchPanel(mode, shortlist.context.query?.trim() || providerSearchModeLabel(mode, isSpanish));
+    setProviderSearchCriteria((shortlist.context.criteria ?? []).filter(isProviderSearchCriterion));
+    setEditingProviderShortlistId(item.id);
+    setProviderShortlistNotice(isSpanish
+      ? "Elige una opcion nueva y pulsa Guardar seleccion."
+      : "Choose a new option, then keep the shortlist.");
+  }
+
+  function handleSelectActiveShortlistProvider(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
+    activeProviderShortlistMutation.mutate({
+      item,
+      shortlist,
+      options: shortlist.options,
+      preferredProviderId: option.id,
+    });
+  }
+
+  function handleSaveActiveShortlistProvider(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
+    const mode = providerShortlistMode(shortlist);
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: providerSearchSetupFocus(mode),
+        setupFlow: providerSearchFlowReference(mode),
+        setupReason: "Save provider from active shortlist",
+        conciergeResume: {
+          kind: "provider_shortlist",
+          pendingId: item.id,
+          preferredProviderId: option.id,
+        },
+        providerPrefill: buildTrustedProviderPrefill(option, providerSearchSetupFocus(mode)),
+        notice: isSpanish
+          ? "Guarda el proveedor. Tu seleccion seguira en curso."
+          : "Save the provider. Your shortlist will stay in progress.",
+      },
+    });
+  }
+
+  function handlePrepareActiveShortlistContact(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
+    const channel = option.contact.preferredChannel?.toLowerCase();
+    const requestedTool: ConciergeToolRequirement = channel === "email" || option.contact.email
+      ? "email"
+      : channel === "whatsapp" || option.contact.whatsapp
+        ? "whatsapp"
+        : channel === "booking_link" || option.contact.bookingUrl
+          ? "booking_link"
+          : option.contact.phone
+            ? "phone_call"
+            : "operator_review";
+    const mode = providerShortlistMode(shortlist);
+    const contactPayload = buildProviderContactPayload(option, shortlist.context);
+    const updatedShortlistPayload = updateProviderShortlistPayload(item.action_payload ?? {}, shortlist.options, {
+      preferredProviderId: option.id,
+    });
+    void patchPendingConciergeAction({
+      pendingId: item.id,
+      actionPayload: updatedShortlistPayload,
+    }).then(() => {
+      prepareConciergeRequest(
+        isSpanish
+          ? `Prepara el contacto con ${option.name}. No llames, escribas ni reserves hasta que yo confirme.`
+          : `Prepare contact with ${option.name}. Do not call, message, or book until I confirm.`,
+        {
+          flowReference: isConciergeFlowReference(shortlist.context.flowReference) ? shortlist.context.flowReference : providerSearchFlowReference(mode),
+          requestedTool,
+          actionLabel: isSpanish ? "Preparar contacto" : "Prepare contact",
+          summary: isSpanish ? `Contacto preparado con ${option.name}.` : `Contact prepared with ${option.name}.`,
+          payload: {
+            ...contactPayload,
+            source_shortlist_pending_id: item.id,
+            source_shortlist_payload: updatedShortlistPayload,
+          },
+          useCase: mode === "shopping-seller" ? "find_offers" : "find_provider",
+          providerSearchMode: mode,
+          providerSearchCriteria: (shortlist.context.criteria ?? []).filter(isProviderSearchCriterion),
+          providerSearchQuery: shortlist.context.query ?? undefined,
+        },
+      );
+    }).catch((error) => {
+      setActiveProviderShortlistError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar el contacto." : "I could not prepare contact."));
+    });
+  }
+
   function handleProviderManualSearch() {
     const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish).join(", ");
     const message = isSpanish
@@ -12496,6 +12727,17 @@ const ConciergeScreen = () => {
     if (!trustedProviderResume) return;
     const { name, category, conciergeResume } = trustedProviderResume;
     setTrustedProviderResume(null);
+
+    if (conciergeResume?.kind === "provider_shortlist") {
+      const resumeNotice = isSpanish
+        ? `${name} guardado. Tu seleccion sigue en curso.`
+        : `${name} saved. Your shortlist is still in progress.`;
+      setVisibleActionId(conciergeResume.pendingId);
+      setIsRightNowHidden(false);
+      window.setTimeout(() => setActiveProviderShortlistNotice(resumeNotice), 0);
+      window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
+      return;
+    }
 
     if (conciergeResume?.kind === "transport") {
       const message = conciergeResume.message?.trim()
@@ -12645,6 +12887,7 @@ const ConciergeScreen = () => {
   }
 
   const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
+  const activeActionProviderShortlist = parseProviderShortlistPayload(activeAction?.action_payload);
   const activeActionIsDryRun = activeAction ? isConciergeDryRunPayload(activeAction.action_payload) : false;
   const queuedActions = activeAction ? pendingActions.filter((action) => action.id !== activeAction.id) : [];
   const queuedActionCount = queuedActions.length;
@@ -12669,22 +12912,22 @@ const ConciergeScreen = () => {
   const activeActionEmailHref = activeActionEmailDraft ? emailDraftHref(activeActionEmailDraft) : "";
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
-  const activeActionTimeline = activeAction ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
-  const activeActionExecutionTask = activeAction ? getConciergeExecutionTask(activeAction) : null;
+  const activeActionTimeline = activeAction && !activeActionProviderShortlist ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
+  const activeActionExecutionTask = activeAction && !activeActionProviderShortlist ? getConciergeExecutionTask(activeAction) : null;
   const activeActionExecutionStatus = activeAction
     ? buildConciergeExecutionStatus(activeAction, activeActionTimeline, isSpanish)
     : null;
   const activeActionUserUpdate = activeAction && activeActionExecutionStatus
     ? buildConciergeUserUpdateSummary(activeAction, activeActionExecutionStatus, isSpanish)
     : null;
-  const activeActionLiveHandoff = activeAction
+  const activeActionLiveHandoff = activeAction && !activeActionProviderShortlist
     ? buildConciergeLiveHandoffSummary(activeAction, isSpanish)
     : null;
   const activeActionCanRecordProviderReply = canRecordProviderReply(activeActionTimeline);
-  const activeActionProviderSearchDetails = isProviderSearchPendingAction(activeAction)
+  const activeActionProviderSearchDetails = !activeActionProviderShortlist && isProviderSearchPendingAction(activeAction)
     ? providerSearchActionDetails(activeAction, isSpanish)
     : null;
-  const activeActionWebSearch = isWebSearchPendingAction(activeAction) ? activeAction : null;
+  const activeActionWebSearch = !activeActionProviderShortlist && isWebSearchPendingAction(activeAction) ? activeAction : null;
   const activeActionWebSearchResult = activeActionWebSearch
     ? webSearchResultsByActionId[activeActionWebSearch.id] ?? null
     : null;
@@ -12702,6 +12945,8 @@ const ConciergeScreen = () => {
     : null;
   const SelectedInsuranceAdminIcon = selectedInsuranceAdminOption?.Icon ?? FileText;
   useEffect(() => {
+    setActiveProviderShortlistNotice(null);
+    setActiveProviderShortlistError(null);
     setGuidedDetailDraft("");
     setGuidedDetailNotice(null);
     setGuidedDetailError(null);
@@ -12778,7 +13023,7 @@ const ConciergeScreen = () => {
   const activeActionExecutionChannel = activeAction ? getExecutionChannel(activeAction) : "";
   const activeActionAlreadyConfirmed = activeAction ? conciergeActionAlreadyConfirmed(activeAction) : false;
   const activeActionReviewConfirmed = activeAction ? confirmedReviewActionIds.has(activeAction.id) : false;
-  const activeActionNeedsUserConfirmation = Boolean(activeAction?.status === "pending" && !activeActionAlreadyConfirmed);
+  const activeActionNeedsUserConfirmation = Boolean(!activeActionProviderShortlist && activeAction?.status === "pending" && !activeActionAlreadyConfirmed);
   const activeActionCanSaveDryRunOutcome = Boolean(
     activeActionIsDryRun &&
     activeAction &&
@@ -12889,7 +13134,7 @@ const ConciergeScreen = () => {
   const activeActionPreferredChannel = activeActionIsAppointment && typeof activeAction?.action_payload?.preferred_channel === "string"
     ? activeAction.action_payload.preferred_channel as AppointmentChannel
     : null;
-  const activeActionLabelParams = activeAction ? {
+  const activeActionLabelParams = activeAction && !activeActionProviderShortlist ? {
     item: activeAction,
     isSpanish,
     opensWhatsApp: activeActionOpensWhatsApp,
@@ -12989,12 +13234,22 @@ const ConciergeScreen = () => {
             ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Pedir presupuesto" : "Request quote")
+              : routePrefill.payload?.task_type === "provider_contact_preparation" && routePrefill.actionLabel?.trim()
+                ? routePrefill.actionLabel.trim()
               : (isSpanish ? "Anadir a Ahora mismo" : "Add to Right now"),
         secondaryLabel: routePrefill.kind === "appointment"
           ? (isSpanish ? "Anadir detalles" : "Add details")
           : (isSpanish ? "Editar solicitud" : "Edit request"),
       }
     : null;
+  const routePrefillSafetyCopy = routePrefill?.kind === "task"
+    && routePrefill.payload?.task_type === "provider_contact_preparation"
+    ? (isSpanish
+        ? "Nada se envia, llama ni abre hasta que confirmes."
+        : "Nothing is sent, called, or opened until you confirm.")
+    : (isSpanish
+        ? "Nada se reserva ni solicita sin tu confirmacion."
+        : "Nothing is booked or requested without your confirmation.");
 
   function showNextQueuedAction() {
     const nextAction = queuedActions[0] ?? pendingActions[0];
@@ -14534,7 +14789,7 @@ const ConciergeScreen = () => {
               </button>
             </div>
             <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
-              {isSpanish ? "Nada se reserva ni solicita sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
+              {routePrefillSafetyCopy}
             </p>
           </div>
         </section>
@@ -14726,6 +14981,23 @@ const ConciergeScreen = () => {
               {activeActionShowVyvaSummary || activeAction.action_summary}
             </p>
 
+            {activeActionProviderShortlist ? (
+              <ProviderShortlistFollowUpPanel
+                shortlist={activeActionProviderShortlist}
+                locale={locale}
+                busy={activeProviderShortlistMutation.isPending || completeProviderShortlistMutation.isPending}
+                notice={activeProviderShortlistNotice}
+                error={activeProviderShortlistError}
+                onRemove={(option) => handleRemoveActiveShortlistOption(activeAction, activeActionProviderShortlist, option)}
+                onAdd={() => handleAddActiveShortlistOption(activeAction, activeActionProviderShortlist)}
+                onSelectPreferred={(option) => handleSelectActiveShortlistProvider(activeAction, activeActionProviderShortlist, option)}
+                onSaveProvider={(option) => handleSaveActiveShortlistProvider(activeAction, activeActionProviderShortlist, option)}
+                onPrepareContact={(option) => handlePrepareActiveShortlistContact(activeAction, activeActionProviderShortlist, option)}
+                onDismiss={() => completeProviderShortlistMutation.mutate({ item: activeAction, shortlist: activeActionProviderShortlist, decision: "dismissed" })}
+                onFinish={() => completeProviderShortlistMutation.mutate({ item: activeAction, shortlist: activeActionProviderShortlist, decision: "preferred_selected" })}
+              />
+            ) : null}
+
             {activeActionExecutionStatus ? (
               <ConciergeExecutionStatusPanel
                 summary={activeActionExecutionStatus}
@@ -14814,7 +15086,7 @@ const ConciergeScreen = () => {
                 cancelTestId={`button-concierge-cancel-${activeAction.id}`}
                 isSpanish={isSpanish}
               />
-            ) : !activeActionNeedsGuidedDetails ? (
+            ) : !activeActionNeedsGuidedDetails && !activeActionProviderShortlist ? (
               <div
                 className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
                 data-testid="panel-concierge-next-action"
