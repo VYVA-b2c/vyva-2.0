@@ -11289,38 +11289,91 @@ export default function MarketingAdminPage() {
     }
   }
 
-  async function createAndLinkCampaignPlannerRouteContent(channel: Channel) {
+  async function createCampaignPlannerContentForChannel(channel: Channel) {
     const routeDraft = contentDraftFromCampaignDraft({
       ...campaignDraft,
       channel,
       contentAssetId: campaignDraftContentIdByChannel[channel] ?? "",
     }, selectedCampaignDraftTargetAudience);
+    const result = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+      method: "POST",
+      body: JSON.stringify(contentCreatePayloadFromDraft(routeDraft)),
+    });
+    return result.content;
+  }
+
+  async function createAndLinkCampaignPlannerRouteContent(channel: Channel) {
     setContentSaving(true);
     setCampaignStudioFeedback(`Creating ${channelLabel[channel]} route content and linking it to the campaign...`);
     try {
-      const result = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
-        method: "POST",
-        body: JSON.stringify(contentCreatePayloadFromDraft(routeDraft)),
-      });
-      setContent((current) => [result.content, ...current.filter((item) => item.id !== result.content.id)]);
+      const createdContent = await createCampaignPlannerContentForChannel(channel);
+      setContent((current) => [createdContent, ...current.filter((item) => item.id !== createdContent.id)]);
       setCampaignDraft((current) => ({
         ...current,
-        contentAssetId: channel === current.channel ? result.content.id : current.contentAssetId,
+        contentAssetId: channel === current.channel ? createdContent.id : current.contentAssetId,
         channelContentAssetIds: {
           ...current.channelContentAssetIds,
-          [channel]: result.content.id,
+          [channel]: createdContent.id,
         },
       }));
-      setSelectedContentId(result.content.id);
-      setEditingContentId(result.content.id);
-      setContentEditDraft(contentEditDraftFromContent(result.content));
+      setSelectedContentId(createdContent.id);
+      setEditingContentId(createdContent.id);
+      setContentEditDraft(contentEditDraftFromContent(createdContent));
       setContentDrawerMode("edit");
-      setContentFeedback(`Created and linked ${result.content.title}.`);
-      setContentActionFeedback(`Created and linked ${result.content.title}.`);
+      setContentFeedback(`Created and linked ${createdContent.title}.`);
+      setContentActionFeedback(`Created and linked ${createdContent.title}.`);
       setCampaignStudioFeedback(`Created and linked ${channelLabel[channel]} route content. The campaign pack now has this route covered.`);
       setMessage(`Created and linked ${channelLabel[channel]} route content.`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : `${channelLabel[channel]} route content could not be created and linked.`;
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setCampaignStudioFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentSaving(false);
+    }
+  }
+
+  async function createAndLinkAllMissingCampaignPlannerRouteContent() {
+    const missingChannels = campaignDraftMissingContentChannels;
+    if (missingChannels.length === 0) {
+      setCampaignStudioFeedback("Every route in this campaign pack already has linked content.");
+      setMessage("Every route in this campaign pack already has linked content.");
+      return;
+    }
+
+    setContentSaving(true);
+    setCampaignStudioFeedback(`Creating ${missingChannels.length} missing route content asset${missingChannels.length === 1 ? "" : "s"}...`);
+    try {
+      const createdContent = await Promise.all(missingChannels.map((channel) => createCampaignPlannerContentForChannel(channel)));
+      const createdContentByChannel = Object.fromEntries(createdContent.map((item) => [item.channel, item.id])) as Partial<Record<Channel, string>>;
+      setContent((current) => [
+        ...createdContent,
+        ...current.filter((item) => !createdContent.some((created) => created.id === item.id)),
+      ]);
+      setCampaignDraft((current) => ({
+        ...current,
+        contentAssetId: current.channel in createdContentByChannel ? createdContentByChannel[current.channel] ?? current.contentAssetId : current.contentAssetId,
+        channelContentAssetIds: {
+          ...current.channelContentAssetIds,
+          ...createdContentByChannel,
+        },
+      }));
+      const firstCreatedContent = createdContent[0] ?? null;
+      if (firstCreatedContent) {
+        setSelectedContentId(firstCreatedContent.id);
+        setEditingContentId(firstCreatedContent.id);
+        setContentEditDraft(contentEditDraftFromContent(firstCreatedContent));
+        setContentDrawerMode("edit");
+      }
+      const channelList = formatChannelList(createdContent.map((item) => item.channel));
+      setContentFeedback(`Created and linked ${createdContent.length} route content asset${createdContent.length === 1 ? "" : "s"}.`);
+      setContentActionFeedback(`Created and linked ${createdContent.length} route content asset${createdContent.length === 1 ? "" : "s"}.`);
+      setCampaignStudioFeedback(`Created and linked missing route content for ${channelList}.`);
+      setMessage(`Created and linked missing route content for ${channelList}.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Missing route content could not be created and linked.";
       setContentFeedback(errorMessage);
       setContentActionFeedback(errorMessage);
       setCampaignStudioFeedback(errorMessage);
@@ -17547,9 +17600,22 @@ export default function MarketingAdminPage() {
                           <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Route content</p>
                           <p className="mt-1 text-sm font-bold text-[#6b5b54]">Attach content to each non-primary route before save when it exists.</p>
                         </div>
-                        <Pill className={campaignDraftMissingContentChannels.length ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
-                          {campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length}/{campaignDraftSelectedChannels.length} linked
-                        </Pill>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {campaignDraftMissingContentChannels.length ? (
+                            <button
+                              type="button"
+                              onClick={() => void createAndLinkAllMissingCampaignPlannerRouteContent()}
+                              disabled={contentSaving}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-create-link-all-route-content"
+                            >
+                              <Sparkles size={14} /> {contentSaving ? "Creating..." : `Create ${campaignDraftMissingContentChannels.length} missing`}
+                            </button>
+                          ) : null}
+                          <Pill className={campaignDraftMissingContentChannels.length ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                            {campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length}/{campaignDraftSelectedChannels.length} linked
+                          </Pill>
+                        </div>
                       </div>
                       <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
                         {campaignDraftSelectedChannels.filter((channel) => channel !== campaignDraft.channel).map((channel) => {

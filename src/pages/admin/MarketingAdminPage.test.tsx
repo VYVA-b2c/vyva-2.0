@@ -2529,6 +2529,62 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByText("Created and linked WhatsApp route content.")).toBeInTheDocument();
   });
 
+  it("creates and links all missing campaign route content from the planner", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Full launch push" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-objective"), { target: { value: "Launch the new family update story across every route." } });
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-pack-full-launch"));
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-content"), { target: { value: "content-1" } });
+
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("Create 4 missing");
+    fireEvent.click(screen.getByTestId("button-marketing-create-link-all-route-content"));
+
+    await waitFor(() => {
+      const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+      expect(contentPosts).toHaveLength(4);
+    });
+    const routeContentPosts = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")));
+
+    expect(routeContentPosts.map((body) => body.channel).sort()).toEqual(["facebook", "instagram", "linkedin", "whatsapp"]);
+    expect(routeContentPosts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        title: "Full launch push WhatsApp content",
+        channel: "whatsapp",
+        body: expect.stringContaining("Launch the new family update story across every route."),
+        designJson: expect.objectContaining({ generator: "marketing_campaign_planner", channel: "whatsapp" }),
+      }),
+      expect.objectContaining({
+        title: "Full launch push Facebook content",
+        channel: "facebook",
+        designJson: expect.objectContaining({ generator: "marketing_campaign_planner", channel: "facebook" }),
+      }),
+      expect.objectContaining({
+        title: "Full launch push Instagram content",
+        channel: "instagram",
+        designJson: expect.objectContaining({ generator: "marketing_campaign_planner", channel: "instagram" }),
+      }),
+      expect.objectContaining({
+        title: "Full launch push LinkedIn content",
+        channel: "linkedin",
+        designJson: expect.objectContaining({ generator: "marketing_campaign_planner", channel: "linkedin" }),
+      }),
+    ]));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("select-marketing-campaign-route-content-whatsapp")).toHaveValue("content-created");
+      expect(screen.getByTestId("select-marketing-campaign-route-content-facebook")).toHaveValue("content-created");
+      expect(screen.getByTestId("select-marketing-campaign-route-content-instagram")).toHaveValue("content-created");
+      expect(screen.getByTestId("select-marketing-campaign-route-content-linkedin")).toHaveValue("content-created");
+    });
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("5/5 linked");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("5 content assets linked across Email, WhatsApp, Facebook, Instagram, and LinkedIn.");
+    expect(screen.getAllByText("Created and linked missing route content for WhatsApp, Facebook, Instagram, and LinkedIn.")).not.toHaveLength(0);
+  });
+
   it("edits and deletes imported content assets", async () => {
     renderPage();
 
