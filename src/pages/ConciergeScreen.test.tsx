@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeScreen from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import { CONCIERGE_DRY_RUN_FIXTURES } from "../../shared/conciergeDryRun";
 
 const voiceHeroMock = vi.hoisted(() => vi.fn());
 const voiceActionMock = vi.hoisted(() => ({
@@ -5333,16 +5334,23 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-email-draft-sent-email-1")).toHaveTextContent("I sent it");
   });
 
-  it("labels dry-run tasks and blocks browser opens after final confirmation", async () => {
+  it("labels dry-run tasks, blocks browser opens, and saves simulated completion history", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
-    apiFetchMock.mockImplementation(async (url) => {
+    let completed = false;
+    let completeBody: { outcome_payload?: Record<string, unknown>; outcome_summary?: string } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.endsWith("/api/concierge/actions/dry-email-1/review-confirm")) {
         return jsonResponse({ pendingId: "dry-email-1", status: "pending" });
       }
+      if (target.endsWith("/api/concierge/actions/dry-email-1/complete")) {
+        completed = true;
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-dry-email-1" });
+      }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
-          items: [{
+          items: completed ? [] : [{
             id: "dry-email-1",
             use_case: "send_message",
             provider_name: "VYVA Test Clinic",
@@ -5362,25 +5370,88 @@ describe("ConciergeScreen route prefill", () => {
           }],
         });
       }
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({
+          items: completed ? [{
+            id: "session-dry-email-1",
+            pending_id: "dry-email-1",
+            use_case: "send_message",
+            provider_name: "VYVA Test Clinic",
+            outcome: "completed",
+            outcome_summary: completeBody?.outcome_summary ?? "Simulated dry-run outcome: Dry-run email draft prepared for the clinic.",
+            completed_at: "2026-07-16T11:00:00.000Z",
+            outcome_payload: completeBody?.outcome_payload ?? null,
+          }] : [],
+        });
+      }
       return jsonResponse({ items: [] });
     });
 
     renderScreen();
 
     expect(await screen.findByTestId("badge-concierge-dry-run-dry-email-1")).toHaveTextContent("Test mode");
+    const dryRunPanel = await screen.findByTestId("panel-concierge-dry-run-outcome-dry-email-1");
+    expect(dryRunPanel).toHaveTextContent("Save simulated outcome");
+    expect(screen.getByTestId("button-concierge-dry-run-complete-dry-email-1")).toBeDisabled();
     fireEvent.click(screen.getByTestId("button-concierge-confirm-dry-email-1"));
 
     const emailLink = await screen.findByTestId("link-concierge-email-draft-open-dry-email-1");
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/dry-email-1/review-confirm", { method: "POST" });
     });
+    expect(emailLink).toBeDisabled();
+    expect(emailLink).toHaveTextContent("Test mode");
     fireEvent.click(emailLink);
-    expect(screen.getByTestId("modal-concierge-final-confirmation")).toHaveTextContent("Review first");
-    fireEvent.click(screen.getByTestId("button-concierge-final-confirm"));
-
     expect(openMock).not.toHaveBeenCalled();
     expect(screen.queryByTestId("link-concierge-email-dry-email-1")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId("button-concierge-dry-run-complete-dry-email-1")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("button-concierge-dry-run-complete-dry-email-1"));
+
+    await waitFor(() => {
+      expect(completeBody?.outcome_payload).toMatchObject({
+        dry_run: true,
+        simulated_outcome: true,
+        no_real_provider_contact: true,
+        completed_from: "concierge_dry_run_outcome_panel",
+      });
+    });
+    expect(await screen.findByTestId("badge-concierge-completed-dry-run-session-dry-email-1")).toHaveTextContent("Test mode");
   });
+
+  it.each(CONCIERGE_DRY_RUN_FIXTURES.map((fixture) => [fixture.reference, fixture] as const))(
+    "renders %s as a safe dry-run active task",
+    async (_reference, fixture) => {
+      const pendingId = `dry-${fixture.reference.toLowerCase().replace(/_/g, "-")}`;
+      apiFetchMock.mockImplementation(async (url) => {
+        const target = String(url);
+        if (target.endsWith("/api/concierge/actions/pending")) {
+          return jsonResponse({
+            items: [{
+              id: pendingId,
+              use_case: fixture.useCase,
+              provider_name: fixture.provider?.name ?? "VYVA Test Review Desk",
+              provider_phone: fixture.provider?.phone ?? null,
+              action_summary: fixture.actionSummary,
+              action_payload: fixture.actionPayload,
+              status: "pending",
+              language: "en",
+            }],
+          });
+        }
+        return jsonResponse({ items: [] });
+      });
+
+      renderScreen();
+
+      expect(await screen.findByTestId(`badge-concierge-dry-run-${pendingId}`)).toHaveTextContent("Test mode");
+      expect(await screen.findByTestId(`panel-concierge-dry-run-outcome-${pendingId}`)).toHaveTextContent("No real call");
+      expect(screen.getByTestId(`button-concierge-dry-run-complete-${pendingId}`)).toBeDisabled();
+      expect(screen.queryByTestId(`link-concierge-email-${pendingId}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`link-concierge-whatsapp-${pendingId}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`link-concierge-form-${pendingId}`)).not.toBeInTheDocument();
+    },
+  );
 
   it("shows Show VYVA prepared tasks and blocks handoff until final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
