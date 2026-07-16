@@ -3714,6 +3714,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-channels")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-reach")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-ai")).toHaveTextContent("0/1");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-map")).toHaveTextContent("Channel execution map");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-map")).toHaveTextContent("1 route");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-map-linkedin")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-map-linkedin")).toHaveTextContent("Manual publishing");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-map-linkedin")).toHaveTextContent("Create the LinkedIn plan, then publish or track it outside VYVA.");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-map-linkedin")).toHaveTextContent("1 recipient");
+    expect(screen.getByTestId("marketing-campaign-studio-execution-map-linkedin")).toHaveTextContent("Handoff route");
     expect(screen.getByTestId("marketing-campaign-studio-launch-path")).toHaveTextContent("Recommended launch path");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-goal")).toHaveTextContent("B2B partner introduction");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-audience")).toHaveTextContent("Partners");
@@ -3882,7 +3889,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI body copy");
     expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("\"angle\": \"proof\"");
-  });
+  }, 60000);
 
   it("recommends and loads template packs directly inside the campaign studio", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);

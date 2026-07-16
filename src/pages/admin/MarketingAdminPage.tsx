@@ -17498,6 +17498,34 @@ export default function MarketingAdminPage() {
                           </div>
                         ))}
                       </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-execution-map">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Channel execution map</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">See exactly which routes VYVA can send, which routes need a human handoff, and what each route will create.</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignStudioExecutionPlan.length} route{campaignStudioExecutionPlan.length === 1 ? "" : "s"}</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 xl:grid-cols-3">
+                          {campaignStudioExecutionPlan.map((item) => (
+                            <div key={item.channel} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-execution-map-${item.channel}`}>
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                  <p className="mt-2 truncate text-sm font-black text-[#241133]">{item.title}</p>
+                                </div>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                              <p className="mt-2 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">{item.sendMode}</p>
+                              <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.nextAction}</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Pill className="bg-white text-[#5b4a46]">{item.recipients} recipient{item.recipients === 1 ? "" : "s"}</Pill>
+                                <Pill className="bg-white text-[#5b4a46]">{item.channel === "email" ? "VYVA route" : "Handoff route"}</Pill>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-launch-path">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
