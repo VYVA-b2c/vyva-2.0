@@ -4912,6 +4912,17 @@ function campaignRowReadiness(campaign: Campaign, contentById: ReadonlyMap<strin
   };
 }
 
+function campaignRowReadinessActionLabel(readiness: CampaignRowReadiness) {
+  if (readiness.label === "Ready to send") return "Review send";
+  if (readiness.label === "Snapshot recipients") return "Snapshot list";
+  if (readiness.label === "Needs content") return "Attach content";
+  if (readiness.label === "Map audience") return "Map list";
+  if (readiness.label === "Add schedule") return "Set time";
+  if (readiness.label === "Manual handoff") return "Prepare handoff";
+  if (readiness.label === "No channels") return "Add channel";
+  return "Open setup";
+}
+
 function campaignMetadataWithTarget(existingMetadata: unknown, targetAudience: MarketingAudience | null) {
   const metadata = { ...recordValue(existingMetadata) };
   for (const key of ["targetAudience", "targetAudienceId", "audienceId", "audienceListId", "listId", "lovableAudienceId", "audienceExternalId", "audience_external_id", "audienceList"]) {
@@ -22207,6 +22218,7 @@ function CampaignTable({
             const metricSummary = metricsByCampaignId.get(campaign.id);
             const manualResults = manualPublishResultsFromMetadata(campaign.metadata);
             const rowReadiness = campaignRowReadiness(campaign, contentById, audiences);
+            const rowNextActionLabel = campaignRowReadinessActionLabel(rowReadiness);
             return (
             <tr
               key={campaign.id}
@@ -22295,6 +22307,20 @@ function CampaignTable({
                     <span className="text-xs font-black">{rowReadiness.readyCount}/{rowReadiness.totalCount}</span>
                   </div>
                   <p className="mt-1 text-xs font-bold leading-relaxed">{rowReadiness.detail}</p>
+                  {onEdit ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(campaign);
+                      }}
+                      disabled={actionsDisabled}
+                      className="mt-2 inline-flex min-h-8 items-center justify-center rounded-lg border border-purple-200 bg-white px-2.5 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                      data-testid={`button-marketing-campaign-row-next-${campaign.id}`}
+                    >
+                      {rowNextActionLabel}
+                    </button>
+                  ) : null}
                 </div>
               </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
