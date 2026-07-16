@@ -3121,13 +3121,20 @@ async function confirmPendingAction(item: ConciergePendingItem) {
       : !item.provider_phone && bookingUrl
         ? bookingUrl
         : "";
+  const task = getConciergeExecutionTask(item);
+  const channelReadiness = task?.channel_readiness ?? null;
+  const liveFollowUpAllowed = Boolean(
+    task &&
+    channelReadiness?.channel &&
+    channelReadiness.external_action_allowed,
+  );
 
   const res = await apiFetch(`/api/concierge/actions/${item.id}/confirm`, { method: "POST" });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Failed to confirm concierge action");
   }
-  if (followUpUrl && !isDryRun) window.open(followUpUrl, "_blank", "noopener,noreferrer");
+  if (followUpUrl && !isDryRun && liveFollowUpAllowed) window.open(followUpUrl, "_blank", "noopener,noreferrer");
 }
 
 async function confirmPendingActionReview(item: ConciergePendingItem) {
@@ -4427,6 +4434,16 @@ function completedSessionReceiptDetails(
   locale = "es",
 ): Array<{ label: string; value: string }> {
   const completedAt = formatConciergeCompletedAt(session.completed_at, locale);
+  const executionMode = payloadString(session.outcome_payload, ["execution_mode"]);
+  const executionModeLabel = executionMode === "live"
+    ? (isSpanish ? "Accion en vivo" : "Live action")
+    : executionMode === "manual_review"
+      ? (isSpanish ? "Revision manual" : "Manual review")
+      : executionMode === "blocked"
+        ? (isSpanish ? "Canal bloqueado" : "Channel blocked")
+        : executionMode === "simulated"
+          ? (isSpanish ? "Prueba sin contacto real" : "Test mode, no real contact")
+          : "";
   return [
     {
       label: isSpanish ? "Tipo" : "Type",
@@ -4444,7 +4461,10 @@ function completedSessionReceiptDetails(
       label: isSpanish ? "Completado" : "Completed",
       value: completedAt,
     },
-    ...(isConciergeDryRunPayload(session.outcome_payload) ? [{
+    ...(executionModeLabel ? [{
+      label: isSpanish ? "Modo" : "Mode",
+      value: executionModeLabel,
+    }] : isConciergeDryRunPayload(session.outcome_payload) ? [{
       label: isSpanish ? "Modo" : "Mode",
       value: isSpanish ? "Prueba sin contacto real" : "Test mode, no real contact",
     }] : []),
@@ -4457,6 +4477,7 @@ function completedSessionContactLink(
   isSpanish: boolean,
 ): { href: string; label: string; external: boolean } | null {
   if (isConciergeDryRunPayload(session.outcome_payload)) return null;
+  if (payloadString(session.outcome_payload, ["execution_mode"]) !== "live") return null;
   const payload = session.outcome_payload;
   const phone = payloadString(payload, ["provider_phone", "phone", "contact_phone"]);
   const email = payloadString(payload, ["provider_email", "recipient_email", "email"]);
@@ -5735,6 +5756,7 @@ function BookingFormSupportPanel({
   isSaving,
   isSpanish,
   onFormChange,
+  onOpenForm,
   onSubmitted,
   onAddDetails,
   onNeedHelp,
@@ -5752,6 +5774,7 @@ function BookingFormSupportPanel({
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof BookingFormOutcomeForm, value: string) => void;
+  onOpenForm: (href: string, label: string) => void;
   onSubmitted: () => void;
   onAddDetails: () => void;
   onNeedHelp: () => void;
@@ -5794,16 +5817,15 @@ function BookingFormSupportPanel({
         <div className="mt-3 rounded-[16px] border border-[#BBF7D0] bg-white p-3" data-testid={`panel-booking-form-ready-${item.id}`}>
           <div className="flex flex-wrap gap-2">
             {externalLinksAllowed ? (
-              <a
-                href={bookingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => onOpenForm(bookingUrl, isSpanish ? "Abrir formulario" : "Open form")}
                 data-testid={`link-booking-form-open-${item.id}`}
                 className="vyva-tap inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[13px] font-black text-white shadow-sm"
               >
                 <ExternalLink size={14} />
                 {isSpanish ? "Abrir formulario" : "Open form"}
-              </a>
+              </button>
             ) : (
               <p
                 data-testid={`text-booking-form-confirm-first-${item.id}`}
@@ -9516,7 +9538,14 @@ const ConciergeScreen = () => {
       return;
     }
 
-    if (request.href && !isConciergeDryRunPayload(request.item.action_payload)) {
+    const requestTask = getConciergeExecutionTask(request.item);
+    const requestChannelReadiness = requestTask?.channel_readiness ?? null;
+    const requestLiveAllowed = Boolean(
+      (requestTask?.external_action_allowed || confirmedReviewActionIds.has(request.item.id)) &&
+      (requestChannelReadiness?.channel ? requestChannelReadiness.external_action_allowed : true),
+    );
+
+    if (request.href && !isConciergeDryRunPayload(request.item.action_payload) && requestLiveAllowed) {
       window.open(
         request.href,
         request.target ?? "_self",
@@ -13118,7 +13147,18 @@ const ConciergeScreen = () => {
   )
     ? recentEmailDraftCompletion.notice
     : null;
-  const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation && !activeActionIsDryRun;
+  const activeActionChannelReadiness = activeActionExecutionTask?.channel_readiness ?? null;
+  const activeActionLiveChannelAllowed = Boolean(
+    (activeActionExecutionTask?.external_action_allowed || activeActionReviewConfirmed) &&
+    (activeActionChannelReadiness?.channel ? activeActionChannelReadiness.external_action_allowed : true),
+  );
+  const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation && !activeActionIsDryRun && activeActionLiveChannelAllowed;
+  const activeActionChannelBlocked = Boolean(
+    activeAction &&
+    !activeActionIsDryRun &&
+    activeActionChannelReadiness?.channel &&
+    !activeActionChannelReadiness.external_action_allowed,
+  );
   const activeActionCanShowManualReviewOutcome = Boolean(
     activeAction &&
     isManualReviewOutcomePendingAction(activeAction) &&
@@ -15103,6 +15143,25 @@ const ConciergeScreen = () => {
               </div>
             ) : null}
 
+            {activeActionChannelBlocked && activeActionChannelReadiness ? (
+              <div
+                className="mt-3 rounded-[18px] border border-amber-200 bg-amber-50 px-3 py-2"
+                data-testid="panel-concierge-channel-readiness-blocked"
+              >
+                <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-amber-800">
+                  {isSpanish ? "Canal no configurado" : "Channel not ready"}
+                </p>
+                <p className="mt-1 font-body text-[13px] font-black leading-snug text-amber-950">
+                  {activeActionChannelReadiness.label}
+                </p>
+                <p className="mt-1 font-body text-[12px] font-bold leading-snug text-amber-900">
+                  {isSpanish
+                    ? "VYVA no abrira ni contactara a un proveedor hasta que administracion active, configure y verifique este canal."
+                    : "VYVA will not open or contact a provider until an admin enables, configures, and verifies this channel."}
+                </p>
+              </div>
+            ) : null}
+
             {activeActionIsDryRun && activeAction ? (
               <DryRunOutcomePanel
                 item={activeAction}
@@ -15317,6 +15376,13 @@ const ConciergeScreen = () => {
                 isSaving={bookingFormOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updateBookingFormOutcome}
+                onOpenForm={(href, label) => requestExternalConfirmation({
+                  item: activeAction,
+                  kind: "booking",
+                  href,
+                  label,
+                  target: "_blank",
+                })}
                 onSubmitted={() => handleBookingFormSubmitted(activeAction)}
                 onAddDetails={() => handleBookingFormAddDetails(activeAction)}
                 onNeedHelp={() => handleBookingFormNeedHelp(activeAction)}
