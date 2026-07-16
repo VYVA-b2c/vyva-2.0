@@ -7903,6 +7903,7 @@ const ConciergeScreen = () => {
   const [phoneCallOutcomeError, setPhoneCallOutcomeError] = useState<string | null>(null);
   const [emailDraftOutcomeForm, setEmailDraftOutcomeForm] = useState<EmailDraftOutcomeForm>(EMPTY_EMAIL_DRAFT_OUTCOME_FORM);
   const [emailDraftNotice, setEmailDraftNotice] = useState<string | null>(null);
+  const [recentEmailDraftCompletion, setRecentEmailDraftCompletion] = useState<{ actionId: string; notice: string } | null>(null);
   const [emailDraftError, setEmailDraftError] = useState<string | null>(null);
   const [whatsAppDraftOutcomeForm, setWhatsAppDraftOutcomeForm] = useState<WhatsAppDraftOutcomeForm>(EMPTY_WHATSAPP_DRAFT_OUTCOME_FORM);
   const [whatsAppDraftNotice, setWhatsAppDraftNotice] = useState<string | null>(null);
@@ -9024,10 +9025,13 @@ const ConciergeScreen = () => {
     onMutate: () => {
       setEmailDraftError(null);
       setEmailDraftNotice(null);
+      setRecentEmailDraftCompletion(null);
     },
-    onSuccess: async () => {
+    onSuccess: async (_completion, variables) => {
+      const notice = isSpanish ? "Email guardado. La tarea queda cerrada." : "Email saved. The task is closed.";
       setEmailDraftOutcomeForm(EMPTY_EMAIL_DRAFT_OUTCOME_FORM);
-      setEmailDraftNotice(isSpanish ? "Email guardado. La tarea queda cerrada." : "Email saved. The task is closed.");
+      setEmailDraftNotice(notice);
+      setRecentEmailDraftCompletion({ actionId: variables.item.id, notice });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
@@ -11908,6 +11912,12 @@ const ConciergeScreen = () => {
   const activeActionCanShowPhoneOutcome = activeActionNeedsPhoneOutcome && activeActionReviewConfirmed;
   const activeActionCanShowWhatsAppOutcome = activeActionNeedsWhatsAppOutcome && activeActionReviewConfirmed;
   const activeActionCanShowEmailOutcome = activeActionNeedsEmailOutcome && activeActionReviewConfirmed;
+  const recentEmailDraftCompletionNotice = recentEmailDraftCompletion && (
+    activeAction?.id !== recentEmailDraftCompletion.actionId ||
+    !activeActionCanShowEmailOutcome
+  )
+    ? recentEmailDraftCompletion.notice
+    : null;
   const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation;
   const activeActionCanShowManualReviewOutcome = Boolean(
     activeAction &&
@@ -13649,6 +13659,12 @@ const ConciergeScreen = () => {
             </button>
           )}
         </div>
+
+        {recentEmailDraftCompletionNotice ? (
+          <p data-testid="email-draft-notice" className="mb-3 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
+            {recentEmailDraftCompletionNotice}
+          </p>
+        ) : null}
 
         {pendingLoading ? (
           <div className="flex items-center gap-2 py-4">

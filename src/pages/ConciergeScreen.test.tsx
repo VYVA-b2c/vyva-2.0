@@ -5023,15 +5023,17 @@ describe("ConciergeScreen route prefill", () => {
 
   it("records a sent email draft through the existing completion endpoint", async () => {
     let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    let completed = false;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.endsWith("/api/concierge/actions/email-sent-1/complete")) {
         completeBody = JSON.parse(String(init?.body));
+        completed = true;
         return jsonResponse({ ok: true, status: "completed", sessionId: "session-email-sent-1" });
       }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
-          items: [{
+          items: completed ? [] : [{
             id: "email-sent-1",
             use_case: "insurance_admin",
             provider_name: "Insurer Desk",
@@ -5089,6 +5091,10 @@ describe("ConciergeScreen route prefill", () => {
         }),
       });
     });
+    await waitFor(() => {
+      expect(screen.queryByTestId("panel-concierge-email-draft")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("email-draft-notice")).toHaveTextContent("Email saved");
   });
 
   it("records a sent tool-gated email draft through the existing completion endpoint", async () => {
