@@ -861,6 +861,14 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner" } });
     fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("B2B nurture");
+    expect(screen.getByTestId("marketing-journey-command-center")).toHaveTextContent("Review this draft and decide whether it should go active");
+    expect(screen.getByTestId("marketing-journey-command-stat-content")).toHaveTextContent("1/1");
+    expect(screen.getByTestId("marketing-journey-command-stat-activity")).toHaveTextContent("1 enrollment");
+    expect(screen.getByTestId("marketing-journey-ai-command-brief")).toHaveTextContent("VYVA journey AI command brief");
+    expect(screen.getByTestId("textarea-marketing-journey-ai-command-brief")).toHaveValue(expect.stringContaining("B2B nurture: draft; B2B"));
+    fireEvent.click(screen.getByTestId("button-marketing-journey-command-launch-ready"));
+    expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-journey-name")).toHaveValue("B2B nurture");
     expect(screen.queryByText("First channel")).not.toBeInTheDocument();
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Trigger: signup");
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("List: Partners");
