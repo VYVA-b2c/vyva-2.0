@@ -1975,6 +1975,21 @@ function firstMeaningfulPreviewLine(value: string) {
   return lines.find((line) => !/^(hi|hello|dear)\b/i.test(line)) ?? lines[0] ?? "No preview line yet.";
 }
 
+function plainTextFromHtml(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function recordTimelineParts(record: { createdAt?: string | null; updatedAt?: string | null; lastSyncedAt?: string | null }) {
   const parts: string[] = [];
   if (record.updatedAt) parts.push(`Updated ${formatDate(record.updatedAt)}`);
@@ -9623,6 +9638,47 @@ export default function MarketingAdminPage() {
     () => new Map(syncState.lockedSendCapabilities.map((item) => [item.channel, item])),
     [syncState.lockedSendCapabilities],
   );
+  const campaignDraftLaunchPreviewItems = useMemo(() => campaignDraftSelectedChannels.map((channel) => {
+    const contentAsset = selectedCampaignDraftContentByChannel.get(channel) ?? null;
+    const capability = sendCapabilityByChannel.get(channel);
+    const sendCapability = capability?.sendCapability ?? (channel === "email" ? "enabled" : "planning_only");
+    const emailSendReady = channel === "email" && sendCapability === "enabled" && capability?.locked !== true;
+    const futureSendCapable = sendCapability === "future_send_capable";
+    const state: CampaignReadinessState = !contentAsset
+      ? "blocked"
+      : emailSendReady
+        ? "ready"
+        : futureSendCapable
+          ? "needs_action"
+          : "planning";
+    const previewLine = contentAsset
+      ? firstMeaningfulPreviewLine([
+        contentAsset.body,
+        plainTextFromHtml(contentAsset.htmlBody),
+        contentAsset.subject,
+      ].filter(Boolean).join("\n"))
+      : `Create or link ${channelLabel[channel]} content before saving this route.`;
+    return {
+      channel,
+      contentAsset,
+      state,
+      mode: !contentAsset
+        ? "Needs content"
+        : emailSendReady
+          ? "VYVA send"
+          : futureSendCapable
+            ? "Provider-ready"
+            : "Manual handoff",
+      nextAction: !contentAsset
+        ? "Use Create missing or select an existing content asset."
+        : emailSendReady
+          ? "After creation, open campaign details to review recipients and send email explicitly."
+          : futureSendCapable
+            ? `Save this ${channelLabel[channel]} route now; provider dispatch controls can be enabled later.`
+            : `Save this ${channelLabel[channel]} route as a handoff plan for manual publishing or tracking.`,
+      previewLine,
+    };
+  }), [campaignDraftSelectedChannels, selectedCampaignDraftContentByChannel, sendCapabilityByChannel]);
   const campaignStudioExecutionPlan: CampaignExecutionPlanItem[] = campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {
     const capability = sendCapabilityByChannel.get(channel);
     const sendCapability = capability?.sendCapability ?? (channel === "email" ? "enabled" : "planning_only");
@@ -17658,6 +17714,55 @@ export default function MarketingAdminPage() {
                             </Field>
                           );
                         })}
+                      </div>
+                    </div>
+                  ) : null}
+                  {campaignDraftLaunchPreviewItems.length ? (
+                    <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm" data-testid="marketing-campaign-launch-preview">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-blue-800">Launch preview</p>
+                          <h3 className="mt-1 text-base font-black text-[#241133]">What this campaign will save</h3>
+                          <p className="mt-1 text-xs font-bold text-[#6b5b54]">Review the channel routes, creative, and handoff mode before creating the campaign.</p>
+                        </div>
+                        <Pill className={campaignDraftMissingContentChannels.length ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                          {campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length}/{campaignDraftSelectedChannels.length} ready
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                        {campaignDraftLaunchPreviewItems.map((item) => (
+                          <article key={item.channel} className={`rounded-xl border p-3 ${item.state === "blocked" ? "border-amber-200 bg-amber-50/60" : "border-[#eadfd5] bg-[#fffaf4]"}`} data-testid={`marketing-campaign-launch-preview-${item.channel}`}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                              <Pill className={readinessPillClass(item.state)}>{item.mode}</Pill>
+                            </div>
+                            <h4 className="mt-3 text-sm font-black text-[#241133]">
+                              {item.contentAsset ? item.contentAsset.title : `No ${channelLabel[item.channel]} content linked`}
+                            </h4>
+                            {item.contentAsset?.subject ? (
+                              <p className="mt-2 text-xs font-bold text-[#5f4a44]">Subject: {item.contentAsset.subject}</p>
+                            ) : null}
+                            <p className="mt-2 line-clamp-3 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.previewLine}</p>
+                            {item.contentAsset?.ctaLabel ? (
+                              <p className="mt-2 truncate text-xs font-black text-purple-800">
+                                CTA: {item.contentAsset.ctaLabel}{item.contentAsset.ctaUrl ? ` -> ${item.contentAsset.ctaUrl}` : ""}
+                              </p>
+                            ) : null}
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#eadfd5] pt-3">
+                              <p className="min-w-0 flex-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.nextAction}</p>
+                              {item.contentAsset ? (
+                                <button
+                                  type="button"
+                                  onClick={() => item.contentAsset ? previewContent(item.contentAsset) : undefined}
+                                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-purple-200 bg-white px-2.5 text-xs font-black text-purple-700 hover:bg-purple-50"
+                                  data-testid={`button-marketing-preview-campaign-launch-content-${item.channel}`}
+                                >
+                                  <Eye size={12} /> Preview
+                                </button>
+                              ) : null}
+                            </div>
+                          </article>
+                        ))}
                       </div>
                     </div>
                   ) : null}

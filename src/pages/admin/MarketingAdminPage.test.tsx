@@ -2502,6 +2502,11 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("WhatsApp content");
     expect(screen.getByTestId("select-marketing-campaign-route-content-whatsapp")).toHaveValue("");
+    expect(screen.getByTestId("marketing-campaign-launch-preview")).toHaveTextContent("Launch preview");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-email")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-email")).toHaveTextContent("VYVA send");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-whatsapp")).toHaveTextContent("No WhatsApp content linked");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-whatsapp")).toHaveTextContent("Needs content");
     fireEvent.click(screen.getByTestId("button-marketing-create-link-route-content-whatsapp"));
 
     await waitFor(() => {
@@ -2525,8 +2530,13 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("select-marketing-campaign-route-content-whatsapp")).toHaveValue("content-created");
     });
+    expect(screen.getByTestId("marketing-campaign-launch-preview")).toHaveTextContent("2/2 ready");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-whatsapp")).toHaveTextContent("Care team nudge WhatsApp content");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-whatsapp")).toHaveTextContent("Provider-ready");
     expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("2 content assets linked across Email and WhatsApp.");
     expect(screen.getByText("Created and linked WhatsApp route content.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-preview-campaign-launch-content-whatsapp"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Care team nudge WhatsApp content".');
   });
 
   it("creates and links all missing campaign route content from the planner", async () => {
