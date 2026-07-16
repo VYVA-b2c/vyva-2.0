@@ -2784,6 +2784,19 @@ describe("ConciergeScreen action hub", () => {
         expect(body.action_payload.provider_whatsapp).toBe("+34 612 345 679");
         expect(body.action_payload.preferred_channel).toBe("whatsapp");
         expect(body.action_payload.execution_channel).toBe("whatsapp");
+        expect(body.action_payload.live_handoff_flow).toBe("transport_booking_v1");
+        expect(body.action_payload.live_handoff_status).toBe("ready");
+        expect(body.action_payload.handoff_readiness).toMatchObject({
+          provider_saved: true,
+          provider_name: "Radio Taxi",
+          contact_channel: "whatsapp",
+          has_contact_channel: true,
+          has_pickup: true,
+          has_destination: true,
+          has_time: true,
+          has_mobility_needs: true,
+          final_confirmation_required: true,
+        });
         expect(body.action_payload.whatsapp_message).toContain("Destination: Heart Clinic Madrid");
         expect(body.action_payload.whatsapp_message).toContain("Priorities: Nearby, Good reputation, Easy access, Clear price, Soon.");
         expect(body.action_payload.criteria).toEqual(["nearby", "available-soon", "accessible", "clear-price", "reputation"]);
@@ -2828,6 +2841,9 @@ describe("ConciergeScreen action hub", () => {
         expect(body.outcome_summary).toBe("Ride saved with Radio Taxi.");
         expect(body.outcome_payload).toMatchObject({
           flow_reference: "FLOW_TRANSPORT_BOOKING",
+          live_handoff_flow: "transport_booking_v1",
+          live_handoff_status: "completed",
+          live_handoff_outcome: "ride_confirmed",
           provider_name: "Radio Taxi",
           provider_reply: "Confirmed, arrives at 09:30.",
           price_estimate: "EUR18",
@@ -3534,6 +3550,15 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveAttribute("data-phase", "needs_ok");
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Needs your OK");
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("You confirm before anything is sent, called, or booked.");
+    const liveHandoff = screen.getByTestId("panel-concierge-live-handoff");
+    expect(liveHandoff).toHaveAttribute("data-state", "ready");
+    expect(liveHandoff).toHaveTextContent("Ready for your OK");
+    expect(screen.getByTestId("item-live-handoff-provider")).toHaveTextContent("Radio Taxi");
+    expect(screen.getByTestId("item-live-handoff-contact")).toHaveTextContent("Phone call");
+    expect(screen.getByTestId("item-live-handoff-pickup")).toHaveTextContent("Saved home");
+    expect(screen.getByTestId("item-live-handoff-destination")).toHaveTextContent("City Clinic");
+    expect(screen.getByTestId("item-live-handoff-time")).toHaveTextContent("tomorrow 09:00");
+    expect(screen.getByTestId("item-live-handoff-confirmation")).toHaveAttribute("data-ready", "false");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Follow-through");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Ready for your OK");
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "active");
@@ -3704,6 +3729,8 @@ describe("ConciergeScreen route prefill", () => {
           scheduled_for: "tomorrow 10:30",
           reference: "CL-9",
           notes: "They asked for the invoice number.",
+          live_handoff_status: "completed",
+          live_handoff_outcome: "confirmed",
           completed_from: "phone_call_outcome_panel",
           no_external_action_without_confirmation: true,
         }),
@@ -4530,6 +4557,9 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
+    const liveHandoff = await screen.findByTestId("panel-concierge-live-handoff");
+    expect(liveHandoff).toHaveAttribute("data-state", "waiting");
+    expect(liveHandoff).toHaveTextContent("Waiting for provider");
     const panel = await screen.findByTestId("panel-concierge-provider-reply");
     expect(panel).toHaveTextContent("Waiting since");
     expect(screen.getByTestId("button-provider-reply-confirmed-reply-follow-up")).toHaveTextContent("I got a reply");
