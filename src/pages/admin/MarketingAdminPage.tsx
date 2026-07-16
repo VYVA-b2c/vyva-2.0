@@ -48,6 +48,37 @@ const CONTENT_LOCALIZATION_LANGUAGES = [
   { value: "it", label: "Italian" },
   { value: "pt", label: "Portuguese" },
 ] as const;
+const MARKETING_CONTACT_LANGUAGE_OPTIONS = CONTENT_LOCALIZATION_LANGUAGES;
+const MARKETING_CONTACT_CATEGORY_OPTIONS = [
+  { value: "lead", label: "Lead" },
+  { value: "partner", label: "Partner" },
+  { value: "caregiver", label: "Caregiver" },
+  { value: "family", label: "Family" },
+  { value: "provider", label: "Provider" },
+  { value: "customer", label: "Customer" },
+  { value: "media", label: "Media" },
+  { value: "investor", label: "Investor" },
+] as const;
+const MARKETING_CONTACT_VERTICAL_OPTIONS = [
+  { value: "healthcare", label: "Healthcare" },
+  { value: "elder care", label: "Elder care" },
+  { value: "social care", label: "Social care" },
+  { value: "pharmacy", label: "Pharmacy" },
+  { value: "insurance", label: "Insurance" },
+  { value: "public sector", label: "Public sector" },
+  { value: "technology", label: "Technology" },
+  { value: "community", label: "Community" },
+] as const;
+const MARKETING_CONTACT_MARKET_OPTIONS = [
+  { value: "Spain", label: "Spain" },
+  { value: "Madrid", label: "Madrid" },
+  { value: "Barcelona", label: "Barcelona" },
+  { value: "Valencia", label: "Valencia" },
+  { value: "United Kingdom", label: "UK" },
+  { value: "London", label: "London" },
+  { value: "European Union", label: "EU" },
+  { value: "United States", label: "US" },
+] as const;
 const TEMPLATE_GAP_BATCH_LIMIT = 4;
 
 type Channel = typeof CHANNELS[number];
@@ -1942,6 +1973,21 @@ function firstPreviewLine(value: string) {
 function firstMeaningfulPreviewLine(value: string) {
   const lines = value.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   return lines.find((line) => !/^(hi|hello|dear)\b/i.test(line)) ?? lines[0] ?? "No preview line yet.";
+}
+
+function plainTextFromHtml(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function recordTimelineParts(record: { createdAt?: string | null; updatedAt?: string | null; lastSyncedAt?: string | null }) {
@@ -4218,6 +4264,103 @@ function contentTemplateDesignBrief(template: ContentTemplate) {
   };
 }
 
+const templatePreviewFallbackPalettes: Record<Channel, string[]> = {
+  email: ["#6d28d9", "#fff7ed", "#10b981"],
+  whatsapp: ["#059669", "#ecfdf5", "#6d28d9"],
+  sms: ["#2563eb", "#eff6ff", "#6d28d9"],
+  phone: ["#7c2d12", "#fff7ed", "#f59e0b"],
+  print: ["#241133", "#f5eee8", "#8b5cf6"],
+  event: ["#0f766e", "#ecfeff", "#f59e0b"],
+  facebook: ["#2563eb", "#eff6ff", "#6d28d9"],
+  instagram: ["#db2777", "#fdf2f8", "#f59e0b"],
+  linkedin: ["#0369a1", "#e0f2fe", "#6d28d9"],
+  tiktok: ["#111827", "#f9fafb", "#db2777"],
+};
+
+function safeTemplatePreviewColor(value: unknown, fallback: string) {
+  const text = displayText(value);
+  return /^#[0-9a-fA-F]{6}$/.test(text) ? text : fallback;
+}
+
+function contentTemplatePreviewPalette(template: ContentTemplate) {
+  const design = recordValue(template.designJson);
+  const fallback = templatePreviewFallbackPalettes[template.channel];
+  const palette = Array.isArray(design.palette)
+    ? design.palette
+      .map((value, index) => safeTemplatePreviewColor(value, fallback[index] ?? fallback[0]))
+      .filter(Boolean)
+    : [];
+  return [...palette, ...fallback].slice(0, 3);
+}
+
+function contentTemplatePreviewLines(template: ContentTemplate, designBrief: ReturnType<typeof contentTemplateDesignBrief>) {
+  const structureLines = (designBrief.structure?.items ?? []).slice(0, 2);
+  return [
+    template.subject,
+    firstMeaningfulPreviewLine(template.body || template.description),
+    ...structureLines,
+    template.ctaLabel ? `CTA: ${template.ctaLabel}` : "",
+  ].filter(Boolean).slice(0, 5);
+}
+
+function ContentTemplateVisualPreview({
+  template,
+  designBrief,
+}: {
+  template: ContentTemplate;
+  designBrief: ReturnType<typeof contentTemplateDesignBrief>;
+}) {
+  const design = recordValue(template.designJson);
+  const layout = displayText(design.layout) || `${channelLabel[template.channel]} layout`;
+  const palette = contentTemplatePreviewPalette(template);
+  const lines = contentTemplatePreviewLines(template, designBrief);
+  const visualCue = designBrief.visual || displayText(design.visualPrompt) || displayText(design.proofPoint) || template.description;
+  const headline = template.subject || `${channelLabel[template.channel]} starter`;
+
+  return (
+    <div
+      className="mt-3 overflow-hidden rounded-xl border border-purple-100 bg-[#fffaf4] shadow-sm"
+      data-testid={`marketing-content-template-visual-preview-${template.id}`}
+    >
+      <div
+        className="h-2"
+        style={{ background: `linear-gradient(90deg, ${palette[0]}, ${palette[1]}, ${palette[2]})` }}
+        aria-hidden="true"
+      />
+      <div className="grid gap-3 p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-[11px] font-black uppercase tracking-[0.1em] text-purple-700">{layout}</p>
+            <p className="mt-1 line-clamp-2 text-sm font-black leading-snug text-[#241133]">{headline}</p>
+          </div>
+          <div className="flex shrink-0 gap-1" data-testid={`marketing-content-template-palette-${template.id}`}>
+            {palette.map((color) => (
+              <span
+                key={color}
+                className="h-5 w-5 rounded-full border border-white shadow-sm"
+                style={{ backgroundColor: color }}
+                aria-label={`Template color ${color}`}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-1.5" data-testid={`marketing-content-template-preview-lines-${template.id}`}>
+          {lines.map((line, index) => (
+            <p key={`${template.id}-preview-line-${index}`} className={`rounded-lg px-3 py-2 text-xs font-bold leading-relaxed ${index === 0 ? "bg-white text-[#241133]" : "bg-[#fbf7f2] text-[#6f5f59]"}`}>
+              {line}
+            </p>
+          ))}
+        </div>
+        {visualCue ? (
+          <p className="line-clamp-2 rounded-lg border border-purple-100 bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#6f5f59]">
+            Visual: {visualCue}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function contentAssetMatchesTemplatePack(content: ContentAsset, pack: ContentTemplatePack, template: ContentTemplate) {
   if (content.channel !== template.channel || content.status === "archived") return false;
   const metadata = recordValue(content.metadata);
@@ -4879,6 +5022,17 @@ function campaignRowReadiness(campaign: Campaign, contentById: ReadonlyMap<strin
     readyCount,
     totalCount,
   };
+}
+
+function campaignRowReadinessActionLabel(readiness: CampaignRowReadiness) {
+  if (readiness.label === "Ready to send") return "Review send";
+  if (readiness.label === "Snapshot recipients") return "Snapshot list";
+  if (readiness.label === "Needs content") return "Attach content";
+  if (readiness.label === "Map audience") return "Map list";
+  if (readiness.label === "Add schedule") return "Set time";
+  if (readiness.label === "Manual handoff") return "Prepare handoff";
+  if (readiness.label === "No channels") return "Add channel";
+  return "Open setup";
 }
 
 function campaignMetadataWithTarget(existingMetadata: unknown, targetAudience: MarketingAudience | null) {
@@ -7190,6 +7344,71 @@ function LovableDestinationMap({ summary }: { summary: Record<string, unknown> }
 const inputClass = "h-11 w-full rounded-xl border border-[#E5D8CA] bg-white px-3 text-sm font-semibold text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const floatingContentPanelClass = "fixed bottom-6 left-1/2 top-20 z-[9999] w-[min(980px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-300 bg-white p-4 shadow-[0_24px_80px_rgba(36,17,51,0.35)]";
+
+type SmartContactOption = { value: string; label: string };
+
+function optionTestSlug(value: string) {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "option";
+}
+
+function SmartContactField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+  inputTestId,
+  optionTestPrefix,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly SmartContactOption[];
+  placeholder: string;
+  disabled?: boolean;
+  inputTestId: string;
+  optionTestPrefix: string;
+}) {
+  const datalistId = `${inputTestId}-options`;
+  return (
+    <div className="block">
+      <span className="mb-1 block text-sm font-black text-[#4d4351]">{label}</span>
+      <input
+        className={inputClass}
+        list={datalistId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        aria-label={label}
+        data-testid={inputTestId}
+      />
+      <datalist id={datalistId}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </datalist>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {options.slice(0, 6).map((option) => {
+          const active = value.trim().toLowerCase() === option.value.toLowerCase();
+          return (
+            <button
+              key={option.value}
+              type="button"
+              className={`inline-flex min-h-8 items-center rounded-full border px-2.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-60 ${active ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46] hover:border-purple-200 hover:bg-purple-50 hover:text-purple-800"}`}
+              onClick={() => onChange(option.value)}
+              disabled={disabled}
+              data-testid={`${optionTestPrefix}-${optionTestSlug(option.value)}`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function MarketingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
@@ -9516,6 +9735,47 @@ export default function MarketingAdminPage() {
     () => new Map(syncState.lockedSendCapabilities.map((item) => [item.channel, item])),
     [syncState.lockedSendCapabilities],
   );
+  const campaignDraftLaunchPreviewItems = useMemo(() => campaignDraftSelectedChannels.map((channel) => {
+    const contentAsset = selectedCampaignDraftContentByChannel.get(channel) ?? null;
+    const capability = sendCapabilityByChannel.get(channel);
+    const sendCapability = capability?.sendCapability ?? (channel === "email" ? "enabled" : "planning_only");
+    const emailSendReady = channel === "email" && sendCapability === "enabled" && capability?.locked !== true;
+    const futureSendCapable = sendCapability === "future_send_capable";
+    const state: CampaignReadinessState = !contentAsset
+      ? "blocked"
+      : emailSendReady
+        ? "ready"
+        : futureSendCapable
+          ? "needs_action"
+          : "planning";
+    const previewLine = contentAsset
+      ? firstMeaningfulPreviewLine([
+        contentAsset.body,
+        plainTextFromHtml(contentAsset.htmlBody),
+        contentAsset.subject,
+      ].filter(Boolean).join("\n"))
+      : `Create or link ${channelLabel[channel]} content before saving this route.`;
+    return {
+      channel,
+      contentAsset,
+      state,
+      mode: !contentAsset
+        ? "Needs content"
+        : emailSendReady
+          ? "VYVA send"
+          : futureSendCapable
+            ? "Provider-ready"
+            : "Manual handoff",
+      nextAction: !contentAsset
+        ? "Use Create missing or select an existing content asset."
+        : emailSendReady
+          ? "After creation, open campaign details to review recipients and send email explicitly."
+          : futureSendCapable
+            ? `Save this ${channelLabel[channel]} route now; provider dispatch controls can be enabled later.`
+            : `Save this ${channelLabel[channel]} route as a handoff plan for manual publishing or tracking.`,
+      previewLine,
+    };
+  }), [campaignDraftSelectedChannels, selectedCampaignDraftContentByChannel, sendCapabilityByChannel]);
   const campaignStudioExecutionPlan: CampaignExecutionPlanItem[] = campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {
     const capability = sendCapabilityByChannel.get(channel);
     const sendCapability = capability?.sendCapability ?? (channel === "email" ? "enabled" : "planning_only");
@@ -11173,6 +11433,100 @@ export default function MarketingAdminPage() {
       setMessage(`Created and linked ${result.content.title}.`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Content could not be created and linked.";
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setCampaignStudioFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentSaving(false);
+    }
+  }
+
+  async function createCampaignPlannerContentForChannel(channel: Channel) {
+    const routeDraft = contentDraftFromCampaignDraft({
+      ...campaignDraft,
+      channel,
+      contentAssetId: campaignDraftContentIdByChannel[channel] ?? "",
+    }, selectedCampaignDraftTargetAudience);
+    const result = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+      method: "POST",
+      body: JSON.stringify(contentCreatePayloadFromDraft(routeDraft)),
+    });
+    return result.content;
+  }
+
+  async function createAndLinkCampaignPlannerRouteContent(channel: Channel) {
+    setContentSaving(true);
+    setCampaignStudioFeedback(`Creating ${channelLabel[channel]} route content and linking it to the campaign...`);
+    try {
+      const createdContent = await createCampaignPlannerContentForChannel(channel);
+      setContent((current) => [createdContent, ...current.filter((item) => item.id !== createdContent.id)]);
+      setCampaignDraft((current) => ({
+        ...current,
+        contentAssetId: channel === current.channel ? createdContent.id : current.contentAssetId,
+        channelContentAssetIds: {
+          ...current.channelContentAssetIds,
+          [channel]: createdContent.id,
+        },
+      }));
+      setSelectedContentId(createdContent.id);
+      setEditingContentId(createdContent.id);
+      setContentEditDraft(contentEditDraftFromContent(createdContent));
+      setContentDrawerMode("edit");
+      setContentFeedback(`Created and linked ${createdContent.title}.`);
+      setContentActionFeedback(`Created and linked ${createdContent.title}.`);
+      setCampaignStudioFeedback(`Created and linked ${channelLabel[channel]} route content. The campaign pack now has this route covered.`);
+      setMessage(`Created and linked ${channelLabel[channel]} route content.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : `${channelLabel[channel]} route content could not be created and linked.`;
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setCampaignStudioFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentSaving(false);
+    }
+  }
+
+  async function createAndLinkAllMissingCampaignPlannerRouteContent() {
+    const missingChannels = campaignDraftMissingContentChannels;
+    if (missingChannels.length === 0) {
+      setCampaignStudioFeedback("Every route in this campaign pack already has linked content.");
+      setMessage("Every route in this campaign pack already has linked content.");
+      return;
+    }
+
+    setContentSaving(true);
+    setCampaignStudioFeedback(`Creating ${missingChannels.length} missing route content asset${missingChannels.length === 1 ? "" : "s"}...`);
+    try {
+      const createdContent = await Promise.all(missingChannels.map((channel) => createCampaignPlannerContentForChannel(channel)));
+      const createdContentByChannel = Object.fromEntries(createdContent.map((item) => [item.channel, item.id])) as Partial<Record<Channel, string>>;
+      setContent((current) => [
+        ...createdContent,
+        ...current.filter((item) => !createdContent.some((created) => created.id === item.id)),
+      ]);
+      setCampaignDraft((current) => ({
+        ...current,
+        contentAssetId: current.channel in createdContentByChannel ? createdContentByChannel[current.channel] ?? current.contentAssetId : current.contentAssetId,
+        channelContentAssetIds: {
+          ...current.channelContentAssetIds,
+          ...createdContentByChannel,
+        },
+      }));
+      const firstCreatedContent = createdContent[0] ?? null;
+      if (firstCreatedContent) {
+        setSelectedContentId(firstCreatedContent.id);
+        setEditingContentId(firstCreatedContent.id);
+        setContentEditDraft(contentEditDraftFromContent(firstCreatedContent));
+        setContentDrawerMode("edit");
+      }
+      const channelList = formatChannelList(createdContent.map((item) => item.channel));
+      setContentFeedback(`Created and linked ${createdContent.length} route content asset${createdContent.length === 1 ? "" : "s"}.`);
+      setContentActionFeedback(`Created and linked ${createdContent.length} route content asset${createdContent.length === 1 ? "" : "s"}.`);
+      setCampaignStudioFeedback(`Created and linked missing route content for ${channelList}.`);
+      setMessage(`Created and linked missing route content for ${channelList}.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Missing route content could not be created and linked.";
       setContentFeedback(errorMessage);
       setContentActionFeedback(errorMessage);
       setCampaignStudioFeedback(errorMessage);
@@ -17399,9 +17753,22 @@ export default function MarketingAdminPage() {
                           <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Route content</p>
                           <p className="mt-1 text-sm font-bold text-[#6b5b54]">Attach content to each non-primary route before save when it exists.</p>
                         </div>
-                        <Pill className={campaignDraftMissingContentChannels.length ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
-                          {campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length}/{campaignDraftSelectedChannels.length} linked
-                        </Pill>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {campaignDraftMissingContentChannels.length ? (
+                            <button
+                              type="button"
+                              onClick={() => void createAndLinkAllMissingCampaignPlannerRouteContent()}
+                              disabled={contentSaving}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-create-link-all-route-content"
+                            >
+                              <Sparkles size={14} /> {contentSaving ? "Creating..." : `Create ${campaignDraftMissingContentChannels.length} missing`}
+                            </button>
+                          ) : null}
+                          <Pill className={campaignDraftMissingContentChannels.length ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                            {campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length}/{campaignDraftSelectedChannels.length} linked
+                          </Pill>
+                        </div>
                       </div>
                       <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
                         {campaignDraftSelectedChannels.filter((channel) => channel !== campaignDraft.channel).map((channel) => {
@@ -17430,9 +17797,69 @@ export default function MarketingAdminPage() {
                               <p className="mt-1 text-xs font-bold text-[#8b7a73]">
                                 {options.length ? `${options.length} available ${channelLabel[channel]} asset${options.length === 1 ? "" : "s"}.` : `No active ${channelLabel[channel]} content yet.`}
                               </p>
+                              {!selectedId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void createAndLinkCampaignPlannerRouteContent(channel)}
+                                  disabled={contentSaving}
+                                  className="mt-2 inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                  data-testid={`button-marketing-create-link-route-content-${channel}`}
+                                >
+                                  <Save size={13} /> {contentSaving ? "Creating..." : `Create & link ${channelLabel[channel]}`}
+                                </button>
+                              ) : null}
                             </Field>
                           );
                         })}
+                      </div>
+                    </div>
+                  ) : null}
+                  {campaignDraftLaunchPreviewItems.length ? (
+                    <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm" data-testid="marketing-campaign-launch-preview">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-blue-800">Launch preview</p>
+                          <h3 className="mt-1 text-base font-black text-[#241133]">What this campaign will save</h3>
+                          <p className="mt-1 text-xs font-bold text-[#6b5b54]">Review the channel routes, creative, and handoff mode before creating the campaign.</p>
+                        </div>
+                        <Pill className={campaignDraftMissingContentChannels.length ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                          {campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length}/{campaignDraftSelectedChannels.length} ready
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                        {campaignDraftLaunchPreviewItems.map((item) => (
+                          <article key={item.channel} className={`rounded-xl border p-3 ${item.state === "blocked" ? "border-amber-200 bg-amber-50/60" : "border-[#eadfd5] bg-[#fffaf4]"}`} data-testid={`marketing-campaign-launch-preview-${item.channel}`}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                              <Pill className={readinessPillClass(item.state)}>{item.mode}</Pill>
+                            </div>
+                            <h4 className="mt-3 text-sm font-black text-[#241133]">
+                              {item.contentAsset ? item.contentAsset.title : `No ${channelLabel[item.channel]} content linked`}
+                            </h4>
+                            {item.contentAsset?.subject ? (
+                              <p className="mt-2 text-xs font-bold text-[#5f4a44]">Subject: {item.contentAsset.subject}</p>
+                            ) : null}
+                            <p className="mt-2 line-clamp-3 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.previewLine}</p>
+                            {item.contentAsset?.ctaLabel ? (
+                              <p className="mt-2 truncate text-xs font-black text-purple-800">
+                                CTA: {item.contentAsset.ctaLabel}{item.contentAsset.ctaUrl ? ` -> ${item.contentAsset.ctaUrl}` : ""}
+                              </p>
+                            ) : null}
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#eadfd5] pt-3">
+                              <p className="min-w-0 flex-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.nextAction}</p>
+                              {item.contentAsset ? (
+                                <button
+                                  type="button"
+                                  onClick={() => item.contentAsset ? previewContent(item.contentAsset) : undefined}
+                                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-purple-200 bg-white px-2.5 text-xs font-black text-purple-700 hover:bg-purple-50"
+                                  data-testid={`button-marketing-preview-campaign-launch-content-${item.channel}`}
+                                >
+                                  <Eye size={12} /> Preview
+                                </button>
+                              ) : null}
+                            </div>
+                          </article>
+                        ))}
                       </div>
                     </div>
                   ) : null}
@@ -19603,6 +20030,7 @@ export default function MarketingAdminPage() {
                             <Pill className="bg-[#f5eee8] text-[#5b4a46]">{template.audienceType.toUpperCase()}</Pill>
                             <Pill className="bg-amber-50 text-amber-800">{template.category}</Pill>
                           </div>
+                          <ContentTemplateVisualPreview template={template} designBrief={designBrief} />
                           <h3 className="mt-3 font-serif text-xl text-[#241133]">{template.title}</h3>
                           <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{template.description}</p>
                           {template.subject ? (
@@ -20798,18 +21226,46 @@ export default function MarketingAdminPage() {
                     </Field>
                   </div>
                   <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]">
-                    <Field label="Language">
-                      <input className={inputClass} value={contactDraft.language} onChange={(event) => setContactDraft((draft) => ({ ...draft, language: event.target.value }))} placeholder="en, es..." disabled={contactSaving} data-testid="input-marketing-contact-language" />
-                    </Field>
-                    <Field label="Category">
-                      <input className={inputClass} value={contactDraft.category} onChange={(event) => setContactDraft((draft) => ({ ...draft, category: event.target.value }))} placeholder="Lead category" disabled={contactSaving} data-testid="input-marketing-contact-category" />
-                    </Field>
-                    <Field label="Vertical">
-                      <input className={inputClass} value={contactDraft.vertical} onChange={(event) => setContactDraft((draft) => ({ ...draft, vertical: event.target.value }))} placeholder="Healthcare, public..." disabled={contactSaving} data-testid="input-marketing-contact-vertical" />
-                    </Field>
-                    <Field label="Market">
-                      <input className={inputClass} value={contactDraft.market} onChange={(event) => setContactDraft((draft) => ({ ...draft, market: event.target.value }))} placeholder="Spain, UK..." disabled={contactSaving} data-testid="input-marketing-contact-market" />
-                    </Field>
+                    <SmartContactField
+                      label="Language"
+                      value={contactDraft.language}
+                      onChange={(value) => setContactDraft((draft) => ({ ...draft, language: value }))}
+                      options={MARKETING_CONTACT_LANGUAGE_OPTIONS}
+                      placeholder="Pick or type"
+                      disabled={contactSaving}
+                      inputTestId="input-marketing-contact-language"
+                      optionTestPrefix="button-marketing-contact-language-option"
+                    />
+                    <SmartContactField
+                      label="Category"
+                      value={contactDraft.category}
+                      onChange={(value) => setContactDraft((draft) => ({ ...draft, category: value }))}
+                      options={MARKETING_CONTACT_CATEGORY_OPTIONS}
+                      placeholder="Pick or type"
+                      disabled={contactSaving}
+                      inputTestId="input-marketing-contact-category"
+                      optionTestPrefix="button-marketing-contact-category-option"
+                    />
+                    <SmartContactField
+                      label="Vertical"
+                      value={contactDraft.vertical}
+                      onChange={(value) => setContactDraft((draft) => ({ ...draft, vertical: value }))}
+                      options={MARKETING_CONTACT_VERTICAL_OPTIONS}
+                      placeholder="Pick or type"
+                      disabled={contactSaving}
+                      inputTestId="input-marketing-contact-vertical"
+                      optionTestPrefix="button-marketing-contact-vertical-option"
+                    />
+                    <SmartContactField
+                      label="Market"
+                      value={contactDraft.market}
+                      onChange={(value) => setContactDraft((draft) => ({ ...draft, market: value }))}
+                      options={MARKETING_CONTACT_MARKET_OPTIONS}
+                      placeholder="Pick or type"
+                      disabled={contactSaving}
+                      inputTestId="input-marketing-contact-market"
+                      optionTestPrefix="button-marketing-contact-market-option"
+                    />
                     <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" type="submit" disabled={contactSaving} data-testid="button-marketing-add-contact">
                       <UsersRound size={16} /> {contactSaving ? "Saving..." : "Add contact"}
                     </button>
@@ -20867,18 +21323,46 @@ export default function MarketingAdminPage() {
                       </Field>
                     </div>
                     <div className="grid gap-3 xl:grid-cols-4">
-                      <Field label="Language">
-                        <input className={inputClass} value={contactEditDraft.language} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, language: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-language" />
-                      </Field>
-                      <Field label="Category">
-                        <input className={inputClass} value={contactEditDraft.category} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, category: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-category" />
-                      </Field>
-                      <Field label="Vertical">
-                        <input className={inputClass} value={contactEditDraft.vertical} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, vertical: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-vertical" />
-                      </Field>
-                      <Field label="Market">
-                        <input className={inputClass} value={contactEditDraft.market} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, market: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-market" />
-                      </Field>
+                      <SmartContactField
+                        label="Language"
+                        value={contactEditDraft.language}
+                        onChange={(value) => setContactEditDraft((draft) => draft ? ({ ...draft, language: value }) : draft)}
+                        options={MARKETING_CONTACT_LANGUAGE_OPTIONS}
+                        placeholder="Pick or type"
+                        disabled={contactSaving}
+                        inputTestId="input-marketing-edit-contact-language"
+                        optionTestPrefix="button-marketing-edit-contact-language-option"
+                      />
+                      <SmartContactField
+                        label="Category"
+                        value={contactEditDraft.category}
+                        onChange={(value) => setContactEditDraft((draft) => draft ? ({ ...draft, category: value }) : draft)}
+                        options={MARKETING_CONTACT_CATEGORY_OPTIONS}
+                        placeholder="Pick or type"
+                        disabled={contactSaving}
+                        inputTestId="input-marketing-edit-contact-category"
+                        optionTestPrefix="button-marketing-edit-contact-category-option"
+                      />
+                      <SmartContactField
+                        label="Vertical"
+                        value={contactEditDraft.vertical}
+                        onChange={(value) => setContactEditDraft((draft) => draft ? ({ ...draft, vertical: value }) : draft)}
+                        options={MARKETING_CONTACT_VERTICAL_OPTIONS}
+                        placeholder="Pick or type"
+                        disabled={contactSaving}
+                        inputTestId="input-marketing-edit-contact-vertical"
+                        optionTestPrefix="button-marketing-edit-contact-vertical-option"
+                      />
+                      <SmartContactField
+                        label="Market"
+                        value={contactEditDraft.market}
+                        onChange={(value) => setContactEditDraft((draft) => draft ? ({ ...draft, market: value }) : draft)}
+                        options={MARKETING_CONTACT_MARKET_OPTIONS}
+                        placeholder="Pick or type"
+                        disabled={contactSaving}
+                        inputTestId="input-marketing-edit-contact-market"
+                        optionTestPrefix="button-marketing-edit-contact-market-option"
+                      />
                     </div>
                     <div className="grid gap-3 xl:grid-cols-4">
                       <Field label="Source">
@@ -22055,6 +22539,7 @@ function CampaignTable({
             const metricSummary = metricsByCampaignId.get(campaign.id);
             const manualResults = manualPublishResultsFromMetadata(campaign.metadata);
             const rowReadiness = campaignRowReadiness(campaign, contentById, audiences);
+            const rowNextActionLabel = campaignRowReadinessActionLabel(rowReadiness);
             return (
             <tr
               key={campaign.id}
@@ -22143,6 +22628,20 @@ function CampaignTable({
                     <span className="text-xs font-black">{rowReadiness.readyCount}/{rowReadiness.totalCount}</span>
                   </div>
                   <p className="mt-1 text-xs font-bold leading-relaxed">{rowReadiness.detail}</p>
+                  {onEdit ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(campaign);
+                      }}
+                      disabled={actionsDisabled}
+                      className="mt-2 inline-flex min-h-8 items-center justify-center rounded-lg border border-purple-200 bg-white px-2.5 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                      data-testid={`button-marketing-campaign-row-next-${campaign.id}`}
+                    >
+                      {rowNextActionLabel}
+                    </button>
+                  ) : null}
                 </div>
               </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>

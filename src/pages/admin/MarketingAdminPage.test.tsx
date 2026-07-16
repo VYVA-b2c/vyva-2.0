@@ -1273,6 +1273,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review audience mapping");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Attach campaign content");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Prepare manual channel handoff");
+    expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-1")).toHaveTextContent("Review send");
+    expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-2")).toHaveTextContent("Attach content");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-row-next-campaign-2"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Content");
+    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Add content for LinkedIn");
 
     fireEvent.click(screen.getByTestId("button-marketing-action-ready-email"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
@@ -1715,9 +1722,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event host handoff brief");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("62 templates");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
+    expect(screen.getByTestId("marketing-content-template-palette-caregiver-email-welcome").querySelectorAll("span")).toHaveLength(3);
     expect(screen.getByTestId("marketing-content-template-design-brief-caregiver-email-welcome")).toHaveTextContent("Layout: email-card");
     expect(screen.getByTestId("marketing-content-template-design-brief-caregiver-email-welcome")).toHaveTextContent("Blocks: Care team access");
     expect(screen.getByTestId("marketing-content-template-design-brief-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-instagram-trust-carousel")).toHaveTextContent("instagram-proof-carousel");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-instagram-trust-carousel")).toHaveTextContent("What changed today?");
+    expect(screen.getByTestId("marketing-content-template-visual-preview-instagram-trust-carousel")).toHaveTextContent("Visual: warm illustrated care loop");
     expect(screen.getByTestId("marketing-content-template-design-brief-instagram-trust-carousel")).toHaveTextContent("Layout: instagram-proof-carousel");
     expect(screen.getByTestId("marketing-content-template-design-brief-instagram-trust-carousel")).toHaveTextContent("Visual: warm illustrated care loop");
     expect(screen.getByTestId("marketing-content-template-design-brief-instagram-trust-carousel")).toHaveTextContent("Slides: What changed today?");
@@ -2484,6 +2498,110 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("creates and links missing campaign route content from the planner", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Care team nudge" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-objective"), { target: { value: "Invite families to try a calmer care-team update." } });
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-pack-care-team"));
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-content"), { target: { value: "content-1" } });
+
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("WhatsApp content");
+    expect(screen.getByTestId("select-marketing-campaign-route-content-whatsapp")).toHaveValue("");
+    expect(screen.getByTestId("marketing-campaign-launch-preview")).toHaveTextContent("Launch preview");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-email")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-email")).toHaveTextContent("VYVA send");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-whatsapp")).toHaveTextContent("No WhatsApp content linked");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-whatsapp")).toHaveTextContent("Needs content");
+    fireEvent.click(screen.getByTestId("button-marketing-create-link-route-content-whatsapp"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const routeContentPost = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")))
+      .find((body) => body.channel === "whatsapp");
+
+    expect(routeContentPost).toMatchObject({
+      title: "Care team nudge WhatsApp content",
+      channel: "whatsapp",
+      status: "draft",
+      body: expect.stringContaining("Invite families to try a calmer care-team update."),
+      designJson: expect.objectContaining({
+        generator: "marketing_campaign_planner",
+        channel: "whatsapp",
+      }),
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("select-marketing-campaign-route-content-whatsapp")).toHaveValue("content-created");
+    });
+    expect(screen.getByTestId("marketing-campaign-launch-preview")).toHaveTextContent("2/2 ready");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-whatsapp")).toHaveTextContent("Care team nudge WhatsApp content");
+    expect(screen.getByTestId("marketing-campaign-launch-preview-whatsapp")).toHaveTextContent("Provider-ready");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("2 content assets linked across Email and WhatsApp.");
+    expect(screen.getByText("Created and linked WhatsApp route content.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-preview-campaign-launch-content-whatsapp"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Care team nudge WhatsApp content".');
+  });
+
+  it("creates and links all missing campaign route content from the planner", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Full launch push" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-objective"), { target: { value: "Launch the new family update story across every route." } });
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-pack-full-launch"));
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-content"), { target: { value: "content-1" } });
+
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("Create 4 missing");
+    fireEvent.click(screen.getByTestId("button-marketing-create-link-all-route-content"));
+
+    await waitFor(() => {
+      const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+      expect(contentPosts).toHaveLength(4);
+    });
+    const routeContentPosts = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")));
+
+    expect(routeContentPosts.map((body) => body.channel).sort()).toEqual(["facebook", "instagram", "linkedin", "whatsapp"]);
+    expect(routeContentPosts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        title: "Full launch push WhatsApp content",
+        channel: "whatsapp",
+        body: expect.stringContaining("Launch the new family update story across every route."),
+        designJson: expect.objectContaining({ generator: "marketing_campaign_planner", channel: "whatsapp" }),
+      }),
+      expect.objectContaining({
+        title: "Full launch push Facebook content",
+        channel: "facebook",
+        designJson: expect.objectContaining({ generator: "marketing_campaign_planner", channel: "facebook" }),
+      }),
+      expect.objectContaining({
+        title: "Full launch push Instagram content",
+        channel: "instagram",
+        designJson: expect.objectContaining({ generator: "marketing_campaign_planner", channel: "instagram" }),
+      }),
+      expect.objectContaining({
+        title: "Full launch push LinkedIn content",
+        channel: "linkedin",
+        designJson: expect.objectContaining({ generator: "marketing_campaign_planner", channel: "linkedin" }),
+      }),
+    ]));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("select-marketing-campaign-route-content-whatsapp")).toHaveValue("content-created");
+      expect(screen.getByTestId("select-marketing-campaign-route-content-facebook")).toHaveValue("content-created");
+      expect(screen.getByTestId("select-marketing-campaign-route-content-instagram")).toHaveValue("content-created");
+      expect(screen.getByTestId("select-marketing-campaign-route-content-linkedin")).toHaveValue("content-created");
+    });
+    expect(screen.getByTestId("marketing-campaign-route-content-map")).toHaveTextContent("5/5 linked");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("5 content assets linked across Email, WhatsApp, Facebook, Instagram, and LinkedIn.");
+    expect(screen.getAllByText("Created and linked missing route content for WhatsApp, Facebook, Instagram, and LinkedIn.")).not.toHaveLength(0);
+  });
+
   it("edits and deletes imported content assets", async () => {
     renderPage();
 
@@ -2957,10 +3075,14 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-contact-whatsapp"), { target: { value: "+34 600 000 003" } });
     fireEvent.change(screen.getByTestId("input-marketing-contact-role"), { target: { value: "Director" } });
     fireEvent.change(screen.getByTestId("input-marketing-contact-company"), { target: { value: "New Org" } });
-    fireEvent.change(screen.getByTestId("input-marketing-contact-language"), { target: { value: "es" } });
-    fireEvent.change(screen.getByTestId("input-marketing-contact-category"), { target: { value: "partner" } });
-    fireEvent.change(screen.getByTestId("input-marketing-contact-vertical"), { target: { value: "health" } });
-    fireEvent.change(screen.getByTestId("input-marketing-contact-market"), { target: { value: "Spain" } });
+    fireEvent.click(screen.getByTestId("button-marketing-contact-language-option-es"));
+    fireEvent.click(screen.getByTestId("button-marketing-contact-category-option-partner"));
+    fireEvent.click(screen.getByTestId("button-marketing-contact-vertical-option-healthcare"));
+    fireEvent.click(screen.getByTestId("button-marketing-contact-market-option-spain"));
+    expect(screen.getByTestId("input-marketing-contact-language")).toHaveValue("es");
+    expect(screen.getByTestId("input-marketing-contact-category")).toHaveValue("partner");
+    expect(screen.getByTestId("input-marketing-contact-vertical")).toHaveValue("healthcare");
+    expect(screen.getByTestId("input-marketing-contact-market")).toHaveValue("Spain");
     fireEvent.change(screen.getByTestId("input-marketing-contact-tags"), { target: { value: "partner, madrid" } });
     fireEvent.click(screen.getByTestId("button-marketing-add-contact"));
 
@@ -2977,14 +3099,14 @@ describe("MarketingAdminPage", () => {
       companyName: "New Org",
       language: "es",
       category: "partner",
-      vertical: "health",
+      vertical: "healthcare",
       market: "Spain",
       tags: ["partner", "madrid"],
       metadata: {
         segmentation: {
           language: "es",
           category: "partner",
-          vertical: "health",
+          vertical: "healthcare",
           market: "Spain",
         },
       },
@@ -2996,7 +3118,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
     fireEvent.change(screen.getByTestId("input-marketing-audience-name"), { target: { value: "Madrid partners" } });
     fireEvent.change(screen.getByTestId("input-marketing-audience-description"), { target: { value: "Partners in Spain" } });
-    fireEvent.change(screen.getByTestId("input-marketing-audience-rules"), { target: { value: "{\"market\":\"Spain\",\"vertical\":\"health\"}" } });
+    fireEvent.change(screen.getByTestId("input-marketing-audience-rules"), { target: { value: "{\"market\":\"Spain\",\"vertical\":\"healthcare\"}" } });
     fireEvent.change(screen.getByTestId("input-marketing-audience-contact-ids"), { target: { value: "lovable-contact-2\nmissing-contact" } });
     fireEvent.click(screen.getByTestId("button-marketing-add-audience"));
 
@@ -3008,7 +3130,7 @@ describe("MarketingAdminPage", () => {
       name: "Madrid partners",
       description: "Partners in Spain",
       listType: "dynamic",
-      rules: { market: "Spain", vertical: "health" },
+      rules: { market: "Spain", vertical: "healthcare" },
       contactExternalIds: ["lovable-contact-2", "missing-contact"],
     });
   });
@@ -3047,10 +3169,14 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-whatsapp"), { target: { value: "+34 600 000 005" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-role"), { target: { value: "Growth lead" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-company"), { target: { value: "Updated Org" } });
-    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-language"), { target: { value: "es" } });
-    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-category"), { target: { value: "partner" } });
-    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-vertical"), { target: { value: "care" } });
-    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-market"), { target: { value: "Madrid" } });
+    fireEvent.click(screen.getByTestId("button-marketing-edit-contact-language-option-es"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-contact-category-option-partner"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-contact-vertical-option-elder-care"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-contact-market-option-madrid"));
+    expect(screen.getByTestId("input-marketing-edit-contact-language")).toHaveValue("es");
+    expect(screen.getByTestId("input-marketing-edit-contact-category")).toHaveValue("partner");
+    expect(screen.getByTestId("input-marketing-edit-contact-vertical")).toHaveValue("elder care");
+    expect(screen.getByTestId("input-marketing-edit-contact-market")).toHaveValue("Madrid");
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-tags"), { target: { value: "partner, priority" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-contact-channel-availability"), {
       target: { value: JSON.stringify({ email: true, linkedin: true, whatsapp: false, source: "lovable" }, null, 2) },
@@ -3076,7 +3202,7 @@ describe("MarketingAdminPage", () => {
       companyName: "Updated Org",
       language: "es",
       category: "partner",
-      vertical: "care",
+      vertical: "elder care",
       market: "Madrid",
       consentStatus: "opted_in",
       source: "lovable",
@@ -3095,7 +3221,7 @@ describe("MarketingAdminPage", () => {
           lifecycle: "lead",
           language: "es",
           category: "partner",
-          vertical: "care",
+          vertical: "elder care",
           market: "Madrid",
         },
         notes: "edited",
