@@ -31,6 +31,7 @@ describe("WorkflowCoverageAdminPage", () => {
     expect(screen.getByText(String(WORKFLOW_DEFINITIONS.length))).toBeInTheDocument();
     expect(screen.getByText("Incomplete workflows first")).toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText("Filter by coverage"), { target: { value: "all" } });
     const visualScan = screen.getByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.visualScan}`);
     const visualScanWorkflow = WORKFLOW_DEFINITIONS.find((workflow) => workflow.reference === APP_WORKFLOW_REFERENCES.visualScan);
     expect(within(visualScan).getByText("Visual scan")).toBeInTheDocument();
