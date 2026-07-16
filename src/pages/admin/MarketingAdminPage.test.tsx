@@ -1701,6 +1701,12 @@ describe("MarketingAdminPage", () => {
   });
 
   it("applies content templates into the draft form", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -1721,7 +1727,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Community flyer copy");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event host handoff brief");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("62 templates");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Daily routine activation email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Routine reminder SMS");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("68 templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -1741,6 +1749,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("5 templates");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-ai-monthly-care-digest"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template pack AI command"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Monthly care digest"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Available templates:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Adapt this pack into a polished, publish-ready campaign plan."));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Monthly care digest AI command copied.");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-monthly-care-digest"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Monthly care digest template pack");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
@@ -1861,6 +1877,38 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Care confidence reactivation pack into the campaign studio");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
 
+    expect(screen.getByTestId("marketing-template-pack-routine-activation")).toHaveTextContent("Routine activation");
+    expect(screen.getByTestId("marketing-template-pack-routine-activation")).toHaveTextContent("6 templates");
+    expect(screen.getByTestId("marketing-template-pack-routine-activation")).toHaveTextContent("AI pack prompt");
+    expect(screen.getByTestId("marketing-template-pack-routine-activation")).toHaveTextContent("SMS");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-routine-activation"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Routine activation template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Daily routine activation email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Routine activation WhatsApp nudge");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Routine reminder SMS");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok routine demo script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-routine-activation")).toHaveTextContent("Opted-in reminder");
+    expect(screen.getByTestId("marketing-template-pack-sequence-routine-activation")).toHaveTextContent("Short demo");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-ai-routine-activation"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Routine activation"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Routine reminder SMS"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Routine activation AI command copied.");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-routine-activation"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Routine activation");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("SMS");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Routine activation pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("Clinic and pharmacy referral");
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("6 templates");
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("AI pack prompt");
@@ -1915,9 +1963,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("12");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("13");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("8");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Target: 3 per pack");
     fireEvent.click(screen.getByTestId("button-marketing-template-matrix-whatsapp-b2b"));
@@ -3501,7 +3549,7 @@ describe("MarketingAdminPage", () => {
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("All plays");
-    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("23");
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("25");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Best next campaigns from your data");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Event reminder");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-playbook-event-reminder"));
@@ -3815,6 +3863,7 @@ describe("MarketingAdminPage", () => {
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-intent-brief")).toHaveTextContent("Tell VYVA what you want to run");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Grow partner pipeline");
+    expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Build clinic referral path");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Reactivate quiet families");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Pack: Care confidence reactivation");
     expect(screen.getByTestId("button-marketing-campaign-goal-grow-partner-pipeline")).toHaveTextContent("Ready");
@@ -3825,6 +3874,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-campaign-goal-reactivate-quiet-families")).toHaveTextContent("1 reachable contact");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Partner webinar");
+    expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Clinic referral");
+    expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Routine activation");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-goal-reactivate-quiet-families"));
 
@@ -3846,6 +3897,35 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Monthly care digest");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-intent-quick-routine-activation"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Quick idea matched to Routine activation");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-recommendations")).toHaveTextContent("Routine activation");
+    expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain("Activate new users into one repeatable VYVA routine");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("SMS");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Daily routine activation");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-intent-quick-clinic-referral"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Quick idea matched to Clinic referral pathway");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-recommendations")).toHaveTextContent("Clinic and pharmacy referral");
+    expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain("clinic and pharmacy referral pathway");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Clinic referral pathway");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
     expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
 
     fireEvent.change(screen.getByTestId("textarea-marketing-campaign-intent"), {

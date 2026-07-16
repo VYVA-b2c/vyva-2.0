@@ -1557,6 +1557,23 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     ctaUrl: "https://v2.vyva.life/profile",
   },
   {
+    id: "routine-activation",
+    categoryId: "onboarding",
+    label: "Routine activation",
+    brief: "Move new or interested users into one repeatable VYVA routine.",
+    audienceType: "b2c",
+    defaultChannel: "email",
+    targetListHints: ["activation", "signup", "new", "profile", "routine", "users", "b2c"],
+    scheduleDaysFromNow: 1,
+    campaignName: "Daily routine activation",
+    contentTitle: "Daily routine activation",
+    objective: "Move contacts from interest or signup into one practical routine: profile, daily signal, and update route.",
+    subject: "Start with one useful VYVA routine",
+    body: "Hi {{first_name}},\n\nThe easiest way to make VYVA useful is to start with one routine: confirm the profile, check today's signal, and choose who should receive important updates.\n\nDo that once, then VYVA becomes much easier for the care circle to follow.",
+    ctaLabel: "Start the routine",
+    ctaUrl: "https://v2.vyva.life/profile",
+  },
+  {
     id: "daily-summary-education",
     categoryId: "education",
     label: "Daily summary explainer",
@@ -1657,6 +1674,23 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     body: "Hi {{first_name}},\n\nFollowing up on VYVA: we are building simple ways for families and care teams to stay aligned around daily support, alerts, and practical updates.\n\nIf families in your network need this kind of support layer, we can set up a short intro.",
     ctaLabel: "Discuss referrals",
     ctaUrl: "https://v2.vyva.life",
+  },
+  {
+    id: "clinic-referral",
+    categoryId: "partner",
+    label: "Clinic referral pathway",
+    brief: "Help clinics, pharmacies, and local providers hand families into VYVA.",
+    audienceType: "b2b",
+    defaultChannel: "email",
+    targetListHints: ["clinic", "pharmacy", "provider", "referral", "partner", "healthcare", "b2b", "professional"],
+    scheduleDaysFromNow: 4,
+    campaignName: "Clinic referral pathway",
+    contentTitle: "Clinic referral pathway",
+    objective: "Give clinics, pharmacies, and local providers one simple referral handoff for families who need more support after a care conversation.",
+    subject: "A practical VYVA referral path for your families",
+    body: "Hi {{first_name}},\n\nFamilies often leave a clinic or pharmacy conversation knowing support is needed, but not knowing what to do first.\n\nVYVA gives your team a simple referral path: profile setup, gentle check-ins, medication reminders, family updates, and a clearer support loop after the appointment.\n\nIf useful, I can show the one-page handoff your team could use.",
+    ctaLabel: "Review referral pathway",
+    ctaUrl: "https://v2.vyva.life/demo",
   },
   {
     id: "community-cohost",
@@ -1795,6 +1829,13 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     channels: ["email", "linkedin"],
   },
   {
+    id: "clinic-referral",
+    title: "Clinic referral",
+    detail: "Provider intro, pharmacy nudge, social proof, and a referral handoff.",
+    brief: "Create a clinic and pharmacy referral pathway by email, WhatsApp, LinkedIn, Facebook, Instagram, and TikTok. Make the partner value practical, include a one-page handoff, and give each warm provider one clear next step.",
+    channels: ["email", "whatsapp", "linkedin", "facebook", "instagram", "tiktok"],
+  },
+  {
     id: "local-event",
     title: "Local event",
     detail: "Local activity campaign with public post, direct reminder, and follow-up.",
@@ -1807,6 +1848,13 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     detail: "Warm welcome flow for new caregivers and family members.",
     brief: "Welcome new caregivers with a warm email and WhatsApp onboarding campaign. Focus on profile completion, dashboard access, and one first useful action.",
     channels: ["email", "whatsapp"],
+  },
+  {
+    id: "routine-activation",
+    title: "Routine activation",
+    detail: "Profile, daily signal, update route, SMS reminder, and social proof.",
+    brief: "Activate new users into one repeatable VYVA routine across email, WhatsApp, SMS, Instagram, Facebook, and TikTok. Focus on profile completion, daily signal review, update contacts, and one consent-safe reminder.",
+    channels: ["email", "whatsapp", "sms", "instagram", "facebook", "tiktok"],
   },
   {
     id: "winback",
@@ -1828,6 +1876,17 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     toneId: "expert",
     angleId: "proof",
     templatePackId: "partner-growth",
+  },
+  {
+    id: "clinic-referral-pathway",
+    title: "Build clinic referral path",
+    outcome: "Provider referrals",
+    detail: "Turn clinics, pharmacies, and local providers into a clear referral handoff.",
+    brief: "Create a clinic and pharmacy referral pathway by email, WhatsApp, LinkedIn, Facebook, Instagram, and TikTok. Lead with the practical post-visit support gap, explain the one-page handoff, and ask for a short referral workflow review.",
+    channels: ["email", "whatsapp", "linkedin", "facebook", "instagram", "tiktok"],
+    toneId: "expert",
+    angleId: "proof",
+    templatePackId: "clinic-pharmacy-referral",
   },
   {
     id: "reactivate-quiet-families",
@@ -3865,6 +3924,140 @@ const contentTemplateGallery: ContentTemplate[] = [
     },
     mediaAssets: [],
   },
+  {
+    id: "email-routine-activation-checklist",
+    title: "Daily routine activation email",
+    category: "Routine activation",
+    audienceType: "b2c",
+    channel: "email",
+    description: "A practical email that turns a new or quiet user toward one simple daily VYVA routine.",
+    subject: "Start with one useful VYVA routine",
+    body: "Hi {{first_name}},\n\nThe easiest way to make VYVA useful is to start with one routine: confirm the profile, check today's signal, and choose who should receive important updates.\n\nDo that once, then VYVA becomes much easier for the care circle to follow.",
+    htmlBody: "<h1>Start with one useful routine</h1><p>Confirm the profile, check today's signal, and choose who should receive important updates.</p>",
+    ctaLabel: "Start the routine",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "email-routine-activation-checklist",
+      category: "Routine activation",
+      layout: "email-routine-checklist",
+      mergeFields: ["first_name"],
+      blocks: [
+        { type: "eyebrow", text: "First useful routine" },
+        { type: "headline", text: "One VYVA routine is enough to begin" },
+        { type: "checklist", items: ["Confirm profile", "Check today's signal", "Choose update contacts"] },
+        { type: "cta", label: "Start the routine" },
+      ],
+      visualPrompt: "warm VYVA routine checklist email with simple profile, daily signal, and care-team update cards",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "whatsapp-routine-activation-nudge",
+    title: "Routine activation WhatsApp nudge",
+    category: "Routine activation",
+    audienceType: "b2c",
+    channel: "whatsapp",
+    description: "A short direct message for moving users from signup or inactivity into one useful action.",
+    subject: "",
+    body: "Hi {{first_name}}, quick VYVA step: open the profile, check today's care signal, and confirm who should get updates. One small routine makes the care circle clearer.",
+    ctaLabel: "Open VYVA",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "whatsapp-routine-activation-nudge",
+      category: "Routine activation",
+      layout: "whatsapp-routine-nudge",
+      tone: "warm-direct",
+      mergeFields: ["first_name"],
+      replyOptions: ["done", "need help", "later"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "sms-routine-reminder",
+    title: "Routine reminder SMS",
+    category: "Routine activation",
+    audienceType: "b2c",
+    channel: "sms",
+    description: "A compact SMS reminder for opted-in users who need a simple next step.",
+    subject: "",
+    body: "VYVA reminder: complete one useful routine today - profile, daily signal, update contacts. Start here: https://v2.vyva.life/profile",
+    ctaLabel: "Open profile",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "sms-routine-reminder",
+      category: "Routine activation",
+      layout: "sms-short-reminder",
+      maxCharacters: 160,
+      complianceNotes: ["Use only for opted-in SMS contacts.", "Keep wording practical and non-clinical."],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "facebook-routine-proof-post",
+    title: "Facebook routine proof post",
+    category: "Routine activation",
+    audienceType: "both",
+    channel: "facebook",
+    description: "A public proof post showing how one small routine makes family care easier to follow.",
+    subject: "",
+    body: "Care support often becomes clearer after one small routine: complete the profile, check the daily signal, and decide who should receive updates.\n\nVYVA helps families turn those small steps into calmer follow-up instead of scattered messages.",
+    ctaLabel: "See the routine",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "facebook-routine-proof-post",
+      category: "Routine activation",
+      layout: "facebook-proof-post",
+      visualPrompt: "family care routine proof post with profile card, daily signal, and update route, warm realistic style",
+      proofPoint: "one simple routine reduces scattered care messages",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "instagram-routine-carousel",
+    title: "Instagram routine activation carousel",
+    category: "Routine activation",
+    audienceType: "both",
+    channel: "instagram",
+    description: "A saveable carousel that explains VYVA's first useful routine visually.",
+    subject: "",
+    body: "Slide 1: Start with one care routine.\nSlide 2: Complete the profile.\nSlide 3: Check today's signal.\nSlide 4: Choose who gets updates.\nSlide 5: Calmer care starts with one visible next step.",
+    ctaLabel: "Save the routine",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "instagram-routine-carousel",
+      category: "Routine activation",
+      layout: "instagram-routine-carousel",
+      slides: ["One care routine", "Complete profile", "Check signal", "Choose updates", "Clear next step"],
+      visualPrompt: "clean Instagram carousel for a simple care routine, VYVA purple accents, warm family imagery",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "tiktok-routine-demo-script",
+    title: "TikTok routine demo script",
+    category: "Routine activation",
+    audienceType: "both",
+    channel: "tiktok",
+    description: "A short video script that demonstrates the first VYVA routine in under a minute.",
+    subject: "",
+    body: "Hook: If care feels scattered, start with one routine.\n\nBeat 1: Open the VYVA profile.\nBeat 2: Check today's signal.\nBeat 3: Pick who gets updates.\nBeat 4: Show the care circle becoming clearer.\n\nClose: one visible next step beats ten scattered messages.",
+    ctaLabel: "Try the routine",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "tiktok-routine-demo-script",
+      category: "Routine activation",
+      layout: "short-video-routine-demo",
+      beats: ["scattered care", "profile", "daily signal", "update route", "clearer care circle"],
+      visualPrompt: "short-form before-after demo of a simple VYVA care routine on mobile",
+    },
+    mediaAssets: [],
+  },
 ];
 
 const contentTemplatePacks: ContentTemplatePack[] = [
@@ -3956,7 +4149,7 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "tiktok-referral-pathway-script",
     ],
     heroTemplateId: "email-clinic-referral-intro",
-    studioPlayId: "b2b-partner-outreach",
+    studioPlayId: "clinic-referral",
     toneId: "expert",
     angleId: "proof",
     sequence: [
@@ -4086,6 +4279,33 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day 7", channel: "linkedin", title: "Partner workflow note", detail: "Translate the reactivation loop into a partner-ready operational story.", templateId: "linkedin-care-confidence-partner-note" },
     ],
     aiPrompt: "Adapt this care confidence reactivation pack for quiet families in one market. Keep the message warm, practical, consent-aware, and focused on one useful routine: profile, daily signal, and update route.",
+  },
+  {
+    id: "routine-activation",
+    title: "Routine activation",
+    focus: "Move users from interest or signup into one practical VYVA routine they can repeat.",
+    description: "A six-channel activation pack for profile completion, daily signal review, update routing, social proof, SMS reminders, and short-form product education.",
+    templateIds: [
+      "email-routine-activation-checklist",
+      "whatsapp-routine-activation-nudge",
+      "sms-routine-reminder",
+      "facebook-routine-proof-post",
+      "instagram-routine-carousel",
+      "tiktok-routine-demo-script",
+    ],
+    heroTemplateId: "email-routine-activation-checklist",
+    studioPlayId: "routine-activation",
+    toneId: "warm",
+    angleId: "action",
+    sequence: [
+      { offset: "Day 0", channel: "email", title: "Explain the routine", detail: "Send the simple profile, daily signal, and update-route checklist.", templateId: "email-routine-activation-checklist" },
+      { offset: "Day 1", channel: "whatsapp", title: "Nudge one action", detail: "Ask the contact to complete the routine with a short reply path.", templateId: "whatsapp-routine-activation-nudge" },
+      { offset: "Day 2", channel: "sms", title: "Opted-in reminder", detail: "Send a compact reminder only to contacts with SMS consent.", templateId: "sms-routine-reminder" },
+      { offset: "Day 3", channel: "instagram", title: "Saveable routine", detail: "Turn the first routine into a simple visual carousel.", templateId: "instagram-routine-carousel" },
+      { offset: "Day 5", channel: "facebook", title: "Proof post", detail: "Make the public value clear without adding pressure.", templateId: "facebook-routine-proof-post" },
+      { offset: "Day 7", channel: "tiktok", title: "Short demo", detail: "Show the routine as a quick before-after product story.", templateId: "tiktok-routine-demo-script" },
+    ],
+    aiPrompt: "Adapt this routine activation pack for one user segment, market, and first action. Keep it simple: one daily care routine, one profile or signal check, one update route, one consent-safe reminder, and one clear relationship follow-up.",
   },
   {
     id: "social-launch",
@@ -4301,6 +4521,35 @@ function contentTemplatePreviewLines(template: ContentTemplate, designBrief: Ret
     ...structureLines,
     template.ctaLabel ? `CTA: ${template.ctaLabel}` : "",
   ].filter(Boolean).slice(0, 5);
+}
+
+function templatePackAiCommandText(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+  const channels = Array.from(new Set(templates.map((template) => template.channel)));
+  const audiences = Array.from(new Set(templates.map((template) => template.audienceType)));
+  const categories = Array.from(new Set(templates.map((template) => template.category)));
+  const sequence = pack.sequence.map((step, index) => (
+    `${index + 1}. ${step.offset} / ${channelLabel[step.channel]} / ${step.title}: ${step.detail}`
+  ));
+  const templateLines = templates.map((template) => {
+    const firstBodyLine = template.body.split(/\n+/).map((line) => line.trim()).find(Boolean) ?? "No body yet.";
+    const subject = template.subject ? ` Subject: ${template.subject}.` : "";
+    const cta = template.ctaLabel ? ` CTA: ${template.ctaLabel}${template.ctaUrl ? ` -> ${template.ctaUrl}` : ""}.` : "";
+    return `- ${template.title} (${channelLabel[template.channel]}, ${template.audienceType.toUpperCase()}, ${template.category}).${subject} ${firstBodyLine}${cta}`;
+  });
+
+  return [
+    "VYVA template pack AI command",
+    `Pack: ${pack.title}`,
+    `Focus: ${pack.focus}`,
+    `Audience fit: ${audiences.map((audience) => audience.toUpperCase()).join(", ") || "Not set"}`,
+    `Channels: ${channels.map((channel) => channelLabel[channel]).join(", ") || "Not set"}`,
+    `Categories: ${categories.join(", ") || "Not set"}`,
+    `Goal: ${pack.description}`,
+    `Recommended sequence:\n${sequence.join("\n") || "No sequence yet."}`,
+    `Available templates:\n${templateLines.join("\n") || "No templates yet."}`,
+    `Base pack prompt:\n${pack.aiPrompt}`,
+    "AI task: Adapt this pack into a polished, publish-ready campaign plan. Return the campaign objective, audience segment, channel-specific copy, schedule, visual direction, approval checklist, publishing handoff, and relationship follow-up. Keep VYVA's tone warm, practical, consent-aware, and non-clinical.",
+  ].join("\n\n");
 }
 
 function ContentTemplateVisualPreview({
@@ -5823,13 +6072,21 @@ function campaignIntentPlay(brief: string) {
   const text = lower(brief);
   if (campaignIntentHasAny(text, ["monthly", "newsletter", "digest", "roundup", "report", "summary"])) return campaignStudioPlayById("monthly-care-digest");
   if (campaignIntentHasAny(text, ["webinar", "session", "demo", "professional session"])) return campaignStudioPlayById("partner-webinar");
+  if (
+    campaignIntentHasAny(text, ["clinic referral", "pharmacy referral", "referral pathway", "referral path", "clinic", "pharmacy"])
+    || (campaignIntentHasAny(text, ["provider", "referral", "refer"]) && campaignIntentHasAny(text, ["handoff", "pathway", "path", "clinic", "pharmacy", "post visit", "post-visit"]))
+  ) return campaignStudioPlayById("clinic-referral");
   if (campaignIntentHasAny(text, ["referral", "refer", "provider", "partner follow", "partner nurture"])) return campaignStudioPlayById("referral-partner-nurture");
   if (campaignIntentHasAny(text, ["partner", "b2b", "care home", "clinic", "pharmacy", "provider"])) return campaignStudioPlayById("b2b-partner-outreach");
   if (campaignIntentHasAny(text, ["event", "activity", "workshop", "community", "madrid", "barcelona", "valencia", "local"])) return campaignStudioPlayById("local-event");
   if (campaignIntentHasAny(text, ["inactive", "quiet", "winback", "win back", "reactivate", "reactivation"])) return campaignStudioPlayById("reactivation");
+  if (campaignIntentHasAny(text, ["medication", "medicine", "pill"])) return campaignStudioPlayById("medication-routine-education");
+  if (
+    campaignIntentHasAny(text, ["activation", "activate", "daily signal", "daily routine", "first useful", "first action", "routine activation", "update route"])
+    || (campaignIntentHasAny(text, ["routine"]) && campaignIntentHasAny(text, ["profile", "signup", "new user", "new users", "daily", "contact", "care circle"]))
+  ) return campaignStudioPlayById("routine-activation");
   if (campaignIntentHasAny(text, ["caregiver", "family", "invite", "welcome", "onboard", "onboarding"])) return campaignStudioPlayById("caregiver-onboarding");
   if (campaignIntentHasAny(text, ["profile", "complete", "setup", "account"])) return campaignStudioPlayById("profile-completion");
-  if (campaignIntentHasAny(text, ["medication", "medicine", "routine", "pill"])) return campaignStudioPlayById("medication-routine-education");
   if (campaignIntentHasAny(text, ["feedback", "survey", "questionnaire"])) return campaignStudioPlayById("feedback-survey");
   if (campaignIntentHasAny(text, ["instagram", "visual", "story", "reel"])) return campaignStudioPlayById("instagram-proof-point");
   if (campaignIntentHasAny(text, ["tiktok", "short video", "myth"])) return campaignStudioPlayById("tiktok-myth-buster");
@@ -5840,7 +6097,8 @@ function campaignIntentChannels(brief: string, play: CampaignStudioPlay) {
   const text = lower(brief);
   const channels: Channel[] = [];
   if (campaignIntentHasAny(text, ["email", "newsletter"])) channels.push("email");
-  if (campaignIntentHasAny(text, ["whatsapp", "whats app", "sms", "text message"])) channels.push("whatsapp");
+  if (campaignIntentHasAny(text, ["whatsapp", "whats app"])) channels.push("whatsapp");
+  if (campaignIntentHasAny(text, ["sms", "text message", "text reminder"])) channels.push("sms");
   if (campaignIntentHasAny(text, ["facebook", "fb"])) channels.push("facebook");
   if (campaignIntentHasAny(text, ["instagram", "insta", "reel", "story"])) channels.push("instagram");
   if (campaignIntentHasAny(text, ["linkedin", "linked in"])) channels.push("linkedin");
@@ -5850,8 +6108,8 @@ function campaignIntentChannels(brief: string, play: CampaignStudioPlay) {
 
 function campaignIntentTone(brief: string, play: CampaignStudioPlay): CampaignStudioToneId {
   const text = lower(brief);
-  if (campaignIntentHasAny(text, ["urgent", "direct", "clear", "quick", "now"])) return "direct";
   if (campaignIntentHasAny(text, ["partner", "provider", "professional", "expert", "b2b", "demo", "webinar"]) || play.audienceType === "b2b") return "expert";
+  if (campaignIntentHasAny(text, ["urgent", "direct", "clear", "quick", "now"])) return "direct";
   if (campaignIntentHasAny(text, ["inspiring", "positive", "community", "celebrate", "social", "story"])) return "uplifting";
   return "warm";
 }
@@ -12758,6 +13016,38 @@ export default function MarketingAdminPage() {
     setMessage(`Template applied: ${template.title}.`);
   }
 
+  async function copyTemplatePackAiCommand(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+    const label = `${pack.title} AI command`;
+    const text = templatePackAiCommandText(pack, templates);
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the prompt and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
   function applyTemplateGapSuggestion(suggestion: ContentTemplateGapSuggestion) {
     setContentDraft(contentDraftFromTemplate(suggestion));
     setSelectedContentId(null);
@@ -19485,6 +19775,15 @@ export default function MarketingAdminPage() {
                           <p className="mt-3 line-clamp-3 rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
                             <span className="font-black text-purple-700">AI pack prompt:</span> {pack.aiPrompt}
                           </p>
+                          <button
+                            type="button"
+                            onClick={() => void copyTemplatePackAiCommand(pack, templates)}
+                            disabled={contentSaving || templates.length === 0}
+                            className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:bg-[#f1e8f5] disabled:text-[#9d8ba3]"
+                            data-testid={`button-marketing-template-pack-copy-ai-${pack.id}`}
+                          >
+                            <Sparkles size={14} /> Copy AI command
+                          </button>
                           <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-template-pack-sequence-${pack.id}`}>
                             <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Recommended sequence</p>
                             <div className="mt-2 grid gap-2">
