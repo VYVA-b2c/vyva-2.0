@@ -126,6 +126,7 @@ import {
 import {
   buildProviderComparisonOptions,
   buildProviderContactPayload,
+  buildProviderRecheckContext,
   buildProviderShortlistRecheckPayload,
   buildProviderShortlistPayload,
   buildTrustedProviderPrefill,
@@ -133,6 +134,7 @@ import {
   updateProviderShortlistPayload,
   type ProviderComparisonOption,
   type ProviderComparisonSourceOption,
+  type ProviderRecheckContext,
   type ProviderShortlistState,
 } from "../../shared/providerComparison";
 
@@ -2712,13 +2714,32 @@ async function saveCompletedOtcPharmacyRequest(params: {
   });
 }
 
-async function searchOffers(query: string, locale: string, documentContext?: BillDocumentAnalysis): Promise<OffersSearchResponse> {
+async function searchOffers(
+  query: string,
+  locale: string,
+  documentContext?: BillDocumentAnalysis,
+  recheckContext?: ProviderRecheckContext,
+  providerMode?: ProviderSearchMode | null,
+): Promise<OffersSearchResponse> {
   const res = await apiFetch("/api/offers/search", {
     method: "POST",
     body: JSON.stringify({
       query,
       locale,
+      provider_mode: providerMode ?? undefined,
       document_context: documentContext,
+      recheck_context: recheckContext
+        ? {
+            preferred_sources: recheckContext.preferredSources,
+            criteria: recheckContext.criteria,
+            providers: recheckContext.providers.map((provider) => ({
+              id: provider.id,
+              name: provider.name,
+              official_website: provider.officialWebsite,
+              directory_url: provider.directoryUrl,
+            })),
+          }
+        : undefined,
     }),
   });
   if (!res.ok) {
@@ -10040,7 +10061,13 @@ const ConciergeScreen = () => {
       const criteria = (shortlist.context.criteria ?? []).filter(isProviderSearchCriterion);
       const query = shortlist.context.query?.trim() || providerSearchModeLabel(mode, isSpanish);
       const criteriaQuery = buildProviderSearchQuery(query, criteria, mode, isSpanish);
-      const result = await searchOffers(criteriaQuery, language);
+      const result = await searchOffers(
+        criteriaQuery,
+        language,
+        undefined,
+        buildProviderRecheckContext(shortlist),
+        mode,
+      );
       const latestOptions = buildProviderComparisonOptions(result.options);
       return patchPendingConciergeAction({
         pendingId: item.id,
@@ -11254,7 +11281,7 @@ const ConciergeScreen = () => {
     resetProviderShortlistState();
     try {
       const criteriaQuery = buildProviderSearchQuery(query, providerSearchCriteria, providerSearchMode, isSpanish);
-      const result = await searchOffers(criteriaQuery, language, documentContext);
+      const result = await searchOffers(criteriaQuery, language, documentContext, undefined, providerSearchMode);
       setOffersResult(result);
     } catch {
       setOffersError(isSpanish

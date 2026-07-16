@@ -16,14 +16,41 @@ export const PROVIDER_SHORTLIST_RECHECK_CRITERIA = [
 ] as const;
 
 export type ProviderComparisonCriterion = typeof PROVIDER_COMPARISON_CRITERIA[number];
-export type ProviderComparisonEvidenceStatus = "verified" | "reported" | "unknown";
+export const PROVIDER_EVIDENCE_SOURCE_PRIORITY = [
+  "official",
+  "provider_owned",
+  "regulated",
+  "directory",
+  "platform",
+  "community",
+  "manual",
+  "unknown",
+] as const;
+
+export type ProviderComparisonEvidenceSourceType = typeof PROVIDER_EVIDENCE_SOURCE_PRIORITY[number];
+export type ProviderComparisonEvidenceStatus = "verified" | "reported" | "unknown" | "conflicting";
+export type ProviderComparisonSingleEvidenceStatus = Exclude<ProviderComparisonEvidenceStatus, "conflicting">;
 export type ProviderShortlistRecheckCriterion = typeof PROVIDER_SHORTLIST_RECHECK_CRITERIA[number];
+
+export interface ProviderComparisonEvidence {
+  value: string | null;
+  status: ProviderComparisonSingleEvidenceStatus;
+  source: string | null;
+  sourceType: ProviderComparisonEvidenceSourceType;
+  sourceUrl: string | null;
+  checkedAt: string | null;
+}
 
 export interface ProviderComparisonFact {
   criterion: ProviderComparisonCriterion;
   value: string | null;
   status: ProviderComparisonEvidenceStatus;
   source?: string | null;
+  sourceType: ProviderComparisonEvidenceSourceType;
+  sourceUrl: string | null;
+  checkedAt: string | null;
+  evidence: ProviderComparisonEvidence[];
+  conflict: boolean;
 }
 
 export interface ProviderComparisonContact {
@@ -46,6 +73,9 @@ export interface ProviderComparisonOption {
   contact: ProviderComparisonContact;
   sourceLabel?: string | null;
   sourceStatus: ProviderComparisonEvidenceStatus;
+  sourceType: ProviderComparisonEvidenceSourceType;
+  sourceUrl: string | null;
+  checkedAt: string | null;
 }
 
 export interface ProviderComparisonSourceOption {
@@ -67,7 +97,23 @@ export interface ProviderComparisonSourceOption {
   trust_note?: string | null;
   source_label?: string | null;
   source_status?: ProviderComparisonEvidenceStatus | null;
+  source_type?: ProviderComparisonEvidenceSourceType | null;
+  source_url?: string | null;
+  checked_at?: string | null;
   comparison?: Partial<Record<ProviderComparisonCriterion, Partial<ProviderComparisonFact> | null>> | null;
+}
+
+export interface ProviderRecheckTarget {
+  id: string;
+  name: string;
+  officialWebsite: string | null;
+  directoryUrl: string | null;
+}
+
+export interface ProviderRecheckContext {
+  preferredSources: ProviderComparisonEvidenceSourceType[];
+  criteria: ProviderShortlistRecheckCriterion[];
+  providers: ProviderRecheckTarget[];
 }
 
 export interface ProviderComparisonContext {
@@ -139,12 +185,40 @@ function compactId(value: string): string {
 }
 
 function evidenceStatus(value: unknown): ProviderComparisonEvidenceStatus | null {
+  return value === "verified" || value === "reported" || value === "unknown" || value === "conflicting" ? value : null;
+}
+
+function singleEvidenceStatus(value: unknown): ProviderComparisonSingleEvidenceStatus | null {
   return value === "verified" || value === "reported" || value === "unknown" ? value : null;
+}
+
+function evidenceSourceType(value: unknown): ProviderComparisonEvidenceSourceType {
+  return PROVIDER_EVIDENCE_SOURCE_PRIORITY.includes(value as ProviderComparisonEvidenceSourceType)
+    ? value as ProviderComparisonEvidenceSourceType
+    : "unknown";
+}
+
+function isoDateOrNull(value: unknown): string | null {
+  const normalized = clean(value);
+  if (!normalized) return null;
+  const timestamp = new Date(normalized).getTime();
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
 }
 
 function stringOrNull(value: unknown): string | null {
   const normalized = clean(value);
   return normalized || null;
+}
+
+function httpUrlOrNull(value: unknown): string | null {
+  const normalized = clean(value);
+  if (!normalized) return null;
+  try {
+    const parsed = new URL(normalized);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function recordOrNull(value: unknown): Record<string, unknown> | null {
@@ -175,8 +249,13 @@ function normalizedIdentity(value: string): string {
 }
 
 function factsMatch(left: ProviderComparisonFact, right: ProviderComparisonFact): boolean {
+  if (!left.value && !right.value && left.status === "unknown" && right.status === "unknown") return true;
   return normalizedIdentity(left.value ?? "") === normalizedIdentity(right.value ?? "")
-    && left.status === right.status;
+    && left.status === right.status
+    && left.sourceType === right.sourceType
+    && normalizedIdentity(left.source ?? "") === normalizedIdentity(right.source ?? "")
+    && (left.sourceUrl ?? "") === (right.sourceUrl ?? "")
+    && left.conflict === right.conflict;
 }
 
 function factChange(
@@ -200,15 +279,152 @@ function factChange(
 function fallbackFact(
   criterion: ProviderComparisonCriterion,
   value?: string | null,
-  status: ProviderComparisonEvidenceStatus = "unknown",
+  status: ProviderComparisonSingleEvidenceStatus = "unknown",
   source?: string | null,
+  sourceType: ProviderComparisonEvidenceSourceType = "unknown",
+  sourceUrl?: string | null,
+  checkedAt?: string | null,
 ): ProviderComparisonFact {
   const normalized = clean(value);
+  const sourceLabel = clean(source) || null;
+  const normalizedCheckedAt = isoDateOrNull(checkedAt);
+  const evidence = normalized || sourceLabel || normalizedCheckedAt
+    ? [{
+        value: normalized || null,
+        status: normalized ? status : "unknown" as const,
+        source: sourceLabel,
+        sourceType,
+        sourceUrl: httpUrlOrNull(sourceUrl),
+        checkedAt: normalizedCheckedAt,
+      }]
+    : [];
+  return buildProviderComparisonFact(criterion, evidence);
+}
+
+function evidencePriority(item: ProviderComparisonEvidence): number {
+  const sourceRank = PROVIDER_EVIDENCE_SOURCE_PRIORITY.indexOf(item.sourceType);
+  const statusRank = item.status === "verified" ? 0 : item.status === "reported" ? 1 : 2;
+  return sourceRank * 10 + statusRank;
+}
+
+function normalizeEvidence(
+  value: unknown,
+  fallback: {
+    value?: unknown;
+    status?: unknown;
+    source?: unknown;
+    sourceType?: unknown;
+    sourceUrl?: unknown;
+    checkedAt?: unknown;
+  } = {},
+): ProviderComparisonEvidence | null {
+  const record = recordOrNull(value) ?? {};
+  const factValue = stringOrNull(record.value ?? fallback.value);
+  const source = stringOrNull(record.source ?? record.source_label ?? fallback.source);
+  const sourceType = evidenceSourceType(record.sourceType ?? record.source_type ?? fallback.sourceType);
+  const sourceUrl = httpUrlOrNull(record.sourceUrl ?? record.source_url ?? fallback.sourceUrl);
+  const checkedAt = isoDateOrNull(record.checkedAt ?? record.checked_at ?? fallback.checkedAt);
+  if (!factValue && !source && !sourceUrl && !checkedAt) return null;
+  return {
+    value: factValue,
+    status: factValue ? singleEvidenceStatus(record.status ?? fallback.status) ?? "reported" : "unknown",
+    source,
+    sourceType,
+    sourceUrl,
+    checkedAt,
+  };
+}
+
+function dedupeEvidence(evidence: ProviderComparisonEvidence[]): ProviderComparisonEvidence[] {
+  const seen = new Set<string>();
+  return evidence.filter((item) => {
+    const key = [
+      normalizedIdentity(item.value ?? ""),
+      normalizedIdentity(item.source ?? ""),
+      item.sourceType,
+      item.sourceUrl ?? "",
+    ].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function numericMatches(value: string, pattern: RegExp): number[] {
+  return Array.from(value.matchAll(pattern))
+    .map((match) => Number(String(match.slice(1).find((item) => item != null) ?? "").replace(",", ".")))
+    .filter(Number.isFinite);
+}
+
+function opposingClaims(values: string[], positive: RegExp, negative: RegExp): boolean {
+  return values.some((value) => negative.test(value)) && values.some((value) => positive.test(value) && !negative.test(value));
+}
+
+function evidenceConflicts(
+  criterion: ProviderComparisonCriterion,
+  evidence: ProviderComparisonEvidence[],
+): boolean {
+  const values = evidence.map((item) => item.value ?? "").filter(Boolean);
+  if (values.length < 2) return false;
+  if (criterion === "price") {
+    const amounts = values.flatMap((value) => numericMatches(
+      value,
+      /(?:EUR|USD|GBP|€|\$|£)\s*([0-9]+(?:[.,][0-9]{1,2})?)|([0-9]+(?:[.,][0-9]{1,2})?)\s*(?:EUR|USD|GBP|€|\$|£)/gi,
+    ));
+    return new Set(amounts.map((amount) => amount.toFixed(2))).size > 1;
+  }
+  if (criterion === "reputation") {
+    const ratings = values.flatMap((value) => numericMatches(value, /([0-5](?:[.,][0-9]+)?)\s*\/\s*5/gi));
+    return ratings.length > 1 && Math.max(...ratings) - Math.min(...ratings) >= 0.5;
+  }
+  if (criterion === "distance") {
+    const distances = values.flatMap((value) => numericMatches(value, /([0-9]+(?:[.,][0-9]+)?)\s*(?:km|mi|miles?)/gi));
+    return new Set(distances.map((distance) => distance.toFixed(1))).size > 1;
+  }
+  if (criterion === "availability") {
+    return opposingClaims(values, /\b(?:open|available|abiert|disponible)\b/i, /\b(?:closed|unavailable|not available|cerrad|sin disponibilidad)\b/i);
+  }
+  if (criterion === "accessibility") {
+    return opposingClaims(values, /\b(?:accessible|wheelchair|adaptad|accesible|sin escalones|step[- ]free)\b/i, /\b(?:not accessible|no wheelchair|no adaptad|inaccesible)\b/i);
+  }
+  if (criterion === "coverage") {
+    return opposingClaims(values, /\b(?:accept|cover|serve|insured|acepta|cubre|opera)\b/i, /\b(?:not accepted|not covered|does not serve|no acepta|no cubre)\b/i);
+  }
+  return false;
+}
+
+export function buildProviderComparisonFact(
+  criterion: ProviderComparisonCriterion,
+  evidence: ProviderComparisonEvidence[],
+): ProviderComparisonFact {
+  const normalizedEvidence = dedupeEvidence(evidence.map((item) => {
+    const value = stringOrNull(item.value);
+    return {
+      value,
+      status: value ? singleEvidenceStatus(item.status) ?? "reported" : "unknown",
+      source: stringOrNull(item.source),
+      sourceType: evidenceSourceType(item.sourceType),
+      sourceUrl: httpUrlOrNull(item.sourceUrl),
+      checkedAt: isoDateOrNull(item.checkedAt),
+    };
+  })).sort((left, right) => {
+    const rankDifference = evidencePriority(left) - evidencePriority(right);
+    if (rankDifference !== 0) return rankDifference;
+    return (right.checkedAt ? new Date(right.checkedAt).getTime() : 0)
+      - (left.checkedAt ? new Date(left.checkedAt).getTime() : 0);
+  });
+  const primary = normalizedEvidence.find((item) => Boolean(item.value)) ?? normalizedEvidence[0] ?? null;
+  const conflict = evidenceConflicts(criterion, normalizedEvidence);
   return {
     criterion,
-    value: normalized || null,
-    status: normalized ? status : "unknown",
-    source: clean(source) || null,
+    value: primary?.value ?? null,
+    status: conflict ? "conflicting" : primary?.status ?? "unknown",
+    source: primary?.source ?? null,
+    sourceType: primary?.sourceType ?? "unknown",
+    sourceUrl: primary?.sourceUrl ?? null,
+    checkedAt: primary?.checkedAt ?? null,
+    evidence: normalizedEvidence,
+    conflict,
   };
 }
 
@@ -219,13 +435,25 @@ function structuredFact(
 ): ProviderComparisonFact {
   const raw = option.comparison?.[criterion];
   if (raw) {
-    const value = clean(raw.value);
-    return {
-      criterion,
-      value: value || null,
-      status: value ? evidenceStatus(raw.status) ?? "reported" : "unknown",
-      source: clean(raw.source) || clean(option.source_label) || null,
-    };
+    const rawRecord = recordOrNull(raw) ?? {};
+    const evidence = Array.isArray(rawRecord.evidence)
+      ? rawRecord.evidence
+        .map((item) => normalizeEvidence(item, {
+          source: rawRecord.source ?? option.source_label,
+          sourceType: rawRecord.sourceType ?? rawRecord.source_type ?? option.source_type,
+          sourceUrl: rawRecord.sourceUrl ?? rawRecord.source_url ?? option.source_url,
+          checkedAt: rawRecord.checkedAt ?? rawRecord.checked_at ?? option.checked_at,
+        }))
+        .filter((item): item is ProviderComparisonEvidence => Boolean(item))
+      : [];
+    const directEvidence = normalizeEvidence(rawRecord, {
+      source: option.source_label,
+      sourceType: option.source_type,
+      sourceUrl: option.source_url,
+      checkedAt: option.checked_at,
+    });
+    if (directEvidence) evidence.push(directEvidence);
+    if (evidence.length > 0) return buildProviderComparisonFact(criterion, evidence);
   }
   return fallback ?? fallbackFact(criterion);
 }
@@ -250,13 +478,26 @@ function legacyFacts(option: ProviderComparisonSourceOption): Record<ProviderCom
   const distanceAndAvailability = splitDistanceAndAvailability(clean(option.distance_or_availability));
   const price = clean(option.price_or_advantage);
   const reputation = clean(option.trust_note);
+  const fallback = (
+    criterion: ProviderComparisonCriterion,
+    value?: string | null,
+    status: ProviderComparisonSingleEvidenceStatus = "unknown",
+  ) => fallbackFact(
+    criterion,
+    value,
+    status,
+    option.source_label,
+    evidenceSourceType(option.source_type),
+    option.source_url,
+    option.checked_at,
+  );
   return {
-    distance: structuredFact(option, "distance", fallbackFact("distance", distanceAndAvailability.distance, "reported", option.source_label)),
-    price: structuredFact(option, "price", fallbackFact("price", isUnknownText(price) ? null : price, "reported", option.source_label)),
-    reputation: structuredFact(option, "reputation", fallbackFact("reputation", isUnknownText(reputation) ? null : reputation, "reported", option.source_label)),
-    availability: structuredFact(option, "availability", fallbackFact("availability", distanceAndAvailability.availability, "reported", option.source_label)),
-    accessibility: structuredFact(option, "accessibility"),
-    coverage: structuredFact(option, "coverage"),
+    distance: structuredFact(option, "distance", fallback("distance", distanceAndAvailability.distance, "reported")),
+    price: structuredFact(option, "price", fallback("price", isUnknownText(price) ? null : price, "reported")),
+    reputation: structuredFact(option, "reputation", fallback("reputation", isUnknownText(reputation) ? null : reputation, "reported")),
+    availability: structuredFact(option, "availability", fallback("availability", distanceAndAvailability.availability, "reported")),
+    accessibility: structuredFact(option, "accessibility", fallback("accessibility")),
+    coverage: structuredFact(option, "coverage", fallback("coverage")),
   };
 }
 
@@ -295,6 +536,9 @@ export function buildProviderComparisonOption(
     },
     sourceLabel: clean(option.source_label) || null,
     sourceStatus,
+    sourceType: evidenceSourceType(option.source_type),
+    sourceUrl: httpUrlOrNull(option.source_url),
+    checkedAt: isoDateOrNull(option.checked_at),
   };
 }
 
@@ -316,6 +560,9 @@ export function providerComparisonSnapshot(option: ProviderComparisonOption): Re
     contact: option.contact,
     source_label: option.sourceLabel ?? null,
     source_status: option.sourceStatus,
+    source_type: option.sourceType,
+    source_url: option.sourceUrl,
+    checked_at: option.checkedAt,
   };
 }
 
@@ -344,6 +591,25 @@ export function buildProviderShortlistPayload(
   };
 }
 
+function parseStoredFact(
+  rawFacts: Record<string, unknown>,
+  criterion: ProviderComparisonCriterion,
+): ProviderComparisonFact {
+  const record = recordOrNull(rawFacts[criterion]);
+  if (!record) return fallbackFact(criterion);
+  const evidence = Array.isArray(record.evidence)
+    ? record.evidence
+      .map((item) => normalizeEvidence(item))
+      .filter((item): item is ProviderComparisonEvidence => Boolean(item))
+    : [];
+  const directEvidence = normalizeEvidence(record);
+  if (directEvidence) evidence.push(directEvidence);
+  const fact = buildProviderComparisonFact(criterion, evidence);
+  return record.conflict === true || evidenceStatus(record.status) === "conflicting"
+    ? { ...fact, status: "conflicting", conflict: true }
+    : fact;
+}
+
 function parseShortlistOption(value: unknown, index: number): ProviderComparisonOption | null {
   const record = recordOrNull(value);
   if (!record) return null;
@@ -351,14 +617,7 @@ function parseShortlistOption(value: unknown, index: number): ProviderComparison
   if (!name) return null;
   const rawFacts = recordOrNull(record.facts) ?? {};
   const facts = PROVIDER_COMPARISON_CRITERIA.reduce<Record<ProviderComparisonCriterion, ProviderComparisonFact>>((acc, criterion) => {
-    const fact = recordOrNull(rawFacts[criterion]);
-    const factValue = stringOrNull(fact?.value);
-    acc[criterion] = {
-      criterion,
-      value: factValue,
-      status: factValue ? evidenceStatus(fact?.status) ?? "reported" : "unknown",
-      source: stringOrNull(fact?.source),
-    };
+    acc[criterion] = parseStoredFact(rawFacts, criterion);
     return acc;
   }, {} as Record<ProviderComparisonCriterion, ProviderComparisonFact>);
   const contact = recordOrNull(record.contact) ?? {};
@@ -380,6 +639,9 @@ function parseShortlistOption(value: unknown, index: number): ProviderComparison
     },
     sourceLabel: stringOrNull(record.source_label ?? record.sourceLabel),
     sourceStatus: evidenceStatus(record.source_status ?? record.sourceStatus) ?? "unknown",
+    sourceType: evidenceSourceType(record.source_type ?? record.sourceType),
+    sourceUrl: httpUrlOrNull(record.source_url ?? record.sourceUrl),
+    checkedAt: isoDateOrNull(record.checked_at ?? record.checkedAt),
   };
 }
 
@@ -412,6 +674,19 @@ export function parseProviderShortlistPayload(payload: unknown): ProviderShortli
     preferredProviderId: stringOrNull(record.preferred_provider_id),
     preferredProviderName: stringOrNull(record.preferred_provider_name),
     status: shortlistStatus(record.shortlist_status),
+  };
+}
+
+export function buildProviderRecheckContext(shortlist: ProviderShortlistState): ProviderRecheckContext {
+  return {
+    preferredSources: ["official", "provider_owned", "regulated", "directory"],
+    criteria: [...PROVIDER_SHORTLIST_RECHECK_CRITERIA],
+    providers: shortlist.options.map((option) => ({
+      id: option.id,
+      name: option.name,
+      officialWebsite: option.contact.website ?? option.contact.bookingUrl ?? null,
+      directoryUrl: option.contact.mapsUrl ?? null,
+    })),
   };
 }
 
@@ -494,6 +769,13 @@ export function providerShortlistFreshness(
   if (!Number.isFinite(capturedMs) || !Number.isFinite(nowMs)) return { status: "unknown", ageMs: null };
   const ageMs = Math.max(0, nowMs - capturedMs);
   return { status: ageMs > PROVIDER_SHORTLIST_STALE_AFTER_MS ? "stale" : "fresh", ageMs };
+}
+
+export function providerFactFreshness(
+  fact: ProviderComparisonFact,
+  now: Date | number = Date.now(),
+): ProviderShortlistFreshness {
+  return providerShortlistFreshness(fact.checkedAt, now);
 }
 
 export function updateProviderShortlistPayload(
