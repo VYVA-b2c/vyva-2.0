@@ -11289,6 +11289,47 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function createAndLinkCampaignPlannerRouteContent(channel: Channel) {
+    const routeDraft = contentDraftFromCampaignDraft({
+      ...campaignDraft,
+      channel,
+      contentAssetId: campaignDraftContentIdByChannel[channel] ?? "",
+    }, selectedCampaignDraftTargetAudience);
+    setContentSaving(true);
+    setCampaignStudioFeedback(`Creating ${channelLabel[channel]} route content and linking it to the campaign...`);
+    try {
+      const result = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+        method: "POST",
+        body: JSON.stringify(contentCreatePayloadFromDraft(routeDraft)),
+      });
+      setContent((current) => [result.content, ...current.filter((item) => item.id !== result.content.id)]);
+      setCampaignDraft((current) => ({
+        ...current,
+        contentAssetId: channel === current.channel ? result.content.id : current.contentAssetId,
+        channelContentAssetIds: {
+          ...current.channelContentAssetIds,
+          [channel]: result.content.id,
+        },
+      }));
+      setSelectedContentId(result.content.id);
+      setEditingContentId(result.content.id);
+      setContentEditDraft(contentEditDraftFromContent(result.content));
+      setContentDrawerMode("edit");
+      setContentFeedback(`Created and linked ${result.content.title}.`);
+      setContentActionFeedback(`Created and linked ${result.content.title}.`);
+      setCampaignStudioFeedback(`Created and linked ${channelLabel[channel]} route content. The campaign pack now has this route covered.`);
+      setMessage(`Created and linked ${channelLabel[channel]} route content.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : `${channelLabel[channel]} route content could not be created and linked.`;
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setCampaignStudioFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentSaving(false);
+    }
+  }
+
   function selectCampaignStudioCategory(categoryId: CampaignStudioCategoryId) {
     setCampaignStudioCategory(categoryId);
     const categoryPlays = categoryId === "all"
@@ -17537,6 +17578,17 @@ export default function MarketingAdminPage() {
                               <p className="mt-1 text-xs font-bold text-[#8b7a73]">
                                 {options.length ? `${options.length} available ${channelLabel[channel]} asset${options.length === 1 ? "" : "s"}.` : `No active ${channelLabel[channel]} content yet.`}
                               </p>
+                              {!selectedId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void createAndLinkCampaignPlannerRouteContent(channel)}
+                                  disabled={contentSaving}
+                                  className="mt-2 inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                  data-testid={`button-marketing-create-link-route-content-${channel}`}
+                                >
+                                  <Save size={13} /> {contentSaving ? "Creating..." : `Create & link ${channelLabel[channel]}`}
+                                </button>
+                              ) : null}
                             </Field>
                           );
                         })}
