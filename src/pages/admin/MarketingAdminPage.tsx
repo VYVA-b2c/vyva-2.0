@@ -15418,6 +15418,51 @@ export default function MarketingAdminPage() {
     setMessage(`Relationship queue loaded: ${queue.title}. Generate AI copy, review the templates, then create the campaign.`);
   }
 
+  function buildAudienceFromContactWorkQueue(queue: ContactRelationshipWorkQueue) {
+    if (queue.count === 0) {
+      const feedback = `"${queue.title}" has no contacts to turn into a list yet.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+    const uniqueTextValues = (values: Array<string | null | undefined>, limit = 8) => Array.from(new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    )).slice(0, limit);
+    const contactExternalIds = Array.from(new Set(queue.contacts.map(contactAudienceMemberId)));
+    const rules = {
+      source: "relationship_work_queue",
+      queue: queue.key,
+      title: queue.title,
+      channels: queue.channels,
+      contactCount: queue.count,
+      audienceTypes: uniqueTextValues(queue.contacts.map((contact) => contact.audienceType)),
+      consentStatuses: uniqueTextValues(queue.contacts.map((contact) => contact.consentStatus)),
+      languages: uniqueTextValues(queue.contacts.map((contact) => contact.language)),
+      categories: uniqueTextValues(queue.contacts.map((contact) => contact.category)),
+      verticals: uniqueTextValues(queue.contacts.map((contact) => contact.vertical)),
+      markets: uniqueTextValues(queue.contacts.map((contact) => contact.market)),
+      lists: uniqueTextValues(queue.contacts.flatMap((contact) => contact.lists), 12),
+      tags: uniqueTextValues(queue.contacts.flatMap((contact) => contact.tags), 12),
+    };
+
+    setActiveTab("contacts");
+    setContactView("lists");
+    setEditingAudienceId(null);
+    setAudienceEditDraft(null);
+    setConfirmingAudienceDeleteId(null);
+    setAudienceDraft({
+      name: `${queue.title} list`,
+      listType: "static",
+      description: `${queue.detail} Built from ${queue.countLabel}.`,
+      rulesText: jsonText(rules),
+      contactExternalIds: contactExternalIds.join("\n"),
+    });
+    setAudienceFeedback(`${queue.title} queue loaded as a list with ${queue.countLabel}. Review and save the audience.`);
+    setMessage(`${queue.title} queue loaded into the audience builder.`);
+  }
+
   function relationshipCampaignIntentForContact(
     contact: MarketingContact,
     selectedChannels: Channel[],
@@ -22338,6 +22383,15 @@ export default function MarketingAdminPage() {
                             data-testid={`button-marketing-contact-work-queue-show-${queue.key}`}
                           >
                             <Eye size={13} /> {queue.showLabel}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => buildAudienceFromContactWorkQueue(queue)}
+                            disabled={queue.count === 0}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
+                            data-testid={`button-marketing-contact-work-queue-list-${queue.key}`}
+                          >
+                            <UsersRound size={13} /> Build list
                           </button>
                           <button
                             type="button"
