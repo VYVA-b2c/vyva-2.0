@@ -66,6 +66,7 @@ describe("ConciergeReadinessAdminPage", () => {
 
     const priorityPass = screen.getByTestId("manual-qa-priority-pass");
     expect(within(priorityPass).getByText("Test these six high-risk flows first")).toBeInTheDocument();
+    expect(within(priorityPass).getByText(/use only qa-controlled phone numbers/i)).toBeInTheDocument();
     expect(within(priorityPass).getByText(/Book ride \/ transport: Not tested/i)).toBeInTheDocument();
     expect(within(priorityPass).getByText(/OTC pharmacy help: Not tested/i)).toBeInTheDocument();
     expect(within(priorityPass).getByText(/Medical appointment: Not tested/i)).toBeInTheDocument();
@@ -114,10 +115,17 @@ describe("ConciergeReadinessAdminPage", () => {
 
     const transportScript = screen.getByTestId("manual-qa-script-flow-transport-booking");
     expect(within(transportScript).getByText("Provider path")).toBeInTheDocument();
+    expect(within(transportScript).getByText("Live Phone call test")).toBeInTheDocument();
     expect(within(transportScript).getByText("Missing provider path")).toBeInTheDocument();
     expect(within(transportScript).getByText("Saved provider path")).toBeInTheDocument();
     expect(within(transportScript).getByText(/confirm pickup, destination, time/i)).toBeInTheDocument();
     expect(within(transportScript).getByText("Completed history")).toBeInTheDocument();
+    expect(within(transportScript).getByText("Waiting survives reload")).toBeInTheDocument();
+    expect(within(transportScript).getByText("No answer and retry confirmation")).toBeInTheDocument();
+
+    expect(within(screen.getByTestId("manual-qa-script-flow-otc-pharmacy")).getByText("Live WhatsApp test")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-script-flow-medical-appointment")).getByText("Live Email test")).toBeInTheDocument();
+    expect(within(screen.getByTestId("manual-qa-script-flow-home-service")).getByText("Live Booking form test")).toBeInTheDocument();
 
     const scamScript = screen.getByTestId("manual-qa-script-flow-scam-check");
     expect(within(scamScript).getByText("No provider setup required")).toBeInTheDocument();
