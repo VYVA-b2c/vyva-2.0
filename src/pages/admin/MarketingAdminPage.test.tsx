@@ -3721,6 +3721,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-execution-map-linkedin")).toHaveTextContent("Create the LinkedIn plan, then publish or track it outside VYVA.");
     expect(screen.getByTestId("marketing-campaign-studio-execution-map-linkedin")).toHaveTextContent("1 recipient");
     expect(screen.getByTestId("marketing-campaign-studio-execution-map-linkedin")).toHaveTextContent("Handoff route");
+    expect(screen.getByTestId("button-marketing-campaign-studio-execution-map-copy-linkedin")).toHaveTextContent("Copy run sheet");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-execution-map-copy-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn publishing run sheet"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("LinkedIn publishing run sheet copied.");
     expect(screen.getByTestId("marketing-campaign-studio-launch-path")).toHaveTextContent("Recommended launch path");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-goal")).toHaveTextContent("B2B partner introduction");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-audience")).toHaveTextContent("Partners");

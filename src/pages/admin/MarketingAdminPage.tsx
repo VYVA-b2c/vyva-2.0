@@ -17507,23 +17507,36 @@ export default function MarketingAdminPage() {
                           <Pill className="bg-purple-50 text-purple-800">{campaignStudioExecutionPlan.length} route{campaignStudioExecutionPlan.length === 1 ? "" : "s"}</Pill>
                         </div>
                         <div className="mt-3 grid gap-2 xl:grid-cols-3">
-                          {campaignStudioExecutionPlan.map((item) => (
-                            <div key={item.channel} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-execution-map-${item.channel}`}>
-                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                                  <p className="mt-2 truncate text-sm font-black text-[#241133]">{item.title}</p>
+                          {campaignStudioExecutionPlan.map((item) => {
+                            const runSheet = campaignStudioPublishingRunSheets.find((candidate) => candidate.channel === item.channel);
+                            return (
+                              <div key={item.channel} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-execution-map-${item.channel}`}>
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                    <p className="mt-2 truncate text-sm font-black text-[#241133]">{item.title}</p>
+                                  </div>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
                                 </div>
-                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                <p className="mt-2 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">{item.sendMode}</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.nextAction}</p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <Pill className="bg-white text-[#5b4a46]">{item.recipients} recipient{item.recipients === 1 ? "" : "s"}</Pill>
+                                  <Pill className="bg-white text-[#5b4a46]">{item.channel === "email" ? "VYVA route" : "Handoff route"}</Pill>
+                                </div>
+                                {runSheet ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void copyCampaignStudioOfflineHandoff(`${channelLabel[item.channel]} publishing run sheet`, runSheet.text)}
+                                    className="mt-3 inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-50"
+                                    data-testid={`button-marketing-campaign-studio-execution-map-copy-${item.channel}`}
+                                  >
+                                    <Copy size={13} aria-hidden="true" /> Copy run sheet
+                                  </button>
+                                ) : null}
                               </div>
-                              <p className="mt-2 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">{item.sendMode}</p>
-                              <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.nextAction}</p>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <Pill className="bg-white text-[#5b4a46]">{item.recipients} recipient{item.recipients === 1 ? "" : "s"}</Pill>
-                                <Pill className="bg-white text-[#5b4a46]">{item.channel === "email" ? "VYVA route" : "Handoff route"}</Pill>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-launch-path">
