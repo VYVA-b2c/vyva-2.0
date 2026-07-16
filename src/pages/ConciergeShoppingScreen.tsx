@@ -924,6 +924,7 @@ const ConciergeShoppingScreen = () => {
     if (mode.id === "check") {
       setCheckText((current) => current || needText);
       window.setTimeout(() => {
+        if (typeof document === "undefined") return;
         document.getElementById("shopping-product-check")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
       }, 80);
       return;

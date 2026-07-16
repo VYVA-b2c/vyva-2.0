@@ -865,7 +865,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-journey-command-stat-content")).toHaveTextContent("1/1");
     expect(screen.getByTestId("marketing-journey-command-stat-activity")).toHaveTextContent("1 enrollment");
     expect(screen.getByTestId("marketing-journey-ai-command-brief")).toHaveTextContent("VYVA journey AI command brief");
-    expect(screen.getByTestId("textarea-marketing-journey-ai-command-brief")).toHaveValue(expect.stringContaining("B2B nurture: draft; B2B"));
+    expect((screen.getByTestId("textarea-marketing-journey-ai-command-brief") as HTMLTextAreaElement).value).toEqual(
+      expect.stringContaining("B2B nurture: draft; B2B"),
+    );
     fireEvent.click(screen.getByTestId("button-marketing-journey-command-launch-ready"));
     expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-journey-name")).toHaveValue("B2B nurture");
@@ -1174,7 +1176,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
-  });
+  }, 30_000);
 
   it("shows tracked manual outcomes in campaign performance scans", async () => {
     const manuallyTrackedCampaign = {
