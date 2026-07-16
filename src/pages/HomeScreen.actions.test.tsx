@@ -589,7 +589,11 @@ describe("Home fast service actions", () => {
               status: "calling",
               provider_name: "Radio Taxi",
               action_summary: "VYVA is contacting Radio Taxi.",
-              action_payload: { mission_status: "awaiting_provider_reply" },
+              action_payload: {
+                mission_status: "awaiting_provider_reply",
+                live_handoff_status: "waiting",
+                provider_waiting_since: new Date(Date.now() - (30 * 60_000) - 1_000).toISOString(),
+              },
             }],
           },
           isError: false,
@@ -604,7 +608,7 @@ describe("Home fast service actions", () => {
     const nudge = screen.getByTestId("card-home-concierge-resume");
     expect(nudge).toHaveTextContent("Waiting");
     expect(nudge).toHaveTextContent("Waiting for Radio Taxi");
-    expect(nudge).toHaveTextContent("Waiting for reply");
+    expect(nudge).toHaveTextContent("30 min waiting");
     expect(screen.getByTestId("button-home-concierge-open")).toHaveTextContent("Open");
     expect(screen.getByTestId("button-home-concierge-follow-up")).toHaveTextContent("Follow up");
     expect(screen.getByTestId("button-home-concierge-got-reply")).toHaveTextContent("I got a reply");

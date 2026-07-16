@@ -4557,8 +4557,13 @@ describe("ConciergeScreen route prefill", () => {
     });
   });
 
-  it("prepares a provider follow-up while keeping the final send under user control", async () => {
-    apiFetchMock.mockImplementation(async (url) => {
+  it("records no answer, keeps the task waiting, and prepares a confirmed follow-up", async () => {
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).endsWith("/api/concierge/actions/reply-follow-up/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, item: { id: "reply-follow-up" } });
+      }
       if (String(url).endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
           items: [{
@@ -4588,13 +4593,76 @@ describe("ConciergeScreen route prefill", () => {
     expect(liveHandoff).toHaveAttribute("data-state", "waiting");
     expect(liveHandoff).toHaveTextContent("Waiting for provider");
     const panel = await screen.findByTestId("panel-concierge-provider-reply");
-    expect(panel).toHaveTextContent("Waiting since");
+    expect(panel).toHaveTextContent("Sent just now");
     expect(screen.getByTestId("button-provider-reply-confirmed-reply-follow-up")).toHaveTextContent("I got a reply");
+    expect(screen.getByTestId("button-provider-reply-no-answer-reply-follow-up")).toHaveTextContent("No answer");
     expect(screen.getByTestId("button-provider-reply-unavailable-reply-follow-up")).toHaveTextContent("Try another provider");
+    expect(screen.getByTestId("button-provider-reply-more-info-reply-follow-up")).toHaveTextContent("Ask me for missing info");
+    expect(screen.getByTestId("button-provider-reply-mark-complete-reply-follow-up")).toHaveTextContent("Mark complete");
 
-    fireEvent.click(screen.getByTestId("button-provider-reply-follow-up-reply-follow-up"));
+    fireEvent.click(screen.getByTestId("button-provider-reply-no-answer-reply-follow-up"));
 
-    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Follow-up prepared in chat.");
+    await waitFor(() => {
+      expect(detailsBody).toMatchObject({
+        action_payload: expect.objectContaining({
+          live_handoff_status: "waiting",
+          live_handoff_outcome: "no_answer",
+          provider_follow_up_status: "waiting",
+          provider_last_contact_channel: "phone",
+          provider_last_contact_outcome: "no_answer",
+          provider_contact_attempt_count: 1,
+          waiting_for_provider: true,
+          mission_status: "awaiting_provider_reply",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("No answer saved. The task stays open");
+  });
+
+  it("closes a waiting provider task only when the user marks it complete", async () => {
+    let completionBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).endsWith("/api/concierge/actions/reply-complete/complete")) {
+        completionBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-reply-complete" });
+      }
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-complete",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "Waiting for Radio Taxi.",
+            action_payload: {
+              mission_status: "awaiting_provider_reply",
+              live_handoff_status: "waiting",
+              provider_waiting_since: "2026-07-16T08:00:00.000Z",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-reply-mark-complete-reply-complete"));
+
+    await waitFor(() => {
+      expect(completionBody).toMatchObject({
+        outcome_summary: "Task marked complete.",
+        outcome_payload: expect.objectContaining({
+          live_handoff_status: "completed",
+          live_handoff_outcome: "user_marked_complete",
+          completed_from: "provider_follow_up_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
   });
 
   it("honors Home provider follow-up route intent inside the existing provider panel", async () => {
@@ -5078,19 +5146,17 @@ describe("ConciergeScreen route prefill", () => {
     );
   });
 
-  it("records a sent email draft through the existing completion endpoint", async () => {
-    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
-    let completed = false;
+  it("keeps a sent email draft waiting for the provider", async () => {
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
-      if (target.endsWith("/api/concierge/actions/email-sent-1/complete")) {
-        completeBody = JSON.parse(String(init?.body));
-        completed = true;
-        return jsonResponse({ ok: true, status: "completed", sessionId: "session-email-sent-1" });
+      if (target.endsWith("/api/concierge/actions/email-sent-1/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, item: { id: "email-sent-1" } });
       }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
-          items: completed ? [] : [{
+          items: [{
             id: "email-sent-1",
             use_case: "insurance_admin",
             provider_name: "Insurer Desk",
@@ -5130,9 +5196,8 @@ describe("ConciergeScreen route prefill", () => {
     fireEvent.click(screen.getByTestId("button-email-draft-sent-email-sent-1"));
 
     await waitFor(() => {
-      expect(completeBody).toMatchObject({
-        outcome_summary: "Email sent to Insurer Desk. Reference: CL-11.",
-        outcome_payload: expect.objectContaining({
+      expect(detailsBody).toMatchObject({
+        action_payload: expect.objectContaining({
           flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
           execution_type: "email_draft_outcome_capture",
           execution_channel: "email",
@@ -5143,26 +5208,31 @@ describe("ConciergeScreen route prefill", () => {
           email_subject: "Claim documents",
           reference: "CL-11",
           notes: "Sent from Gmail.",
-          live_handoff_status: "sent_or_called",
+          live_handoff_status: "waiting",
           live_handoff_outcome: "email_sent",
+          provider_follow_up_status: "waiting",
+          provider_last_contact_channel: "email",
+          provider_last_contact_outcome: "email_sent",
+          provider_last_contact_summary: "Email sent to Insurer Desk. Reference: CL-11.",
+          provider_contact_attempt_count: 1,
+          waiting_for_provider: true,
+          mission_status: "awaiting_provider_reply",
           completed_from: "email_draft_outcome_panel",
           no_external_action_without_confirmation: true,
         }),
       });
     });
-    await waitFor(() => {
-      expect(screen.queryByTestId("panel-concierge-email-draft")).not.toBeInTheDocument();
-    });
-    expect(screen.getByTestId("email-draft-notice")).toHaveTextContent("Email saved");
+    expect(screen.getByTestId("panel-concierge-email-draft")).toBeVisible();
+    expect(screen.getByTestId("email-draft-notice")).toHaveTextContent("Email sent. Waiting for the provider.");
   });
 
-  it("records a sent tool-gated email draft through the existing completion endpoint", async () => {
-    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  it("keeps a sent tool-gated email draft waiting for the provider", async () => {
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
-      if (target.endsWith("/api/concierge/actions/tool-email-1/complete")) {
-        completeBody = JSON.parse(String(init?.body));
-        return jsonResponse({ ok: true, status: "completed", sessionId: "session-tool-email-1" });
+      if (target.endsWith("/api/concierge/actions/tool-email-1/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, item: { id: "tool-email-1" } });
       }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
@@ -5201,17 +5271,23 @@ describe("ConciergeScreen route prefill", () => {
     fireEvent.click(screen.getByTestId("button-email-draft-sent-tool-email-1"));
 
     await waitFor(() => {
-      expect(completeBody).toMatchObject({
-        outcome_summary: "Email sent to Council Office. Reference: APP-3.",
-        outcome_payload: expect.objectContaining({
+      expect(detailsBody).toMatchObject({
+        action_payload: expect.objectContaining({
           flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
           execution_type: "email_draft_outcome_capture",
           execution_channel: "email",
           email_outcome: "sent",
           provider_name: "Council Office",
           provider_email: "office@example.com",
-          live_handoff_status: "sent_or_called",
+          live_handoff_status: "waiting",
           live_handoff_outcome: "email_sent",
+          provider_follow_up_status: "waiting",
+          provider_last_contact_channel: "email",
+          provider_last_contact_outcome: "email_sent",
+          provider_last_contact_summary: "Email sent to Council Office. Reference: APP-3.",
+          provider_contact_attempt_count: 1,
+          waiting_for_provider: true,
+          mission_status: "awaiting_provider_reply",
           completed_from: "email_draft_outcome_panel",
           no_external_action_without_confirmation: true,
         }),
@@ -5262,13 +5338,13 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-whatsapp-draft-sent-whatsapp-1")).toHaveTextContent("I sent it");
   });
 
-  it("records a sent WhatsApp draft through the existing completion endpoint", async () => {
-    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  it("keeps a sent WhatsApp draft waiting for the provider", async () => {
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
-      if (target.endsWith("/api/concierge/actions/whatsapp-sent-1/complete")) {
-        completeBody = JSON.parse(String(init?.body));
-        return jsonResponse({ ok: true, status: "completed", sessionId: "session-whatsapp-sent-1" });
+      if (target.endsWith("/api/concierge/actions/whatsapp-sent-1/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, item: { id: "whatsapp-sent-1" } });
       }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
@@ -5311,9 +5387,8 @@ describe("ConciergeScreen route prefill", () => {
     fireEvent.click(screen.getByTestId("button-whatsapp-draft-sent-whatsapp-sent-1"));
 
     await waitFor(() => {
-      expect(completeBody).toMatchObject({
-        outcome_summary: "WhatsApp sent to Farmacia Luz. Reference: OTC-77.",
-        outcome_payload: expect.objectContaining({
+      expect(detailsBody).toMatchObject({
+        action_payload: expect.objectContaining({
           flow_reference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
           execution_type: "whatsapp_draft_outcome_capture",
           execution_channel: "whatsapp",
@@ -5324,8 +5399,15 @@ describe("ConciergeScreen route prefill", () => {
           recipient_whatsapp: "34600111222",
           reference: "OTC-77",
           notes: "Sent in WhatsApp.",
-          live_handoff_status: "sent_or_called",
+          live_handoff_status: "waiting",
           live_handoff_outcome: "whatsapp_sent",
+          provider_follow_up_status: "waiting",
+          provider_last_contact_channel: "whatsapp",
+          provider_last_contact_outcome: "whatsapp_sent",
+          provider_last_contact_summary: "WhatsApp sent to Farmacia Luz. Reference: OTC-77.",
+          provider_contact_attempt_count: 1,
+          waiting_for_provider: true,
+          mission_status: "awaiting_provider_reply",
           completed_from: "whatsapp_draft_outcome_panel",
           no_external_action_without_confirmation: true,
         }),
@@ -5426,8 +5508,8 @@ describe("ConciergeScreen route prefill", () => {
     );
   });
 
-  it("records a submitted booking form through the existing completion endpoint", async () => {
-    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+  it("keeps a submitted booking form waiting for the provider", async () => {
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
     let formConfirmed = false;
     vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockImplementation(async (url, init) => {
@@ -5437,9 +5519,9 @@ describe("ConciergeScreen route prefill", () => {
         formConfirmed = true;
         return jsonResponse({ pendingId: "form-submit-1", status: "pending", conversationId: null, callSid: null });
       }
-      if (target.endsWith("/api/concierge/actions/form-submit-1/complete")) {
-        completeBody = JSON.parse(String(init?.body));
-        return jsonResponse({ ok: true, status: "completed", sessionId: "session-form-submit-1" });
+      if (target.endsWith("/api/concierge/actions/form-submit-1/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, item: { id: "form-submit-1" } });
       }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
@@ -5511,9 +5593,8 @@ describe("ConciergeScreen route prefill", () => {
     fireEvent.click(screen.getByTestId("button-booking-form-submitted-form-submit-1"));
 
     await waitFor(() => {
-      expect(completeBody).toMatchObject({
-        outcome_summary: "Form submitted: The Good Table. Reference: TF-88.",
-        outcome_payload: expect.objectContaining({
+      expect(detailsBody).toMatchObject({
+        action_payload: expect.objectContaining({
           flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
           execution_type: "form_booking_link_outcome_capture",
           execution_channel: "booking_url",
@@ -5525,8 +5606,15 @@ describe("ConciergeScreen route prefill", () => {
           missing_fields: [],
           reference: "TF-88",
           notes: "Submitted for tomorrow evening.",
-          live_handoff_status: "sent_or_called",
+          live_handoff_status: "waiting",
           live_handoff_outcome: "form_submitted",
+          provider_follow_up_status: "waiting",
+          provider_last_contact_channel: "booking_url",
+          provider_last_contact_outcome: "form_submitted",
+          provider_last_contact_summary: "Form submitted: The Good Table. Reference: TF-88.",
+          provider_contact_attempt_count: 1,
+          waiting_for_provider: true,
+          mission_status: "awaiting_provider_reply",
           completed_from: "booking_form_support_panel",
           no_external_action_without_confirmation: true,
         }),

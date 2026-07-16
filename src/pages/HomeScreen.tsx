@@ -96,6 +96,7 @@ type ConciergePendingHomeItem = {
   action_summary?: string | null;
   status?: "pending" | "calling" | "completed" | "failed" | "cancelled" | string | null;
   action_payload?: Record<string, unknown> | null;
+  confirmed_at?: string | null;
 };
 
 type ConciergeCompletedHomeItem = {
@@ -420,8 +421,49 @@ function conciergeCompletedHomeTemplate(item: ConciergeCompletedHomeItem) {
 
 function conciergeHomeIsWaitingOnProvider(item: ConciergePendingHomeItem) {
   const missionStatus = conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]).toLowerCase();
+  const liveHandoffStatus = conciergeHomePayloadString(item, ["live_handoff_status", "provider_follow_up_status"]).toLowerCase();
   const status = conciergeHomeStatus(item);
-  return status === "calling" || status === "in_progress" || missionStatus.includes("awaiting_provider");
+  return status === "calling"
+    || status === "in_progress"
+    || missionStatus.includes("awaiting_provider")
+    || liveHandoffStatus === "waiting"
+    || liveHandoffStatus === "sent_or_called";
+}
+
+function conciergeHomeWaitingLabel(
+  item: ConciergePendingHomeItem,
+  nowMs: number,
+  language: string,
+  t: HomeTranslate,
+) {
+  const raw = conciergeHomePayloadString(item, [
+    "provider_waiting_since",
+    "waiting_since",
+    "provider_last_contact_at",
+    "contacted_at",
+  ]) || item.confirmed_at || "";
+  const waitingSince = raw ? new Date(raw) : null;
+  if (!waitingSince || Number.isNaN(waitingSince.getTime())) {
+    return t("home.conciergeResume.step.waiting", "Waiting for reply");
+  }
+
+  const elapsedMinutes = Math.max(0, Math.floor((nowMs - waitingSince.getTime()) / 60_000));
+  if (elapsedMinutes < 1) return t("home.conciergeResume.waitingNow", "Sent just now");
+  if (elapsedMinutes < 60) {
+    return t("home.conciergeResume.waitingMinutes", "{{count}} min waiting", { count: elapsedMinutes });
+  }
+  if (elapsedMinutes < 24 * 60) {
+    const hours = Math.floor(elapsedMinutes / 60);
+    return t("home.conciergeResume.waitingHours", "{{count}} hr waiting", { count: hours });
+  }
+
+  const time = new Intl.DateTimeFormat(language || "en", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(waitingSince);
+  return t("home.conciergeResume.waitingSince", "Waiting since {{time}}", { time });
 }
 
 function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
@@ -440,8 +482,8 @@ function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTransla
   if (isShowVyvaPreparedTask(item.action_payload)) return t("home.showVyvaResume.kicker", "VYVA prepared this");
   const status = conciergeHomeStatus(item);
   if (status === "failed") return t("home.conciergeResume.kickerReview", "Needs review");
-  if (status === "pending") return t("home.conciergeResume.kickerConfirm", "Needs your OK");
   if (conciergeHomeIsWaitingOnProvider(item)) return t("home.conciergeResume.kickerWaiting", "Waiting");
+  if (status === "pending") return t("home.conciergeResume.kickerConfirm", "Needs your OK");
   return t("home.conciergeResume.kicker", "Right now");
 }
 
@@ -544,6 +586,12 @@ const HomeScreen = () => {
   const { language } = useLanguage();
   const { firstName: profileFirstName, profile } = useProfile();
   const [fastHelpStartIndex, setFastHelpStartIndex] = useState(0);
+  const [conciergeClockMs, setConciergeClockMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setConciergeClockMs(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
@@ -955,6 +1003,9 @@ const HomeScreen = () => {
   const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t) : "";
   const conciergeHomeTitlePrefixText = activeConciergeHomeTask ? conciergeHomeTitlePrefix(activeConciergeHomeTask, t) : "";
   const activeConciergeWaitingOnProvider = activeConciergeHomeTask ? conciergeHomeIsWaitingOnProvider(activeConciergeHomeTask) : false;
+  const activeConciergeWaitingText = activeConciergeHomeTask && activeConciergeWaitingOnProvider
+    ? conciergeHomeWaitingLabel(activeConciergeHomeTask, conciergeClockMs, language, t)
+    : conciergeHomeStepText;
   const activeConciergeProviderText = activeConciergeHomeTask ? conciergeHomeProviderLabel(activeConciergeHomeTask, t) : "";
   const activeConciergeShowVyvaSourceText = activeConciergeHomeTask && activeConciergeShowVyvaTask
     ? showVyvaResumeSourceLabel(activeConciergeHomeTask.action_payload, language)
@@ -987,7 +1038,7 @@ const HomeScreen = () => {
     id: "concierge-status",
     icon: ConciergeBell,
     label: conciergeHomeFastStatusLabel(activeConciergeHomeTask, t),
-    detail: conciergeHomeStepText,
+    detail: activeConciergeWaitingText,
     tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
     pinned: true,
     onClick: () => handleNavigate("/concierge", { state: { focusRightNow: true } }),
@@ -1000,7 +1051,7 @@ const HomeScreen = () => {
     <div
       data-testid="card-home-concierge-resume"
       className="w-full min-w-0 rounded-[22px] border border-[#BBF7D0] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_52%,#F4FDF8_100%)] p-3 text-left shadow-[0_12px_28px_rgba(4,120,87,0.08)] min-[390px]:p-4"
-      aria-label={`${conciergeHomeKickerText}: ${activeConciergeTitleText}. ${activeConciergeShowVyvaTask ? activeConciergeTaskText : conciergeHomeStepText}`}
+      aria-label={`${conciergeHomeKickerText}: ${activeConciergeTitleText}. ${activeConciergeShowVyvaTask ? activeConciergeTaskText : activeConciergeWaitingText}`}
     >
       <div className="flex min-w-0 items-center gap-3 min-[390px]:gap-4">
         <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#ECFDF5] text-[#047857] min-[390px]:h-[54px] min-[390px]:w-[54px]">
@@ -1016,7 +1067,7 @@ const HomeScreen = () => {
           <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
             {activeConciergeShowVyvaTask
               ? `${activeConciergeShowVyvaSourceText} · ${activeConciergeTaskText}`
-              : conciergeHomeStepText}
+              : activeConciergeWaitingText}
           </span>
           {activeConciergeShowVyvaSummary ? (
             <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-vyva-text-3">
