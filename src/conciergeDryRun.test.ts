@@ -5,7 +5,10 @@ import {
   conciergeDryRunTriggerBody,
   isConciergeDryRunPayload,
 } from "../shared/conciergeDryRun";
-import { CONCIERGE_FLOW_REGISTRY } from "../shared/conciergeFlowRegistry";
+import {
+  CONCIERGE_FLOW_REGISTRY,
+  conciergeFlowNeedsSavedProvider,
+} from "../shared/conciergeFlowRegistry";
 import {
   buildConciergeExecutionTask,
   planConciergeConfirmedExecution,
@@ -86,26 +89,34 @@ describe("Concierge dry-run fixtures", () => {
     }
   });
 
-  it("keeps missing-provider dry runs blocked until setup is provided", () => {
-    const fixture = CONCIERGE_DRY_RUN_FIXTURES.find((candidate) => candidate.provider?.category === "transport");
-    expect(fixture).toBeDefined();
+  it("covers saved-provider and missing-provider dry-run paths for each relevant flow", () => {
+    for (const fixture of CONCIERGE_DRY_RUN_FIXTURES) {
+      const missingProviderPlan = planConciergeConfirmedExecution({
+        useCase: fixture.useCase,
+        providerName: null,
+        providerPhone: null,
+        payload: fixture.actionPayload,
+        summary: fixture.actionSummary,
+        pendingStatus: "pending",
+        now: "2026-07-16T10:00:00.000Z",
+      });
 
-    const plan = planConciergeConfirmedExecution({
-      useCase: fixture!.useCase,
-      providerName: null,
-      providerPhone: null,
-      payload: fixture!.actionPayload,
-      summary: fixture!.actionSummary,
-      pendingStatus: "pending",
-      now: "2026-07-16T10:00:00.000Z",
-    });
+      expect(missingProviderPlan.dry_run, fixture.reference).toBe(true);
+      expect(missingProviderPlan.external_action_allowed, fixture.reference).toBe(false);
 
-    expect(plan).toMatchObject({
-      mode: "needs_info",
-      dry_run: true,
-      external_action_allowed: false,
-    });
-    expect(plan.missing_requirements.map((requirement) => requirement.key)).toContain("provider");
+      if (conciergeFlowNeedsSavedProvider(fixture.reference)) {
+        expect(missingProviderPlan.mode, fixture.reference).toBe("needs_info");
+        expect(
+          missingProviderPlan.missing_requirements.map((requirement) => requirement.key),
+          fixture.reference,
+        ).toContain("provider");
+      } else {
+        expect(
+          missingProviderPlan.missing_requirements.map((requirement) => requirement.key),
+          fixture.reference,
+        ).not.toContain("provider");
+      }
+    }
   });
 
   it("builds trigger bodies that testers can submit without auto-starting live channels", () => {

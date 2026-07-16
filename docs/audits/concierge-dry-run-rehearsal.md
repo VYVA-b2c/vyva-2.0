@@ -1,6 +1,7 @@
 # Concierge Dry-Run Rehearsal
 
 Date: 2026-07-16
+Validated on: `main` at `3f151142`
 
 Scope: all 10 Concierge flows were rehearsed with the shared dry-run fixtures. Test mode uses only reserved fake phone numbers, `example.test` URLs, and `example.test` inboxes. The safe completion path records a simulated outcome in completed history and does not call, email, message, upload, submit, purchase, book, or share data with a real provider.
 
@@ -19,8 +20,20 @@ Scope: all 10 Concierge flows were rehearsed with the shared dry-run fixtures. T
 
 Evidence checks:
 - Dry-run fixtures exist for every Concierge registry flow.
-- Every fixture has a saved-provider and missing-provider checklist path.
+- Every fixture has a saved-provider and missing-provider checklist path; provider-gated flows stay blocked until setup when the saved provider is missing.
 - All external endpoints are reserved fake values.
 - The active Concierge task shows "Test mode".
-- Live-result buttons are disabled or hidden in test mode.
-- Simulated outcomes save through the completed-history endpoint with `dry_run`, `simulated_outcome`, and `no_real_provider_contact` markers.
+- Pending dry-run tasks keep simulated completion disabled until user confirmation/review has happened.
+- Live-result links/buttons are disabled or hidden in test mode.
+- Confirmed dry-run tasks for all 10 flows save through the completed-history endpoint with `dry_run`, `simulated_outcome`, and `no_real_provider_contact` markers.
+
+Latest rehearsal command:
+
+```powershell
+npx vitest run src/conciergeDryRun.test.ts src/conciergeDryRunQaMatrix.test.ts src/pages/ConciergeScreen.test.tsx --reporter verbose
+```
+
+Result: pass, 3 files and 128 tests.
+
+Blockers and follow-up issues:
+- None found in the dry-run rehearsal.
