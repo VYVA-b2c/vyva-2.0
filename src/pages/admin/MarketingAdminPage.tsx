@@ -1884,6 +1884,13 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     channels: ["email", "whatsapp", "sms", "phone", "print", "instagram", "linkedin", "facebook"],
   },
   {
+    id: "seasonal-wellbeing",
+    title: "Seasonal check-in",
+    detail: "Timely heat, winter, holiday, or weather check-ins with family follow-up.",
+    brief: "Create a seasonal wellbeing check-in for families by email, WhatsApp, SMS, phone, print, Facebook, Instagram, and LinkedIn. Make it practical for heat, winter, holidays, or weather changes, and focus on contact details, hydration, routines, and support owners.",
+    channels: ["email", "whatsapp", "sms", "phone", "print", "facebook", "instagram", "linkedin"],
+  },
+  {
     id: "local-event",
     title: "Local event",
     detail: "Local activity campaign with public post, direct reminder, and follow-up.",
@@ -1957,6 +1964,17 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     toneId: "warm",
     angleId: "proof",
     templatePackId: "family-referral-ambassador",
+  },
+  {
+    id: "seasonal-wellbeing-check",
+    title: "Run seasonal wellbeing check",
+    outcome: "Timely care refresh",
+    detail: "Use heat, winter, holiday, or weather moments to refresh practical care details.",
+    brief: "Create a seasonal wellbeing check-in for families by email, WhatsApp, SMS, phone, print, Facebook, Instagram, and LinkedIn. Make it practical for heat, winter, holidays, or weather changes, and focus on contact details, hydration, routines, and support owners.",
+    channels: ["email", "whatsapp", "sms", "phone", "print", "facebook", "instagram", "linkedin"],
+    toneId: "warm",
+    angleId: "action",
+    templatePackId: "seasonal-wellbeing-check",
   },
   {
     id: "reactivate-quiet-families",
@@ -4460,6 +4478,183 @@ const contentTemplateGallery: ContentTemplate[] = [
     },
     mediaAssets: [],
   },
+  {
+    id: "email-seasonal-wellbeing-check",
+    title: "Seasonal wellbeing check-in email",
+    category: "Seasonal wellbeing",
+    audienceType: "b2c",
+    channel: "email",
+    description: "A timely family email for heat, winter, holiday, or weather-related care refreshes.",
+    subject: "A quick care check-in for the days ahead",
+    body: "Hi {{first_name}},\n\nSeasonal changes can make small care details more important: contact numbers, hydration, medication routines, transport plans, support notes, and who should be called if something changes.\n\nTake a few minutes to refresh the VYVA profile and agree who owns the next check-in. A small update now can prevent confusion later.",
+    htmlBody: "<h1>A quick care check-in for the days ahead</h1><p>Refresh contact numbers, routines, support notes, and the next check-in owner.</p>",
+    ctaLabel: "Refresh care details",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "email-seasonal-wellbeing-check",
+      category: "Seasonal wellbeing",
+      layout: "email-seasonal-checklist",
+      mergeFields: ["first_name"],
+      blocks: [
+        { type: "eyebrow", text: "Seasonal check-in" },
+        { type: "headline", text: "A few practical details are worth refreshing now" },
+        { type: "checklist", items: ["Contact numbers", "Medication routine", "Hydration or warmth plan", "Support owner"] },
+        { type: "cta", label: "Refresh care details" },
+      ],
+      visualPrompt: "warm seasonal care checklist email with family contact, hydration, weather, and support-owner cards, VYVA purple accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "whatsapp-seasonal-wellbeing-nudge",
+    title: "Seasonal WhatsApp check-in",
+    category: "Seasonal wellbeing",
+    audienceType: "b2c",
+    channel: "whatsapp",
+    description: "A short WhatsApp nudge for families before heat, cold, holidays, or weather changes.",
+    subject: "",
+    body: "Hi {{first_name}}, quick seasonal VYVA check: are contact details, routine notes, and the next support owner still right? A 2-minute refresh can save confusion later.",
+    ctaLabel: "Refresh details",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "whatsapp-seasonal-wellbeing-nudge",
+      category: "Seasonal wellbeing",
+      layout: "whatsapp-seasonal-nudge",
+      tone: "warm-practical",
+      replyOptions: ["done", "need help", "later"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "sms-seasonal-wellbeing-reminder",
+    title: "Seasonal wellbeing SMS reminder",
+    category: "Seasonal wellbeing",
+    audienceType: "b2c",
+    channel: "sms",
+    description: "A compact opted-in SMS reminder for a timely care-detail refresh.",
+    subject: "",
+    body: "VYVA seasonal check: refresh contact details, routine notes, and support owner before the week changes. https://v2.vyva.life/profile",
+    ctaLabel: "Open profile",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "sms-seasonal-wellbeing-reminder",
+      category: "Seasonal wellbeing",
+      layout: "sms-seasonal-reminder",
+      maxCharacters: 160,
+      complianceNotes: ["Use only for opted-in SMS contacts.", "Do not imply emergency monitoring or medical advice."],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "phone-seasonal-wellbeing-check-script",
+    title: "Seasonal wellbeing phone check script",
+    category: "Seasonal wellbeing",
+    audienceType: "b2c",
+    channel: "phone",
+    description: "A human call script for checking practical seasonal care details with warm contacts.",
+    subject: "",
+    body: "Opener: Hi {{first_name}}, I am calling from VYVA for a quick seasonal care check.\n\nQuestion 1: Are the best contact numbers and WhatsApp details still right?\nQuestion 2: Is there anything seasonal to note: heat, cold, travel, holidays, transport, or routine changes?\nQuestion 3: Who should own the next follow-up if something changes?\n\nClose: I will note the preferred contact route and send the profile refresh link.",
+    ctaLabel: "Send profile link",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "phone-seasonal-wellbeing-check-script",
+      category: "Seasonal wellbeing",
+      layout: "phone-script",
+      callStages: ["contact check", "seasonal risk note", "routine change", "support owner", "follow-up route"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "print-seasonal-wellbeing-card",
+    title: "Printable seasonal check-in card",
+    category: "Seasonal wellbeing",
+    audienceType: "both",
+    channel: "print",
+    description: "A one-page seasonal checklist for families, venues, clinics, pharmacies, and community partners.",
+    subject: "",
+    body: "Headline: Seasonal care check-in.\n\nBefore heat, cold, holidays, travel, or weather changes, refresh the practical details:\n\n1. Best contact number.\n2. Medication and support routine.\n3. Hydration, warmth, transport, or visit notes.\n4. Who owns the next check-in.\n\nUse VYVA to keep the care circle aligned.",
+    ctaLabel: "Scan to refresh details",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "print-seasonal-wellbeing-card",
+      category: "Seasonal wellbeing",
+      layout: "one-page-seasonal-checklist",
+      blocks: [
+        { type: "headline", text: "Seasonal care check-in" },
+        { type: "steps", items: ["Contact number", "Routine", "Seasonal note", "Next owner"] },
+        { type: "qr", label: "Scan to refresh details" },
+      ],
+      visualPrompt: "printable seasonal care checklist with weather icons, contact details, support owner, and VYVA purple accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "facebook-seasonal-family-check-post",
+    title: "Facebook seasonal family check post",
+    category: "Seasonal wellbeing",
+    audienceType: "both",
+    channel: "facebook",
+    description: "A public post encouraging families to refresh care details before seasonal changes.",
+    subject: "",
+    body: "Seasonal changes are a useful reminder to check the basics: contact numbers, routines, transport, support notes, and who should be called if plans change.\n\nA few minutes of care-team admin can make the week calmer for everyone.\n\nVYVA helps families keep those details visible.",
+    ctaLabel: "Refresh the basics",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "facebook-seasonal-family-check-post",
+      category: "Seasonal wellbeing",
+      layout: "facebook-seasonal-check-post",
+      visualPrompt: "Facebook post with warm family seasonal care checklist, weather-aware but calm, realistic style",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "instagram-seasonal-check-carousel",
+    title: "Instagram seasonal check carousel",
+    category: "Seasonal wellbeing",
+    audienceType: "both",
+    channel: "instagram",
+    description: "A saveable carousel for heat, cold, holiday, travel, or weather care refreshes.",
+    subject: "",
+    body: "Slide 1: Seasonal changes are a good time to check care details.\nSlide 2: Is the best contact number current?\nSlide 3: Any routine, transport, hydration, warmth, or holiday note?\nSlide 4: Who owns the next check-in?\nSlide 5: Save the checklist and refresh VYVA.",
+    ctaLabel: "Save checklist",
+    ctaUrl: "https://v2.vyva.life/profile",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "instagram-seasonal-check-carousel",
+      category: "Seasonal wellbeing",
+      layout: "instagram-seasonal-carousel",
+      slides: ["Check care details", "Best contact number", "Routine or weather note", "Next owner", "Refresh VYVA"],
+      visualPrompt: "Instagram carousel with soft seasonal care checklist cards, inclusive older adult family support, VYVA purple accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "linkedin-seasonal-partner-check-note",
+    title: "LinkedIn seasonal partner check note",
+    category: "Seasonal wellbeing",
+    audienceType: "b2b",
+    channel: "linkedin",
+    description: "A partner-facing note about timely seasonal check-ins for clinics, pharmacies, and local support teams.",
+    subject: "",
+    body: "Seasonal moments can expose small gaps in family care coordination: outdated contact details, unclear routines, transport changes, or no obvious follow-up owner.\n\nVYVA helps turn those moments into a practical check-in route for families and local partners.\n\nFor clinics, pharmacies, and community teams, the handoff is simple: help families refresh the basics before confusion builds.",
+    ctaLabel: "Discuss seasonal pathway",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "linkedin-seasonal-partner-check-note",
+      category: "Seasonal wellbeing",
+      layout: "linkedin-seasonal-partner-note",
+      proofPoint: "timely check-ins prevent avoidable coordination gaps",
+      visualPrompt: "professional seasonal care pathway showing clinic, family, pharmacy, and VYVA support-owner flow",
+    },
+    mediaAssets: [],
+  },
 ];
 
 const contentTemplatePacks: ContentTemplatePack[] = [
@@ -4571,6 +4766,37 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day 10", channel: "facebook", title: "Community proof", detail: "Invite warm public sharing without pressuring families.", templateId: "facebook-family-referral-proof-post" },
     ],
     aiPrompt: "Adapt this family referral ambassador pack for one segment, market, and referral route. Keep it warm, permission-led, and non-pushy. Produce email, WhatsApp, SMS, phone, print, Instagram, LinkedIn, and Facebook copy with a clear follow-up owner.",
+  },
+  {
+    id: "seasonal-wellbeing-check",
+    title: "Seasonal wellbeing check",
+    focus: "Use timely seasonal moments to refresh practical care details before confusion builds.",
+    description: "An eight-channel pack for heat, winter, holiday, travel, or weather check-ins across email, WhatsApp, SMS, phone, print, Facebook, Instagram, and LinkedIn.",
+    templateIds: [
+      "email-seasonal-wellbeing-check",
+      "whatsapp-seasonal-wellbeing-nudge",
+      "sms-seasonal-wellbeing-reminder",
+      "phone-seasonal-wellbeing-check-script",
+      "print-seasonal-wellbeing-card",
+      "facebook-seasonal-family-check-post",
+      "instagram-seasonal-check-carousel",
+      "linkedin-seasonal-partner-check-note",
+    ],
+    heroTemplateId: "email-seasonal-wellbeing-check",
+    studioPlayId: "seasonal-check-in",
+    toneId: "warm",
+    angleId: "action",
+    sequence: [
+      { offset: "Day -7", channel: "print", title: "Checklist handoff", detail: "Prepare the seasonal card for families, clinics, pharmacies, or local venues.", templateId: "print-seasonal-wellbeing-card" },
+      { offset: "Day -5", channel: "facebook", title: "Public reminder", detail: "Publish the seasonal basics post for families and local partners.", templateId: "facebook-seasonal-family-check-post" },
+      { offset: "Day -3", channel: "email", title: "Family check-in", detail: "Send the practical care-detail refresh with one clear profile CTA.", templateId: "email-seasonal-wellbeing-check" },
+      { offset: "Day -2", channel: "instagram", title: "Saveable checklist", detail: "Turn the refresh into a visual carousel people can save.", templateId: "instagram-seasonal-check-carousel" },
+      { offset: "Day -1", channel: "whatsapp", title: "Direct nudge", detail: "Prompt a quick reply or profile refresh from warm contacts.", templateId: "whatsapp-seasonal-wellbeing-nudge" },
+      { offset: "Day 0", channel: "sms", title: "Opted-in reminder", detail: "Send a compact direct reminder where SMS consent exists.", templateId: "sms-seasonal-wellbeing-reminder" },
+      { offset: "Day 1", channel: "phone", title: "Human check", detail: "Call the highest-priority contacts and capture the support owner.", templateId: "phone-seasonal-wellbeing-check-script" },
+      { offset: "Day 2", channel: "linkedin", title: "Partner note", detail: "Frame seasonal check-ins as a practical partner pathway.", templateId: "linkedin-seasonal-partner-check-note" },
+    ],
+    aiPrompt: "Adapt this seasonal wellbeing pack for one market, one season or weather moment, and one audience segment. Keep it non-clinical, practical, and consent-aware. Produce email, WhatsApp, SMS, phone, print, Facebook, Instagram, and LinkedIn copy with the support owner and next check-in clearly named.",
   },
   {
     id: "partner-growth",
@@ -6546,6 +6772,10 @@ function campaignIntentPlay(brief: string) {
     campaignIntentHasAny(text, ["family referral", "caregiver referral", "ambassador", "word of mouth", "invite a friend", "share with a friend", "refer a family", "warm introduction", "warm intro", "referral card"])
     || (campaignIntentHasAny(text, ["happy", "satisfied", "warm", "trust"]) && campaignIntentHasAny(text, ["referral", "refer", "share", "introduction", "intro"]))
   ) return campaignStudioPlayById("family-referral-ambassador");
+  if (
+    campaignIntentHasAny(text, ["seasonal", "heatwave", "heat wave", "hot weather", "winter", "cold weather", "holiday", "holidays", "weather", "summer", "autumn", "fall", "spring"])
+    || (campaignIntentHasAny(text, ["hydration", "warmth", "travel", "transport"]) && campaignIntentHasAny(text, ["check-in", "check in", "care details", "profile", "support owner"]))
+  ) return campaignStudioPlayById("seasonal-check-in");
   if (campaignIntentHasAny(text, ["referral", "refer", "provider", "partner follow", "partner nurture"])) return campaignStudioPlayById("referral-partner-nurture");
   if (campaignIntentHasAny(text, ["partner", "b2b", "care home", "clinic", "pharmacy", "provider"])) return campaignStudioPlayById("b2b-partner-outreach");
   if (campaignIntentHasAny(text, ["event", "activity", "workshop", "community", "madrid", "barcelona", "valencia", "local"])) return campaignStudioPlayById("local-event");
@@ -10385,10 +10615,13 @@ export default function MarketingAdminPage() {
         channels.length ? `${channels.map((channel) => channelLabel[channel]).join(" + ")} pack` : "No channel pack",
         audienceMatch ? `${selectedCampaignStudioPlay.audienceType.toUpperCase()} audience fit` : `${packAudiences.map((audience) => audience.toUpperCase()).join(" / ")} audience`,
       ];
-      return { pack, templates, heroTemplate, channels, categories, score, state: recommendationState, reasons };
+      return { pack, templates, heroTemplate, channels, categories, score, state: recommendationState, reasons, playMatch, categoryMatch, channelOverlap };
     })
       .sort((a, b) => {
+        if (b.playMatch !== a.playMatch) return Number(b.playMatch) - Number(a.playMatch);
         if (b.score !== a.score) return b.score - a.score;
+        if (b.categoryMatch !== a.categoryMatch) return Number(b.categoryMatch) - Number(a.categoryMatch);
+        if (b.channelOverlap !== a.channelOverlap) return b.channelOverlap - a.channelOverlap;
         return a.pack.title.localeCompare(b.pack.title);
       })
       .slice(0, 3);
