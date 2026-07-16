@@ -1430,6 +1430,129 @@ describe("ConciergeScreen action hub", () => {
     expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not open, switch, call, or share details without my confirmation.");
   });
 
+  it("prepares utility WhatsApp summaries inside Concierge instead of opening WhatsApp directly", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    let triggerBody: {
+      action_summary?: string;
+      action_payload?: Record<string, unknown>;
+      auto_start?: boolean;
+      use_case?: string;
+    } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.includes("/api/utilities/normalize")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          can_compare: true,
+        });
+      }
+      if (target.includes("/api/utilities/compare")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          source_used: "CNMC",
+          source_status: "success",
+          source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+          summary: {
+            headline: "One tariff looks cheaper, but confirm terms first.",
+            current_monthly_cost: 92,
+            best_estimated_monthly_cost: 71,
+            estimated_monthly_savings: 21,
+          },
+          results: [{
+            provider: "Tarifa Clara",
+            tariff_name: "Luz Senior",
+            estimated_monthly_cost: 71,
+            estimated_annual_cost: 852,
+            estimated_monthly_savings: 21,
+            contract_type: "indexed",
+            permanence: "none",
+            price_stability: "variable",
+            green_energy: true,
+            source: "CNMC",
+            source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+            provider_url: "https://tarifaclara.example/luz-senior",
+            action_label: "View offers",
+            confidence: "high",
+            notes: ["Confirm taxes and permanence."],
+          }],
+          calculation_note: "Compared current bill against estimated tariffs.",
+          estimated_note: "Savings are estimates.",
+          neutrality_note: "No provider paid for placement.",
+          source_note: "CNMC comparison.",
+        });
+      }
+      if (target.includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "utility-whatsapp-summary-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByRole("button", { name: /Household costs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Fill manually/i }));
+    fireEvent.change(screen.getByPlaceholderText("Postcode"), { target: { value: "28013" } });
+    fireEvent.change(screen.getByPlaceholderText("Approx monthly cost"), { target: { value: "92" } });
+    fireEvent.change(screen.getByPlaceholderText("Current provider optional"), { target: { value: "Current Co" } });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare comparison/i }));
+
+    expect(await screen.findByTestId("button-utilities-compare")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("button-utilities-compare"));
+    fireEvent.click(await screen.findByRole("button", { name: /Send summary by WhatsApp/i }));
+
+    expect(openMock).not.toHaveBeenCalled();
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Deal comparison ready");
+    expect(prefill).toHaveTextContent("Comparison summary prepared for WhatsApp.");
+    expect(prefill).toHaveTextContent("Prepare WhatsApp");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(triggerBody).toMatchObject({
+        use_case: "find_offers",
+        auto_start: false,
+        action_summary: "Comparison summary prepared for WhatsApp.",
+        action_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          task_type: "utility_whatsapp_summary",
+          requested_tool: "whatsapp",
+          active_tool: "operator_review",
+          execution_channel: "manual",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+          user_confirmed: false,
+        }),
+      });
+    });
+    expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not open WhatsApp or send anything without my confirmation.");
+  });
+
   it("turns provider results into clear prepared-contact tasks", async () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).includes("/api/offers/search")) {

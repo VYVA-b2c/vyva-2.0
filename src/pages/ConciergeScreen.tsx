@@ -11616,8 +11616,30 @@ const ConciergeScreen = () => {
   async function handleUtilityResultAction(action: "whatsapp" | "save" | "remind" | "switch") {
     if (!utilityResult) return;
     if (action === "whatsapp") {
-      const text = encodeURIComponent(buildUtilityShareText(utilityResult));
-      window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
+      const shareText = buildUtilityShareText(utilityResult);
+      prepareConciergeRequest(
+        isSpanish
+          ? `Prepara este resumen de comparacion para WhatsApp. No abras WhatsApp ni envies nada sin mi confirmacion.\n\n${shareText}`
+          : `Prepare this comparison summary for WhatsApp. Do not open WhatsApp or send anything without my confirmation.\n\n${shareText}`,
+        {
+          flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+          requestedTool: "whatsapp",
+          actionLabel: isSpanish ? "Preparar WhatsApp" : "Prepare WhatsApp",
+          summary: isSpanish ? "Resumen de comparacion preparado para WhatsApp." : "Comparison summary prepared for WhatsApp.",
+          useCase: "find_offers",
+          payload: {
+            task_type: "utility_whatsapp_summary",
+            shopping_context: "utility_comparison",
+            whatsapp_message: shareText,
+            comparison_summary: utilityResult.summary.headline,
+            current_monthly_cost: utilityResult.summary.current_monthly_cost,
+            best_estimated_monthly_cost: utilityResult.summary.best_estimated_monthly_cost,
+            calculation_note: utilityResult.calculation_note,
+            neutrality_note: utilityResult.neutrality_note,
+            source_url: utilityResult.source_url,
+          },
+        },
+      );
       return;
     }
     if (action === "save") {
