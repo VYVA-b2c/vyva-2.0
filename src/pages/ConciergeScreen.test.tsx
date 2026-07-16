@@ -1889,7 +1889,14 @@ describe("ConciergeScreen action hub", () => {
       status: "pending" as const,
       language: "en",
     }];
-    let searchBody: { query?: string } | null = null;
+    let searchBody: {
+      query?: string;
+      recheck_context?: {
+        preferred_sources?: string[];
+        criteria?: string[];
+        providers?: Array<{ id?: string; name?: string; official_website?: string | null; directory_url?: string | null }>;
+      };
+    } | null = null;
     let patchedPayload: Record<string, unknown> | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
@@ -1906,10 +1913,13 @@ describe("ConciergeScreen action hub", () => {
             phone: "+34 600 999 888",
             source_label: "Current directory",
             source_status: "verified",
+            source_type: "directory",
+            source_url: "https://directory.example/harbour",
+            checked_at: "2026-07-10T12:00:00.000Z",
             comparison: {
-              price: { criterion: "price", value: "EUR 75", status: "verified", source: "Clinic website" },
-              availability: { criterion: "availability", value: "Wednesday", status: "reported", source: "Clinic website" },
-              reputation: { criterion: "reputation", value: "4.4/5", status: "reported", source: "Public reviews" },
+              price: { criterion: "price", value: "EUR 75", status: "verified", source: "Clinic website", source_type: "provider_owned", checked_at: "2026-07-10T11:50:00.000Z" },
+              availability: { criterion: "availability", value: "Wednesday", status: "reported", source: "Current directory", source_type: "directory", checked_at: "2026-07-10T12:00:00.000Z" },
+              reputation: { criterion: "reputation", value: "4.4/5", status: "reported", source: "Public reviews", source_type: "platform", checked_at: "2026-07-10T12:00:00.000Z" },
             },
           }],
           decision_explanation: "Current options",
@@ -1931,12 +1941,30 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(await screen.findByTestId("button-provider-shortlist-recheck"));
 
     await waitFor(() => expect(searchBody?.query).toContain("doctor nearby"));
+    expect(searchBody?.recheck_context).toMatchObject({
+      preferred_sources: ["official", "provider_owned", "regulated", "directory"],
+      criteria: ["price", "availability", "accessibility", "coverage", "reputation"],
+      providers: [
+        { id: "harbour", name: "Harbour Clinic", official_website: null, directory_url: null },
+        { id: "garden", name: "Garden Care", official_website: null, directory_url: null },
+      ],
+    });
     await waitFor(() => expect(patchedPayload).toMatchObject({
       provider_shortlist: originalOptions,
       shortlist_recheck_status: "providers_unavailable",
-      shortlist_recheck_changed_count: 2,
+      shortlist_recheck_changed_count: 3,
       shortlist_recheck_unavailable_count: 1,
-      shortlist_latest_options: [expect.objectContaining({ name: "Harbour Clinic" })],
+      shortlist_latest_options: [expect.objectContaining({
+        name: "Harbour Clinic",
+        source_type: "directory",
+        checked_at: "2026-07-10T12:00:00.000Z",
+        facts: expect.objectContaining({
+          price: expect.objectContaining({
+            sourceType: "provider_owned",
+            checkedAt: "2026-07-10T11:50:00.000Z",
+          }),
+        }),
+      })],
       no_external_action_without_confirmation: true,
     }));
     expect(await screen.findByTestId("provider-shortlist-change-review")).toHaveTextContent("What changed");

@@ -3,6 +3,12 @@ import { eq } from "drizzle-orm";
 import OpenAI from "openai";
 import { db } from "../db.js";
 import { profiles, companionProfiles, socialUserInterests } from "../../shared/schema.js";
+import {
+  PROVIDER_EVIDENCE_SOURCE_PRIORITY,
+  type ProviderComparisonCriterion,
+  type ProviderComparisonEvidenceSourceType,
+  type ProviderComparisonFact,
+} from "../../shared/providerComparison.js";
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
 
 const router = Router();
@@ -20,6 +26,20 @@ interface OffersRequestBody {
   category?: OfferCategory;
   locale?: string;
   document_context?: BillDocumentAnalysis;
+  recheck_context?: ProviderRecheckRequest;
+}
+
+interface ProviderRecheckRequestTarget {
+  id?: string;
+  name: string;
+  official_website?: string | null;
+  directory_url?: string | null;
+}
+
+interface ProviderRecheckRequest {
+  preferred_sources?: ProviderComparisonEvidenceSourceType[];
+  criteria?: string[];
+  providers?: ProviderRecheckRequestTarget[];
 }
 
 type BillDocumentType =
@@ -102,14 +122,11 @@ interface RankedOffer {
   trust_note: string;
   source_label: string;
   source_status: "verified" | "reported" | "unknown";
-  comparison: {
-    distance: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
-    price: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
-    reputation: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
-    availability: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
-    accessibility: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
-    coverage: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
-  };
+  source_type: ProviderComparisonEvidenceSourceType;
+  source_url: string | null;
+  checked_at: string;
+  source_priority: ProviderComparisonEvidenceSourceType[];
+  comparison: Record<ProviderComparisonCriterion, ProviderComparisonFact>;
   score: number;
   score_breakdown: {
     distance: number;
@@ -877,40 +894,76 @@ function contactText(candidate: PlaceCandidate, locale: string): string {
   return es ? "Contacto no publicado; revisar antes." : "No published contact; check first.";
 }
 
-function comparisonFactsForCandidate(candidate: PlaceCandidate, locale: string): RankedOffer["comparison"] {
-  const es = locale === "es";
-  const source = candidate.source || null;
-  const reported = (value: string | null) => ({
+function candidateEvidenceSourceType(candidate: PlaceCandidate): ProviderComparisonEvidenceSourceType {
+  if (candidate.sourceType === "verified_local_business") return "directory";
+  if (candidate.sourceType === "known_platform") return "platform";
+  if (/ayuntamiento|town hall|municipal|regulator|regulad|public service/i.test(candidate.source)) return "official";
+  return "community";
+}
+
+function comparisonFact(
+  criterion: ProviderComparisonCriterion,
+  value: string | null,
+  candidate: PlaceCandidate,
+  checkedAt: string,
+): ProviderComparisonFact {
+  const sourceType = candidateEvidenceSourceType(candidate);
+  const sourceUrl = candidate.mapsUrl ?? null;
+  const status = value ? "reported" as const : "unknown" as const;
+  const evidence = [{
     value,
-    status: value ? "reported" as const : "unknown" as const,
-    source,
-  });
-  const distance = candidate.address
-    ? {
-        value: candidate.address,
-        status: candidate.sourceType === "verified_local_business" ? "verified" as const : "reported" as const,
-        source,
-      }
-    : reported(null);
-  const price = typeof candidate.priceLevel === "number"
-    ? reported(es ? `Nivel de precio ${candidate.priceLevel} de 4` : `Price level ${candidate.priceLevel} of 4`)
-    : reported(null);
-  const reputation = typeof candidate.rating === "number"
-    ? reported(`${candidate.rating}/5${candidate.reviewCount ? ` (${candidate.reviewCount} ${es ? "opiniones" : "reviews"})` : ""}`)
-    : reported(null);
-  const availability = candidate.openNow === true
-    ? reported(es ? "Aparece abierto ahora" : "Appears open now")
-    : candidate.openNow === false
-      ? reported(es ? "Puede estar cerrado ahora" : "May be closed now")
-      : reported(null);
+    status,
+    source: candidate.source || null,
+    sourceType,
+    sourceUrl,
+    checkedAt,
+  }];
+  return {
+    criterion,
+    value,
+    status,
+    source: candidate.source || null,
+    sourceType,
+    sourceUrl,
+    checkedAt,
+    evidence,
+    conflict: false,
+  };
+}
+
+function comparisonFactsForCandidate(candidate: PlaceCandidate, locale: string, checkedAt: string): RankedOffer["comparison"] {
+  const es = locale === "es";
 
   return {
-    distance,
-    price,
-    reputation,
-    availability,
-    accessibility: reported(null),
-    coverage: reported(null),
+    distance: comparisonFact("distance", candidate.address ?? null, candidate, checkedAt),
+    price: comparisonFact(
+      "price",
+      typeof candidate.priceLevel === "number"
+        ? es ? `Nivel de precio ${candidate.priceLevel} de 4` : `Price level ${candidate.priceLevel} of 4`
+        : null,
+      candidate,
+      checkedAt,
+    ),
+    reputation: comparisonFact(
+      "reputation",
+      typeof candidate.rating === "number"
+        ? `${candidate.rating}/5${candidate.reviewCount ? ` (${candidate.reviewCount} ${es ? "opiniones" : "reviews"})` : ""}`
+        : null,
+      candidate,
+      checkedAt,
+    ),
+    availability: comparisonFact(
+      "availability",
+      candidate.openNow === true
+        ? es ? "Aparece abierto ahora" : "Appears open now"
+        : candidate.openNow === false
+          ? es ? "Puede estar cerrado ahora" : "May be closed now"
+          : null,
+      candidate,
+      checkedAt,
+    ),
+    accessibility: comparisonFact("accessibility", null, candidate, checkedAt),
+    coverage: comparisonFact("coverage", null, candidate, checkedAt),
   };
 }
 
@@ -921,6 +974,7 @@ function buildRankedOffer(
   query: string,
   locale: string,
   index: number,
+  checkedAt: string,
 ): RankedOffer {
   const es = locale === "es";
   const score = scoreCandidate(candidate, category, context, query);
@@ -954,7 +1008,14 @@ function buildRankedOffer(
       : `Trust: ${rating}. ${candidate.rating && candidate.rating < 4.2 ? "It may be convenient, but reviews should be checked." : "Enough data to consider it."}`,
     source_label: candidate.source,
     source_status: candidate.sourceType === "verified_local_business" ? "verified" : "reported",
-    comparison: comparisonFactsForCandidate(candidate, locale),
+    source_type: candidate.website ? "provider_owned" : candidateEvidenceSourceType(candidate),
+    source_url: candidate.website ?? candidate.mapsUrl ?? null,
+    checked_at: checkedAt,
+    source_priority: [
+      ...(candidate.website ? ["provider_owned" as const] : []),
+      candidateEvidenceSourceType(candidate),
+    ],
+    comparison: comparisonFactsForCandidate(candidate, locale, checkedAt),
     score: score.total,
     score_breakdown: score.breakdown,
   };
@@ -1018,9 +1079,91 @@ function documentDecisionContext(documentContext: BillDocumentAnalysis | undefin
     : ` I considered the details read from the bill (${facts}).`;
 }
 
-async function buildOffers(query: string, category: OfferCategory, context: OfferProfileContext, locale: string, documentContext?: BillDocumentAnalysis) {
+function normalizedProviderIdentity(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function safeHostname(value: string | null | undefined): string {
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function normaliseRecheckRequest(value: ProviderRecheckRequest | undefined): ProviderRecheckRequest {
+  const preferredSources = (value?.preferred_sources ?? [])
+    .filter((source): source is ProviderComparisonEvidenceSourceType => (
+      PROVIDER_EVIDENCE_SOURCE_PRIORITY.includes(source as ProviderComparisonEvidenceSourceType)
+    ));
+  const providers = (value?.providers ?? [])
+    .filter((provider) => typeof provider?.name === "string" && Boolean(provider.name.trim()))
+    .slice(0, 3)
+    .map((provider) => ({
+      id: typeof provider.id === "string" ? provider.id.trim() : undefined,
+      name: provider.name.trim(),
+      official_website: typeof provider.official_website === "string" ? provider.official_website.trim() || null : null,
+      directory_url: typeof provider.directory_url === "string" ? provider.directory_url.trim() || null : null,
+    }));
+  return {
+    preferred_sources: preferredSources.length > 0
+      ? preferredSources
+      : ["official", "provider_owned", "regulated", "directory"],
+    criteria: Array.isArray(value?.criteria)
+      ? value.criteria.filter((criterion): criterion is string => typeof criterion === "string" && Boolean(criterion.trim()))
+      : [],
+    providers,
+  };
+}
+
+function recheckSearchTerms(recheck: ProviderRecheckRequest): string[] {
+  return (recheck.providers ?? []).map((provider) => {
+    const officialHost = safeHostname(provider.official_website);
+    return [provider.name, officialHost].filter(Boolean).join(" ");
+  });
+}
+
+function recheckCandidatePriority(candidate: PlaceCandidate, recheck: ProviderRecheckRequest): number {
+  const providers = recheck.providers ?? [];
+  if (providers.length === 0) return 0;
+  const candidateIdentity = normalizedProviderIdentity(candidate.name);
+  const candidateHost = safeHostname(candidate.website);
+  let targetScore = 0;
+  providers.forEach((provider, index) => {
+    const targetIdentity = normalizedProviderIdentity(provider.name);
+    if (candidateIdentity === targetIdentity) targetScore = Math.max(targetScore, 10_000 - index * 100);
+    else if (candidateIdentity.includes(targetIdentity) || targetIdentity.includes(candidateIdentity)) {
+      targetScore = Math.max(targetScore, 7_000 - index * 100);
+    }
+    const targetHost = safeHostname(provider.official_website);
+    if (candidateHost && targetHost && candidateHost === targetHost) {
+      targetScore = Math.max(targetScore, 12_000 - index * 100);
+    }
+  });
+  const sourceType = candidate.website ? "provider_owned" : candidateEvidenceSourceType(candidate);
+  const sourceIndex = (recheck.preferred_sources ?? []).indexOf(sourceType);
+  const sourceScore = sourceIndex >= 0 ? 500 - sourceIndex * 50 : 0;
+  return targetScore + sourceScore;
+}
+
+async function buildOffers(
+  query: string,
+  category: OfferCategory,
+  context: OfferProfileContext,
+  locale: string,
+  documentContext?: BillDocumentAnalysis,
+  recheckRequest?: ProviderRecheckRequest,
+) {
   const documentQuery = documentContextQuery(documentContext, locale);
+  const recheck = normaliseRecheckRequest(recheckRequest);
   const searchTerms = [
+    ...recheckSearchTerms(recheck),
     documentQuery,
     query,
     ...CATEGORY_SEARCH_TERMS[category],
@@ -1038,12 +1181,16 @@ async function buildOffers(query: string, category: OfferCategory, context: Offe
   const deduped = Array.from(
     new Map([...allResults, ...guidedResults].map((candidate) => [candidate.name.toLowerCase(), candidate])).values(),
   );
+  const checkedAt = new Date().toISOString();
 
   return deduped
-    .map((candidate) => buildRankedOffer(candidate, category, context, query, locale, 0))
-    .sort((a, b) => b.score - a.score)
+    .map((candidate) => ({
+      offer: buildRankedOffer(candidate, category, context, query, locale, 0, checkedAt),
+      recheckPriority: recheckCandidatePriority(candidate, recheck),
+    }))
+    .sort((a, b) => b.recheckPriority - a.recheckPriority || b.offer.score - a.offer.score)
     .slice(0, 3)
-    .map((offer, index) => ({
+    .map(({ offer }, index) => ({
       ...offer,
       label: index === 0 ? "Opcion recomendada" : index === 1 ? "Alternativa 1" : "Alternativa 2",
     }));
@@ -1125,7 +1272,7 @@ export async function analyzeOfferDocumentHandler(req: Request, res: Response) {
 router.post("/analyze-document", analyzeOfferDocumentHandler);
 
 router.post("/search", async (req: Request, res: Response) => {
-  const { query = "", category, locale = "es", document_context } = req.body as OffersRequestBody;
+  const { query = "", category, locale = "es", document_context, recheck_context } = req.body as OffersRequestBody;
   const cleanedQuery = query.trim();
   if (!cleanedQuery && !category) {
     return res.status(400).json({ error: "query or category is required" });
@@ -1140,7 +1287,14 @@ router.post("/search", async (req: Request, res: Response) => {
   const classifiedCategory = documentContext?.category ?? classifyCategory(cleanedQuery, category);
 
   try {
-    const offers = await buildOffers(cleanedQuery || classifiedCategory, classifiedCategory, context, normalizedLocale, documentContext);
+    const offers = await buildOffers(
+      cleanedQuery || classifiedCategory,
+      classifiedCategory,
+      context,
+      normalizedLocale,
+      documentContext,
+      recheck_context,
+    );
     const es = normalizedLocale === "es";
     const documentNote = documentDecisionContext(documentContext, normalizedLocale);
     return res.json({
