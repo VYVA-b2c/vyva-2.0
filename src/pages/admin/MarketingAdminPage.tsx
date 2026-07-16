@@ -4303,6 +4303,35 @@ function contentTemplatePreviewLines(template: ContentTemplate, designBrief: Ret
   ].filter(Boolean).slice(0, 5);
 }
 
+function templatePackAiCommandText(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+  const channels = Array.from(new Set(templates.map((template) => template.channel)));
+  const audiences = Array.from(new Set(templates.map((template) => template.audienceType)));
+  const categories = Array.from(new Set(templates.map((template) => template.category)));
+  const sequence = pack.sequence.map((step, index) => (
+    `${index + 1}. ${step.offset} / ${channelLabel[step.channel]} / ${step.title}: ${step.detail}`
+  ));
+  const templateLines = templates.map((template) => {
+    const firstBodyLine = template.body.split(/\n+/).map((line) => line.trim()).find(Boolean) ?? "No body yet.";
+    const subject = template.subject ? ` Subject: ${template.subject}.` : "";
+    const cta = template.ctaLabel ? ` CTA: ${template.ctaLabel}${template.ctaUrl ? ` -> ${template.ctaUrl}` : ""}.` : "";
+    return `- ${template.title} (${channelLabel[template.channel]}, ${template.audienceType.toUpperCase()}, ${template.category}).${subject} ${firstBodyLine}${cta}`;
+  });
+
+  return [
+    "VYVA template pack AI command",
+    `Pack: ${pack.title}`,
+    `Focus: ${pack.focus}`,
+    `Audience fit: ${audiences.map((audience) => audience.toUpperCase()).join(", ") || "Not set"}`,
+    `Channels: ${channels.map((channel) => channelLabel[channel]).join(", ") || "Not set"}`,
+    `Categories: ${categories.join(", ") || "Not set"}`,
+    `Goal: ${pack.description}`,
+    `Recommended sequence:\n${sequence.join("\n") || "No sequence yet."}`,
+    `Available templates:\n${templateLines.join("\n") || "No templates yet."}`,
+    `Base pack prompt:\n${pack.aiPrompt}`,
+    "AI task: Adapt this pack into a polished, publish-ready campaign plan. Return the campaign objective, audience segment, channel-specific copy, schedule, visual direction, approval checklist, publishing handoff, and relationship follow-up. Keep VYVA's tone warm, practical, consent-aware, and non-clinical.",
+  ].join("\n\n");
+}
+
 function ContentTemplateVisualPreview({
   template,
   designBrief,
@@ -12758,6 +12787,38 @@ export default function MarketingAdminPage() {
     setMessage(`Template applied: ${template.title}.`);
   }
 
+  async function copyTemplatePackAiCommand(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+    const label = `${pack.title} AI command`;
+    const text = templatePackAiCommandText(pack, templates);
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the prompt and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
   function applyTemplateGapSuggestion(suggestion: ContentTemplateGapSuggestion) {
     setContentDraft(contentDraftFromTemplate(suggestion));
     setSelectedContentId(null);
@@ -19485,6 +19546,15 @@ export default function MarketingAdminPage() {
                           <p className="mt-3 line-clamp-3 rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
                             <span className="font-black text-purple-700">AI pack prompt:</span> {pack.aiPrompt}
                           </p>
+                          <button
+                            type="button"
+                            onClick={() => void copyTemplatePackAiCommand(pack, templates)}
+                            disabled={contentSaving || templates.length === 0}
+                            className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:bg-[#f1e8f5] disabled:text-[#9d8ba3]"
+                            data-testid={`button-marketing-template-pack-copy-ai-${pack.id}`}
+                          >
+                            <Sparkles size={14} /> Copy AI command
+                          </button>
                           <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-template-pack-sequence-${pack.id}`}>
                             <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Recommended sequence</p>
                             <div className="mt-2 grid gap-2">

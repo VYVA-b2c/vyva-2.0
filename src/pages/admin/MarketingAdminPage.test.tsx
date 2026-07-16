@@ -1701,6 +1701,12 @@ describe("MarketingAdminPage", () => {
   });
 
   it("applies content templates into the draft form", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -1741,6 +1747,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("5 templates");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-ai-monthly-care-digest"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template pack AI command"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Monthly care digest"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Available templates:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Adapt this pack into a polished, publish-ready campaign plan."));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Monthly care digest AI command copied.");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-monthly-care-digest"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Monthly care digest template pack");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
