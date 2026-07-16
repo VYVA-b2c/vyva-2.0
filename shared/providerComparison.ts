@@ -67,6 +67,26 @@ export interface ProviderComparisonContext {
   criteria?: string[];
   flowReference?: string | null;
   resumeContext?: Record<string, unknown> | null;
+  capturedAt?: string | null;
+}
+
+export const PROVIDER_SHORTLIST_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type ProviderShortlistStatus = "open" | "preferred_selected" | "dismissed" | "contact_prepared";
+
+export interface ProviderShortlistState {
+  options: ProviderComparisonOption[];
+  context: ProviderComparisonContext;
+  capturedAt: string | null;
+  updatedAt: string | null;
+  preferredProviderId: string | null;
+  preferredProviderName: string | null;
+  status: ProviderShortlistStatus;
+}
+
+export interface ProviderShortlistFreshness {
+  status: "fresh" | "stale" | "unknown";
+  ageMs: number | null;
 }
 
 function clean(value: unknown): string {
@@ -85,6 +105,29 @@ function compactId(value: string): string {
 
 function evidenceStatus(value: unknown): ProviderComparisonEvidenceStatus | null {
   return value === "verified" || value === "reported" || value === "unknown" ? value : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  const normalized = clean(value);
+  return normalized || null;
+}
+
+function recordOrNull(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim())
+    : [];
+}
+
+function shortlistStatus(value: unknown): ProviderShortlistStatus {
+  return value === "preferred_selected" || value === "dismissed" || value === "contact_prepared"
+    ? value
+    : "open";
 }
 
 function fallbackFact(
@@ -213,6 +256,7 @@ export function buildProviderShortlistPayload(
   options: ProviderComparisonOption[],
   context: ProviderComparisonContext,
 ): Record<string, unknown> {
+  const capturedAt = context.capturedAt || new Date().toISOString();
   return {
     task_type: "provider_shortlist",
     shortlist_version: 1,
@@ -222,8 +266,123 @@ export function buildProviderShortlistPayload(
     criteria: context.criteria ?? [],
     flow_reference: context.flowReference ?? null,
     resume_context: context.resumeContext ?? null,
+    shortlist_captured_at: capturedAt,
+    shortlist_updated_at: capturedAt,
+    shortlist_status: "open",
+    preferred_provider_id: null,
+    preferred_provider_name: null,
     selected_provider_names: options.map((option) => option.name),
     provider_shortlist: options.map(providerComparisonSnapshot),
+    no_external_action_without_confirmation: true,
+  };
+}
+
+function parseShortlistOption(value: unknown, index: number): ProviderComparisonOption | null {
+  const record = recordOrNull(value);
+  if (!record) return null;
+  const name = clean(record.name);
+  if (!name) return null;
+  const rawFacts = recordOrNull(record.facts) ?? {};
+  const facts = PROVIDER_COMPARISON_CRITERIA.reduce<Record<ProviderComparisonCriterion, ProviderComparisonFact>>((acc, criterion) => {
+    const fact = recordOrNull(rawFacts[criterion]);
+    const factValue = stringOrNull(fact?.value);
+    acc[criterion] = {
+      criterion,
+      value: factValue,
+      status: factValue ? evidenceStatus(fact?.status) ?? "reported" : "unknown",
+      source: stringOrNull(fact?.source),
+    };
+    return acc;
+  }, {} as Record<ProviderComparisonCriterion, ProviderComparisonFact>);
+  const contact = recordOrNull(record.contact) ?? {};
+  return {
+    id: clean(record.id) || `${compactId(name) || "provider"}-${index + 1}`,
+    name,
+    category: clean(record.category) || "Provider",
+    summary: clean(record.summary),
+    whyMaySuitYou: clean(record.why_may_suit_you ?? record.whyMaySuitYou),
+    facts,
+    contact: {
+      phone: stringOrNull(contact.phone),
+      email: stringOrNull(contact.email),
+      whatsapp: stringOrNull(contact.whatsapp),
+      website: stringOrNull(contact.website),
+      bookingUrl: stringOrNull(contact.bookingUrl ?? contact.booking_url),
+      mapsUrl: stringOrNull(contact.mapsUrl ?? contact.maps_url),
+      preferredChannel: stringOrNull(contact.preferredChannel ?? contact.preferred_channel),
+    },
+    sourceLabel: stringOrNull(record.source_label ?? record.sourceLabel),
+    sourceStatus: evidenceStatus(record.source_status ?? record.sourceStatus) ?? "unknown",
+  };
+}
+
+export function parseProviderShortlistPayload(payload: unknown): ProviderShortlistState | null {
+  const record = recordOrNull(payload);
+  if (!record || record.task_type !== "provider_shortlist") return null;
+  const options = Array.isArray(record.provider_shortlist)
+    ? record.provider_shortlist.map(parseShortlistOption).filter((option): option is ProviderComparisonOption => Boolean(option)).slice(0, 3)
+    : [];
+  if (options.length === 0) return null;
+  const executionTask = recordOrNull(record.execution_task);
+  const capturedAt = stringOrNull(record.shortlist_captured_at) ?? stringOrNull(executionTask?.created_at);
+  return {
+    options,
+    context: {
+      mode: stringOrNull(record.provider_search_mode),
+      query: stringOrNull(record.provider_search_query),
+      criteria: stringList(record.criteria),
+      flowReference: stringOrNull(record.flow_reference),
+      resumeContext: recordOrNull(record.resume_context),
+      capturedAt,
+    },
+    capturedAt,
+    updatedAt: stringOrNull(record.shortlist_updated_at) ?? capturedAt,
+    preferredProviderId: stringOrNull(record.preferred_provider_id),
+    preferredProviderName: stringOrNull(record.preferred_provider_name),
+    status: shortlistStatus(record.shortlist_status),
+  };
+}
+
+export function providerShortlistFreshness(
+  capturedAt: string | null | undefined,
+  now: Date | number = Date.now(),
+): ProviderShortlistFreshness {
+  if (!capturedAt) return { status: "unknown", ageMs: null };
+  const capturedMs = new Date(capturedAt).getTime();
+  const nowMs = now instanceof Date ? now.getTime() : now;
+  if (!Number.isFinite(capturedMs) || !Number.isFinite(nowMs)) return { status: "unknown", ageMs: null };
+  const ageMs = Math.max(0, nowMs - capturedMs);
+  return { status: ageMs > PROVIDER_SHORTLIST_STALE_AFTER_MS ? "stale" : "fresh", ageMs };
+}
+
+export function updateProviderShortlistPayload(
+  payload: Record<string, unknown>,
+  options: ProviderComparisonOption[],
+  update: {
+    preferredProviderId?: string | null;
+    status?: ProviderShortlistStatus;
+    updatedAt?: string;
+  } = {},
+): Record<string, unknown> {
+  const parsed = parseProviderShortlistPayload(payload);
+  const normalizedOptions = options.slice(0, 3);
+  const preferred = update.preferredProviderId === undefined
+    ? parsed?.preferredProviderId ?? null
+    : update.preferredProviderId;
+  const preferredOption = normalizedOptions.find((option) => option.id === preferred) ?? null;
+  const capturedAt = parsed?.capturedAt ?? new Date().toISOString();
+  return {
+    ...payload,
+    task_type: "provider_shortlist",
+    shortlist_version: 1,
+    shortlist_only: true,
+    shortlist_captured_at: capturedAt,
+    shortlist_updated_at: update.updatedAt ?? new Date().toISOString(),
+    shortlist_status: update.status ?? parsed?.status ?? "open",
+    preferred_provider_id: preferredOption?.id ?? null,
+    preferred_provider_name: preferredOption?.name ?? null,
+    selected_provider_names: normalizedOptions.map((option) => option.name),
+    provider_shortlist: normalizedOptions.map(providerComparisonSnapshot),
     no_external_action_without_confirmation: true,
   };
 }

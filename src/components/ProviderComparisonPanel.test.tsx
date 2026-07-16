@@ -89,4 +89,36 @@ describe("ProviderComparisonPanel", () => {
     expect(onPrepareContact).toHaveBeenCalledWith(options[0]);
     expect(onWatch).toHaveBeenCalledWith(options[0]);
   });
+
+  it("supports an explicit preferred choice only when the follow-up flow enables it", () => {
+    const onSelectPreferred = vi.fn();
+    const { rerender } = render(
+      <ProviderComparisonPanel
+        options={options}
+        locale="en"
+        shortlistedIds={["provider-a"]}
+        onToggleShortlist={vi.fn()}
+        onSaveProvider={vi.fn()}
+        onPrepareContact={vi.fn()}
+        onSelectPreferred={onSelectPreferred}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-provider-comparison-choose-provider-a"));
+    expect(onSelectPreferred).toHaveBeenCalledWith(options[0]);
+
+    rerender(
+      <ProviderComparisonPanel
+        options={options}
+        locale="en"
+        shortlistedIds={["provider-a"]}
+        preferredId="provider-a"
+        onToggleShortlist={vi.fn()}
+        onSaveProvider={vi.fn()}
+        onPrepareContact={vi.fn()}
+        onSelectPreferred={onSelectPreferred}
+      />,
+    );
+    expect(screen.getByTestId("button-provider-comparison-choose-provider-a")).toHaveTextContent("Preferred choice");
+  });
 });

@@ -260,14 +260,17 @@
       "kickerConfirm": "Precisa do seu OK",
       "kickerReview": "Rever",
       "kickerWaiting": "A aguardar",
+      "kickerProviderShortlist": "Selecao guardada",
       "titlePrefix": "VYVA esta a tratar do seu",
       "titleConfirmPrefix": "Confirme o seu",
       "titleReviewPrefix": "Reveja o seu",
+      "titleProviderShortlistPrefix": "Reveja as suas",
       "task": {
         "ride": "transporte",
         "appointment": "consulta",
         "pharmacy": "pedido de farmacia",
         "homeService": "servico em casa",
+        "providerShortlist": "opcoes guardadas",
         "default": "pedido"
       },
       "fastStatus": {
@@ -275,6 +278,7 @@
         "appointment": "Ver consulta",
         "pharmacy": "Ver farmacia",
         "homeService": "Ver servico",
+        "providerShortlist": "Rever selecao",
         "default": "Ver pedido"
       },
       "step": {
@@ -283,7 +287,8 @@
         "form": "A preparar formulario",
         "save": "Pronto para guardar",
         "attention": "Precisa da sua revisao",
-        "confirm": "A aguardar a sua confirmacao"
+        "confirm": "A aguardar a sua confirmacao",
+        "providerShortlist": "Rever opcoes guardadas"
       },
       "open": "Abrir agora"
     },
