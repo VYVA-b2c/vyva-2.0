@@ -208,14 +208,14 @@ describe("cross-app workflow registry", () => {
     expect(WORKFLOW_STATUSES.reduce((total, status) => total + summary.byStatus[status], 0)).toBe(summary.workflows.total);
     expect(summary.partialWorkflows).toEqual(expect.arrayContaining([
       APP_WORKFLOW_REFERENCES.medicationResearch,
-      APP_WORKFLOW_REFERENCES.learningReadAloud,
     ]));
+    expect(summary.partialWorkflows).not.toContain(APP_WORKFLOW_REFERENCES.learningReadAloud);
   });
 
   it("surfaces the next incomplete implementation candidates from the registry", () => {
     const candidates = nextWorkflowImplementationCandidates(3);
 
-    expect(candidates).toHaveLength(2);
+    expect(candidates).toHaveLength(1);
     expect(candidates.every((candidate) => candidate.coverageState !== "complete")).toBe(true);
     expect(candidates[0].coverageState).toBe("partial");
   });
