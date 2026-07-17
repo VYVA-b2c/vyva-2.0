@@ -2,6 +2,10 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomeScreen from "./HomeScreen";
+import {
+  markHomeFastHelpJourney,
+  startHomeFastHelpJourney,
+} from "@/lib/homeFastHelpOutcome";
 
 const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
@@ -222,6 +226,7 @@ describe("Home fast service actions", () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    guardPathMock.mockReturnValue(true);
     canUseServiceMock.mockReturnValue(true);
     voiceHeroMock.mockClear();
     profileMock.firstName = "Karim";
@@ -748,8 +753,8 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-fast-find-care"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
-      state: {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", expect.objectContaining({
+      state: expect.objectContaining({
         conciergePrefill: expect.objectContaining({
           kind: "task",
           flowReference: "FLOW_CARE_NAVIGATION",
@@ -758,13 +763,66 @@ describe("Home fast service actions", () => {
           useCase: "find_provider",
           source: "home_quick_action",
         }),
-      },
-    });
+        homeFastHelpContext: expect.objectContaining({
+          actionId: "find-care",
+          destinationPath: "/concierge",
+        }),
+      }),
+    }));
     expect(JSON.parse(
       window.localStorage.getItem("vyva:home-fast-help-history:v1:profile-home") ?? "[]",
     )).toEqual(expect.arrayContaining([
       expect.objectContaining({ actionId: "find-care", status: "used" }),
     ]));
+  });
+
+  it("replaces an unfinished choice with Continue and resumes the same journey", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    const started = startHomeFastHelpJourney({
+      actionId: "find-care",
+      destinationPath: "/concierge",
+      destinationState: { conciergePrefill: { useCase: "find_provider" } },
+      profileId: profileMock.profileId,
+      occurredAtMs: Date.now() - 60_000,
+    });
+
+    render(<HomeScreen />);
+
+    const continueButton = screen.getByTestId("button-home-fast-find-care");
+    expect(continueButton).toHaveTextContent("Continue");
+    expect(continueButton).toHaveTextContent("Continue Find Care");
+    fireEvent.click(continueButton);
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: expect.objectContaining({
+        conciergePrefill: { useCase: "find_provider" },
+        homeFastHelpContext: expect.objectContaining({
+          journeyId: started.journey.id,
+          actionId: "find-care",
+        }),
+      }),
+    });
+  });
+
+  it("suppresses a blocked choice and explains the useful alternative", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    const started = startHomeFastHelpJourney({
+      actionId: "find-care",
+      destinationPath: "/concierge",
+      profileId: profileMock.profileId,
+      occurredAtMs: Date.now() - 60_000,
+    });
+    markHomeFastHelpJourney(started.context, "blocked", {
+      occurredAtMs: Date.now() - 30_000,
+      reason: "service_not_ready",
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.queryByTestId("button-home-fast-find-care")).not.toBeInTheDocument();
+    expect(screen.getByTestId("home-fast-help")).toHaveTextContent("Try this useful next step instead");
   });
 
   it("puts an urgent health signal first with a reassuring reason", () => {

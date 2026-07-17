@@ -82,6 +82,32 @@ describe("contextual Home Fast Help ranking", () => {
     ]));
   });
 
+  it("suppresses a blocked action but restores an unfinished action as the first choice", () => {
+    const nowMs = Date.parse("2026-07-17T12:00:00.000Z");
+    const blocked = rankContextualHomeFastHelp({
+      activity: [{
+        actionId: "find-care",
+        status: "blocked",
+        occurredAt: "2026-07-17T11:55:00.000Z",
+      }],
+      hour: 14,
+      nowMs,
+    });
+    expect(blocked.map((action) => action.id)).not.toContain("find-care");
+
+    const resumed = rankContextualHomeFastHelp({
+      activity: [{
+        actionId: "book-ride",
+        status: "used",
+        occurredAt: "2026-07-17T11:55:00.000Z",
+      }],
+      hour: 14,
+      nowMs,
+      resumeActionId: "book-ride",
+    });
+    expect(resumed[0].id).toBe("book-ride");
+  });
+
   it("preserves a safety fallback when profile signals favor service actions", () => {
     const ranked = rankContextualHomeFastHelp({
       hour: 14,

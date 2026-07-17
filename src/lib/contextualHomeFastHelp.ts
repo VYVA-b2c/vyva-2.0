@@ -24,7 +24,7 @@ export type ContextualHomeFastHelpReason =
   | "organizePaperwork"
   | "safetyFallback";
 
-export type HomeFastHelpActivityStatus = "used" | "completed" | "dismissed";
+export type HomeFastHelpActivityStatus = "used" | "completed" | "dismissed" | "blocked";
 
 export type HomeFastHelpActivity = {
   actionId: ContextualHomeFastHelpActionId;
@@ -53,6 +53,7 @@ export type ContextualHomeFastHelpInput = {
   hour: number;
   nowMs?: number;
   profile?: ContextualHomeFastHelpProfile | null;
+  resumeActionId?: ContextualHomeFastHelpActionId | null;
   signals?: ContextualHomeFastHelpSignals | null;
   visibleCount?: number;
 };
@@ -143,6 +144,7 @@ function shouldSuppressActivity(activity: HomeFastHelpActivity, nowMs: number) {
   const age = activityAgeMs(activity, nowMs);
   if (activity.status === "used") return age < DAY_MS;
   if (activity.status === "dismissed") return age < 3 * DAY_MS;
+  if (activity.status === "blocked") return age < DAY_MS;
   return age < 7 * DAY_MS;
 }
 
@@ -150,6 +152,7 @@ function historyPenalty(activity: HomeFastHelpActivity, nowMs: number) {
   const age = activityAgeMs(activity, nowMs);
   if (activity.status === "used") return age < 3 * DAY_MS ? 35 : 0;
   if (activity.status === "dismissed") return age < 7 * DAY_MS ? 55 : 0;
+  if (activity.status === "blocked") return age < 3 * DAY_MS ? 60 : 0;
   return age < 14 * DAY_MS ? 45 : 0;
 }
 
@@ -195,6 +198,7 @@ export function rankContextualHomeFastHelp({
   hour,
   nowMs = Date.now(),
   profile,
+  resumeActionId = null,
   signals,
   visibleCount = 3,
 }: ContextualHomeFastHelpInput): RankedContextualHomeFastHelpAction[] {
@@ -256,6 +260,14 @@ export function rankContextualHomeFastHelp({
     if (shouldSuppressActivity(entry, nowMs)) action.suppressed = true;
   }
 
+  if (resumeActionId && resumeActionId !== activeTaskActionId) {
+    const resumeAction = byId.get(resumeActionId);
+    if (resumeAction) {
+      resumeAction.suppressed = false;
+      resumeAction.score += 240;
+    }
+  }
+
   const available = sortedActions(actions.filter((action) => !action.suppressed));
   const suppressed = sortedActions(actions.filter((action) => action.suppressed));
   let selected = available.slice(0, count);
@@ -303,7 +315,7 @@ export function readHomeFastHelpHistory(storageKey: string): HomeFastHelpActivit
     return parsed.filter((entry): entry is HomeFastHelpActivity => (
       Boolean(entry)
       && ACTION_ORDER.includes(entry.actionId)
-      && ["used", "completed", "dismissed"].includes(entry.status)
+      && ["used", "completed", "dismissed", "blocked"].includes(entry.status)
       && typeof entry.occurredAt === "string"
       && Number.isFinite(new Date(entry.occurredAt).getTime())
     )).slice(0, MAX_STORED_ACTIVITY);

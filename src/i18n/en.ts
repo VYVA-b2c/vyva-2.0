@@ -1921,6 +1921,11 @@
         organizePaperwork: "Get things ready before anything is sent",
         safetyFallback: "Here whenever something feels unsafe",
       },
+      outcome: {
+        continue: "Continue",
+        continueDetail: "Continue {{action}}",
+        blockedAlternative: "Try this useful next step instead",
+      },
     },
     nudge: {
       text: "Not sure where to start?",

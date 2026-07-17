@@ -1401,6 +1401,11 @@ const it = {
         organizePaperwork: "Prepara tutto prima di inviare",
         safetyFallback: "Qui quando qualcosa non sembra sicuro",
       },
+      outcome: {
+        continue: "Continua",
+        continueDetail: "Continua con {{action}}",
+        blockedAlternative: "Prova invece questo prossimo passo utile",
+      },
     },
   },
   concierge: {

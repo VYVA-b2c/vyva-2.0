@@ -1621,6 +1621,11 @@ const es = {
         organizePaperwork: "Deja todo listo antes de enviar",
         safetyFallback: "Aqui siempre que algo parezca inseguro",
       },
+      outcome: {
+        continue: "Continuar",
+        continueDetail: "Continuar con {{action}}",
+        blockedAlternative: "Prueba este siguiente paso util",
+      },
     },
   },
   concierge: {
