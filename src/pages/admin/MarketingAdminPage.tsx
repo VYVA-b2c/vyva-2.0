@@ -13368,6 +13368,107 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function createAndLinkAllMissingCampaignContent() {
+    if (!editingCampaignId) return;
+    const channels = campaignChannelsWithPrimary(campaignEditDraft);
+    const missingChannels = channels.filter((channel) => !channel.contentAssetId);
+    if (!missingChannels.length) {
+      setCampaignEmailFeedback("All campaign channels already have linked content.");
+      return;
+    }
+    if (!campaignEditDraft.name.trim()) {
+      setCampaignEmailFeedback("Campaign name is required before creating channel content.");
+      return;
+    }
+
+    const missingLabels = missingChannels.map((channel) => channelLabel[channel.channel]);
+    setContentSaving(true);
+    setCampaignSaving(true);
+    setCampaignEmailFeedback(missingChannels.length === 1
+      ? `Creating and linking ${missingLabels[0]} content...`
+      : `Creating and linking ${missingChannels.length} missing channel assets...`);
+    try {
+      const createdContent: ContentAsset[] = [];
+      const contentIdByChannelId = new Map<string, string>();
+      for (const channelDraft of missingChannels) {
+        const contentDraft = contentDraftFromCampaignEditChannel(campaignEditDraft, channelDraft, selectedCampaignTargetAudience);
+        const contentResult = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+          method: "POST",
+          body: JSON.stringify(contentCreatePayloadFromDraft(contentDraft)),
+        });
+        createdContent.push(contentResult.content);
+        contentIdByChannelId.set(channelDraft.id, contentResult.content.id);
+      }
+
+      const nextChannels = channels.map((channel) => (
+        contentIdByChannelId.has(channel.id)
+          ? { ...channel, contentAssetId: contentIdByChannelId.get(channel.id) ?? channel.contentAssetId }
+          : channel
+      ));
+      const primary = nextChannels[0] ?? newCampaignChannelDraft();
+      const nextDraft: CampaignEditDraft = {
+        ...campaignEditDraft,
+        channel: primary.channel,
+        contentAssetId: primary.contentAssetId,
+        status: primary.status,
+        scheduleStartsAt: primary.scheduledAt,
+        channels: nextChannels,
+      };
+      const existingMetadata = parseJsonText(nextDraft.metadataText, "Campaign metadata");
+      const result = await api<{ ok?: boolean; campaign?: Campaign }>(`/api/admin/marketing/campaigns/${editingCampaignId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: nextDraft.name,
+          audienceType: nextDraft.audienceType,
+          status: nextDraft.status,
+          objective: nextDraft.objective,
+          scheduleStartsAt: fromDateTimeLocal(nextDraft.scheduleStartsAt),
+          scheduleEndsAt: fromDateTimeLocal(nextDraft.scheduleEndsAt),
+          timezone: nextDraft.timezone,
+          source: nextDraft.source.trim() || "vyva",
+          lovableExternalId: nextDraft.lovableExternalId.trim() || null,
+          metadata: campaignMetadataWithTarget(existingMetadata, selectedCampaignTargetAudience),
+          channels: campaignChannelsPayload(nextDraft),
+        }),
+      });
+      const createdIds = new Set(createdContent.map((item) => item.id));
+      setContent((current) => [...createdContent, ...current.filter((item) => !createdIds.has(item.id))]);
+      const firstCreated = createdContent[0] ?? null;
+      if (firstCreated) {
+        setSelectedContentId(firstCreated.id);
+        setEditingContentId(firstCreated.id);
+        setContentEditDraft(contentEditDraftFromContent(firstCreated));
+        setContentDrawerMode("edit");
+      }
+      if (result.campaign) {
+        setCampaigns((current) => current.map((campaign) => campaign.id === result.campaign?.id ? result.campaign : campaign));
+        setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
+      } else {
+        setCampaignEditDraft(nextDraft);
+      }
+      const feedback = createdContent.length === 1
+        ? `${missingLabels[0]} content created, linked, and saved to this campaign.`
+        : `${createdContent.length} channel content assets created, linked, and saved to this campaign.`;
+      setContentFeedback(feedback);
+      setContentActionFeedback(feedback);
+      setCampaignEmailFeedback(feedback);
+      setCampaignHandoffCopyFeedback(feedback);
+      setMessage(feedback);
+      setTestEmailFeedback("");
+      setManualPublishFeedback("");
+      await refreshAll();
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Missing campaign content could not be created and linked.";
+      setContentFeedback(messageText);
+      setContentActionFeedback(messageText);
+      setCampaignEmailFeedback(messageText);
+      setMessage(messageText);
+    } finally {
+      setCampaignSaving(false);
+      setContentSaving(false);
+    }
+  }
+
   function prepareManualCampaignChannelTracking(channelId: string, channel: Channel, scheduledAt: string | null) {
     updateCampaignChannel(channelId, { status: "published" });
     setManualPublishDraft((draft) => ({
@@ -19673,12 +19774,16 @@ export default function MarketingAdminPage() {
                                 <button
                                   type="button"
                                   disabled={contentSaving || campaignSaving}
-                                  onClick={() => void createAndLinkCampaignChannelContent(firstMissingCampaignContentChannel.id)}
+                                  onClick={() => void createAndLinkAllMissingCampaignContent()}
                                   className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                                   data-testid="button-marketing-campaign-create-missing-content"
                                 >
                                   <Sparkles size={15} aria-hidden="true" />
-                                  {contentSaving || campaignSaving ? "Creating..." : `Create ${channelLabel[firstMissingCampaignContentChannel.channel]} content`}
+                                  {contentSaving || campaignSaving
+                                    ? "Creating..."
+                                    : missingCampaignContentChannels.length > 1
+                                      ? `Create all ${missingCampaignContentChannels.length} missing assets`
+                                      : `Create ${channelLabel[firstMissingCampaignContentChannel.channel]} content`}
                                 </button>
                               ) : null}
                               <button

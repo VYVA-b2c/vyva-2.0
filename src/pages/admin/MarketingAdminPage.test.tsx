@@ -4837,4 +4837,69 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Content: Partner outreach LinkedIn content");
     expect(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview content");
   });
+
+  it("creates all missing campaign channel content from the creative accelerator", async () => {
+    renderPage({}, {
+      campaigns: [
+        campaigns[0],
+        {
+          ...campaigns[1],
+          channels: [
+            { id: "channel-2", channel: "linkedin", contentAssetId: null, scheduledAt: null, status: "draft", sendCapability: "locked" },
+            { id: "channel-2-whatsapp", channel: "whatsapp", contentAssetId: null, scheduledAt: null, status: "draft", sendCapability: "future_send_capable" },
+          ],
+        },
+      ],
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-2"));
+
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Fix the creative gap");
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("LinkedIn, WhatsApp");
+    expect(screen.getByTestId("button-marketing-campaign-create-missing-content")).toHaveTextContent("Create all 2 missing assets");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-create-missing-content"));
+
+    await waitFor(() => {
+      const postCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+      expect(postCalls).toHaveLength(2);
+    });
+    const contentPostBodies = apiFetchMock.mock.calls
+      .filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body))) as Array<{ title: string; channel: string; body: string; ctaLabel: string; ctaUrl: string }>;
+    expect(contentPostBodies.map((body) => body.channel)).toEqual(["linkedin", "whatsapp"]);
+    expect(contentPostBodies[0]).toMatchObject({
+      title: "Partner outreach LinkedIn content",
+      channel: "linkedin",
+      body: expect.stringContaining("Warm B2B leads"),
+    });
+    expect(contentPostBodies[1]).toMatchObject({
+      title: "Partner outreach WhatsApp content",
+      channel: "whatsapp",
+      body: expect.stringContaining("Warm B2B leads"),
+    });
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const campaignPatchCalls = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/campaigns/campaign-2" && init?.method === "PATCH");
+    const latestCampaignPatch = campaignPatchCalls[campaignPatchCalls.length - 1];
+    const campaignPatchBody = JSON.parse(String(latestCampaignPatch?.[1]?.body));
+    expect(campaignPatchBody.channels).toEqual([
+      expect.objectContaining({
+        channel: "linkedin",
+        contentAssetId: "content-created",
+        status: "draft",
+      }),
+      expect.objectContaining({
+        channel: "whatsapp",
+        contentAssetId: "content-created",
+        status: "draft",
+      }),
+    ]);
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("2 channel content assets created, linked, and saved to this campaign.");
+    });
+  });
 });
