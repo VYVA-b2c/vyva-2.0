@@ -11,6 +11,11 @@ import {
 import type { ConciergeToolRequirement } from "../../shared/conciergeFlowRegistry.js";
 import { pool } from "../db.js";
 import { runConciergeActionAdapterProbe } from "./conciergeActionAdapters.js";
+import {
+  ownedConciergeEmailAdapterBlockers,
+  ownedConciergeEmailAdapterConfigured,
+  ownedConciergeEmailAdapterReference,
+} from "./conciergeEmailAdapter.js";
 
 const OUTBOUND_AGENT_ENV_KEYS = [
   "ELEVENLABS_CONCIERGE_CALLER_AGENT_ID",
@@ -282,8 +287,10 @@ function adapterSetupForChannel(
   const storedCredentialReference = cleanText(setting?.adapterCredentialReference);
   const storedQaTarget = cleanText(setting?.adapterQaTarget);
   const phoneConfigured = isPhoneChannelFullyConfigured();
+  const ownedEmailConfigured = channel === "email" && ownedConciergeEmailAdapterConfigured();
+  const ownedEmailReference = channel === "email" ? ownedConciergeEmailAdapterReference() : null;
   const endpointConfigured = channel === "phone_call" ? false : Boolean(storedEndpoint || endpointEnvKey);
-  const configured = channel === "phone_call" ? phoneConfigured : endpointConfigured;
+  const configured = channel === "phone_call" ? phoneConfigured : endpointConfigured || ownedEmailConfigured;
   const source: AdapterSetupSource = configured
     ? (storedEndpoint ? "admin_console" : "environment")
     : "missing";
@@ -292,17 +299,19 @@ function adapterSetupForChannel(
   if (!configured) {
     blockers.push(channel === "phone_call"
       ? "ElevenLabs API key, caller agent, and phone number references are not fully configured."
-      : "Live adapter endpoint is not configured.");
+      : channel === "email" && ownedEmailReference
+        ? ownedConciergeEmailAdapterBlockers().join(" ")
+        : "Live adapter endpoint is not configured.");
   }
 
   return {
     version: 1,
     configured,
     source,
-    live_endpoint_configured: endpointConfigured,
+    live_endpoint_configured: endpointConfigured || ownedEmailConfigured,
     live_endpoint_url: storedEndpoint,
-    live_endpoint_reference: storedEndpoint ?? endpointEnvKey,
-    credential_reference: storedCredentialReference ?? (phoneConfigured ? "ELEVENLABS_API_KEY" : null),
+    live_endpoint_reference: storedEndpoint ?? endpointEnvKey ?? ownedEmailReference,
+    credential_reference: storedCredentialReference ?? (phoneConfigured ? "ELEVENLABS_API_KEY" : ownedEmailConfigured ? "RESEND_API_KEY" : null),
     qa_target_configured: Boolean(storedQaTarget || qaEnvKey),
     qa_target: storedQaTarget,
     qa_target_reference: storedQaTarget ?? qaEnvKey,
@@ -357,6 +366,7 @@ function isMissingReadinessColumnError(error: unknown): boolean {
 
 export function loadConciergeChannelReadinessFlags(): ConciergeChannelReadinessFlags {
   const phoneConfigured = isPhoneChannelFullyConfigured();
+  const emailConfigured = Boolean(liveEndpointEnvKey("email")) || ownedConciergeEmailAdapterConfigured();
 
   return {
     phone_call: {
@@ -367,8 +377,9 @@ export function loadConciergeChannelReadinessFlags(): ConciergeChannelReadinessF
     },
     email: {
       adminEnabled: envFlag(["CONCIERGE_EMAIL_CHANNEL_READY", "CONCIERGE_CHANNEL_EMAIL_READY"]),
-      configured: Boolean(liveEndpointEnvKey("email")),
+      configured: emailConfigured,
       verified: envFlag(["CONCIERGE_EMAIL_CHANNEL_VERIFIED", "CONCIERGE_CHANNEL_EMAIL_VERIFIED"]),
+      notes: emailConfigured ? "Email adapter configuration detected." : "Email adapter is not configured.",
     },
     whatsapp: {
       adminEnabled: envFlag(["CONCIERGE_WHATSAPP_CHANNEL_READY", "CONCIERGE_CHANNEL_WHATSAPP_READY"]),
