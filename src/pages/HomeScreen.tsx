@@ -291,6 +291,7 @@ function conciergeHomeStatus(item: ConciergePendingHomeItem) {
 }
 
 function conciergeTaskKind(useCase: string | null | undefined, payload: Record<string, unknown> | null | undefined) {
+  if (payload?.task_type === "provider_shortlist") return "providerShortlist";
   const appointmentType = typeof payload?.appointment_type === "string"
     ? payload.appointment_type
     : "";
@@ -336,6 +337,8 @@ function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate
       return t("home.conciergeResume.task.homeService", "home service");
     case "provider":
       return t("home.conciergeResume.task.provider", "provider search");
+    case "providerShortlist":
+      return t("home.conciergeResume.task.providerShortlist", "saved options");
     case "admin":
       return t("home.conciergeResume.task.admin", "admin task");
     case "safety":
@@ -467,6 +470,7 @@ function conciergeHomeWaitingLabel(
 }
 
 function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+  if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.step.providerShortlist", "Review saved options");
   if (isShowVyvaPreparedTask(item.action_payload)) {
     return t("home.showVyvaResume.step", "Review first");
   }
@@ -479,6 +483,7 @@ function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate
 }
 
 function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+  if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.kickerProviderShortlist", "Saved shortlist");
   if (isShowVyvaPreparedTask(item.action_payload)) return t("home.showVyvaResume.kicker", "VYVA prepared this");
   const status = conciergeHomeStatus(item);
   if (status === "failed") return t("home.conciergeResume.kickerReview", "Needs review");
@@ -488,6 +493,7 @@ function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTransla
 }
 
 function conciergeHomeTitlePrefix(item: ConciergePendingHomeItem, t: HomeTranslate) {
+  if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.titleProviderShortlistPrefix", "Review your");
   const status = conciergeHomeStatus(item);
   if (status === "failed") return t("home.conciergeResume.titleReviewPrefix", "Review your");
   if (status === "pending") return t("home.conciergeResume.titleConfirmPrefix", "Confirm your");
@@ -506,6 +512,8 @@ function conciergeHomeFastStatusLabel(item: ConciergePendingHomeItem, t: HomeTra
       return t("home.conciergeResume.fastStatus.homeService", "Check home service");
     case "provider":
       return t("home.conciergeResume.fastStatus.provider", "Check provider search");
+    case "providerShortlist":
+      return t("home.conciergeResume.fastStatus.providerShortlist", "Review shortlist");
     case "admin":
       return t("home.conciergeResume.fastStatus.admin", "Check admin task");
     case "safety":
@@ -1031,7 +1039,7 @@ const HomeScreen = () => {
               mode,
             },
           }
-        : { focusRightNow: true },
+        : { focusRightNow: true, conciergePendingId: activeConciergeHomeTask.id },
     });
   };
   const activeConciergeFastHelpAction: MasterFastHelpAction | null = activeConciergeHomeTask ? {
@@ -1041,7 +1049,7 @@ const HomeScreen = () => {
     detail: activeConciergeWaitingText,
     tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
     pinned: true,
-    onClick: () => handleNavigate("/concierge", { state: { focusRightNow: true } }),
+    onClick: () => handleNavigate("/concierge", { state: { focusRightNow: true, conciergePendingId: activeConciergeHomeTask.id } }),
     testId: "button-home-fast-concierge-status",
   } : null;
   const homeMasterFastHelpActionsWithStatus = activeConciergeFastHelpAction

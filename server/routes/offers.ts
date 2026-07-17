@@ -100,6 +100,16 @@ interface RankedOffer {
   website?: string;
   maps_url?: string;
   trust_note: string;
+  source_label: string;
+  source_status: "verified" | "reported" | "unknown";
+  comparison: {
+    distance: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
+    price: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
+    reputation: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
+    availability: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
+    accessibility: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
+    coverage: { value: string | null; status: "verified" | "reported" | "unknown"; source: string | null };
+  };
   score: number;
   score_breakdown: {
     distance: number;
@@ -867,6 +877,43 @@ function contactText(candidate: PlaceCandidate, locale: string): string {
   return es ? "Contacto no publicado; revisar antes." : "No published contact; check first.";
 }
 
+function comparisonFactsForCandidate(candidate: PlaceCandidate, locale: string): RankedOffer["comparison"] {
+  const es = locale === "es";
+  const source = candidate.source || null;
+  const reported = (value: string | null) => ({
+    value,
+    status: value ? "reported" as const : "unknown" as const,
+    source,
+  });
+  const distance = candidate.address
+    ? {
+        value: candidate.address,
+        status: candidate.sourceType === "verified_local_business" ? "verified" as const : "reported" as const,
+        source,
+      }
+    : reported(null);
+  const price = typeof candidate.priceLevel === "number"
+    ? reported(es ? `Nivel de precio ${candidate.priceLevel} de 4` : `Price level ${candidate.priceLevel} of 4`)
+    : reported(null);
+  const reputation = typeof candidate.rating === "number"
+    ? reported(`${candidate.rating}/5${candidate.reviewCount ? ` (${candidate.reviewCount} ${es ? "opiniones" : "reviews"})` : ""}`)
+    : reported(null);
+  const availability = candidate.openNow === true
+    ? reported(es ? "Aparece abierto ahora" : "Appears open now")
+    : candidate.openNow === false
+      ? reported(es ? "Puede estar cerrado ahora" : "May be closed now")
+      : reported(null);
+
+  return {
+    distance,
+    price,
+    reputation,
+    availability,
+    accessibility: reported(null),
+    coverage: reported(null),
+  };
+}
+
 function buildRankedOffer(
   candidate: PlaceCandidate,
   category: OfferCategory,
@@ -905,6 +952,9 @@ function buildRankedOffer(
     trust_note: es
       ? `Confianza: ${rating}. ${candidate.rating && candidate.rating < 4.2 ? "Es economica o cercana, pero conviene revisar opiniones." : "Datos suficientes para considerarla."}`
       : `Trust: ${rating}. ${candidate.rating && candidate.rating < 4.2 ? "It may be convenient, but reviews should be checked." : "Enough data to consider it."}`,
+    source_label: candidate.source,
+    source_status: candidate.sourceType === "verified_local_business" ? "verified" : "reported",
+    comparison: comparisonFactsForCandidate(candidate, locale),
     score: score.total,
     score_breakdown: score.breakdown,
   };

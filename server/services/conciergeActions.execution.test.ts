@@ -6,12 +6,18 @@ const dbMock = vi.hoisted(() => ({
   },
   pool: {
     query: vi.fn(),
+    connect: vi.fn(),
   },
 }));
 
 vi.mock("../db.js", () => dbMock);
 
-import { confirmPendingConciergeActionReview, startPendingConciergeAction } from "./conciergeActions.js";
+import {
+  completePendingConciergeAction,
+  confirmPendingConciergeActionReview,
+  startPendingConciergeAction,
+} from "./conciergeActions.js";
+import { CONCIERGE_DRY_RUN_FIXTURES } from "../../shared/conciergeDryRun";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -53,6 +59,20 @@ function lastUpdatedPayload() {
   return JSON.parse(rawPayload as string) as Record<string, unknown>;
 }
 
+function mockCompletionClient() {
+  const client = {
+    query: vi.fn(async (sql: string, params?: unknown[]) => {
+      if (sql.includes("insert into concierge_sessions")) {
+        return { rows: [{ id: "session-dry-run" }], rowCount: 1, params };
+      }
+      return { rows: [], rowCount: 1, params };
+    }),
+    release: vi.fn(),
+  };
+  dbMock.pool.connect.mockResolvedValue(client);
+  return client;
+}
+
 describe("confirmed Concierge action execution", () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
@@ -62,8 +82,21 @@ describe("confirmed Concierge action execution", () => {
     delete process.env.ELEVENLABS_OUTBOUND_AGENT_ID;
     delete process.env.ELEVENLABS_CONCIERGE_PHONE_NUMBER_ID;
     delete process.env.ELEVENLABS_AGENT_PHONE_NUMBER_ID;
+    delete process.env.CONCIERGE_PHONE_CALL_CHANNEL_READY;
+    delete process.env.CONCIERGE_PHONE_CALL_CHANNEL_CONFIGURED;
+    delete process.env.CONCIERGE_PHONE_CALL_CHANNEL_VERIFIED;
+    delete process.env.CONCIERGE_EMAIL_CHANNEL_READY;
+    delete process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED;
+    delete process.env.CONCIERGE_EMAIL_CHANNEL_VERIFIED;
+    delete process.env.CONCIERGE_WHATSAPP_CHANNEL_READY;
+    delete process.env.CONCIERGE_WHATSAPP_CHANNEL_CONFIGURED;
+    delete process.env.CONCIERGE_WHATSAPP_CHANNEL_VERIFIED;
+    delete process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_READY;
+    delete process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED;
+    delete process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_VERIFIED;
     dbMock.db.select.mockReset();
     dbMock.pool.query.mockReset();
+    dbMock.pool.connect.mockReset();
     mockProfile();
     globalThis.fetch = vi.fn();
   });
@@ -158,7 +191,63 @@ describe("confirmed Concierge action execution", () => {
     ]));
   });
 
+  it("queues a direct phone action without calling when the phone channel is not admin-ready", async () => {
+    mockPendingRow({
+      id: "88888888-8888-4888-8888-888888888888",
+      user_id: "user-1",
+      use_case: "book_ride",
+      provider_id: null,
+      provider_name: "Radio Taxi",
+      provider_phone: "+34600111222",
+      found_externally: false,
+      action_summary: "Call Radio Taxi for a ride.",
+      action_payload: {
+        pickup_address: "Home",
+        destination_address: "Clinic",
+        requested_time: "Friday morning",
+        execution_channel: "phone",
+      },
+      language: "en",
+      status: "pending",
+    });
+
+    const result = await startPendingConciergeAction("88888888-8888-4888-8888-888888888888", "user-1");
+
+    expect(result).toMatchObject({
+      status: "pending",
+      conversationId: null,
+      callSid: null,
+      message: expect.stringContaining("phone calls channel is not ready"),
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    const payload = lastUpdatedPayload();
+    expect(payload.execution_task).toMatchObject({
+      lifecycle_status: "confirmed",
+      user_confirmed: true,
+      active_tool: "phone_call",
+      external_action_allowed: false,
+      execution_mode: "blocked",
+      channel_readiness: {
+        channel: "phone_call",
+        status: "disabled",
+        external_action_allowed: false,
+      },
+    });
+    expect(payload.execution_audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "operator_handoff_queued",
+        mode: "operator_queue",
+        external_action_allowed: false,
+        execution_mode: "blocked",
+      }),
+    ]));
+  });
+
   it("records user-controlled draft confirmation without starting a direct call", async () => {
+    process.env.CONCIERGE_EMAIL_CHANNEL_READY = "true";
+    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_CHANNEL_VERIFIED = "true";
     mockPendingRow({
       id: "33333333-3333-3333-3333-333333333333",
       user_id: "user-1",
@@ -193,13 +282,353 @@ describe("confirmed Concierge action execution", () => {
       user_confirmed: true,
       confirmation_source: "user_controlled_execution",
       active_tool: "email",
+      external_action_allowed: true,
+      execution_mode: "live",
+      channel_readiness: {
+        channel: "email",
+        status: "ready",
+        external_action_allowed: true,
+      },
     });
     expect(payload.execution_audit).toEqual(expect.arrayContaining([
       expect.objectContaining({
         event: "user_confirmed",
         mode: "user_controlled_handoff",
         external_action_allowed: true,
+        execution_mode: "live",
       }),
     ]));
+  });
+
+  it("records a ready form/application confirmation as a live user-controlled channel", async () => {
+    process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_READY = "true";
+    process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_VERIFIED = "true";
+    mockPendingRow({
+      id: "12121212-1212-4212-8212-121212121212",
+      user_id: "user-1",
+      use_case: "book_appointment",
+      provider_id: null,
+      provider_name: "The Good Table",
+      provider_phone: null,
+      found_externally: false,
+      action_summary: "Booking form ready for The Good Table.",
+      action_payload: {
+        appointment_type: "restaurant reservation",
+        appointment_reason: "Dinner reservation",
+        requested_time: "Tomorrow evening",
+        location: "Marbella",
+        execution_channel: "booking_url",
+        booking_url: "https://www.thefork.es/restaurante/example",
+        form_automation_plan: {
+          adapter_label: "TheFork",
+          missing_fields: [],
+          next_step: "Use the supported booking page with the gathered details.",
+          prefilled_url: "https://www.thefork.es/restaurante/example?date=tomorrow",
+        },
+      },
+      language: "en",
+      status: "pending",
+    });
+
+    const result = await startPendingConciergeAction("12121212-1212-4212-8212-121212121212", "user-1");
+
+    expect(result).toMatchObject({
+      status: "pending",
+      conversationId: null,
+      callSid: null,
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    const payload = lastUpdatedPayload();
+    expect(payload.execution_task).toMatchObject({
+      lifecycle_status: "confirmed",
+      user_confirmed: true,
+      confirmation_source: "confirm_endpoint",
+      active_tool: "booking_link",
+      external_action_allowed: true,
+      execution_mode: "live",
+      channel_readiness: {
+        channel: "form_application",
+        status: "ready",
+        external_action_allowed: true,
+      },
+    });
+    expect(payload.execution_audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "operator_handoff_queued",
+        mode: "operator_queue",
+        external_action_allowed: true,
+        execution_mode: "live",
+      }),
+    ]));
+  });
+
+  it("blocks user-controlled email confirmation when the admin channel gate is not ready", async () => {
+    mockPendingRow({
+      id: "77777777-7777-4777-8777-777777777777",
+      user_id: "user-1",
+      use_case: "send_message",
+      provider_id: null,
+      provider_name: "Clinic desk",
+      provider_phone: null,
+      found_externally: false,
+      action_summary: "Email draft prepared for the clinic.",
+      action_payload: {
+        execution_channel: "email",
+        provider_email: "clinic@example.com",
+        email_subject: "Question about my appointment",
+        email_body: "Hello, I would like to confirm my appointment details.",
+      },
+      language: "en",
+      status: "pending",
+    });
+
+    await expect(confirmPendingConciergeActionReview("77777777-7777-4777-8777-777777777777", "user-1"))
+      .rejects.toThrow(/email channel is not ready for live Concierge actions/i);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    const payload = lastUpdatedPayload();
+    expect(payload.execution_task).toMatchObject({
+      lifecycle_status: "needs_info",
+      user_confirmed: false,
+      failure_reason: "channel_not_ready",
+      external_action_allowed: false,
+      execution_mode: "blocked",
+      channel_readiness: {
+        channel: "email",
+        status: "disabled",
+        external_action_allowed: false,
+      },
+    });
+    expect(payload.execution_audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "blocked_channel_not_ready",
+        mode: "operator_queue",
+        external_action_allowed: false,
+        execution_mode: "blocked",
+      }),
+    ]));
+  });
+
+  it("confirms a dry-run phone action without starting the outbound caller", async () => {
+    mockPendingRow({
+      id: "44444444-4444-4444-4444-444444444444",
+      user_id: "user-1",
+      use_case: "book_ride",
+      provider_id: null,
+      provider_name: "VYVA Test Transport",
+      provider_phone: "+12025550100",
+      found_externally: false,
+      action_summary: "Dry-run ride request to the city clinic.",
+      action_payload: {
+        dry_run: true,
+        test_mode: "concierge_dry_run",
+        no_real_provider_contact: true,
+        flow_reference: "FLOW_TRANSPORT_BOOKING",
+        execution_channel: "phone",
+        requested_tool: "phone_call",
+        pickup_address: "Saved home address",
+        destination_address: "City Clinic test entrance",
+        requested_time: "Tomorrow at 09:00",
+        provider_phone: "+12025550100",
+      },
+      language: "en",
+      status: "pending",
+    });
+
+    const result = await startPendingConciergeAction("44444444-4444-4444-4444-444444444444", "user-1");
+
+    expect(result).toMatchObject({
+      status: "pending",
+      conversationId: null,
+      callSid: null,
+      message: expect.stringContaining("Dry-run confirmed"),
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    const payload = lastUpdatedPayload();
+    expect(payload.execution_task).toMatchObject({
+      lifecycle_status: "confirmed",
+      user_confirmed: true,
+      dry_run: true,
+      active_tool: "phone_call",
+    });
+    expect(payload.execution_audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "operator_handoff_queued",
+        mode: "operator_queue",
+        dry_run: true,
+        external_action_allowed: false,
+        reason: "dry_run_simulation",
+      }),
+    ]));
+  });
+
+  it("stores dry-run completion history as a simulated outcome", async () => {
+    mockPendingRow({
+      id: "55555555-5555-5555-5555-555555555555",
+      user_id: "user-1",
+      use_case: "insurance_admin",
+      provider_id: null,
+      provider_name: null,
+      provider_phone: null,
+      found_externally: false,
+      action_summary: "Dry-run insurance paperwork request.",
+      action_payload: {
+        dry_run: true,
+        test_mode: "concierge_dry_run",
+        no_real_provider_contact: true,
+        flow_reference: "FLOW_INSURANCE_ADMIN",
+        execution_channel: "email",
+        requested_tool: "email",
+        document_type: "insurance claim form",
+        recipient_email: "concierge-dry-run+admin@example.test",
+        deadline: "Next Friday",
+      },
+      language: "en",
+      status: "pending",
+    });
+    const client = mockCompletionClient();
+
+    const result = await completePendingConciergeAction("55555555-5555-5555-5555-555555555555", "user-1");
+
+    expect(result).toEqual({ ok: true, status: "completed", sessionId: "session-dry-run" });
+    const insertCall = client.query.mock.calls.find(([sql]) => String(sql).includes("insert into concierge_sessions"));
+    expect(insertCall).toBeTruthy();
+    const params = insertCall?.[1] as unknown[];
+    const actionPayload = JSON.parse(params[8] as string) as Record<string, unknown>;
+    const outcomePayload = JSON.parse(params[9] as string) as Record<string, unknown>;
+
+    expect(params[10]).toBe("Simulated dry-run outcome: Dry-run insurance paperwork request.");
+    expect(actionPayload.execution_task).toMatchObject({
+      lifecycle_status: "done",
+      user_confirmed: true,
+      dry_run: true,
+      outcome: "Simulated dry-run outcome: Dry-run insurance paperwork request.",
+    });
+    expect(outcomePayload).toMatchObject({
+      dry_run: true,
+      simulated_outcome: true,
+      no_real_provider_contact: true,
+    });
+    expect(outcomePayload.execution_task).toMatchObject({
+      dry_run: true,
+      lifecycle_status: "done",
+    });
+  });
+
+  it("stores live completion history with live execution markers", async () => {
+    mockPendingRow({
+      id: "99999999-9999-4999-8999-999999999999",
+      user_id: "user-1",
+      use_case: "send_message",
+      provider_id: null,
+      provider_name: "Clinic desk",
+      provider_phone: null,
+      found_externally: false,
+      action_summary: "Email draft sent to the clinic.",
+      action_payload: {
+        execution_channel: "email",
+        provider_email: "clinic@example.com",
+        email_subject: "Question about my appointment",
+        execution_task: {
+          version: 1,
+          flow_reference: "FLOW_TOOL_GATED_TASK",
+          action_type: "message",
+          requested_tool: "email",
+          active_tool: "email",
+          lifecycle_status: "confirmed",
+          provider_ready: true,
+          missing_requirements: [],
+          confirmation_required: true,
+          user_confirmed: true,
+          external_action_allowed: true,
+          execution_mode: "live",
+          channel_readiness: {
+            version: 1,
+            tool: "email",
+            channel: "email",
+            label: "Email",
+            status: "ready",
+            ready: true,
+            admin_enabled: true,
+            configured: true,
+            verified: true,
+            dry_run: false,
+            external_action_allowed: true,
+            blockers: [],
+          },
+          created_at: "2026-07-14T10:00:00.000Z",
+          updated_at: "2026-07-14T10:01:00.000Z",
+        },
+      },
+      language: "en",
+      status: "pending",
+    });
+    const client = mockCompletionClient();
+
+    const result = await completePendingConciergeAction("99999999-9999-4999-8999-999999999999", "user-1", {
+      outcomeSummary: "Email sent to the clinic.",
+      outcomePayload: { provider_email: "clinic@example.com" },
+    });
+
+    expect(result).toEqual({ ok: true, status: "completed", sessionId: "session-dry-run" });
+    const insertCall = client.query.mock.calls.find(([sql]) => String(sql).includes("insert into concierge_sessions"));
+    expect(insertCall).toBeTruthy();
+    const params = insertCall?.[1] as unknown[];
+    const outcomePayload = JSON.parse(params[9] as string) as Record<string, unknown>;
+    expect(outcomePayload).toMatchObject({
+      provider_email: "clinic@example.com",
+      execution_mode: "live",
+      live_action: true,
+      external_action_allowed: true,
+      channel_readiness: {
+        channel: "email",
+        status: "ready",
+        external_action_allowed: true,
+      },
+    });
+    expect(outcomePayload.execution_task).toMatchObject({
+      lifecycle_status: "done",
+      user_confirmed: true,
+      external_action_allowed: true,
+      execution_mode: "live",
+    });
+  });
+
+  it("stores every dry-run fixture completion as simulated completed history", async () => {
+    for (const fixture of CONCIERGE_DRY_RUN_FIXTURES) {
+      dbMock.pool.query.mockReset();
+      dbMock.pool.connect.mockReset();
+      mockPendingRow({
+        id: "66666666-6666-4666-8666-666666666666",
+        user_id: "user-1",
+        use_case: fixture.useCase,
+        provider_id: null,
+        provider_name: fixture.provider?.name ?? null,
+        provider_phone: fixture.provider?.phone ?? null,
+        found_externally: false,
+        action_summary: fixture.actionSummary,
+        action_payload: fixture.actionPayload,
+        language: "en",
+        status: "pending",
+      });
+      const client = mockCompletionClient();
+
+      const result = await completePendingConciergeAction("66666666-6666-4666-8666-666666666666", "user-1");
+
+      expect(result.status, fixture.reference).toBe("completed");
+      const insertCall = client.query.mock.calls.find(([sql]) => String(sql).includes("insert into concierge_sessions"));
+      expect(insertCall, fixture.reference).toBeTruthy();
+      const params = insertCall?.[1] as unknown[];
+      const outcomePayload = JSON.parse(params[9] as string) as Record<string, unknown>;
+      expect(params[10], fixture.reference).toContain("Simulated dry-run outcome");
+      expect(outcomePayload, fixture.reference).toMatchObject({
+        dry_run: true,
+        simulated_outcome: true,
+        no_real_provider_contact: true,
+      });
+    }
   });
 });

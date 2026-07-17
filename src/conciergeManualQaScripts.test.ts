@@ -17,8 +17,27 @@ describe("concierge manual QA scripts", () => {
       expect(script.actionName).toBeTruthy();
       expect(script.entryPoints.length, script.reference).toBeGreaterThan(0);
       expect(script.detailsToAsk.length, script.reference).toBeGreaterThan(0);
+      expect(script.dryRunFixture.reference, script.reference).toBe(script.reference);
+      expect(script.steps.some((step) => step.kind === "dry_run_fixture"), script.reference).toBe(true);
       expect(script.smokeAudit.passed, script.reference).toBe(true);
       expect(script.smokeAudit.checkCount, script.reference).toBe(5);
+    }
+  });
+
+  it("adds safe dry-run fixture instructions for every flow", () => {
+    const scripts = buildConciergeManualQaScripts();
+
+    for (const script of scripts) {
+      const dryRunStep = script.steps.find((step) => step.kind === "dry_run_fixture");
+
+      expect(dryRunStep, script.reference).toBeDefined();
+      expect(dryRunStep?.source, script.reference).toBe("dry_run_fixture");
+      expect(dryRunStep?.instruction, script.reference).toContain(script.dryRunFixture.endpoint.value);
+      expect(dryRunStep?.expectedResult, script.reference).toContain("Test mode");
+      expect(script.dryRunFixture.actionPayload, script.reference).toMatchObject({
+        dry_run: true,
+        no_real_provider_contact: true,
+      });
     }
   });
 

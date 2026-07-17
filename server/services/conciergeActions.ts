@@ -4,12 +4,22 @@ import { profiles } from "../../shared/schema.js";
 import { normalizeAppLanguage } from "../../shared/language.js";
 import {
   appendConciergeExecutionAudit,
+  buildConciergeExecutionTask,
   planConciergeConfirmedExecution,
   withConciergeExecutionTask,
   type ConciergeConfirmedExecutionPlan,
   type ConciergeExecutionAuditEvent,
+  type ConciergeExecutionBuildInput,
+  type ConciergeExecutionTask,
   type ConciergeExecutionTaskStatus,
 } from "../../shared/conciergeActionExecution.js";
+import { isConciergeDryRunPayload } from "../../shared/conciergeDryRun.js";
+import {
+  conciergeExecutionModeFromState,
+  type ConciergeChannelReadinessResult,
+  type ConciergeExecutionMode,
+} from "../../shared/conciergeChannelReadiness.js";
+import { conciergeChannelReadinessForTool } from "./conciergeChannelReadiness.js";
 
 export const CONCIERGE_USE_CASES = [
   "book_ride",
@@ -159,6 +169,64 @@ function missingLabels(plan: ConciergeConfirmedExecutionPlan): string {
     .join(", ");
 }
 
+function isDryRunPending(pending: PendingRow): boolean {
+  return isConciergeDryRunPayload(pending.action_payload);
+}
+
+function planForPendingConciergeAction(pending: PendingRow): ConciergeConfirmedExecutionPlan {
+  const preliminaryTask = buildConciergeExecutionTask({
+    useCase: pending.use_case,
+    payload: pending.action_payload ?? {},
+    providerName: pending.provider_name,
+    providerPhone: pending.provider_phone,
+    summary: pending.action_summary,
+    pendingStatus: pending.status,
+  });
+  const channelReadiness = conciergeChannelReadinessForTool({
+    tool: preliminaryTask.active_tool,
+    dryRun: Boolean(preliminaryTask.dry_run),
+  });
+
+  return planConciergeConfirmedExecution({
+    useCase: pending.use_case,
+    payload: pending.action_payload ?? {},
+    providerName: pending.provider_name,
+    providerPhone: pending.provider_phone,
+    summary: pending.action_summary,
+    pendingStatus: pending.status,
+    channelReadiness,
+  });
+}
+
+function executionTaskFromPayload(payload: Record<string, unknown> | null | undefined): ConciergeExecutionTask | null {
+  const task = payload?.execution_task;
+  if (!task || typeof task !== "object" || Array.isArray(task)) return null;
+  return (task as ConciergeExecutionTask).version === 1 ? task as ConciergeExecutionTask : null;
+}
+
+function withServerConciergeExecutionTask(
+  input: ConciergeExecutionBuildInput,
+): Record<string, unknown> {
+  const preliminaryTask = buildConciergeExecutionTask(input);
+  const channelReadiness = input.channelReadiness ?? conciergeChannelReadinessForTool({
+    tool: preliminaryTask.active_tool,
+    dryRun: Boolean(preliminaryTask.dry_run),
+  });
+  const externalActionAllowed = input.externalActionAllowed ?? preliminaryTask.external_action_allowed;
+  const executionMode = input.executionMode ?? conciergeExecutionModeFromState({
+    dryRun: Boolean(preliminaryTask.dry_run),
+    externalActionAllowed,
+    channelReadiness,
+  });
+
+  return withConciergeExecutionTask({
+    ...input,
+    channelReadiness,
+    externalActionAllowed,
+    executionMode,
+  });
+}
+
 function outboundCallerReadiness(pending: PendingRow): { ready: true } | { ready: false; reason: string } {
   if (!process.env.ELEVENLABS_API_KEY?.trim()) return { ready: false, reason: "missing_elevenlabs_api_key" };
   if (!readEnv(OUTBOUND_AGENT_ENV_KEYS)) return { ready: false, reason: "missing_concierge_agent_id" };
@@ -269,7 +337,7 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
     },
   };
   const now = new Date().toISOString();
-  const actionPayload = withConciergeExecutionTask({
+  const actionPayload = withServerConciergeExecutionTask({
     useCase: input.useCase,
     payload: appendConciergeExecutionAudit(basePayload, {
       event: "created",
@@ -343,10 +411,13 @@ async function updatePendingStatus(
     auditMode?: ConciergeConfirmedExecutionPlan["mode"];
     auditReason?: string;
     auditPlan?: ConciergeConfirmedExecutionPlan;
+    channelReadiness?: ConciergeChannelReadinessResult;
     externalActionAllowed?: boolean;
+    executionMode?: ConciergeExecutionMode;
   } = {},
 ) {
   const now = new Date().toISOString();
+  const dryRun = isDryRunPending(pending);
   const basePayload = options.auditEvent
     ? appendConciergeExecutionAudit(pending.action_payload ?? {}, {
         event: options.auditEvent,
@@ -360,11 +431,14 @@ async function updatePendingStatus(
         action_type: options.auditPlan?.action_type,
         user_confirmed: options.userConfirmed,
         external_action_allowed: options.externalActionAllowed ?? false,
+        execution_mode: options.executionMode ?? options.auditPlan?.execution_mode,
+        channel_readiness: options.channelReadiness ?? options.auditPlan?.channel_readiness,
+        dry_run: options.auditPlan?.dry_run ?? dryRun,
         reason: options.auditReason ?? options.failureReason,
         missing_requirements: options.auditPlan?.missing_requirements,
       })
     : pending.action_payload ?? {};
-  const actionPayload = withConciergeExecutionTask({
+  const actionPayload = withServerConciergeExecutionTask({
     useCase: pending.use_case,
     payload: basePayload,
     providerName: pending.provider_name,
@@ -374,6 +448,9 @@ async function updatePendingStatus(
     lifecycleStatus: options.lifecycleStatus,
     userConfirmed: options.userConfirmed,
     confirmationSource: options.confirmationSource,
+    channelReadiness: options.channelReadiness ?? options.auditPlan?.channel_readiness,
+    externalActionAllowed: options.externalActionAllowed,
+    executionMode: options.executionMode ?? options.auditPlan?.execution_mode,
     failureReason: options.failureReason,
     outcome: options.outcome,
     now,
@@ -457,7 +534,7 @@ export async function updatePendingConciergeActionDetails(
     },
   };
 
-  const actionPayload = withConciergeExecutionTask({
+  const actionPayload = withServerConciergeExecutionTask({
     useCase: pending.use_case,
     payload: nextPayloadBase,
     providerName: pending.provider_name,
@@ -551,7 +628,9 @@ async function startOutboundCall(
       auditEvent: "failed",
       auditMode: "direct_phone_call",
       auditPlan: plan,
-      externalActionAllowed: true,
+      channelReadiness: plan?.channel_readiness,
+      externalActionAllowed: plan?.channel_readiness.external_action_allowed ?? false,
+      executionMode: plan?.channel_readiness.external_action_allowed ? "live" : "blocked",
     });
     throw new Error(`ElevenLabs outbound call failed: ${detail}`);
   }
@@ -564,7 +643,9 @@ async function startOutboundCall(
     auditEvent: "direct_call_started",
     auditMode: "direct_phone_call",
     auditPlan: plan,
+    channelReadiness: plan?.channel_readiness,
     externalActionAllowed: true,
+    executionMode: "live",
   });
 
   return {
@@ -601,6 +682,12 @@ async function queueConfirmedConciergeAction(
   plan: ConciergeConfirmedExecutionPlan,
   reason?: string,
 ): Promise<TriggerResult> {
+  const liveUserControlledChannel = Boolean(
+    !plan.dry_run &&
+    !reason &&
+    plan.channel_readiness.channel &&
+    plan.channel_readiness.external_action_allowed,
+  );
   await updatePendingStatus(pending, "pending", {
     lifecycleStatus: "confirmed",
     userConfirmed: true,
@@ -608,9 +695,11 @@ async function queueConfirmedConciergeAction(
     outcome: pending.action_summary,
     auditEvent: "operator_handoff_queued",
     auditMode: "operator_queue",
-    auditReason: reason,
+    auditReason: reason ?? plan.operator_fallback_reason,
     auditPlan: plan,
-    externalActionAllowed: false,
+    channelReadiness: plan.channel_readiness,
+    externalActionAllowed: liveUserControlledChannel,
+    executionMode: liveUserControlledChannel ? "live" : plan.execution_mode,
   });
 
   return {
@@ -618,9 +707,11 @@ async function queueConfirmedConciergeAction(
     status: "pending",
     conversationId: null,
     callSid: null,
-    message: reason
-      ? `Concierge action confirmed and queued for VYVA review (${reason}).`
-      : plan.message,
+    message: plan.dry_run
+      ? plan.message
+      : (reason
+        ? `Concierge action confirmed and queued for VYVA review (${reason}).`
+        : plan.message),
   };
 }
 
@@ -642,19 +733,40 @@ async function markPendingNeedsInfo(
   });
 }
 
+function channelNotReadyMessage(plan: ConciergeConfirmedExecutionPlan): string {
+  const label = plan.channel_readiness.label || "Requested channel";
+  const blockers = plan.channel_readiness.blockers.join(", ");
+  return blockers
+    ? `The ${label.toLowerCase()} channel is not ready for live Concierge actions (${blockers}).`
+    : `The ${label.toLowerCase()} channel is not ready for live Concierge actions.`;
+}
+
+async function markPendingChannelBlocked(
+  pending: PendingRow,
+  confirmationSource: string,
+  plan: ConciergeConfirmedExecutionPlan,
+): Promise<void> {
+  await updatePendingStatus(pending, "pending", {
+    lifecycleStatus: "needs_info",
+    userConfirmed: false,
+    confirmationSource,
+    failureReason: "channel_not_ready",
+    auditEvent: "blocked_channel_not_ready",
+    auditMode: plan.mode,
+    auditReason: plan.channel_readiness.blockers.join(", ") || "channel_not_ready",
+    auditPlan: plan,
+    channelReadiness: plan.channel_readiness,
+    externalActionAllowed: false,
+    executionMode: "blocked",
+  });
+}
+
 async function confirmLoadedPendingConciergeAction(
   pending: PendingRow,
   profile: BasicProfile,
   confirmationSource = "confirm_endpoint",
 ): Promise<TriggerResult> {
-  const plan = planConciergeConfirmedExecution({
-    useCase: pending.use_case,
-    payload: pending.action_payload ?? {},
-    providerName: pending.provider_name,
-    providerPhone: pending.provider_phone,
-    summary: pending.action_summary,
-    pendingStatus: pending.status,
-  });
+  const plan = planForPendingConciergeAction(pending);
 
   if (plan.mode === "needs_info") {
     await markPendingNeedsInfo(pending, confirmationSource, plan);
@@ -718,19 +830,17 @@ export async function confirmPendingConciergeActionReview(
     throw new Error(`Concierge action cannot be confirmed from status "${pending.status}".`);
   }
 
-  const plan = planConciergeConfirmedExecution({
-    useCase: pending.use_case,
-    payload: pending.action_payload ?? {},
-    providerName: pending.provider_name,
-    providerPhone: pending.provider_phone,
-    summary: pending.action_summary,
-    pendingStatus: pending.status,
-  });
+  const plan = planForPendingConciergeAction(pending);
 
   if (plan.mode === "needs_info") {
     await markPendingNeedsInfo(pending, confirmationSource, plan);
     const labels = missingLabels(plan);
     throw new Error(labels ? `Complete before confirming: ${labels}.` : plan.message);
+  }
+
+  if (!plan.dry_run && plan.channel_readiness.channel && !plan.channel_readiness.external_action_allowed) {
+    await markPendingChannelBlocked(pending, confirmationSource, plan);
+    throw new Error(channelNotReadyMessage(plan));
   }
 
   await updatePendingStatus(pending, "pending", {
@@ -741,7 +851,9 @@ export async function confirmPendingConciergeActionReview(
     auditEvent: "user_confirmed",
     auditMode: "user_controlled_handoff",
     auditPlan: plan,
-    externalActionAllowed: true,
+    channelReadiness: plan.channel_readiness,
+    externalActionAllowed: plan.channel_readiness.external_action_allowed,
+    executionMode: plan.dry_run ? "simulated" : (plan.channel_readiness.external_action_allowed ? "live" : "manual_review"),
   });
 
   return {
@@ -749,7 +861,9 @@ export async function confirmPendingConciergeActionReview(
     status: "pending",
     conversationId: null,
     callSid: null,
-    message: "Concierge action confirmed. You can open the prepared draft or call link.",
+    message: plan.dry_run
+      ? "Dry-run confirmed. VYVA records the simulated handoff without opening or sending anything."
+      : "Concierge action confirmed. You can open the prepared draft or call link.",
   };
 }
 
@@ -804,7 +918,34 @@ export async function completePendingConciergeAction(
     throw new Error(`Concierge action cannot be completed from status "${pending.status}".`);
   }
 
-  const finalActionPayload = withConciergeExecutionTask({
+  const dryRun = isDryRunPending(pending);
+  const currentTask = executionTaskFromPayload(pending.action_payload);
+  const fallbackTask = currentTask ?? buildConciergeExecutionTask({
+    useCase: pending.use_case,
+    payload: pending.action_payload ?? {},
+    providerName: pending.provider_name,
+    providerPhone: pending.provider_phone,
+    summary: pending.action_summary,
+    pendingStatus: pending.status,
+  });
+  const completionChannelReadiness = currentTask?.channel_readiness ?? conciergeChannelReadinessForTool({
+    tool: fallbackTask.active_tool,
+    dryRun,
+  });
+  const completionExternalActionAllowed = Boolean(currentTask?.external_action_allowed && !dryRun);
+  const completionExecutionMode = dryRun
+    ? "simulated"
+    : (currentTask?.execution_mode === "live" && completionExternalActionAllowed
+      ? "live"
+      : conciergeExecutionModeFromState({
+        dryRun,
+        externalActionAllowed: completionExternalActionAllowed,
+        channelReadiness: completionChannelReadiness,
+      }));
+  const outcomeSummary = input.outcomeSummary?.trim()
+    || (dryRun ? `Simulated dry-run outcome: ${pending.action_summary}` : pending.action_summary)
+    || "completed";
+  const finalActionPayload = withServerConciergeExecutionTask({
     useCase: pending.use_case,
     payload: appendConciergeExecutionAudit(pending.action_payload ?? {}, {
       event: "completed",
@@ -813,7 +954,10 @@ export async function completePendingConciergeAction(
       pending_status: "completed",
       lifecycle_status: "done",
       user_confirmed: true,
-      external_action_allowed: false,
+      external_action_allowed: completionExternalActionAllowed,
+      execution_mode: completionExecutionMode,
+      channel_readiness: completionChannelReadiness,
+      dry_run: dryRun,
     }),
     providerName: pending.provider_name,
     providerPhone: pending.provider_phone,
@@ -822,10 +966,22 @@ export async function completePendingConciergeAction(
     lifecycleStatus: "done",
     userConfirmed: true,
     confirmationSource: "completion_endpoint",
-    outcome: input.outcomeSummary?.trim() || pending.action_summary || "completed",
+    channelReadiness: completionChannelReadiness,
+    externalActionAllowed: completionExternalActionAllowed,
+    executionMode: completionExecutionMode,
+    outcome: outcomeSummary,
   });
   const finalOutcomePayload = {
     ...(input.outcomePayload ?? {}),
+    execution_mode: completionExecutionMode,
+    live_action: completionExecutionMode === "live",
+    external_action_allowed: completionExternalActionAllowed,
+    channel_readiness: completionChannelReadiness,
+    ...(dryRun ? {
+      dry_run: true,
+      simulated_outcome: true,
+      no_real_provider_contact: true,
+    } : {}),
     execution_task: finalActionPayload.execution_task,
   };
 
@@ -863,7 +1019,7 @@ export async function completePendingConciergeAction(
         pending.action_summary,
         JSON.stringify(finalActionPayload),
         JSON.stringify(finalOutcomePayload),
-        input.outcomeSummary?.trim() || pending.action_summary || null,
+        outcomeSummary,
       ],
     );
 

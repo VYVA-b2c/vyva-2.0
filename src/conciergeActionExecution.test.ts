@@ -6,6 +6,7 @@ import {
   withConciergeExecutionTask,
 } from "../shared/conciergeActionExecution";
 import { CONCIERGE_FLOW_REFERENCES } from "../shared/conciergeFlowRegistry";
+import { evaluateConciergeChannelReadiness } from "../shared/conciergeChannelReadiness";
 
 describe("concierge action execution task", () => {
   it("marks a ride as needing details before it can be executed", () => {
@@ -106,7 +107,7 @@ describe("concierge action execution task", () => {
     });
   });
 
-  it("plans a direct phone call only after details and provider phone are ready", () => {
+  it("keeps a direct phone call queued when the admin channel gate is not ready", () => {
     const plan = planConciergeConfirmedExecution({
       useCase: "book_ride",
       providerName: "Radio Taxi",
@@ -123,11 +124,50 @@ describe("concierge action execution task", () => {
     });
 
     expect(plan).toMatchObject({
+      mode: "operator_queue",
+      pending_status: "pending",
+      lifecycle_status: "confirmed",
+      active_tool: "phone_call",
+      external_action_allowed: false,
+      execution_mode: "blocked",
+      missing_requirements: [],
+      channel_readiness: {
+        channel: "phone_call",
+        status: "disabled",
+        external_action_allowed: false,
+      },
+    });
+  });
+
+  it("plans a direct phone call only after details, provider phone, and channel readiness are ready", () => {
+    const plan = planConciergeConfirmedExecution({
+      useCase: "book_ride",
+      providerName: "Radio Taxi",
+      providerPhone: "+34 600 111 222",
+      payload: {
+        pickup_address: "Home",
+        destination_address: "Clinic",
+        requested_time: "tomorrow 09:00",
+        execution_channel: "phone",
+      },
+      summary: "Call Radio Taxi",
+      pendingStatus: "pending",
+      channelReadiness: evaluateConciergeChannelReadiness({
+        tool: "phone_call",
+        flags: {
+          phone_call: { adminEnabled: true, configured: true, verified: true },
+        },
+      }),
+      now: "2026-07-14T10:00:00.000Z",
+    });
+
+    expect(plan).toMatchObject({
       mode: "direct_phone_call",
       pending_status: "calling",
       lifecycle_status: "in_progress",
       active_tool: "phone_call",
       external_action_allowed: true,
+      execution_mode: "live",
       missing_requirements: [],
     });
   });

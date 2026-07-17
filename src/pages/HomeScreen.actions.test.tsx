@@ -136,6 +136,7 @@ const labels: Record<string, string> = {
   "home.conciergeResume.task.pharmacy": "pharmacy request",
   "home.conciergeResume.task.homeService": "home service",
   "home.conciergeResume.task.provider": "provider search",
+  "home.conciergeResume.task.providerShortlist": "saved options",
   "home.conciergeResume.task.admin": "admin task",
   "home.conciergeResume.task.safety": "safety check",
   "home.conciergeResume.task.default": "request",
@@ -144,6 +145,7 @@ const labels: Record<string, string> = {
   "home.conciergeResume.fastStatus.pharmacy": "Check pharmacy request",
   "home.conciergeResume.fastStatus.homeService": "Check home service",
   "home.conciergeResume.fastStatus.provider": "Check provider search",
+  "home.conciergeResume.fastStatus.providerShortlist": "Review shortlist",
   "home.conciergeResume.fastStatus.admin": "Check admin task",
   "home.conciergeResume.fastStatus.safety": "Check safety review",
   "home.conciergeResume.fastStatus.default": "Check request",
@@ -153,6 +155,9 @@ const labels: Record<string, string> = {
   "home.conciergeResume.step.save": "Ready to save",
   "home.conciergeResume.step.attention": "Needs your review",
   "home.conciergeResume.step.confirm": "Waiting for your confirmation",
+  "home.conciergeResume.step.providerShortlist": "Review saved options",
+  "home.conciergeResume.kickerProviderShortlist": "Saved shortlist",
+  "home.conciergeResume.titleProviderShortlistPrefix": "Review your",
   "home.conciergeResume.open": "Open Right Now",
   "home.conciergeResume.openShort": "Open",
   "home.conciergeResume.followUp": "Follow up",
@@ -380,7 +385,7 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-fast-concierge-status"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
   });
 
   it("surfaces saved Show VYVA tasks as prepared work from Home", () => {
@@ -429,7 +434,48 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "show-vyva-scam-1" } });
+  });
+
+  it("surfaces a saved provider shortlist and opens the exact Concierge task", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "shortlist-7",
+              use_case: "find_provider",
+              status: "pending",
+              provider_name: "Harbour Clinic",
+              action_summary: "Two provider options saved.",
+              action_payload: {
+                task_type: "provider_shortlist",
+                selected_provider_names: ["Harbour Clinic", "Garden Care"],
+              },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Saved shortlist");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review your saved options");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review saved options");
+    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Review shortlist");
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: { focusRightNow: true, conciergePendingId: "shortlist-7" },
+    });
   });
 
   it("labels home-service appointment tasks as home service on Home", () => {
@@ -618,7 +664,7 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
 
     fireEvent.click(screen.getByTestId("button-home-concierge-follow-up"));
 

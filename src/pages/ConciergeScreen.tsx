@@ -62,6 +62,8 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
+import ProviderComparisonPanel from "@/components/ProviderComparisonPanel";
+import ProviderShortlistFollowUpPanel from "@/components/ProviderShortlistFollowUpPanel";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
@@ -105,6 +107,10 @@ import type {
   ConciergeExecutionTaskStatus,
 } from "../../shared/conciergeActionExecution";
 import {
+  CONCIERGE_DRY_RUN_TEST_MODE,
+  isConciergeDryRunPayload,
+} from "../../shared/conciergeDryRun";
+import {
   isShowVyvaPreparedTask,
   type ShowVyvaExecutionGuide,
   showVyvaExecutionGuide,
@@ -117,6 +123,18 @@ import {
   type ConciergeGuidedDetailCapture,
   type ConciergeGuidedDetailQuestion,
 } from "../../shared/conciergeGuidedDetails";
+import {
+  buildProviderComparisonOptions,
+  buildProviderContactPayload,
+  buildProviderShortlistRecheckPayload,
+  buildProviderShortlistPayload,
+  buildTrustedProviderPrefill,
+  parseProviderShortlistPayload,
+  updateProviderShortlistPayload,
+  type ProviderComparisonOption,
+  type ProviderComparisonSourceOption,
+  type ProviderShortlistState,
+} from "../../shared/providerComparison";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -145,6 +163,7 @@ type ConciergeLocationState = {
   trustedProviderSaved?: unknown;
   voiceActionPayload?: Record<string, unknown>;
   focusRightNow?: boolean;
+  conciergePendingId?: unknown;
 } | null;
 
 type ConciergeProviderRouteAction = {
@@ -186,6 +205,11 @@ type ConciergeProviderResumeContext =
       mode?: ProviderSearchMode | null;
       query?: string;
       criteria?: ProviderSearchCriterionKey[];
+    }
+  | {
+      kind: "provider_shortlist";
+      pendingId: string;
+      preferredProviderId?: string;
     }
   | {
       kind: "generic";
@@ -351,7 +375,7 @@ function isAppointmentType(value: unknown): value is AppointmentType {
 }
 
 function isProviderSearchMode(value: unknown): value is ProviderSearchMode {
-  return typeof value === "string" && ["personal-care", "specialist", "residence", "care", "transport", "pharmacy", "home-service"].includes(value);
+  return typeof value === "string" && ["personal-care", "specialist", "residence", "care", "transport", "pharmacy", "home-service", "shopping-seller"].includes(value);
 }
 
 function isProviderSearchCriterion(value: unknown): value is ProviderSearchCriterionKey {
@@ -409,6 +433,15 @@ function coerceConciergeResumeContext(value: unknown): ConciergeProviderResumeCo
       mode: isProviderSearchMode(value.mode) ? value.mode : null,
       query: routeText(value, ["query"]),
       criteria,
+    };
+  }
+  if (kind === "provider_shortlist") {
+    const pendingId = routeText(value, ["pendingId", "pending_id"]);
+    if (!pendingId) return null;
+    return {
+      kind,
+      pendingId,
+      preferredProviderId: routeText(value, ["preferredProviderId", "preferred_provider_id"]) || undefined,
     };
   }
   if (kind === "generic") {
@@ -1001,7 +1034,7 @@ interface OfferScoreBreakdown {
   preference_match: number;
 }
 
-interface OfferOption {
+interface OfferOption extends ProviderComparisonSourceOption {
   label: "Opcion recomendada" | "Alternativa 1" | "Alternativa 2";
   name: string;
   category: string;
@@ -1014,6 +1047,8 @@ interface OfferOption {
   website?: string;
   maps_url?: string;
   trust_note: string;
+  source_label?: string;
+  source_status?: "verified" | "reported" | "unknown";
   score: number;
   score_breakdown?: OfferScoreBreakdown;
 }
@@ -1042,7 +1077,6 @@ function offerReviewStructuredPayload(option: OfferOption, params: {
     website: option.website || option.maps_url || null,
     phone: option.phone || null,
     provider_name: option.name,
-    score: option.score,
     trust_note: option.trust_note,
     contact,
   };
@@ -1105,7 +1139,7 @@ type BillDocumentAnalysis = {
 type UtilityInputMethod = "upload" | "photo" | "voice" | "manual";
 type UtilityType = "electricity" | "gas" | "dual";
 type SavingsPanelView = "overview" | "utilities";
-type ProviderSearchMode = "personal-care" | "specialist" | "residence" | "care" | "transport" | "pharmacy" | "home-service";
+type ProviderSearchMode = "personal-care" | "specialist" | "residence" | "care" | "transport" | "pharmacy" | "home-service" | "shopping-seller";
 type ProviderSearchCriterionKey = "nearby" | "reputation" | "accessible" | "clear-price" | "available-soon" | "coverage";
 
 interface NormalizedUtilityInput {
@@ -2694,6 +2728,50 @@ async function searchOffers(query: string, locale: string, documentContext?: Bil
   return await res.json() as OffersSearchResponse;
 }
 
+async function saveProviderShortlistAction(params: {
+  options: ProviderComparisonOption[];
+  mode: ProviderSearchMode;
+  query: string;
+  criteria: ProviderSearchCriterionKey[];
+  flowReference: ConciergeFlowReference;
+  locale: string;
+}) {
+  const payload = buildProviderShortlistPayload(params.options, {
+    mode: params.mode,
+    query: params.query,
+    criteria: params.criteria,
+    flowReference: params.flowReference,
+    resumeContext: {
+      kind: "provider_search",
+      mode: params.mode,
+      query: params.query,
+      criteria: params.criteria,
+    },
+  });
+  const names = params.options.map((option) => option.name).join(", ");
+  const trigger = await apiFetch("/api/concierge/actions/trigger", {
+    method: "POST",
+    body: JSON.stringify({
+      use_case: params.mode === "shopping-seller" ? "find_offers" : "find_provider",
+      provider_name: params.options[0]?.name ?? null,
+      provider_phone: params.options[0]?.contact.phone ?? null,
+      found_externally: true,
+      action_summary: `Provider shortlist saved: ${names}.`,
+      action_payload: payload,
+      language: params.locale,
+      trigger_source: "user_request",
+      auto_start: false,
+    }),
+  });
+  if (!trigger.ok) {
+    const data = (await trigger.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not save provider shortlist");
+  }
+  const result = await trigger.json() as { pendingId?: string | null };
+  if (!result.pendingId) throw new Error("Could not save provider shortlist");
+  return { pendingId: result.pendingId };
+}
+
 function compressBillImage(file: File, targetChars = 1_500_000): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -2910,6 +2988,7 @@ function providerSearchModeLabel(mode: ProviderSearchMode | null, es: boolean): 
   if (mode === "transport") return es ? "transporte" : "transport";
   if (mode === "pharmacy") return es ? "farmacia" : "pharmacy";
   if (mode === "home-service") return es ? "servicio en casa" : "home service";
+  if (mode === "shopping-seller") return es ? "vendedor o tienda" : "seller or shop";
   return es ? "proveedor" : "provider";
 }
 
@@ -2926,6 +3005,7 @@ function providerSearchFlowReference(mode: ProviderSearchMode | null): Concierge
   if (mode === "transport") return TRANSPORT_BOOKING_FLOW_REFERENCE;
   if (mode === "pharmacy") return OTC_PHARMACY_FLOW_REFERENCE;
   if (mode === "home-service") return CONCIERGE_FLOW_REFERENCES.homeService;
+  if (mode === "shopping-seller") return SHOPPING_SUPPORT_FLOW_REFERENCE;
   if (mode === "personal-care" || mode === "specialist" || mode === "residence" || mode === "care") {
     return CARE_NAVIGATION_FLOW_REFERENCE;
   }
@@ -2942,18 +3022,6 @@ function providerCriterionLabels(criteria: ProviderSearchCriterionKey[], es: boo
   return PROVIDER_SEARCH_CRITERIA
     .filter((item) => criteria.includes(item.key))
     .map((item) => es ? item.es : item.en);
-}
-
-function providerResultBadges(option: OfferOption, criteria: ProviderSearchCriterionKey[], es: boolean): string[] {
-  const selected = providerCriterionLabels(criteria, es);
-  const score = option.score_breakdown;
-  const scoreBadges = [
-    score?.distance != null && score.distance >= 70 ? (es ? "Cerca" : "Nearby") : null,
-    score?.trust != null && score.trust >= 70 ? (es ? "Confiable" : "Trusted") : null,
-    score?.price_value != null && score.price_value >= 70 ? (es ? "Precio claro" : "Clear price") : null,
-    score?.simplicity != null && score.simplicity >= 70 ? (es ? "Facil" : "Easy") : null,
-  ].filter(Boolean) as string[];
-  return Array.from(new Set([...selected.slice(0, 4), ...scoreBadges])).slice(0, 5);
 }
 
 function buildProviderSearchQuery(query: string, criteria: ProviderSearchCriterionKey[], mode: ProviderSearchMode | null, es: boolean): string {
@@ -3042,6 +3110,7 @@ function billClientMessage(locale: string, key: "unsupported" | "read_failed"): 
 }
 
 async function confirmPendingAction(item: ConciergePendingItem) {
+  const isDryRun = isConciergeDryRunPayload(item.action_payload);
   const bookingUrl = getBookingUrl(item);
   const emailDraft = getActionEmailDraft(item);
   const whatsAppDraft = getActionWhatsAppDraft(item);
@@ -3053,13 +3122,20 @@ async function confirmPendingAction(item: ConciergePendingItem) {
       : !item.provider_phone && bookingUrl
         ? bookingUrl
         : "";
+  const task = getConciergeExecutionTask(item);
+  const channelReadiness = task?.channel_readiness ?? null;
+  const liveFollowUpAllowed = Boolean(
+    task &&
+    channelReadiness?.channel &&
+    channelReadiness.external_action_allowed,
+  );
 
   const res = await apiFetch(`/api/concierge/actions/${item.id}/confirm`, { method: "POST" });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Failed to confirm concierge action");
   }
-  if (followUpUrl) window.open(followUpUrl, "_blank", "noopener,noreferrer");
+  if (followUpUrl && !isDryRun && liveFollowUpAllowed) window.open(followUpUrl, "_blank", "noopener,noreferrer");
 }
 
 async function confirmPendingActionReview(item: ConciergePendingItem) {
@@ -3756,23 +3832,6 @@ function sourceGuidanceFor(result: OffersSearchResponse, isSpanish: boolean): st
     : ["official or regulated sources", "verifiable local businesses", "public or community programmes"];
 }
 
-function offerScoreRows(option: OfferOption, isSpanish: boolean) {
-  const breakdown = option.score_breakdown;
-  if (!breakdown) {
-    return [
-      { key: "overall", label: isSpanish ? "Puntuacion global" : "Overall score", value: option.score },
-    ];
-  }
-
-  return [
-    { key: "price_value", label: isSpanish ? "Precio o valor" : "Price or value", value: breakdown.price_value },
-    { key: "trust", label: isSpanish ? "Confianza" : "Trust", value: breakdown.trust },
-    { key: "simplicity", label: isSpanish ? "Facilidad" : "Ease", value: breakdown.simplicity },
-    { key: "preference_match", label: isSpanish ? "Encaje personal" : "Personal fit", value: breakdown.preference_match },
-    { key: "distance", label: isSpanish ? "Cercania" : "Proximity", value: breakdown.distance },
-  ];
-}
-
 function clampScore(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -3980,6 +4039,41 @@ function manualReviewOutcomePayload(
     completed_from: "manual_review_outcome_panel",
     no_external_action_without_confirmation: true,
     reviewed_at: new Date().toISOString(),
+  };
+}
+
+function dryRunOutcomeSummary(item: ConciergePendingItem, isSpanish: boolean): string {
+  const subject = payloadString(item.action_payload, [
+    "task_goal",
+    "action_label",
+    "reason",
+    "service_label",
+    "item_text",
+    "document_type",
+    "review_source",
+    "provider_search_query",
+  ]) || item.action_summary;
+
+  return isSpanish
+    ? `Resultado simulado de prueba: ${subject}`
+    : `Simulated dry-run outcome: ${subject}`;
+}
+
+function dryRunOutcomePayload(item: ConciergePendingItem): Record<string, unknown> {
+  const payload = item.action_payload ?? {};
+  const flowReference = payloadString(payload, ["flow_reference"]) || manualReviewFlowReference(item);
+  return {
+    ...payload,
+    flow_reference: flowReference,
+    dry_run: true,
+    test_mode: CONCIERGE_DRY_RUN_TEST_MODE,
+    simulated_outcome: true,
+    no_real_provider_contact: true,
+    no_external_action_without_confirmation: true,
+    live_handoff_status: "completed",
+    live_handoff_outcome: "dry_run_simulated",
+    completed_from: "concierge_dry_run_outcome_panel",
+    simulated_at: new Date().toISOString(),
   };
 }
 
@@ -4341,6 +4435,16 @@ function completedSessionReceiptDetails(
   locale = "es",
 ): Array<{ label: string; value: string }> {
   const completedAt = formatConciergeCompletedAt(session.completed_at, locale);
+  const executionMode = payloadString(session.outcome_payload, ["execution_mode"]);
+  const executionModeLabel = executionMode === "live"
+    ? (isSpanish ? "Accion en vivo" : "Live action")
+    : executionMode === "manual_review"
+      ? (isSpanish ? "Revision manual" : "Manual review")
+      : executionMode === "blocked"
+        ? (isSpanish ? "Canal bloqueado" : "Channel blocked")
+        : executionMode === "simulated"
+          ? (isSpanish ? "Prueba sin contacto real" : "Test mode, no real contact")
+          : "";
   return [
     {
       label: isSpanish ? "Tipo" : "Type",
@@ -4358,6 +4462,13 @@ function completedSessionReceiptDetails(
       label: isSpanish ? "Completado" : "Completed",
       value: completedAt,
     },
+    ...(executionModeLabel ? [{
+      label: isSpanish ? "Modo" : "Mode",
+      value: executionModeLabel,
+    }] : isConciergeDryRunPayload(session.outcome_payload) ? [{
+      label: isSpanish ? "Modo" : "Mode",
+      value: isSpanish ? "Prueba sin contacto real" : "Test mode, no real contact",
+    }] : []),
     ...completedSessionDetails(session, isSpanish),
   ].filter((entry) => entry.value);
 }
@@ -4366,6 +4477,8 @@ function completedSessionContactLink(
   session: ConciergeCompletedSession,
   isSpanish: boolean,
 ): { href: string; label: string; external: boolean } | null {
+  if (isConciergeDryRunPayload(session.outcome_payload)) return null;
+  if (payloadString(session.outcome_payload, ["execution_mode"]) !== "live") return null;
   const payload = session.outcome_payload;
   const phone = payloadString(payload, ["provider_phone", "phone", "contact_phone"]);
   const email = payloadString(payload, ["provider_email", "recipient_email", "email"]);
@@ -5636,6 +5749,7 @@ function BookingFormSupportPanel({
   bookingUrl,
   canOpenForm,
   externalLinksAllowed,
+  isDryRun,
   form,
   notice,
   error,
@@ -5643,6 +5757,7 @@ function BookingFormSupportPanel({
   isSaving,
   isSpanish,
   onFormChange,
+  onOpenForm,
   onSubmitted,
   onAddDetails,
   onNeedHelp,
@@ -5652,6 +5767,7 @@ function BookingFormSupportPanel({
   bookingUrl: string;
   canOpenForm: boolean;
   externalLinksAllowed: boolean;
+  isDryRun: boolean;
   form: BookingFormOutcomeForm;
   notice: string | null;
   error: string | null;
@@ -5659,6 +5775,7 @@ function BookingFormSupportPanel({
   isSaving: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof BookingFormOutcomeForm, value: string) => void;
+  onOpenForm: (href: string, label: string) => void;
   onSubmitted: () => void;
   onAddDetails: () => void;
   onNeedHelp: () => void;
@@ -5701,22 +5818,23 @@ function BookingFormSupportPanel({
         <div className="mt-3 rounded-[16px] border border-[#BBF7D0] bg-white p-3" data-testid={`panel-booking-form-ready-${item.id}`}>
           <div className="flex flex-wrap gap-2">
             {externalLinksAllowed ? (
-              <a
-                href={bookingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => onOpenForm(bookingUrl, isSpanish ? "Abrir formulario" : "Open form")}
                 data-testid={`link-booking-form-open-${item.id}`}
                 className="vyva-tap inline-flex min-h-[40px] items-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[13px] font-black text-white shadow-sm"
               >
                 <ExternalLink size={14} />
                 {isSpanish ? "Abrir formulario" : "Open form"}
-              </a>
+              </button>
             ) : (
               <p
                 data-testid={`text-booking-form-confirm-first-${item.id}`}
                 className="rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
               >
-                {isSpanish ? "Confirma arriba antes de abrir el formulario." : "Confirm above before opening the form."}
+                {isDryRun
+                  ? (isSpanish ? "Modo prueba: no se abrira ni enviara ningun formulario real." : "Test mode: no real form will open or submit.")
+                  : (isSpanish ? "Confirma arriba antes de abrir el formulario." : "Confirm above before opening the form.")}
               </p>
             )}
             <Button
@@ -5752,11 +5870,13 @@ function BookingFormSupportPanel({
                 type="button"
                 data-testid={`button-booking-form-submitted-${item.id}`}
                 onClick={onSubmitted}
-                disabled={isSaving}
+                disabled={isSaving || isDryRun}
                 className="vyva-primary-action mt-3 h-auto w-full bg-[#047857] hover:bg-[#065F46]"
               >
                 {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-                {isSpanish ? "Ya lo envie" : "I submitted it"}
+                {isDryRun
+                  ? (isSpanish ? "Usa la simulacion arriba" : "Use simulated outcome above")
+                  : (isSpanish ? "Ya lo envie" : "I submitted it")}
               </Button>
             </>
           ) : null}
@@ -5818,6 +5938,7 @@ function PhoneCallOutcomePanel({
   notice,
   error,
   isSaving,
+  isDryRun,
   isSpanish,
   onFormChange,
   onCall,
@@ -5828,6 +5949,7 @@ function PhoneCallOutcomePanel({
   notice: string | null;
   error: string | null;
   isSaving: boolean;
+  isDryRun: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof PhoneCallOutcomeForm, value: string) => void;
   onCall: (href: string, label: string) => void;
@@ -5866,11 +5988,12 @@ function PhoneCallOutcomePanel({
             type="button"
             onClick={() => onCall(href, isSpanish ? "Llamar" : "Call now")}
             data-testid={`link-concierge-phone-call-${item.id}`}
-            className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
+            disabled={isDryRun}
+            className={`vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full px-4 font-body text-[13px] font-black text-white shadow-sm ${isDryRun ? "bg-emerald-700 opacity-80" : "bg-vyva-purple"}`}
             aria-label={`${isSpanish ? "Llamar" : "Call"} ${phone}`}
           >
             <PhoneCall size={14} />
-            {isSpanish ? "Llamar" : "Call now"}
+            {isDryRun ? (isSpanish ? "Prueba" : "Test mode") : (isSpanish ? "Llamar" : "Call now")}
           </button>
         ) : null}
       </div>
@@ -5932,11 +6055,13 @@ function PhoneCallOutcomePanel({
         type="button"
         data-testid={`button-phone-outcome-save-${item.id}`}
         onClick={onSave}
-        disabled={isSaving}
+        disabled={isSaving || isDryRun}
         className="vyva-primary-action mt-3 h-auto w-full"
       >
         {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-        {isSpanish ? "Guardar resultado" : "Save result"}
+        {isDryRun
+          ? (isSpanish ? "Usa la simulacion arriba" : "Use simulated outcome above")
+          : (isSpanish ? "Guardar resultado" : "Save result")}
       </Button>
 
       {notice ? (
@@ -5961,6 +6086,7 @@ function EmailDraftOutcomePanel({
   notice,
   error,
   isSaving,
+  isDryRun,
   isSpanish,
   onFormChange,
   onOpenDraft,
@@ -5973,6 +6099,7 @@ function EmailDraftOutcomePanel({
   notice: string | null;
   error: string | null;
   isSaving: boolean;
+  isDryRun: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof EmailDraftOutcomeForm, value: string) => void;
   onOpenDraft: (href: string, label: string) => void;
@@ -5995,20 +6122,23 @@ function EmailDraftOutcomePanel({
             {draft.address}
           </span>
           <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
-            {isSpanish
-              ? "Abre el borrador, envialo desde tu correo y guarda que ya salio."
-              : "Open the draft, send it from your email, then save that it went out."}
+            {isDryRun
+              ? (isSpanish ? "Modo prueba: no se abrira ni enviara ningun email real." : "Test mode: no real email will open or send.")
+              : (isSpanish
+                ? "Abre el borrador, envialo desde tu correo y guarda que ya salio."
+                : "Open the draft, send it from your email, then save that it went out.")}
           </span>
         </span>
         <button
           type="button"
           onClick={() => onOpenDraft(href, isSpanish ? "Abrir email" : "Open email")}
           data-testid={`link-concierge-email-draft-open-${item.id}`}
-          className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-black text-white shadow-sm"
+          disabled={isDryRun}
+          className={`vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full px-4 font-body text-[13px] font-black text-white shadow-sm ${isDryRun ? "bg-emerald-700 opacity-80" : "bg-vyva-purple"}`}
           aria-label={`${isSpanish ? "Abrir email" : "Open email"} ${draft.address}`}
         >
           <ExternalLink size={14} />
-          {isSpanish ? "Abrir" : "Open"}
+          {isDryRun ? (isSpanish ? "Prueba" : "Test mode") : (isSpanish ? "Abrir" : "Open")}
         </button>
       </div>
 
@@ -6047,11 +6177,13 @@ function EmailDraftOutcomePanel({
         type="button"
         data-testid={`button-email-draft-sent-${item.id}`}
         onClick={onSent}
-        disabled={isSaving}
+        disabled={isSaving || isDryRun}
         className="vyva-primary-action mt-3 h-auto w-full"
       >
         {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-        {isSpanish ? "Ya lo envie" : "I sent it"}
+        {isDryRun
+          ? (isSpanish ? "Usa la simulacion arriba" : "Use simulated outcome above")
+          : (isSpanish ? "Ya lo envie" : "I sent it")}
       </Button>
 
       {notice ? (
@@ -6076,6 +6208,7 @@ function WhatsAppDraftOutcomePanel({
   notice,
   error,
   isSaving,
+  isDryRun,
   isSpanish,
   onFormChange,
   onOpenDraft,
@@ -6088,6 +6221,7 @@ function WhatsAppDraftOutcomePanel({
   notice: string | null;
   error: string | null;
   isSaving: boolean;
+  isDryRun: boolean;
   isSpanish: boolean;
   onFormChange: (field: keyof WhatsAppDraftOutcomeForm, value: string) => void;
   onOpenDraft: (href: string, label: string) => void;
@@ -6110,20 +6244,23 @@ function WhatsAppDraftOutcomePanel({
             {draft.number}
           </span>
           <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
-            {isSpanish
-              ? "Abre el borrador, envialo en WhatsApp y guarda que ya salio."
-              : "Open the draft, send it in WhatsApp, then save that it went out."}
+            {isDryRun
+              ? (isSpanish ? "Modo prueba: no se abrira ni enviara ningun WhatsApp real." : "Test mode: no real WhatsApp will open or send.")
+              : (isSpanish
+                ? "Abre el borrador, envialo en WhatsApp y guarda que ya salio."
+                : "Open the draft, send it in WhatsApp, then save that it went out.")}
           </span>
         </span>
         <button
           type="button"
           onClick={() => onOpenDraft(href, isSpanish ? "Abrir WhatsApp" : "Open WhatsApp")}
           data-testid={`link-concierge-whatsapp-draft-open-${item.id}`}
-          className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[13px] font-black text-white shadow-sm"
+          disabled={isDryRun}
+          className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[13px] font-black text-white shadow-sm disabled:opacity-80"
           aria-label={`${isSpanish ? "Abrir WhatsApp" : "Open WhatsApp"} ${draft.number}`}
         >
           <ExternalLink size={14} />
-          {isSpanish ? "Abrir" : "Open"}
+          {isDryRun ? (isSpanish ? "Prueba" : "Test mode") : (isSpanish ? "Abrir" : "Open")}
         </button>
       </div>
 
@@ -6159,11 +6296,13 @@ function WhatsAppDraftOutcomePanel({
         type="button"
         data-testid={`button-whatsapp-draft-sent-${item.id}`}
         onClick={onSent}
-        disabled={isSaving}
+        disabled={isSaving || isDryRun}
         className="vyva-primary-action mt-3 h-auto w-full"
       >
         {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-        {isSpanish ? "Ya lo envie" : "I sent it"}
+        {isDryRun
+          ? (isSpanish ? "Usa la simulacion arriba" : "Use simulated outcome above")
+          : (isSpanish ? "Ya lo envie" : "I sent it")}
       </Button>
 
       {notice ? (
@@ -6720,6 +6859,83 @@ function ManualReviewOutcomePanel({
       ) : null}
       {error ? (
         <p data-testid="manual-review-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function DryRunOutcomePanel({
+  item,
+  canSave,
+  isSaving,
+  notice,
+  error,
+  isSpanish,
+  onSave,
+}: {
+  item: ConciergePendingItem;
+  canSave: boolean;
+  isSaving: boolean;
+  notice: string | null;
+  error: string | null;
+  isSpanish: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-emerald-200 bg-emerald-50 p-4"
+      data-testid={`panel-concierge-dry-run-outcome-${item.id}`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-emerald-700 shadow-sm">
+          <ShieldCheck size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-emerald-800">
+            {isSpanish ? "Modo prueba" : "Test mode"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-emerald-950">
+            {isSpanish ? "Guardar resultado simulado" : "Save simulated outcome"}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-emerald-900">
+            {isSpanish
+              ? "No se llamara, enviara, subira ni abrira nada real. Esto solo guarda el ensayo en el historial completado."
+              : "No real call, email, upload, form, or provider contact will happen. This only saves the rehearsal to completed history."}
+          </span>
+        </span>
+      </div>
+
+      {!canSave ? (
+        <p
+          className="mt-3 rounded-[14px] bg-white px-3 py-2 font-body text-[12px] font-black text-emerald-900"
+          data-testid={`text-concierge-dry-run-confirm-first-${item.id}`}
+        >
+          {isSpanish
+            ? "Confirma el paso preparado antes de guardar el resultado simulado."
+            : "Confirm the prepared step before saving the simulated result."}
+        </p>
+      ) : null}
+
+      <Button
+        type="button"
+        data-testid={`button-concierge-dry-run-complete-${item.id}`}
+        onClick={onSave}
+        disabled={!canSave || isSaving}
+        className="vyva-primary-action mt-3 h-auto w-full bg-emerald-700 hover:bg-emerald-800"
+      >
+        {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+        {isSpanish ? "Guardar simulacion" : "Save simulation"}
+      </Button>
+
+      {notice ? (
+        <p data-testid="dry-run-outcome-notice" className="mt-3 rounded-[14px] bg-white px-3 py-2 font-body text-[12px] font-black text-emerald-800">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="dry-run-outcome-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
           {error}
         </p>
       ) : null}
@@ -8429,6 +8645,8 @@ const ConciergeScreen = () => {
   const [manualReviewOutcomeForm, setManualReviewOutcomeForm] = useState<ManualReviewOutcomeForm>(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
   const [manualReviewNotice, setManualReviewNotice] = useState<string | null>(null);
   const [manualReviewError, setManualReviewError] = useState<string | null>(null);
+  const [dryRunOutcomeNotice, setDryRunOutcomeNotice] = useState<string | null>(null);
+  const [dryRunOutcomeError, setDryRunOutcomeError] = useState<string | null>(null);
   const [confirmedReviewActionIds, setConfirmedReviewActionIds] = useState<Set<string>>(() => new Set());
   const [focusedDetailTarget, setFocusedDetailTarget] = useState<ConciergeFocusedDetailTarget | null>(null);
   const reqIdRef = useRef(0);
@@ -8600,10 +8818,19 @@ const ConciergeScreen = () => {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersResult, setOffersResult] = useState<OffersSearchResponse | null>(null);
   const [offersError, setOffersError] = useState<string | null>(null);
+  const [providerShortlistIds, setProviderShortlistIds] = useState<string[]>([]);
+  const [providerShortlistNotice, setProviderShortlistNotice] = useState<string | null>(null);
+  const [providerShortlistError, setProviderShortlistError] = useState<string | null>(null);
+  const [editingProviderShortlistId, setEditingProviderShortlistId] = useState<string | null>(null);
+  const [activeProviderShortlistNotice, setActiveProviderShortlistNotice] = useState<string | null>(null);
+  const [activeProviderShortlistError, setActiveProviderShortlistError] = useState<string | null>(null);
+  const providerComparisonOptions = useMemo(
+    () => buildProviderComparisonOptions(offersResult?.options ?? []),
+    [offersResult],
+  );
   const [webSearchResultsByActionId, setWebSearchResultsByActionId] = useState<Record<string, WebSearchActionResult>>({});
   const [webSearchErrorsByActionId, setWebSearchErrorsByActionId] = useState<Record<string, string>>({});
   const [objectiveProofOpen, setObjectiveProofOpen] = useState(false);
-  const [expandedOfferScoreKey, setExpandedOfferScoreKey] = useState<string | null>(null);
   const [billAnalysis, setBillAnalysis] = useState<BillDocumentAnalysis | null>(null);
   const [billAnalysisLoading, setBillAnalysisLoading] = useState(false);
   const [billAnalysisError, setBillAnalysisError] = useState<string | null>(null);
@@ -9312,7 +9539,14 @@ const ConciergeScreen = () => {
       return;
     }
 
-    if (request.href) {
+    const requestTask = getConciergeExecutionTask(request.item);
+    const requestChannelReadiness = requestTask?.channel_readiness ?? null;
+    const requestLiveAllowed = Boolean(
+      (requestTask?.external_action_allowed || confirmedReviewActionIds.has(request.item.id)) &&
+      (requestChannelReadiness?.channel ? requestChannelReadiness.external_action_allowed : true),
+    );
+
+    if (request.href && !isConciergeDryRunPayload(request.item.action_payload) && requestLiveAllowed) {
       window.open(
         request.href,
         request.target ?? "_self",
@@ -9707,6 +9941,189 @@ const ConciergeScreen = () => {
     },
   });
 
+  const providerShortlistMutation = useMutation({
+    mutationFn: async (options: ProviderComparisonOption[]) => {
+      if (editingProviderShortlistId) {
+        const existing = pendingActions.find((item) => item.id === editingProviderShortlistId);
+        const parsed = parseProviderShortlistPayload(existing?.action_payload);
+        if (!existing?.action_payload || !parsed) throw new Error("Could not reopen provider shortlist");
+        const merged = [...parsed.options, ...options].filter((option, index, all) => (
+          all.findIndex((candidate) => candidate.id === option.id || candidate.name.toLowerCase() === option.name.toLowerCase()) === index
+        )).slice(0, 3);
+        await patchPendingConciergeAction({
+          pendingId: existing.id,
+          actionPayload: updateProviderShortlistPayload(existing.action_payload, merged, {
+            preferredProviderId: parsed.preferredProviderId,
+          }),
+        });
+        return { pendingId: existing.id, edited: true };
+      }
+      return {
+        ...await saveProviderShortlistAction({
+          options,
+          mode: providerSearchMode ?? "shopping-seller",
+          query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode ?? "shopping-seller", isSpanish),
+          criteria: providerSearchCriteria,
+          flowReference: providerSearchFlowReference(providerSearchMode ?? "shopping-seller"),
+          locale,
+        }),
+        edited: false,
+      };
+    },
+    onMutate: () => {
+      setProviderShortlistError(null);
+      setProviderShortlistNotice(null);
+    },
+    onSuccess: async (result) => {
+      setProviderShortlistNotice(isSpanish
+        ? "Seleccion guardada en En curso. No se ha contactado con nadie."
+        : "Shortlist saved in In progress. Nobody was contacted.");
+      setEditingProviderShortlistId(null);
+      setVisibleActionId(result.pendingId);
+      setIsRightNowHidden(false);
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+      if (result.edited) {
+        setOffersOpen(false);
+        window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
+      }
+    },
+    onError: (error) => {
+      setProviderShortlistError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido guardar la seleccion." : "I could not save the shortlist."));
+    },
+  });
+
+  const activeProviderShortlistMutation = useMutation({
+    mutationFn: async ({
+      item,
+      shortlist,
+      options,
+      preferredProviderId,
+    }: {
+      item: ConciergePendingItem;
+      shortlist: ProviderShortlistState;
+      options: ProviderComparisonOption[];
+      preferredProviderId?: string | null;
+    }) => {
+      if (!item.action_payload || options.length === 0) throw new Error("A shortlist needs at least one option");
+      return patchPendingConciergeAction({
+        pendingId: item.id,
+        actionPayload: updateProviderShortlistPayload(item.action_payload, options, {
+          preferredProviderId: preferredProviderId === undefined ? shortlist.preferredProviderId : preferredProviderId,
+        }),
+      });
+    },
+    onMutate: () => {
+      setActiveProviderShortlistError(null);
+      setActiveProviderShortlistNotice(null);
+    },
+    onSuccess: async () => {
+      setActiveProviderShortlistNotice(isSpanish ? "Seleccion actualizada." : "Shortlist updated.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setActiveProviderShortlistError(error instanceof Error ? error.message : (isSpanish ? "No he podido actualizar la seleccion." : "I could not update the shortlist."));
+    },
+  });
+
+  const recheckProviderShortlistMutation = useMutation({
+    mutationFn: async ({
+      item,
+      shortlist,
+    }: {
+      item: ConciergePendingItem;
+      shortlist: ProviderShortlistState;
+    }) => {
+      if (!item.action_payload) throw new Error("Could not reopen provider shortlist");
+      const mode = providerShortlistMode(shortlist);
+      const criteria = (shortlist.context.criteria ?? []).filter(isProviderSearchCriterion);
+      const query = shortlist.context.query?.trim() || providerSearchModeLabel(mode, isSpanish);
+      const criteriaQuery = buildProviderSearchQuery(query, criteria, mode, isSpanish);
+      const result = await searchOffers(criteriaQuery, language);
+      const latestOptions = buildProviderComparisonOptions(result.options);
+      return patchPendingConciergeAction({
+        pendingId: item.id,
+        actionPayload: buildProviderShortlistRecheckPayload(item.action_payload, latestOptions),
+      });
+    },
+    onMutate: () => {
+      setActiveProviderShortlistError(null);
+      setActiveProviderShortlistNotice(null);
+    },
+    onSuccess: async () => {
+      setActiveProviderShortlistNotice(isSpanish
+        ? "Comprobacion actualizada. Revisa los cambios antes de elegir."
+        : "Latest check saved. Review any changes before choosing.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setActiveProviderShortlistError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido comprobar la seleccion." : "I could not check the shortlist."));
+    },
+  });
+
+  const completeProviderShortlistMutation = useMutation({
+    mutationFn: ({ item, shortlist, decision }: { item: ConciergePendingItem; shortlist: ProviderShortlistState; decision: "dismissed" | "preferred_selected" }) => {
+      const preferred = shortlist.options.find((option) => option.id === shortlist.preferredProviderId) ?? null;
+      return completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: decision === "dismissed"
+          ? "Provider shortlist dismissed."
+          : `Provider selected: ${preferred?.name ?? "provider"}.`,
+        outcomePayload: {
+          ...(item.action_payload ?? {}),
+          shortlist_status: decision,
+          shortlist_completed_at: new Date().toISOString(),
+          preferred_provider_id: preferred?.id ?? null,
+          preferred_provider_name: preferred?.name ?? null,
+          no_external_action_taken: true,
+        },
+      });
+    },
+    onMutate: () => {
+      setActiveProviderShortlistError(null);
+      setActiveProviderShortlistNotice(null);
+    },
+    onSuccess: async (_result, { decision }) => {
+      setActiveProviderShortlistNotice(decision === "dismissed"
+        ? (isSpanish ? "Seleccion descartada." : "Shortlist dismissed.")
+        : (isSpanish ? "Eleccion guardada." : "Choice saved."));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setActiveProviderShortlistError(error instanceof Error ? error.message : (isSpanish ? "No he podido cerrar la seleccion." : "I could not finish the shortlist."));
+    },
+  });
+
+  const dryRunOutcomeMutation = useMutation({
+    mutationFn: ({ item }: { item: ConciergePendingItem }) => completePendingConciergeAction({
+      pendingId: item.id,
+      outcomeSummary: dryRunOutcomeSummary(item, isSpanish),
+      outcomePayload: dryRunOutcomePayload(item),
+    }),
+    onMutate: () => {
+      setDryRunOutcomeNotice(null);
+      setDryRunOutcomeError(null);
+    },
+    onSuccess: async () => {
+      setDryRunOutcomeNotice(isSpanish
+        ? "Simulacion guardada en historial completado. No se contacto con ningun proveedor real."
+        : "Simulation saved to completed history. No real provider was contacted.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setDryRunOutcomeError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la simulacion." : "I could not save the simulation."));
+    },
+  });
+
   const transportOptionsMutation = useMutation({
     mutationFn: () => fetchTransportOptions({
       pickupAddress: transportPickup,
@@ -9875,10 +10292,33 @@ const ConciergeScreen = () => {
     onMutate: () => {
       setRoutePrefillError(null);
     },
-    onSuccess: async () => {
+    onSuccess: async (_result, prefill) => {
       setRoutePrefill(null);
       setIsRightNowHidden(false);
-      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+      const sourceShortlistId = typeof prefill.payload?.source_shortlist_pending_id === "string"
+        ? prefill.payload.source_shortlist_pending_id.trim()
+        : "";
+      if (sourceShortlistId) {
+        const sourceShortlistPayload = isRecord(prefill.payload?.source_shortlist_payload)
+          ? prefill.payload.source_shortlist_payload
+          : {};
+        await completePendingConciergeAction({
+          pendingId: sourceShortlistId,
+          outcomeSummary: "Provider selected and contact preparation started.",
+          outcomePayload: {
+            ...sourceShortlistPayload,
+            shortlist_status: "contact_prepared",
+            selected_provider_name: prefill.payload?.selected_provider_name ?? null,
+            related_contact_task_pending_id: _result.pendingId ?? null,
+            no_external_action_taken: true,
+            confirmation_still_required: true,
+          },
+        });
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        sourceShortlistId ? queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }) : Promise.resolve(),
+      ]);
     },
     onError: (error) => {
       setRoutePrefillError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar la tarea." : "I could not prepare the task."));
@@ -10175,12 +10615,16 @@ const ConciergeScreen = () => {
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
     if (!routeState?.focusRightNow) return undefined;
+    const pendingId = typeof routeState.conciergePendingId === "string" ? routeState.conciergePendingId.trim() : "";
+    if (pendingId && pendingActions.some((item) => item.id === pendingId)) {
+      setVisibleActionId(pendingId);
+    }
     setIsRightNowHidden(false);
     const timer = window.setTimeout(() => {
       scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" });
     }, 80);
     return () => window.clearTimeout(timer);
-  }, [location.state]);
+  }, [location.state, pendingActions]);
 
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -10396,6 +10840,12 @@ const ConciergeScreen = () => {
     }
   }
 
+  function resetProviderShortlistState() {
+    setProviderShortlistIds([]);
+    setProviderShortlistNotice(null);
+    setProviderShortlistError(null);
+  }
+
   function openSavingsPanel(query?: string) {
     setOffersOpen(true);
     setSavingsPanelView("overview");
@@ -10406,6 +10856,7 @@ const ConciergeScreen = () => {
     setScamCheckOpen(false);
     setOtcPharmacyOpen(false);
     setOffersError(null);
+    resetProviderShortlistState();
     if (query) {
       setOffersQuery(query);
       return;
@@ -10431,7 +10882,7 @@ const ConciergeScreen = () => {
     setBillAnalysis(null);
     setUtilityResult(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    resetProviderShortlistState();
     setOffersQuery(query);
   }
 
@@ -10800,7 +11251,7 @@ const ConciergeScreen = () => {
     setOffersLoading(true);
     setOffersError(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    resetProviderShortlistState();
     try {
       const criteriaQuery = buildProviderSearchQuery(query, providerSearchCriteria, providerSearchMode, isSpanish);
       const result = await searchOffers(criteriaQuery, language, documentContext);
@@ -10823,7 +11274,7 @@ const ConciergeScreen = () => {
     setBillAnalysis(null);
     setUtilityResult(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    resetProviderShortlistState();
     handleSearchOffers(query);
   }
 
@@ -10834,7 +11285,7 @@ const ConciergeScreen = () => {
     setOffersResult(null);
     setOffersError(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    resetProviderShortlistState();
   }
 
   function closeOffersPanel() {
@@ -10842,7 +11293,8 @@ const ConciergeScreen = () => {
     setSavingsPanelView("overview");
     setProviderSearchMode(null);
     setObjectiveProofOpen(false);
-    setExpandedOfferScoreKey(null);
+    setEditingProviderShortlistId(null);
+    resetProviderShortlistState();
   }
 
   function resetUtilityReview(method?: UtilityInputMethod) {
@@ -11202,8 +11654,30 @@ const ConciergeScreen = () => {
   async function handleUtilityResultAction(action: "whatsapp" | "save" | "remind" | "switch") {
     if (!utilityResult) return;
     if (action === "whatsapp") {
-      const text = encodeURIComponent(buildUtilityShareText(utilityResult));
-      window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
+      const shareText = buildUtilityShareText(utilityResult);
+      prepareConciergeRequest(
+        isSpanish
+          ? `Prepara este resumen de comparacion para WhatsApp. No abras WhatsApp ni envies nada sin mi confirmacion.\n\n${shareText}`
+          : `Prepare this comparison summary for WhatsApp. Do not open WhatsApp or send anything without my confirmation.\n\n${shareText}`,
+        {
+          flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+          requestedTool: "whatsapp",
+          actionLabel: isSpanish ? "Preparar WhatsApp" : "Prepare WhatsApp",
+          summary: isSpanish ? "Resumen de comparacion preparado para WhatsApp." : "Comparison summary prepared for WhatsApp.",
+          useCase: "find_offers",
+          payload: {
+            task_type: "utility_whatsapp_summary",
+            shopping_context: "utility_comparison",
+            whatsapp_message: shareText,
+            comparison_summary: utilityResult.summary.headline,
+            current_monthly_cost: utilityResult.summary.current_monthly_cost,
+            best_estimated_monthly_cost: utilityResult.summary.best_estimated_monthly_cost,
+            calculation_note: utilityResult.calculation_note,
+            neutrality_note: utilityResult.neutrality_note,
+            source_url: utilityResult.source_url,
+          },
+        },
+      );
       return;
     }
     if (action === "save") {
@@ -12012,16 +12486,23 @@ const ConciergeScreen = () => {
   function handleOfferAssistance(option: OfferOption) {
     const contact = option.phone || option.website || option.maps_url || (isSpanish ? "sin contacto publicado" : "no published contact");
     const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish);
+    const comparison = buildProviderComparisonOptions([option])[0];
+    const comparisonPayload = comparison
+      ? buildProviderContactPayload(comparison, {
+          mode: "shopping-seller",
+          query: offersQuery.trim(),
+          criteria: providerSearchCriteria,
+          flowReference: SHOPPING_SUPPORT_FLOW_REFERENCE,
+        })
+      : {};
     const message = isSpanish
       ? [
         `Ayudame a revisar ${option.name} antes de contactar.`,
-        `Puntuacion VYVA: ${option.score}/100.`,
         `Contacto disponible: ${contact}.`,
         "Comprueba condiciones, precio real, permanencia, opiniones y riesgos. No llames, contrates ni compartas datos sin pedirme confirmacion.",
       ].join("\n")
       : [
         `Help me review ${option.name} before contacting them.`,
-        `VYVA score: ${option.score}/100.`,
         `Available contact: ${contact}.`,
         "Check terms, real price, commitment, reviews, and risks. Do not call, book, switch, or share details without asking me to confirm.",
       ].join("\n");
@@ -12032,12 +12513,15 @@ const ConciergeScreen = () => {
       summary: isSpanish
         ? `Comparacion preparada: ${option.name}.`
         : `Deal comparison prepared: ${option.name}.`,
-      payload: offerReviewStructuredPayload(option, {
-        intent: "compare",
-        query: offersQuery.trim(),
-        criteria,
-        category: offersResult?.category,
-      }),
+      payload: {
+        ...offerReviewStructuredPayload(option, {
+          intent: "compare",
+          query: offersQuery.trim(),
+          criteria,
+          category: offersResult?.category,
+        }),
+        ...comparisonPayload,
+      },
       useCase: "find_offers",
     });
   }
@@ -12045,6 +12529,21 @@ const ConciergeScreen = () => {
   function handleProviderSearchAssistance(option: OfferOption) {
     const contact = option.phone || option.website || option.maps_url || (isSpanish ? "sin contacto publicado" : "no published contact");
     const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish).join(", ");
+    const comparison = buildProviderComparisonOptions([option])[0];
+    const comparisonPayload = comparison
+      ? buildProviderContactPayload(comparison, {
+          mode: providerSearchMode,
+          query: offersQuery.trim(),
+          criteria: providerSearchCriteria,
+          flowReference: providerSearchFlowReference(providerSearchMode),
+          resumeContext: {
+            kind: "provider_search",
+            mode: providerSearchMode,
+            query: offersQuery.trim(),
+            criteria: providerSearchCriteria,
+          },
+        })
+      : {};
     const message = isSpanish
       ? [
         `Ayudame a preparar el contacto con ${option.name}.`,
@@ -12078,6 +12577,7 @@ const ConciergeScreen = () => {
       providerSearchCriteria: providerSearchCriteria,
       providerSearchQuery: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
       payload: {
+        ...comparisonPayload,
         provider_search_mode: providerSearchMode ?? null,
         provider_search_query: offersQuery.trim() || providerSearchModeLabel(providerSearchMode, isSpanish),
         criteria: providerSearchCriteria,
@@ -12090,8 +12590,150 @@ const ConciergeScreen = () => {
         price_or_advantage: option.price_or_advantage,
         distance_or_availability: option.distance_or_availability,
         contact_method: option.contact_method,
-        score: option.score,
       },
+    });
+  }
+
+  function toggleProviderShortlist(option: ProviderComparisonOption) {
+    setProviderShortlistNotice(null);
+    setProviderShortlistError(null);
+    setProviderShortlistIds((current) => current.includes(option.id)
+      ? current.filter((id) => id !== option.id)
+      : [...current, option.id].slice(0, 3));
+  }
+
+  function handleSaveComparisonProvider(option: ProviderComparisonOption) {
+    const mode = providerSearchMode ?? "shopping-seller";
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: providerSearchSetupFocus(mode),
+        setupFlow: providerSearchFlowReference(mode),
+        setupReason: "Save provider from comparison",
+        conciergeResume: {
+          kind: "provider_search",
+          mode,
+          query: offersQuery.trim(),
+          criteria: providerSearchCriteria,
+        },
+        providerPrefill: buildTrustedProviderPrefill(option, providerSearchSetupFocus(mode)),
+        notice: isSpanish
+          ? "Guarda este proveedor de confianza. Volveras a la comparacion despues."
+          : "Save this trusted provider. You will return to the comparison afterwards.",
+      },
+    });
+  }
+
+  function handlePrepareComparisonContact(option: ProviderComparisonOption) {
+    const comparisonIndex = providerComparisonOptions.findIndex((candidate) => candidate.id === option.id);
+    const raw = comparisonIndex >= 0 ? offersResult?.options[comparisonIndex] : undefined;
+    if (!raw) return;
+    if (providerSearchMode) {
+      handleProviderSearchAssistance(raw);
+      return;
+    }
+    handleOfferAssistance(raw);
+  }
+
+  function providerShortlistMode(shortlist: ProviderShortlistState): ProviderSearchMode {
+    return isProviderSearchMode(shortlist.context.mode) ? shortlist.context.mode : "shopping-seller";
+  }
+
+  function handleRemoveActiveShortlistOption(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
+    const options = shortlist.options.filter((candidate) => candidate.id !== option.id);
+    if (options.length === 0) {
+      setActiveProviderShortlistError(isSpanish ? "Conserva una opcion o descarta la seleccion." : "Keep one option or dismiss the shortlist.");
+      return;
+    }
+    activeProviderShortlistMutation.mutate({ item, shortlist, options });
+  }
+
+  function handleAddActiveShortlistOption(item: ConciergePendingItem, shortlist: ProviderShortlistState) {
+    const mode = providerShortlistMode(shortlist);
+    openProviderSearchPanel(mode, shortlist.context.query?.trim() || providerSearchModeLabel(mode, isSpanish));
+    setProviderSearchCriteria((shortlist.context.criteria ?? []).filter(isProviderSearchCriterion));
+    setEditingProviderShortlistId(item.id);
+    setProviderShortlistNotice(isSpanish
+      ? "Elige una opcion nueva y pulsa Guardar seleccion."
+      : "Choose a new option, then keep the shortlist.");
+  }
+
+  function handleSelectActiveShortlistProvider(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
+    activeProviderShortlistMutation.mutate({
+      item,
+      shortlist,
+      options: shortlist.options,
+      preferredProviderId: option.id,
+    });
+  }
+
+  function handleRecheckActiveShortlist(item: ConciergePendingItem, shortlist: ProviderShortlistState) {
+    recheckProviderShortlistMutation.mutate({ item, shortlist });
+  }
+
+  function handleSaveActiveShortlistProvider(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
+    const mode = providerShortlistMode(shortlist);
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: providerSearchSetupFocus(mode),
+        setupFlow: providerSearchFlowReference(mode),
+        setupReason: "Save provider from active shortlist",
+        conciergeResume: {
+          kind: "provider_shortlist",
+          pendingId: item.id,
+          preferredProviderId: option.id,
+        },
+        providerPrefill: buildTrustedProviderPrefill(option, providerSearchSetupFocus(mode)),
+        notice: isSpanish
+          ? "Guarda el proveedor. Tu seleccion seguira en curso."
+          : "Save the provider. Your shortlist will stay in progress.",
+      },
+    });
+  }
+
+  function handlePrepareActiveShortlistContact(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
+    const channel = option.contact.preferredChannel?.toLowerCase();
+    const requestedTool: ConciergeToolRequirement = channel === "email" || option.contact.email
+      ? "email"
+      : channel === "whatsapp" || option.contact.whatsapp
+        ? "whatsapp"
+        : channel === "booking_link" || option.contact.bookingUrl
+          ? "booking_link"
+          : option.contact.phone
+            ? "phone_call"
+            : "operator_review";
+    const mode = providerShortlistMode(shortlist);
+    const contactPayload = buildProviderContactPayload(option, shortlist.context);
+    const updatedShortlistPayload = updateProviderShortlistPayload(item.action_payload ?? {}, shortlist.options, {
+      preferredProviderId: option.id,
+    });
+    void patchPendingConciergeAction({
+      pendingId: item.id,
+      actionPayload: updatedShortlistPayload,
+    }).then(() => {
+      prepareConciergeRequest(
+        isSpanish
+          ? `Prepara el contacto con ${option.name}. No llames, escribas ni reserves hasta que yo confirme.`
+          : `Prepare contact with ${option.name}. Do not call, message, or book until I confirm.`,
+        {
+          flowReference: isConciergeFlowReference(shortlist.context.flowReference) ? shortlist.context.flowReference : providerSearchFlowReference(mode),
+          requestedTool,
+          actionLabel: isSpanish ? "Preparar contacto" : "Prepare contact",
+          summary: isSpanish ? `Contacto preparado con ${option.name}.` : `Contact prepared with ${option.name}.`,
+          payload: {
+            ...contactPayload,
+            source_shortlist_pending_id: item.id,
+            source_shortlist_payload: updatedShortlistPayload,
+          },
+          useCase: mode === "shopping-seller" ? "find_offers" : "find_provider",
+          providerSearchMode: mode,
+          providerSearchCriteria: (shortlist.context.criteria ?? []).filter(isProviderSearchCriterion),
+          providerSearchQuery: shortlist.context.query ?? undefined,
+        },
+      );
+    }).catch((error) => {
+      setActiveProviderShortlistError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar el contacto." : "I could not prepare contact."));
     });
   }
 
@@ -12178,6 +12820,17 @@ const ConciergeScreen = () => {
     if (!trustedProviderResume) return;
     const { name, category, conciergeResume } = trustedProviderResume;
     setTrustedProviderResume(null);
+
+    if (conciergeResume?.kind === "provider_shortlist") {
+      const resumeNotice = isSpanish
+        ? `${name} guardado. Tu seleccion sigue en curso.`
+        : `${name} saved. Your shortlist is still in progress.`;
+      setVisibleActionId(conciergeResume.pendingId);
+      setIsRightNowHidden(false);
+      window.setTimeout(() => setActiveProviderShortlistNotice(resumeNotice), 0);
+      window.setTimeout(() => scrollIntoViewIfAvailable(rightNowSectionRef.current, { behavior: "smooth", block: "start" }), 80);
+      return;
+    }
 
     if (conciergeResume?.kind === "transport") {
       const message = conciergeResume.message?.trim()
@@ -12327,6 +12980,8 @@ const ConciergeScreen = () => {
   }
 
   const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
+  const activeActionProviderShortlist = parseProviderShortlistPayload(activeAction?.action_payload);
+  const activeActionIsDryRun = activeAction ? isConciergeDryRunPayload(activeAction.action_payload) : false;
   const queuedActions = activeAction ? pendingActions.filter((action) => action.id !== activeAction.id) : [];
   const queuedActionCount = queuedActions.length;
   const recentCompletedSessions = completedSessions
@@ -12350,22 +13005,22 @@ const ConciergeScreen = () => {
   const activeActionEmailHref = activeActionEmailDraft ? emailDraftHref(activeActionEmailDraft) : "";
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
-  const activeActionTimeline = activeAction ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
-  const activeActionExecutionTask = activeAction ? getConciergeExecutionTask(activeAction) : null;
+  const activeActionTimeline = activeAction && !activeActionProviderShortlist ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
+  const activeActionExecutionTask = activeAction && !activeActionProviderShortlist ? getConciergeExecutionTask(activeAction) : null;
   const activeActionExecutionStatus = activeAction
     ? buildConciergeExecutionStatus(activeAction, activeActionTimeline, isSpanish)
     : null;
   const activeActionUserUpdate = activeAction && activeActionExecutionStatus
     ? buildConciergeUserUpdateSummary(activeAction, activeActionExecutionStatus, isSpanish)
     : null;
-  const activeActionLiveHandoff = activeAction
+  const activeActionLiveHandoff = activeAction && !activeActionProviderShortlist
     ? buildConciergeLiveHandoffSummary(activeAction, isSpanish)
     : null;
   const activeActionCanRecordProviderReply = canRecordProviderReply(activeActionTimeline);
-  const activeActionProviderSearchDetails = isProviderSearchPendingAction(activeAction)
+  const activeActionProviderSearchDetails = !activeActionProviderShortlist && isProviderSearchPendingAction(activeAction)
     ? providerSearchActionDetails(activeAction, isSpanish)
     : null;
-  const activeActionWebSearch = isWebSearchPendingAction(activeAction) ? activeAction : null;
+  const activeActionWebSearch = !activeActionProviderShortlist && isWebSearchPendingAction(activeAction) ? activeAction : null;
   const activeActionWebSearchResult = activeActionWebSearch
     ? webSearchResultsByActionId[activeActionWebSearch.id] ?? null
     : null;
@@ -12383,6 +13038,8 @@ const ConciergeScreen = () => {
     : null;
   const SelectedInsuranceAdminIcon = selectedInsuranceAdminOption?.Icon ?? FileText;
   useEffect(() => {
+    setActiveProviderShortlistNotice(null);
+    setActiveProviderShortlistError(null);
     setGuidedDetailDraft("");
     setGuidedDetailNotice(null);
     setGuidedDetailError(null);
@@ -12405,6 +13062,8 @@ const ConciergeScreen = () => {
     setManualReviewOutcomeForm(EMPTY_MANUAL_REVIEW_OUTCOME_FORM);
     setManualReviewNotice(null);
     setManualReviewError(null);
+    setDryRunOutcomeNotice(null);
+    setDryRunOutcomeError(null);
   }, [activeAction?.id]);
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -12457,7 +13116,17 @@ const ConciergeScreen = () => {
   const activeActionExecutionChannel = activeAction ? getExecutionChannel(activeAction) : "";
   const activeActionAlreadyConfirmed = activeAction ? conciergeActionAlreadyConfirmed(activeAction) : false;
   const activeActionReviewConfirmed = activeAction ? confirmedReviewActionIds.has(activeAction.id) : false;
-  const activeActionNeedsUserConfirmation = Boolean(activeAction?.status === "pending" && !activeActionAlreadyConfirmed);
+  const activeActionNeedsUserConfirmation = Boolean(!activeActionProviderShortlist && activeAction?.status === "pending" && !activeActionAlreadyConfirmed);
+  const activeActionCanSaveDryRunOutcome = Boolean(
+    activeActionIsDryRun &&
+    activeAction &&
+    (
+      activeActionReviewConfirmed ||
+      activeActionAlreadyConfirmed ||
+      activeActionExecutionTask?.user_confirmed ||
+      activeAction.status === "calling"
+    ),
+  );
   const activeActionGuidedDetails = activeAction
     ? buildConciergeGuidedDetailCapture({
         useCase: activeAction.use_case,
@@ -12542,7 +13211,18 @@ const ConciergeScreen = () => {
   )
     ? recentEmailDraftCompletion.notice
     : null;
-  const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation;
+  const activeActionChannelReadiness = activeActionExecutionTask?.channel_readiness ?? null;
+  const activeActionLiveChannelAllowed = Boolean(
+    (activeActionExecutionTask?.external_action_allowed || activeActionReviewConfirmed) &&
+    (activeActionChannelReadiness?.channel ? activeActionChannelReadiness.external_action_allowed : true),
+  );
+  const activeActionExternalLinksAllowed = !activeActionNeedsUserConfirmation && !activeActionIsDryRun && activeActionLiveChannelAllowed;
+  const activeActionChannelBlocked = Boolean(
+    activeAction &&
+    !activeActionIsDryRun &&
+    activeActionChannelReadiness?.channel &&
+    !activeActionChannelReadiness.external_action_allowed,
+  );
   const activeActionCanShowManualReviewOutcome = Boolean(
     activeAction &&
     isManualReviewOutcomePendingAction(activeAction) &&
@@ -12558,7 +13238,7 @@ const ConciergeScreen = () => {
   const activeActionPreferredChannel = activeActionIsAppointment && typeof activeAction?.action_payload?.preferred_channel === "string"
     ? activeAction.action_payload.preferred_channel as AppointmentChannel
     : null;
-  const activeActionLabelParams = activeAction ? {
+  const activeActionLabelParams = activeAction && !activeActionProviderShortlist ? {
     item: activeAction,
     isSpanish,
     opensWhatsApp: activeActionOpensWhatsApp,
@@ -12658,12 +13338,22 @@ const ConciergeScreen = () => {
             ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Pedir presupuesto" : "Request quote")
+              : routePrefill.payload?.task_type === "provider_contact_preparation" && routePrefill.actionLabel?.trim()
+                ? routePrefill.actionLabel.trim()
               : (isSpanish ? "Anadir a Ahora mismo" : "Add to Right now"),
         secondaryLabel: routePrefill.kind === "appointment"
           ? (isSpanish ? "Anadir detalles" : "Add details")
           : (isSpanish ? "Editar solicitud" : "Edit request"),
       }
     : null;
+  const routePrefillSafetyCopy = routePrefill?.kind === "task"
+    && routePrefill.payload?.task_type === "provider_contact_preparation"
+    ? (isSpanish
+        ? "Nada se envia, llama ni abre hasta que confirmes."
+        : "Nothing is sent, called, or opened until you confirm.")
+    : (isSpanish
+        ? "Nada se reserva ni solicita sin tu confirmacion."
+        : "Nothing is booked or requested without your confirmation.");
 
   function showNextQueuedAction() {
     const nextAction = queuedActions[0] ?? pendingActions[0];
@@ -14203,7 +14893,7 @@ const ConciergeScreen = () => {
               </button>
             </div>
             <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
-              {isSpanish ? "Nada se reserva ni solicita sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
+              {routePrefillSafetyCopy}
             </p>
           </div>
         </section>
@@ -14362,6 +15052,14 @@ const ConciergeScreen = () => {
                 ) : null}
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
+                {activeActionIsDryRun ? (
+                  <span
+                    className="rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-black text-emerald-800"
+                    data-testid={`badge-concierge-dry-run-${activeAction.id}`}
+                  >
+                    {isSpanish ? "Modo prueba" : "Test mode"}
+                  </span>
+                ) : null}
                 <span
                   className="rounded-full px-3 py-1 text-[12px] font-medium"
                   style={{
@@ -14386,6 +15084,25 @@ const ConciergeScreen = () => {
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
               {activeActionShowVyvaSummary || activeAction.action_summary}
             </p>
+
+            {activeActionProviderShortlist ? (
+              <ProviderShortlistFollowUpPanel
+                shortlist={activeActionProviderShortlist}
+                locale={locale}
+                busy={activeProviderShortlistMutation.isPending || completeProviderShortlistMutation.isPending || recheckProviderShortlistMutation.isPending}
+                rechecking={recheckProviderShortlistMutation.isPending}
+                notice={activeProviderShortlistNotice}
+                error={activeProviderShortlistError}
+                onRemove={(option) => handleRemoveActiveShortlistOption(activeAction, activeActionProviderShortlist, option)}
+                onAdd={() => handleAddActiveShortlistOption(activeAction, activeActionProviderShortlist)}
+                onSelectPreferred={(option) => handleSelectActiveShortlistProvider(activeAction, activeActionProviderShortlist, option)}
+                onSaveProvider={(option) => handleSaveActiveShortlistProvider(activeAction, activeActionProviderShortlist, option)}
+                onPrepareContact={(option) => handlePrepareActiveShortlistContact(activeAction, activeActionProviderShortlist, option)}
+                onRecheck={() => handleRecheckActiveShortlist(activeAction, activeActionProviderShortlist)}
+                onDismiss={() => completeProviderShortlistMutation.mutate({ item: activeAction, shortlist: activeActionProviderShortlist, decision: "dismissed" })}
+                onFinish={() => completeProviderShortlistMutation.mutate({ item: activeAction, shortlist: activeActionProviderShortlist, decision: "preferred_selected" })}
+              />
+            ) : null}
 
             {activeActionExecutionStatus ? (
               <ConciergeExecutionStatusPanel
@@ -14475,7 +15192,7 @@ const ConciergeScreen = () => {
                 cancelTestId={`button-concierge-cancel-${activeAction.id}`}
                 isSpanish={isSpanish}
               />
-            ) : !activeActionNeedsGuidedDetails ? (
+            ) : !activeActionNeedsGuidedDetails && !activeActionProviderShortlist ? (
               <div
                 className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
                 data-testid="panel-concierge-next-action"
@@ -14490,6 +15207,37 @@ const ConciergeScreen = () => {
                   {activeActionNextStepHelper}
                 </p>
               </div>
+            ) : null}
+
+            {activeActionChannelBlocked && activeActionChannelReadiness ? (
+              <div
+                className="mt-3 rounded-[18px] border border-amber-200 bg-amber-50 px-3 py-2"
+                data-testid="panel-concierge-channel-readiness-blocked"
+              >
+                <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-amber-800">
+                  {isSpanish ? "Canal no configurado" : "Channel not ready"}
+                </p>
+                <p className="mt-1 font-body text-[13px] font-black leading-snug text-amber-950">
+                  {activeActionChannelReadiness.label}
+                </p>
+                <p className="mt-1 font-body text-[12px] font-bold leading-snug text-amber-900">
+                  {isSpanish
+                    ? "VYVA no abrira ni contactara a un proveedor hasta que administracion active, configure y verifique este canal."
+                    : "VYVA will not open or contact a provider until an admin enables, configures, and verifies this channel."}
+                </p>
+              </div>
+            ) : null}
+
+            {activeActionIsDryRun && activeAction ? (
+              <DryRunOutcomePanel
+                item={activeAction}
+                canSave={activeActionCanSaveDryRunOutcome}
+                isSaving={dryRunOutcomeMutation.isPending}
+                notice={dryRunOutcomeNotice}
+                error={dryRunOutcomeError}
+                isSpanish={isSpanish}
+                onSave={() => dryRunOutcomeMutation.mutate({ item: activeAction })}
+              />
             ) : null}
 
             {activeActionProviderSearchDetails ? (
@@ -14542,6 +15290,7 @@ const ConciergeScreen = () => {
                 notice={phoneCallOutcomeNotice}
                 error={phoneCallOutcomeError}
                 isSaving={phoneCallOutcomeMutation.isPending}
+                isDryRun={activeActionIsDryRun}
                 isSpanish={isSpanish}
                 onFormChange={updatePhoneCallOutcomeForm}
                 onCall={(href, label) => requestExternalConfirmation({
@@ -14563,6 +15312,7 @@ const ConciergeScreen = () => {
                 notice={whatsAppDraftNotice}
                 error={whatsAppDraftError}
                 isSaving={whatsAppDraftOutcomeMutation.isPending}
+                isDryRun={activeActionIsDryRun}
                 isSpanish={isSpanish}
                 onFormChange={updateWhatsAppDraftOutcome}
                 onOpenDraft={(href, label) => requestExternalConfirmation({
@@ -14585,6 +15335,7 @@ const ConciergeScreen = () => {
                 notice={emailDraftNotice}
                 error={emailDraftError}
                 isSaving={emailDraftOutcomeMutation.isPending}
+                isDryRun={activeActionIsDryRun}
                 isSpanish={isSpanish}
                 onFormChange={updateEmailDraftOutcome}
                 onOpenDraft={(href, label) => requestExternalConfirmation({
@@ -14683,6 +15434,7 @@ const ConciergeScreen = () => {
                 bookingUrl={activeActionBookingUrl}
                 canOpenForm={activeActionCanOpenForm}
                 externalLinksAllowed={activeActionExternalLinksAllowed}
+                isDryRun={activeActionIsDryRun}
                 form={bookingFormOutcomeForm}
                 notice={bookingFormNotice}
                 error={bookingFormError}
@@ -14690,6 +15442,13 @@ const ConciergeScreen = () => {
                 isSaving={bookingFormOutcomeMutation.isPending}
                 isSpanish={isSpanish}
                 onFormChange={updateBookingFormOutcome}
+                onOpenForm={(href, label) => requestExternalConfirmation({
+                  item: activeAction,
+                  kind: "booking",
+                  href,
+                  label,
+                  target: "_blank",
+                })}
                 onSubmitted={() => handleBookingFormSubmitted(activeAction)}
                 onAddDetails={() => handleBookingFormAddDetails(activeAction)}
                 onNeedHelp={() => handleBookingFormNeedHelp(activeAction)}
@@ -14817,6 +15576,7 @@ const ConciergeScreen = () => {
               {recentCompletedSessions.map((session) => {
                 const details = completedSessionDetails(session, isSpanish);
                 const completedAt = formatConciergeCompletedAt(session.completed_at, locale);
+                const sessionIsDryRun = isConciergeDryRunPayload(session.outcome_payload);
 
                 return (
                   <button
@@ -14840,6 +15600,14 @@ const ConciergeScreen = () => {
                               {completedAt}
                             </span>
                           )}
+                          {sessionIsDryRun ? (
+                            <span
+                              className="rounded-full bg-emerald-50 px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800"
+                              data-testid={`badge-concierge-completed-dry-run-${session.id}`}
+                            >
+                              {isSpanish ? "Prueba" : "Test mode"}
+                            </span>
+                          ) : null}
                         </div>
                         <p className="mt-1 truncate font-body text-[14px] font-black text-vyva-text-1">
                           {completedSessionProvider(session, isSpanish)}
@@ -16583,151 +17351,37 @@ const ConciergeScreen = () => {
                         )}
                       </div>
                     ) : (
-                      offersResult.options.map((option) => {
-                        const optionKey = offerCardKey(option);
-                        const scoreDetailsOpen = expandedOfferScoreKey === optionKey;
-                        const contactAvailable = Boolean(option.phone || option.website || option.maps_url);
-                        const overallScore = clampScore(option.score);
-                        const providerBadges = providerSearchMode
-                          ? providerResultBadges(option, providerSearchCriteria, isSpanish)
-                          : [];
-
-                        return (
-                          <div key={`${option.label}-${option.name}`} className="rounded-[20px] border border-vyva-border bg-white p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-vyva-purple">
-                                  {option.label}
-                                </p>
-                                <p className="mt-1 font-body text-[17px] font-semibold leading-tight text-vyva-text-1">
-                                  {option.name}
-                                </p>
-                              </div>
-                              <span
-                                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full p-1"
-                                style={{ background: `conic-gradient(#0A7C4E ${overallScore * 3.6}deg, #ECFDF5 0deg)` }}
-                                aria-label={`${isSpanish ? "Puntuacion" : "Score"} ${overallScore} de 100`}
-                                title={`${overallScore}/100`}
-                              >
-                                <span className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white font-body text-[15px] font-black leading-none text-[#0A7C4E]">
-                                  {overallScore}
-                                  <span className="mt-0.5 text-[9px] font-semibold text-vyva-text-2">/100</span>
-                                </span>
-                              </span>
-                            </div>
-                            {providerBadges.length > 0 && (
-                              <div className="mt-3 flex flex-wrap gap-2" data-testid={`panel-provider-result-badges-${optionKey}`}>
-                                {providerBadges.map((badge) => (
-                                  <span
-                                    key={badge}
-                                    className="inline-flex min-h-[30px] items-center rounded-full bg-[#F0FDFA] px-3 font-body text-[12px] font-semibold text-[#0F766E]"
-                                  >
-                                    {badge}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            <p className="mt-3 rounded-[14px] bg-[#F5F3FF] px-3 py-2 font-body text-[13px] leading-relaxed text-vyva-text-1">
-                              {option.price_or_advantage || option.what_it_offers}
-                            </p>
-                            {providerSearchMode && (
-                              <div className="mt-2 rounded-[14px] border border-[#C7E9E3] bg-[#F0FDFA] px-3 py-2" data-testid={`panel-provider-result-fit-${optionKey}`}>
-                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0F766E]">
-                                  {isSpanish ? "Por que encaja" : "Why this fits"}
-                                </p>
-                                <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-1">
-                                  {option.why_good_option || option.trust_note || option.what_it_offers}
-                                </p>
-                                <p className="mt-1 font-body text-[12px] leading-relaxed text-vyva-text-2">
-                                  {option.distance_or_availability}
-                                </p>
-                              </div>
-                            )}
-                            <p className="mt-2 font-body text-[12px] leading-relaxed text-vyva-text-2">
-                              {option.trust_note}
-                            </p>
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              <button
-                                type="button"
-                                data-testid={`button-offer-score-details-${optionKey}`}
-                                onClick={() => setExpandedOfferScoreKey((current) => current === optionKey ? null : optionKey)}
-                                aria-expanded={scoreDetailsOpen}
-                                className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-[#E8DCCF] bg-[#FFFCF7] px-3 font-body text-[12px] font-semibold text-vyva-text-2"
-                              >
-                                {scoreDetailsOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
-                                {isSpanish ? "Detalles" : "Score details"}
-                              </button>
-                              <span className="inline-flex min-h-[34px] items-center rounded-full bg-[#FBF8F4] px-3 font-body text-[12px] text-vyva-text-2">
-                                {option.contact_method}
-                              </span>
-                            </div>
-                            {scoreDetailsOpen && (
-                              <div data-testid={`panel-offer-score-${optionKey}`} className="mt-3 rounded-[16px] border border-[#E8DCCF] bg-[#FFFCF7] p-3">
-                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                                  {isSpanish ? "Por que esta puntuacion" : "Why this score"}
-                                </p>
-                                <div className="mt-2 grid gap-2">
-                                  {offerScoreRows(option, isSpanish).map((row) => {
-                                    const score = clampScore(row.value);
-                                    return (
-                                      <div key={row.key} className="grid grid-cols-[minmax(82px,1fr)_minmax(80px,1.2fr)_34px] items-center gap-2">
-                                        <span className="font-body text-[12px] leading-tight text-vyva-text-2">{row.label}</span>
-                                        <span className="h-2 rounded-full bg-[#EFE7DB]">
-                                          <span className="block h-2 rounded-full bg-[#0A7C4E]" style={{ width: `${score}%` }} />
-                                        </span>
-                                        <span className="text-right font-body text-[12px] font-semibold text-vyva-text-1">{score}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {providerSearchMode ? (
-                                <Button
-                                  type="button"
-                                  onClick={() => handleProviderSearchAssistance(option)}
-                                  className="h-[44px] rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold hover:bg-vyva-purple/90"
-                                  data-testid={`button-provider-prepare-contact-${optionKey}`}
-                                >
-                                  <Send size={15} className="mr-2" />
-                                  {isSpanish ? "Preparar contacto" : "Ask VYVA to prepare contact"}
-                                </Button>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  onClick={() => handleOfferAssistance(option)}
-                                  data-testid={`button-offer-prepare-review-${optionKey}`}
-                                  className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
-                                >
-                                  <Send size={15} className="mr-2" />
-                                  {isSpanish ? "Que VYVA revise" : "Ask VYVA to review"}
-                                </Button>
-                              )}
-                              {!providerSearchMode && contactAvailable && (
-                                <span
-                                  data-testid={`badge-offer-contact-gated-${optionKey}`}
-                                  className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-[#F5F3FF] px-4 font-body text-[13px] font-bold text-vyva-purple"
-                                >
-                                  <ShieldCheck size={15} />
-                                  {isSpanish ? "Contacto tras tu OK" : "Contact after your OK"}
-                                </span>
-                              )}
-                              {!providerSearchMode && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => handleOfferWatch(option)}
-                                  className="h-[40px] rounded-full border-[#BBF7D0] bg-[#F0FDF4] px-4 font-body text-[13px] font-bold text-[#0A7C4E]"
-                                >
-                                  <BellRing size={15} className="mr-2" />
-                                  {isSpanish ? "Vigilar cambios" : "Watch changes"}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
+                      <div className="space-y-3">
+                        <ProviderComparisonPanel
+                          options={providerComparisonOptions}
+                          locale={locale}
+                          shortlistedIds={providerShortlistIds}
+                          shortlistSaved={Boolean(providerShortlistNotice)}
+                          shortlistSaving={providerShortlistMutation.isPending}
+                          onToggleShortlist={toggleProviderShortlist}
+                          onSaveShortlist={(options) => providerShortlistMutation.mutate(options)}
+                          onSaveProvider={handleSaveComparisonProvider}
+                          onPrepareContact={handlePrepareComparisonContact}
+                          onWatch={providerSearchMode ? undefined : (option) => {
+                            const comparisonIndex = providerComparisonOptions.findIndex((candidate) => candidate.id === option.id);
+                            const raw = comparisonIndex >= 0 ? offersResult.options[comparisonIndex] : undefined;
+                            if (raw) handleOfferWatch(raw);
+                          }}
+                        />
+                        {providerShortlistNotice && (
+                          <p
+                            data-testid="notice-provider-shortlist"
+                            className="rounded-lg border border-[#BFE7E1] bg-[#F0FDFA] px-3 py-2 font-body text-[13px] font-semibold text-[#0F766E]"
+                          >
+                            {providerShortlistNotice}
+                          </p>
+                        )}
+                        {providerShortlistError && (
+                          <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-body text-[13px] text-red-700">
+                            {providerShortlistError}
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     <p className="rounded-[16px] border border-vyva-border bg-white px-3 py-2 font-body text-[12px] leading-relaxed text-vyva-text-2">

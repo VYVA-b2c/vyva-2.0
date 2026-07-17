@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeScreen from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import { CONCIERGE_DRY_RUN_FIXTURES } from "../../shared/conciergeDryRun";
 
 const voiceHeroMock = vi.hoisted(() => vi.fn());
 const voiceActionMock = vi.hoisted(() => ({
@@ -116,6 +117,51 @@ function errorResponse(status: number, body: unknown) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function liveReadyExecutionTask(
+  tool: "phone_call" | "email" | "whatsapp" | "booking_link",
+  overrides: Record<string, unknown> = {},
+) {
+  const channel = tool === "booking_link" ? "form_application" : tool;
+  const label = tool === "phone_call"
+    ? "Phone calls"
+    : tool === "booking_link"
+      ? "Forms / applications"
+      : tool === "email"
+        ? "Email"
+        : "WhatsApp";
+  return {
+    version: 1,
+    flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+    action_type: tool === "phone_call" ? "phone_call" : tool === "booking_link" ? "booking_link" : "message",
+    requested_tool: tool,
+    active_tool: tool,
+    lifecycle_status: "confirmed",
+    provider_ready: true,
+    missing_requirements: [],
+    confirmation_required: true,
+    user_confirmed: true,
+    external_action_allowed: true,
+    execution_mode: "live",
+    channel_readiness: {
+      version: 1,
+      tool,
+      channel,
+      label,
+      status: "ready",
+      ready: true,
+      admin_enabled: true,
+      configured: true,
+      verified: true,
+      dry_run: false,
+      external_action_allowed: true,
+      blockers: [],
+    },
+    created_at: "2026-07-14T10:00:00.000Z",
+    updated_at: "2026-07-14T10:01:00.000Z",
+    ...overrides,
+  };
 }
 
 function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge"]) {
@@ -1139,10 +1185,11 @@ describe("ConciergeScreen action hub", () => {
     expect(proofDetails).toHaveTextContent("official or regulated comparison sources");
     expect(proofDetails).toHaveTextContent("Validates price, trust, ease, and fit.");
     expect(proofDetails).toHaveTextContent("price change");
-    expect(screen.queryByText("Price or value")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /score details/i }));
-    expect(await screen.findByText("Price or value")).toBeVisible();
+    const comparison = screen.getByTestId("provider-comparison-panel");
+    expect(comparison).toHaveTextContent("Price");
+    expect(comparison).toHaveTextContent("Not provided");
+    expect(comparison).not.toHaveTextContent("/100");
+    expect(screen.queryByRole("button", { name: /score details/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /watch changes/i }));
 
@@ -1209,9 +1256,9 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: /review available benefits/i }));
     fireEvent.click(screen.getByTestId("button-offers-search"));
 
-    const prepareButton = await screen.findByTestId("button-offer-prepare-review-opcion-recomendada-senior-energy-saver");
-    expect(prepareButton).toHaveTextContent("Ask VYVA to review");
-    expect(screen.getByTestId("badge-offer-contact-gated-opcion-recomendada-senior-energy-saver")).toHaveTextContent("Contact after your OK");
+    const prepareButton = await screen.findByTestId("button-provider-comparison-contact-senior-energy-saver-1");
+    expect(prepareButton).toHaveTextContent("Prepare contact");
+    expect(screen.getByTestId("provider-comparison-panel")).not.toHaveTextContent("/100");
     expect(screen.queryByRole("link", { name: /open now|call now/i })).not.toBeInTheDocument();
 
     fireEvent.click(prepareButton);
@@ -1220,7 +1267,7 @@ describe("ConciergeScreen action hub", () => {
     expect(prefill).toHaveTextContent("Deal comparison ready");
     expect(prefill).toHaveTextContent("Deal comparison prepared: Senior Energy Saver.");
     expect(prefill).toHaveTextContent("Review deal");
-    expect(prefill).toHaveTextContent("Nothing is booked");
+    expect(prefill).toHaveTextContent("Nothing is sent, called, or opened until you confirm");
 
     fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
 
@@ -1231,7 +1278,7 @@ describe("ConciergeScreen action hub", () => {
         action_summary: "Deal comparison prepared: Senior Energy Saver.",
         action_payload: expect.objectContaining({
           flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
-          task_type: "deal_comparison",
+          task_type: "provider_contact_preparation",
           offer_name: "Senior Energy Saver",
           provider_name: "Senior Energy Saver",
           phone: "+34 600 333 444",
@@ -1241,6 +1288,10 @@ describe("ConciergeScreen action hub", () => {
           confirmation_required_before_action: true,
           no_external_action_without_confirmation: true,
           user_confirmed: false,
+          comparison: expect.objectContaining({
+            name: "Senior Energy Saver",
+            source_status: "unknown",
+          }),
         }),
       });
     });
@@ -1379,6 +1430,129 @@ describe("ConciergeScreen action hub", () => {
     expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not open, switch, call, or share details without my confirmation.");
   });
 
+  it("prepares utility WhatsApp summaries inside Concierge instead of opening WhatsApp directly", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    let triggerBody: {
+      action_summary?: string;
+      action_payload?: Record<string, unknown>;
+      auto_start?: boolean;
+      use_case?: string;
+    } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.includes("/api/utilities/normalize")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          can_compare: true,
+        });
+      }
+      if (target.includes("/api/utilities/compare")) {
+        return jsonResponse({
+          normalized_input: {
+            utility_type: "electricity",
+            postcode: "28013",
+            provider: "Current Co",
+            monthly_cost: 92,
+            power_kw: 4.6,
+            consumption_kwh: 260,
+            billing_period_days: 30,
+            total_cost: 92,
+            has_social_bonus: null,
+            confidence: 0.9,
+            missing_fields: [],
+          },
+          source_used: "CNMC",
+          source_status: "success",
+          source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+          summary: {
+            headline: "One tariff looks cheaper, but confirm terms first.",
+            current_monthly_cost: 92,
+            best_estimated_monthly_cost: 71,
+            estimated_monthly_savings: 21,
+          },
+          results: [{
+            provider: "Tarifa Clara",
+            tariff_name: "Luz Senior",
+            estimated_monthly_cost: 71,
+            estimated_annual_cost: 852,
+            estimated_monthly_savings: 21,
+            contract_type: "indexed",
+            permanence: "none",
+            price_stability: "variable",
+            green_energy: true,
+            source: "CNMC",
+            source_url: "https://comparador.cnmc.gob.es/comparador/listado/electricidad",
+            provider_url: "https://tarifaclara.example/luz-senior",
+            action_label: "View offers",
+            confidence: "high",
+            notes: ["Confirm taxes and permanence."],
+          }],
+          calculation_note: "Compared current bill against estimated tariffs.",
+          estimated_note: "Savings are estimates.",
+          neutrality_note: "No provider paid for placement.",
+          source_note: "CNMC comparison.",
+        });
+      }
+      if (target.includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "utility-whatsapp-summary-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByRole("button", { name: /Household costs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Fill manually/i }));
+    fireEvent.change(screen.getByPlaceholderText("Postcode"), { target: { value: "28013" } });
+    fireEvent.change(screen.getByPlaceholderText("Approx monthly cost"), { target: { value: "92" } });
+    fireEvent.change(screen.getByPlaceholderText("Current provider optional"), { target: { value: "Current Co" } });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare comparison/i }));
+
+    expect(await screen.findByTestId("button-utilities-compare")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("button-utilities-compare"));
+    fireEvent.click(await screen.findByRole("button", { name: /Send summary by WhatsApp/i }));
+
+    expect(openMock).not.toHaveBeenCalled();
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Deal comparison ready");
+    expect(prefill).toHaveTextContent("Comparison summary prepared for WhatsApp.");
+    expect(prefill).toHaveTextContent("Prepare WhatsApp");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(triggerBody).toMatchObject({
+        use_case: "find_offers",
+        auto_start: false,
+        action_summary: "Comparison summary prepared for WhatsApp.",
+        action_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+          task_type: "utility_whatsapp_summary",
+          requested_tool: "whatsapp",
+          active_tool: "operator_review",
+          execution_channel: "manual",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+          user_confirmed: false,
+        }),
+      });
+    });
+    expect(String(triggerBody?.action_payload?.draft_message)).toContain("Do not open WhatsApp or send anything without my confirmation.");
+  });
+
   it("turns provider results into clear prepared-contact tasks", async () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).includes("/api/offers/search")) {
@@ -1404,6 +1578,16 @@ describe("ConciergeScreen action hub", () => {
             contact_method: "Phone",
             phone: "+34 600 111 222",
             trust_note: "Verified reviews and published contact.",
+            source_label: "Verified local directory",
+            source_status: "verified",
+            comparison: {
+              distance: { value: "1.2 km", status: "verified", source: "Verified local directory" },
+              price: { value: "Clear first-visit price", status: "reported", source: "Clinic website" },
+              reputation: { value: "Verified public reviews", status: "reported", source: "Public reviews" },
+              availability: { value: "Available this week", status: "reported", source: "Clinic website" },
+              accessibility: { value: "Step-free entrance", status: "reported", source: "Clinic website" },
+              coverage: { value: null, status: "unknown", source: null },
+            },
             score: 88,
             score_breakdown: {
               distance: 90,
@@ -1430,7 +1614,6 @@ describe("ConciergeScreen action hub", () => {
           selected_provider_name: "Marbella Care Clinic",
           provider_name: "Marbella Care Clinic",
           provider_phone: "+34 600 111 222",
-          score: 88,
           confirmation_required_before_action: true,
           no_external_action_without_confirmation: true,
         });
@@ -1447,25 +1630,23 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-provider-criterion-clear-price"));
     fireEvent.click(screen.getByTestId("button-offers-search"));
 
-    const badges = await screen.findByTestId("panel-provider-result-badges-opcion-recomendada-marbella-care-clinic");
-    expect(badges).toHaveTextContent("Nearby");
-    expect(badges).toHaveTextContent("Good reputation");
-    expect(badges).toHaveTextContent("Easy access");
-    expect(badges).toHaveTextContent("Clear price");
-
-    const fit = screen.getByTestId("panel-provider-result-fit-opcion-recomendada-marbella-care-clinic");
-    expect(fit).toHaveTextContent("Why this fits");
-    expect(fit).toHaveTextContent("Close, trusted, and accessible.");
-    expect(fit).toHaveTextContent("1.2 km away and available this week.");
+    const comparison = await screen.findByTestId("provider-comparison-panel");
+    expect(comparison).toHaveTextContent("1.2 km");
+    expect(comparison).toHaveTextContent("Clear first-visit price");
+    expect(comparison).toHaveTextContent("Step-free entrance");
+    expect(comparison).toHaveTextContent("Insurance / coverage");
+    expect(comparison).toHaveTextContent("Not provided");
+    expect(comparison).toHaveTextContent("Why this may suit you");
+    expect(comparison).not.toHaveTextContent("/100");
     expect(screen.queryByRole("button", { name: /watch changes/i })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-provider-prepare-contact-opcion-recomendada-marbella-care-clinic"));
+    fireEvent.click(screen.getByTestId("button-provider-comparison-contact-marbella-care-clinic-1"));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
     expect(prefill).toHaveTextContent("Care search ready");
     expect(prefill).toHaveTextContent("Provider search prepared: Marbella Care Clinic.");
     expect(prefill).toHaveTextContent("Prepare contact");
-    expect(prefill).toHaveTextContent("Add to Right now");
+    expect(screen.getByTestId("button-concierge-prefill-send")).toHaveTextContent("Prepare contact");
 
     fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
 
@@ -1475,6 +1656,384 @@ describe("ConciergeScreen action hub", () => {
       }));
     });
   }, 60000);
+
+  it("saves a provider shortlist without contact and preserves search context when saving a trusted provider", async () => {
+    let shortlistTrigger: Record<string, unknown> | null = null;
+    let shortlistCompletion: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.includes("/api/offers/search")) {
+        return jsonResponse({
+          category: "Care options",
+          decision_explanation: "Compare known facts and keep gaps visible.",
+          neutrality_note: "No provider paid for placement.",
+          source_guidance: ["verified local directories"],
+          options: [
+            {
+              label: "Option 1",
+              name: "Harbour Clinic",
+              category: "Care",
+              what_it_offers: "Care assessment",
+              price_or_advantage: "EUR 60 first visit",
+              why_good_option: "Nearby",
+              distance_or_availability: "1.2 km | Tuesday",
+              contact_method: "Phone",
+              phone: "+34 600 111 222",
+              trust_note: "Public reviews",
+              source_label: "Regional directory",
+              source_status: "verified",
+              score: 90,
+            },
+            {
+              label: "Option 2",
+              name: "Garden Care",
+              category: "Care",
+              what_it_offers: "Home assessment",
+              price_or_advantage: "Price not provided",
+              why_good_option: "Home visits",
+              distance_or_availability: "3 km | This week",
+              contact_method: "Website",
+              website: "https://garden.example.test",
+              trust_note: "Community listing",
+              source_label: "Community directory",
+              source_status: "reported",
+              score: 76,
+            },
+          ],
+          next_step: "Confirm before contacting anyone.",
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/trigger")) {
+        shortlistTrigger = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "shortlist-1", status: "pending" });
+      }
+      if (target.endsWith("/api/concierge/actions/shortlist-1/complete")) {
+        shortlistCompletion = JSON.parse(String(init?.body));
+        return jsonResponse({ success: true });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByTestId("button-offers-search"));
+
+    fireEvent.click(await screen.findByTestId("button-provider-shortlist-harbour-clinic-1"));
+    fireEvent.click(screen.getByTestId("button-provider-shortlist-garden-care-2"));
+    fireEvent.click(screen.getByTestId("button-provider-shortlist-save"));
+
+    await waitFor(() => {
+      expect(shortlistTrigger).toMatchObject({
+        use_case: "find_provider",
+        auto_start: false,
+        action_payload: expect.objectContaining({
+          task_type: "provider_shortlist",
+          selected_provider_names: ["Harbour Clinic", "Garden Care"],
+          shortlist_status: "open",
+          shortlist_captured_at: expect.any(String),
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
+    expect(shortlistCompletion).toBeNull();
+    expect(screen.getByTestId("notice-provider-shortlist")).toHaveTextContent("In progress");
+    expect(screen.getByTestId("notice-provider-shortlist")).toHaveTextContent("Nobody was contacted");
+
+    fireEvent.click(screen.getByTestId("button-provider-comparison-save-harbour-clinic-1"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Harbour Clinic");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("provider_search");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("personal-care");
+  });
+
+  it("reopens an active provider shortlist and lets the user edit and finish a preferred choice", async () => {
+    const shortlistOption = (id: string, name: string) => ({
+      id,
+      name,
+      category: "Doctor",
+      summary: "Appointments",
+      why_may_suit_you: "Nearby",
+      facts: {
+        distance: { criterion: "distance", value: "2 km", status: "reported" },
+        price: { criterion: "price", value: null, status: "unknown" },
+        reputation: { criterion: "reputation", value: null, status: "unknown" },
+        availability: { criterion: "availability", value: null, status: "unknown" },
+        accessibility: { criterion: "accessibility", value: null, status: "unknown" },
+        coverage: { criterion: "coverage", value: null, status: "unknown" },
+      },
+      contact: {},
+      source_label: "Local directory",
+      source_status: "reported",
+    });
+    let pendingItems = [{
+      id: "shortlist-active-1",
+      use_case: "find_provider",
+      provider_name: "Harbour Clinic",
+      provider_phone: null,
+      action_summary: "Provider shortlist saved: Harbour Clinic, Garden Care.",
+      action_payload: {
+        task_type: "provider_shortlist",
+        shortlist_version: 1,
+        shortlist_only: true,
+        shortlist_captured_at: "2020-01-01T10:00:00.000Z",
+        shortlist_updated_at: "2020-01-01T10:00:00.000Z",
+        shortlist_status: "open",
+        preferred_provider_id: null,
+        preferred_provider_name: null,
+        provider_search_mode: "specialist",
+        provider_search_query: "doctor nearby",
+        criteria: ["nearby", "reputation"],
+        flow_reference: "CF_MEDICAL_APPOINTMENT",
+        selected_provider_names: ["Harbour Clinic", "Garden Care"],
+        provider_shortlist: [
+          shortlistOption("harbour", "Harbour Clinic"),
+          shortlistOption("garden", "Garden Care"),
+        ],
+        no_external_action_without_confirmation: true,
+      },
+      status: "pending" as const,
+      language: "en",
+    }];
+    const patches: Record<string, unknown>[] = [];
+    let completion: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: pendingItems });
+      if (target.endsWith("/api/concierge/actions/sessions")) return jsonResponse({ items: [] });
+      if (target.endsWith("/api/concierge/actions/shortlist-active-1/details")) {
+        const body = JSON.parse(String(init?.body)) as { action_payload: Record<string, unknown> };
+        patches.push(body.action_payload);
+        pendingItems = [{ ...pendingItems[0], action_payload: body.action_payload }];
+        return jsonResponse({ ok: true, item: pendingItems[0] });
+      }
+      if (target.endsWith("/api/concierge/actions/shortlist-active-1/complete")) {
+        completion = JSON.parse(String(init?.body));
+        pendingItems = [];
+        return jsonResponse({ ok: true, status: "completed" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{ pathname: "/concierge", state: { focusRightNow: true, conciergePendingId: "shortlist-active-1" } }]);
+
+    expect(await screen.findByTestId("provider-shortlist-follow-up")).toHaveTextContent("2 saved options");
+    expect(screen.getByTestId("provider-shortlist-stale-warning")).toHaveTextContent("Details may have changed");
+    expect(screen.queryByTestId("panel-concierge-next-action")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-provider-shortlist-garden"));
+    await waitFor(() => expect(patches.at(-1)).toMatchObject({ selected_provider_names: ["Harbour Clinic"] }));
+
+    fireEvent.click(screen.getByTestId("button-provider-comparison-choose-harbour"));
+    await waitFor(() => expect(patches.at(-1)).toMatchObject({
+      preferred_provider_id: "harbour",
+      preferred_provider_name: "Harbour Clinic",
+    }));
+
+    await waitFor(() => expect(screen.getByTestId("button-provider-shortlist-finish")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("button-provider-shortlist-finish"));
+    await waitFor(() => expect(completion).toMatchObject({
+      outcome_payload: expect.objectContaining({
+        shortlist_status: "preferred_selected",
+        preferred_provider_name: "Harbour Clinic",
+        no_external_action_taken: true,
+      }),
+    }));
+  });
+
+  it("rechecks an active shortlist without replacing its saved snapshot", async () => {
+    const shortlistOption = (id: string, name: string, price: string, availability: string) => ({
+      id,
+      name,
+      category: "Doctor",
+      summary: "Appointments",
+      why_may_suit_you: "Nearby",
+      facts: {
+        distance: { criterion: "distance", value: "2 km", status: "reported" },
+        price: { criterion: "price", value: price, status: "reported" },
+        reputation: { criterion: "reputation", value: "4.4/5", status: "reported" },
+        availability: { criterion: "availability", value: availability, status: "reported" },
+        accessibility: { criterion: "accessibility", value: null, status: "unknown" },
+        coverage: { criterion: "coverage", value: null, status: "unknown" },
+      },
+      contact: {},
+      source_label: "Saved directory",
+      source_status: "reported",
+    });
+    const originalOptions = [
+      shortlistOption("harbour", "Harbour Clinic", "EUR 60", "Tuesday"),
+      shortlistOption("garden", "Garden Care", "EUR 55", "Friday"),
+    ];
+    let pendingItems = [{
+      id: "shortlist-recheck-1",
+      use_case: "find_provider",
+      provider_name: "Harbour Clinic",
+      provider_phone: null,
+      action_summary: "Provider shortlist saved: Harbour Clinic, Garden Care.",
+      action_payload: {
+        task_type: "provider_shortlist",
+        shortlist_version: 1,
+        shortlist_only: true,
+        shortlist_captured_at: "2020-01-01T10:00:00.000Z",
+        shortlist_updated_at: "2020-01-01T10:00:00.000Z",
+        shortlist_status: "open",
+        preferred_provider_id: null,
+        preferred_provider_name: null,
+        provider_search_mode: "specialist",
+        provider_search_query: "doctor nearby",
+        criteria: ["nearby", "reputation"],
+        flow_reference: "CF_MEDICAL_APPOINTMENT",
+        selected_provider_names: ["Harbour Clinic", "Garden Care"],
+        provider_shortlist: originalOptions,
+        no_external_action_without_confirmation: true,
+      },
+      status: "pending" as const,
+      language: "en",
+    }];
+    let searchBody: { query?: string } | null = null;
+    let patchedPayload: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: pendingItems });
+      if (target.endsWith("/api/concierge/actions/sessions")) return jsonResponse({ items: [] });
+      if (target.endsWith("/api/offers/search")) {
+        searchBody = JSON.parse(String(init?.body));
+        return jsonResponse({
+          category: "Doctor",
+          options: [{
+            name: "Harbour Clinic",
+            category: "Doctor",
+            what_it_offers: "Appointments",
+            phone: "+34 600 999 888",
+            source_label: "Current directory",
+            source_status: "verified",
+            comparison: {
+              price: { criterion: "price", value: "EUR 75", status: "verified", source: "Clinic website" },
+              availability: { criterion: "availability", value: "Wednesday", status: "reported", source: "Clinic website" },
+              reputation: { criterion: "reputation", value: "4.4/5", status: "reported", source: "Public reviews" },
+            },
+          }],
+          decision_explanation: "Current options",
+          neutrality_note: "Neutral search",
+          source_guidance: [],
+          next_step: "Review changes",
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/shortlist-recheck-1/details")) {
+        const body = JSON.parse(String(init?.body)) as { action_payload: Record<string, unknown> };
+        patchedPayload = body.action_payload;
+        pendingItems = [{ ...pendingItems[0], action_payload: body.action_payload }];
+        return jsonResponse({ ok: true, item: pendingItems[0] });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{ pathname: "/concierge", state: { focusRightNow: true, conciergePendingId: "shortlist-recheck-1" } }]);
+    fireEvent.click(await screen.findByTestId("button-provider-shortlist-recheck"));
+
+    await waitFor(() => expect(searchBody?.query).toContain("doctor nearby"));
+    await waitFor(() => expect(patchedPayload).toMatchObject({
+      provider_shortlist: originalOptions,
+      shortlist_recheck_status: "providers_unavailable",
+      shortlist_recheck_changed_count: 2,
+      shortlist_recheck_unavailable_count: 1,
+      shortlist_latest_options: [expect.objectContaining({ name: "Harbour Clinic" })],
+      no_external_action_without_confirmation: true,
+    }));
+    expect(await screen.findByTestId("provider-shortlist-change-review")).toHaveTextContent("What changed");
+    expect(screen.getByTestId("provider-shortlist-review-harbour")).toHaveTextContent("EUR 60");
+    expect(screen.getByTestId("provider-shortlist-review-harbour")).toHaveTextContent("EUR 75");
+    expect(screen.getByTestId("provider-shortlist-review-garden")).toHaveTextContent("Not found in the latest check");
+    expect(screen.getByTestId("button-provider-comparison-contact-garden")).toBeDisabled();
+  });
+
+  it("keeps final confirmation when a shortlist choice becomes a contact task", async () => {
+    const shortlistPayload = {
+      task_type: "provider_shortlist",
+      shortlist_version: 1,
+      shortlist_only: true,
+      shortlist_captured_at: "2026-07-15T10:00:00.000Z",
+      shortlist_updated_at: "2026-07-15T10:00:00.000Z",
+      shortlist_status: "open",
+      preferred_provider_id: null,
+      preferred_provider_name: null,
+      provider_search_mode: "specialist",
+      provider_search_query: "doctor nearby",
+      criteria: ["nearby"],
+      flow_reference: "CF_MEDICAL_APPOINTMENT",
+      selected_provider_names: ["Harbour Clinic"],
+      provider_shortlist: [{
+        id: "harbour",
+        name: "Harbour Clinic",
+        category: "Doctor",
+        summary: "Appointments",
+        why_may_suit_you: "Nearby",
+        facts: {},
+        contact: { phone: "+34 600 111 222", preferredChannel: "phone" },
+        source_label: "Local directory",
+        source_status: "reported",
+      }],
+      no_external_action_without_confirmation: true,
+    };
+    let pendingItems = [{
+      id: "shortlist-contact-1",
+      use_case: "find_provider",
+      provider_name: "Harbour Clinic",
+      provider_phone: "+34 600 111 222",
+      action_summary: "Provider shortlist saved: Harbour Clinic.",
+      action_payload: shortlistPayload,
+      status: "pending" as const,
+      language: "en",
+    }];
+    let contactTrigger: Record<string, unknown> | null = null;
+    let shortlistCompletion: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: pendingItems });
+      if (target.endsWith("/api/concierge/actions/sessions")) return jsonResponse({ items: [] });
+      if (target.endsWith("/api/concierge/actions/shortlist-contact-1/details")) {
+        const body = JSON.parse(String(init?.body)) as { action_payload: typeof shortlistPayload };
+        pendingItems = [{ ...pendingItems[0], action_payload: body.action_payload }];
+        return jsonResponse({ ok: true, item: pendingItems[0] });
+      }
+      if (target.endsWith("/api/concierge/actions/trigger")) {
+        contactTrigger = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "contact-task-1", status: "pending" });
+      }
+      if (target.endsWith("/api/concierge/actions/shortlist-contact-1/complete")) {
+        shortlistCompletion = JSON.parse(String(init?.body));
+        pendingItems = [];
+        return jsonResponse({ ok: true, status: "completed" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{ pathname: "/concierge", state: { focusRightNow: true, conciergePendingId: "shortlist-contact-1" } }]);
+    fireEvent.click(await screen.findByTestId("button-provider-comparison-contact-harbour"));
+
+    expect(await screen.findByTestId("button-concierge-prefill-send")).toHaveTextContent("Prepare contact");
+    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Nothing is sent, called, or opened until you confirm");
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => expect(contactTrigger).toMatchObject({
+      auto_start: false,
+      action_payload: expect.objectContaining({
+        source_shortlist_pending_id: "shortlist-contact-1",
+        selected_provider_name: "Harbour Clinic",
+        confirmation_required_before_action: true,
+        no_external_action_without_confirmation: true,
+        user_confirmed: false,
+      }),
+    }));
+    await waitFor(() => expect(shortlistCompletion).toMatchObject({
+      outcome_payload: expect.objectContaining({
+        shortlist_status: "contact_prepared",
+        preferred_provider_name: "Harbour Clinic",
+        related_contact_task_pending_id: "contact-task-1",
+        confirmation_still_required: true,
+        no_external_action_taken: true,
+      }),
+    }));
+  });
 
   it("adds provider search criteria to care option searches", async () => {
     let searchBody: { query?: string; locale?: string } | null = null;
@@ -2976,6 +3535,75 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
   });
 
+  it("returns from trusted provider setup to the original active shortlist", async () => {
+    const pendingShortlist = {
+      id: "shortlist-return-1",
+      use_case: "find_provider",
+      provider_name: "Harbour Clinic",
+      provider_phone: "+34 600 111 222",
+      action_summary: "Provider shortlist saved: Harbour Clinic.",
+      action_payload: {
+        task_type: "provider_shortlist",
+        shortlist_version: 1,
+        shortlist_only: true,
+        shortlist_captured_at: "2026-07-15T10:00:00.000Z",
+        shortlist_updated_at: "2026-07-15T10:00:00.000Z",
+        shortlist_status: "open",
+        preferred_provider_id: "harbour",
+        preferred_provider_name: "Harbour Clinic",
+        provider_search_mode: "specialist",
+        provider_search_query: "doctor nearby",
+        criteria: ["nearby"],
+        flow_reference: "CF_MEDICAL_APPOINTMENT",
+        selected_provider_names: ["Harbour Clinic"],
+        provider_shortlist: [{
+          id: "harbour",
+          name: "Harbour Clinic",
+          category: "Doctor",
+          summary: "Appointments",
+          why_may_suit_you: "Nearby",
+          facts: {},
+          contact: { phone: "+34 600 111 222", preferredChannel: "phone" },
+          source_label: "Local directory",
+          source_status: "reported",
+        }],
+        no_external_action_without_confirmation: true,
+      },
+      status: "pending",
+      language: "en",
+    };
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") return jsonResponse({ savedProviders: [] });
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: [pendingShortlist] });
+      if (target.endsWith("/api/concierge/actions/sessions")) return jsonResponse({ items: [] });
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        trustedProviderSaved: {
+          name: "Harbour Clinic",
+          category: "doctor_clinic",
+          conciergeResume: {
+            kind: "provider_shortlist",
+            pendingId: "shortlist-return-1",
+            preferredProviderId: "harbour",
+          },
+        },
+      },
+    }]);
+
+    const resume = await screen.findByTestId("panel-concierge-provider-resume");
+    expect(resume).toHaveTextContent("Harbour Clinic");
+    fireEvent.click(screen.getByTestId("button-provider-resume-continue"));
+
+    expect(await screen.findByTestId("provider-shortlist-follow-up")).toHaveTextContent("Harbour Clinic");
+    expect(await screen.findByText("Harbour Clinic saved. Your shortlist is still in progress.")).toBeVisible();
+    expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
+  });
+
   it("resumes an OTC pharmacy flow with the original item details after provider setup returns", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url) === "/api/profile") {
@@ -3540,6 +4168,14 @@ describe("ConciergeScreen route prefill", () => {
           pickup_address: "Saved home",
           destination_address: "City Clinic",
           requested_time: "tomorrow 09:00",
+          execution_channel: "phone",
+          execution_task: liveReadyExecutionTask("phone_call", {
+            flow_reference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+            lifecycle_status: "ready",
+            user_confirmed: false,
+            external_action_allowed: false,
+            execution_mode: "manual_review",
+          }),
         },
         status: "pending",
         language: "en",
@@ -3552,8 +4188,9 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.queryByTestId("link-concierge-phone-call-ride-1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-concierge-phone-call")).not.toBeInTheDocument();
     expect(screen.getByTestId("panel-concierge-execution-status")).toHaveAttribute("data-phase", "needs_ok");
-    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Needs your OK");
-    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("You confirm before anything is sent, called, or booked.");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Ready for your OK");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("VYVA has what it needs to prepare the call.");
+    expect(screen.getByTestId("panel-concierge-execution-status")).toHaveTextContent("Nothing is sent, called, or booked without your permission.");
     const liveHandoff = screen.getByTestId("panel-concierge-live-handoff");
     expect(liveHandoff).toHaveAttribute("data-state", "ready");
     expect(liveHandoff).toHaveTextContent("Ready for your OK");
@@ -3683,6 +4320,12 @@ describe("ConciergeScreen route prefill", () => {
               execution_channel: "phone_call",
               call_script: "Hello, I am calling about claim CL-9.",
               requested_time: "today",
+              execution_task: liveReadyExecutionTask("phone_call", {
+                flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+                user_confirmed: false,
+                external_action_allowed: false,
+                execution_mode: "manual_review",
+              }),
             },
             status: "pending",
             language: "en",
@@ -4057,6 +4700,7 @@ describe("ConciergeScreen route prefill", () => {
               completed_at: "2026-08-04T09:30:00.000Z",
               outcome_payload: {
                 flow_reference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+                execution_mode: "live",
                 provider_phone: "+34 612 345 678",
                 pickup_address: "Saved home",
                 destination_address: "City Clinic",
@@ -4140,6 +4784,55 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-home-service-type-plumber")).toBeInTheDocument();
   });
 
+  it("marks completed dry-run sessions as test mode in history receipts", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [],
+          serviceReadiness: {},
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) return jsonResponse({ items: [] });
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({
+          items: [{
+            id: "session-dry-run-admin",
+            pending_id: "dry-admin-1",
+            use_case: "insurance_admin",
+            provider_name: null,
+            outcome: "completed",
+            outcome_payload: {
+              dry_run: true,
+              simulated_outcome: true,
+              no_real_provider_contact: true,
+              recipient_email: "concierge-dry-run+admin@example.test",
+              execution_task: {
+                dry_run: true,
+                lifecycle_status: "done",
+              },
+            },
+            outcome_summary: "Dry-run admin task completed without emailing real documents.",
+            completed_at: "2026-08-06T12:00:00.000Z",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const history = await screen.findByTestId("section-concierge-completed-history");
+    expect(history).toHaveTextContent("Done recently");
+    expect(screen.getByTestId("badge-concierge-completed-dry-run-session-dry-run-admin")).toHaveTextContent("Test mode");
+
+    fireEvent.click(screen.getByTestId("card-concierge-completed-session-dry-run-admin"));
+    const receipt = await screen.findByTestId("panel-concierge-completed-receipt");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Mode");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Test mode, no real contact");
+    expect(within(receipt).queryByTestId("link-concierge-receipt-contact")).not.toBeInTheDocument();
+  });
+
   it("labels completed shopping support sessions in history", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
@@ -4204,6 +4897,7 @@ describe("ConciergeScreen route prefill", () => {
             completed_at: "2026-08-05T11:30:00.000Z",
             outcome_payload: {
               flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+              execution_mode: "live",
               appointment_type: "medical",
               appointment_reason: "dermatology follow-up",
               scheduled_for: "2026-08-12T09:30",
@@ -4968,7 +5662,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Transport search prepared with the same details.");
 
     fireEvent.click(screen.getByTestId("button-offers-search"));
-    const prepareButton = await screen.findByTestId("button-provider-prepare-contact-opcion-recomendada-city-taxi");
+    const prepareButton = await screen.findByTestId("button-provider-comparison-contact-city-taxi-1");
     fireEvent.click(prepareButton);
     fireEvent.click(await screen.findByTestId("button-concierge-prefill-send"));
 
@@ -5150,6 +5844,11 @@ describe("ConciergeScreen route prefill", () => {
           provider_email: "clinic@example.com",
           email_subject: "Question about my appointment",
           email_body: "Hello, I would like to confirm my appointment details.",
+          execution_task: liveReadyExecutionTask("email", {
+            user_confirmed: false,
+            external_action_allowed: false,
+            execution_mode: "manual_review",
+          }),
         },
         status: "pending",
         language: "en",
@@ -5181,6 +5880,247 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-email-draft-sent-email-1")).toHaveTextContent("I sent it");
   });
 
+  it("blocks live email handoff when the admin channel gate is not ready", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "email-blocked-1",
+        use_case: "send_message",
+        provider_name: "Clinic desk",
+        provider_phone: null,
+        action_summary: "Email draft prepared for the clinic.",
+        action_payload: {
+          execution_channel: "email",
+          provider_email: "clinic@example.com",
+          email_subject: "Question about my appointment",
+          email_body: "Hello, I would like to confirm my appointment details.",
+          execution_task: liveReadyExecutionTask("email", {
+            external_action_allowed: false,
+            execution_mode: "blocked",
+            channel_readiness: {
+              version: 1,
+              tool: "email",
+              channel: "email",
+              label: "Email",
+              status: "disabled",
+              ready: false,
+              admin_enabled: false,
+              configured: true,
+              verified: true,
+              dry_run: false,
+              external_action_allowed: false,
+              blockers: ["email_admin_disabled"],
+            },
+          }),
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    const blockedPanel = await screen.findByTestId("panel-concierge-channel-readiness-blocked");
+    expect(blockedPanel).toHaveTextContent("Channel not ready");
+    expect(blockedPanel).toHaveTextContent("Email");
+    expect(blockedPanel).toHaveTextContent("VYVA will not open or contact a provider until an admin enables, configures, and verifies this channel.");
+    expect(screen.queryByTestId("link-concierge-email-email-blocked-1")).not.toBeInTheDocument();
+    expect(openMock).not.toHaveBeenCalled();
+  });
+
+  it("labels dry-run tasks, blocks browser opens, and saves simulated completion history", async () => {
+    const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+    let completed = false;
+    let completeBody: { outcome_payload?: Record<string, unknown>; outcome_summary?: string } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/dry-email-1/review-confirm")) {
+        return jsonResponse({ pendingId: "dry-email-1", status: "pending" });
+      }
+      if (target.endsWith("/api/concierge/actions/dry-email-1/complete")) {
+        completed = true;
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-dry-email-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: completed ? [] : [{
+            id: "dry-email-1",
+            use_case: "send_message",
+            provider_name: "VYVA Test Clinic",
+            provider_phone: null,
+            action_summary: "Dry-run email draft prepared for the clinic.",
+            action_payload: {
+              dry_run: true,
+              test_mode: "concierge_dry_run",
+              no_real_provider_contact: true,
+              execution_channel: "email",
+              provider_email: "concierge-dry-run+clinic@example.test",
+              email_subject: "Dry-run appointment request",
+              email_body: "Dry-run only: please ignore this appointment rehearsal email.",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({
+          items: completed ? [{
+            id: "session-dry-email-1",
+            pending_id: "dry-email-1",
+            use_case: "send_message",
+            provider_name: "VYVA Test Clinic",
+            outcome: "completed",
+            outcome_summary: completeBody?.outcome_summary ?? "Simulated dry-run outcome: Dry-run email draft prepared for the clinic.",
+            completed_at: "2026-07-16T11:00:00.000Z",
+            outcome_payload: completeBody?.outcome_payload ?? null,
+          }] : [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("badge-concierge-dry-run-dry-email-1")).toHaveTextContent("Test mode");
+    const dryRunPanel = await screen.findByTestId("panel-concierge-dry-run-outcome-dry-email-1");
+    expect(dryRunPanel).toHaveTextContent("Save simulated outcome");
+    expect(screen.getByTestId("button-concierge-dry-run-complete-dry-email-1")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-dry-email-1"));
+
+    const emailLink = await screen.findByTestId("link-concierge-email-draft-open-dry-email-1");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/dry-email-1/review-confirm", { method: "POST" });
+    });
+    expect(emailLink).toBeDisabled();
+    expect(emailLink).toHaveTextContent("Test mode");
+    fireEvent.click(emailLink);
+    expect(openMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("link-concierge-email-dry-email-1")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId("button-concierge-dry-run-complete-dry-email-1")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("button-concierge-dry-run-complete-dry-email-1"));
+
+    await waitFor(() => {
+      expect(completeBody?.outcome_payload).toMatchObject({
+        dry_run: true,
+        simulated_outcome: true,
+        no_real_provider_contact: true,
+        completed_from: "concierge_dry_run_outcome_panel",
+      });
+    });
+    expect(await screen.findByTestId("badge-concierge-completed-dry-run-session-dry-email-1")).toHaveTextContent("Test mode");
+  });
+
+  it.each(CONCIERGE_DRY_RUN_FIXTURES.map((fixture) => [fixture.reference, fixture] as const))(
+    "renders %s as a safe dry-run active task",
+    async (_reference, fixture) => {
+      const pendingId = `dry-${fixture.reference.toLowerCase().replace(/_/g, "-")}`;
+      apiFetchMock.mockImplementation(async (url) => {
+        const target = String(url);
+        if (target.endsWith("/api/concierge/actions/pending")) {
+          return jsonResponse({
+            items: [{
+              id: pendingId,
+              use_case: fixture.useCase,
+              provider_name: fixture.provider?.name ?? "VYVA Test Review Desk",
+              provider_phone: fixture.provider?.phone ?? null,
+              action_summary: fixture.actionSummary,
+              action_payload: fixture.actionPayload,
+              status: "pending",
+              language: "en",
+            }],
+          });
+        }
+        return jsonResponse({ items: [] });
+      });
+
+      renderScreen();
+
+      expect(await screen.findByTestId(`badge-concierge-dry-run-${pendingId}`)).toHaveTextContent("Test mode");
+      expect(await screen.findByTestId(`panel-concierge-dry-run-outcome-${pendingId}`)).toHaveTextContent("No real call");
+      expect(screen.getByTestId(`button-concierge-dry-run-complete-${pendingId}`)).toBeDisabled();
+      expect(screen.queryByTestId(`link-concierge-email-${pendingId}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`link-concierge-whatsapp-${pendingId}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`link-concierge-form-${pendingId}`)).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(CONCIERGE_DRY_RUN_FIXTURES.map((fixture) => [fixture.reference, fixture] as const))(
+    "rehearses confirmed %s through simulated completion history",
+    async (_reference, fixture) => {
+      const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
+      const pendingId = `dry-rehearsal-${fixture.reference.toLowerCase().replace(/_/g, "-")}`;
+      let completed = false;
+      let completeBody: {
+        outcome_payload?: Record<string, unknown>;
+        outcome_summary?: string;
+      } | null = null;
+
+      apiFetchMock.mockImplementation(async (url, init) => {
+        const target = String(url);
+        if (target.endsWith(`/api/concierge/actions/${pendingId}/review-confirm`)) {
+          return jsonResponse({ pendingId, status: "pending" });
+        }
+        if (target.endsWith(`/api/concierge/actions/${pendingId}/complete`)) {
+          completed = true;
+          completeBody = JSON.parse(String(init?.body ?? "{}"));
+          return jsonResponse({ ok: true, status: "completed", sessionId: `session-${pendingId}` });
+        }
+        if (target.endsWith("/api/concierge/actions/pending")) {
+          return jsonResponse({
+            items: completed ? [] : [{
+              id: pendingId,
+              use_case: fixture.useCase,
+              provider_name: fixture.provider?.name ?? "VYVA Test Review Desk",
+              provider_phone: fixture.provider?.phone ?? null,
+              action_summary: fixture.actionSummary,
+              action_payload: fixture.actionPayload,
+              status: "calling",
+              language: "en",
+            }],
+          });
+        }
+        if (target.endsWith("/api/concierge/actions/sessions")) {
+          return jsonResponse({
+            items: completed ? [{
+              id: `session-${pendingId}`,
+              pending_id: pendingId,
+              use_case: fixture.useCase,
+              provider_name: fixture.provider?.name ?? "VYVA Test Review Desk",
+              outcome: "completed",
+              outcome_summary: completeBody?.outcome_summary ?? fixture.expectedOutcomeSummary,
+              completed_at: "2026-07-16T11:00:00.000Z",
+              outcome_payload: completeBody?.outcome_payload ?? null,
+            }] : [],
+          });
+        }
+        return jsonResponse({ items: [] });
+      });
+
+      renderScreen();
+
+      expect(await screen.findByTestId(`badge-concierge-dry-run-${pendingId}`)).toHaveTextContent("Test mode");
+      expect(await screen.findByTestId(`panel-concierge-dry-run-outcome-${pendingId}`)).toHaveTextContent("No real call");
+      expect(screen.getByTestId(`button-concierge-dry-run-complete-${pendingId}`)).toBeEnabled();
+      expect(document.querySelectorAll("a[href^='mailto:'], a[href^='tel:'], a[href^='sms:'], a[href^='https://example.test']")).toHaveLength(0);
+      fireEvent.click(screen.getByTestId(`button-concierge-dry-run-complete-${pendingId}`));
+
+      await waitFor(() => {
+        expect(completeBody?.outcome_payload).toMatchObject({
+          dry_run: true,
+          simulated_outcome: true,
+          no_real_provider_contact: true,
+          completed_from: "concierge_dry_run_outcome_panel",
+        });
+      });
+      expect(completeBody?.outcome_summary).toMatch(/Simulated dry-run outcome/i);
+      expect(openMock).not.toHaveBeenCalled();
+      expect(await screen.findByTestId(`badge-concierge-completed-dry-run-session-${pendingId}`)).toHaveTextContent("Test mode");
+    },
+  );
+
   it("shows Show VYVA prepared tasks and blocks handoff until final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     apiFetchMock.mockResolvedValue(jsonResponse({
@@ -5209,6 +6149,11 @@ describe("ConciergeScreen route prefill", () => {
           no_external_action_without_confirmation: true,
           executor_version: 1,
           user_confirmed: false,
+          execution_task: liveReadyExecutionTask("email", {
+            user_confirmed: false,
+            external_action_allowed: false,
+            execution_mode: "manual_review",
+          }),
         },
         status: "pending",
         language: "en",
@@ -5270,6 +6215,12 @@ describe("ConciergeScreen route prefill", () => {
               provider_email: "claims@example.com",
               email_subject: "Claim documents",
               email_body: "Hello, please review my claim documents.",
+              execution_task: liveReadyExecutionTask("email", {
+                flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+                user_confirmed: false,
+                external_action_allowed: false,
+                execution_mode: "manual_review",
+              }),
             },
             status: "pending",
             language: "en",
@@ -5418,7 +6369,13 @@ describe("ConciergeScreen route prefill", () => {
         action_summary: "WhatsApp draft prepared for the care coordinator.",
         action_payload: {
           preferred_channel: "whatsapp",
+          execution_channel: "whatsapp",
           whatsapp_message: "Hello, can we confirm the visit time?",
+          execution_task: liveReadyExecutionTask("whatsapp", {
+            user_confirmed: false,
+            external_action_allowed: false,
+            execution_mode: "manual_review",
+          }),
         },
         status: "pending",
         language: "en",
@@ -5588,6 +6545,11 @@ describe("ConciergeScreen route prefill", () => {
             next_step: "Use the supported booking page with the gathered details.",
             prefilled_url: "https://www.thefork.es/restaurante/example?date=tomorrow",
           },
+          execution_task: liveReadyExecutionTask("booking_link", {
+            flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+            lifecycle_status: "ready",
+            user_confirmed: false,
+          }),
         },
         status: "pending",
         language: "en",
@@ -5657,22 +6619,12 @@ describe("ConciergeScreen route prefill", () => {
                 prefilled_url: "https://www.thefork.es/restaurante/example?date=tomorrow",
               },
               ...(formConfirmed ? {
-                execution_task: {
-                  version: 1,
+                execution_task: liveReadyExecutionTask("booking_link", {
                   flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
-                  action_type: "booking_link",
-                  requested_tool: "booking_link",
-                  active_tool: "booking_link",
-                  lifecycle_status: "confirmed",
-                  provider_ready: true,
-                  missing_requirements: [],
-                  confirmation_required: true,
-                  user_confirmed: true,
                   confirmation_source: "confirm_endpoint",
                   confirmed_at: "2026-07-14T10:10:00.000Z",
-                  created_at: "2026-07-14T10:00:00.000Z",
                   updated_at: "2026-07-14T10:10:00.000Z",
-                },
+                }),
               } : {}),
             },
             status: "pending",

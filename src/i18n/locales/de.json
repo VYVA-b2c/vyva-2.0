@@ -260,14 +260,17 @@
       "kickerConfirm": "Braucht dein OK",
       "kickerReview": "Pruefen",
       "kickerWaiting": "Warten",
+      "kickerProviderShortlist": "Gespeicherte Auswahl",
       "titlePrefix": "VYVA arbeitet an deinem",
       "titleConfirmPrefix": "Bestaetige deinen",
       "titleReviewPrefix": "Pruefe deinen",
+      "titleProviderShortlistPrefix": "Pruefe deine",
       "task": {
         "ride": "Transport",
         "appointment": "Termin",
         "pharmacy": "Apothekenanfrage",
         "homeService": "Hausdienst",
+        "providerShortlist": "gespeicherten Optionen",
         "default": "Anliegen"
       },
       "fastStatus": {
@@ -275,6 +278,7 @@
         "appointment": "Termin pruefen",
         "pharmacy": "Apotheke pruefen",
         "homeService": "Hausdienst pruefen",
+        "providerShortlist": "Auswahl pruefen",
         "default": "Anliegen pruefen"
       },
       "step": {
@@ -283,7 +287,8 @@
         "form": "Formular vorbereiten",
         "save": "Bereit zum Speichern",
         "attention": "Braucht deine Pruefung",
-        "confirm": "Wartet auf deine Bestaetigung"
+        "confirm": "Wartet auf deine Bestaetigung",
+        "providerShortlist": "Gespeicherte Optionen pruefen"
       },
       "open": "Jetzt oeffnen"
     },
