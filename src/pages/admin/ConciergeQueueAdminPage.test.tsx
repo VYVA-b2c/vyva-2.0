@@ -97,6 +97,73 @@ const otherAssignedTask: OperatorConciergeQueueItem = {
   operator_assigned_at: "2026-07-01T10:10:00.000Z",
 };
 
+const failedAdapterTask: OperatorConciergeQueueItem = {
+  ...confirmedTask,
+  id: "pending-failed",
+  user_id: "user-5",
+  user_label: "Elena",
+  user_contact: "elena@example.com",
+  use_case: "paperwork",
+  provider_name: "City Clinic",
+  provider_phone: null,
+  action_summary: "Email clinic paperwork",
+  status: "failed",
+  pending_status: "failed",
+  flow_reference: "FLOW_INSURANCE_ADMIN",
+  action_type: "message",
+  active_tool: "email",
+  updated_at: "2026-07-01T10:20:00.000Z",
+  adapter_incident: {
+    status: "failed",
+    adapter: "concierge_email_adapter",
+    mode: "live",
+    channel: "email",
+    tool: "email",
+    attempted_at: "2026-07-01T10:19:00.000Z",
+    provider_name: "City Clinic",
+    provider_contact: "frontdesk@example.com",
+    external_action_allowed: true,
+    result: "failed",
+    error: "Adapter endpoint failed with 500.",
+    response_status: 500,
+    simulated: false,
+    live: true,
+    retry_allowed: true,
+    retry_blocker: null,
+    manual_follow_up_allowed: true,
+    manual_follow_up_queued_at: null,
+    attempts: [
+      {
+        event: "adapter_execution_failed",
+        at: "2026-07-01T10:19:00.000Z",
+        source: "confirm_endpoint",
+        status: "failed",
+        adapter: "concierge_email_adapter",
+        mode: "live",
+        channel: "email",
+        provider_name: "City Clinic",
+        provider_contact: "frontdesk@example.com",
+        result: "failed",
+        error: "Adapter endpoint failed with 500.",
+        response_status: 500,
+      },
+      {
+        event: "adapter_retry_requested",
+        at: "2026-07-01T10:21:00.000Z",
+        source: "operator_queue",
+        status: null,
+        adapter: null,
+        mode: "live",
+        channel: null,
+        provider_name: null,
+        provider_contact: null,
+        result: null,
+        reason: "retry after endpoint restored",
+      },
+    ],
+  },
+};
+
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -119,10 +186,7 @@ function renderPage(items: OperatorConciergeQueueItem[] = [confirmedTask, needsI
         },
       }));
     }
-    if (path === "/api/admin/concierge/queue/pending-1" && init?.method === "PATCH") {
-      return Promise.resolve(jsonResponse({ ok: true }));
-    }
-    if (path === "/api/admin/concierge/queue/pending-2" && init?.method === "PATCH") {
+    if (String(path).startsWith("/api/admin/concierge/queue/") && init?.method === "PATCH") {
       return Promise.resolve(jsonResponse({ ok: true }));
     }
     return Promise.resolve(new Response(JSON.stringify({ error: "Unexpected request" }), { status: 500 }));
@@ -176,6 +240,19 @@ describe("ConciergeQueueAdminPage", () => {
     expect(within(list).queryByText("Book a ride to the clinic")).not.toBeInTheDocument();
   });
 
+  it("filters visible tasks by adapter status", async () => {
+    renderPage([confirmedTask, failedAdapterTask, doneTask]);
+
+    expect(await screen.findByText("Email clinic paperwork")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-concierge-adapter-filter-failed"));
+
+    const list = screen.getByTestId("admin-concierge-queue-list");
+    expect(within(list).getByText("Email clinic paperwork")).toBeInTheDocument();
+    expect(within(list).queryByText("Book a ride to the clinic")).not.toBeInTheDocument();
+    expect(within(list).queryByText("OTC items confirmed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("admin-concierge-queue-summary")).toHaveTextContent("Showing 1 of 3 Concierge tasks.");
+  });
+
   it("filters by owner and lets the operator take an unassigned task", async () => {
     renderPage();
 
@@ -220,6 +297,54 @@ describe("ConciergeQueueAdminPage", () => {
     expect(patchCall).toBeTruthy();
     expect(String(patchCall?.[1]?.body)).toContain('"action":"done"');
     expect(String(patchCall?.[1]?.body)).toContain("Taxi confirmed for 10:30.");
+  });
+
+  it("shows adapter incident history and requests recovery actions", async () => {
+    renderPage([failedAdapterTask]);
+
+    expect(await screen.findByText("Email clinic paperwork")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open task" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Email clinic paperwork" });
+    expect(dialog).toHaveTextContent("Channel incident");
+    expect(dialog).toHaveTextContent("Adapter endpoint failed with 500.");
+    expect(dialog).toHaveTextContent("adapter retry requested");
+
+    fireEvent.change(within(dialog).getByLabelText("Operator note"), {
+      target: { value: "Endpoint fixed; retrying." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retry live action" }));
+
+    expect(await screen.findByText("Adapter retry requested.")).toBeInTheDocument();
+    const retryCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/concierge/queue/pending-failed"
+      && init?.method === "PATCH"
+      && String(init.body).includes('"action":"retry_adapter"')
+    ));
+    expect(retryCall).toBeTruthy();
+    expect(String(retryCall?.[1]?.body)).toContain("Endpoint fixed; retrying.");
+  });
+
+  it("queues manual follow-up for a failed live adapter task", async () => {
+    renderPage([failedAdapterTask]);
+
+    expect(await screen.findByText("Email clinic paperwork")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open task" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Email clinic paperwork" });
+    fireEvent.change(within(dialog).getByLabelText("Operator note"), {
+      target: { value: "Calling clinic manually." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Manual follow-up queued" }));
+
+    expect(await screen.findByText("Manual follow-up queued.")).toBeInTheDocument();
+    const manualCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/concierge/queue/pending-failed"
+      && init?.method === "PATCH"
+      && String(init.body).includes('"action":"manual_follow_up"')
+    ));
+    expect(manualCall).toBeTruthy();
+    expect(String(manualCall?.[1]?.body)).toContain("Calling clinic manually.");
   });
 
   it("shows another operator assignment as read-only for the current operator", async () => {
