@@ -1032,6 +1032,126 @@ describe("confirmed Concierge action execution", () => {
     });
   });
 
+  it("carries an app-triggered live email send into completed history", async () => {
+    process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      id: "email-adapter-smoke-1",
+      result: "sent",
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    const pendingId = "19191919-1919-4919-8919-191919191919";
+    const pendingRow = {
+      id: pendingId,
+      user_id: "user-1",
+      use_case: "send_message",
+      provider_id: null,
+      provider_name: "Controlled Email Pilot Inbox",
+      provider_phone: null,
+      found_externally: false,
+      action_summary: "Email pilot receipt from the app queue.",
+      action_payload: {
+        execution_channel: "email",
+        provider_email: "concierge@vyva.life",
+        email_subject: "VYVA Concierge app-triggered smoke",
+        email_body: "Controlled app-triggered live email smoke.",
+      },
+      language: "en",
+      status: "pending",
+    };
+    mockPendingRow(pendingRow, [passedChannelSettingsRow("email")]);
+
+    const confirmed = await confirmPendingConciergeActionReview(pendingId, "user-1");
+
+    expect(confirmed).toMatchObject({
+      pendingId,
+      status: "pending",
+      message: "sent",
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://adapter.example.test/email",
+      expect.objectContaining({ method: "POST" }),
+    );
+    const confirmedPayload = lastUpdatedPayload();
+    expect(confirmedPayload.execution_task).toMatchObject({
+      lifecycle_status: "confirmed",
+      user_confirmed: true,
+      confirmation_source: "user_controlled_execution",
+      external_action_allowed: true,
+      execution_mode: "live",
+    });
+    expect(confirmedPayload.execution_adapter).toMatchObject({
+      adapter: "concierge_email_adapter",
+      mode: "live",
+      channel: "email",
+      status: "sent",
+      provider_name: "Controlled Email Pilot Inbox",
+      provider_contact: "concierge@vyva.life",
+      result_id: "email-adapter-smoke-1",
+    });
+
+    dbMock.pool.query.mockReset();
+    mockPendingRow({
+      ...pendingRow,
+      action_payload: confirmedPayload,
+      status: "pending",
+    });
+    const client = mockCompletionClient();
+
+    const completed = await completePendingConciergeAction(pendingId, "user-1", {
+      outcomeSummary: "App-triggered pilot email sent and receipt confirmed.",
+      outcomePayload: { smoke_check: "app_triggered_live_email_history" },
+    });
+
+    expect(completed).toEqual({ ok: true, status: "completed", sessionId: "session-dry-run" });
+    const insertCall = client.query.mock.calls.find(([sql]) => String(sql).includes("insert into concierge_sessions"));
+    expect(insertCall).toBeTruthy();
+    const params = insertCall?.[1] as unknown[];
+    const actionPayload = JSON.parse(params[8] as string) as Record<string, unknown>;
+    const outcomePayload = JSON.parse(params[9] as string) as Record<string, unknown>;
+
+    expect(params[10]).toBe("App-triggered pilot email sent and receipt confirmed.");
+    expect(actionPayload.execution_audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "adapter_execution_succeeded",
+        source: "user_controlled_execution",
+        execution_mode: "live",
+        adapter_result: expect.objectContaining({
+          adapter: "concierge_email_adapter",
+          status: "sent",
+          provider_contact: "concierge@vyva.life",
+        }),
+      }),
+      expect.objectContaining({
+        event: "completed",
+        source: "completion_endpoint",
+        execution_mode: "live",
+      }),
+    ]));
+    expect(outcomePayload).toMatchObject({
+      smoke_check: "app_triggered_live_email_history",
+      execution_mode: "live",
+      live_action: true,
+      external_action_allowed: true,
+      adapter: "concierge_email_adapter",
+      adapter_mode: "live",
+      adapter_channel: "email",
+      adapter_provider: "Controlled Email Pilot Inbox",
+      adapter_provider_contact: "concierge@vyva.life",
+      adapter_status: "sent",
+      adapter_result: expect.objectContaining({
+        result_id: "email-adapter-smoke-1",
+      }),
+      execution_task: expect.objectContaining({
+        lifecycle_status: "done",
+        user_confirmed: true,
+        execution_mode: "live",
+        external_action_allowed: true,
+      }),
+    });
+  });
+
   it("stores every dry-run fixture completion as simulated completed history", async () => {
     for (const fixture of CONCIERGE_DRY_RUN_FIXTURES) {
       dbMock.pool.query.mockReset();

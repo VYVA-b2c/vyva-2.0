@@ -486,6 +486,7 @@ describe("ConciergeQueueAdminPage", () => {
     expect(dialog).toHaveTextContent("Sent - Live action");
     expect(dialog).toHaveTextContent("Controlled Email Pilot Inbox");
     expect(dialog).toHaveTextContent("concierge@vyva.life");
+    expect(dialog).toHaveTextContent("Result ID resend-message-1");
     fireEvent.click(within(dialog).getByLabelText("Close task detail"));
 
     fireEvent.click(within(list).getAllByRole("button", { name: "Open task" })[2]);

@@ -756,6 +756,9 @@ export default function ConciergeQueueAdminPage() {
                   <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
                     <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Latest result</p>
                     <p className="mt-1 font-bold text-[#2f2135]">{incidentSummary(selectedItem)}</p>
+                    {selectedItem.adapter_incident.result_id && (
+                      <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Result ID {selectedItem.adapter_incident.result_id}</p>
+                    )}
                     <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Attempted {formatDate(selectedItem.adapter_incident.attempted_at)}</p>
                   </div>
                 </div>
@@ -787,6 +790,9 @@ export default function ConciergeQueueAdminPage() {
                           </p>
                           {(attempt.error || attempt.blocker || attempt.reason || attempt.result) && (
                             <p className="mt-1 font-semibold text-[#2f2135]">{attempt.error || attempt.blocker || attempt.reason || attempt.result}</p>
+                          )}
+                          {attempt.result_id && (
+                            <p className="mt-1 font-semibold text-[#7d6b65]">Result ID {attempt.result_id}</p>
                           )}
                         </div>
                       ))}

@@ -67,12 +67,24 @@ Only use `--send` after the selected recipient is the team-owned pilot inbox and
 
 The command-line self-check is standalone. It proves adapter delivery with the evidence JSON, Resend result ID, and team inbox receipt, but it does not create a Concierge completed-history row. Use an app-triggered Concierge task when the acceptance item requires completed history to show `Live action`.
 
+## App-Triggered History Smoke
+
+Use this for the final history check after the safe deployment self-check passes:
+
+1. In `/admin/concierge-readiness`, turn Email Live-ready on.
+2. In `/concierge`, create one email task to the team-owned pilot inbox.
+3. Confirm the provider, recipient, subject, body, and shared details in the app.
+4. Send from the app confirmation control.
+5. After the team inbox receives it, complete the task.
+6. In `/admin/concierge-queue`, verify the completed item shows `Live action`, Email, provider/contact, `sent`, and the Resend result ID.
+7. Turn Email Live-ready off.
+
 ## Pass Evidence
 
 - Email readiness is configured, verified by probe, and Live-ready only during the pilot window.
 - Dry-run still records simulated/no-contact history.
 - The live send uses `concierge_email_adapter` and a Resend message ID.
-- Command-line pilot evidence is standalone-script-only unless the send was triggered from the app queue.
+- Command-line pilot evidence is standalone-script-only unless the send was triggered from the app queue; the app-triggered smoke must show completed history as `Live action`.
 - The recipient matches the team-owned pilot inbox.
 - Non-allowlisted recipients are blocked before provider contact.
 - Rollback is done by turning Email Live-ready off in the admin console.
