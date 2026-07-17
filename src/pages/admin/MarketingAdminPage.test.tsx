@@ -2820,7 +2820,10 @@ describe("MarketingAdminPage", () => {
 
     const starterPanel = within(screen.getByTestId("marketing-campaign-planner-recipes"));
     expect(starterPanel.getByText("Partner outreach")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-marketing-campaign-recipe-b2b-partner-outreach"));
+    expect(screen.getByTestId("marketing-campaign-planner-copilot")).toHaveTextContent("Campaign copilot");
+    expect(screen.getByTestId("marketing-campaign-planner-copilot-next-action")).toHaveTextContent("Start from the best campaign");
+    expect(screen.getByTestId("button-marketing-campaign-planner-copilot-action")).toHaveTextContent("Load best starter");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-planner-copilot-action"));
 
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("B2B partner introduction");
     expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
@@ -2837,6 +2840,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-channel-packs")).toHaveTextContent("2 routes");
     expect(screen.getByTestId("marketing-campaign-draft-readiness-channels")).toHaveTextContent("LinkedIn and Email");
     expect(screen.getByTestId("marketing-campaign-draft-readiness-channel")).toHaveTextContent("LinkedIn and Email will be saved for planning or manual handoff");
+    expect(screen.getByTestId("marketing-campaign-planner-copilot-next-action")).toHaveTextContent("Ready to add");
+    expect(screen.getByTestId("button-marketing-campaign-planner-copilot-action")).toHaveTextContent("Add campaign");
   });
 
   it("drafts missing campaign content directly from the planner", async () => {
@@ -2872,7 +2877,9 @@ describe("MarketingAdminPage", () => {
       target: { value: "Show families how VYVA turns daily check-ins into calmer care decisions." },
     });
 
-    fireEvent.click(screen.getByTestId("button-marketing-create-link-content-from-campaign"));
+    expect(screen.getByTestId("marketing-campaign-planner-copilot-next-action")).toHaveTextContent("Create missing content");
+    expect(screen.getByTestId("button-marketing-campaign-planner-copilot-action")).toHaveTextContent("Create 1 missing asset");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-planner-copilot-action"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
@@ -2893,7 +2900,7 @@ describe("MarketingAdminPage", () => {
       expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-created");
     });
     expect(screen.getByTestId("marketing-campaign-draft-readiness-content")).toHaveTextContent("1 content asset linked across Facebook");
-    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created and linked Community proof post Facebook content");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created and linked missing route content for Facebook.");
   });
 
   it("creates rich marketing content drafts", async () => {

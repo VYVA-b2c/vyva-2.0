@@ -1174,6 +1174,13 @@ type JourneyCopilotAction = CampaignReadinessItem & {
   kind: JourneyCopilotActionKind;
 };
 
+type CampaignPlannerCopilotActionKind = "load_recipe" | "focus_name" | "create_content" | "snapshot_recipients" | "save";
+
+type CampaignPlannerCopilotAction = CampaignReadinessItem & {
+  actionLabel: string;
+  kind: CampaignPlannerCopilotActionKind;
+};
+
 type ContentDraft = {
   title: string;
   channel: Channel;
@@ -13389,8 +13396,7 @@ export default function MarketingAdminPage() {
     };
   }, [editingJourneyId, journeyEditDraft, missingJourneyStepContentCount]);
 
-  const campaignDraftRecipientPreview = useMemo(() => {
-    if (!campaignDraft.snapshotRecipients) return [];
+  const campaignDraftEligibleRecipientPreview = useMemo(() => {
     const filter = campaignDraft.recipientFilter.trim().toLowerCase();
     return contacts.filter((contact) => {
       if (!campaignAllowsContact(campaignDraft.audienceType, contact.audienceType)) return false;
@@ -13399,6 +13405,10 @@ export default function MarketingAdminPage() {
       return !filter || contactSearchText(contact).includes(filter);
     });
   }, [campaignDraft, campaignDraftSelectedChannels, contacts, selectedCampaignDraftTargetAudience]);
+  const campaignDraftRecipientPreview = useMemo(
+    () => campaignDraft.snapshotRecipients ? campaignDraftEligibleRecipientPreview : [],
+    [campaignDraft.snapshotRecipients, campaignDraftEligibleRecipientPreview],
+  );
   const campaignDraftReadinessItems = useMemo<CampaignReadinessItem[]>(() => {
     const channelCapability = sendCapabilityByChannel.get(campaignDraft.channel);
     const emailSendEnabled = campaignDraft.channel === "email" && channelCapability?.sendCapability === "enabled" && !channelCapability.locked;
@@ -13496,6 +13506,84 @@ export default function MarketingAdminPage() {
     : campaignDraftNeedsActionCount > 0
       ? "This can be saved as a draft, but review the highlighted items before launch."
       : "This draft has the core pieces needed to create a campaign record.";
+  const campaignPlannerCopilotScore = useMemo(() => {
+    const stateWeight: Record<CampaignReadinessState, number> = {
+      ready: 1,
+      planning: 0.55,
+      needs_action: 0.3,
+      blocked: 0,
+    };
+    const total = campaignDraftReadinessItems.reduce((sum, item) => sum + stateWeight[item.state], 0);
+    return campaignDraftReadinessItems.length ? Math.round((total / campaignDraftReadinessItems.length) * 100) : 0;
+  }, [campaignDraftReadinessItems]);
+  const campaignPlannerCopilotAction = useMemo<CampaignPlannerCopilotAction>(() => {
+    const bestRecipe = campaignPlannerRecipes[0] ?? null;
+    const draftLooksEmpty = !campaignDraft.name.trim()
+      && !campaignDraft.objective.trim()
+      && !campaignDraft.contentAssetId
+      && !campaignDraft.targetAudienceId
+      && !campaignDraft.scheduleStartsAt
+      && campaignDraftSelectedChannels.length === 1
+      && campaignDraft.channel === "email";
+
+    if (draftLooksEmpty && bestRecipe) {
+      return {
+        key: "starter",
+        title: "Start from the best campaign",
+        state: bestRecipe.recommendation.state,
+        detail: `${bestRecipe.play.label} has ${bestRecipe.reachableContacts} reachable contact${bestRecipe.reachableContacts === 1 ? "" : "s"} and ${bestRecipe.matchedContent ? `uses "${bestRecipe.matchedContent.title}"` : "can draft content from templates"}.`,
+        actionLabel: "Load best starter",
+        kind: "load_recipe",
+      };
+    }
+    if (!campaignDraft.name.trim()) {
+      return {
+        key: "name",
+        title: "Name the campaign",
+        state: "blocked",
+        detail: "Give this campaign a clear working name before creating records.",
+        actionLabel: "Name campaign",
+        kind: "focus_name",
+      };
+    }
+    if (campaignDraftMissingContentChannels.length > 0) {
+      return {
+        key: "content",
+        title: "Create missing content",
+        state: "needs_action",
+        detail: `Generate and link ${formatChannelList(campaignDraftMissingContentChannels)} content so every selected route has usable copy.`,
+        actionLabel: `Create ${campaignDraftMissingContentChannels.length} missing asset${campaignDraftMissingContentChannels.length === 1 ? "" : "s"}`,
+        kind: "create_content",
+      };
+    }
+    if (!campaignDraft.snapshotRecipients && campaignDraftEligibleRecipientPreview.length > 0) {
+      return {
+        key: "recipients",
+        title: "Snapshot recipients",
+        state: "planning",
+        detail: `${campaignDraftEligibleRecipientPreview.length} eligible contact${campaignDraftEligibleRecipientPreview.length === 1 ? "" : "s"} can be snapshotted now so this campaign has a concrete audience.`,
+        actionLabel: "Snapshot recipients",
+        kind: "snapshot_recipients",
+      };
+    }
+    return {
+      key: "save",
+      title: campaignDraftReadinessState === "ready" ? "Ready to add" : "Save as planning draft",
+      state: campaignDraftReadinessState,
+      detail: campaignDraftReadinessState === "ready"
+        ? "Create the campaign record and open it for final review, sending, or manual handoff."
+        : "This can be saved as a planning record, then improved from the campaign detail panel.",
+      actionLabel: "Add campaign",
+      kind: "save",
+    };
+  }, [
+    campaignDraft,
+    campaignDraftEligibleRecipientPreview.length,
+    campaignDraftMissingContentChannels,
+    campaignDraftReadinessState,
+    campaignDraftSelectedChannels,
+    campaignPlannerRecipes,
+  ]);
 
   const campaignRecipientSnapshotChannels = useMemo(() => campaignChannelsWithPrimary(campaignEditDraft), [campaignEditDraft]);
   const campaignRecipientPreview = useMemo(() => {
@@ -13826,6 +13914,37 @@ export default function MarketingAdminPage() {
     });
     setCampaignStudioFeedback(`Starter loaded: ${recipe.play.label}${recipe.matchedContent ? ` with ${recipe.matchedContent.title}` : ""}.`);
     setMessage(`Starter loaded: ${recipe.play.label}. Review the planner, then add the campaign.`);
+  }
+
+  function focusCampaignPlannerField(testId: string) {
+    const element = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    element?.focus();
+  }
+
+  function runCampaignPlannerCopilotAction(kind: CampaignPlannerCopilotActionKind) {
+    if (kind === "load_recipe") {
+      const bestRecipe = campaignPlannerRecipes[0] ?? null;
+      if (!bestRecipe) {
+        setMessage("No smart campaign starter is available yet.");
+        return;
+      }
+      applyCampaignPlannerRecipe(bestRecipe);
+      return;
+    }
+    if (kind === "focus_name") {
+      focusCampaignPlannerField("input-marketing-campaign-name");
+      setMessage("Name the campaign first, then the planner can create content or save it.");
+      return;
+    }
+    if (kind === "create_content") {
+      void createAndLinkAllMissingCampaignPlannerRouteContent();
+      return;
+    }
+    if (kind === "snapshot_recipients") {
+      setCampaignDraft((draft) => ({ ...draft, snapshotRecipients: true }));
+      setMessage("Recipient snapshot enabled for this campaign draft.");
+    }
   }
 
   function draftContentFromCampaignPlanner() {
@@ -21717,6 +21836,48 @@ export default function MarketingAdminPage() {
                     </div>
                   </div>
                   <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
+                  <div className={`rounded-xl border p-4 shadow-sm ${readinessClass(campaignPlannerCopilotAction.state)}`} data-testid="marketing-campaign-planner-copilot">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] opacity-70">Campaign copilot</p>
+                        <h3 className="mt-1 text-lg font-black" data-testid="marketing-campaign-planner-copilot-score">{campaignPlannerCopilotScore}% launch-ready</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed opacity-85" data-testid="marketing-campaign-planner-copilot-next-action">
+                          {campaignPlannerCopilotAction.title}: {campaignPlannerCopilotAction.detail}
+                        </p>
+                      </div>
+                      {campaignPlannerCopilotAction.kind === "save" ? (
+                        <button
+                          type="submit"
+                          disabled={campaignSaving || contentSaving}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          data-testid="button-marketing-campaign-planner-copilot-action"
+                        >
+                          <Plus size={15} /> {campaignSaving ? "Creating..." : campaignPlannerCopilotAction.actionLabel}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => runCampaignPlannerCopilotAction(campaignPlannerCopilotAction.kind)}
+                          disabled={campaignSaving || contentSaving}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          data-testid="button-marketing-campaign-planner-copilot-action"
+                        >
+                          <Sparkles size={15} /> {contentSaving ? "Working..." : campaignPlannerCopilotAction.actionLabel}
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" data-testid="marketing-campaign-planner-copilot-checklist">
+                      {campaignDraftReadinessItems.slice(0, 4).map((item) => (
+                        <div key={item.key} className="rounded-lg border border-white/70 bg-white/80 p-3" data-testid={`marketing-campaign-planner-copilot-${item.key}`}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">{item.title}</p>
+                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                          </div>
+                          <p className="mt-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
                     <Field label="Campaign name">
                       <input className={inputClass} value={campaignDraft.name} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Summer caregiver onboarding" data-testid="input-marketing-campaign-name" />
