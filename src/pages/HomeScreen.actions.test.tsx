@@ -416,12 +416,99 @@ describe("Home fast service actions", () => {
 
     const fastHelp = screen.getByTestId("home-fast-help");
     expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check ride status");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Waiting for your confirmation");
+    expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-home-fast-concierge-status"));
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
+  });
+
+  it("selects the actionable form instead of the first passive provider wait", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "waiting-ride",
+              use_case: "book_ride",
+              status: "calling",
+              provider_name: "Radio Taxi",
+              confirmed_at: "2026-07-17T13:00:00.000Z",
+              action_payload: { mission_status: "awaiting_provider_reply" },
+            }, {
+              id: "insurance-form",
+              use_case: "admin_task",
+              status: "pending",
+              provider_name: "VYVA review",
+              confirmed_at: "2026-07-17T10:00:00.000Z",
+              action_payload: { mission_status: "preparing_form" },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const card = screen.getByTestId("card-home-concierge-resume");
+    expect(card).toHaveAttribute("data-resume-kind", "form");
+    expect(card).toHaveTextContent("Confirm your admin task");
+    expect(card).not.toHaveTextContent("Radio Taxi");
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: { focusRightNow: true, conciergePendingId: "insurance-form" },
+    });
+  });
+
+  it("selects a provider setup blocker before a newer booking", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "newer-booking",
+              use_case: "book_appointment",
+              status: "pending",
+              confirmed_at: "2026-07-17T13:00:00.000Z",
+              action_payload: {},
+            }, {
+              id: "provider-setup",
+              use_case: "find_provider",
+              status: "pending",
+              confirmed_at: "2026-07-16T13:00:00.000Z",
+              action_payload: {
+                retry_blocker: "adapter_payload_missing_provider_contact",
+                setup_focus: "doctor_clinic",
+              },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "provider_setup");
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: { focusRightNow: true, conciergePendingId: "provider-setup" },
+    });
   });
 
   it("surfaces saved Show VYVA tasks as prepared work from Home", () => {
@@ -466,7 +553,7 @@ describe("Home fast service actions", () => {
     expect(nudge).toHaveTextContent("Scam Guard");
     expect(nudge).toHaveTextContent("Call");
     expect(nudge).toHaveTextContent("Suspicious bank message");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Review first");
+    expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
@@ -506,7 +593,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Saved shortlist");
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review your saved options");
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review saved options");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Review shortlist");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "provider_shortlist");
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
@@ -547,7 +634,7 @@ describe("Home fast service actions", () => {
     const nudge = screen.getByTestId("card-home-concierge-resume");
     expect(nudge).toHaveTextContent("Confirm your home service");
     expect(nudge).toHaveTextContent("Ready to save");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check home service");
+    expect(nudge).toHaveAttribute("data-resume-kind", "booking");
   });
 
   it("labels admin and safety concierge tasks instead of generic requests", () => {
@@ -596,8 +683,9 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Confirm your admin task");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check admin task");
-    expect(screen.getByTestId("card-home-concierge-reuse")).toHaveTextContent("Use last safety check again");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "form");
+    expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-concierge-reuse")).not.toBeInTheDocument();
   });
 
   it("surfaces completed Concierge tasks as reusable templates from Home", () => {
@@ -694,7 +782,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-concierge-open")).toHaveTextContent("Open");
     expect(screen.getByTestId("button-home-concierge-follow-up")).toHaveTextContent("Follow up");
     expect(screen.getByTestId("button-home-concierge-got-reply")).toHaveTextContent("I got a reply");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check ride status");
+    expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
     const fastHelp = screen.getByTestId("home-fast-help");
     expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
     expect(screen.queryByTestId("button-home-fast-book-ride")).not.toBeInTheDocument();
@@ -817,6 +905,59 @@ describe("Home fast service actions", () => {
           journeyId: started.journey.id,
           actionId: "find-care",
         }),
+      }),
+    });
+  });
+
+  it("shows one actionable Fast Help recovery instead of a passive Concierge wait", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    const started = startHomeFastHelpJourney({
+      actionId: "paperwork-help",
+      destinationPath: "/concierge",
+      destinationState: { conciergePrefill: { useCase: "admin_task" } },
+      profileId: profileMock.profileId,
+      occurredAtMs: Date.now() - 13 * 60 * 60 * 1000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: Date.now() - 13 * 60 * 60 * 1000 + 30_000,
+      reason: "returned_home",
+    });
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "waiting-provider",
+              use_case: "home_service",
+              status: "calling",
+              provider_name: "Saved Plumber",
+              action_payload: { mission_status: "awaiting_provider_reply" },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveAttribute("data-resume-kind", "fast_help");
+    expect(screen.queryByTestId("card-home-concierge-resume")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-concierge-reuse")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-paperwork-help")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: expect.objectContaining({
+        conciergePrefill: { useCase: "admin_task" },
+        homeFastHelpContext: expect.objectContaining({ journeyId: started.journey.id }),
       }),
     });
   });
