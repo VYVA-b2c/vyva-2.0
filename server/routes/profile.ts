@@ -62,6 +62,7 @@ import {
   type ProfileReadColumn,
 } from "../lib/profileReadCompatibility.js";
 import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
+import { savedProviderIsTrusted } from "../../shared/conciergeSavedProviders.js";
 
 const DEMO_USER_ID = "demo-user";
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
@@ -370,6 +371,10 @@ type SavedProviderSummary = {
   preferredChannel: string;
   canContactAfterConfirmation: boolean;
   address: string;
+  websiteUrl: string;
+  notes: string;
+  isTrusted: boolean;
+  isDefault: boolean;
 };
 
 function hasText(value: unknown): value is string {
@@ -459,6 +464,10 @@ function savedProvidersFromConsent(consent: unknown): SavedProviderSummary[] {
     const preferredChannel = trimToNull(provider.preferred_channel) ?? "";
     const canContactAfterConfirmation = provider.can_contact_after_confirmation === true;
     const address = trimToNull(provider.address) ?? "";
+    const websiteUrl = trimToNull(provider.website_uri) ?? "";
+    const notes = trimToNull(provider.notes) ?? "";
+    const isTrusted = provider.is_trusted !== false;
+    const isDefault = provider.is_default === true;
     if (!name && !role && !category) return [];
     return [{
       name: name ?? category,
@@ -471,11 +480,16 @@ function savedProvidersFromConsent(consent: unknown): SavedProviderSummary[] {
       preferredChannel,
       canContactAfterConfirmation,
       address,
+      websiteUrl,
+      notes,
+      isTrusted,
+      isDefault,
     }];
   });
 }
 
 function providerMatches(provider: SavedProviderSummary, terms: string[]): boolean {
+  if (!savedProviderIsTrusted(provider)) return false;
   const searchable = [provider.role, provider.category, provider.name]
     .join(" ")
     .toLowerCase();

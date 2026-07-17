@@ -16,6 +16,8 @@ describe("provider sync normalization", () => {
       booking_url: "https://trustedtaxi.example/book",
       preferred_channel: "whatsapp",
       can_contact_after_confirmation: true,
+      is_trusted: true,
+      is_default: true,
     });
 
     expect(provider).toMatchObject({
@@ -25,10 +27,14 @@ describe("provider sync normalization", () => {
       email: "bookings@trustedtaxi.example",
       whatsapp: "+34 600 333 444",
       booking_url: "https://trustedtaxi.example/book",
+      is_trusted: true,
+      is_default: true,
       metadata: {
         preferred_channel: "whatsapp",
         preferred_booking_method: "whatsapp",
         can_contact_after_confirmation: true,
+        is_trusted: true,
+        is_default: true,
       },
     });
   });

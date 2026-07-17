@@ -2558,6 +2558,7 @@ export const userProviders = pgTable("user_providers", {
   contact_role: text("contact_role"),
   notes:        text("notes"),
   metadata:     jsonb("metadata").notNull().default({}),
+  is_trusted:   boolean("is_trusted").notNull().default(true),
   is_primary:   boolean("is_primary").notNull().default(true),
   is_active:    boolean("is_active").notNull().default(true),
   last_used_at: timestamp("last_used_at", { withTimezone: true }),

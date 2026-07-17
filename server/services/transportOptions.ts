@@ -314,6 +314,7 @@ async function defaultLoadSavedProviders(userId: string): Promise<SavedTransport
       from user_providers
       where user_id = $1
         and is_active is true
+        and is_trusted is true
         and (
           lower(category) in ('taxi', 'transport', 'ride', 'taxi_stand')
           or lower(name) like '%taxi%'

@@ -702,8 +702,8 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
-    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("No saved provider for this yet.");
-    expect(screen.getByTestId("button-appointment-provider-setup")).toHaveTextContent("Add doctor or clinic");
+    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("No trusted provider selected.");
+    expect(screen.getByTestId("button-appointment-provider-setup")).toHaveTextContent("Add or choose doctor or clinic");
     fireEvent.click(screen.getByTestId("button-appointment-provider-setup"));
 
     await waitFor(() => {
@@ -972,7 +972,7 @@ describe("ConciergeScreen action hub", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
-    expect(await screen.findByText("No saved provider for this yet.")).toBeVisible();
+    expect(await screen.findByText("No trusted provider selected.")).toBeVisible();
     fireEvent.click(screen.getByTestId("button-appointment-discover-options"));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Marbella Dermatology Centre");
@@ -2370,13 +2370,13 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByText("No verified provider matched those needs.")).toBeVisible();
     expect(screen.getByTestId("button-provider-search-manual")).toHaveTextContent("Ask VYVA to search");
-    expect(screen.getByTestId("button-provider-search-setup")).toHaveTextContent("Set up trusted provider");
+    expect(screen.getByTestId("button-provider-search-setup")).toHaveTextContent("Add or choose provider");
 
     fireEvent.click(screen.getByTestId("button-provider-search-setup"));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
     expect(screen.getByTestId("route-state")).toHaveTextContent("personal_care");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("Add a trusted provider");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Add or choose a trusted provider");
     expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.careNavigation);
   });
 
@@ -3350,12 +3350,16 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-home-service-intake")).not.toBeInTheDocument();
   });
 
-  it("uses saved transport details and only asks for mobility when missing", async () => {
+  it("uses the trusted default transport provider and only asks for mobility when missing", async () => {
     vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url) === "/api/profile") {
         return jsonResponse({
-          savedProviders: [{ name: "Trusted Taxi", role: "taxi", phone: "+34 600 111 222", preferredChannel: "phone" }],
+          savedProviders: [
+            { name: "Unreviewed Taxi", role: "taxi", phone: "+34 600 000 000", isTrusted: false, isDefault: true },
+            { name: "Trusted Taxi", role: "taxi", phone: "+34 600 111 222", preferredChannel: "phone", isTrusted: true, isDefault: true },
+            { name: "Backup Taxi", role: "taxi", phone: "+34 600 222 222", isTrusted: true, isDefault: false },
+          ],
           serviceReadiness: {
             hasSavedTransportProvider: true,
             hasMobilityInfo: true,
@@ -3395,15 +3399,15 @@ describe("ConciergeScreen action hub", () => {
     vi.useRealTimers();
 
     await waitFor(() => {
-      expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("No saved provider yet");
+      expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("No trusted provider selected");
       expect(screen.getByTestId("panel-transport-readiness")).toHaveTextContent("Current path: VYVA review");
     });
-    expect(screen.getByTestId("button-transport-find-options")).toHaveTextContent("Add transport provider");
+    expect(screen.getByTestId("button-transport-find-options")).toHaveTextContent("Add or choose transport");
     fireEvent.click(screen.getByTestId("button-transport-find-options"));
 
     await waitFor(() => {
       expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
-      expect(screen.getByTestId("route-state")).toHaveTextContent("Add a saved transport provider");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("Add or choose a saved transport provider");
       expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.transportBooking);
     });
   });

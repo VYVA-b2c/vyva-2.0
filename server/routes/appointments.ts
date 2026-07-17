@@ -466,6 +466,7 @@ async function saveSuccessfulAppointmentProvider(input: {
         source: "appointment_success",
         original_provider_source: input.selectedOption.provider_source,
       },
+      is_trusted: false,
       is_primary: false,
       is_active: true,
       last_used_at: new Date(),
@@ -517,7 +518,12 @@ async function savedProviderOptions(
   const providers = await db
     .select()
     .from(userProviders)
-    .where(and(eq(userProviders.user_id, userId), eq(userProviders.is_active, true)));
+    .where(and(
+      eq(userProviders.user_id, userId),
+      eq(userProviders.is_active, true),
+      eq(userProviders.is_trusted, true),
+    ))
+    .orderBy(desc(userProviders.is_primary), desc(userProviders.updated_at));
 
   return providers
     .map((provider) => ({
@@ -607,8 +613,12 @@ router.get("/context", async (req: Request, res: Response) => {
       db
         .select()
         .from(userProviders)
-        .where(and(eq(userProviders.user_id, userId), eq(userProviders.is_active, true)))
-        .orderBy(desc(userProviders.updated_at))
+        .where(and(
+          eq(userProviders.user_id, userId),
+          eq(userProviders.is_active, true),
+          eq(userProviders.is_trusted, true),
+        ))
+        .orderBy(desc(userProviders.is_primary), desc(userProviders.updated_at))
         .limit(20),
       db
         .select()
@@ -718,7 +728,12 @@ router.post("/requests/:id/options", async (req: Request, res: Response) => {
       const rows = await db
         .select()
         .from(userProviders)
-        .where(and(eq(userProviders.id, parsed.data.provider_id), eq(userProviders.user_id, userId)))
+        .where(and(
+          eq(userProviders.id, parsed.data.provider_id),
+          eq(userProviders.user_id, userId),
+          eq(userProviders.is_active, true),
+          eq(userProviders.is_trusted, true),
+        ))
         .limit(1);
       provider = rows[0] ?? null;
       if (!provider) return res.status(404).json({ error: "Provider not found" });
