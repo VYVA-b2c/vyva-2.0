@@ -866,6 +866,48 @@ const HomeScreen = () => {
     setHomeFastHelpJourneys(readHomeFastHelpJourneys(context.storageKey));
   };
 
+  const resumedHomeFastHelpState = (actionId: ContextualHomeFastHelpActionId) => {
+    if (actionId === "book-ride") return {
+      conciergePrefill: {
+        kind: "ride",
+        message: t("home.fastHelp.ridePrefill", "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation."),
+        flowReference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+        source: "home_quick_action",
+      },
+    };
+    if (actionId === "find-care") {
+      const message = t("home.master.fastHelp.findCarePrefill", "Help me find care or support options. Ask what kind of care I need and do not contact anyone without my confirmation.");
+      return {
+        conciergePrefill: {
+          kind: "task",
+          message,
+          flowReference: CONCIERGE_FLOW_REFERENCES.careNavigation,
+          requestedTool: "operator_review",
+          actionLabel: t("home.master.fastHelp.findCareAction", "Prepare care search"),
+          summary: t("home.master.fastHelp.findCareSummary", "VYVA prepares options first, then asks before contacting anyone."),
+          useCase: "find_provider",
+          providerSearchMode: "care",
+          providerSearchCriteria: ["nearby", "reputation", "accessible"],
+          providerSearchQuery: message,
+          source: "home_quick_action",
+        },
+      };
+    }
+    if (actionId === "paperwork-help") return {
+      conciergePrefill: {
+        kind: "task",
+        message: t("home.master.fastHelp.paperworkHelpPrefill", "Help me with paperwork or a form. Prepare answers and stop before submitting so I can confirm."),
+        flowReference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+        requestedTool: "operator_review",
+        actionLabel: t("home.master.fastHelp.paperworkHelpAction", "Prepare paperwork"),
+        summary: t("home.master.fastHelp.paperworkHelpSummary", "VYVA organizes the form, missing details, and safest next step."),
+        useCase: "admin_task",
+        source: "home_quick_action",
+      },
+    };
+    return null;
+  };
+
   const continueHomeFastHelp = (
     journey: HomeFastHelpJourney,
     stateOverride?: Record<string, unknown>,
@@ -873,7 +915,7 @@ const HomeScreen = () => {
     const resumed = resumeHomeFastHelpJourney(journey, homeFastHelpJourneyKey);
     const context = homeFastHelpContextForJourney(resumed, homeFastHelpJourneyKey);
     const destinationState = {
-      ...(resumed.destinationState ?? {}),
+      ...(resumed.destinationState ?? resumedHomeFastHelpState(resumed.actionId) ?? {}),
       ...(stateOverride ?? {}),
     };
     const allowed = handleNavigate(resumed.destinationPath, {

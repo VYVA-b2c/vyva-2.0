@@ -2878,6 +2878,39 @@ export const insertHomePlanCardSchema = createInsertSchema(homePlanCards).omit({
 export type InsertHomePlanCard = z.infer<typeof insertHomePlanCardSchema>;
 export type HomePlanCardRow = typeof homePlanCards.$inferSelect;
 
+export const homeFastHelpJourneys = pgTable("home_fast_help_journeys", {
+  id:           uuid("id").primaryKey(),
+  user_id:      uuid("user_id").notNull(),
+  action_id:    text("action_id").notNull(),
+  status:       text("status").notNull(),
+  started_at:   timestamp("started_at", { withTimezone: true }).notNull(),
+  updated_at:   timestamp("updated_at", { withTimezone: true }).notNull(),
+  reference_id: text("reference_id"),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  synced_at:    timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("home_fast_help_journeys_user_updated_idx").on(t.user_id, t.updated_at),
+  index("home_fast_help_journeys_user_action_updated_idx").on(t.user_id, t.action_id, t.updated_at),
+]);
+
+export const homeFastHelpJourneyEvents = pgTable("home_fast_help_journey_events", {
+  id:           uuid("id").primaryKey(),
+  journey_id:   uuid("journey_id").notNull().references(() => homeFastHelpJourneys.id, { onDelete: "cascade" }),
+  user_id:      uuid("user_id").notNull(),
+  status:       text("status").notNull(),
+  occurred_at:  timestamp("occurred_at", { withTimezone: true }).notNull(),
+  reference_id: text("reference_id"),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("home_fast_help_journey_events_user_occurred_idx").on(t.user_id, t.occurred_at),
+  index("home_fast_help_journey_events_journey_occurred_idx").on(t.journey_id, t.occurred_at),
+]);
+
+export const insertHomeFastHelpJourneySchema = createInsertSchema(homeFastHelpJourneys).omit({ created_at: true, synced_at: true });
+export const insertHomeFastHelpJourneyEventSchema = createInsertSchema(homeFastHelpJourneyEvents).omit({ created_at: true });
+export type HomeFastHelpJourneyRow = typeof homeFastHelpJourneys.$inferSelect;
+export type HomeFastHelpJourneyEventRow = typeof homeFastHelpJourneyEvents.$inferSelect;
+
 export const heroMessages = pgTable("hero_messages", {
   id:             uuid("id").primaryKey().defaultRandom(),
   message_id:     text("message_id").notNull().unique(),
@@ -3462,6 +3495,8 @@ export const schema = {
   voiceRecommendationFeedback,
   voiceTriageSessions,
   homePlanCards,
+  homeFastHelpJourneys,
+  homeFastHelpJourneyEvents,
   heroMessages,
   heroMessageEvents,
   marketingAudiences,
