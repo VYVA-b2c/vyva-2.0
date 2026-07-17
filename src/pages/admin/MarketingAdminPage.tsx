@@ -16826,6 +16826,7 @@ export default function MarketingAdminPage() {
     },
   ] : [];
   const linkedCampaignContentCount = campaignReadinessChannels.filter((channelDraft) => Boolean(channelDraft.contentAssetId)).length;
+  const firstMissingCampaignContentChannel = missingCampaignContentChannels[0] ?? null;
   const campaignOperatorBriefItems = editingCampaign ? [
     {
       key: "next",
@@ -16932,6 +16933,18 @@ export default function MarketingAdminPage() {
     "4. Suggest the next relationship follow-up after send or manual publish.",
     "5. Return channel-specific copy, subject lines where relevant, CTA text, visual guidance, and launch notes.",
   ].filter(Boolean).join("\n") : "";
+  const campaignCreativeAcceleratorState: CampaignReadinessState = !editingCampaign
+    ? "planning"
+    : firstMissingCampaignContentChannel
+      ? "needs_action"
+      : firstCampaignContentAsset
+        ? "ready"
+        : "blocked";
+  const campaignCreativeAcceleratorDetail = firstMissingCampaignContentChannel
+    ? `Create the missing ${channelLabel[firstMissingCampaignContentChannel.channel]} content now, then VYVA will link it back to this campaign.`
+    : firstCampaignContentAsset
+      ? `${linkedCampaignContentCount}/${campaignReadinessChannels.length} planned channel${campaignReadinessChannels.length === 1 ? "" : "s"} have linked content. Preview it or copy the AI brief for improvement.`
+      : "Add at least one content asset before this campaign can move toward launch.";
   const unmappedAudienceMemberCount = latestSyncRun
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
@@ -19617,6 +19630,79 @@ export default function MarketingAdminPage() {
                                   </article>
                                 );
                               })}
+                            </div>
+                          </div>
+                        ) : null}
+                        {editingCampaign ? (
+                          <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3" data-testid="marketing-campaign-creative-accelerator">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-700">Creative accelerator</p>
+                                <h4 className="mt-1 text-base font-black text-[#241133]">
+                                  {firstMissingCampaignContentChannel ? "Fix the creative gap" : "Creative is ready to improve"}
+                                </h4>
+                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">{campaignCreativeAcceleratorDetail}</p>
+                              </div>
+                              <Pill className={readinessPillClass(campaignCreativeAcceleratorState)}>
+                                {readinessLabel(campaignCreativeAcceleratorState)}
+                              </Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 md:grid-cols-3">
+                              <div className="rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3">
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">Linked content</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{linkedCampaignContentCount}/{campaignReadinessChannels.length}</p>
+                                <p className="mt-1 text-xs font-bold text-[#7d6b65]">Planned channel assets</p>
+                              </div>
+                              <div className="rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3">
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">Missing</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{missingCampaignContentChannels.length}</p>
+                                <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                                  {missingCampaignContentChannels.length
+                                    ? missingCampaignContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")
+                                    : "No creative gaps"}
+                                </p>
+                              </div>
+                              <div className="rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3">
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">AI brief</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{campaignAiCommandBrief ? "Ready" : "Drafting"}</p>
+                                <p className="mt-1 text-xs font-bold text-[#7d6b65]">Campaign context for copy improvement</p>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {firstMissingCampaignContentChannel ? (
+                                <button
+                                  type="button"
+                                  disabled={contentSaving || campaignSaving}
+                                  onClick={() => void createAndLinkCampaignChannelContent(firstMissingCampaignContentChannel.id)}
+                                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                  data-testid="button-marketing-campaign-create-missing-content"
+                                >
+                                  <Sparkles size={15} aria-hidden="true" />
+                                  {contentSaving || campaignSaving ? "Creating..." : `Create ${channelLabel[firstMissingCampaignContentChannel.channel]} content`}
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                disabled={!firstCampaignContentAsset}
+                                onClick={() => {
+                                  if (firstCampaignContentAsset) previewContent(firstCampaignContentAsset);
+                                }}
+                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:text-[#b8abb8]"
+                                data-testid="button-marketing-campaign-preview-first-content"
+                              >
+                                <Eye size={15} aria-hidden="true" />
+                                Preview first content
+                              </button>
+                              <button
+                                type="button"
+                                disabled={!campaignAiCommandBrief}
+                                onClick={() => void copyCampaignHandoffText("Campaign AI command brief", campaignAiCommandBrief)}
+                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:text-[#b8abb8]"
+                                data-testid="button-marketing-campaign-copy-ai-creative-brief"
+                              >
+                                <Copy size={15} aria-hidden="true" />
+                                Copy AI brief
+                              </button>
                             </div>
                           </div>
                         ) : null}

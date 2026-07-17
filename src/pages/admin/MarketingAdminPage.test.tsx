@@ -4510,6 +4510,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-campaign-launch-control-manual")).toHaveTextContent("Track first result");
     expect(screen.getByTestId("marketing-campaign-launch-control-audience")).toHaveTextContent("1 saved");
     expect(screen.getByTestId("marketing-campaign-launch-control-relationship")).toHaveTextContent("8 signals");
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Creative accelerator");
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Creative is ready to improve");
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("2/2");
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("No creative gaps");
+    expect(screen.getByTestId("button-marketing-campaign-preview-first-content")).toHaveTextContent("Preview first content");
+    expect(screen.getByTestId("button-marketing-campaign-copy-ai-creative-brief")).toHaveTextContent("Copy AI brief");
     expect(screen.getByTestId("marketing-campaign-ai-command-brief")).toHaveTextContent("AI command brief");
     const aiCommandBrief = screen.getByTestId("textarea-marketing-campaign-ai-command-brief") as HTMLTextAreaElement;
     expect(aiCommandBrief.value).toContain("VYVA campaign AI command brief");
@@ -4777,17 +4783,20 @@ describe("MarketingAdminPage", () => {
     ]);
   });
 
-  it("creates and links missing campaign channel content from the publish kit", async () => {
+  it("creates and links missing campaign channel content from the creative accelerator", async () => {
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-2"));
 
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Fix the creative gap");
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Create the missing LinkedIn content");
+    expect(screen.getByTestId("button-marketing-campaign-create-missing-content")).toHaveTextContent("Create LinkedIn content");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Content: Missing");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Create a starter asset here");
     expect(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Create & link content");
 
-    fireEvent.click(screen.getByTestId("button-marketing-campaign-publish-kit-linkedin"));
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-create-missing-content"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
