@@ -129,6 +129,7 @@ describe("ConciergeReadinessAdminPage", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
     apiFetchMock.mockResolvedValue(jsonResponse({ channels: defaultChannelRows(), generated_at: "2026-07-16T10:00:00.000Z" }));
+    window.history.replaceState(null, "", "/admin/concierge-readiness");
     window.localStorage.clear();
     Object.assign(navigator, {
       clipboard: {
@@ -228,6 +229,8 @@ describe("ConciergeReadinessAdminPage", () => {
     const liveForm = screen.getByTestId("form-concierge-channel-live-ready-email");
     expect(liveForm).toHaveAttribute("method", "post");
     expect(liveForm).toHaveAttribute("action", "/api/admin/concierge/channel-readiness/email/live-ready/on");
+    expect(within(liveForm).getByDisplayValue("email")).toHaveAttribute("name", "channel");
+    expect(within(liveForm).getByDisplayValue("live-ready")).toHaveAttribute("name", "action");
 
     fireEvent.click(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Live-ready"));
 
@@ -279,9 +282,8 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(row).getByLabelText("Live-ready")).toBeDisabled();
   });
 
-  it("runs a channel verification probe and surfaces failed blockers", async () => {
+  it("posts channel verification through a native form and surfaces failed blockers", () => {
     const blocker = "Add a QA form/application URL before running a live-readiness probe.";
-    const initialForm = channelRow({ channel: "form_application", configured: true, verified: false, adminEnabled: false });
     const failedForm = channelRow({
       channel: "form_application",
       configured: true,
@@ -290,11 +292,10 @@ describe("ConciergeReadinessAdminPage", () => {
       probeStatus: "fail",
       probeBlocker: blocker,
     });
-    apiFetchMock.mockResolvedValueOnce(jsonResponse({ channel: failedForm }));
 
     renderPage(undefined, [
       channelRow({ channel: "email", configured: true, verified: true, adminEnabled: true }),
-      initialForm,
+      failedForm,
       channelRow({ channel: "phone_call", configured: false, verified: false, adminEnabled: false }),
       channelRow({ channel: "whatsapp", configured: false, verified: false, adminEnabled: false }),
       channelRow({ channel: "document_upload", configured: true, verified: true, adminEnabled: false }),
@@ -303,17 +304,21 @@ describe("ConciergeReadinessAdminPage", () => {
     const probeForm = screen.getByTestId("form-concierge-channel-probe-form-application");
     expect(probeForm).toHaveAttribute("method", "post");
     expect(probeForm).toHaveAttribute("action", "/api/admin/concierge/channel-readiness/form_application/probe");
+    expect(within(probeForm).getByDisplayValue("form_application")).toHaveAttribute("name", "channel");
+    expect(within(probeForm).getByDisplayValue("probe")).toHaveAttribute("name", "action");
 
-    fireEvent.click(within(screen.getByTestId("row-concierge-channel-form-application")).getByRole("button", { name: /run verification/i }));
-
-    expect(apiFetchMock).toHaveBeenCalledWith(
-      "/api/admin/concierge/channel-readiness/form_application/probe",
-      expect.objectContaining({ method: "POST" }),
-    );
-    expect(await screen.findByText(`Forms / applications verification failed: ${blocker}`)).toBeInTheDocument();
     expect(screen.getByTestId("row-concierge-channel-form-application")).toHaveTextContent("Probe failed");
     expect(screen.getByTestId("row-concierge-channel-form-application")).toHaveTextContent(blocker);
     expect(within(screen.getByTestId("row-concierge-channel-form-application")).getByLabelText("Live-ready")).toBeDisabled();
+  });
+
+  it("shows channel form redirect errors after a browser form post", () => {
+    window.history.replaceState(null, "", "/admin/concierge-readiness?action=probe&channel=email&status=error&message=Email%20verification%20failed");
+
+    renderPage();
+
+    expect(screen.getByTestId("message-concierge-channel-readiness-error")).toHaveTextContent("Email verification failed");
+    expect(window.location.search).toBe("");
   });
 
   it("surfaces the high-risk manual QA pass before the remaining Concierge scripts", () => {
