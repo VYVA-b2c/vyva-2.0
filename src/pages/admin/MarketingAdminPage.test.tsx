@@ -816,6 +816,12 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
       contentResponse = [createdContent, ...contentResponse.filter((item) => (item as { id?: string }).id !== createdContent.id)];
       return jsonResponse({ ok: true, content: createdContent }, { status: 201 });
     }
+    const contentPatchMatch = path.match(/^\/api\/admin\/marketing\/content\/([^/]+)$/);
+    if (contentPatchMatch && method === "PATCH") {
+      const updatedContent = contentFromRequestBody(contentPatchMatch[1], init);
+      contentResponse = [updatedContent, ...contentResponse.filter((item) => (item as { id?: string }).id !== updatedContent.id)];
+      return jsonResponse({ ok: true, content: updatedContent });
+    }
     if (path === "/api/admin/marketing/content/content-2" && method === "PATCH") return jsonResponse({ ok: true, content: contentFromRequestBody("content-2", init) });
     if (path === "/api/admin/marketing/content/content-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContentId: "content-2" });
     if (path === "/api/admin/marketing/media/media-1" && method === "PATCH") return jsonResponse({ ok: true, mediaAsset: mediaFromRequestBody("media-1", init) });
@@ -1267,10 +1273,27 @@ describe("MarketingAdminPage", () => {
     expect(repairDesign.value).toContain("marketing_missing_lovable_reference_repair");
     expect(repairDesign.value).toContain("replacement draft");
     expect(repairMetadata.value).toContain("repairDraft");
+    expect(repairMetadata.value).toContain("source_repaired_draft");
+    expect(repairMetadata.value).toContain("original_lovable_source_type");
     expect(repairMetadata.value).toContain("email_template:6199c1eb-75ca-4347-a619-f7f5a7af989d");
 
     fireEvent.click(screen.getByTestId(`button-marketing-repair-content-${missingLovableContent.id}`));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI replacement draft prepared");
+
+    fireEvent.click(screen.getByTestId(`button-marketing-save-repair-content-${missingLovableContent.id}`));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Saved AI replacement draft");
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === `/api/admin/marketing/content/${missingLovableContent.id}` && init?.method === "PATCH");
+    expect(patchCall).toBeTruthy();
+    const payload = JSON.parse(String(patchCall?.[1]?.body ?? "{}"));
+    expect(payload.metadata.lovable_source_type).toBe("source_repaired_draft");
+    expect(payload.metadata.original_lovable_source_type).toBe("missing_lovable_reference");
+    expect(payload.metadata.repairDraft.sourceReference).toBe("email_template:6199c1eb-75ca-4347-a619-f7f5a7af989d");
+    await waitFor(() => {
+      expect(screen.queryByTestId("marketing-missing-content-reference-panel")).not.toBeInTheDocument();
+    });
   });
 
   it("shows tracked manual outcomes in campaign performance scans", async () => {

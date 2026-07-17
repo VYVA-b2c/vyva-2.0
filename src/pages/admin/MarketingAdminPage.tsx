@@ -2686,6 +2686,7 @@ const lovableContentSourceLabels: Record<string, string> = {
   journey_step_preset: "Journey step preset",
   social_post: "Social post",
   missing_lovable_reference: "Missing Source reference",
+  source_repaired_draft: "Source repair draft",
 };
 
 function metadataString(value: unknown, key: string) {
@@ -6985,6 +6986,8 @@ function missingLovableReferenceRepairDraft(content: ContentAsset): ContentEditD
     designJsonText: jsonText(generatedDesign),
     metadataText: jsonText({
       ...metadata,
+      lovable_source_type: "source_repaired_draft",
+      original_lovable_source_type: metadataString(content.metadata, "lovable_source_type") || "missing_lovable_reference",
       repairDraft: {
         generator: "marketing_missing_lovable_reference_repair",
         generatedAt: new Date().toISOString(),
@@ -10955,14 +10958,21 @@ export default function MarketingAdminPage() {
     () => content.filter((item) => contentOriginKey(item) === "missing_lovable_reference"),
     [content],
   );
-  const missingSourceReferenceCount = useMemo(() => {
-    if (!latestSyncRun) return missingSourceReferenceContent.length;
+  const sourceRepairedDraftCount = useMemo(
+    () => content.filter((item) => contentOriginKey(item) === "source_repaired_draft").length,
+    [content],
+  );
+  const importedMissingSourceReferenceCount = useMemo(() => {
+    if (!latestSyncRun) return 0;
     return Math.max(
-      missingSourceReferenceContent.length,
       syncCountValue(latestSyncRun.summary, "imported", "missingContentReferences"),
       numberValue(recordValue(latestSyncRun.summary.contentSourceCounts).missing_lovable_reference),
     );
-  }, [latestSyncRun, missingSourceReferenceContent.length]);
+  }, [latestSyncRun]);
+  const missingSourceReferenceCount = Math.max(
+    missingSourceReferenceContent.length,
+    Math.max(0, importedMissingSourceReferenceCount - sourceRepairedDraftCount),
+  );
 
   useEffect(() => {
     if (!selectedContentId || contentIdSet.has(selectedContentId)) return;
@@ -15865,6 +15875,47 @@ export default function MarketingAdminPage() {
     setContentActionFeedback(`AI replacement draft prepared for "${contentAsset.title}". Review and save it.`);
     setMessage(`AI replacement draft prepared for ${contentAsset.title}.`);
     scrollToContentActionRow(contentAsset.id);
+  }
+
+  async function saveMissingLovableContentRepair(contentAsset: ContentAsset) {
+    const repairDraft = missingLovableReferenceRepairDraft(contentAsset);
+    setActiveTab("content");
+    setSearch("");
+    setChannelFilter("all");
+    setContentSourceFilter("all");
+    setSelectedContentId(contentAsset.id);
+    setEditingContentId(contentAsset.id);
+    setContentEditDraft(repairDraft);
+    setContentVariantChannel(nextContentVariantChannel(contentAsset.channel));
+    setContentDrawerMode("edit");
+    setConfirmingContentDeleteId(null);
+    setContentSaving(true);
+    setContentFeedback(`Saving AI replacement draft for "${contentAsset.title}"...`);
+    setContentActionFeedback(`Saving AI replacement draft for "${contentAsset.title}"...`);
+    try {
+      const result = await api<{ content: ContentAsset }>(`/api/admin/marketing/content/${contentAsset.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(contentPayloadFromDraft(repairDraft)),
+      });
+      setContent((current) => [result.content, ...current.filter((item) => item.id !== result.content.id)]);
+      setSelectedContentId(result.content.id);
+      setEditingContentId(result.content.id);
+      setContentEditDraft(contentEditDraftFromContent(result.content));
+      setContentVariantChannel(nextContentVariantChannel(result.content.channel));
+      setContentDrawerMode("edit");
+      setContentFeedback("Replacement draft saved.");
+      setContentActionFeedback(`Saved AI replacement draft for "${result.content.title}". Review it before publishing.`);
+      setMessage(`Source placeholder repaired: ${result.content.title}.`);
+      scrollToContentActionRow(result.content.id);
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Replacement draft could not be saved.";
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentSaving(false);
+    }
   }
 
   async function duplicateContentAsDraft(contentAsset: ContentAsset) {
@@ -23601,15 +23652,26 @@ export default function MarketingAdminPage() {
                             <span className="font-black text-[#241133]">{item.title}</span>
                             {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Source ID: {item.lovableExternalId}</span> : null}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => startMissingLovableContentRepair(item)}
-                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
-                            disabled={contentSaving}
-                            data-testid={`button-marketing-repair-missing-content-${item.id}`}
-                          >
-                            <Sparkles size={13} /> Draft replacement
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startMissingLovableContentRepair(item)}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
+                              disabled={contentSaving}
+                              data-testid={`button-marketing-repair-missing-content-${item.id}`}
+                            >
+                              <Sparkles size={13} /> Draft replacement
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void saveMissingLovableContentRepair(item)}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-amber-700 px-3 text-xs font-black text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              disabled={contentSaving}
+                              data-testid={`button-marketing-save-repair-missing-content-${item.id}`}
+                            >
+                              <Save size={13} /> Save replacement draft
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -24555,9 +24617,14 @@ export default function MarketingAdminPage() {
                                     <Pencil size={13} /> {isEditingContent ? "Editing" : "Edit"}
                                   </button>
                                   {isMissingLovableReference ? (
-                                    <button type="button" onClick={() => startMissingLovableContentRepair(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentSaving} data-testid={`button-marketing-repair-content-${item.id}`}>
-                                      <Sparkles size={13} /> Repair
-                                    </button>
+                                    <>
+                                      <button type="button" onClick={() => startMissingLovableContentRepair(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentSaving} data-testid={`button-marketing-repair-content-${item.id}`}>
+                                        <Sparkles size={13} /> Repair
+                                      </button>
+                                      <button type="button" onClick={() => void saveMissingLovableContentRepair(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl bg-amber-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contentSaving} data-testid={`button-marketing-save-repair-content-${item.id}`}>
+                                        <Save size={13} /> Save repair
+                                      </button>
+                                    </>
                                   ) : null}
                                   <button type="button" onClick={() => void duplicateContentAsDraft(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentSaving} data-testid={`button-marketing-duplicate-content-${item.id}`}>
                                     <Copy size={13} /> Duplicate
