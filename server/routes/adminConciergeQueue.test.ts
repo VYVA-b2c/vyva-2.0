@@ -21,6 +21,7 @@ vi.mock("../services/conciergeChannelReadiness.js", () => readinessMock);
 vi.mock("../services/conciergeActions.js", () => actionsMock);
 
 import adminConciergeQueueRouter from "./adminConciergeQueue.js";
+import { buildConciergeAdapterApprovalFingerprint } from "../../shared/conciergeAdapterPayloadContract.js";
 
 function readiness(externalActionAllowed: boolean) {
   return {
@@ -79,6 +80,17 @@ const failedPendingRow = {
       created_at: "2026-07-01T09:59:00.000Z",
       updated_at: "2026-07-01T10:20:00.000Z",
       failure_reason: "Adapter endpoint failed with 500.",
+      approval_fingerprint: buildConciergeAdapterApprovalFingerprint({
+        tool: "email",
+        payload: {
+          provider_email: "frontdesk@example.com",
+          deadline: "tomorrow",
+          document_type: "insurance form",
+        },
+        providerName: "City Clinic",
+        summary: "Email clinic paperwork",
+        approvedAt: "2026-07-01T10:00:00.000Z",
+      }),
     },
     execution_adapter: {
       version: 1,
@@ -181,6 +193,11 @@ describe("admin Concierge queue adapter recovery", () => {
         provider_contact: "frontdesk@example.com",
       }),
     });
+    expect(response.body.items[0].adapter_approval).toMatchObject({
+      requires_reconfirmation: false,
+      changed_fields: [],
+      approved_at: "2026-07-01T10:00:00.000Z",
+    });
   });
 
   it("blocks live adapter retry when current readiness is not passing", async () => {
@@ -239,6 +256,42 @@ describe("admin Concierge queue adapter recovery", () => {
 
     expect(response.body.error).toContain("Provider email address");
     expect(dbMock.pool.query).toHaveBeenCalledTimes(1);
+    expect(actionsMock.startPendingConciergeAction).not.toHaveBeenCalled();
+  });
+
+  it("blocks adapter retry when the provider target changed after approval", async () => {
+    const row = cloneFailedPendingRow();
+    row.provider_name = "New Clinic";
+    (row.action_payload as Record<string, unknown>).provider_email = "newdesk@example.com";
+
+    dbMock.pool.query.mockResolvedValueOnce({ rows: [row] });
+
+    const response = await request(buildApp())
+      .patch(`/api/admin/concierge/queue/${failedPendingRow.id}`)
+      .send({ action: "retry_adapter", outcome_note: "retry changed target" })
+      .expect(409);
+
+    expect(response.body.error).toContain("User reconfirmation required");
+    expect(response.body.error).toContain("provider_name");
+    expect(response.body.error).toContain("provider_contact");
+    expect(actionsMock.startPendingConciergeAction).not.toHaveBeenCalled();
+  });
+
+  it("blocks adapter retry when the summary or material payload changed after approval", async () => {
+    const row = cloneFailedPendingRow();
+    row.action_summary = "Email updated clinic paperwork";
+    (row.action_payload as Record<string, unknown>).document_type = "appointment form";
+
+    dbMock.pool.query.mockResolvedValueOnce({ rows: [row] });
+
+    const response = await request(buildApp())
+      .patch(`/api/admin/concierge/queue/${failedPendingRow.id}`)
+      .send({ action: "retry_adapter", outcome_note: "retry changed payload" })
+      .expect(409);
+
+    expect(response.body.error).toContain("User reconfirmation required");
+    expect(response.body.error).toContain("summary");
+    expect(response.body.error).toContain("payload");
     expect(actionsMock.startPendingConciergeAction).not.toHaveBeenCalled();
   });
 

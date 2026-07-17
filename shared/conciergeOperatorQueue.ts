@@ -1,5 +1,8 @@
 import type { ConciergeExecutionTask, ConciergeExecutionTaskStatus } from "./conciergeActionExecution";
-import type { ConciergeAdapterPayloadPreview } from "./conciergeAdapterPayloadContract";
+import type {
+  ConciergeAdapterApprovalComparison,
+  ConciergeAdapterPayloadPreview,
+} from "./conciergeAdapterPayloadContract";
 
 export const OPERATOR_CONCIERGE_ADAPTER_STATUSES = [
   "blocked",
@@ -98,6 +101,7 @@ export type OperatorConciergeQueueItem = {
   updated_at?: string | null;
   adapter_incident?: OperatorConciergeAdapterIncident | null;
   adapter_payload_preview?: ConciergeAdapterPayloadPreview | null;
+  adapter_approval?: ConciergeAdapterApprovalComparison | null;
 };
 
 export type OperatorConciergeQueueTotals = Record<OperatorConciergeQueueStatus, number>;

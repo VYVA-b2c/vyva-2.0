@@ -18,6 +18,8 @@ import {
 import type { ConciergeChannelReadinessResult } from "../../shared/conciergeChannelReadiness.js";
 import {
   buildConciergeAdapterPayloadPreview,
+  compareConciergeAdapterApprovalFingerprint,
+  type ConciergeAdapterApprovalComparison,
   type ConciergeAdapterPayloadPreview,
 } from "../../shared/conciergeAdapterPayloadContract.js";
 import { conciergeChannelReadinessForToolWithAdminSettings } from "../services/conciergeChannelReadiness.js";
@@ -151,6 +153,17 @@ function payloadContractError(preview: ConciergeAdapterPayloadPreview): string {
     : "Adapter payload is incomplete.";
 }
 
+function approvalComparisonBlocker(comparison: ConciergeAdapterApprovalComparison | null | undefined): string | null {
+  return comparison?.requires_reconfirmation ? "user_reconfirmation_required" : null;
+}
+
+function approvalComparisonError(comparison: ConciergeAdapterApprovalComparison | null | undefined): string {
+  const fields = comparison?.changed_fields.filter((field) => field !== "approval") ?? [];
+  return fields.length > 0
+    ? `User reconfirmation required because the approved ${fields.join(", ")} changed.`
+    : "User reconfirmation required before retrying this live Concierge action.";
+}
+
 async function retryReadinessForPendingPayload(
   payload: Record<string, unknown>,
   cache: Map<string, Promise<ConciergeChannelReadinessResult>>,
@@ -230,6 +243,7 @@ function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
   const assignment = operatorAssignmentFromPayload(payload);
   const adapterIncident = adapterIncidentFromPayload(payload);
   const adapterPayloadPreview = adapterPayloadPreviewForRow(row, payload);
+  const adapterApproval = adapterApprovalComparisonForRow(row, payload);
 
   return {
     id: row.id,
@@ -253,6 +267,7 @@ function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
     updated_at: isoDate(task?.updated_at ?? row.updated_at ?? row.confirmed_at ?? row.expires_at),
     adapter_incident: adapterIncident,
     adapter_payload_preview: adapterPayloadPreview,
+    adapter_approval: adapterApproval,
   };
 }
 
@@ -271,6 +286,23 @@ function adapterPayloadPreviewForRow(
     userId: row.user_id,
     summary: row.action_summary,
   });
+}
+
+function adapterApprovalComparisonForRow(
+  row: Pick<PendingQueueRow, "id" | "user_id" | "provider_name" | "provider_phone" | "action_summary">,
+  payload: Record<string, unknown>,
+): ConciergeAdapterApprovalComparison | null {
+  const task = executionTaskFromPayload(payload);
+  if (!task?.active_tool) return null;
+  return compareConciergeAdapterApprovalFingerprint({
+    tool: task.active_tool,
+    payload,
+    providerName: row.provider_name,
+    providerPhone: row.provider_phone,
+    pendingId: row.id,
+    userId: row.user_id,
+    summary: row.action_summary,
+  }, task.approval_fingerprint);
 }
 
 async function pendingItemWithAdapterPolicy(
@@ -314,6 +346,19 @@ async function pendingItemWithAdapterPolicy(
         ...incident,
         retry_allowed: false,
         retry_blocker: contractBlocker,
+        manual_follow_up_allowed: true,
+      },
+    };
+  }
+
+  const approvalBlocker = approvalComparisonBlocker(item.adapter_approval);
+  if (approvalBlocker) {
+    return {
+      ...item,
+      adapter_incident: {
+        ...incident,
+        retry_allowed: false,
+        retry_blocker: approvalBlocker,
         manual_follow_up_allowed: true,
       },
     };
@@ -583,6 +628,10 @@ async function retryPendingAdapter(row: PendingQueueRow, note: string | null, re
       summary: row.action_summary,
     })));
   }
+  const approvalComparison = adapterApprovalComparisonForRow(row, payload);
+  if (approvalComparison?.requires_reconfirmation) {
+    throw new QueueActionError(approvalComparisonError(approvalComparison));
+  }
 
   const now = new Date().toISOString();
   const retryPayload = withConciergeExecutionTask({
@@ -709,6 +758,13 @@ function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
     provider_phone: row.provider_phone,
     action_summary: row.outcome_summary ?? row.action_summary,
   }, objectPayload(payloadWithTask));
+  const adapterApproval = adapterApprovalComparisonForRow({
+    id: row.pending_id ?? row.id,
+    user_id: row.user_id,
+    provider_name: row.provider_name,
+    provider_phone: row.provider_phone,
+    action_summary: row.outcome_summary ?? row.action_summary,
+  }, objectPayload(payloadWithTask));
 
   return {
     id: row.id,
@@ -732,6 +788,7 @@ function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
     updated_at: isoDate(task?.updated_at ?? row.completed_at ?? row.started_at),
     adapter_incident: adapterIncident,
     adapter_payload_preview: adapterPayloadPreview,
+    adapter_approval: adapterApproval,
   };
 }
 
