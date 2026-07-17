@@ -21773,6 +21773,18 @@ export default function MarketingAdminPage() {
                           </div>
                         </div>
                         <div className="mt-4 grid gap-2">
+                          <div className="rounded-xl border border-purple-100 bg-purple-50 px-3 py-2 text-xs font-bold leading-relaxed text-purple-950">
+                            <span className="font-black">Best next action:</span> create a linked launch kit with reusable content assets, channel routes, recipient snapshots, and a saved launch packet.
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void createCampaignPlanFromTemplatePack(pack, templates, heroTemplate)}
+                            disabled={contentSaving || campaignSaving || templates.length === 0}
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid={`button-marketing-template-pack-create-campaign-${pack.id}`}
+                          >
+                            <Zap size={15} /> Create full launch kit
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -21795,7 +21807,7 @@ export default function MarketingAdminPage() {
                             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                             data-testid={`button-marketing-template-pack-studio-${pack.id}`}
                           >
-                            <Sparkles size={14} /> Load pack in studio
+                            <Sparkles size={14} /> Customize in studio
                           </button>
                           <button
                             type="button"
@@ -21804,16 +21816,7 @@ export default function MarketingAdminPage() {
                             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
                             data-testid={`button-marketing-template-pack-create-assets-${pack.id}`}
                           >
-                            <FileText size={14} /> Create pack assets
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void createCampaignPlanFromTemplatePack(pack, templates, heroTemplate)}
-                            disabled={contentSaving || campaignSaving || templates.length === 0}
-                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:bg-[#f1eee8] disabled:text-[#9d8b73]"
-                            data-testid={`button-marketing-template-pack-create-campaign-${pack.id}`}
-                          >
-                            <CalendarDays size={14} /> Create campaign plan
+                            <FileText size={14} /> Save assets only
                           </button>
                           <button
                             type="button"
@@ -21835,7 +21838,7 @@ export default function MarketingAdminPage() {
                             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                             data-testid={`button-marketing-template-pack-start-${pack.id}`}
                           >
-                            <Megaphone size={14} /> Start best campaign
+                            <Megaphone size={14} /> Starter only
                           </button>
                         </div>
                       </article>

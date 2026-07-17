@@ -2292,6 +2292,9 @@ describe("MarketingAdminPage", () => {
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
 
+    expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("Best next action");
+    expect(screen.getByTestId("button-marketing-template-pack-create-campaign-partner-growth")).toHaveTextContent("Create full launch kit");
+
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-create-campaign-partner-growth"));
 
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Creating Partner growth campaign plan");
