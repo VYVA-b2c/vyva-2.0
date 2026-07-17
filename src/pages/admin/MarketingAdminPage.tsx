@@ -17769,6 +17769,27 @@ export default function MarketingAdminPage() {
       ].join("\n\n");
     }),
   ].filter(Boolean).join("\n\n") : "";
+  const campaignPublishCopyPacket = campaignForLaunchPacket ? [
+    "VYVA campaign publish copy packet",
+    `Campaign: ${campaignForLaunchPacket.name}`,
+    `Audience: ${campaignForLaunchPacket.audienceType.toUpperCase()}`,
+    `Schedule: ${formatDate(campaignForLaunchPacket.scheduleStartsAt)}`,
+    ...campaignPublishKitItems.map((item) => {
+      if (!item.contentAsset) {
+        return [
+          "---",
+          `${channelLabel[item.channel]}`,
+          "Missing content. Create or link content before publishing this channel.",
+        ].join("\n");
+      }
+      const linkedMediaAssets = mediaAssets.filter((asset) => asset.contentAssetId === item.contentAsset?.id);
+      return [
+        "---",
+        `${channelLabel[item.channel]}`,
+        campaignChannelPublishCopy(item.channel, item.contentAsset, linkedMediaAssets),
+      ].join("\n\n");
+    }),
+  ].filter(Boolean).join("\n\n") : "";
   const campaignTestNeedsSave = Boolean(draftEmailChannel?.contentAssetId && hasUnsavedCampaignSendChanges);
   const campaignLaunchSequenceSteps: CampaignLaunchSequenceStep[] = editingCampaign ? [
     {
@@ -22235,6 +22256,15 @@ export default function MarketingAdminPage() {
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             <Pill className="bg-purple-50 text-purple-800">{campaignPublishKitItems.length} channel{campaignPublishKitItems.length === 1 ? "" : "s"}</Pill>
+                            <button
+                              type="button"
+                              onClick={() => void copyCampaignHandoffText("Campaign publish copy packet", campaignPublishCopyPacket)}
+                              disabled={!campaignPublishCopyPacket.trim()}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-copy-publish-copy-packet"
+                            >
+                              <Copy size={15} /> Copy all publish copy
+                            </button>
                             <button
                               type="button"
                               onClick={() => void copyCampaignHandoffText("Campaign launch packet", campaignLaunchPacketBrief)}

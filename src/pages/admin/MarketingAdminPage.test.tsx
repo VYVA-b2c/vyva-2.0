@@ -5078,6 +5078,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Manual publishing");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview the content, then publish or track it in the channel tool.");
     expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toHaveTextContent("Track result");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-publish-copy-packet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign publish copy packet"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Email\n\nSubject: Welcome to VYVA"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Partner update"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Read more: https://v2.vyva.life/partners"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign publish copy packet copied.");
     fireEvent.click(screen.getByTestId("button-marketing-copy-launch-packet"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch packet"));
