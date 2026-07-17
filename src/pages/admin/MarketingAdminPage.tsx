@@ -82,6 +82,7 @@ const MARKETING_CONTACT_MARKET_OPTIONS = [
   { value: "United States", label: "US" },
 ] as const;
 const TEMPLATE_GAP_BATCH_LIMIT = 4;
+const CAMPAIGN_STUDIO_NO_AUDIENCE_ID = "__no_reviewed_audience__";
 
 type Channel = typeof CHANNELS[number];
 type Audience = typeof AUDIENCES[number];
@@ -10427,7 +10428,7 @@ export default function MarketingAdminPage() {
         key: "consent-cleanup",
         title: "Consent cleanup",
         detail: consentContacts.length
-          ? "Review people who should not enter automated outreach until consent is clear."
+          ? "Prepare a consent-safe re-permission plan. Opted-out contacts stay in review and are excluded from campaign snapshots."
           : "Everyone has opted in, so consent is not blocking relationship work.",
         state: consentContacts.length ? "needs_action" : "ready",
         count: consentContacts.length,
@@ -10441,7 +10442,7 @@ export default function MarketingAdminPage() {
         sampleContact: consentContacts[0] ?? null,
         icon: CheckCircle2,
         showLabel: "Review consent",
-        studioLabel: "Prepare win-back",
+        studioLabel: "Prepare consent check",
       },
       {
         key: "partner-nurture",
@@ -11559,10 +11560,13 @@ export default function MarketingAdminPage() {
   );
   const selectedCampaignStudioCategory = campaignStudioCategories.find((category) => category.id === campaignStudioCategory) ?? campaignStudioCategories[0];
   const selectedCampaignStudioPlay = campaignStudioPlays.find((play) => play.id === campaignStudio.playId) ?? visibleCampaignStudioPlays[0] ?? campaignStudioPlays[0];
+  const campaignStudioHasNoReviewedAudience = campaignStudio.targetAudienceId === CAMPAIGN_STUDIO_NO_AUDIENCE_ID;
   const selectedCampaignStudioTargetAudience = useMemo(
-    () => audiences.find((audience) => audience.id === campaignStudio.targetAudienceId)
+    () => campaignStudioHasNoReviewedAudience
+      ? null
+      : audiences.find((audience) => audience.id === campaignStudio.targetAudienceId)
       ?? bestCampaignStudioAudience(selectedCampaignStudioPlay, audiences),
-    [audiences, campaignStudio.targetAudienceId, selectedCampaignStudioPlay],
+    [audiences, campaignStudio.targetAudienceId, campaignStudioHasNoReviewedAudience, selectedCampaignStudioPlay],
   );
   const campaignStudioSchedule = campaignStudio.scheduleStartsAt || campaignStudioDefaultSchedule(selectedCampaignStudioPlay);
   const campaignStudioTemplateDraft = campaignStudioBrief(
@@ -11667,10 +11671,11 @@ export default function MarketingAdminPage() {
     [selectedCampaignStudioPlay, campaignStudioGenerated, selectedCampaignStudioTargetAudience, campaignStudio.channel],
   );
   const campaignStudioAudiencePool = useMemo(() => contacts.filter((contact) => {
+    if (campaignStudioHasNoReviewedAudience) return false;
     if (!campaignAllowsContact(selectedCampaignStudioPlay.audienceType, contact.audienceType)) return false;
     if (!contactMatchesAudienceList(contact, selectedCampaignStudioTargetAudience)) return false;
     return true;
-  }), [contacts, selectedCampaignStudioPlay, selectedCampaignStudioTargetAudience]);
+  }), [campaignStudioHasNoReviewedAudience, contacts, selectedCampaignStudioPlay, selectedCampaignStudioTargetAudience]);
   const campaignStudioRecipientPreview = useMemo(() => campaignStudioAudiencePool.filter((contact) => {
     return contactReachableForChannel(contact, campaignStudio.channel);
   }), [campaignStudio.channel, campaignStudioAudiencePool]);
@@ -14015,7 +14020,7 @@ export default function MarketingAdminPage() {
   function applyCampaignStudioChannelDraft(channel: Channel) {
     const channelDraft = campaignStudioChannelDrafts.find((item) => item.channel === channel);
     const generated = channelDraft?.draft ?? campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, campaignStudio.angleId, channel, selectedCampaignStudioTargetAudience);
-    const targetAudienceId = selectedCampaignStudioTargetAudience?.id ?? campaignStudio.targetAudienceId;
+    const targetAudienceId = selectedCampaignStudioTargetAudience?.id ?? (campaignStudioHasNoReviewedAudience ? "" : campaignStudio.targetAudienceId);
     const scheduleStartsAt = campaignStudioSchedule;
     const channelRecipients = campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0;
 
@@ -14446,7 +14451,7 @@ export default function MarketingAdminPage() {
   }
 
   function applyCampaignStudioDraft() {
-    const targetAudienceId = selectedCampaignStudioTargetAudience?.id ?? campaignStudio.targetAudienceId;
+    const targetAudienceId = selectedCampaignStudioTargetAudience?.id ?? (campaignStudioHasNoReviewedAudience ? "" : campaignStudio.targetAudienceId);
     const scheduleStartsAt = campaignStudioSchedule;
     setCampaignDraft((draft) => ({
       ...draft,
@@ -17381,10 +17386,23 @@ export default function MarketingAdminPage() {
 
   function loadContactWorkQueueInStudio(queue: ContactRelationshipWorkQueue) {
     const play = campaignStudioPlays.find((item) => item.id === queue.playId) ?? campaignStudioPlays[0];
+    const isConsentCleanup = queue.key === "consent-cleanup";
+    const queueCampaignContacts = isConsentCleanup
+      ? queue.contacts.filter((contact) => contact.consentStatus !== "opted_out")
+      : queue.contacts;
+    const optedOutExcludedCount = isConsentCleanup ? queue.contacts.length - queueCampaignContacts.length : 0;
+    if (isConsentCleanup && queueCampaignContacts.length === 0) {
+      showContactWorkQueue(queue);
+      const feedback = "Only opted-out contacts are in consent cleanup. Keep them out of campaigns and update consent manually if their preference changes.";
+      setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
     const relatedAudience = queue.filterPatch.list
       ? audiences.find((audience) => lower(audience.name) === queue.filterPatch.list) ?? bestCampaignStudioAudience(play, audiences)
       : bestCampaignStudioAudience(play, audiences);
-    const primaryChannel = queue.channels.find((channel) => recipientForChannel(queue.sampleContact ?? {
+    const studioSampleContact = queueCampaignContacts[0] ?? queue.sampleContact;
+    const primaryChannel = queue.channels.find((channel) => recipientForChannel(studioSampleContact ?? {
       id: "",
       audienceType: play.audienceType,
       fullName: "",
@@ -17404,6 +17422,8 @@ export default function MarketingAdminPage() {
       lovableExternalId: null,
     }, channel)) ?? queue.channels[0] ?? play.defaultChannel;
     const selectedChannels = uniqueChannels([primaryChannel, ...queue.channels]);
+    const targetAudienceId = isConsentCleanup ? CAMPAIGN_STUDIO_NO_AUDIENCE_ID : relatedAudience?.id ?? "";
+    const campaignDraftTargetAudienceId = isConsentCleanup ? "" : targetAudienceId;
 
     setActiveTab("dashboard");
     setCampaignStudioCategory(play.categoryId);
@@ -17411,7 +17431,7 @@ export default function MarketingAdminPage() {
       playId: play.id,
       channel: primaryChannel,
       selectedChannels,
-      targetAudienceId: relatedAudience?.id ?? "",
+      targetAudienceId,
       scheduleStartsAt: campaignStudioDefaultSchedule(play),
       toneId: queue.toneId,
       angleId: queue.angleId,
@@ -17420,12 +17440,31 @@ export default function MarketingAdminPage() {
       ...draft,
       audienceType: play.audienceType,
       channel: primaryChannel,
-      targetAudienceId: relatedAudience?.id ?? "",
-      recipientFilter: queue.sampleContact?.email || queue.sampleContact?.fullName || queue.filterPatch.search || "",
-      snapshotRecipients: queue.count > 0,
+      targetAudienceId: campaignDraftTargetAudienceId,
+      recipientFilter: isConsentCleanup
+        ? "Consent review: pending/unknown only"
+        : queue.sampleContact?.email || queue.sampleContact?.fullName || queue.filterPatch.search || "",
+      snapshotRecipients: isConsentCleanup ? false : queue.count > 0,
     }));
-    setCampaignStudioFeedback(`Relationship queue loaded: ${queue.title}. ${queue.countLabel} are ready for ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")} planning.`);
-    setMessage(`Relationship queue loaded: ${queue.title}. Generate AI copy, review the templates, then create the campaign.`);
+    if (isConsentCleanup) {
+      const pendingCount = queue.contacts.filter((contact) => contact.consentStatus === "pending").length;
+      const unknownCount = queue.contacts.filter((contact) => contact.consentStatus === "unknown").length;
+      const reachableCount = queueCampaignContacts.filter((contact) => selectedChannels.some((channel) => Boolean(recipientForChannel(contact, channel)))).length;
+      setCampaignIntentBrief([
+        "Consent re-permission campaign.",
+        `Contacts needing review: ${queue.countLabel} (${pendingCount} pending, ${unknownCount} unknown, ${optedOutExcludedCount} opted out).`,
+        `Campaign planning pool: ${queueCampaignContacts.length} pending/unknown contact${queueCampaignContacts.length === 1 ? "" : "s"}; ${reachableCount} reachable by ${selectedChannels.map((channel) => channelLabel[channel]).join(" or ")}.`,
+        "Do not message opted-out contacts. Exclude them from every send list unless they explicitly opt back in.",
+        "Goal: ask pending/unknown contacts to confirm whether they want to receive VYVA updates, with one clear preference/update CTA and no pressure.",
+        "Safeguard: keep recipient snapshots off until a reviewed consent audience is saved and approved.",
+      ].join("\n"));
+      const feedback = `Consent-safe re-permission plan loaded: ${queueCampaignContacts.length} pending/unknown contact${queueCampaignContacts.length === 1 ? "" : "s"}; ${optedOutExcludedCount} opted-out excluded. Recipient snapshots are off until a reviewed consent audience is saved.`;
+      setCampaignStudioFeedback(feedback);
+      setMessage("Consent-safe campaign plan loaded. Review the AI brief, save a reviewed audience, then decide whether to send.");
+    } else {
+      setCampaignStudioFeedback(`Relationship queue loaded: ${queue.title}. ${queue.countLabel} are ready for ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")} planning.`);
+      setMessage(`Relationship queue loaded: ${queue.title}. Generate AI copy, review the templates, then create the campaign.`);
+    }
   }
 
   function buildAudienceFromContactWorkQueue(queue: ContactRelationshipWorkQueue) {
@@ -20919,10 +20958,11 @@ export default function MarketingAdminPage() {
                       <Field label="Target list">
                         <select
                           className={inputClass}
-                          value={campaignStudio.targetAudienceId || selectedCampaignStudioTargetAudience?.id || ""}
+                          value={campaignStudioHasNoReviewedAudience ? CAMPAIGN_STUDIO_NO_AUDIENCE_ID : campaignStudio.targetAudienceId || selectedCampaignStudioTargetAudience?.id || ""}
                           onChange={(event) => updateCampaignStudio({ targetAudienceId: event.target.value })}
                           data-testid="select-marketing-campaign-studio-target-audience"
                         >
+                          {campaignStudioHasNoReviewedAudience ? <option value={CAMPAIGN_STUDIO_NO_AUDIENCE_ID}>No reviewed list selected</option> : null}
                           <option value="">Best matching list</option>
                           {audiences.map((audience) => (
                             <option key={audience.id} value={audience.id}>

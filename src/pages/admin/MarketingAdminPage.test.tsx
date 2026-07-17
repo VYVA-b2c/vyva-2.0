@@ -3716,6 +3716,30 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("loads consent cleanup as a consent-safe re-permission campaign", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    expect(screen.getByTestId("marketing-contact-work-queue-consent-cleanup")).toHaveTextContent("Prepare a consent-safe re-permission plan");
+    expect(screen.getByTestId("button-marketing-contact-work-queue-studio-consent-cleanup")).toHaveTextContent("Prepare consent check");
+
+    fireEvent.click(screen.getByTestId("button-marketing-contact-work-queue-studio-consent-cleanup"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Consent-safe re-permission plan loaded");
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Recipient snapshots are off");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("__no_reviewed_audience__");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveTextContent("No reviewed list selected");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("");
+    const intentBrief = screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement;
+    expect(intentBrief.value).toContain("Consent re-permission campaign.");
+    expect(intentBrief.value).toContain("Do not message opted-out contacts.");
+    expect(intentBrief.value).toContain("pending/unknown");
+  });
+
   it("saves the current contact filters as a reusable audience", async () => {
     renderPage();
 
