@@ -3723,6 +3723,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Choose launch mode");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Sendable email campaign");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Local / offline event");
+    expect(screen.getByTestId("marketing-campaign-launch-mode-pack-local-offline")).toHaveTextContent("Template pack: Local event operations");
+    expect(screen.getByTestId("marketing-campaign-launch-mode-pack-local-offline")).toHaveTextContent("9 starter templates");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-mode-local-offline"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Local / offline event with Local event operations template pack.");
     expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("event");

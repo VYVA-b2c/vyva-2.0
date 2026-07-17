@@ -18395,29 +18395,42 @@ export default function MarketingAdminPage() {
                           <Pill className="bg-purple-50 text-purple-800">{campaignLaunchModes.length} guided paths</Pill>
                         </div>
                         <div className="mt-3 grid gap-2 lg:grid-cols-2 xl:grid-cols-4">
-                          {campaignLaunchModes.map((mode) => (
-                            <button
-                              key={mode.id}
-                              type="button"
-                              onClick={() => applyCampaignLaunchMode(mode)}
-                              className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
-                              data-testid={`button-marketing-campaign-launch-mode-${mode.id}`}
-                            >
-                              <span className="block font-black text-[#241133]">{mode.title}</span>
-                              <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{mode.detail}</span>
-                              <span className="mt-3 grid gap-1 rounded-lg bg-white/75 px-2 py-2 text-[11px] font-black leading-relaxed text-[#6b5b54]">
-                                <span>Best for: {mode.bestFor}</span>
-                                <span>Creates: {mode.creates}</span>
-                                <span>Next: {mode.nextStep}</span>
-                              </span>
-                              <span className="mt-2 flex flex-wrap gap-1">
-                                {mode.channels.slice(0, 4).map((channel) => (
-                                  <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
-                                ))}
-                                {mode.channels.length > 4 ? <Pill className="bg-white text-[#5b4a46]">+{mode.channels.length - 4}</Pill> : null}
-                              </span>
-                            </button>
-                          ))}
+                          {campaignLaunchModes.map((mode) => {
+                            const packMatch = contentTemplatePacksWithStats.find(({ pack }) => pack.id === mode.templatePackId) ?? null;
+                            const routeCount = uniqueChannels([
+                              ...mode.channels,
+                              ...(packMatch?.channels ?? []),
+                            ]).length;
+                            return (
+                              <button
+                                key={mode.id}
+                                type="button"
+                                onClick={() => applyCampaignLaunchMode(mode)}
+                                className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                                data-testid={`button-marketing-campaign-launch-mode-${mode.id}`}
+                              >
+                                <span className="block font-black text-[#241133]">{mode.title}</span>
+                                <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{mode.detail}</span>
+                                {packMatch ? (
+                                  <span className="mt-3 grid gap-1 rounded-lg border border-purple-100 bg-white px-2 py-2 text-[11px] font-black leading-relaxed text-purple-800" data-testid={`marketing-campaign-launch-mode-pack-${mode.id}`}>
+                                    <span>Template pack: {packMatch.pack.title}</span>
+                                    <span>{packMatch.templates.length} starter template{packMatch.templates.length === 1 ? "" : "s"} across {routeCount} route{routeCount === 1 ? "" : "s"}</span>
+                                  </span>
+                                ) : null}
+                                <span className="mt-3 grid gap-1 rounded-lg bg-white/75 px-2 py-2 text-[11px] font-black leading-relaxed text-[#6b5b54]">
+                                  <span>Best for: {mode.bestFor}</span>
+                                  <span>Creates: {mode.creates}</span>
+                                  <span>Next: {mode.nextStep}</span>
+                                </span>
+                                <span className="mt-2 flex flex-wrap gap-1">
+                                  {mode.channels.slice(0, 4).map((channel) => (
+                                    <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                  ))}
+                                  {mode.channels.length > 4 ? <Pill className="bg-white text-[#5b4a46]">+{mode.channels.length - 4}</Pill> : null}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-intent-quick-starts">
