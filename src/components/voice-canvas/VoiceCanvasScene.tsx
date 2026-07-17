@@ -86,7 +86,7 @@ export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, 
           <span className="vc-status-icon" data-icon={kind} aria-hidden="true"><StatusIcon size={32} strokeWidth={1.8} /></span>
         )}
         {statusLabel && <p className="vc-eyebrow" role={isWaiting ? "status" : undefined}>{statusLabel}</p>}
-        <h2 id={titleId}>{title}</h2>
+        <h2 id={titleId} tabIndex={-1}>{title}</h2>
         {helperText && <p id={helperId} className="vc-helper">{helperText}</p>}
 
         {choices.length > 0 && <div className="vc-choices" role="group" aria-label={title} onKeyDown={handleChoiceKeyDown}>{choices.map((choice) => <ChoiceButton key={choice.id} choice={choice} onChoice={onChoice} />)}</div>}
