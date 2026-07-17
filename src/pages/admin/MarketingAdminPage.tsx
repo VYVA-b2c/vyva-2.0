@@ -13611,6 +13611,53 @@ export default function MarketingAdminPage() {
     [campaignPlannerAiBrief],
   );
   const campaignPlannerAiRecipientCount = campaignDraftEligibleRecipientPreview.length;
+  const campaignPlannerLaunchBriefText = useMemo(() => {
+    const channelLines = campaignDraftSelectedChannels.map((channel) => {
+      const linkedContent = selectedCampaignDraftContentByChannel.get(channel);
+      const mode = channel === "email" ? "VYVA email send after explicit review" : "Manual publishing or handoff tracking";
+      return `- ${channelLabel[channel]}: ${linkedContent ? linkedContent.title : "missing content"} (${mode})`;
+    });
+    const readinessLines = campaignDraftReadinessItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`);
+    const targetAudienceLabel = selectedCampaignDraftTargetAudience
+      ? `${selectedCampaignDraftTargetAudience.name} (${selectedCampaignDraftTargetAudience.mappedMemberCount}/${selectedCampaignDraftTargetAudience.memberCount} mapped)`
+      : `All eligible ${campaignDraft.audienceType.toUpperCase()} contacts`;
+    const scheduleLabel = campaignDraft.scheduleStartsAt
+      ? formatDate(fromDateTimeLocal(campaignDraft.scheduleStartsAt))
+      : "Not scheduled yet";
+    const recipientLabel = campaignDraft.snapshotRecipients
+      ? `${campaignDraftRecipientPreview.length} snapshotted from ${campaignDraftEligibleRecipientPreview.length} eligible`
+      : `${campaignDraftEligibleRecipientPreview.length} eligible, snapshot not enabled`;
+
+    return [
+      "VYVA campaign launch AI brief",
+      "",
+      `Campaign: ${campaignDraft.name.trim() || "Untitled campaign"}`,
+      `Objective: ${campaignDraft.objective.trim() || "No objective entered yet"}`,
+      `Audience: ${campaignDraft.audienceType.toUpperCase()} - ${targetAudienceLabel}`,
+      `Channels: ${formatChannelList(campaignDraftSelectedChannels)}`,
+      `Schedule: ${scheduleLabel}`,
+      `Recipients: ${recipientLabel}`,
+      `Next action: ${campaignPlannerCopilotAction.title} - ${campaignPlannerCopilotAction.detail}`,
+      "",
+      "Channel plan:",
+      ...channelLines,
+      "",
+      "Readiness checklist:",
+      ...readinessLines,
+      "",
+      "AI task: Turn this into a polished launch-ready campaign pack. Keep email send-safe, keep non-email channels as manual publishing or tracking handoffs, include channel-specific copy notes, visual direction, CTA, approval notes, and the next relationship follow-up.",
+    ].join("\n");
+  }, [
+    campaignDraft,
+    campaignDraftEligibleRecipientPreview.length,
+    campaignDraftReadinessItems,
+    campaignDraftRecipientPreview.length,
+    campaignDraftSelectedChannels,
+    campaignPlannerCopilotAction.detail,
+    campaignPlannerCopilotAction.title,
+    selectedCampaignDraftContentByChannel,
+    selectedCampaignDraftTargetAudience,
+  ]);
 
   const campaignRecipientSnapshotChannels = useMemo(() => campaignChannelsWithPrimary(campaignEditDraft), [campaignEditDraft]);
   const campaignRecipientPreview = useMemo(() => {
@@ -22014,6 +22061,31 @@ export default function MarketingAdminPage() {
                         <Sparkles size={15} /> {campaignPlannerAiRunning ? "Drafting..." : "Generate AI copy"}
                       </button>
                     </div>
+                  </div>
+                  <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-4 shadow-sm" data-testid="marketing-campaign-planner-launch-brief">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">AI launch brief</p>
+                        <h3 className="mt-1 text-base font-black text-[#241133]">Copy the whole campaign context</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                          Packages objective, audience, channels, content gaps, recipients, schedule, approval checklist, and next action for AI or a teammate.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyCampaignStudioOfflineHandoff("Campaign launch AI brief", campaignPlannerLaunchBriefText)}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white hover:bg-purple-800"
+                        data-testid="button-marketing-copy-campaign-planner-launch-brief"
+                      >
+                        <Copy size={15} /> Copy launch brief
+                      </button>
+                    </div>
+                    <textarea
+                      readOnly
+                      className={`${textareaClass} mt-3 min-h-[180px] bg-white text-xs`}
+                      value={campaignPlannerLaunchBriefText}
+                      data-testid="textarea-marketing-campaign-planner-launch-brief"
+                    />
                   </div>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
                     <Field label="Campaign name">

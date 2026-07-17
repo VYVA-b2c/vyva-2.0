@@ -2814,6 +2814,11 @@ describe("MarketingAdminPage", () => {
   });
 
   it("loads a smart campaign planner starter with audience, content, and recipients", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: clipboardWriteText },
+      configurable: true,
+    });
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -2842,6 +2847,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-draft-readiness-channel")).toHaveTextContent("LinkedIn and Email will be saved for planning or manual handoff");
     expect(screen.getByTestId("marketing-campaign-planner-copilot-next-action")).toHaveTextContent("Ready to add");
     expect(screen.getByTestId("button-marketing-campaign-planner-copilot-action")).toHaveTextContent("Add campaign");
+    expect(screen.getByTestId("marketing-campaign-planner-launch-brief")).toHaveTextContent("AI launch brief");
+    const launchBrief = screen.getByTestId("textarea-marketing-campaign-planner-launch-brief") as HTMLTextAreaElement;
+    expect(launchBrief.value).toContain("VYVA campaign launch AI brief");
+    expect(launchBrief.value).toContain("Campaign: B2B partner introduction");
+    expect(launchBrief.value).toContain("Audience: B2B - Partners (1/2 mapped)");
+    expect(launchBrief.value).toContain("Channels: LinkedIn and Email");
+    expect(launchBrief.value).toContain("Recipients: 1 snapshotted from 1 eligible");
+    expect(launchBrief.value).toContain("- LinkedIn: Partner post");
+    expect(launchBrief.value).toContain("- Email: Welcome email");
+    expect(launchBrief.value).toContain("AI task: Turn this into a polished launch-ready campaign pack.");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-planner-launch-brief"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign launch AI brief"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Channels: LinkedIn and Email"));
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign launch AI brief copied.");
+    });
   });
 
   it("drafts missing campaign content directly from the planner", async () => {
