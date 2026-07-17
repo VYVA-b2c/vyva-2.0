@@ -1440,6 +1440,26 @@ const fr = {
       },
       ridePrefill: "Aidez-moi a trouver des options de transport sur. Demandez destination et horaire, et ne reservez rien sans ma confirmation.",
     },
+    contextualFastHelp: {
+      reasons: {
+        healthAttention: "Un signal de sante recent peut demander attention",
+        checkinDue: "Votre controle du jour est a faire",
+        preventionFocus: "Une etape de prevention utile aujourd'hui",
+        careReady: "Vos informations de soins peuvent aider",
+        transportReady: "Votre transport enregistre est pret",
+        accessibleTransport: "Vos besoins de mobilite seront inclus",
+        coverageMissing: "VYVA peut organiser vos informations de couverture",
+        morningStep: "Une etape simple pour commencer la journee",
+        daytimePlan: "Utile pour les plans d'aujourd'hui",
+        eveningSafety: "La si quelque chose vous inquiete ce soir",
+        generalHealth: "Un point de depart calme pour une inquietude",
+        simplePrevention: "Une etape simple a la fois",
+        compareCare: "Comparez les aides sans pression",
+        prepareTransport: "Preparez le trajet avant de reserver",
+        organizePaperwork: "Tout preparer avant tout envoi",
+        safetyFallback: "La des que quelque chose semble dangereux",
+      },
+    },
   },
   concierge: {
     fastHelp: {

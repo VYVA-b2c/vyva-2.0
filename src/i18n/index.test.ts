@@ -10,6 +10,7 @@ import {
   translate,
   LANGUAGE_STORAGE_KEY,
 } from "./index";
+import { HOME_FAST_HELP_REASON_FALLBACKS } from "../lib/contextualHomeFastHelp";
 
 const LANGUAGE_SOURCE_STORAGE_KEY = "vyva_lang_source";
 const SUPPORTED_TEST_LANGUAGES = ["en", "es", "fr", "de", "it", "pt"] as const;
@@ -610,6 +611,20 @@ describe("language persistence", () => {
     for (const [language, labels] of Object.entries(expected)) {
       expect(keys.map((key) => translate(language as keyof typeof expected, key))).toEqual(labels);
       expect(labels.every((label) => label.length <= 8)).toBe(true);
+    }
+  });
+
+  it("keeps contextual Home Fast Help reasons localized in every supported language", () => {
+    const reasonKeys = Object.keys(HOME_FAST_HELP_REASON_FALLBACKS);
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const reasonKey of reasonKeys) {
+        const key = `home.contextualFastHelp.reasons.${reasonKey}`;
+        const value = translate(language, key);
+        expect(value).not.toBe(key);
+        expect(value.trim().length).toBeGreaterThan(0);
+        if (language !== "en") expect(value).not.toBe(translate("en", key));
+      }
     }
   });
 
