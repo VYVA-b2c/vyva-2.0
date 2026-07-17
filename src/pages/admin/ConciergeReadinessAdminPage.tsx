@@ -781,20 +781,6 @@ function ReadinessRow({ row }: { row: ConciergeReadinessRow }) {
   );
 }
 
-function channelStatusTone(row: AdminChannelReadinessRow): "good" | "warn" | "bad" {
-  if (row.ready) return "good";
-  if (row.configured || row.verified || row.admin_enabled) return "warn";
-  return "bad";
-}
-
-function channelStatusLabel(row: AdminChannelReadinessRow): string {
-  if (row.ready) return "Live-ready";
-  if (!row.configured) return "Not configured";
-  if (!row.verified) return "Not verified";
-  if (!row.admin_enabled) return "Paused";
-  return "Blocked";
-}
-
 function channelProbeTone(row: AdminChannelReadinessRow): "good" | "warn" | "bad" {
   if (row.probe.status === "pass") return "good";
   if (row.probe.status === "fail") return "bad";
@@ -819,6 +805,42 @@ function adapterSetupSourceLabel(row: AdminChannelReadinessRow): string {
   return "Missing setup";
 }
 
+function channelSetupLabel(row: AdminChannelReadinessRow): string {
+  return row.configured ? "Configured" : "Missing setup";
+}
+
+function channelVerificationLabel(row: AdminChannelReadinessRow): string {
+  return row.verified ? "Verified" : "Not verified";
+}
+
+function channelLiveReadyLabel(row: AdminChannelReadinessRow): string {
+  if (row.ready) return "On";
+  if (row.admin_enabled) return "On, needs check";
+  return "Off";
+}
+
+function channelNextAction(row: AdminChannelReadinessRow): string {
+  if (!row.configured) return "Add setup details";
+  if (!row.verified) return "Run verification";
+  if (!row.admin_enabled) return row.channel === "email" ? "Pilot verified; keep off" : "Ready to enable";
+  if (row.ready) return "Live gate open";
+  return "Review setup";
+}
+
+function channelActionDetail(row: AdminChannelReadinessRow): string | null {
+  if (!row.configured) return null;
+  if (row.probe.status === "fail") return row.probe.blocker ?? row.ready_blocker;
+  if (row.admin_enabled && !row.ready) return row.ready_blocker;
+  return null;
+}
+
+function emailPilotLabel(row: AdminChannelReadinessRow): string | null {
+  if (row.channel !== "email") return null;
+  if (!row.configured) return "Email pilot: setup missing";
+  if (!row.verified) return "Email pilot: verify";
+  return row.admin_enabled ? "Email pilot: live-ready on" : "Email pilot: live-ready off";
+}
+
 function ProductionChannelReadinessSection({
   channels,
   loading,
@@ -841,27 +863,24 @@ function ProductionChannelReadinessSection({
   onProbe: (channel: ConciergeProductionChannel) => void;
 }) {
   const liveReadyCount = channels.filter((channel) => channel.ready).length;
-  const blockedCount = channels.length - liveReadyCount;
+  const notReadyCount = channels.length - liveReadyCount;
 
   return (
     <section
       className="mt-5 overflow-hidden rounded-[14px] border border-[#eadfd5] bg-white shadow-sm"
       data-testid="section-concierge-channel-readiness"
     >
-      <div className="flex flex-col gap-3 border-b border-[#f0e7df] px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 border-b border-[#f0e7df] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-[#f5f0ff] px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-purple-700">
             <ShieldCheck size={14} aria-hidden="true" />
             Production channels
           </div>
-          <h2 className="mt-2 font-serif text-2xl text-[#2f2135]">Live action readiness gates</h2>
-          <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-[#7d6b65]">
-            Manage the admin gate for provider-facing Concierge channels. Test mode stays simulated, and live use still requires the user's final confirmation.
-          </p>
+          <h2 className="mt-2 font-serif text-2xl text-[#2f2135]">Channel readiness</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Pill tone={liveReadyCount === channels.length && channels.length > 0 ? "good" : "warn"}>{liveReadyCount} live-ready</Pill>
-          <Pill tone={blockedCount > 0 ? "warn" : "good"}>{blockedCount} blocked</Pill>
+          <Pill tone={notReadyCount > 0 ? "warn" : "good"}>{notReadyCount} off / not ready</Pill>
           <button
             type="button"
             className="inline-flex min-h-[38px] items-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-xs font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
@@ -889,12 +908,11 @@ function ProductionChannelReadinessSection({
           <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
             <tr>
               <th className="px-4 py-3">Channel</th>
-              <th className="px-4 py-3">Test mode</th>
-              <th className="min-w-[320px] px-4 py-3">Adapter setup</th>
-              <th className="px-4 py-3">Setup checks</th>
-              <th className="px-4 py-3">Live readiness</th>
-              <th className="px-4 py-3">Admin controls</th>
-              <th className="min-w-[260px] px-4 py-3">Notes</th>
+              <th className="px-4 py-3">Setup</th>
+              <th className="px-4 py-3">Verification</th>
+              <th className="px-4 py-3">Live-ready</th>
+              <th className="px-4 py-3">Next action</th>
+              <th className="min-w-[300px] px-4 py-3">Setup details</th>
             </tr>
           </thead>
           <tbody>
@@ -903,41 +921,81 @@ function ProductionChannelReadinessSection({
               const verifying = verifyingChannel === row.channel;
               const busy = saving || verifying;
               const canToggleLive = row.can_mark_ready || row.admin_enabled;
+              const actionDetail = channelActionDetail(row);
               return (
                 <tr key={row.channel} className="align-top" data-testid={`row-concierge-channel-${row.channel.replace(/_/g, "-")}`}>
-                  <td className="min-w-[200px] border-t border-[#f0e7df] px-4 py-4">
+                  <td className="min-w-[190px] border-t border-[#f0e7df] px-4 py-4">
                     <div className="flex flex-col gap-2">
                       <span className="text-base font-black text-[#2f2135]">{row.label}</span>
                       <span className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b7a73]">{row.channel}</span>
-                      <Pill tone={channelStatusTone(row)}>{channelStatusLabel(row)}</Pill>
+                      <Pill tone={row.test_mode.external_action_allowed ? "bad" : "good"}>Test mode simulated</Pill>
+                      {emailPilotLabel(row) ? (
+                        <Pill tone={row.channel === "email" && row.verified && !row.admin_enabled ? "good" : "warn"}>{emailPilotLabel(row)}</Pill>
+                      ) : null}
                     </div>
                   </td>
-                  <td className="min-w-[210px] border-t border-[#f0e7df] px-4 py-4">
-                    <div className="flex flex-col gap-2">
-                      <Pill tone="good">Simulated</Pill>
-                      <p className="text-sm font-semibold leading-relaxed text-[#7d6b65]">
-                        Test mode blocks live contact and records a simulated outcome.
-                      </p>
-                      <Pill tone={row.test_mode.external_action_allowed ? "bad" : "good"}>
-                        {row.test_mode.external_action_allowed ? "External action allowed" : "No external action"}
-                      </Pill>
-                    </div>
-                  </td>
-                  <td className="border-t border-[#f0e7df] px-4 py-4">
-                    <div className="flex flex-col gap-3">
+                  <td className="min-w-[150px] border-t border-[#f0e7df] px-4 py-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Pill tone={row.configured ? "good" : "warn"}>{channelSetupLabel(row)}</Pill>
                       <div className="flex flex-wrap gap-1.5">
                         <Pill tone={row.adapter_setup.configured ? "good" : "warn"}>
                           {adapterSetupSourceLabel(row)}
                         </Pill>
                         <Pill tone={row.adapter_setup.qa_target_configured ? "good" : "warn"}>
-                          {row.adapter_setup.qa_target_configured ? "QA target set" : "QA target missing"}
+                          {row.adapter_setup.qa_target_configured ? "QA set" : "QA missing"}
                         </Pill>
                       </div>
-                      {row.adapter_setup.blockers.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {row.adapter_setup.blockers.map((blocker) => <Pill key={blocker} tone="warn">{blocker}</Pill>)}
-                        </div>
+                    </div>
+                  </td>
+                  <td className="min-w-[190px] border-t border-[#f0e7df] px-4 py-4">
+                    <div className="flex flex-col gap-2">
+                      <Pill tone={row.verified ? "good" : "warn"}>{channelVerificationLabel(row)}</Pill>
+                      <Pill tone={channelProbeTone(row)}>{channelProbeLabel(row)}</Pill>
+                      <button
+                        type="button"
+                        className="inline-flex min-h-[38px] items-center justify-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={busy || !row.configured}
+                        onClick={() => onProbe(row.channel)}
+                      >
+                        {verifying ? "Checking..." : "Run verification"}
+                      </button>
+                    </div>
+                  </td>
+                  <td className="min-w-[180px] border-t border-[#f0e7df] px-4 py-4">
+                    <div className="flex flex-col gap-2">
+                      <Pill tone={row.ready ? "good" : row.admin_enabled ? "warn" : "neutral"}>Live-ready {channelLiveReadyLabel(row)}</Pill>
+                      <label className="flex min-h-[40px] items-center justify-between gap-3 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135]">
+                        Live-ready
+                        <input
+                          type="checkbox"
+                          className="h-5 w-5 accent-purple-700"
+                          checked={row.admin_enabled}
+                          disabled={busy || !canToggleLive}
+                          onChange={(event) => onUpdate(row.channel, { admin_enabled: event.target.checked })}
+                        />
+                      </label>
+                    </div>
+                  </td>
+                  <td className="min-w-[190px] border-t border-[#f0e7df] px-4 py-4">
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm font-black text-[#2f2135]">{channelNextAction(row)}</span>
+                      <span className="text-xs font-semibold leading-relaxed text-[#8b7a73]">
+                        {busy ? (verifying ? "Checking..." : "Saving...") : formatChannelTimestamp(row.updated_at)}
+                      </span>
+                      {actionDetail ? (
+                        <span className="text-xs font-semibold leading-relaxed text-amber-800">{actionDetail}</span>
                       ) : null}
+                    </div>
+                  </td>
+                  <td className="border-t border-[#f0e7df] px-4 py-4">
+                    <details className="group rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2" data-testid={`details-concierge-channel-${row.channel.replace(/_/g, "-")}`}>
+                      <summary className="cursor-pointer text-sm font-black text-[#2f2135]">Setup details</summary>
+                      <div className="mt-3 flex flex-col gap-3">
+                        {row.adapter_setup.blockers.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {row.adapter_setup.blockers.map((blocker) => <Pill key={blocker} tone="warn">{blocker}</Pill>)}
+                          </div>
+                        ) : null}
                       <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
                         Live endpoint
                         <input
@@ -990,84 +1048,25 @@ function ProductionChannelReadinessSection({
                           }}
                         />
                       </label>
-                    </div>
-                  </td>
-                  <td className="min-w-[220px] border-t border-[#f0e7df] px-4 py-4">
-                    <div className="flex flex-col gap-2">
-                      <Pill tone={row.configured ? "good" : "warn"}>{row.configured ? "Configured" : "Not configured"}</Pill>
-                      <Pill tone={row.verified ? "good" : "warn"}>{row.verified ? "Verified by probe" : "Not verified"}</Pill>
-                      <Pill tone={channelProbeTone(row)}>{channelProbeLabel(row)}</Pill>
-                      <p className="text-xs font-semibold leading-relaxed text-[#8b7a73]">
-                        Last check: {formatChannelTimestamp(row.probe.checked_at)}
-                      </p>
-                      {row.probe.blocker ? (
-                        <p className="text-xs font-semibold leading-relaxed text-amber-800">{row.probe.blocker}</p>
-                      ) : null}
-                      {row.ready_blocker ? (
-                        <p className="text-xs font-semibold leading-relaxed text-amber-800">{row.ready_blocker}</p>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="min-w-[240px] border-t border-[#f0e7df] px-4 py-4">
-                    <div className="flex flex-col gap-2">
-                      <Pill tone={row.ready ? "good" : "warn"}>{row.ready ? "Ready" : "Blocked"}</Pill>
-                      <Pill tone={row.external_action_allowed ? "good" : "warn"}>
-                        {row.external_action_allowed ? "Live-capable after confirmation" : "Cannot contact providers"}
-                      </Pill>
-                      {row.blockers.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {row.blockers.map((blocker) => <Pill key={blocker} tone="warn">{blocker.replace(/_/g, " ")}</Pill>)}
-                        </div>
-                      ) : (
-                        <p className="text-xs font-semibold leading-relaxed text-emerald-800">
-                          Live actions still require final user confirmation.
-                        </p>
-                      )}
-                    </div>
-                  </td>
-                  <td className="min-w-[260px] border-t border-[#f0e7df] px-4 py-4">
-                    <div className="flex flex-col gap-3">
-                      <button
-                        type="button"
-                        className="inline-flex min-h-[40px] items-center justify-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={busy || !row.configured}
-                        onClick={() => onProbe(row.channel)}
-                      >
-                        {verifying ? "Checking..." : "Run verification"}
-                      </button>
-                      <label className="flex items-center justify-between gap-3 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-black text-[#2f2135]">
-                        Live-ready
-                        <input
-                          type="checkbox"
-                          className="h-5 w-5 accent-purple-700"
-                          checked={row.admin_enabled}
-                          disabled={busy || !canToggleLive}
-                          onChange={(event) => onUpdate(row.channel, { admin_enabled: event.target.checked })}
-                        />
-                      </label>
-                      <p className="text-xs font-semibold leading-relaxed text-[#8b7a73]">
-                        {busy ? (verifying ? "Checking..." : "Saving...") : formatChannelTimestamp(row.updated_at)}
-                      </p>
-                    </div>
-                  </td>
-                  <td className="border-t border-[#f0e7df] px-4 py-4">
-                    <label className="flex flex-col gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
-                      Admin note
-                      <textarea
-                        key={`${row.channel}-${row.updated_at ?? "new"}`}
-                        className="min-h-[86px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
-                        defaultValue={row.notes ?? ""}
-                        disabled={busy}
-                        onBlur={(event) => onUpdate(row.channel, { notes: event.target.value.trim() || null })}
-                      />
-                    </label>
+                        <label className="flex flex-col gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                          Admin note
+                          <textarea
+                            key={`${row.channel}-${row.updated_at ?? "new"}`}
+                            className="min-h-[72px] rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
+                            defaultValue={row.notes ?? ""}
+                            disabled={busy}
+                            onBlur={(event) => onUpdate(row.channel, { notes: event.target.value.trim() || null })}
+                          />
+                        </label>
+                      </div>
+                    </details>
                   </td>
                 </tr>
               );
             })}
             {!loading && channels.length === 0 ? (
               <tr>
-                <td className="border-t border-[#f0e7df] px-4 py-5 text-sm font-black text-[#7d6b65]" colSpan={7}>
+                <td className="border-t border-[#f0e7df] px-4 py-5 text-sm font-black text-[#7d6b65]" colSpan={6}>
                   No channel readiness data is available yet.
                 </td>
               </tr>

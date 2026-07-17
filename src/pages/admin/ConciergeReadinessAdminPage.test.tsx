@@ -151,19 +151,25 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(screen.getByTestId("metric-concierge-readiness-qa-checks")).getByText("50")).toBeInTheDocument();
 
     const channelSection = screen.getByTestId("section-concierge-channel-readiness");
-    expect(within(channelSection).getByRole("heading", { name: /live action readiness gates/i })).toBeInTheDocument();
+    expect(within(channelSection).getByRole("heading", { name: /channel readiness/i })).toBeInTheDocument();
     expect(screen.getAllByTestId(/row-concierge-channel-/)).toHaveLength(5);
-    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Not configured");
+    expect(channelSection).toHaveTextContent("Setup");
+    expect(channelSection).toHaveTextContent("Verification");
+    expect(channelSection).toHaveTextContent("Next action");
+    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Missing setup");
     expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Probe not run");
-    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Test mode blocks live contact");
+    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Test mode simulated");
     expect(within(screen.getByTestId("row-concierge-channel-phone-call")).getByLabelText("Phone calls live endpoint")).toBeDisabled();
     expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Probe passed");
-    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Live-capable after confirmation");
+    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Email pilot: live-ready on");
+    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Live gate open");
     expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Admin console");
     expect(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Email live endpoint")).toHaveValue("https://adapter.example.test/email");
     expect(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Email credential reference")).toHaveValue("vault/vyva/email-adapter");
     expect(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Email QA target")).toHaveValue("concierge@example.test");
-    expect(screen.getByTestId("row-concierge-channel-whatsapp")).toHaveTextContent("Cannot contact providers");
+    expect(screen.getByTestId("row-concierge-channel-whatsapp")).toHaveTextContent("Add setup details");
+    expect(channelSection).not.toHaveTextContent("Cannot contact providers");
+    expect(channelSection).not.toHaveTextContent("Test mode blocks live contact");
     expect(JSON.stringify(channelSection.textContent)).not.toContain("secret");
 
     const table = screen.getByTestId("table-concierge-readiness");
@@ -199,11 +205,11 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(formRow).getByText("Probe not run")).toBeInTheDocument();
 
     const emailRow = screen.getByTestId("row-concierge-channel-email");
-    expect(within(emailRow).getByText("Verified by probe")).toBeInTheDocument();
+    expect(within(emailRow).getByText("Verified")).toBeInTheDocument();
     expect(within(emailRow).getByLabelText("Live-ready")).toBeChecked();
     expect(within(emailRow).getByLabelText("Live-ready")).not.toBeDisabled();
 
-    expect(screen.getByTestId("row-concierge-channel-document-upload")).toHaveTextContent("Paused");
+    expect(screen.getByTestId("row-concierge-channel-document-upload")).toHaveTextContent("Ready to enable");
   });
 
   it("saves a ready channel through the admin channel-readiness API", async () => {
@@ -228,7 +234,7 @@ describe("ConciergeReadinessAdminPage", () => {
     const body = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
     expect(body).toEqual({ admin_enabled: true });
     expect(await screen.findByText("Email readiness updated.")).toBeInTheDocument();
-    expect(within(screen.getByTestId("row-concierge-channel-email")).getByText("Live-capable after confirmation")).toBeInTheDocument();
+    expect(within(screen.getByTestId("row-concierge-channel-email")).getByText("Live gate open")).toBeInTheDocument();
   });
 
   it("saves adapter setup references and keeps live disabled until the next probe passes", async () => {
