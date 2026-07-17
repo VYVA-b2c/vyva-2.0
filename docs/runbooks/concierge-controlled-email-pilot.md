@@ -40,6 +40,24 @@ Do not put real provider inboxes in the pilot allowlist. The pilot adapter block
 13. Confirm completed history says `Live action`.
 14. Turn Email Live-ready off.
 
+## Deployment Self-Check
+
+Before turning Live-ready on, run the safe check in the deployed environment:
+
+```sh
+npm run concierge:email-pilot:check
+```
+
+This validates adapter setup, the reserved QA probe, payload readiness, dry-run simulation, and the confirmation gate. It does not send email.
+
+To send the one controlled pilot email from the command line, set the confirmation phrase and pass `--send`:
+
+```sh
+CONCIERGE_EMAIL_PILOT_SEND_CONFIRMATION=SEND_CONTROLLED_EMAIL_PILOT npm run concierge:email-pilot:check -- --send
+```
+
+Only use `--send` after the selected recipient is the team-owned pilot inbox and the user has confirmed the exact provider, inbox, subject, body, and shared details.
+
 ## Pass Evidence
 
 - Email readiness is configured, verified by probe, and Live-ready only during the pilot window.
