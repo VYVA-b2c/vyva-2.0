@@ -50,11 +50,13 @@ export type ContextualHomeFastHelpSignals = {
 export type ContextualHomeFastHelpInput = {
   activeTaskActionId?: ContextualHomeFastHelpActionId | null;
   activity?: HomeFastHelpActivity[];
-  hour: number;
+  hour?: number;
   nowMs?: number;
   profile?: ContextualHomeFastHelpProfile | null;
+  rotationKey?: string | null;
   resumeActionId?: ContextualHomeFastHelpActionId | null;
   signals?: ContextualHomeFastHelpSignals | null;
+  unfinishedTaskActionIds?: readonly ContextualHomeFastHelpActionId[];
   visibleCount?: number;
 };
 
@@ -105,6 +107,14 @@ const BASE_ACTIONS: Record<ContextualHomeFastHelpActionId, { score: number; reas
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_STORED_ACTIVITY = 24;
+const DAILY_ROTATION_MAX_BOOST = 28;
+const UNFINISHED_TASK_PENALTY = 24;
+const DAILY_ROTATION_ACTIONS = new Set<ContextualHomeFastHelpActionId>([
+  "stay-well",
+  "find-care",
+  "book-ride",
+  "paperwork-help",
+]);
 
 type ScoredAction = RankedContextualHomeFastHelpAction & {
   reasonPriority: number;
@@ -113,6 +123,32 @@ type ScoredAction = RankedContextualHomeFastHelpAction & {
 
 function normalizedSignal(...values: Array<string | null | undefined>) {
   return values.filter(Boolean).join(" ").trim().toLowerCase();
+}
+
+function localDayKey(nowMs: number) {
+  const date = new Date(nowMs);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function stableHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function dailyRotationBoost(
+  actionId: ContextualHomeFastHelpActionId,
+  rotationKey: string | null | undefined,
+  nowMs: number,
+) {
+  const owner = rotationKey?.trim() || "browser";
+  return stableHash(`${owner}:${localDayKey(nowMs)}:${actionId}`) % (DAILY_ROTATION_MAX_BOOST + 1);
 }
 
 function looksLikeHealthAttention(signals?: ContextualHomeFastHelpSignals | null) {
@@ -192,25 +228,31 @@ function replaceLowestNonSafety(
   return sortedActions(next);
 }
 
-export function rankContextualHomeFastHelp({
-  activeTaskActionId = null,
-  activity = [],
-  hour,
-  nowMs = Date.now(),
-  profile,
-  resumeActionId = null,
-  signals,
-  visibleCount = 3,
-}: ContextualHomeFastHelpInput): RankedContextualHomeFastHelpAction[] {
+export function rankContextualHomeFastHelp(input: ContextualHomeFastHelpInput): RankedContextualHomeFastHelpAction[] {
+  const {
+    activeTaskActionId = null,
+    activity = [],
+    nowMs = Date.now(),
+    profile,
+    rotationKey,
+    resumeActionId = null,
+    signals,
+    unfinishedTaskActionIds = [],
+    visibleCount = 3,
+  } = input;
   const count = Math.max(0, Math.min(ACTION_ORDER.length, visibleCount));
   if (count === 0) return [];
+
+  const activeIds = new Set<ContextualHomeFastHelpActionId>();
+  if (activeTaskActionId) activeIds.add(activeTaskActionId);
+  const unfinishedIds = new Set<ContextualHomeFastHelpActionId>(unfinishedTaskActionIds);
 
   const actions = ACTION_ORDER.map<ScoredAction>((id) => ({
     id,
     reason: BASE_ACTIONS[id].reason,
     reasonPriority: 0,
     score: BASE_ACTIONS[id].score,
-    suppressed: id === activeTaskActionId,
+    suppressed: activeIds.has(id),
   }));
   const byId = new Map(actions.map((action) => [action.id, action]));
 
@@ -243,14 +285,15 @@ export function rankContextualHomeFastHelp({
     applyBoost(byId.get("paperwork-help")!, 42, "coverageMissing", 55);
   }
 
-  if (hour >= 5 && hour <= 11) {
-    applyBoost(byId.get("stay-well")!, 15, "morningStep", 20);
-  } else if (hour >= 12 && hour <= 17) {
-    applyBoost(byId.get("find-care")!, 12, "daytimePlan", 20);
-    applyBoost(byId.get("book-ride")!, 10, "daytimePlan", 20);
-  } else {
-    applyBoost(byId.get("safe-home")!, hour >= 22 || hour < 5 ? 26 : 18, "eveningSafety", 20);
-    if (hour >= 22 || hour < 5) applyBoost(byId.get("feel-better")!, 14, "generalHealth", 10);
+  for (const actionId of unfinishedIds) {
+    if (activeIds.has(actionId)) continue;
+    const action = byId.get(actionId);
+    if (action) action.score -= UNFINISHED_TASK_PENALTY;
+  }
+
+  for (const action of actions) {
+    if (!DAILY_ROTATION_ACTIONS.has(action.id) || action.reasonPriority >= 50) continue;
+    action.score += dailyRotationBoost(action.id, rotationKey, nowMs);
   }
 
   for (const entry of activity) {
@@ -260,7 +303,7 @@ export function rankContextualHomeFastHelp({
     if (shouldSuppressActivity(entry, nowMs)) action.suppressed = true;
   }
 
-  if (resumeActionId && resumeActionId !== activeTaskActionId) {
+  if (resumeActionId && !activeIds.has(resumeActionId)) {
     const resumeAction = byId.get(resumeActionId);
     if (resumeAction) {
       resumeAction.suppressed = false;
@@ -269,7 +312,7 @@ export function rankContextualHomeFastHelp({
   }
 
   const available = sortedActions(actions.filter((action) => !action.suppressed));
-  const suppressed = sortedActions(actions.filter((action) => action.suppressed));
+  const suppressed = sortedActions(actions.filter((action) => action.suppressed && !activeIds.has(action.id)));
   let selected = available.slice(0, count);
 
   for (const candidate of [...available, ...suppressed]) {
@@ -282,7 +325,7 @@ export function rankContextualHomeFastHelp({
     const safetyReplacement = sortedActions([
       byId.get("feel-better")!,
       byId.get("safe-home")!,
-    ])[0];
+    ].filter((action) => !activeIds.has(action.id)))[0];
     if (safetyReplacement && !selected.some((action) => action.id === safetyReplacement.id)) {
       selected = replaceLowestNonSafety(selected, safetyReplacement, []);
     }

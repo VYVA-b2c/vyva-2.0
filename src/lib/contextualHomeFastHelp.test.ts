@@ -5,21 +5,39 @@ import {
   readHomeFastHelpHistory,
   recordHomeFastHelpUse,
   writeHomeFastHelpHistory,
+  type ContextualHomeFastHelpProfile,
   type HomeFastHelpActivity,
 } from "./contextualHomeFastHelp";
 
 describe("contextual Home Fast Help ranking", () => {
-  it("changes the default choices with the time of day while keeping a safety option", () => {
-    expect(rankContextualHomeFastHelp({ hour: 8 }).map((action) => action.id)).toEqual([
-      "stay-well",
-      "feel-better",
-      "safe-home",
-    ]);
-    expect(rankContextualHomeFastHelp({ hour: 20 }).map((action) => action.id)).toEqual([
-      "safe-home",
-      "feel-better",
-      "stay-well",
-    ]);
+  it("keeps the same choices all day for one profile", () => {
+    const morning = rankContextualHomeFastHelp({
+      hour: 8,
+      nowMs: Date.parse("2026-07-17T08:00:00.000Z"),
+      rotationKey: "profile-1",
+    });
+    const evening = rankContextualHomeFastHelp({
+      hour: 20,
+      nowMs: Date.parse("2026-07-17T20:00:00.000Z"),
+      rotationKey: "profile-1",
+    });
+
+    expect(evening).toEqual(morning);
+    expect(morning.some((action) => action.id === "feel-better" || action.id === "safe-home")).toBe(true);
+  });
+
+  it("rotates lower-priority choices across days without auto-rotating during a day", () => {
+    const dailyChoices = Array.from({ length: 8 }, (_value, offset) => {
+      const nowMs = Date.parse(`2026-07-${String(17 + offset).padStart(2, "0")}T12:00:00.000Z`);
+      return rankContextualHomeFastHelp({ nowMs, rotationKey: "profile-1" })
+        .map((action) => action.id)
+        .join(",");
+    });
+
+    expect(new Set(dailyChoices).size).toBeGreaterThan(1);
+    dailyChoices.forEach((choices) => {
+      expect(choices.includes("feel-better") || choices.includes("safe-home")).toBe(true);
+    });
   });
 
   it("prioritizes health attention and explains why", () => {
@@ -58,6 +76,44 @@ describe("contextual Home Fast Help ranking", () => {
     });
 
     expect(ranked.map((action) => action.id)).not.toContain("book-ride");
+  });
+
+  it("never restores the active resume action just to fill three places", () => {
+    const nowMs = Date.parse("2026-07-17T12:00:00.000Z");
+    const recentlyUsed = [
+      "feel-better",
+      "stay-well",
+      "find-care",
+      "paperwork-help",
+      "safe-home",
+    ].map((actionId) => ({
+      actionId: actionId as HomeFastHelpActivity["actionId"],
+      status: "used" as const,
+      occurredAt: "2026-07-17T11:00:00.000Z",
+    }));
+
+    const ranked = rankContextualHomeFastHelp({
+      activeTaskActionId: "book-ride",
+      activity: recentlyUsed,
+      nowMs,
+      rotationKey: "profile-1",
+    });
+
+    expect(ranked).toHaveLength(3);
+    expect(ranked.map((action) => action.id)).not.toContain("book-ride");
+  });
+
+  it("deprioritizes another unfinished task instead of presenting it as a new shortcut", () => {
+    const nowMs = Date.parse("2026-07-21T12:00:00.000Z");
+    const baseline = rankContextualHomeFastHelp({ nowMs, rotationKey: "profile-home" });
+    const withUnfinishedRide = rankContextualHomeFastHelp({
+      nowMs,
+      rotationKey: "profile-home",
+      unfinishedTaskActionIds: ["book-ride"],
+    });
+
+    expect(baseline.map((action) => action.id)).toContain("book-ride");
+    expect(withUnfinishedRide.map((action) => action.id)).not.toContain("book-ride");
   });
 
   it("avoids recently used, completed, and dismissed actions when alternatives exist", () => {
@@ -119,6 +175,23 @@ describe("contextual Home Fast Help ranking", () => {
     });
 
     expect(ranked.some((action) => action.id === "feel-better" || action.id === "safe-home")).toBe(true);
+  });
+
+  it("does not infer Fast Help needs from diagnoses or other unsupported profile fields", () => {
+    const input = {
+      nowMs: Date.parse("2026-07-17T12:00:00.000Z"),
+      rotationKey: "profile-1",
+    };
+    const baseline = rankContextualHomeFastHelp(input);
+    const withSensitiveFields = rankContextualHomeFastHelp({
+      ...input,
+      profile: {
+        conditions: ["diabetes"],
+        cognitiveScore: "low",
+      } as ContextualHomeFastHelpProfile,
+    });
+
+    expect(withSensitiveFields).toEqual(baseline);
   });
 });
 

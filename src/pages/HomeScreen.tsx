@@ -1248,12 +1248,18 @@ const HomeScreen = () => {
   const activeContextualFastHelpActionId = activeConciergeHomeTask
     ? contextualFastHelpActionForConciergeKind(conciergeHomeTaskKind(activeConciergeHomeTask))
     : recoveryNudge?.journey.actionId ?? null;
+  const unfinishedContextualFastHelpActionIds = [...new Set(
+    conciergeResumeItems.flatMap((item) => {
+      const actionId = contextualFastHelpActionForConciergeKind(conciergeHomeTaskKind(item));
+      return actionId ? [actionId] : [];
+    }),
+  )];
   const contextualFastHelpRanking = rankContextualHomeFastHelp({
     activeTaskActionId: activeContextualFastHelpActionId,
     activity: [...homeFastHelpHistory, ...remoteFastHelpActivity, ...journeyFastHelpActivity],
-    hour: new Date(conciergeClockMs).getHours(),
     nowMs: conciergeClockMs,
     profile: profile?.serviceReadiness,
+    rotationKey: profile?.profileId,
     signals: {
       alertSeverity: latestVitalsHomeSignal?.latest_alert?.severity,
       checkinStatus: checkinHomeSignal?.status,
@@ -1261,6 +1267,7 @@ const HomeScreen = () => {
       recommendedAction: latestVitalsHomeSignal?.analysis?.recommended_action,
       safetyStatus: latestVitalsHomeSignal?.analysis?.safety_status,
     },
+    unfinishedTaskActionIds: unfinishedContextualFastHelpActionIds,
     visibleCount: 3,
   });
   const homeMasterFastHelpActionById = new Map(
