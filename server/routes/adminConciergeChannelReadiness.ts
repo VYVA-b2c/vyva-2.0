@@ -15,8 +15,16 @@ const updateChannelSchema = z.object({
   admin_enabled: z.boolean().optional(),
   verified: z.boolean().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  adapter_live_endpoint_url: z.string().max(2048).nullable().optional(),
+  adapter_credential_reference: z.string().max(200).nullable().optional(),
+  adapter_qa_target: z.string().max(2048).nullable().optional(),
 }).refine((value) => (
-  value.admin_enabled !== undefined || value.verified !== undefined || value.notes !== undefined
+  value.admin_enabled !== undefined
+    || value.verified !== undefined
+    || value.notes !== undefined
+    || value.adapter_live_endpoint_url !== undefined
+    || value.adapter_credential_reference !== undefined
+    || value.adapter_qa_target !== undefined
 ), {
   message: "At least one readiness field is required.",
 });
@@ -52,6 +60,9 @@ adminConciergeChannelReadinessRouter.patch("/:channel", async (req: Request, res
       adminEnabled: parsed.data.admin_enabled,
       verified: parsed.data.verified,
       notes: parsed.data.notes,
+      adapterLiveEndpointUrl: parsed.data.adapter_live_endpoint_url,
+      adapterCredentialReference: parsed.data.adapter_credential_reference,
+      adapterQaTarget: parsed.data.adapter_qa_target,
       updatedBy: adminUserId(req),
     });
     res.json({ channel: row });

@@ -273,7 +273,6 @@ describe("confirmed Concierge action execution", () => {
   });
 
   it("records user-controlled draft confirmation without starting a direct call", async () => {
-    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
     process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({
       id: "email-adapter-1",
@@ -349,7 +348,6 @@ describe("confirmed Concierge action execution", () => {
   });
 
   it("records a ready form/application confirmation as a live user-controlled channel", async () => {
-    process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED = "true";
     process.env.CONCIERGE_FORM_APPLICATION_LIVE_ENDPOINT = "https://adapter.example.test/form";
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({
       id: "form-adapter-1",
@@ -485,7 +483,7 @@ describe("confirmed Concierge action execution", () => {
   });
 
   it("blocks live email confirmation when the latest admin probe failed", async () => {
-    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
     mockPendingRow({
       id: "17171717-1717-4717-8717-171717171717",
       user_id: "user-1",
@@ -538,7 +536,7 @@ describe("confirmed Concierge action execution", () => {
   });
 
   it("lets admin console settings pause a configured channel before live handoff", async () => {
-    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
     mockPendingRow({
       id: "78787878-7878-4787-8787-787878787878",
       user_id: "user-1",
@@ -581,8 +579,6 @@ describe("confirmed Concierge action execution", () => {
   });
 
   it("uses admin console readiness settings to make a configured channel live-capable", async () => {
-    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
-    process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({
       id: "email-adapter-2",
       result: "sent",
@@ -609,6 +605,9 @@ describe("confirmed Concierge action execution", () => {
       status: "pending",
     }, [passedChannelSettingsRow("email", {
       notes: "QA inbox verified.",
+      adapter_live_endpoint_url: "https://adapter.example.test/email",
+      adapter_credential_reference: "vault/vyva/email-adapter",
+      adapter_qa_target: "concierge@example.test",
     })]);
 
     await expect(confirmPendingConciergeActionReview("89898989-8989-4898-8989-898989898989", "user-1"))
@@ -637,6 +636,10 @@ describe("confirmed Concierge action execution", () => {
       status: "sent",
       result_id: "email-adapter-2",
     });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://adapter.example.test/email",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("confirms a dry-run phone action without starting the outbound caller", async () => {

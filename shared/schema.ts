@@ -2601,6 +2601,11 @@ export const conciergeChannelReadinessSettings = pgTable("concierge_channel_read
   last_probe_at:      timestamp("last_probe_at", { withTimezone: true }),
   last_probe_blocker: text("last_probe_blocker"),
   last_probe_by:      text("last_probe_by"),
+  adapter_live_endpoint_url: text("adapter_live_endpoint_url"),
+  adapter_credential_reference: text("adapter_credential_reference"),
+  adapter_qa_target: text("adapter_qa_target"),
+  adapter_configured_by: text("adapter_configured_by"),
+  adapter_configured_at: timestamp("adapter_configured_at", { withTimezone: true }),
   updated_by:         text("updated_by"),
   updated_at:         timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });

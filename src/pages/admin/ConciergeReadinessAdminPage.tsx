@@ -52,12 +52,36 @@ type AdminChannelReadinessRow = {
   ready: boolean;
   external_action_allowed: boolean;
   blockers: string[];
+  adapter_setup: {
+    version: 1;
+    configured: boolean;
+    source: "environment" | "admin_console" | "missing";
+    live_endpoint_configured: boolean;
+    live_endpoint_url: string | null;
+    live_endpoint_reference: string | null;
+    credential_reference: string | null;
+    qa_target_configured: boolean;
+    qa_target: string | null;
+    qa_target_reference: string | null;
+    blockers: string[];
+    updated_by: string | null;
+    updated_at: string | null;
+  };
   can_mark_ready: boolean;
   ready_blocker: string | null;
   probe: ConciergeChannelProbeState;
   notes: string | null;
   updated_by: string | null;
   updated_at: string | null;
+};
+
+type ChannelReadinessPatch = {
+  admin_enabled?: boolean;
+  verified?: boolean;
+  notes?: string | null;
+  adapter_live_endpoint_url?: string | null;
+  adapter_credential_reference?: string | null;
+  adapter_qa_target?: string | null;
 };
 
 type AdminChannelReadinessResponse = {
@@ -767,7 +791,7 @@ function channelStatusLabel(row: AdminChannelReadinessRow): string {
   if (row.ready) return "Live-ready";
   if (!row.configured) return "Not configured";
   if (!row.verified) return "Not verified";
-  if (!row.admin_enabled) return "Admin disabled";
+  if (!row.admin_enabled) return "Paused";
   return "Blocked";
 }
 
@@ -789,6 +813,12 @@ function formatChannelTimestamp(value: string | null): string {
   return Number.isNaN(parsed.getTime()) ? "Not updated" : parsed.toLocaleString();
 }
 
+function adapterSetupSourceLabel(row: AdminChannelReadinessRow): string {
+  if (row.adapter_setup.source === "environment") return "Environment";
+  if (row.adapter_setup.source === "admin_console") return "Admin console";
+  return "Missing setup";
+}
+
 function ProductionChannelReadinessSection({
   channels,
   loading,
@@ -807,7 +837,7 @@ function ProductionChannelReadinessSection({
   savingChannel: ConciergeProductionChannel | null;
   verifyingChannel: ConciergeProductionChannel | null;
   onRefresh: () => void;
-  onUpdate: (channel: ConciergeProductionChannel, patch: { admin_enabled?: boolean; verified?: boolean; notes?: string | null }) => void;
+  onUpdate: (channel: ConciergeProductionChannel, patch: ChannelReadinessPatch) => void;
   onProbe: (channel: ConciergeProductionChannel) => void;
 }) {
   const liveReadyCount = channels.filter((channel) => channel.ready).length;
@@ -860,6 +890,7 @@ function ProductionChannelReadinessSection({
             <tr>
               <th className="px-4 py-3">Channel</th>
               <th className="px-4 py-3">Test mode</th>
+              <th className="min-w-[320px] px-4 py-3">Adapter setup</th>
               <th className="px-4 py-3">Setup checks</th>
               <th className="px-4 py-3">Live readiness</th>
               <th className="px-4 py-3">Admin controls</th>
@@ -890,6 +921,75 @@ function ProductionChannelReadinessSection({
                       <Pill tone={row.test_mode.external_action_allowed ? "bad" : "good"}>
                         {row.test_mode.external_action_allowed ? "External action allowed" : "No external action"}
                       </Pill>
+                    </div>
+                  </td>
+                  <td className="border-t border-[#f0e7df] px-4 py-4">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        <Pill tone={row.adapter_setup.configured ? "good" : "warn"}>
+                          {adapterSetupSourceLabel(row)}
+                        </Pill>
+                        <Pill tone={row.adapter_setup.qa_target_configured ? "good" : "warn"}>
+                          {row.adapter_setup.qa_target_configured ? "QA target set" : "QA target missing"}
+                        </Pill>
+                      </div>
+                      {row.adapter_setup.blockers.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {row.adapter_setup.blockers.map((blocker) => <Pill key={blocker} tone="warn">{blocker}</Pill>)}
+                        </div>
+                      ) : null}
+                      <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                        Live endpoint
+                        <input
+                          key={`${row.channel}-endpoint-${row.updated_at ?? "new"}`}
+                          type="url"
+                          className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135] disabled:opacity-60"
+                          defaultValue={row.adapter_setup.live_endpoint_url ?? ""}
+                          placeholder={row.channel === "phone_call" ? "Managed by phone credentials" : row.adapter_setup.live_endpoint_reference ?? "https://adapter.example.test/..."}
+                          disabled={busy || row.channel === "phone_call"}
+                          aria-label={`${row.label} live endpoint`}
+                          onBlur={(event) => {
+                            const nextValue = event.target.value.trim() || null;
+                            if (nextValue !== row.adapter_setup.live_endpoint_url) {
+                              onUpdate(row.channel, { adapter_live_endpoint_url: nextValue });
+                            }
+                          }}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                        Credential reference
+                        <input
+                          key={`${row.channel}-credential-${row.updated_at ?? "new"}`}
+                          className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
+                          defaultValue={row.adapter_setup.credential_reference ?? ""}
+                          placeholder="vault/reference"
+                          disabled={busy}
+                          aria-label={`${row.label} credential reference`}
+                          onBlur={(event) => {
+                            const nextValue = event.target.value.trim() || null;
+                            if (nextValue !== row.adapter_setup.credential_reference) {
+                              onUpdate(row.channel, { adapter_credential_reference: nextValue });
+                            }
+                          }}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                        QA target
+                        <input
+                          key={`${row.channel}-qa-${row.updated_at ?? "new"}`}
+                          className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
+                          defaultValue={row.adapter_setup.qa_target ?? ""}
+                          placeholder={row.adapter_setup.qa_target_reference ?? "Reserved test target"}
+                          disabled={busy}
+                          aria-label={`${row.label} QA target`}
+                          onBlur={(event) => {
+                            const nextValue = event.target.value.trim() || null;
+                            if (nextValue !== row.adapter_setup.qa_target) {
+                              onUpdate(row.channel, { adapter_qa_target: nextValue });
+                            }
+                          }}
+                        />
+                      </label>
                     </div>
                   </td>
                   <td className="min-w-[220px] border-t border-[#f0e7df] px-4 py-4">
@@ -967,7 +1067,7 @@ function ProductionChannelReadinessSection({
             })}
             {!loading && channels.length === 0 ? (
               <tr>
-                <td className="border-t border-[#f0e7df] px-4 py-5 text-sm font-black text-[#7d6b65]" colSpan={6}>
+                <td className="border-t border-[#f0e7df] px-4 py-5 text-sm font-black text-[#7d6b65]" colSpan={7}>
                   No channel readiness data is available yet.
                 </td>
               </tr>
@@ -1043,7 +1143,7 @@ export default function ConciergeReadinessAdminPage({
 
   async function handleChannelReadinessUpdate(
     channel: ConciergeProductionChannel,
-    patch: { admin_enabled?: boolean; verified?: boolean; notes?: string | null },
+    patch: ChannelReadinessPatch,
   ) {
     setSavingChannel(channel);
     setChannelError(null);

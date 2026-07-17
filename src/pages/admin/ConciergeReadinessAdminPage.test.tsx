@@ -37,6 +37,9 @@ function channelRow(input: {
   notes?: string | null;
   probeStatus?: "not_run" | "pass" | "fail";
   probeBlocker?: string | null;
+  liveEndpointUrl?: string | null;
+  credentialReference?: string | null;
+  qaTarget?: string | null;
 }) {
   const tool = conciergeToolForProductionChannel(input.channel);
   const probeStatus = input.probeStatus ?? (input.verified ? "pass" : "not_run");
@@ -51,6 +54,7 @@ function channelRow(input: {
   const live = evaluateConciergeChannelReadiness({ tool, dryRun: false, flags });
   const testMode = evaluateConciergeChannelReadiness({ tool, dryRun: true, flags });
   const canMarkReady = live.configured && live.verified;
+  const setupConfigured = input.configured === true;
   return {
     channel: input.channel,
     label: live.label,
@@ -63,6 +67,21 @@ function channelRow(input: {
     ready: live.ready,
     external_action_allowed: live.external_action_allowed,
     blockers: live.blockers,
+    adapter_setup: {
+      version: 1 as const,
+      configured: setupConfigured,
+      source: setupConfigured ? (input.liveEndpointUrl ? "admin_console" as const : "environment" as const) : "missing" as const,
+      live_endpoint_configured: input.channel !== "phone_call" && setupConfigured,
+      live_endpoint_url: input.liveEndpointUrl ?? null,
+      live_endpoint_reference: input.liveEndpointUrl ?? (setupConfigured ? `CONCIERGE_${input.channel.toUpperCase()}_LIVE_ENDPOINT` : null),
+      credential_reference: input.credentialReference ?? null,
+      qa_target_configured: Boolean(input.qaTarget || probeStatus !== "not_run"),
+      qa_target: input.qaTarget ?? null,
+      qa_target_reference: input.qaTarget ?? (probeStatus !== "not_run" ? `CONCIERGE_${input.channel.toUpperCase()}_QA_TARGET` : null),
+      blockers: setupConfigured ? [] : ["Live adapter endpoint is not configured."],
+      updated_by: "admin-1",
+      updated_at: "2026-07-16T10:00:00.000Z",
+    },
     can_mark_ready: canMarkReady,
     ready_blocker: !live.configured
       ? "Required setup has not been configured on the server."
@@ -83,11 +102,11 @@ function channelRow(input: {
 
 function defaultChannelRows() {
   return [
-    channelRow({ channel: "phone_call", configured: false, verified: false, adminEnabled: false, notes: "Caller setup missing." }),
-    channelRow({ channel: "email", configured: true, verified: true, adminEnabled: true, notes: "QA inbox verified." }),
+    channelRow({ channel: "phone_call", configured: false, verified: false, adminEnabled: false, notes: "Caller setup missing.", credentialReference: "ELEVENLABS_API_KEY" }),
+    channelRow({ channel: "email", configured: true, verified: true, adminEnabled: true, notes: "QA inbox verified.", liveEndpointUrl: "https://adapter.example.test/email", credentialReference: "vault/vyva/email-adapter", qaTarget: "concierge@example.test" }),
     channelRow({ channel: "whatsapp", configured: false, verified: false, adminEnabled: false }),
-    channelRow({ channel: "form_application", configured: true, verified: false, adminEnabled: false }),
-    channelRow({ channel: "document_upload", configured: true, verified: true, adminEnabled: false }),
+    channelRow({ channel: "form_application", configured: true, verified: false, adminEnabled: false, liveEndpointUrl: "https://adapter.example.test/form" }),
+    channelRow({ channel: "document_upload", configured: true, verified: true, adminEnabled: false, liveEndpointUrl: "https://adapter.example.test/upload", qaTarget: "qa://document-upload" }),
   ];
 }
 
@@ -137,8 +156,13 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Not configured");
     expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Probe not run");
     expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Test mode blocks live contact");
+    expect(within(screen.getByTestId("row-concierge-channel-phone-call")).getByLabelText("Phone calls live endpoint")).toBeDisabled();
     expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Probe passed");
     expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Live-capable after confirmation");
+    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Admin console");
+    expect(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Email live endpoint")).toHaveValue("https://adapter.example.test/email");
+    expect(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Email credential reference")).toHaveValue("vault/vyva/email-adapter");
+    expect(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Email QA target")).toHaveValue("concierge@example.test");
     expect(screen.getByTestId("row-concierge-channel-whatsapp")).toHaveTextContent("Cannot contact providers");
     expect(JSON.stringify(channelSection.textContent)).not.toContain("secret");
 
@@ -178,6 +202,8 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(emailRow).getByText("Verified by probe")).toBeInTheDocument();
     expect(within(emailRow).getByLabelText("Live-ready")).toBeChecked();
     expect(within(emailRow).getByLabelText("Live-ready")).not.toBeDisabled();
+
+    expect(screen.getByTestId("row-concierge-channel-document-upload")).toHaveTextContent("Paused");
   });
 
   it("saves a ready channel through the admin channel-readiness API", async () => {
@@ -203,6 +229,44 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(body).toEqual({ admin_enabled: true });
     expect(await screen.findByText("Email readiness updated.")).toBeInTheDocument();
     expect(within(screen.getByTestId("row-concierge-channel-email")).getByText("Live-capable after confirmation")).toBeInTheDocument();
+  });
+
+  it("saves adapter setup references and keeps live disabled until the next probe passes", async () => {
+    const initialWhatsApp = channelRow({ channel: "whatsapp", configured: false, verified: false, adminEnabled: false });
+    const configuredWhatsApp = channelRow({
+      channel: "whatsapp",
+      configured: true,
+      verified: false,
+      adminEnabled: false,
+      liveEndpointUrl: "https://adapter.example.test/whatsapp",
+      credentialReference: "vault/vyva/whatsapp-adapter",
+      qaTarget: "+12025550101",
+    });
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({ channel: configuredWhatsApp }));
+
+    renderPage(undefined, [
+      channelRow({ channel: "email", configured: true, verified: true, adminEnabled: true, liveEndpointUrl: "https://adapter.example.test/email" }),
+      initialWhatsApp,
+      channelRow({ channel: "phone_call", configured: false, verified: false, adminEnabled: false }),
+      channelRow({ channel: "form_application", configured: true, verified: false, adminEnabled: false, liveEndpointUrl: "https://adapter.example.test/form" }),
+      channelRow({ channel: "document_upload", configured: true, verified: true, adminEnabled: false, liveEndpointUrl: "https://adapter.example.test/upload" }),
+    ]);
+
+    const endpointInput = within(screen.getByTestId("row-concierge-channel-whatsapp")).getByLabelText("WhatsApp live endpoint");
+    fireEvent.change(endpointInput, { target: { value: "https://adapter.example.test/whatsapp" } });
+    fireEvent.blur(endpointInput);
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/admin/concierge/channel-readiness/whatsapp",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    const body = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
+    expect(body).toEqual({ adapter_live_endpoint_url: "https://adapter.example.test/whatsapp" });
+    expect(await screen.findByText("WhatsApp readiness updated.")).toBeInTheDocument();
+    const row = screen.getByTestId("row-concierge-channel-whatsapp");
+    expect(row).toHaveTextContent("Admin console");
+    expect(row).toHaveTextContent("Not verified");
+    expect(within(row).getByLabelText("Live-ready")).toBeDisabled();
   });
 
   it("runs a channel verification probe and surfaces failed blockers", async () => {

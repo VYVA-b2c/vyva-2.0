@@ -45,6 +45,8 @@ export type ConciergeActionAdapterInput = {
   dryRun?: boolean;
   channelReadiness?: ConciergeChannelReadinessResult | null;
   dynamicVariables?: Record<string, string>;
+  liveEndpointUrl?: string | null;
+  qaTarget?: string | null;
 };
 
 type StoredProbeStatus = "pass" | "fail";
@@ -241,6 +243,7 @@ function isSafeQaTarget(channel: ConciergeProductionChannel, value: string): boo
 export function runConciergeActionAdapterProbe(input: {
   channel: ConciergeProductionChannel;
   configured: boolean;
+  qaTarget?: string | null;
 }): { status: StoredProbeStatus; blocker: string | null } {
   if (!input.configured) {
     return {
@@ -249,7 +252,7 @@ export function runConciergeActionAdapterProbe(input: {
     };
   }
 
-  const qaTarget = firstEnv(QA_ENDPOINT_ENV_KEYS[input.channel]);
+  const qaTarget = input.qaTarget?.trim() || firstEnv(QA_ENDPOINT_ENV_KEYS[input.channel]);
   if (!qaTarget) {
     return {
       status: "fail",
@@ -379,7 +382,7 @@ async function postJsonAdapterEndpoint(
   input: ConciergeActionAdapterInput,
   channel: Exclude<ConciergeProductionChannel, "phone_call">,
 ): Promise<ConciergeActionAdapterResult> {
-  const endpoint = firstEnv(LIVE_ENDPOINT_ENV_KEYS[channel]);
+  const endpoint = input.liveEndpointUrl?.trim() || firstEnv(LIVE_ENDPOINT_ENV_KEYS[channel]);
   if (!endpoint) {
     return failedResult(input, channel, `${adapterId(channel)} live endpoint is not configured.`);
   }

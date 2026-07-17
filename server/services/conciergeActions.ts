@@ -15,6 +15,7 @@ import {
 } from "../../shared/conciergeActionExecution.js";
 import { isConciergeDryRunPayload } from "../../shared/conciergeDryRun.js";
 import {
+  conciergeProductionChannelForTool,
   conciergeExecutionModeFromState,
   type ConciergeChannelReadinessResult,
   type ConciergeExecutionMode,
@@ -22,6 +23,7 @@ import {
 import {
   conciergeChannelReadinessForTool,
   conciergeChannelReadinessForToolWithAdminSettings,
+  loadConciergeActionAdapterRuntimeConfig,
 } from "./conciergeChannelReadiness.js";
 import {
   executeConciergeActionAdapter,
@@ -587,12 +589,22 @@ function adapterModeForPlan(plan: ConciergeConfirmedExecutionPlan): ConciergeAct
   return plan.dry_run ? "dry_run" : "live";
 }
 
+async function adapterRuntimeConfigForPlan(plan: ConciergeConfirmedExecutionPlan): Promise<{
+  liveEndpointUrl: string | null;
+  qaTarget: string | null;
+}> {
+  const channel = conciergeProductionChannelForTool(plan.active_tool);
+  if (!channel) return { liveEndpointUrl: null, qaTarget: null };
+  return loadConciergeActionAdapterRuntimeConfig(channel);
+}
+
 async function runConfirmedConciergeActionAdapter(
   pending: PendingRow,
   profile: BasicProfile,
   confirmationSource = "confirm_endpoint",
   plan: ConciergeConfirmedExecutionPlan,
 ): Promise<TriggerResult> {
+  const adapterRuntimeConfig = await adapterRuntimeConfigForPlan(plan);
   const adapterResult = await executeConciergeActionAdapter({
     mode: adapterModeForPlan(plan),
     tool: plan.active_tool,
@@ -606,6 +618,8 @@ async function runConfirmedConciergeActionAdapter(
     dryRun: Boolean(plan.dry_run),
     channelReadiness: plan.channel_readiness,
     dynamicVariables: buildDynamicVariables(pending, profile),
+    liveEndpointUrl: adapterRuntimeConfig.liveEndpointUrl,
+    qaTarget: adapterRuntimeConfig.qaTarget,
   });
 
   if (adapterResult.status === "blocked") {
@@ -702,6 +716,9 @@ async function queueConfirmedConciergeAction(
     plan.channel_readiness.channel &&
     plan.channel_readiness.external_action_allowed,
   );
+  const adapterRuntimeConfig = plan.dry_run || liveUserControlledChannel
+    ? await adapterRuntimeConfigForPlan(plan)
+    : { liveEndpointUrl: null, qaTarget: null };
   const adapterResult = plan.dry_run || liveUserControlledChannel
     ? await executeConciergeActionAdapter({
         mode: plan.dry_run ? "dry_run" : "live",
@@ -716,6 +733,8 @@ async function queueConfirmedConciergeAction(
         dryRun: Boolean(plan.dry_run),
         channelReadiness: plan.channel_readiness,
         dynamicVariables: buildDynamicVariables(pending, profile),
+        liveEndpointUrl: adapterRuntimeConfig.liveEndpointUrl,
+        qaTarget: adapterRuntimeConfig.qaTarget,
       })
     : null;
 
@@ -816,6 +835,7 @@ async function markPendingChannelBlocked(
   confirmationSource: string,
   plan: ConciergeConfirmedExecutionPlan,
 ): Promise<void> {
+  const adapterRuntimeConfig = await adapterRuntimeConfigForPlan(plan);
   const adapterResult = plan.channel_readiness.channel
     ? await executeConciergeActionAdapter({
         mode: "live",
@@ -829,6 +849,8 @@ async function markPendingChannelBlocked(
         userConfirmed: true,
         dryRun: Boolean(plan.dry_run),
         channelReadiness: plan.channel_readiness,
+        liveEndpointUrl: adapterRuntimeConfig.liveEndpointUrl,
+        qaTarget: adapterRuntimeConfig.qaTarget,
       }).catch(() => null)
     : null;
   await updatePendingStatus(pending, "pending", {
@@ -999,6 +1021,7 @@ export async function completePendingConciergeAction(
     dryRun,
   });
   if (!completionAdapterResult && dryRun && completionChannelReadiness.channel) {
+    const adapterRuntimeConfig = await loadConciergeActionAdapterRuntimeConfig(completionChannelReadiness.channel);
     completionAdapterResult = await executeConciergeActionAdapter({
       mode: "dry_run",
       tool: fallbackTask.active_tool,
@@ -1011,6 +1034,8 @@ export async function completePendingConciergeAction(
       userConfirmed: true,
       dryRun: true,
       channelReadiness: completionChannelReadiness,
+      liveEndpointUrl: adapterRuntimeConfig.liveEndpointUrl,
+      qaTarget: adapterRuntimeConfig.qaTarget,
     });
   }
   const completionExternalActionAllowed = Boolean(currentTask?.external_action_allowed && !dryRun);
