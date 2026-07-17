@@ -202,6 +202,35 @@ const content = [
   },
 ];
 
+const missingLovableContent = {
+  id: "content-missing-lovable",
+  title: "Birthday wishes Source template",
+  channel: "email",
+  language: "en",
+  status: "draft",
+  subject: null,
+  body: "",
+  htmlBody: null,
+  ctaLabel: null,
+  ctaUrl: null,
+  designJson: {},
+  mediaAssets: [],
+  hasHtml: false,
+  hasDesign: false,
+  mediaAssetCount: 0,
+  source: "lovable",
+  lovableExternalId: "email_template:6199c1eb-75ca-4347-a619-f7f5a7af989d",
+  createdAt: "2026-07-05T08:50:00.000Z",
+  updatedAt: "2026-07-05T09:00:00.000Z",
+  metadata: {
+    lovable_source_type: "missing_lovable_reference",
+    lovable: {
+      campaignName: "Birthday Wishes",
+      contentExternalId: "email_template:6199c1eb-75ca-4347-a619-f7f5a7af989d",
+    },
+  },
+};
+
 const mediaAssets = [
   {
     id: "media-1",
@@ -1208,6 +1237,41 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
   }, 30_000);
+
+  it("prepares an editable replacement draft for missing Source content references", async () => {
+    renderPage({}, { content: [...content, missingLovableContent] });
+
+    expect(await screen.findByRole("heading", { name: "Marketing" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    const missingPanel = screen.getByTestId("marketing-missing-content-reference-panel");
+    expect(missingPanel).toHaveTextContent("Birthday wishes Source template");
+    expect(missingPanel).toHaveTextContent("Draft replacement");
+
+    fireEvent.click(screen.getByTestId(`button-marketing-repair-missing-content-${missingLovableContent.id}`));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI replacement draft prepared");
+    expect(screen.getByTestId(`marketing-content-editor-open-${missingLovableContent.id}`)).toHaveTextContent("Editor panel opened");
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Birthday wishes Source template");
+    expect(screen.getByTestId("select-marketing-edit-content-status")).toHaveValue("draft");
+    expect(screen.getByTestId("input-marketing-edit-content-subject")).toHaveValue("Birthday wishes Source template: ready for review");
+    expect(screen.getByTestId("input-marketing-edit-content-cta-label")).toHaveValue("Review in VYVA");
+    expect(screen.getByTestId("input-marketing-edit-content-cta-url")).toHaveValue("https://v2.vyva.life");
+    const repairBody = screen.getByTestId("textarea-marketing-edit-content-body") as HTMLTextAreaElement;
+    const repairHtml = screen.getByTestId("textarea-marketing-edit-content-html") as HTMLTextAreaElement;
+    const repairDesign = screen.getByTestId("textarea-marketing-edit-content-design-json") as HTMLTextAreaElement;
+    const repairMetadata = screen.getByTestId("textarea-marketing-edit-content-metadata") as HTMLTextAreaElement;
+    expect(repairBody.value).toContain("Birthday Wishes");
+    expect(repairBody.value).toContain("Review tone, offer, audience, and compliance before saving.");
+    expect(repairHtml.value).toContain("Birthday Wishes");
+    expect(repairDesign.value).toContain("marketing_missing_lovable_reference_repair");
+    expect(repairDesign.value).toContain("replacement draft");
+    expect(repairMetadata.value).toContain("repairDraft");
+    expect(repairMetadata.value).toContain("email_template:6199c1eb-75ca-4347-a619-f7f5a7af989d");
+
+    fireEvent.click(screen.getByTestId(`button-marketing-repair-content-${missingLovableContent.id}`));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI replacement draft prepared");
+  });
 
   it("shows tracked manual outcomes in campaign performance scans", async () => {
     const manuallyTrackedCampaign = {

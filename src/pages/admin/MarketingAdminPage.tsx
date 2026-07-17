@@ -6896,6 +6896,82 @@ function contentEditDraftFromContent(content: ContentAsset): ContentEditDraft {
   };
 }
 
+function missingLovableReferenceRepairDraft(content: ContentAsset): ContentEditDraft {
+  const base = contentEditDraftFromContent(content);
+  const metadata = recordValue(content.metadata);
+  const lovableMetadata = recordValue(metadata.lovable);
+  const sourceReference = content.lovableExternalId
+    || displayText(metadata.contentExternalId)
+    || displayText(lovableMetadata.contentExternalId)
+    || displayText(lovableMetadata.templateRef)
+    || content.id;
+  const title = base.title.trim() || "Missing Source content";
+  const channelName = channelLabel[base.channel] ?? base.channel;
+  const campaignName = displayText(lovableMetadata.campaignName) || displayText(metadata.campaignName);
+  const journeyName = displayText(lovableMetadata.journeyName) || displayText(metadata.journeyName);
+  const contextLine = campaignName
+    ? `This draft replaces a missing Source asset referenced by "${campaignName}".`
+    : journeyName
+      ? `This draft replaces a missing Source asset referenced by "${journeyName}".`
+      : "This draft replaces a Source/Lovable content reference that arrived without body or design data.";
+  const reviewLine = `Original reference: ${sourceReference}. Review tone, offer, audience, and compliance before saving.`;
+  const generatedBody = [
+    `Draft replacement for ${title}`,
+    "",
+    contextLine,
+    `Channel: ${channelName}.`,
+    "",
+    "Suggested message:",
+    "Keep this communication focused on one useful next step for the audience. Make the benefit concrete, friendly, and easy to act on.",
+    "",
+    reviewLine,
+  ].join("\n");
+  const generatedHtml = [
+    '<section style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #241133;">',
+    `  <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: #6f2dbd; font-weight: 700;">${escapeHtmlText(channelName)} replacement draft</p>`,
+    `  <h1 style="font-size: 28px; line-height: 1.2; margin: 0 0 12px;">${escapeHtmlText(title)}</h1>`,
+    `  <p style="font-size: 16px; line-height: 1.6;">${escapeHtmlText(contextLine)}</p>`,
+    '  <p style="font-size: 16px; line-height: 1.6;">Keep the copy useful, specific, and easy to act on. Replace this placeholder with the final offer before publishing.</p>',
+    `  <p style="font-size: 13px; line-height: 1.5; color: #7d6b65;">${escapeHtmlText(reviewLine)}</p>`,
+    "</section>",
+  ].join("\n");
+  const generatedDesign = {
+    ...recordValue(content.designJson),
+    generator: "marketing_missing_lovable_reference_repair",
+    sourceReference,
+    channel: base.channel,
+    title,
+    reviewRequired: true,
+    blocks: [
+      { type: "eyebrow", text: `${channelName} replacement draft` },
+      { type: "headline", text: title },
+      { type: "body", text: contextLine },
+      { type: "body", text: "Replace this placeholder with final copy, visual direction, and CTA before publishing." },
+    ],
+  };
+  return {
+    ...base,
+    title,
+    status: "draft",
+    subject: base.subject.trim() || `${title}: ready for review`,
+    body: base.body.trim() ? base.body : generatedBody,
+    htmlBody: base.htmlBody.trim() ? base.htmlBody : generatedHtml,
+    ctaLabel: base.ctaLabel.trim() || "Review in VYVA",
+    ctaUrl: base.ctaUrl.trim() || "https://v2.vyva.life",
+    designJsonText: jsonText(generatedDesign),
+    metadataText: jsonText({
+      ...metadata,
+      repairDraft: {
+        generator: "marketing_missing_lovable_reference_repair",
+        generatedAt: new Date().toISOString(),
+        originalLovableExternalId: content.lovableExternalId ?? null,
+        sourceReference,
+        reviewRequired: true,
+      },
+    }),
+  };
+}
+
 function contentPayloadFromDraft(draft: ContentEditDraft) {
   return {
     title: draft.title.trim(),
@@ -15749,6 +15825,24 @@ export default function MarketingAdminPage() {
     scrollToContentActionRow(contentAsset.id);
   }
 
+  function startMissingLovableContentRepair(contentAsset: ContentAsset) {
+    const repairDraft = missingLovableReferenceRepairDraft(contentAsset);
+    setActiveTab("content");
+    setSearch("");
+    setChannelFilter("all");
+    setContentSourceFilter("missing_lovable_reference");
+    setSelectedContentId(contentAsset.id);
+    setEditingContentId(contentAsset.id);
+    setContentEditDraft(repairDraft);
+    setContentVariantChannel(nextContentVariantChannel(contentAsset.channel));
+    setContentDrawerMode("edit");
+    setConfirmingContentDeleteId(null);
+    setContentFeedback("");
+    setContentActionFeedback(`AI replacement draft prepared for "${contentAsset.title}". Review and save it.`);
+    setMessage(`AI replacement draft prepared for ${contentAsset.title}.`);
+    scrollToContentActionRow(contentAsset.id);
+  }
+
   async function duplicateContentAsDraft(contentAsset: ContentAsset) {
     setActiveTab("content");
     setContentSaving(true);
@@ -23434,9 +23528,20 @@ export default function MarketingAdminPage() {
                   {missingLovableReferenceContent.length ? (
                     <div className="mt-4 grid gap-2">
                       {missingLovableReferenceContent.map((item) => (
-                        <div key={item.id} className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#5b4a46]">
-                          <span className="font-black text-[#241133]">{item.title}</span>
-                          {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</span> : null}
+                        <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#5b4a46]">
+                          <div>
+                            <span className="font-black text-[#241133]">{item.title}</span>
+                            {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</span> : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => startMissingLovableContentRepair(item)}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
+                            disabled={contentSaving}
+                            data-testid={`button-marketing-repair-missing-content-${item.id}`}
+                          >
+                            <Sparkles size={13} /> Draft replacement
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -24321,6 +24426,7 @@ export default function MarketingAdminPage() {
                             const rowMediaPreviewUrls = contentMediaPreviewUrls(item, rowMediaAssets);
                             const timelineParts = recordTimelineParts(item);
                             const usageItems = contentUsageById.get(item.id) ?? [];
+                            const isMissingLovableReference = contentOriginKey(item) === "missing_lovable_reference";
                             return (
                             <Fragment key={item.id}>
                             <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
@@ -24380,6 +24486,11 @@ export default function MarketingAdminPage() {
                                   <button type="button" onClick={() => startContentEdit(item)} aria-expanded={isEditingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isEditingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
                                     <Pencil size={13} /> {isEditingContent ? "Editing" : "Edit"}
                                   </button>
+                                  {isMissingLovableReference ? (
+                                    <button type="button" onClick={() => startMissingLovableContentRepair(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentSaving} data-testid={`button-marketing-repair-content-${item.id}`}>
+                                      <Sparkles size={13} /> Repair
+                                    </button>
+                                  ) : null}
                                   <button type="button" onClick={() => void duplicateContentAsDraft(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentSaving} data-testid={`button-marketing-duplicate-content-${item.id}`}>
                                     <Copy size={13} /> Duplicate
                                   </button>
