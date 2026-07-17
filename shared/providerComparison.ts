@@ -123,6 +123,17 @@ export interface ProviderComparisonContext {
   flowReference?: string | null;
   resumeContext?: Record<string, unknown> | null;
   capturedAt?: string | null;
+  locale?: string | null;
+}
+
+export type ProviderContactChannel = "booking_url" | "phone" | "whatsapp" | "email" | "manual";
+
+export interface ProviderContactPlan {
+  channel: ProviderContactChannel;
+  requestedTool: "booking_link" | "phone_call" | "whatsapp" | "email" | "operator_review";
+  availableChannels: ProviderContactChannel[];
+  subject: string;
+  message: string;
 }
 
 export const PROVIDER_SHORTLIST_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -139,6 +150,7 @@ export interface ProviderShortlistState {
   preferredProviderId: string | null;
   preferredProviderName: string | null;
   status: ProviderShortlistStatus;
+  unavailableProviderIds: string[];
 }
 
 export type ProviderShortlistFactChangeKind = "changed" | "added" | "removed" | "verification_changed";
@@ -580,6 +592,7 @@ export function buildProviderShortlistPayload(
     criteria: context.criteria ?? [],
     flow_reference: context.flowReference ?? null,
     resume_context: context.resumeContext ?? null,
+    provider_contact_locale: context.locale ?? null,
     shortlist_captured_at: capturedAt,
     shortlist_updated_at: capturedAt,
     shortlist_status: "open",
@@ -667,6 +680,7 @@ export function parseProviderShortlistPayload(payload: unknown): ProviderShortli
       flowReference: stringOrNull(record.flow_reference),
       resumeContext: recordOrNull(record.resume_context),
       capturedAt,
+      locale: stringOrNull(record.provider_contact_locale),
     },
     capturedAt,
     updatedAt: stringOrNull(record.shortlist_updated_at) ?? capturedAt,
@@ -674,6 +688,7 @@ export function parseProviderShortlistPayload(payload: unknown): ProviderShortli
     preferredProviderId: stringOrNull(record.preferred_provider_id),
     preferredProviderName: stringOrNull(record.preferred_provider_name),
     status: shortlistStatus(record.shortlist_status),
+    unavailableProviderIds: stringList(record.contact_unavailable_provider_ids),
   };
 }
 
@@ -692,6 +707,7 @@ export function buildProviderRecheckContext(shortlist: ProviderShortlistState): 
 
 export function buildProviderShortlistReview(shortlist: ProviderShortlistState): ProviderShortlistReview {
   const unusedLatest = new Set(shortlist.latestOptions.map((_, index) => index));
+  const explicitlyUnavailable = new Set(shortlist.unavailableProviderIds);
   const items = shortlist.options.map((original) => {
     let latestIndex = shortlist.latestOptions.findIndex((candidate, index) => (
       unusedLatest.has(index) && candidate.id === original.id
@@ -714,7 +730,7 @@ export function buildProviderShortlistReview(shortlist: ProviderShortlistState):
       original,
       current,
       latest,
-      available: shortlist.recheckedAt ? Boolean(latest) : true,
+      available: !explicitlyUnavailable.has(original.id) && (shortlist.recheckedAt ? Boolean(latest) : true),
       changes,
     };
   });
@@ -810,12 +826,100 @@ export function updateProviderShortlistPayload(
   };
 }
 
+function providerContactChannel(value: unknown): ProviderContactChannel | null {
+  const normalized = clean(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (["booking", "booking_link", "booking_url", "form", "form_application"].includes(normalized)) return "booking_url";
+  if (["phone", "phone_call", "call"].includes(normalized)) return "phone";
+  if (normalized === "whatsapp") return "whatsapp";
+  if (normalized === "email") return "email";
+  if (["manual", "operator_review"].includes(normalized)) return "manual";
+  return null;
+}
+
+function providerContactCopy(locale: string | null | undefined): {
+  subject: string;
+  opening: (provider: string, request: string) => string;
+  close: string;
+} {
+  const language = clean(locale).toLowerCase().split("-")[0];
+  const copy = {
+    en: {
+      subject: "Availability request",
+      opening: (provider: string, request: string) => `Hello ${provider}, I would like help with ${request}.`,
+      close: "Please confirm availability, price, and the next step. Please do not book or charge anything yet.",
+    },
+    es: {
+      subject: "Consulta de disponibilidad",
+      opening: (provider: string, request: string) => `Hola ${provider}, quisiera ayuda con ${request}.`,
+      close: "Confirme la disponibilidad, el precio y el siguiente paso. No reserve ni cobre nada todavia.",
+    },
+    de: {
+      subject: "Anfrage zur Verfuegbarkeit",
+      opening: (provider: string, request: string) => `Hallo ${provider}, ich moechte Hilfe bei ${request}.`,
+      close: "Bitte bestaetigen Sie Verfuegbarkeit, Preis und den naechsten Schritt. Bitte noch nichts buchen oder berechnen.",
+    },
+    fr: {
+      subject: "Demande de disponibilite",
+      opening: (provider: string, request: string) => `Bonjour ${provider}, je souhaite de l'aide pour ${request}.`,
+      close: "Merci de confirmer la disponibilite, le prix et la prochaine etape. Ne reservez et ne facturez encore rien.",
+    },
+    it: {
+      subject: "Richiesta di disponibilita",
+      opening: (provider: string, request: string) => `Buongiorno ${provider}, vorrei assistenza per ${request}.`,
+      close: "Confermate disponibilita, prezzo e prossimo passo. Non prenotate o addebitate ancora nulla.",
+    },
+    pt: {
+      subject: "Pedido de disponibilidade",
+      opening: (provider: string, request: string) => `Ola ${provider}, gostaria de ajuda com ${request}.`,
+      close: "Confirme a disponibilidade, o preco e o proximo passo. Nao reserve nem cobre nada ainda.",
+    },
+  } as const;
+  return copy[language as keyof typeof copy] ?? copy.en;
+}
+
+export function buildProviderContactPlan(
+  option: ProviderComparisonOption,
+  context: ProviderComparisonContext = {},
+): ProviderContactPlan {
+  const availableChannels: ProviderContactChannel[] = [];
+  if (option.contact.bookingUrl) availableChannels.push("booking_url");
+  if (option.contact.phone) availableChannels.push("phone");
+  if (option.contact.whatsapp) availableChannels.push("whatsapp");
+  if (option.contact.email) availableChannels.push("email");
+  if (availableChannels.length === 0) availableChannels.push("manual");
+
+  const preferred = providerContactChannel(option.contact.preferredChannel);
+  const channel = preferred && availableChannels.includes(preferred) ? preferred : availableChannels[0];
+  const requestedTool: ProviderContactPlan["requestedTool"] = channel === "booking_url"
+    ? "booking_link"
+    : channel === "phone"
+      ? "phone_call"
+      : channel === "whatsapp"
+        ? "whatsapp"
+        : channel === "email"
+          ? "email"
+          : "operator_review";
+  const copy = providerContactCopy(context.locale);
+  const request = clean(context.query) || clean(option.summary) || clean(option.category) || "this request";
+  const message = `${copy.opening(option.name, request)} ${copy.close}`;
+
+  return {
+    channel,
+    requestedTool,
+    availableChannels,
+    subject: copy.subject,
+    message,
+  };
+}
+
 export function buildProviderContactPayload(
   option: ProviderComparisonOption,
   context: ProviderComparisonContext,
 ): Record<string, unknown> {
+  const plan = buildProviderContactPlan(option, context);
   return {
     task_type: "provider_contact_preparation",
+    provider_contact_handoff_version: 1,
     provider_search_mode: context.mode ?? null,
     provider_search_query: context.query ?? null,
     criteria: context.criteria ?? [],
@@ -823,15 +927,39 @@ export function buildProviderContactPayload(
     resume_context: context.resumeContext ?? null,
     selected_provider_name: option.name,
     provider_name: option.name,
+    offer_name: option.name,
     provider_category: option.category,
     provider_phone: option.contact.phone ?? null,
+    phone: option.contact.phone ?? null,
     provider_email: option.contact.email ?? null,
+    email: option.contact.email ?? null,
     provider_whatsapp: option.contact.whatsapp ?? null,
+    whatsapp: option.contact.whatsapp ?? null,
     booking_url: option.contact.bookingUrl ?? null,
     website: option.contact.website ?? option.contact.mapsUrl ?? null,
     preferred_channel: option.contact.preferredChannel ?? null,
+    selected_channel: plan.channel,
+    execution_channel: plan.channel,
+    requested_tool: plan.requestedTool,
+    available_contact_channels: plan.availableChannels,
+    email_subject: plan.subject,
+    email_body: plan.message,
+    whatsapp_message: plan.message,
+    call_script: plan.message,
+    draft_message: plan.message,
+    live_handoff_flow: "verified_provider_contact_v1",
+    live_handoff_status: "ready",
+    provider_verification: {
+      status: option.sourceStatus,
+      source: option.sourceLabel ?? null,
+      source_type: option.sourceType,
+      source_url: option.sourceUrl,
+      checked_at: option.checkedAt,
+    },
     comparison: providerComparisonSnapshot(option),
     comparison_summary: option.whyMaySuitYou,
+    outcome_fields: ["outcome", "reference", "scheduled_for", "price", "follow_up"],
+    resume_after_handoff: true,
     confirmation_required_before_action: true,
     no_external_action_without_confirmation: true,
     user_confirmed: false,

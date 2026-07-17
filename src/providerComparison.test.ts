@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildProviderComparisonOptions,
   buildProviderComparisonFact,
+  buildProviderContactPlan,
   buildProviderContactPayload,
   buildProviderRecheckContext,
   buildProviderShortlistRecheckPayload,
@@ -283,12 +284,28 @@ describe("provider comparison contract", () => {
 
   it("requires final confirmation for contact and supports trusted-provider setup", () => {
     const option = buildProviderComparisonOptions(sourceOptions)[0];
-    const contact = buildProviderContactPayload(option, { mode: "specialist" });
+    const contact = buildProviderContactPayload(option, {
+      mode: "specialist",
+      query: "a dermatology appointment",
+      locale: "en",
+    });
     const prefill = buildTrustedProviderPrefill(option, "doctor_clinic");
 
     expect(contact).toMatchObject({
       task_type: "provider_contact_preparation",
+      provider_contact_handoff_version: 1,
       provider_phone: "+34 600 111 222",
+      selected_channel: "booking_url",
+      execution_channel: "booking_url",
+      requested_tool: "booking_link",
+      live_handoff_flow: "verified_provider_contact_v1",
+      provider_verification: {
+        status: "verified",
+        source: "Regional health directory",
+        checked_at: "2026-07-01T09:30:00.000Z",
+      },
+      email_body: expect.stringContaining("a dermatology appointment"),
+      call_script: expect.stringContaining("Please do not book or charge anything yet"),
       confirmation_required_before_action: true,
       no_external_action_without_confirmation: true,
       user_confirmed: false,
@@ -300,5 +317,34 @@ describe("provider comparison contract", () => {
       booking_url: "https://example.test/book",
       can_contact_after_confirmation: true,
     });
+  });
+
+  it("uses a valid saved channel preference and falls back through official booking, phone, WhatsApp, and email", () => {
+    const option = buildProviderComparisonOptions([{
+      ...sourceOptions[0],
+      preferred_channel: "phone",
+      email: "hello@harbour.example",
+      whatsapp: "+34 600 111 333",
+    }])[0];
+    expect(buildProviderContactPlan(option, { query: "an appointment" })).toMatchObject({
+      channel: "phone",
+      requestedTool: "phone_call",
+      availableChannels: ["booking_url", "phone", "whatsapp", "email"],
+    });
+
+    const noPreference = { ...option, contact: { ...option.contact, preferredChannel: null } };
+    expect(buildProviderContactPlan(noPreference).channel).toBe("booking_url");
+  });
+
+  it("can mark a contacted provider unavailable while keeping the saved shortlist", () => {
+    const selected = buildProviderComparisonOptions(sourceOptions).slice(0, 2);
+    const payload = buildProviderShortlistPayload(selected, { mode: "specialist" });
+    payload.contact_unavailable_provider_ids = [selected[0].id];
+    const shortlist = parseProviderShortlistPayload(payload)!;
+    const review = buildProviderShortlistReview(shortlist);
+
+    expect(shortlist.unavailableProviderIds).toEqual([selected[0].id]);
+    expect(review.items[0]).toMatchObject({ available: false });
+    expect(review.items[1]).toMatchObject({ available: true });
   });
 });
