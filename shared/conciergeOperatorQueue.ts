@@ -1,4 +1,5 @@
 import type { ConciergeExecutionTask, ConciergeExecutionTaskStatus } from "./conciergeActionExecution";
+import type { ConciergeAdapterPayloadPreview } from "./conciergeAdapterPayloadContract";
 
 export const OPERATOR_CONCIERGE_ADAPTER_STATUSES = [
   "blocked",
@@ -96,6 +97,7 @@ export type OperatorConciergeQueueItem = {
   confirmed_at?: string | null;
   updated_at?: string | null;
   adapter_incident?: OperatorConciergeAdapterIncident | null;
+  adapter_payload_preview?: ConciergeAdapterPayloadPreview | null;
 };
 
 export type OperatorConciergeQueueTotals = Record<OperatorConciergeQueueStatus, number>;

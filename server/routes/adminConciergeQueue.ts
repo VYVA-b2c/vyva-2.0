@@ -16,6 +16,10 @@ import {
   type OperatorConciergeQueueStatus,
 } from "../../shared/conciergeOperatorQueue.js";
 import type { ConciergeChannelReadinessResult } from "../../shared/conciergeChannelReadiness.js";
+import {
+  buildConciergeAdapterPayloadPreview,
+  type ConciergeAdapterPayloadPreview,
+} from "../../shared/conciergeAdapterPayloadContract.js";
 import { conciergeChannelReadinessForToolWithAdminSettings } from "../services/conciergeChannelReadiness.js";
 import { startPendingConciergeAction } from "../services/conciergeActions.js";
 
@@ -135,6 +139,18 @@ function retryBlockerLabel(readiness: ConciergeChannelReadinessResult): string {
   return readiness.blockers[0] ?? `${readiness.channel ?? readiness.tool}_not_live_ready`;
 }
 
+function payloadContractBlocker(preview: ConciergeAdapterPayloadPreview): string | null {
+  if (preview.valid) return null;
+  return preview.blockers[0] ?? "adapter_payload_contract_incomplete";
+}
+
+function payloadContractError(preview: ConciergeAdapterPayloadPreview): string {
+  const labels = preview.missing_fields.map((field) => field.label).join(", ");
+  return labels
+    ? `Adapter payload is incomplete (${labels}).`
+    : "Adapter payload is incomplete.";
+}
+
 async function retryReadinessForPendingPayload(
   payload: Record<string, unknown>,
   cache: Map<string, Promise<ConciergeChannelReadinessResult>>,
@@ -213,6 +229,7 @@ function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
   if (!status) return null;
   const assignment = operatorAssignmentFromPayload(payload);
   const adapterIncident = adapterIncidentFromPayload(payload);
+  const adapterPayloadPreview = adapterPayloadPreviewForRow(row, payload);
 
   return {
     id: row.id,
@@ -235,7 +252,25 @@ function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
     confirmed_at: isoDate(task?.confirmed_at ?? row.confirmed_at),
     updated_at: isoDate(task?.updated_at ?? row.updated_at ?? row.confirmed_at ?? row.expires_at),
     adapter_incident: adapterIncident,
+    adapter_payload_preview: adapterPayloadPreview,
   };
+}
+
+function adapterPayloadPreviewForRow(
+  row: Pick<PendingQueueRow, "id" | "user_id" | "provider_name" | "provider_phone" | "action_summary">,
+  payload: Record<string, unknown>,
+): ConciergeAdapterPayloadPreview | null {
+  const task = executionTaskFromPayload(payload);
+  if (!task?.active_tool) return null;
+  return buildConciergeAdapterPayloadPreview({
+    tool: task.active_tool,
+    payload,
+    providerName: row.provider_name,
+    providerPhone: row.provider_phone,
+    pendingId: row.id,
+    userId: row.user_id,
+    summary: row.action_summary,
+  });
 }
 
 async function pendingItemWithAdapterPolicy(
@@ -271,6 +306,19 @@ async function pendingItemWithAdapterPolicy(
   }
 
   const payload = currentPendingPayload(row);
+  const contractBlocker = item.adapter_payload_preview ? payloadContractBlocker(item.adapter_payload_preview) : "adapter_payload_preview_missing";
+  if (contractBlocker) {
+    return {
+      ...item,
+      adapter_incident: {
+        ...incident,
+        retry_allowed: false,
+        retry_blocker: contractBlocker,
+        manual_follow_up_allowed: true,
+      },
+    };
+  }
+
   const currentReadiness = await retryReadinessForPendingPayload(payload, readinessCache);
   if (!currentReadiness) {
     return {
@@ -518,10 +566,22 @@ function buildRecoveryAuditBase(
 }
 
 async function retryPendingAdapter(row: PendingQueueRow, note: string | null, req: Request) {
-  const { task, adapterResult } = recoveryContext(row);
+  const { payload, task, adapterResult } = recoveryContext(row);
   const readiness = await currentLiveReadinessForRetry(row);
   if (!readiness.external_action_allowed) {
     throw new QueueActionError(`The ${readiness.label.toLowerCase()} channel is not ready for retry (${retryBlockerLabel(readiness)}).`);
+  }
+  const contractPreview = adapterPayloadPreviewForRow(row, payload);
+  if (!contractPreview?.valid) {
+    throw new QueueActionError(payloadContractError(contractPreview ?? buildConciergeAdapterPayloadPreview({
+      tool: task.active_tool,
+      payload,
+      providerName: row.provider_name,
+      providerPhone: row.provider_phone,
+      pendingId: row.id,
+      userId: row.user_id,
+      summary: row.action_summary,
+    })));
   }
 
   const now = new Date().toISOString();
@@ -642,6 +702,13 @@ function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
   if (!status) return null;
   const assignment = operatorAssignmentFromPayload(payloadWithTask);
   const adapterIncident = adapterIncidentFromPayload(payloadWithTask, row.outcome_payload, row.action_payload);
+  const adapterPayloadPreview = adapterPayloadPreviewForRow({
+    id: row.pending_id ?? row.id,
+    user_id: row.user_id,
+    provider_name: row.provider_name,
+    provider_phone: row.provider_phone,
+    action_summary: row.outcome_summary ?? row.action_summary,
+  }, objectPayload(payloadWithTask));
 
   return {
     id: row.id,
@@ -664,6 +731,7 @@ function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
     confirmed_at: isoDate(task?.confirmed_at ?? row.started_at),
     updated_at: isoDate(task?.updated_at ?? row.completed_at ?? row.started_at),
     adapter_incident: adapterIncident,
+    adapter_payload_preview: adapterPayloadPreview,
   };
 }
 

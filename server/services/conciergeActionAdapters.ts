@@ -3,6 +3,11 @@ import {
   type ConciergeChannelReadinessResult,
   type ConciergeProductionChannel,
 } from "../../shared/conciergeChannelReadiness.js";
+import {
+  buildConciergeAdapterPayloadPreview,
+  conciergeAdapterId,
+  conciergeProviderContactForChannel,
+} from "../../shared/conciergeAdapterPayloadContract.js";
 import type { ConciergeToolRequirement } from "../../shared/conciergeFlowRegistry.js";
 
 export type ConciergeActionAdapterMode = "dry_run" | "probe" | "live";
@@ -139,14 +144,6 @@ function text(value: unknown): string | null {
   return null;
 }
 
-function firstText(payload: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = text(payload[key]);
-    if (value) return value;
-  }
-  return null;
-}
-
 function jsonObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -160,10 +157,6 @@ function parseJsonObject(value: string): Record<string, unknown> {
   } catch {
     return { message: value };
   }
-}
-
-function adapterId(channel: ConciergeProductionChannel): string {
-  return `concierge_${channel}_adapter`;
 }
 
 function qaTargetLabel(channel: ConciergeProductionChannel): string {
@@ -273,35 +266,16 @@ export function runConciergeActionAdapterProbe(input: {
   };
 }
 
-function providerContact(channel: ConciergeProductionChannel, input: ConciergeActionAdapterInput): string | null {
-  const payload = input.payload ?? {};
-  switch (channel) {
-    case "phone_call":
-      return input.providerPhone?.trim()
-        || firstText(payload, ["provider_phone", "phone", "contact_phone"]);
-    case "email":
-      return firstText(payload, ["recipient_email", "provider_email", "to_email", "email_to", "email"]);
-    case "whatsapp":
-      return firstText(payload, ["recipient_whatsapp", "provider_whatsapp", "to_whatsapp", "whatsapp_to", "whatsapp_number", "whatsapp"]);
-    case "form_application":
-      return firstText(payload, ["form_automation_prefilled_url", "booking_url", "provider_booking_url", "website", "url"]);
-    case "document_upload":
-      return firstText(payload, ["document_upload_url", "upload_url", "provider_upload_url", "document_url", "uploaded_document", "uploaded_file", "uploaded_image"]);
-    default:
-      return null;
-  }
-}
-
 function resultBase(input: ConciergeActionAdapterInput, channel: ConciergeProductionChannel): Omit<ConciergeActionAdapterResult, "result" | "status"> {
   return {
     version: 1,
-    adapter: adapterId(channel),
+    adapter: conciergeAdapterId(channel),
     mode: input.mode,
     channel,
     tool: input.tool,
     attempted_at: new Date().toISOString(),
     provider_name: input.providerName?.trim() || null,
-    provider_contact: providerContact(channel, input),
+    provider_contact: conciergeProviderContactForChannel(channel, input),
     external_action_allowed: input.mode === "live" && input.channelReadiness?.external_action_allowed === true,
   };
 }
@@ -365,32 +339,23 @@ function outboundPhoneConfig() {
   };
 }
 
-function adapterPayload(input: ConciergeActionAdapterInput, channel: ConciergeProductionChannel) {
-  return {
-    pending_id: input.pendingId ?? null,
-    user_id: input.userId ?? null,
-    channel,
-    tool: input.tool,
-    provider_name: input.providerName ?? null,
-    provider_contact: providerContact(channel, input),
-    summary: input.summary ?? null,
-    action_payload: input.payload ?? {},
-  };
-}
-
 async function postJsonAdapterEndpoint(
   input: ConciergeActionAdapterInput,
   channel: Exclude<ConciergeProductionChannel, "phone_call">,
 ): Promise<ConciergeActionAdapterResult> {
   const endpoint = input.liveEndpointUrl?.trim() || firstEnv(LIVE_ENDPOINT_ENV_KEYS[channel]);
   if (!endpoint) {
-    return failedResult(input, channel, `${adapterId(channel)} live endpoint is not configured.`);
+    return failedResult(input, channel, `${conciergeAdapterId(channel)} live endpoint is not configured.`);
+  }
+  const preview = buildConciergeAdapterPayloadPreview(input);
+  if (!preview.outbound_payload) {
+    return blockedResult(input, channel, "adapter_payload_contract_incomplete: adapter_payload_missing_channel");
   }
 
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(adapterPayload(input, channel)),
+    body: JSON.stringify(preview.outbound_payload),
   });
   const rawBody = await response.text().catch(() => "");
   const data = parseJsonObject(rawBody || response.statusText);
@@ -410,7 +375,7 @@ async function postJsonAdapterEndpoint(
 async function executePhoneLive(input: ConciergeActionAdapterInput): Promise<ConciergeActionAdapterResult> {
   const channel = "phone_call";
   const config = outboundPhoneConfig();
-  const toNumber = providerContact(channel, input);
+  const toNumber = conciergeProviderContactForChannel(channel, input);
 
   if (!config.apiKey) return failedResult(input, channel, "Missing ElevenLabs API key.");
   if (!config.agentId) return failedResult(input, channel, "Missing ElevenLabs concierge caller agent ID.");
@@ -450,6 +415,10 @@ async function executePhoneLive(input: ConciergeActionAdapterInput): Promise<Con
 async function executeLive(input: ConciergeActionAdapterInput, channel: ConciergeProductionChannel): Promise<ConciergeActionAdapterResult> {
   const blocker = liveGateBlocker(input, channel);
   if (blocker) return blockedResult(input, channel, blocker);
+  const preview = buildConciergeAdapterPayloadPreview(input);
+  if (!preview.valid) {
+    return blockedResult(input, channel, `adapter_payload_contract_incomplete: ${preview.blockers.join(", ")}`);
+  }
 
   if (channel === "phone_call") return executePhoneLive(input);
   return postJsonAdapterEndpoint(input, channel);

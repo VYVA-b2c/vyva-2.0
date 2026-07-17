@@ -102,6 +102,10 @@ function incidentModeLabel(item: OperatorConciergeQueueItem) {
   return cleanLabel(incident.mode) || "Adapter";
 }
 
+function formatPayload(value: unknown) {
+  return JSON.stringify(value ?? {}, null, 2);
+}
+
 function mergeTotals(items: OperatorConciergeQueueItem[], responseTotals?: Partial<OperatorConciergeQueueTotals>): OperatorConciergeQueueTotals {
   return {
     ...buildOperatorConciergeQueueTotals(items),
@@ -589,6 +593,63 @@ export default function ConciergeQueueAdminPage() {
                 )}
               </div>
             </div>
+
+            {selectedItem.adapter_payload_preview && (
+              <section className="mt-5 rounded-2xl border border-[#eadfd5] bg-[#fffdfb] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Payload preview</p>
+                    <h3 className="mt-1 text-xl font-black text-[#2f2135]">
+                      {selectedItem.adapter_payload_preview.channel
+                        ? cleanLabel(selectedItem.adapter_payload_preview.channel)
+                        : "No live adapter channel"}
+                    </h3>
+                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
+                      {selectedItem.adapter_payload_preview.adapter || "No adapter mapped"}
+                    </p>
+                  </div>
+                  <span className={`rounded-full border px-3 py-1 text-xs font-black ${
+                    selectedItem.adapter_payload_preview.valid
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-amber-200 bg-amber-50 text-amber-800"
+                  }`}>
+                    {selectedItem.adapter_payload_preview.valid ? "Contract ready" : "Missing fields"}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Provider target</p>
+                    <p className="mt-1 font-bold text-[#2f2135]">{selectedItem.adapter_payload_preview.provider_name || "No provider saved"}</p>
+                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{selectedItem.adapter_payload_preview.provider_contact || "No contact saved"}</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">User-approved summary</p>
+                    <p className="mt-1 font-bold text-[#2f2135]">{selectedItem.adapter_payload_preview.summary || "No summary saved"}</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Trace fields</p>
+                    <p className="mt-1 font-bold text-[#2f2135]">{selectedItem.adapter_payload_preview.pending_id || "No pending ID"}</p>
+                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{selectedItem.adapter_payload_preview.user_id || "No user ID"}</p>
+                  </div>
+                </div>
+                {selectedItem.adapter_payload_preview.missing_fields.length > 0 && (
+                  <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3">
+                    <p className="text-sm font-black text-amber-900">Fix before live send</p>
+                    <ul className="mt-2 grid gap-1 text-sm font-bold text-amber-800">
+                      {selectedItem.adapter_payload_preview.missing_fields.map((field) => (
+                        <li key={field.key}>{field.label}: {field.detail}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="mt-4">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Outbound payload</p>
+                  <pre className="mt-2 max-h-72 overflow-auto rounded-2xl bg-[#1f1724] p-4 text-xs font-semibold leading-relaxed text-[#fffaf4]">
+                    {formatPayload(selectedItem.adapter_payload_preview.outbound_payload)}
+                  </pre>
+                </div>
+              </section>
+            )}
 
             {selectedItem.adapter_incident && (
               <section className="mt-5 rounded-2xl border border-[#eadfd5] bg-[#fffdfb] p-4">

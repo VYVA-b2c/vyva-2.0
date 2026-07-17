@@ -154,8 +154,19 @@ function executionTaskFromPayload(payload: Record<string, unknown> | null | unde
     : null;
 }
 
-function toolFromPayload(payload: Record<string, unknown>, providerPhone?: string | null): ConciergeToolRequirement {
-  const channel = clean(payload.execution_channel || payload.active_tool || payload.requested_tool || payload.preferred_channel).toLowerCase();
+function toolFromPayload(
+  payload: Record<string, unknown>,
+  providerPhone?: string | null,
+  existing?: Partial<ConciergeExecutionTask> | null,
+): ConciergeToolRequirement {
+  const channel = clean(
+    payload.execution_channel
+      || payload.active_tool
+      || payload.requested_tool
+      || payload.preferred_channel
+      || existing?.active_tool
+      || existing?.requested_tool,
+  ).toLowerCase();
   if (channel === "phone" || channel === "phone_call" || channel === "call") return "phone_call";
   if (channel === "email") return "email";
   if (channel === "whatsapp") return "whatsapp";
@@ -263,7 +274,7 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
   }));
   if (requirements.needsProvider && !providerReady) missingRequirements.unshift(missingProviderRequirement());
 
-  const requestedTool = toolFromPayload(payload, input.providerPhone);
+  const requestedTool = toolFromPayload(payload, input.providerPhone, existing);
   const actionType = actionTypeFromPayload(input.useCase, requirements.flowReference, payload, requestedTool);
   const channelReadiness = input.channelReadiness
     ?? existing?.channel_readiness
