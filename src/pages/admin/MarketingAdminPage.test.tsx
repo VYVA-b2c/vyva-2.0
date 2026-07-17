@@ -5094,6 +5094,14 @@ describe("MarketingAdminPage", () => {
     expect(linkedinHandoffBrief.value).toContain("CTA: Read more - https://v2.vyva.life/partners");
     expect(linkedinHandoffBrief.value).toContain("Media:\n- https://cdn.example.test/partner.png");
     expect(linkedinHandoffBrief.value).toContain("Lovable content ID: lovable-content-2");
+    expect(screen.getByTestId("button-marketing-copy-publish-copy-linkedin")).toHaveTextContent("Copy publish copy");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-publish-copy-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Partner update"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Read more: https://v2.vyva.life/partners"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Media refs:\n- https://cdn.example.test/partner.png"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("LinkedIn publish copy copied.");
     fireEvent.click(screen.getByTestId("button-marketing-copy-handoff-brief-linkedin"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Channel: LinkedIn"));

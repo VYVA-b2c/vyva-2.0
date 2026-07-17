@@ -2559,6 +2559,30 @@ function campaignChannelHandoffBrief(
   return lines.filter(Boolean).join("\n\n");
 }
 
+function campaignChannelPublishCopy(
+  channel: Channel,
+  contentAsset: ContentAsset,
+  linkedAssets: MarketingMediaAsset[],
+) {
+  const designBlocks = collectDesignPreviewBlocks(contentAsset.designJson ?? {});
+  const leadBlock = designBlocks.find((block) => block.title || block.body || block.ctaLabel || block.ctaUrl) ?? null;
+  const mediaUrls = contentMediaPreviewUrls(contentAsset, linkedAssets);
+  const hook = contentAsset.subject || leadBlock?.title || "";
+  const body = contentAsset.body || plainTextFromHtml(contentAsset.htmlBody) || leadBlock?.body || "";
+  const ctaLabel = contentAsset.ctaLabel || leadBlock?.ctaLabel || "";
+  const ctaUrl = contentAsset.ctaUrl || leadBlock?.ctaUrl || "";
+  const includeSubject = channel === "email";
+  const cta = ctaLabel || ctaUrl ? `${ctaLabel || "Learn more"}${ctaUrl ? `: ${ctaUrl}` : ""}` : "";
+  const lines = [
+    includeSubject && hook ? `Subject: ${hook}` : "",
+    !includeSubject && hook && hook.trim() !== body.trim() ? hook : "",
+    body,
+    cta,
+    mediaUrls.length ? `Media refs:\n${mediaUrls.map((url) => `- ${url}`).join("\n")}` : "",
+  ].filter(Boolean);
+  return (lines.length ? lines : [contentAsset.title]).join("\n\n");
+}
+
 function isPreviewableImageUrl(url: string) {
   return /^data:image\//i.test(url) || /\.(png|jpe?g|gif|webp|avif|svg)(?:[?#].*)?$/i.test(url);
 }
@@ -22235,6 +22259,9 @@ export default function MarketingAdminPage() {
                             const handoffBrief = item.contentAsset
                               ? campaignChannelHandoffBrief(editingCampaign, item.channel, item.contentAsset, linkedMediaAssets, item.recipients, item.scheduledAt)
                               : "";
+                            const publishCopy = item.contentAsset
+                              ? campaignChannelPublishCopy(item.channel, item.contentAsset, linkedMediaAssets)
+                              : "";
                             return (
                               <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-publish-kit-${item.channel}`}>
                                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -22262,14 +22289,25 @@ export default function MarketingAdminPage() {
                                       <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                                         {item.channel === "email" ? "VYVA send brief" : "Manual channel brief"}
                                       </p>
-                                      <button
-                                        type="button"
-                                        onClick={() => void copyCampaignHandoffBrief(item.channel, handoffBrief)}
-                                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 hover:bg-purple-100"
-                                        data-testid={`button-marketing-copy-handoff-brief-${item.channel}`}
-                                      >
-                                        <Copy size={14} /> Copy brief
-                                      </button>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => void copyCampaignHandoffText(`${channelLabel[item.channel]} publish copy`, publishCopy)}
+                                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                          data-testid={`button-marketing-copy-publish-copy-${item.channel}`}
+                                          disabled={!publishCopy.trim()}
+                                        >
+                                          <Copy size={14} /> Copy publish copy
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => void copyCampaignHandoffBrief(item.channel, handoffBrief)}
+                                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 hover:bg-purple-100"
+                                          data-testid={`button-marketing-copy-handoff-brief-${item.channel}`}
+                                        >
+                                          <Copy size={14} /> Copy brief
+                                        </button>
+                                      </div>
                                     </div>
                                     <textarea
                                       readOnly
