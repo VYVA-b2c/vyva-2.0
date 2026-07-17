@@ -54,6 +54,15 @@ function resetChannelEnv() {
     "CONCIERGE_FORM_APPLICATION_QA_URL",
     "CONCIERGE_DOCUMENT_UPLOAD_QA_ENDPOINT",
     "CONCIERGE_DOCUMENT_UPLOAD_QA_URL",
+    "CONCIERGE_EMAIL_OWNED_ADAPTER_ENABLED",
+    "CONCIERGE_EMAIL_INTERNAL_ADAPTER_ENABLED",
+    "CONCIERGE_EMAIL_PILOT_RECIPIENTS",
+    "CONCIERGE_EMAIL_PILOT_RECIPIENT",
+    "CONCIERGE_EMAIL_PILOT_ALLOWLIST",
+    "CONCIERGE_EMAIL_LIVE_ALLOWLIST",
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL",
+    "NOTIFY_FROM_EMAIL",
   ].forEach((key) => {
     delete process.env[key];
   });
@@ -97,6 +106,41 @@ describe("admin Concierge channel readiness", () => {
     expect(JSON.stringify(snapshot)).not.toContain("super-secret-elevenlabs-key");
     expect(JSON.stringify(snapshot)).not.toContain("agent-secret");
     expect(JSON.stringify(snapshot)).not.toContain("phone-secret");
+  });
+
+  it("returns owned email pilot readiness without exposing provider secrets or pilot inboxes", async () => {
+    process.env.CONCIERGE_EMAIL_OWNED_ADAPTER_ENABLED = "true";
+    process.env.RESEND_API_KEY = "re_super_secret";
+    process.env.RESEND_FROM_EMAIL = "concierge@vyva.life";
+    process.env.CONCIERGE_EMAIL_PILOT_RECIPIENTS = "pilot-inbox@vyva.life";
+    process.env.CONCIERGE_EMAIL_QA_RECIPIENT = "concierge@example.test";
+    dbMock.pool.query.mockResolvedValue({ rows: [] });
+
+    const snapshot = await buildAdminConciergeChannelReadinessSnapshot();
+    const email = snapshot.channels.find((channel) => channel.channel === "email");
+
+    expect(email).toMatchObject({
+      configured: true,
+      verified: false,
+      ready: false,
+      external_action_allowed: false,
+      adapter_setup: {
+        configured: true,
+        source: "environment",
+        live_endpoint_configured: true,
+        live_endpoint_url: null,
+        live_endpoint_reference: "CONCIERGE_EMAIL_OWNED_ADAPTER_ENABLED",
+        credential_reference: "RESEND_API_KEY",
+        qa_target_configured: true,
+        qa_target: null,
+        qa_target_reference: "CONCIERGE_EMAIL_QA_RECIPIENT",
+      },
+      probe: {
+        status: "not_run",
+      },
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("re_super_secret");
+    expect(JSON.stringify(snapshot)).not.toContain("pilot-inbox@vyva.life");
   });
 
   it("rejects marking a channel live-ready before setup is configured", async () => {

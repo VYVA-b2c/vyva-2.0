@@ -9,6 +9,12 @@ import {
   conciergeProviderContactForChannel,
 } from "../../shared/conciergeAdapterPayloadContract.js";
 import type { ConciergeToolRequirement } from "../../shared/conciergeFlowRegistry.js";
+import {
+  conciergeEmailPilotRecipientBlocker,
+  isOwnedConciergeEmailAdapterEnabled,
+  ownedConciergeEmailAdapterBlockers,
+  sendOwnedConciergeEmailAdapter,
+} from "./conciergeEmailAdapter.js";
 
 export type ConciergeActionAdapterMode = "dry_run" | "probe" | "live";
 
@@ -372,6 +378,33 @@ async function postJsonAdapterEndpoint(
   );
 }
 
+async function executeOwnedEmailLive(input: ConciergeActionAdapterInput): Promise<ConciergeActionAdapterResult> {
+  const channel = "email";
+  const providerContact = conciergeProviderContactForChannel(channel, input);
+  if (!providerContact) return blockedResult(input, channel, "pilot_email_recipient_missing");
+  const pilotRecipientBlocker = conciergeEmailPilotRecipientBlocker(providerContact);
+  if (pilotRecipientBlocker) return blockedResult(input, channel, pilotRecipientBlocker);
+
+  const configBlockers = ownedConciergeEmailAdapterBlockers();
+  if (configBlockers.length) {
+    return failedResult(input, channel, configBlockers.join(" "));
+  }
+
+  try {
+    const result = await sendOwnedConciergeEmailAdapter({
+      payload: input.payload,
+      providerName: input.providerName,
+      recipient: providerContact,
+      summary: input.summary,
+      pendingId: input.pendingId,
+      userId: input.userId,
+    });
+    return sentResult(input, channel, result.id, result.status === "logged" ? "logged" : "sent");
+  } catch (error) {
+    return failedResult(input, channel, error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function executePhoneLive(input: ConciergeActionAdapterInput): Promise<ConciergeActionAdapterResult> {
   const channel = "phone_call";
   const config = outboundPhoneConfig();
@@ -421,6 +454,7 @@ async function executeLive(input: ConciergeActionAdapterInput, channel: Concierg
   }
 
   if (channel === "phone_call") return executePhoneLive(input);
+  if (channel === "email" && isOwnedConciergeEmailAdapterEnabled()) return executeOwnedEmailLive(input);
   return postJsonAdapterEndpoint(input, channel);
 }
 

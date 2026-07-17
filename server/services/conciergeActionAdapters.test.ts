@@ -90,6 +90,15 @@ function clearConciergeEnv() {
     "CONCIERGE_WHATSAPP_LIVE_ENDPOINT",
     "CONCIERGE_FORM_APPLICATION_LIVE_ENDPOINT",
     "CONCIERGE_DOCUMENT_UPLOAD_LIVE_ENDPOINT",
+    "CONCIERGE_EMAIL_OWNED_ADAPTER_ENABLED",
+    "CONCIERGE_EMAIL_INTERNAL_ADAPTER_ENABLED",
+    "CONCIERGE_EMAIL_PILOT_RECIPIENTS",
+    "CONCIERGE_EMAIL_PILOT_RECIPIENT",
+    "CONCIERGE_EMAIL_PILOT_ALLOWLIST",
+    "CONCIERGE_EMAIL_LIVE_ALLOWLIST",
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL",
+    "NOTIFY_FROM_EMAIL",
   ].forEach((key) => {
     delete process.env[key];
   });
@@ -213,6 +222,99 @@ describe("Concierge action adapters", () => {
       expect(result.blocker, spec.channel).toContain("adapter_payload_missing_provider_contact");
       expect(globalThis.fetch, spec.channel).not.toHaveBeenCalled();
     }
+  });
+
+  it("sends live email through the owned pilot adapter only after confirmation", async () => {
+    const spec = channelSpecs.find((item) => item.channel === "email");
+    if (!spec) throw new Error("Missing email channel spec");
+    process.env.CONCIERGE_EMAIL_OWNED_ADAPTER_ENABLED = "true";
+    process.env.CONCIERGE_EMAIL_PILOT_RECIPIENTS = "pilot-inbox@vyva.life";
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.RESEND_FROM_EMAIL = "concierge@vyva.life";
+
+    const unconfirmed = await executeConciergeActionAdapter(adapterInput(spec, {
+      userConfirmed: false,
+      payload: {
+        execution_channel: "email",
+        provider_email: "pilot-inbox@vyva.life",
+        email_subject: "Pilot appointment request",
+        email_body: "Please confirm this controlled pilot request.",
+      },
+    }));
+
+    expect(unconfirmed).toMatchObject({
+      status: "blocked",
+      blocker: "user_confirmation_required",
+      external_action_allowed: false,
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({ id: "resend-email-1" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    const result = await executeConciergeActionAdapter(adapterInput(spec, {
+      payload: {
+        execution_channel: "email",
+        provider_email: "pilot-inbox@vyva.life",
+        email_subject: "Pilot appointment request",
+        email_body: "Please confirm this controlled pilot request.",
+      },
+    }));
+
+    expect(result).toMatchObject({
+      adapter: "concierge_email_adapter",
+      mode: "live",
+      channel: "email",
+      status: "sent",
+      result: "sent",
+      result_id: "resend-email-1",
+      external_action_allowed: true,
+      provider_contact: "pilot-inbox@vyva.life",
+    });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = vi.mocked(globalThis.fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.resend.com/emails");
+    expect(init.headers).toMatchObject({
+      Authorization: "Bearer re_test_key",
+      "Content-Type": "application/json",
+    });
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      from: "VYVA <concierge@vyva.life>",
+      to: ["pilot-inbox@vyva.life"],
+      subject: "Pilot appointment request",
+      reply_to: "concierge@vyva.life",
+    });
+    expect(String(JSON.parse(String(init.body)).text)).toContain("Sent by VYVA Concierge after explicit user confirmation.");
+  });
+
+  it("blocks the owned email pilot adapter before provider contact when the recipient is outside the allowlist", async () => {
+    const spec = channelSpecs.find((item) => item.channel === "email");
+    if (!spec) throw new Error("Missing email channel spec");
+    process.env.CONCIERGE_EMAIL_OWNED_ADAPTER_ENABLED = "true";
+    process.env.CONCIERGE_EMAIL_PILOT_RECIPIENTS = "pilot-inbox@vyva.life";
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.RESEND_FROM_EMAIL = "concierge@vyva.life";
+
+    const result = await executeConciergeActionAdapter(adapterInput(spec, {
+      payload: {
+        execution_channel: "email",
+        provider_email: "real-clinic@example.org",
+        email_subject: "Pilot appointment request",
+        email_body: "Please confirm this controlled pilot request.",
+      },
+    }));
+
+    expect(result).toMatchObject({
+      mode: "live",
+      channel: "email",
+      status: "blocked",
+      result: "blocked",
+      blocker: "pilot_email_recipient_not_allowlisted",
+      external_action_allowed: false,
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("returns failed live results for every channel when the live provider request fails", async () => {
