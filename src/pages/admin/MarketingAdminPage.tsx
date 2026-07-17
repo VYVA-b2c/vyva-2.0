@@ -92,6 +92,13 @@ type ConsentStatus = typeof CONSENT_STATUSES[number];
 type ContentLocalizationLanguage = typeof CONTENT_LOCALIZATION_LANGUAGES[number]["value"];
 type CountOption = { value: string; label: string; count: number };
 
+const CAMPAIGN_STUDIO_ROUTE_FAMILIES: Array<{ key: string; title: string; detail: string; channels: Channel[] }> = [
+  { key: "email", title: "Email", detail: "Send-ready campaign route through VYVA when content and recipients are ready.", channels: ["email"] },
+  { key: "direct", title: "Direct", detail: "Private follow-up routes for warm contacts and care-team nudges.", channels: ["whatsapp", "sms", "phone"] },
+  { key: "social", title: "Social", detail: "Public or semi-public awareness routes for LinkedIn, Facebook, Instagram, and TikTok.", channels: ["linkedin", "facebook", "instagram", "tiktok"] },
+  { key: "offline", title: "Offline / event", detail: "Human handoff, print, venue, and local activity support routes.", channels: ["print", "event", "phone"] },
+];
+
 const campaignPlannerChannelPacks: Array<{ id: string; label: string; detail: string; channels: Channel[] }> = [
   { id: "email", label: "Email", detail: "Send-ready VYVA email route.", channels: ["email"] },
   { id: "care-team", label: "Email + WhatsApp", detail: "Direct nurture plus quick follow-up.", channels: ["email", "whatsapp"] },
@@ -766,6 +773,18 @@ type CampaignStudioChannelRouteItem = {
   sendMode: string;
   detail: string;
   state: CampaignReadinessState;
+};
+
+type CampaignStudioRouteFamilyCoverageItem = {
+  key: string;
+  title: string;
+  detail: string;
+  selectedChannels: Channel[];
+  bestChannel: Channel;
+  bestReach: number;
+  reusableAssets: number;
+  state: CampaignReadinessState;
+  actionLabel: string;
 };
 
 type CampaignStudioLaunchTimelineItem = {
@@ -11170,6 +11189,46 @@ export default function MarketingAdminPage() {
     selectedCampaignStudioPlay,
     sendCapabilityByChannel,
   ]);
+  const campaignStudioRouteFamilyCoverage = useMemo<CampaignStudioRouteFamilyCoverageItem[]>(() => (
+    CAMPAIGN_STUDIO_ROUTE_FAMILIES.map((family) => {
+      const routes = family.channels
+        .map((channel) => campaignStudioChannelRouteBoard.find((route) => route.channel === channel) ?? null)
+        .filter((route): route is CampaignStudioChannelRouteItem => Boolean(route));
+      const selectedRoutes = routes.filter((route) => route.selected);
+      const bestRoute = [...routes].sort((a, b) => {
+        const selectedDelta = Number(b.selected) - Number(a.selected);
+        if (selectedDelta) return selectedDelta;
+        if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
+        const assetDelta = (b.starterTemplates + b.savedAssets) - (a.starterTemplates + a.savedAssets);
+        if (assetDelta) return assetDelta;
+        return family.channels.indexOf(a.channel) - family.channels.indexOf(b.channel);
+      })[0] ?? campaignStudioChannelRouteBoard[0];
+      const reusableAssets = routes.reduce((total, route) => total + route.starterTemplates + route.savedAssets, 0);
+      const selectedChannels = selectedRoutes.map((route) => route.channel);
+      const covered = selectedChannels.length > 0;
+      const state: CampaignReadinessState = covered
+        ? selectedRoutes.some((route) => route.reachableContacts > 0) ? "ready" : "planning"
+        : bestRoute?.reachableContacts > 0 || reusableAssets > 0 ? "needs_action" : "planning";
+      const actionLabel = covered
+        ? `Covered by ${formatChannelList(selectedChannels)}`
+        : bestRoute
+          ? `Add ${channelLabel[bestRoute.channel]}`
+          : "Review routes";
+      return {
+        key: family.key,
+        title: family.title,
+        detail: covered
+          ? `${formatChannelList(selectedChannels)} selected. Best selected route reaches ${Math.max(...selectedRoutes.map((route) => route.reachableContacts), 0)} contact${Math.max(...selectedRoutes.map((route) => route.reachableContacts), 0) === 1 ? "" : "s"}.`
+          : `${family.detail} Best candidate: ${bestRoute ? channelLabel[bestRoute.channel] : "none yet"}.`,
+        selectedChannels,
+        bestChannel: bestRoute?.channel ?? family.channels[0],
+        bestReach: bestRoute?.reachableContacts ?? 0,
+        reusableAssets,
+        state,
+        actionLabel,
+      };
+    })
+  ), [campaignStudioChannelRouteBoard]);
   const campaignDraftLaunchPreviewItems = useMemo(() => campaignDraftSelectedChannels.map((channel) => {
     const contentAsset = selectedCampaignDraftContentByChannel.get(channel) ?? null;
     const capability = sendCapabilityByChannel.get(channel);
@@ -12818,6 +12877,11 @@ export default function MarketingAdminPage() {
           ? `${channelLabel[channel]} added to the campaign route plan.`
           : `${channelLabel[channel]} removed from the campaign route plan.`,
     );
+  }
+
+  function addCampaignStudioRouteFamily(family: CampaignStudioRouteFamilyCoverageItem) {
+    updateCampaignStudioRoute(family.bestChannel, "add");
+    setCampaignStudioFeedback(`${family.title} coverage added with ${channelLabel[family.bestChannel]}. Review the route board before creating the campaign.`);
   }
 
   function applyCampaignStudioRecommendedPack() {
@@ -18658,6 +18722,61 @@ export default function MarketingAdminPage() {
                             <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-launch-kit-coverage">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Launch kit coverage</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">See whether this campaign has email, direct, social, and offline/event support before you create it.</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">
+                            {campaignStudioRouteFamilyCoverage.filter((item) => item.selectedChannels.length > 0).length}/{campaignStudioRouteFamilyCoverage.length} covered
+                          </Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 xl:grid-cols-4">
+                          {campaignStudioRouteFamilyCoverage.map((family) => {
+                            const covered = family.selectedChannels.length > 0;
+                            return (
+                              <article
+                                key={family.key}
+                                className={`rounded-xl border p-3 ${readinessClass(family.state)}`}
+                                data-testid={`marketing-campaign-studio-launch-kit-coverage-${family.key}`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-sm font-black text-[#241133]">{family.title}</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{family.detail}</p>
+                                  </div>
+                                  <Pill className={readinessPillClass(family.state)}>{covered ? "Covered" : readinessLabel(family.state)}</Pill>
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                  {(covered ? family.selectedChannels : [family.bestChannel]).map((channel) => (
+                                    <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                  ))}
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-[#6b5b54]">
+                                  <div className="rounded-lg bg-[#fffaf4] px-2 py-2">
+                                    <span className="block text-[11px] font-black uppercase tracking-[0.08em] text-[#8a7168]">Best reach</span>
+                                    <span className="mt-1 block text-sm font-black text-[#241133]">{family.bestReach}</span>
+                                  </div>
+                                  <div className="rounded-lg bg-[#fffaf4] px-2 py-2">
+                                    <span className="block text-[11px] font-black uppercase tracking-[0.08em] text-[#8a7168]">Reusable</span>
+                                    <span className="mt-1 block text-sm font-black text-[#241133]">{family.reusableAssets}</span>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => addCampaignStudioRouteFamily(family)}
+                                  disabled={covered}
+                                  className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  data-testid={`button-marketing-campaign-studio-launch-kit-coverage-${family.key}`}
+                                >
+                                  {family.actionLabel}
+                                </button>
+                              </article>
+                            );
+                          })}
+                        </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-violet-200 bg-white p-3" data-testid="marketing-campaign-studio-ai-command-brief">
                         <div className="flex flex-wrap items-start justify-between gap-3">

@@ -4101,12 +4101,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-route-linkedin")).toHaveTextContent("Selected");
     expect(screen.getByTestId("marketing-campaign-studio-channel-route-linkedin")).toHaveTextContent("Primary");
     expect(screen.getByTestId("marketing-campaign-studio-channel-route-email")).toHaveTextContent("VYVA send");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-kit-coverage")).toHaveTextContent("Launch kit coverage");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-kit-coverage-social")).toHaveTextContent("Covered");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-kit-coverage-email")).toHaveTextContent("Add Email");
 
-    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-route-toggle-email"));
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-launch-kit-coverage-email"));
 
-    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Email added to the campaign route plan.");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Email coverage added with Email.");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
     expect(screen.getByTestId("marketing-campaign-studio-channel-route-email")).toHaveTextContent("Selected");
+    expect(screen.getByTestId("marketing-campaign-studio-launch-kit-coverage-email")).toHaveTextContent("Covered");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-route-primary-email"));
 
