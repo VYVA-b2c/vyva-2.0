@@ -11575,6 +11575,8 @@ export default function MarketingAdminPage() {
       : "Ready to create";
   const campaignStudioNextStep = campaignStudioBlockedCount > 0
     ? "Add or sync eligible contacts, choose a different list, or change the channel before creating."
+    : campaignStudioCanOptimizeReach
+      ? `Use ${channelLabel[campaignStudioBestChannelReach.channel]} as the primary route before polishing or creating this campaign.`
     : !campaignStudioHasFullAiPack
       ? campaignStudioSelectedChannels.length > 1
         ? "Improve the full channel pack with AI, or create the campaign now from proven templates."
@@ -11602,6 +11604,18 @@ export default function MarketingAdminPage() {
           ? `Reviewing list "${selectedCampaignStudioTargetAudience.name}" before campaign creation.`
           : "Review contacts before choosing a campaign audience.");
       },
+    },
+    {
+      key: "reach",
+      title: campaignStudioCanOptimizeReach ? `Use ${channelLabel[campaignStudioBestChannelReach.channel]} as the primary route` : "Primary route has best reach",
+      state: campaignStudioCanOptimizeReach ? "needs_action" : campaignStudioRecipientPreview.length > 0 ? "ready" : "planning",
+      detail: campaignStudioCanOptimizeReach
+        ? `${channelLabel[campaignStudio.channel]} reaches ${campaignStudioPrimaryChannelReach}; ${channelLabel[campaignStudioBestChannelReach.channel]} reaches ${campaignStudioBestChannelReach.count} matching contact${campaignStudioBestChannelReach.count === 1 ? "" : "s"}.`
+        : `${channelLabel[campaignStudio.channel]} is the strongest available primary route for this audience.`,
+      actionLabel: campaignStudioCanOptimizeReach ? `Use ${channelLabel[campaignStudioBestChannelReach.channel]} route` : "Keep route",
+      icon: Waypoints,
+      disabled: !campaignStudioCanOptimizeReach,
+      onSelect: applyCampaignStudioBestReachChannel,
     },
     {
       key: "copy",
@@ -11657,6 +11671,8 @@ export default function MarketingAdminPage() {
     ? campaignStudioLaunchSteps.find((step) => step.state === "blocked" && step.key !== "create" && !step.disabled)
       ?? campaignStudioLaunchSteps.find((step) => step.key === "audience")
       ?? campaignStudioLaunchSteps[0]
+    : campaignStudioCanOptimizeReach
+      ? campaignStudioLaunchSteps.find((step) => step.key === "reach") ?? campaignStudioLaunchSteps[0]
     : !campaignStudioHasFullAiPack
       ? campaignStudioLaunchSteps.find((step) => step.key === "copy") ?? campaignStudioLaunchSteps[0]
       : campaignStudioLaunchSteps.find((step) => step.key === "create") ?? campaignStudioLaunchSteps[0];
@@ -11666,6 +11682,8 @@ export default function MarketingAdminPage() {
       ?? campaignStudioLaunchSteps.find((step) => step.key === "review");
   const campaignStudioLaunchAssistantTitle = campaignStudioBlockedCount > 0
     ? "Fix the campaign blocker"
+    : campaignStudioPrimaryLaunchStep.key === "reach"
+      ? "Switch to the strongest route"
     : campaignStudioPrimaryLaunchStep.key === "copy"
       ? "Polish this into a stronger campaign"
       : campaignStudioHasEmailChannel
@@ -11673,6 +11691,8 @@ export default function MarketingAdminPage() {
         : "Create the planning record";
   const campaignStudioLaunchAssistantDetail = campaignStudioBlockedCount > 0
     ? "VYVA found a blocker before campaign records can be created. Start with the highlighted action, then return here."
+    : campaignStudioPrimaryLaunchStep.key === "reach"
+      ? `${channelLabel[campaignStudioBestChannelReach.channel]} has better reach for this audience than ${channelLabel[campaignStudio.channel]}. Apply it first, then polish or create.`
     : campaignStudioPrimaryLaunchStep.key === "copy"
       ? `AI can adapt the ${campaignStudioSelectedChannels.length === 1 ? channelLabel[campaignStudio.channel] : `${campaignStudioSelectedChannels.length}-channel`} draft for the selected audience, tone, and angle.`
       : campaignStudioHasEmailChannel

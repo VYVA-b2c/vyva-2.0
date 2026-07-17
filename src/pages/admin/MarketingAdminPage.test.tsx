@@ -3734,6 +3734,9 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-channel"), { target: { value: "tiktok" } });
     expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Switch to LinkedIn before creating this campaign.");
     expect(screen.getByTestId("button-marketing-campaign-studio-use-best-channel")).toHaveTextContent("Use LinkedIn route");
+    expect(screen.getByTestId("marketing-campaign-studio-command-title")).toHaveTextContent("Switch to the strongest route");
+    expect(screen.getByTestId("marketing-campaign-studio-command-detail")).toHaveTextContent("Use LinkedIn as the primary route");
+    expect(screen.getByTestId("button-marketing-campaign-studio-command-primary")).toHaveTextContent("Use LinkedIn route");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-use-best-channel"));
     expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("linkedin");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Primary route switched to LinkedIn for better reach (1 reachable contact).");
