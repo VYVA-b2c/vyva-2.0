@@ -755,6 +755,19 @@ type CampaignExecutionPlanItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignStudioChannelRouteItem = {
+  channel: Channel;
+  selected: boolean;
+  primary: boolean;
+  recommended: boolean;
+  reachableContacts: number;
+  starterTemplates: number;
+  savedAssets: number;
+  sendMode: string;
+  detail: string;
+  state: CampaignReadinessState;
+};
+
 type CampaignStudioLaunchTimelineItem = {
   key: Channel;
   channel: Channel;
@@ -11090,6 +11103,73 @@ export default function MarketingAdminPage() {
     () => new Map(syncState.lockedSendCapabilities.map((item) => [item.channel, item])),
     [syncState.lockedSendCapabilities],
   );
+  const campaignStudioChannelRouteBoard = useMemo<CampaignStudioChannelRouteItem[]>(() => (
+    CHANNELS.map((channel) => {
+      const selected = campaignStudioSelectedChannels.includes(channel);
+      const primary = campaignStudio.channel === channel;
+      const reachableContacts = campaignStudioChannelReach.find((item) => item.channel === channel)?.count ?? 0;
+      const starterTemplates = contentTemplateGallery.filter((template) => (
+        template.channel === channel
+        && (
+          template.audienceType === selectedCampaignStudioPlay.audienceType
+          || template.audienceType === "both"
+          || selectedCampaignStudioPlay.audienceType === "both"
+        )
+      )).length;
+      const savedAssets = content.filter((item) => item.channel === channel && item.status !== "archived").length;
+      const capability = sendCapabilityByChannel.get(channel);
+      const sendCapability = capability?.sendCapability ?? (channel === "email" ? "enabled" : "planning_only");
+      const emailEnabled = channel === "email" && sendCapability === "enabled" && capability?.locked !== true;
+      const futureSendCapable = sendCapability === "future_send_capable";
+      const recommended = campaignStudioRecommendedChannels.includes(channel) || selectedCampaignStudioPlay.defaultChannel === channel;
+      const state: CampaignReadinessState = selected
+        ? reachableContacts > 0
+          ? emailEnabled
+            ? "ready"
+            : futureSendCapable
+              ? "needs_action"
+              : "planning"
+          : "blocked"
+        : reachableContacts > 0 && (starterTemplates > 0 || savedAssets > 0)
+          ? "planning"
+          : "needs_action";
+      const sendMode = emailEnabled
+        ? "VYVA send"
+        : futureSendCapable
+          ? "Provider-ready later"
+          : "Manual handoff";
+      const detail = reachableContacts > 0
+        ? `${reachableContacts} reachable contact${reachableContacts === 1 ? "" : "s"}; ${starterTemplates + savedAssets} reusable asset${starterTemplates + savedAssets === 1 ? "" : "s"} available.`
+        : `No reachable contacts for ${channelLabel[channel]} in the selected audience.`;
+      return {
+        channel,
+        selected,
+        primary,
+        recommended,
+        reachableContacts,
+        starterTemplates,
+        savedAssets,
+        sendMode,
+        detail,
+        state,
+      };
+    }).sort((a, b) => {
+      const selectedDelta = Number(b.selected) - Number(a.selected);
+      if (selectedDelta) return selectedDelta;
+      const recommendedDelta = Number(b.recommended) - Number(a.recommended);
+      if (recommendedDelta) return recommendedDelta;
+      if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
+      return CHANNELS.indexOf(a.channel) - CHANNELS.indexOf(b.channel);
+    })
+  ), [
+    campaignStudio.channel,
+    campaignStudioChannelReach,
+    campaignStudioRecommendedChannels,
+    campaignStudioSelectedChannels,
+    content,
+    selectedCampaignStudioPlay,
+    sendCapabilityByChannel,
+  ]);
   const campaignDraftLaunchPreviewItems = useMemo(() => campaignDraftSelectedChannels.map((channel) => {
     const contentAsset = selectedCampaignDraftContentByChannel.get(channel) ?? null;
     const capability = sendCapabilityByChannel.get(channel);
@@ -12704,6 +12784,40 @@ export default function MarketingAdminPage() {
     });
     setCampaignStudioAiDrafts({});
     setCampaignStudioFeedback("");
+  }
+
+  function updateCampaignStudioRoute(channel: Channel, action: "add" | "remove" | "primary") {
+    setCampaignStudio((current) => {
+      const selectedChannels = normalizeCampaignStudioChannels(current.channel, current.selectedChannels);
+      if (action === "primary") {
+        return {
+          ...current,
+          channel,
+          selectedChannels: uniqueChannels([channel, ...selectedChannels]),
+        };
+      }
+      if (action === "add") {
+        return {
+          ...current,
+          selectedChannels: uniqueChannels([...selectedChannels, channel]),
+        };
+      }
+      if (selectedChannels.length <= 1) return current;
+      const nextChannels = selectedChannels.filter((item) => item !== channel);
+      return {
+        ...current,
+        channel: current.channel === channel ? nextChannels[0] ?? current.channel : current.channel,
+        selectedChannels: nextChannels,
+      };
+    });
+    setCampaignStudioAiDrafts({});
+    setCampaignStudioFeedback(
+      action === "primary"
+        ? `${channelLabel[channel]} is now the primary campaign route.`
+        : action === "add"
+          ? `${channelLabel[channel]} added to the campaign route plan.`
+          : `${channelLabel[channel]} removed from the campaign route plan.`,
+    );
   }
 
   function applyCampaignStudioRecommendedPack() {
@@ -19036,6 +19150,77 @@ export default function MarketingAdminPage() {
                             </button>
                           );
                         })}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-channel-route-board">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Channel route board</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Choose routes by actual reach, available templates, and whether VYVA can send or needs a handoff.</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">
+                            {campaignStudioSelectedChannels.length} selected / {campaignStudioChannelRouteBoard.filter((item) => item.reachableContacts > 0).length} reachable
+                          </Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                          {campaignStudioChannelRouteBoard.map((route) => {
+                            const removeDisabled = route.selected && campaignStudioSelectedChannels.length <= 1;
+                            return (
+                              <article
+                                key={route.channel}
+                                className={`rounded-xl border p-3 ${readinessClass(route.state)} ${route.primary ? "ring-2 ring-purple-300" : ""}`}
+                                data-testid={`marketing-campaign-studio-channel-route-${route.channel}`}
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <Pill className={channelClass(route.channel)}>{channelLabel[route.channel]}</Pill>
+                                      {route.primary ? <Pill className="bg-purple-700 text-white">Primary</Pill> : null}
+                                      {route.selected ? <Pill className="bg-white text-purple-800">Selected</Pill> : null}
+                                      {route.recommended ? <Pill className="bg-amber-50 text-amber-800">Recommended</Pill> : null}
+                                    </div>
+                                    <p className="mt-2 text-sm font-black text-[#241133]">{route.sendMode}</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{route.detail}</p>
+                                  </div>
+                                  <Pill className={readinessPillClass(route.state)}>{readinessLabel(route.state)}</Pill>
+                                </div>
+                                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                                  <div className="rounded-lg bg-white px-3 py-2">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#8a7168]">Reach</p>
+                                    <p className="mt-1 text-sm font-black text-[#241133]">{route.reachableContacts}</p>
+                                  </div>
+                                  <div className="rounded-lg bg-white px-3 py-2">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#8a7168]">Templates</p>
+                                    <p className="mt-1 text-sm font-black text-[#241133]">{route.starterTemplates}</p>
+                                  </div>
+                                  <div className="rounded-lg bg-white px-3 py-2">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#8a7168]">Assets</p>
+                                    <p className="mt-1 text-sm font-black text-[#241133]">{route.savedAssets}</p>
+                                  </div>
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateCampaignStudioRoute(route.channel, route.selected ? "remove" : "add")}
+                                    disabled={removeDisabled}
+                                    className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black transition focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${route.selected ? "border border-[#eadfd5] bg-white text-[#5b4a46] hover:border-purple-200" : "bg-purple-700 text-white hover:bg-purple-800"}`}
+                                    data-testid={`button-marketing-campaign-studio-route-toggle-${route.channel}`}
+                                  >
+                                    {route.selected ? "Remove route" : "Add route"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateCampaignStudioRoute(route.channel, "primary")}
+                                    disabled={route.primary}
+                                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                    data-testid={`button-marketing-campaign-studio-route-primary-${route.channel}`}
+                                  >
+                                    {route.primary ? "Primary route" : "Use as primary"}
+                                  </button>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
                       </div>
                       <div className="mt-3 grid gap-3 md:grid-cols-2" data-testid="marketing-campaign-studio-channel-pack-preview">
                         {campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {

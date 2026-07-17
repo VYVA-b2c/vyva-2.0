@@ -4089,6 +4089,37 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Channel launch timeline copied.");
   });
 
+  it("shows a channel route board and updates campaign studio routes", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-channel-route-board")).toHaveTextContent("Channel route board");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-route-linkedin")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-route-linkedin")).toHaveTextContent("Manual handoff");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-route-linkedin")).toHaveTextContent("Selected");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-route-linkedin")).toHaveTextContent("Primary");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-route-email")).toHaveTextContent("VYVA send");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-route-toggle-email"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Email added to the campaign route plan.");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-route-email")).toHaveTextContent("Selected");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-route-primary-email"));
+
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Email is now the primary campaign route.");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-route-email")).toHaveTextContent("Primary");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-route-toggle-linkedin"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("LinkedIn removed from the campaign route plan.");
+    expect(within(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).queryByText("LinkedIn")).not.toBeInTheDocument();
+  });
+
   it("turns relationship opportunities into campaign studio setup", async () => {
     renderPage();
 
