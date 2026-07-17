@@ -7880,6 +7880,10 @@ function countedOptions(values: Array<string | null | undefined>): CountOption[]
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function selectedOptionLabel(options: CountOption[], value: string) {
+  return options.find((option) => option.value === value)?.label ?? value;
+}
+
 function topCountLabels(values: Array<string | null | undefined>, fallback = "Unknown", limit = 2) {
   return countedOptions(values.map((value) => String(value ?? "").trim() || fallback))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
@@ -9238,6 +9242,7 @@ export default function MarketingAdminPage() {
   const [confirmingContactDeleteId, setConfirmingContactDeleteId] = useState<string | null>(null);
   const contactEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const [audienceDraft, setAudienceDraft] = useState<AudienceDraft>({ name: "", listType: "dynamic", description: "", rulesText: "{\n  \"market\": \"Spain\"\n}", contactExternalIds: "" });
+  const [filteredAudienceName, setFilteredAudienceName] = useState("");
   const [editingAudienceId, setEditingAudienceId] = useState<string | null>(null);
   const [audienceEditDraft, setAudienceEditDraft] = useState<AudienceEditDraft | null>(null);
   const [audienceSaving, setAudienceSaving] = useState(false);
@@ -10279,6 +10284,101 @@ export default function MarketingAdminPage() {
       + contactHealthPercent(contactHealthListed)
     ) / 4)
     : 0;
+  const activeContactFilterLabels = useMemo(() => {
+    const labels: string[] = [];
+    if (search.trim()) labels.push(`Search: ${search.trim()}`);
+    if (audienceFilter !== "all") labels.push(`Audience: ${audienceFilter.toUpperCase()}`);
+    if (contactSourceFilter !== "all") labels.push(`Source: ${selectedOptionLabel(contactSourceOptions, contactSourceFilter)}`);
+    if (contactConsentFilter !== "all") labels.push(`Consent: ${selectedOptionLabel(contactConsentOptions, contactConsentFilter)}`);
+    if (contactLanguageFilter !== "all") labels.push(`Language: ${selectedOptionLabel(contactLanguageOptions, contactLanguageFilter)}`);
+    if (contactCategoryFilter !== "all") labels.push(`Category: ${selectedOptionLabel(contactCategoryOptions, contactCategoryFilter)}`);
+    if (contactVerticalFilter !== "all") labels.push(`Vertical: ${selectedOptionLabel(contactVerticalOptions, contactVerticalFilter)}`);
+    if (contactMarketFilter !== "all") labels.push(`Market: ${selectedOptionLabel(contactMarketOptions, contactMarketFilter)}`);
+    if (contactListFilter !== "all") labels.push(`List: ${selectedOptionLabel(contactListOptions, contactListFilter)}`);
+    if (contactWorkQueueContactIds?.length) labels.push(`Work queue: ${contactWorkQueueContactIds.length} selected`);
+    return labels;
+  }, [
+    audienceFilter,
+    contactCategoryFilter,
+    contactCategoryOptions,
+    contactConsentFilter,
+    contactConsentOptions,
+    contactLanguageFilter,
+    contactLanguageOptions,
+    contactListFilter,
+    contactListOptions,
+    contactMarketFilter,
+    contactMarketOptions,
+    contactSourceFilter,
+    contactSourceOptions,
+    contactVerticalFilter,
+    contactVerticalOptions,
+    contactWorkQueueContactIds,
+    search,
+  ]);
+  const filteredAudienceDefaultName = useMemo(() => {
+    if (contactListFilter !== "all") return `${selectedOptionLabel(contactListOptions, contactListFilter)} segment`;
+    if (contactMarketFilter !== "all") return `${selectedOptionLabel(contactMarketOptions, contactMarketFilter)} contacts`;
+    if (contactVerticalFilter !== "all") return `${selectedOptionLabel(contactVerticalOptions, contactVerticalFilter)} contacts`;
+    if (contactCategoryFilter !== "all") return `${selectedOptionLabel(contactCategoryOptions, contactCategoryFilter)} contacts`;
+    if (audienceFilter !== "all") return `${audienceFilter.toUpperCase()} audience`;
+    if (search.trim()) return `Search: ${search.trim()}`;
+    if (contactWorkQueueContactIds?.length) return "Work queue audience";
+    return "Filtered marketing audience";
+  }, [audienceFilter, contactCategoryFilter, contactCategoryOptions, contactListFilter, contactListOptions, contactMarketFilter, contactMarketOptions, contactVerticalFilter, contactVerticalOptions, contactWorkQueueContactIds, search]);
+  const filteredAudienceMemberIds = useMemo(() => (
+    Array.from(new Set(visibleContacts.map(contactAudienceMemberId).filter(Boolean)))
+  ), [visibleContacts]);
+  const filteredAudienceRules = useMemo(() => {
+    const filters: Record<string, unknown> = {};
+    if (search.trim()) filters.search = search.trim();
+    if (audienceFilter !== "all") filters.audienceType = audienceFilter;
+    if (contactSourceFilter !== "all") filters.source = contactSourceFilter;
+    if (contactConsentFilter !== "all") filters.consentStatus = contactConsentFilter;
+    if (contactLanguageFilter !== "all") filters.language = contactLanguageFilter;
+    if (contactCategoryFilter !== "all") filters.category = contactCategoryFilter;
+    if (contactVerticalFilter !== "all") filters.vertical = contactVerticalFilter;
+    if (contactMarketFilter !== "all") filters.market = contactMarketFilter;
+    if (contactListFilter !== "all") filters.list = contactListFilter;
+    if (contactWorkQueueContactIds?.length) filters.workQueueContactIds = contactWorkQueueContactIds;
+    return {
+      source: "filtered_contact_view",
+      filters,
+      filterLabels: activeContactFilterLabels,
+      contactCount: contactHealthTotal,
+      reachableContacts: contactHealthDirectReachable,
+      emailReady: contactHealthEmailReachable,
+      whatsappReady: contactHealthWhatsappReachable,
+      consentReviewCount: contactHealthNeedsConsent,
+      segmentedContacts: contactHealthSegmented,
+      topMarkets: contactHealthTopMarkets,
+      topVerticals: contactHealthTopVerticals,
+      topLanguages: contactHealthTopLanguages,
+    };
+  }, [
+    activeContactFilterLabels,
+    audienceFilter,
+    contactCategoryFilter,
+    contactConsentFilter,
+    contactHealthDirectReachable,
+    contactHealthEmailReachable,
+    contactHealthNeedsConsent,
+    contactHealthSegmented,
+    contactHealthTopLanguages,
+    contactHealthTopMarkets,
+    contactHealthTopVerticals,
+    contactHealthTotal,
+    contactHealthWhatsappReachable,
+    contactLanguageFilter,
+    contactListFilter,
+    contactMarketFilter,
+    contactSourceFilter,
+    contactVerticalFilter,
+    contactWorkQueueContactIds,
+    search,
+  ]);
+  const filteredAudienceDescription = `${contactHealthTotal} filtered contact${contactHealthTotal === 1 ? "" : "s"}; ${contactHealthDirectReachable} reachable by email or WhatsApp; ${contactHealthNeedsConsent} need consent review.`;
+  const filteredAudienceRulesText = useMemo(() => jsonText(filteredAudienceRules), [filteredAudienceRules]);
   const contactConsentReviewFilter: ConsentStatus | null = contactHealthPending > 0
     ? "pending"
     : contactHealthUnknown > 0
@@ -17371,6 +17471,77 @@ export default function MarketingAdminPage() {
     });
     setAudienceFeedback(`${queue.title} queue loaded as a list with ${queue.countLabel}. Review and save the audience.`);
     setMessage(`${queue.title} queue loaded into the audience builder.`);
+  }
+
+  function loadFilteredAudienceIntoBuilder() {
+    if (visibleContacts.length === 0) {
+      const feedback = "No visible contacts match the current filters.";
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    setActiveTab("contacts");
+    setContactView("lists");
+    setEditingAudienceId(null);
+    setAudienceEditDraft(null);
+    setConfirmingAudienceDeleteId(null);
+    setAudienceDraft({
+      name: filteredAudienceName.trim() || filteredAudienceDefaultName,
+      listType: "static",
+      description: filteredAudienceDescription,
+      rulesText: filteredAudienceRulesText,
+      contactExternalIds: filteredAudienceMemberIds.join("\n"),
+    });
+    setAudienceFeedback(`Loaded ${visibleContacts.length} filtered contact${visibleContacts.length === 1 ? "" : "s"} into the list builder.`);
+    setMessage("Filtered audience loaded into the list builder.");
+  }
+
+  async function createAudienceFromCurrentFilters() {
+    if (visibleContacts.length === 0) {
+      const feedback = "No visible contacts match the current filters.";
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    setAudienceSaving(true);
+    setAudienceFeedback("Saving filtered audience...");
+    try {
+      const result = await api<{ audience: MarketingAudience }>("/api/admin/marketing/audiences", {
+        method: "POST",
+        body: JSON.stringify({
+          name: filteredAudienceName.trim() || filteredAudienceDefaultName,
+          listType: "static",
+          description: filteredAudienceDescription,
+          rules: filteredAudienceRules,
+          contactExternalIds: filteredAudienceMemberIds,
+          source: "vyva_filtered_segment",
+          metadata: {
+            created_from: "filtered_contact_view",
+            filterLabels: activeContactFilterLabels,
+            createdAt: new Date().toISOString(),
+          },
+        }),
+      });
+      setAudiences((current) => [result.audience, ...current.filter((audience) => audience.id !== result.audience.id)]);
+      setActiveTab("contacts");
+      setContactView("lists");
+      setEditingAudienceId(result.audience.id);
+      setAudienceEditDraft(audienceEditDraftFromAudience(result.audience));
+      setConfirmingAudienceDeleteId(null);
+      setFilteredAudienceName("");
+      setAudienceFeedback(`Created filtered audience "${result.audience.name}" with ${filteredAudienceMemberIds.length} member${filteredAudienceMemberIds.length === 1 ? "" : "s"}.`);
+      setMessage(`Filtered audience created: ${result.audience.name}.`);
+      scrollToContentPanel(audienceEditorPanelRef);
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Filtered audience could not be created.";
+      setAudienceFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setAudienceSaving(false);
+    }
   }
 
   function relationshipCampaignIntentForContact(
@@ -26801,6 +26972,88 @@ export default function MarketingAdminPage() {
                             {contactMarketOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
                           </select>
                         </Field>
+                      </div>
+                    </div>
+                    <div className="mb-3 grid gap-3 rounded-xl border border-purple-100 bg-white p-3 shadow-sm xl:grid-cols-[minmax(0,1fr)_360px]" data-testid="marketing-filtered-audience-builder">
+                      <div>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Smart segment builder</p>
+                            <h4 className="mt-1 text-lg font-black text-[#241133]">Save this filtered view as an audience</h4>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">
+                              VYVA turns the active filters into saved rules and a static member snapshot, so the same segment can be reused in campaign planning.
+                            </p>
+                          </div>
+                          <Pill className={contactHealthTotal ? "bg-purple-50 text-purple-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
+                            {contactHealthTotal} match{contactHealthTotal === 1 ? "" : "es"}
+                          </Pill>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-filtered-audience-filter-summary">
+                          {activeContactFilterLabels.length ? (
+                            activeContactFilterLabels.map((label) => <Pill key={label} className="bg-[#fff7ed] text-amber-900">{label}</Pill>)
+                          ) : (
+                            <Pill className="bg-[#f5eee8] text-[#7d6b65]">No filters selected</Pill>
+                          )}
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                          <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-filtered-audience-count">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#8b7a73]">Contacts</p>
+                            <p className="mt-1 text-2xl font-black text-[#241133]">{contactHealthTotal}</p>
+                          </div>
+                          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3" data-testid="marketing-filtered-audience-reach">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-emerald-800">Reach</p>
+                            <p className="mt-1 text-2xl font-black text-emerald-900">{contactHealthDirectReachable}</p>
+                          </div>
+                          <div className={`rounded-xl border p-3 ${contactHealthNeedsConsent ? "border-amber-100 bg-amber-50" : "border-emerald-100 bg-emerald-50"}`} data-testid="marketing-filtered-audience-consent">
+                            <p className={`text-xs font-black uppercase tracking-[0.1em] ${contactHealthNeedsConsent ? "text-amber-900" : "text-emerald-800"}`}>Consent</p>
+                            <p className={`mt-1 text-2xl font-black ${contactHealthNeedsConsent ? "text-amber-950" : "text-emerald-900"}`}>{contactHealthNeedsConsent}</p>
+                          </div>
+                          <div className="rounded-xl border border-blue-100 bg-blue-50 p-3" data-testid="marketing-filtered-audience-segmented">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-blue-800">Enriched</p>
+                            <p className="mt-1 text-2xl font-black text-blue-950">{contactHealthSegmented}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid gap-3">
+                        <Field label="Audience name">
+                          <input
+                            className={inputClass}
+                            value={filteredAudienceName}
+                            onChange={(event) => setFilteredAudienceName(event.target.value)}
+                            placeholder={filteredAudienceDefaultName}
+                            disabled={audienceSaving}
+                            data-testid="input-marketing-filtered-audience-name"
+                          />
+                        </Field>
+                        <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2">
+                          <summary className="cursor-pointer text-xs font-black text-purple-700">Generated rules and members</summary>
+                          <textarea
+                            className={`${textareaClass} mt-2 min-h-[130px] font-mono text-xs`}
+                            value={`${filteredAudienceRulesText}\n\nmember_ids:\n${filteredAudienceMemberIds.join("\n") || "none"}`}
+                            readOnly
+                            data-testid="textarea-marketing-filtered-audience-rules"
+                          />
+                        </details>
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => void createAudienceFromCurrentFilters()}
+                            disabled={audienceSaving || visibleContacts.length === 0}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid="button-marketing-save-filtered-audience"
+                          >
+                            <Save size={14} /> {audienceSaving ? "Saving..." : "Save audience"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={loadFilteredAudienceIntoBuilder}
+                            disabled={audienceSaving || visibleContacts.length === 0}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
+                            data-testid="button-marketing-load-filtered-audience"
+                          >
+                            <UsersRound size={14} /> Review list
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-contacts-table">

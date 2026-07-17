@@ -3710,6 +3710,54 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("saves the current contact filters as a reusable audience", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.change(screen.getByTestId("select-marketing-contact-market-filter"), { target: { value: "spain" } });
+
+    expect(screen.getByTestId("marketing-filtered-audience-builder")).toHaveTextContent("Save this filtered view as an audience");
+    expect(screen.getByTestId("marketing-filtered-audience-filter-summary")).toHaveTextContent("Market: Spain");
+    expect(screen.getByTestId("marketing-filtered-audience-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-filtered-audience-reach")).toHaveTextContent("1");
+    const filteredAudienceRules = screen.getByTestId("textarea-marketing-filtered-audience-rules") as HTMLTextAreaElement;
+    expect(filteredAudienceRules.value).toContain('"market": "spain"');
+    expect(filteredAudienceRules.value).toContain("lovable-contact-2");
+
+    fireEvent.change(screen.getByTestId("input-marketing-filtered-audience-name"), { target: { value: "Spain partner segment" } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-filtered-audience"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences", expect.objectContaining({ method: "POST" }));
+    });
+
+    const audiencePostCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/audiences" && init?.method === "POST");
+    expect(JSON.parse(String(audiencePostCall?.[1]?.body))).toMatchObject({
+      name: "Spain partner segment",
+      listType: "static",
+      source: "vyva_filtered_segment",
+      contactExternalIds: ["lovable-contact-2"],
+      rules: expect.objectContaining({
+        source: "filtered_contact_view",
+        filters: { market: "spain" },
+        contactCount: 1,
+        reachableContacts: 1,
+        consentReviewCount: 1,
+      }),
+      metadata: expect.objectContaining({
+        created_from: "filtered_contact_view",
+        filterLabels: ["Market: Spain"],
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("button-marketing-lists-view")).toHaveClass("bg-purple-700");
+    });
+    expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-audience-editor-feedback")).toHaveTextContent('Created filtered audience "Spain partner segment"');
+  });
+
   it("edits and deletes imported marketing contacts", async () => {
     renderPage();
 
