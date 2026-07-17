@@ -3,7 +3,8 @@ import type { LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
 import { useServiceGate } from "@/hooks/useServiceGate";
 import { apiFetch } from "@/lib/queryClient";
 import {
@@ -989,6 +990,8 @@ function followUpSubjectFor(focus: PreventionFocusResponse): string {
 export default function PreventionScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { markCompleted, markDismissed, markAbandoned } = useHomeFastHelpOutcome(location.state);
   const { guardPath } = useServiceGate();
   const [selectedAction, setSelectedAction] = useState<PreventionDailyAction | null>(null);
   const [actionFeedback, setActionFeedback] = useState<Record<string, PreventionFeedback>>({});
@@ -1177,9 +1180,17 @@ export default function PreventionScreen() {
       setLastLoopFeedback(loopFeedback);
       return next;
     });
+    if (feedback === "done") {
+      markCompleted({ reason: "prevention_action_done", referenceId: action.id });
+    } else if (feedback === "too_hard") {
+      markDismissed({ reason: "prevention_action_too_hard", referenceId: action.id });
+    } else if (feedback === "remind") {
+      markAbandoned({ reason: "prevention_action_deferred", referenceId: action.id });
+    }
   };
 
   const markBarrier = (action: PreventionDailyAction, barrier: PreventionBarrier) => {
+    markDismissed({ reason: `prevention_barrier_${barrier}`, referenceId: action.id });
     setActionBarriers((current) => {
       const next = { ...current, [action.id]: barrier };
       writeStoredJson(barrierStorageKey, next);
@@ -1302,11 +1313,16 @@ export default function PreventionScreen() {
     setSelectedAction(item);
   };
 
+  const leavePrevention = () => {
+    markAbandoned({ reason: "left_prevention" });
+    navigate("/health");
+  };
+
   return (
     <div className="vyva-page pb-32 sm:pb-12" data-testid="prevention-page">
       <button
         type="button"
-        onClick={() => navigate("/health")}
+        onClick={leavePrevention}
         className="vyva-tap mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#E6E0F4] bg-white px-4 font-body text-[14px] font-black text-vyva-text-2 shadow-[0_8px_18px_rgba(31,41,55,0.05)]"
       >
         <ArrowLeft size={17} aria-hidden="true" />

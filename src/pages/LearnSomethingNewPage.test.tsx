@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "@/lib/queryClient";
+import { setAccountLanguage } from "@/i18n";
 import LearnSomethingNewPage from "./LearnSomethingNewPage";
 
 const mocks = vi.hoisted(() => ({
@@ -56,6 +57,53 @@ const lesson = {
   tags: ["science"],
 };
 
+class MockSpeechSynthesisUtterance {
+  text: string;
+  lang = "";
+  rate = 1;
+  voice: SpeechSynthesisVoice | null = null;
+  onstart: (() => void) | null = null;
+  onend: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  constructor(text: string) {
+    this.text = text;
+  }
+}
+
+const spoken: MockSpeechSynthesisUtterance[] = [];
+const speechSynthesis = {
+  cancel: vi.fn(),
+  pause: vi.fn(),
+  resume: vi.fn(),
+  speak: vi.fn((utterance: MockSpeechSynthesisUtterance) => {
+    spoken.push(utterance);
+    utterance.onstart?.();
+  }),
+  getVoices: vi.fn(() => [
+    { default: true, lang: "en-US", localService: true, name: "English", voiceURI: "english" },
+    { default: false, lang: "fr-FR", localService: true, name: "French", voiceURI: "french" },
+    { default: false, lang: "de-DE", localService: true, name: "German", voiceURI: "german" },
+  ] as SpeechSynthesisVoice[]),
+};
+
+function installSpeechPlayback() {
+  spoken.length = 0;
+  speechSynthesis.cancel.mockClear();
+  speechSynthesis.pause.mockClear();
+  speechSynthesis.resume.mockClear();
+  speechSynthesis.speak.mockClear();
+  speechSynthesis.getVoices.mockClear();
+  Object.defineProperty(globalThis, "SpeechSynthesisUtterance", {
+    configurable: true,
+    value: MockSpeechSynthesisUtterance,
+  });
+  Object.defineProperty(window, "speechSynthesis", {
+    configurable: true,
+    value: speechSynthesis,
+  });
+}
+
 const program = {
   id: "program-1",
   status: "active",
@@ -109,9 +157,16 @@ function renderLearningPage(todayPayload: unknown) {
   );
 }
 
+beforeEach(() => {
+  setAccountLanguage("en");
+});
+
 afterEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
+  window.sessionStorage.clear();
+  Reflect.deleteProperty(globalThis, "SpeechSynthesisUtterance");
+  Reflect.deleteProperty(window, "speechSynthesis");
 });
 
 describe("LearnSomethingNewPage", () => {
@@ -268,5 +323,78 @@ describe("LearnSomethingNewPage", () => {
     expect(await screen.findByTestId("learn-hub")).toHaveTextContent("Learn Something New");
     expect(screen.getByTestId("learn-plan-glance")).toHaveTextContent("Voice");
     expect(screen.getByTestId("button-learn-read-aloud")).toHaveTextContent("Listen aloud");
+  });
+
+  it("uses the selected app language and offers pause, resume, replay, and stop", async () => {
+    setAccountLanguage("fr");
+    installSpeechPlayback();
+    mocks.apiFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    renderLearningPage({
+      onboardingRequired: false,
+      categories,
+      program,
+      todayItem: program.items[0],
+    });
+
+    const playButton = await screen.findByTestId("button-learn-read-aloud");
+    expect(playButton).toHaveTextContent("Lire a voix haute");
+    fireEvent.click(playButton);
+
+    await waitFor(() => expect(spoken).toHaveLength(1));
+    expect(spoken[0]).toMatchObject({ text: lesson.title, lang: "fr-FR" });
+    expect(spoken[0].voice?.name).toBe("French");
+    expect(playButton).toHaveTextContent("Pause");
+    expect(window.sessionStorage.getItem("vyva.learning.read-aloud.v1:lesson-1:fr")).toBe("0");
+
+    fireEvent.click(playButton);
+    expect(speechSynthesis.pause).toHaveBeenCalledTimes(1);
+    expect(playButton).toHaveTextContent("Reprendre");
+
+    fireEvent.click(playButton);
+    expect(speechSynthesis.resume).toHaveBeenCalledTimes(1);
+    expect(playButton).toHaveTextContent("Pause");
+
+    fireEvent.click(screen.getByTestId("button-learn-read-aloud-replay"));
+    expect(spoken.at(-1)?.text).toBe(lesson.title);
+
+    fireEvent.click(screen.getByTestId("button-learn-read-aloud-stop"));
+    expect(window.sessionStorage.getItem("vyva.learning.read-aloud.v1:lesson-1:fr")).toBeNull();
+    expect(screen.getByTestId("learn-read-aloud-status")).toHaveTextContent("langue de l'application");
+  });
+
+  it("resumes an interrupted lesson from the saved section", async () => {
+    setAccountLanguage("de");
+    installSpeechPlayback();
+    window.sessionStorage.setItem("vyva.learning.read-aloud.v1:lesson-1:de", "2");
+    mocks.apiFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    renderLearningPage({
+      onboardingRequired: false,
+      categories,
+      program,
+      todayItem: program.items[0],
+    });
+
+    const playButton = await screen.findByTestId("button-learn-read-aloud");
+    await waitFor(() => expect(playButton).toHaveTextContent("Fortsetzen"));
+    expect(screen.getByTestId("learn-read-aloud-status")).toHaveTextContent("weiter");
+    fireEvent.click(playButton);
+
+    await waitFor(() => expect(spoken).toHaveLength(1));
+    expect(spoken[0]).toMatchObject({ text: lesson.body, lang: "de-DE" });
+  });
+
+  it("keeps the lesson readable when voice playback is unavailable", async () => {
+    renderLearningPage({
+      onboardingRequired: false,
+      categories,
+      program,
+      todayItem: program.items[0],
+    });
+
+    expect(await screen.findByTestId("learn-today-lesson")).toHaveTextContent("One end of a soap molecule likes water.");
+    expect(screen.getByTestId("button-learn-read-aloud")).toBeDisabled();
+    expect(screen.getByTestId("learn-read-aloud-status")).toHaveTextContent("unavailable on this device");
   });
 });

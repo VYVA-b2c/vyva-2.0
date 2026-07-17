@@ -77,7 +77,52 @@ describe("concierge action execution task", () => {
       user_confirmed: true,
       confirmation_source: "confirm_endpoint",
       confirmed_at: "2026-07-14T10:00:00.000Z",
+      approval_fingerprint: expect.objectContaining({
+        version: 1,
+        channel: "phone_call",
+        provider_name: "Marbella Clinic",
+        provider_contact: "+34 600 333 444",
+        summary: "Call clinic",
+      }),
     });
+  });
+
+  it("preserves the saved approval fingerprint during operator updates", () => {
+    const confirmed = withConciergeExecutionTask({
+      useCase: "insurance_admin",
+      providerName: "City Clinic",
+      payload: {
+        execution_channel: "email",
+        provider_email: "frontdesk@example.com",
+        document_type: "insurance form",
+        deadline: "tomorrow",
+      },
+      summary: "Email clinic paperwork",
+      pendingStatus: "failed",
+      lifecycleStatus: "failed",
+      userConfirmed: true,
+      confirmationSource: "confirm_endpoint",
+      now: "2026-07-14T10:00:00.000Z",
+    });
+    const approvedFingerprint = (confirmed.execution_task as Record<string, unknown>).approval_fingerprint;
+
+    const operatorUpdate = withConciergeExecutionTask({
+      useCase: "insurance_admin",
+      providerName: "City Clinic",
+      payload: {
+        ...confirmed,
+        provider_email: "newdesk@example.com",
+        operator_note: "Retrying from admin queue",
+      },
+      summary: "Email updated clinic paperwork",
+      pendingStatus: "pending",
+      lifecycleStatus: "confirmed",
+      userConfirmed: true,
+      confirmationSource: "operator_adapter_retry",
+      now: "2026-07-14T10:10:00.000Z",
+    });
+
+    expect((operatorUpdate.execution_task as Record<string, unknown>).approval_fingerprint).toEqual(approvedFingerprint);
   });
 
   it("carries completed execution proof into outcome payloads", () => {

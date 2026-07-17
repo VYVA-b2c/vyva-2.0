@@ -45,6 +45,15 @@ describe("AdminMenu", () => {
     expect(workflowLink).toHaveAttribute("aria-current", "page");
   });
 
+  it("links admins to the unified content index and room prompts", () => {
+    renderMenu("/admin/content-index");
+
+    const contentIndex = screen.getByRole("link", { name: /content index.*readiness across content/i });
+    expect(contentIndex).toHaveAttribute("href", "/admin/content-index");
+    expect(contentIndex).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /room prompts.*daily room topics/i })).toHaveAttribute("href", "/admin/room-prompts");
+  });
+
   it("keeps the Admins tab super-admin only", () => {
     const regularAdmin = renderMenu();
 

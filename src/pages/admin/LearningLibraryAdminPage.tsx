@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Archive, CheckCircle2, ChevronLeft, ChevronRight, Download, FilePlus2, ImagePlus, Loader2, Save, Search, Sparkles, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -354,6 +355,8 @@ function responseErrorMessage(payload: unknown, fallback: string) {
 }
 
 export default function LearningLibraryAdminPage() {
+  const [searchParams] = useSearchParams();
+  const focusedLessonId = searchParams.get("focus");
   const [categories, setCategories] = useState<Category[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [coverageLessons, setCoverageLessons] = useState<Lesson[]>([]);
@@ -493,8 +496,12 @@ export default function LearningLibraryAdminPage() {
       setCategories(nextCategories);
       setLessons(nextLessons);
       setCoverageLessons((coveragePayload.lessons ?? []) as Lesson[]);
+      const focusedLesson = focusedLessonId ? nextLessons.find((lesson) => lesson.id === focusedLessonId) : null;
       const selectedLessonIsVisible = selectedId ? nextLessons.some((lesson) => lesson.id === selectedId) : false;
-      if ((!selectedId || !selectedLessonIsVisible) && nextLessons[0]) {
+      if (focusedLesson) {
+        setSelectedId(focusedLesson.id);
+        setDraft(lessonToDraft(focusedLesson));
+      } else if ((!selectedId || !selectedLessonIsVisible) && nextLessons[0]) {
         setSelectedId(nextLessons[0].id);
         setDraft(lessonToDraft(nextLessons[0]));
       } else if ((!selectedId || !selectedLessonIsVisible) && !nextLessons[0]) {
@@ -526,6 +533,11 @@ export default function LearningLibraryAdminPage() {
   useEffect(() => {
     if (selectedLesson) setDraft(lessonToDraft(selectedLesson));
   }, [selectedLesson]);
+
+  useEffect(() => {
+    if (!focusedLessonId || selectedId !== focusedLessonId) return;
+    document.getElementById(`learning-lesson-${focusedLessonId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusedLessonId, selectedId]);
 
   useEffect(() => {
     const visibleLessonIds = new Set(lessons.map((lesson) => lesson.id));
@@ -1151,6 +1163,7 @@ export default function LearningLibraryAdminPage() {
                   return (
                     <div
                       key={lesson.id}
+                      id={`learning-lesson-${lesson.id}`}
                       role="button"
                       tabIndex={0}
                       onClick={() => setSelectedId(lesson.id)}

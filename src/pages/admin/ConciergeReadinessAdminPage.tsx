@@ -4,6 +4,7 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import type {
+  ConciergeChannelProbeState,
   ConciergeChannelReadinessResult,
   ConciergeProductionChannel,
 } from "../../../shared/conciergeChannelReadiness";
@@ -51,11 +52,36 @@ type AdminChannelReadinessRow = {
   ready: boolean;
   external_action_allowed: boolean;
   blockers: string[];
+  adapter_setup: {
+    version: 1;
+    configured: boolean;
+    source: "environment" | "admin_console" | "missing";
+    live_endpoint_configured: boolean;
+    live_endpoint_url: string | null;
+    live_endpoint_reference: string | null;
+    credential_reference: string | null;
+    qa_target_configured: boolean;
+    qa_target: string | null;
+    qa_target_reference: string | null;
+    blockers: string[];
+    updated_by: string | null;
+    updated_at: string | null;
+  };
   can_mark_ready: boolean;
   ready_blocker: string | null;
+  probe: ConciergeChannelProbeState;
   notes: string | null;
   updated_by: string | null;
   updated_at: string | null;
+};
+
+type ChannelReadinessPatch = {
+  admin_enabled?: boolean;
+  verified?: boolean;
+  notes?: string | null;
+  adapter_live_endpoint_url?: string | null;
+  adapter_credential_reference?: string | null;
+  adapter_qa_target?: string | null;
 };
 
 type AdminChannelReadinessResponse = {
@@ -755,18 +781,16 @@ function ReadinessRow({ row }: { row: ConciergeReadinessRow }) {
   );
 }
 
-function channelStatusTone(row: AdminChannelReadinessRow): "good" | "warn" | "bad" {
-  if (row.ready) return "good";
-  if (row.configured || row.verified || row.admin_enabled) return "warn";
-  return "bad";
+function channelProbeTone(row: AdminChannelReadinessRow): "good" | "warn" | "bad" {
+  if (row.probe.status === "pass") return "good";
+  if (row.probe.status === "fail") return "bad";
+  return "warn";
 }
 
-function channelStatusLabel(row: AdminChannelReadinessRow): string {
-  if (row.ready) return "Live-ready";
-  if (!row.configured) return "Not configured";
-  if (!row.verified) return "Not verified";
-  if (!row.admin_enabled) return "Admin disabled";
-  return "Blocked";
+function channelProbeLabel(row: AdminChannelReadinessRow): string {
+  if (row.probe.status === "pass") return "Probe passed";
+  if (row.probe.status === "fail") return "Probe failed";
+  return "Probe not run";
 }
 
 function formatChannelTimestamp(value: string | null): string {
@@ -775,45 +799,88 @@ function formatChannelTimestamp(value: string | null): string {
   return Number.isNaN(parsed.getTime()) ? "Not updated" : parsed.toLocaleString();
 }
 
+function adapterSetupSourceLabel(row: AdminChannelReadinessRow): string {
+  if (row.adapter_setup.source === "environment") return "Environment";
+  if (row.adapter_setup.source === "admin_console") return "Admin console";
+  return "Missing setup";
+}
+
+function channelSetupLabel(row: AdminChannelReadinessRow): string {
+  return row.configured ? "Configured" : "Missing setup";
+}
+
+function channelVerificationLabel(row: AdminChannelReadinessRow): string {
+  return row.verified ? "Verified" : "Not verified";
+}
+
+function channelLiveReadyLabel(row: AdminChannelReadinessRow): string {
+  if (row.ready) return "On";
+  if (row.admin_enabled) return "On, needs check";
+  return "Off";
+}
+
+function channelNextAction(row: AdminChannelReadinessRow): string {
+  if (!row.configured) return "Add setup details";
+  if (!row.verified) return "Run verification";
+  if (!row.admin_enabled) return row.channel === "email" ? "Pilot verified; keep off" : "Ready to enable";
+  if (row.ready) return "Live gate open";
+  return "Review setup";
+}
+
+function channelActionDetail(row: AdminChannelReadinessRow): string | null {
+  if (!row.configured) return null;
+  if (row.probe.status === "fail") return row.probe.blocker ?? row.ready_blocker;
+  if (row.admin_enabled && !row.ready) return row.ready_blocker;
+  return null;
+}
+
+function emailPilotLabel(row: AdminChannelReadinessRow): string | null {
+  if (row.channel !== "email") return null;
+  if (!row.configured) return "Email pilot: setup missing";
+  if (!row.verified) return "Email pilot: verify";
+  return row.admin_enabled ? "Email pilot: live-ready on" : "Email pilot: live-ready off";
+}
+
 function ProductionChannelReadinessSection({
   channels,
   loading,
   error,
   message,
   savingChannel,
+  verifyingChannel,
   onRefresh,
   onUpdate,
+  onProbe,
 }: {
   channels: AdminChannelReadinessRow[];
   loading: boolean;
   error: string | null;
   message: string | null;
   savingChannel: ConciergeProductionChannel | null;
+  verifyingChannel: ConciergeProductionChannel | null;
   onRefresh: () => void;
-  onUpdate: (channel: ConciergeProductionChannel, patch: { admin_enabled?: boolean; verified?: boolean; notes?: string | null }) => void;
+  onUpdate: (channel: ConciergeProductionChannel, patch: ChannelReadinessPatch) => void;
+  onProbe: (channel: ConciergeProductionChannel) => void;
 }) {
   const liveReadyCount = channels.filter((channel) => channel.ready).length;
-  const blockedCount = channels.length - liveReadyCount;
+  const notReadyCount = channels.length - liveReadyCount;
 
   return (
     <section
       className="mt-5 overflow-hidden rounded-[14px] border border-[#eadfd5] bg-white shadow-sm"
       data-testid="section-concierge-channel-readiness"
     >
-      <div className="flex flex-col gap-3 border-b border-[#f0e7df] px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 border-b border-[#f0e7df] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-[#f5f0ff] px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-purple-700">
             <ShieldCheck size={14} aria-hidden="true" />
             Production channels
           </div>
-          <h2 className="mt-2 font-serif text-2xl text-[#2f2135]">Live action readiness gates</h2>
-          <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-[#7d6b65]">
-            Manage the admin gate for provider-facing Concierge channels. Test mode stays simulated, and live use still requires the user's final confirmation.
-          </p>
+          <h2 className="mt-2 font-serif text-2xl text-[#2f2135]">Channel readiness</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Pill tone={liveReadyCount === channels.length && channels.length > 0 ? "good" : "warn"}>{liveReadyCount} live-ready</Pill>
-          <Pill tone={blockedCount > 0 ? "warn" : "good"}>{blockedCount} blocked</Pill>
+          <Pill tone={notReadyCount > 0 ? "warn" : "good"}>{notReadyCount} off / not ready</Pill>
           <button
             type="button"
             className="inline-flex min-h-[38px] items-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-xs font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
@@ -841,101 +908,158 @@ function ProductionChannelReadinessSection({
           <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
             <tr>
               <th className="px-4 py-3">Channel</th>
-              <th className="px-4 py-3">Test mode</th>
-              <th className="px-4 py-3">Setup checks</th>
-              <th className="px-4 py-3">Live readiness</th>
-              <th className="px-4 py-3">Admin controls</th>
-              <th className="min-w-[260px] px-4 py-3">Notes</th>
+              <th className="px-4 py-3">Setup</th>
+              <th className="px-4 py-3">Verification</th>
+              <th className="px-4 py-3">Live-ready</th>
+              <th className="px-4 py-3">Next action</th>
+              <th className="min-w-[300px] px-4 py-3">Setup details</th>
             </tr>
           </thead>
           <tbody>
             {channels.map((row) => {
               const saving = savingChannel === row.channel;
+              const verifying = verifyingChannel === row.channel;
+              const busy = saving || verifying;
               const canToggleLive = row.can_mark_ready || row.admin_enabled;
+              const actionDetail = channelActionDetail(row);
               return (
                 <tr key={row.channel} className="align-top" data-testid={`row-concierge-channel-${row.channel.replace(/_/g, "-")}`}>
-                  <td className="min-w-[200px] border-t border-[#f0e7df] px-4 py-4">
+                  <td className="min-w-[190px] border-t border-[#f0e7df] px-4 py-4">
                     <div className="flex flex-col gap-2">
                       <span className="text-base font-black text-[#2f2135]">{row.label}</span>
                       <span className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-[#8b7a73]">{row.channel}</span>
-                      <Pill tone={channelStatusTone(row)}>{channelStatusLabel(row)}</Pill>
-                    </div>
-                  </td>
-                  <td className="min-w-[210px] border-t border-[#f0e7df] px-4 py-4">
-                    <div className="flex flex-col gap-2">
-                      <Pill tone="good">Simulated</Pill>
-                      <p className="text-sm font-semibold leading-relaxed text-[#7d6b65]">
-                        Test mode blocks live contact and records a simulated outcome.
-                      </p>
-                      <Pill tone={row.test_mode.external_action_allowed ? "bad" : "good"}>
-                        {row.test_mode.external_action_allowed ? "External action allowed" : "No external action"}
-                      </Pill>
-                    </div>
-                  </td>
-                  <td className="min-w-[220px] border-t border-[#f0e7df] px-4 py-4">
-                    <div className="flex flex-col gap-2">
-                      <Pill tone={row.configured ? "good" : "warn"}>{row.configured ? "Configured" : "Not configured"}</Pill>
-                      <Pill tone={row.verified ? "good" : "warn"}>{row.verified ? "Verified" : "Not verified"}</Pill>
-                      {row.ready_blocker ? (
-                        <p className="text-xs font-semibold leading-relaxed text-amber-800">{row.ready_blocker}</p>
+                      <Pill tone={row.test_mode.external_action_allowed ? "bad" : "good"}>Test mode simulated</Pill>
+                      {emailPilotLabel(row) ? (
+                        <Pill tone={row.channel === "email" && row.verified && !row.admin_enabled ? "good" : "warn"}>{emailPilotLabel(row)}</Pill>
                       ) : null}
                     </div>
                   </td>
-                  <td className="min-w-[240px] border-t border-[#f0e7df] px-4 py-4">
-                    <div className="flex flex-col gap-2">
-                      <Pill tone={row.ready ? "good" : "warn"}>{row.ready ? "Ready" : "Blocked"}</Pill>
-                      <Pill tone={row.external_action_allowed ? "good" : "warn"}>
-                        {row.external_action_allowed ? "Live-capable after confirmation" : "Cannot contact providers"}
-                      </Pill>
-                      {row.blockers.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {row.blockers.map((blocker) => <Pill key={blocker} tone="warn">{blocker.replace(/_/g, " ")}</Pill>)}
-                        </div>
-                      ) : (
-                        <p className="text-xs font-semibold leading-relaxed text-emerald-800">
-                          Live actions still require final user confirmation.
-                        </p>
-                      )}
+                  <td className="min-w-[150px] border-t border-[#f0e7df] px-4 py-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Pill tone={row.configured ? "good" : "warn"}>{channelSetupLabel(row)}</Pill>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Pill tone={row.adapter_setup.configured ? "good" : "warn"}>
+                          {adapterSetupSourceLabel(row)}
+                        </Pill>
+                        <Pill tone={row.adapter_setup.qa_target_configured ? "good" : "warn"}>
+                          {row.adapter_setup.qa_target_configured ? "QA set" : "QA missing"}
+                        </Pill>
+                      </div>
                     </div>
                   </td>
-                  <td className="min-w-[260px] border-t border-[#f0e7df] px-4 py-4">
-                    <div className="flex flex-col gap-3">
-                      <label className="flex items-center justify-between gap-3 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-black text-[#2f2135]">
-                        Verified
-                        <input
-                          type="checkbox"
-                          className="h-5 w-5 accent-purple-700"
-                          checked={row.verified}
-                          disabled={saving || !row.configured}
-                          onChange={(event) => onUpdate(row.channel, { verified: event.target.checked })}
-                        />
-                      </label>
-                      <label className="flex items-center justify-between gap-3 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-black text-[#2f2135]">
+                  <td className="min-w-[190px] border-t border-[#f0e7df] px-4 py-4">
+                    <div className="flex flex-col gap-2">
+                      <Pill tone={row.verified ? "good" : "warn"}>{channelVerificationLabel(row)}</Pill>
+                      <Pill tone={channelProbeTone(row)}>{channelProbeLabel(row)}</Pill>
+                      <button
+                        type="button"
+                        className="inline-flex min-h-[38px] items-center justify-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={busy || !row.configured}
+                        onClick={() => onProbe(row.channel)}
+                      >
+                        {verifying ? "Checking..." : "Run verification"}
+                      </button>
+                    </div>
+                  </td>
+                  <td className="min-w-[180px] border-t border-[#f0e7df] px-4 py-4">
+                    <div className="flex flex-col gap-2">
+                      <Pill tone={row.ready ? "good" : row.admin_enabled ? "warn" : "neutral"}>Live-ready {channelLiveReadyLabel(row)}</Pill>
+                      <label className="flex min-h-[40px] items-center justify-between gap-3 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135]">
                         Live-ready
                         <input
                           type="checkbox"
                           className="h-5 w-5 accent-purple-700"
                           checked={row.admin_enabled}
-                          disabled={saving || !canToggleLive}
+                          disabled={busy || !canToggleLive}
                           onChange={(event) => onUpdate(row.channel, { admin_enabled: event.target.checked })}
                         />
                       </label>
-                      <p className="text-xs font-semibold leading-relaxed text-[#8b7a73]">
-                        {saving ? "Saving..." : formatChannelTimestamp(row.updated_at)}
-                      </p>
+                    </div>
+                  </td>
+                  <td className="min-w-[190px] border-t border-[#f0e7df] px-4 py-4">
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm font-black text-[#2f2135]">{channelNextAction(row)}</span>
+                      <span className="text-xs font-semibold leading-relaxed text-[#8b7a73]">
+                        {busy ? (verifying ? "Checking..." : "Saving...") : formatChannelTimestamp(row.updated_at)}
+                      </span>
+                      {actionDetail ? (
+                        <span className="text-xs font-semibold leading-relaxed text-amber-800">{actionDetail}</span>
+                      ) : null}
                     </div>
                   </td>
                   <td className="border-t border-[#f0e7df] px-4 py-4">
-                    <label className="flex flex-col gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
-                      Admin note
-                      <textarea
-                        key={`${row.channel}-${row.updated_at ?? "new"}`}
-                        className="min-h-[86px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
-                        defaultValue={row.notes ?? ""}
-                        disabled={saving}
-                        onBlur={(event) => onUpdate(row.channel, { notes: event.target.value.trim() || null })}
-                      />
-                    </label>
+                    <details className="group rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2" data-testid={`details-concierge-channel-${row.channel.replace(/_/g, "-")}`}>
+                      <summary className="cursor-pointer text-sm font-black text-[#2f2135]">Setup details</summary>
+                      <div className="mt-3 flex flex-col gap-3">
+                        {row.adapter_setup.blockers.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {row.adapter_setup.blockers.map((blocker) => <Pill key={blocker} tone="warn">{blocker}</Pill>)}
+                          </div>
+                        ) : null}
+                      <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                        Live endpoint
+                        <input
+                          key={`${row.channel}-endpoint-${row.updated_at ?? "new"}`}
+                          type="url"
+                          className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135] disabled:opacity-60"
+                          defaultValue={row.adapter_setup.live_endpoint_url ?? ""}
+                          placeholder={row.channel === "phone_call" ? "Managed by phone credentials" : row.adapter_setup.live_endpoint_reference ?? "https://adapter.example.test/..."}
+                          disabled={busy || row.channel === "phone_call"}
+                          aria-label={`${row.label} live endpoint`}
+                          onBlur={(event) => {
+                            const nextValue = event.target.value.trim() || null;
+                            if (nextValue !== row.adapter_setup.live_endpoint_url) {
+                              onUpdate(row.channel, { adapter_live_endpoint_url: nextValue });
+                            }
+                          }}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                        Credential reference
+                        <input
+                          key={`${row.channel}-credential-${row.updated_at ?? "new"}`}
+                          className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
+                          defaultValue={row.adapter_setup.credential_reference ?? ""}
+                          placeholder="vault/reference"
+                          disabled={busy}
+                          aria-label={`${row.label} credential reference`}
+                          onBlur={(event) => {
+                            const nextValue = event.target.value.trim() || null;
+                            if (nextValue !== row.adapter_setup.credential_reference) {
+                              onUpdate(row.channel, { adapter_credential_reference: nextValue });
+                            }
+                          }}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                        QA target
+                        <input
+                          key={`${row.channel}-qa-${row.updated_at ?? "new"}`}
+                          className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
+                          defaultValue={row.adapter_setup.qa_target ?? ""}
+                          placeholder={row.adapter_setup.qa_target_reference ?? "Reserved test target"}
+                          disabled={busy}
+                          aria-label={`${row.label} QA target`}
+                          onBlur={(event) => {
+                            const nextValue = event.target.value.trim() || null;
+                            if (nextValue !== row.adapter_setup.qa_target) {
+                              onUpdate(row.channel, { adapter_qa_target: nextValue });
+                            }
+                          }}
+                        />
+                      </label>
+                        <label className="flex flex-col gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                          Admin note
+                          <textarea
+                            key={`${row.channel}-${row.updated_at ?? "new"}`}
+                            className="min-h-[72px] rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
+                            defaultValue={row.notes ?? ""}
+                            disabled={busy}
+                            onBlur={(event) => onUpdate(row.channel, { notes: event.target.value.trim() || null })}
+                          />
+                        </label>
+                      </div>
+                    </details>
                   </td>
                 </tr>
               );
@@ -970,6 +1094,7 @@ export default function ConciergeReadinessAdminPage({
   const [channelError, setChannelError] = useState<string | null>(null);
   const [channelMessage, setChannelMessage] = useState<string | null>(null);
   const [savingChannel, setSavingChannel] = useState<ConciergeProductionChannel | null>(null);
+  const [verifyingChannel, setVerifyingChannel] = useState<ConciergeProductionChannel | null>(null);
   const [manualQaState, setManualQaState] = useState<ConciergeManualQaRunnerState>(() => (
     normalizeConciergeManualQaRunnerState(scripts, readStoredManualQaState())
   ));
@@ -1017,7 +1142,7 @@ export default function ConciergeReadinessAdminPage({
 
   async function handleChannelReadinessUpdate(
     channel: ConciergeProductionChannel,
-    patch: { admin_enabled?: boolean; verified?: boolean; notes?: string | null },
+    patch: ChannelReadinessPatch,
   ) {
     setSavingChannel(channel);
     setChannelError(null);
@@ -1042,6 +1167,35 @@ export default function ConciergeReadinessAdminPage({
       await loadChannelReadiness();
     } finally {
       setSavingChannel(null);
+    }
+  }
+
+  async function handleChannelProbe(channel: ConciergeProductionChannel) {
+    setVerifyingChannel(channel);
+    setChannelError(null);
+    setChannelMessage(null);
+    try {
+      const response = await apiFetch(`/api/admin/concierge/channel-readiness/${channel}/probe`, {
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => null) as { channel?: AdminChannelReadinessRow; error?: string } | null;
+      if (!response.ok || !payload?.channel) {
+        throw new Error(payload?.error ?? "Could not run channel verification.");
+      }
+
+      setChannelRows((current) => current.map((row) => (
+        row.channel === payload.channel!.channel ? payload.channel! : row
+      )));
+      if (payload.channel.probe.status === "pass") {
+        setChannelMessage(`${payload.channel.label} verification passed.`);
+      } else {
+        setChannelMessage(`${payload.channel.label} verification failed: ${payload.channel.probe.blocker ?? "Review channel setup."}`);
+      }
+    } catch (error) {
+      setChannelError(error instanceof Error ? error.message : "Could not run channel verification.");
+      await loadChannelReadiness();
+    } finally {
+      setVerifyingChannel(null);
     }
   }
 
@@ -1136,8 +1290,10 @@ export default function ConciergeReadinessAdminPage({
           error={channelError}
           message={channelMessage}
           savingChannel={savingChannel}
+          verifyingChannel={verifyingChannel}
           onRefresh={() => void loadChannelReadiness()}
           onUpdate={(channel, patch) => void handleChannelReadinessUpdate(channel, patch)}
+          onProbe={(channel) => void handleChannelProbe(channel)}
         />
 
         <section className="mt-5 overflow-hidden rounded-[14px] border border-[#eadfd5] bg-white shadow-sm">

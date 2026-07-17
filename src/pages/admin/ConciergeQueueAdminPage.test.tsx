@@ -97,6 +97,290 @@ const otherAssignedTask: OperatorConciergeQueueItem = {
   operator_assigned_at: "2026-07-01T10:10:00.000Z",
 };
 
+const failedAdapterTask: OperatorConciergeQueueItem = {
+  ...confirmedTask,
+  id: "pending-failed",
+  user_id: "user-5",
+  user_label: "Elena",
+  user_contact: "elena@example.com",
+  use_case: "paperwork",
+  provider_name: "City Clinic",
+  provider_phone: null,
+  action_summary: "Email clinic paperwork",
+  status: "failed",
+  pending_status: "failed",
+  flow_reference: "FLOW_INSURANCE_ADMIN",
+  action_type: "message",
+  active_tool: "email",
+  updated_at: "2026-07-01T10:20:00.000Z",
+  adapter_incident: {
+    status: "failed",
+    adapter: "concierge_email_adapter",
+    mode: "live",
+    channel: "email",
+    tool: "email",
+    attempted_at: "2026-07-01T10:19:00.000Z",
+    provider_name: "City Clinic",
+    provider_contact: "frontdesk@example.com",
+    external_action_allowed: true,
+    result: "failed",
+    error: "Adapter endpoint failed with 500.",
+    response_status: 500,
+    simulated: false,
+    live: true,
+    retry_allowed: true,
+    retry_blocker: null,
+    manual_follow_up_allowed: true,
+    manual_follow_up_queued_at: null,
+    attempts: [
+      {
+        event: "adapter_execution_failed",
+        at: "2026-07-01T10:19:00.000Z",
+        source: "confirm_endpoint",
+        status: "failed",
+        adapter: "concierge_email_adapter",
+        mode: "live",
+        channel: "email",
+        provider_name: "City Clinic",
+        provider_contact: "frontdesk@example.com",
+        result: "failed",
+        error: "Adapter endpoint failed with 500.",
+        response_status: 500,
+      },
+      {
+        event: "adapter_retry_requested",
+        at: "2026-07-01T10:21:00.000Z",
+        source: "operator_queue",
+        status: null,
+        adapter: null,
+        mode: "live",
+        channel: null,
+        provider_name: null,
+        provider_contact: null,
+        result: null,
+        reason: "retry after endpoint restored",
+      },
+    ],
+  },
+  adapter_payload_preview: {
+    version: 1,
+    adapter: "concierge_email_adapter",
+    channel: "email",
+    tool: "email",
+    provider_name: "City Clinic",
+    provider_contact: "frontdesk@example.com",
+    summary: "Email clinic paperwork",
+    pending_id: "pending-failed",
+    user_id: "user-5",
+    valid: true,
+    missing_fields: [],
+    blockers: [],
+    outbound_payload: {
+      pending_id: "pending-failed",
+      user_id: "user-5",
+      channel: "email",
+      tool: "email",
+      provider_name: "City Clinic",
+      provider_contact: "frontdesk@example.com",
+      summary: "Email clinic paperwork",
+      action_payload: {
+        provider_email: "frontdesk@example.com",
+        email_body: "Please send the paperwork.",
+      },
+    },
+  },
+  adapter_approval: {
+    version: 1,
+    requires_reconfirmation: false,
+    reason: null,
+    changed_fields: [],
+    approved_at: "2026-07-01T10:00:00.000Z",
+    approved_fingerprint: "approved",
+    current_fingerprint: "approved",
+  },
+};
+
+const missingPayloadTask: OperatorConciergeQueueItem = {
+  ...failedAdapterTask,
+  id: "pending-missing-payload",
+  action_summary: "Retry paperwork email",
+  adapter_incident: {
+    ...failedAdapterTask.adapter_incident!,
+    retry_allowed: false,
+    retry_blocker: "adapter_payload_missing_provider_contact",
+  },
+  adapter_payload_preview: {
+    ...failedAdapterTask.adapter_payload_preview!,
+    provider_contact: null,
+    valid: false,
+    missing_fields: [
+      {
+        key: "provider_contact",
+        label: "Provider email address",
+        detail: "Add the provider email address before sending this action.",
+      },
+    ],
+    blockers: ["adapter_payload_missing_provider_contact"],
+    outbound_payload: {
+      ...failedAdapterTask.adapter_payload_preview!.outbound_payload!,
+      provider_contact: null,
+    },
+  },
+};
+
+const staleApprovalTask: OperatorConciergeQueueItem = {
+  ...failedAdapterTask,
+  id: "pending-stale-approval",
+  action_summary: "Email updated clinic paperwork",
+  adapter_incident: {
+    ...failedAdapterTask.adapter_incident!,
+    retry_allowed: false,
+    retry_blocker: "user_reconfirmation_required",
+  },
+  adapter_payload_preview: {
+    ...failedAdapterTask.adapter_payload_preview!,
+    summary: "Email updated clinic paperwork",
+    outbound_payload: {
+      ...failedAdapterTask.adapter_payload_preview!.outbound_payload!,
+      summary: "Email updated clinic paperwork",
+      action_payload: {
+        provider_email: "frontdesk@example.com",
+        document_type: "appointment form",
+      },
+    },
+  },
+  adapter_approval: {
+    version: 1,
+    requires_reconfirmation: true,
+    reason: "approved_payload_changed",
+    changed_fields: ["summary", "payload"],
+    approved_at: "2026-07-01T10:00:00.000Z",
+    approved_fingerprint: "approved",
+    current_fingerprint: "changed",
+  },
+};
+
+const simulatedDryRunTask: OperatorConciergeQueueItem = {
+  ...doneTask,
+  id: "session-simulated",
+  action_summary: "Dry-run appointment email",
+  active_tool: "email",
+  adapter_incident: {
+    status: "simulated",
+    adapter: "concierge_email_adapter",
+    mode: "dry_run",
+    channel: "email",
+    tool: "email",
+    attempted_at: "2026-07-01T11:00:00.000Z",
+    provider_name: "VYVA Test Clinic",
+    provider_contact: "concierge@example.test",
+    external_action_allowed: false,
+    result: "simulated",
+    simulated: true,
+    live: false,
+    retry_allowed: false,
+    retry_blocker: null,
+    manual_follow_up_allowed: false,
+    manual_follow_up_queued_at: null,
+    attempts: [
+      {
+        event: "adapter_execution_simulated",
+        at: "2026-07-01T11:00:00.000Z",
+        source: "confirm_endpoint",
+        status: "simulated",
+        adapter: "concierge_email_adapter",
+        mode: "dry_run",
+        channel: "email",
+        provider_name: "VYVA Test Clinic",
+        provider_contact: "concierge@example.test",
+        result: "simulated",
+      },
+    ],
+  },
+};
+
+const liveSentTask: OperatorConciergeQueueItem = {
+  ...doneTask,
+  id: "session-live",
+  action_summary: "Live pilot email sent",
+  active_tool: "email",
+  adapter_incident: {
+    status: "sent",
+    adapter: "concierge_email_adapter",
+    mode: "live",
+    channel: "email",
+    tool: "email",
+    attempted_at: "2026-07-01T11:10:00.000Z",
+    provider_name: "Controlled Email Pilot Inbox",
+    provider_contact: "concierge@vyva.life",
+    external_action_allowed: true,
+    result: "sent",
+    result_id: "resend-message-1",
+    simulated: false,
+    live: true,
+    retry_allowed: false,
+    retry_blocker: null,
+    manual_follow_up_allowed: false,
+    manual_follow_up_queued_at: null,
+    attempts: [
+      {
+        event: "adapter_execution_succeeded",
+        at: "2026-07-01T11:10:00.000Z",
+        source: "confirm_endpoint",
+        status: "sent",
+        adapter: "concierge_email_adapter",
+        mode: "live",
+        channel: "email",
+        provider_name: "Controlled Email Pilot Inbox",
+        provider_contact: "concierge@vyva.life",
+        result: "sent",
+        result_id: "resend-message-1",
+      },
+    ],
+  },
+};
+
+const blockedAdapterTask: OperatorConciergeQueueItem = {
+  ...confirmedTask,
+  id: "pending-blocked",
+  action_summary: "Blocked live email",
+  active_tool: "email",
+  adapter_incident: {
+    status: "blocked",
+    adapter: "concierge_email_adapter",
+    mode: "live",
+    channel: "email",
+    tool: "email",
+    attempted_at: "2026-07-01T11:20:00.000Z",
+    provider_name: "City Clinic",
+    provider_contact: "frontdesk@example.com",
+    external_action_allowed: false,
+    result: "blocked",
+    blocker: "user_confirmation_required",
+    simulated: false,
+    live: true,
+    retry_allowed: false,
+    retry_blocker: "user_confirmation_required",
+    manual_follow_up_allowed: true,
+    manual_follow_up_queued_at: null,
+    attempts: [
+      {
+        event: "adapter_execution_blocked",
+        at: "2026-07-01T11:20:00.000Z",
+        source: "confirm_endpoint",
+        status: "blocked",
+        adapter: "concierge_email_adapter",
+        mode: "live",
+        channel: "email",
+        provider_name: "City Clinic",
+        provider_contact: "frontdesk@example.com",
+        result: "blocked",
+        blocker: "user_confirmation_required",
+      },
+    ],
+  },
+};
+
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -119,10 +403,7 @@ function renderPage(items: OperatorConciergeQueueItem[] = [confirmedTask, needsI
         },
       }));
     }
-    if (path === "/api/admin/concierge/queue/pending-1" && init?.method === "PATCH") {
-      return Promise.resolve(jsonResponse({ ok: true }));
-    }
-    if (path === "/api/admin/concierge/queue/pending-2" && init?.method === "PATCH") {
+    if (String(path).startsWith("/api/admin/concierge/queue/") && init?.method === "PATCH") {
       return Promise.resolve(jsonResponse({ ok: true }));
     }
     return Promise.resolve(new Response(JSON.stringify({ error: "Unexpected request" }), { status: 500 }));
@@ -176,6 +457,44 @@ describe("ConciergeQueueAdminPage", () => {
     expect(within(list).queryByText("Book a ride to the clinic")).not.toBeInTheDocument();
   });
 
+  it("filters visible tasks by adapter status", async () => {
+    renderPage([confirmedTask, failedAdapterTask, doneTask]);
+
+    expect(await screen.findByText("Email clinic paperwork")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-concierge-adapter-filter-failed"));
+
+    const list = screen.getByTestId("admin-concierge-queue-list");
+    expect(within(list).getByText("Email clinic paperwork")).toBeInTheDocument();
+    expect(within(list).queryByText("Book a ride to the clinic")).not.toBeInTheDocument();
+    expect(within(list).queryByText("OTC items confirmed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("admin-concierge-queue-summary")).toHaveTextContent("Showing 1 of 3 Concierge tasks.");
+  });
+
+  it("makes simulated, live, and blocked channel history obvious", async () => {
+    renderPage([simulatedDryRunTask, liveSentTask, blockedAdapterTask]);
+
+    expect(await screen.findByText("Dry-run appointment email")).toBeInTheDocument();
+
+    const list = screen.getByTestId("admin-concierge-queue-list");
+    expect(within(list).getAllByText("Simulated").length).toBeGreaterThan(0);
+    expect(within(list).getAllByText("Live action").length).toBeGreaterThan(0);
+    expect(within(list).getByText("user_confirmation_required")).toBeInTheDocument();
+
+    fireEvent.click(within(list).getAllByRole("button", { name: "Open task" })[1]);
+    let dialog = screen.getByRole("dialog", { name: "Live pilot email sent" });
+    expect(dialog).toHaveTextContent("Live action");
+    expect(dialog).toHaveTextContent("Sent - Live action");
+    expect(dialog).toHaveTextContent("Controlled Email Pilot Inbox");
+    expect(dialog).toHaveTextContent("concierge@vyva.life");
+    expect(dialog).toHaveTextContent("Result ID resend-message-1");
+    fireEvent.click(within(dialog).getByLabelText("Close task detail"));
+
+    fireEvent.click(within(list).getAllByRole("button", { name: "Open task" })[2]);
+    dialog = screen.getByRole("dialog", { name: "Blocked live email" });
+    expect(dialog).toHaveTextContent("Blocked - Live action");
+    expect(dialog).toHaveTextContent("user_confirmation_required");
+  });
+
   it("filters by owner and lets the operator take an unassigned task", async () => {
     renderPage();
 
@@ -220,6 +539,100 @@ describe("ConciergeQueueAdminPage", () => {
     expect(patchCall).toBeTruthy();
     expect(String(patchCall?.[1]?.body)).toContain('"action":"done"');
     expect(String(patchCall?.[1]?.body)).toContain("Taxi confirmed for 10:30.");
+  });
+
+  it("shows adapter incident history and requests recovery actions", async () => {
+    renderPage([failedAdapterTask]);
+
+    expect(await screen.findByText("Email clinic paperwork")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open task" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Email clinic paperwork" });
+    expect(dialog).toHaveTextContent("Payload preview");
+    expect(dialog).toHaveTextContent("Contract ready");
+    expect(dialog).toHaveTextContent("Approval still matches");
+    expect(dialog).toHaveTextContent("frontdesk@example.com");
+    expect(dialog).toHaveTextContent('"provider_email": "frontdesk@example.com"');
+    expect(dialog).toHaveTextContent("Channel incident");
+    expect(dialog).toHaveTextContent("Adapter endpoint failed with 500.");
+    expect(dialog).toHaveTextContent("adapter retry requested");
+
+    fireEvent.change(within(dialog).getByLabelText("Operator note"), {
+      target: { value: "Endpoint fixed; retrying." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retry live action" }));
+
+    expect(await screen.findByText("Adapter retry requested.")).toBeInTheDocument();
+    const retryCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/concierge/queue/pending-failed"
+      && init?.method === "PATCH"
+      && String(init.body).includes('"action":"retry_adapter"')
+    ));
+    expect(retryCall).toBeTruthy();
+    expect(String(retryCall?.[1]?.body)).toContain("Endpoint fixed; retrying.");
+  });
+
+  it("shows missing adapter payload contract fields before retry", async () => {
+    renderPage([missingPayloadTask]);
+
+    expect(await screen.findByText("Retry paperwork email")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open task" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Retry paperwork email" });
+    expect(dialog).toHaveTextContent("Missing fields");
+    expect(dialog).toHaveTextContent("Provider email address");
+    expect(dialog).toHaveTextContent("Add the provider email address before sending this action.");
+    expect(dialog).toHaveTextContent("Retry blocked: adapter_payload_missing_provider_contact");
+    expect(within(dialog).getByRole("button", { name: "Retry live action" })).toBeDisabled();
+  });
+
+  it("shows stale approval reconfirmation before retry", async () => {
+    renderPage([staleApprovalTask]);
+
+    expect(await screen.findByText("Email updated clinic paperwork")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open task" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Email updated clinic paperwork" });
+    expect(dialog).toHaveTextContent("User reconfirmation required");
+    expect(dialog).toHaveTextContent("Changed since approval: summary, payload.");
+    expect(dialog).toHaveTextContent("Retry blocked: user reconfirmation required");
+    expect(within(dialog).getByRole("button", { name: "Retry live action" })).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByLabelText("Operator note"), {
+      target: { value: "Please approve the updated paperwork." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Request user reconfirmation" }));
+
+    expect(await screen.findByText("User reconfirmation requested.")).toBeInTheDocument();
+    const requestCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/concierge/queue/pending-stale-approval"
+      && init?.method === "PATCH"
+      && String(init.body).includes('"action":"request_reconfirmation"')
+    ));
+    expect(requestCall).toBeTruthy();
+    expect(String(requestCall?.[1]?.body)).toContain("Please approve the updated paperwork.");
+  });
+
+  it("queues manual follow-up for a failed live adapter task", async () => {
+    renderPage([failedAdapterTask]);
+
+    expect(await screen.findByText("Email clinic paperwork")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open task" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Email clinic paperwork" });
+    fireEvent.change(within(dialog).getByLabelText("Operator note"), {
+      target: { value: "Calling clinic manually." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Manual follow-up queued" }));
+
+    expect(await screen.findByText("Manual follow-up queued.")).toBeInTheDocument();
+    const manualCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/concierge/queue/pending-failed"
+      && init?.method === "PATCH"
+      && String(init.body).includes('"action":"manual_follow_up"')
+    ));
+    expect(manualCall).toBeTruthy();
+    expect(String(manualCall?.[1]?.body)).toContain("Calling clinic manually.");
   });
 
   it("shows another operator assignment as read-only for the current operator", async () => {
