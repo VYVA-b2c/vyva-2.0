@@ -904,6 +904,15 @@ type CampaignLaunchSequenceStep = CampaignReadinessItem & {
   onSelect?: () => void;
 };
 
+type CampaignDetailActionItem = CampaignReadinessItem & {
+  label: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  buttonType?: "button" | "submit";
+  disabled?: boolean;
+  onSelect?: () => void;
+};
+
 type AudienceHealthAction = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -16647,6 +16656,54 @@ export default function MarketingAdminPage() {
   const campaignNextLaunchStep = campaignLaunchSequenceSteps.find((item) => item.state !== "ready")
     ?? campaignLaunchSequenceSteps[campaignLaunchSequenceSteps.length - 1]
     ?? null;
+  const campaignDetailActionItems: CampaignDetailActionItem[] = editingCampaign ? [
+    ...(campaignNextLaunchStep ? [{
+      key: `launch-${campaignNextLaunchStep.key}`,
+      label: "Do now",
+      title: campaignNextLaunchStep.title,
+      detail: campaignNextLaunchStep.detail,
+      state: campaignNextLaunchStep.state,
+      actionLabel: campaignNextLaunchStep.actionLabel,
+      icon: campaignNextLaunchStep.icon,
+      buttonType: campaignNextLaunchStep.buttonType,
+      disabled: campaignNextLaunchStep.disabled,
+      onSelect: campaignNextLaunchStep.onSelect,
+    }] : []),
+    ...(campaignSavedLaunchPacketRunSheetText ? [{
+      key: "copy-run-sheets",
+      label: "Handoff",
+      title: "Copy channel run sheets",
+      detail: "Give the exact channel instructions to whoever is publishing, sending, or tracking this campaign.",
+      state: "ready" as CampaignReadinessState,
+      actionLabel: "Copy run sheets",
+      icon: Copy,
+      onSelect: () => {
+        void copyCampaignHandoffText("Saved channel run sheets", campaignSavedLaunchPacketRunSheetText);
+      },
+    }] : []),
+    ...(campaignSavedLaunchPacketText ? [{
+      key: "copy-launch-packet",
+      label: "Brief",
+      title: "Copy full launch packet",
+      detail: "Share the full campaign plan with copy, audience, routes, follow-up, and outcome tracking.",
+      state: "ready" as CampaignReadinessState,
+      actionLabel: "Copy packet",
+      icon: FileText,
+      onSelect: () => {
+        void copyCampaignHandoffText("Saved launch packet", campaignSavedLaunchPacketText);
+      },
+    }] : []),
+    ...(campaignRelationshipSignalCount > 0 ? [{
+      key: "relationship-follow-up",
+      label: "Aftercare",
+      title: "Start responder follow-up",
+      detail: `${campaignRelationshipSignalCount} engagement signal${campaignRelationshipSignalCount === 1 ? "" : "s"} can become a smaller, relationship-led follow-up campaign.`,
+      state: "ready" as CampaignReadinessState,
+      actionLabel: "Start follow-up",
+      icon: Waypoints,
+      onSelect: startFollowUpCampaignFromCurrentCampaign,
+    }] : []),
+  ].filter((item, index, items) => items.findIndex((candidate) => candidate.key === item.key) === index).slice(0, 4) : [];
   const linkedCampaignContentCount = campaignReadinessChannels.filter((channelDraft) => Boolean(channelDraft.contentAssetId)).length;
   const campaignOperatorBriefItems = editingCampaign ? [
     {
@@ -19392,6 +19449,46 @@ export default function MarketingAdminPage() {
                                 <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
                               </div>
                             ))}
+                          </div>
+                        ) : null}
+                        {campaignDetailActionItems.length ? (
+                          <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-action-queue">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Next actions</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">The shortest path from campaign setup to send, handoff, tracking, or follow-up.</p>
+                              </div>
+                              <Pill className={campaignBlockedCount > 0 ? "bg-red-50 text-red-800" : campaignNeedsActionCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                                {campaignReadinessSummary}
+                              </Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                              {campaignDetailActionItems.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                  <div key={item.key} className={`rounded-lg border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-action-${item.key}`}>
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">{item.label}</p>
+                                        <p className="mt-1 text-sm font-black">{item.title}</p>
+                                      </div>
+                                      <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                    </div>
+                                    <p className="mt-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                                    <button
+                                      type={item.buttonType ?? "button"}
+                                      disabled={item.disabled}
+                                      onClick={item.buttonType === "submit" ? undefined : item.onSelect}
+                                      className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-[#241133] px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                      data-testid={`button-marketing-campaign-action-${item.key}`}
+                                    >
+                                      <Icon size={14} aria-hidden="true" />
+                                      {item.actionLabel}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         ) : null}
                         {campaignSavedLaunchPacketText ? (

@@ -4289,6 +4289,10 @@ describe("MarketingAdminPage", () => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Created "Partner outreach AI campaign" across 2 channels with 2 recipient snapshots ready.');
     });
     expect(screen.getByTestId("marketing-campaign-edit-form")).toHaveTextContent("Partner outreach AI campaign");
+    expect(screen.getByTestId("marketing-campaign-action-queue")).toHaveTextContent("Next actions");
+    expect(screen.getByTestId("marketing-campaign-action-queue")).toHaveTextContent("Copy channel run sheets");
+    expect(screen.getByTestId("marketing-campaign-action-queue")).toHaveTextContent("Copy full launch packet");
+    expect(screen.getByTestId("button-marketing-campaign-action-copy-run-sheets")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("2 routes");
     expect(screen.getByTestId("marketing-campaign-saved-run-sheets")).toHaveTextContent("Operator run sheets");
