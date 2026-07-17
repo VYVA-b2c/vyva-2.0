@@ -3220,11 +3220,17 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
 
     expect(screen.getByTestId("marketing-content-ai-polish-panel")).toHaveTextContent("AI polish");
+    expect(screen.getByTestId("marketing-content-next-action")).toHaveTextContent("Content copilot");
+    expect(screen.getByTestId("marketing-content-next-action-title")).toHaveTextContent("Polish with AI");
+    expect(screen.getByTestId("marketing-content-next-action-copy")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("marketing-content-next-action-cta")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("marketing-content-next-action-polish")).toHaveTextContent("Suggested");
+    expect(screen.getByTestId("button-marketing-content-next-action")).toHaveTextContent("Polish with AI");
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
     expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("Partner update");
 
     fireEvent.change(screen.getByTestId("select-marketing-content-polish-tone"), { target: { value: "direct" } });
-    fireEvent.click(screen.getByTestId("button-marketing-polish-content-ai"));
+    fireEvent.click(screen.getByTestId("button-marketing-content-next-action"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
@@ -3252,6 +3258,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("AI body copy with stronger channel direction.");
     expect(screen.getByTestId("input-marketing-edit-content-cta-label")).toHaveValue("AI CTA");
     expect(screen.getByTestId("input-marketing-edit-content-cta-url")).toHaveValue("https://v2.vyva.life/ai");
+    expect(screen.getByTestId("marketing-content-next-action-title")).toHaveTextContent("Create a channel pack");
+    expect(screen.getByTestId("marketing-content-next-action-polish")).toHaveTextContent("Applied");
+    expect(screen.getByTestId("marketing-content-next-action-variants")).toHaveTextContent("None");
+    expect(screen.getByTestId("button-marketing-content-next-action")).toHaveTextContent("Create full pack");
 
     const polishedDesign = JSON.parse((screen.getByTestId("textarea-marketing-edit-content-design-json") as HTMLTextAreaElement).value);
     expect(polishedDesign).toMatchObject({

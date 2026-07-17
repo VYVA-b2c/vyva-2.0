@@ -10943,6 +10943,110 @@ export default function MarketingAdminPage() {
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
   const selectedContent = useMemo(() => selectedContentId ? content.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, content]);
   const contentEditorBusy = contentSaving || contentPolishRunning || contentLocalizationRunning || contentVariantRunning || contentChannelPackRunning;
+  const contentEditorDraftMetadata = contentEditDraft ? optionalJsonRecordText(contentEditDraft.metadataText) : {};
+  const contentEditorDraftDesign = contentEditDraft ? optionalJsonRecordText(contentEditDraft.designJsonText) : {};
+  const contentEditorHasCopy = Boolean(contentEditDraft && (contentEditDraft.subject.trim() || contentEditDraft.body.trim() || contentEditDraft.htmlBody.trim()));
+  const contentEditorHasCta = Boolean(contentEditDraft && (contentEditDraft.ctaLabel.trim() || contentEditDraft.ctaUrl.trim()));
+  const contentEditorHasAiPolish = Boolean(
+    Array.isArray(contentEditorDraftMetadata.aiPolishHistory) && contentEditorDraftMetadata.aiPolishHistory.length > 0
+    || recordValue(contentEditorDraftDesign.aiPolish).generator,
+  );
+  const contentEditorVariantCount = editingContentId ? content.filter((item) => {
+    if (item.id === editingContentId) return false;
+    const metadata = recordValue(item.metadata);
+    return metadata.channelVariantFromContentId === editingContentId || metadata.localizedFromContentId === editingContentId;
+  }).length : 0;
+  const contentEditorNextAction = (() => {
+    if (!contentEditDraft) return null;
+    if (!contentEditorHasCopy) {
+      return {
+        key: "copy",
+        label: "Needs copy",
+        title: "Add copy before AI",
+        detail: "Add a subject, plain body, or HTML body so this asset can be polished, localized, or adapted safely.",
+        actionLabel: "Add copy first",
+        action: "none" as const,
+        state: "blocked" as CampaignReadinessState,
+        icon: FileText,
+      };
+    }
+    if (!contentEditorHasCta) {
+      return {
+        key: "cta",
+        label: "CTA missing",
+        title: "Add a clear CTA",
+        detail: "Give this asset a call to action before turning it into campaign variants or publishing it.",
+        actionLabel: "Review CTA fields",
+        action: "none" as const,
+        state: "needs_action" as CampaignReadinessState,
+        icon: Send,
+      };
+    }
+    if (!contentEditorHasAiPolish) {
+      return {
+        key: "polish",
+        label: "Best next step",
+        title: "Polish with AI",
+        detail: `Use the ${campaignStudioToneLabel[contentPolishTone].toLowerCase()} tone to tighten subject, body, and CTA before creating variants.`,
+        actionLabel: "Polish with AI",
+        action: "polish" as const,
+        state: "needs_action" as CampaignReadinessState,
+        icon: Sparkles,
+      };
+    }
+    if (contentEditorVariantCount === 0) {
+      return {
+        key: "pack",
+        label: "Scale it",
+        title: "Create a channel pack",
+        detail: `Turn this ${channelLabel[contentEditDraft.channel]} asset into channel-specific drafts for email, WhatsApp, social, phone, print, and event routes.`,
+        actionLabel: "Create full pack",
+        action: "channel_pack" as const,
+        state: "planning" as CampaignReadinessState,
+        icon: Megaphone,
+      };
+    }
+    return {
+      key: "save",
+      label: "Review-ready",
+      title: "Save reviewed content",
+      detail: `${contentEditorVariantCount} related variant${contentEditorVariantCount === 1 ? "" : "s"} exist. Save this draft when the copy, CTA, and metadata are final.`,
+      actionLabel: "Save content",
+      action: "save" as const,
+      state: "ready" as CampaignReadinessState,
+      icon: CheckCircle2,
+    };
+  })();
+  const contentEditorReadinessItems = contentEditDraft ? [
+    {
+      key: "copy",
+      title: "Copy",
+      value: contentEditorHasCopy ? "Ready" : "Missing",
+      state: contentEditorHasCopy ? "ready" as CampaignReadinessState : "blocked" as CampaignReadinessState,
+      detail: contentEditorHasCopy ? "Subject, body, or HTML is present." : "Add text before using AI tools.",
+    },
+    {
+      key: "cta",
+      title: "CTA",
+      value: contentEditorHasCta ? "Ready" : "Review",
+      state: contentEditorHasCta ? "ready" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      detail: contentEditorHasCta ? "CTA label or URL is present." : "Add a clear next step.",
+    },
+    {
+      key: "polish",
+      title: "AI polish",
+      value: contentEditorHasAiPolish ? "Applied" : "Suggested",
+      state: contentEditorHasAiPolish ? "ready" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      detail: contentEditorHasAiPolish ? "This draft has AI polish history." : "Polish before scaling variants.",
+    },
+    {
+      key: "variants",
+      title: "Variants",
+      value: contentEditorVariantCount ? String(contentEditorVariantCount) : "None",
+      state: contentEditorVariantCount ? "ready" as CampaignReadinessState : "planning" as CampaignReadinessState,
+      detail: contentEditorVariantCount ? "Related channel or language variants exist." : "Create variants when the base copy is strong.",
+    },
+  ] : [];
   const selectedContentUsage = useMemo(
     () => selectedContent ? contentUsageById.get(selectedContent.id) ?? [] : [],
     [contentUsageById, selectedContent],
@@ -24950,6 +25054,51 @@ export default function MarketingAdminPage() {
                           <p className="mt-1 text-xs font-bold text-[#7c6f83]">Improve this draft in place, or create a new localized copy without touching the original.</p>
                         </div>
                       </div>
+                      {contentEditorNextAction ? (
+                        <div className={`mt-3 rounded-xl border bg-white p-3 shadow-sm ${readinessClass(contentEditorNextAction.state)}`} data-testid="marketing-content-next-action">
+                          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_190px] xl:items-center">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Pill className="bg-purple-50 text-purple-800">Content copilot</Pill>
+                                <Pill className={readinessPillClass(contentEditorNextAction.state)}>{contentEditorNextAction.label}</Pill>
+                              </div>
+                              <h4 className="mt-2 text-base font-black text-[#241133]" data-testid="marketing-content-next-action-title">{contentEditorNextAction.title}</h4>
+                              <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]" data-testid="marketing-content-next-action-detail">{contentEditorNextAction.detail}</p>
+                            </div>
+                            <button
+                              type={contentEditorNextAction.action === "save" ? "submit" : "button"}
+                              onClick={contentEditorNextAction.action === "polish"
+                                ? () => void polishContentEditDraft()
+                                : contentEditorNextAction.action === "channel_pack"
+                                  ? () => void createFullChannelContentPack()
+                                  : undefined}
+                              disabled={
+                                contentEditorBusy
+                                || contentEditorNextAction.action === "none"
+                                || ((contentEditorNextAction.action === "polish" || contentEditorNextAction.action === "channel_pack") && !contentEditorHasCopy)
+                              }
+                              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-content-next-action"
+                            >
+                              {(() => {
+                                const NextActionIcon = contentEditorNextAction.icon;
+                                return <NextActionIcon size={15} />;
+                              })()} {contentEditorNextAction.actionLabel}
+                            </button>
+                          </div>
+                          <div className="mt-3 grid gap-2 md:grid-cols-4" data-testid="marketing-content-next-action-readiness">
+                            {contentEditorReadinessItems.map((item) => (
+                              <div key={item.key} className={`rounded-lg border p-2 ${readinessClass(item.state)}`} data-testid={`marketing-content-next-action-${item.key}`}>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#7d6b65]">{item.title}</p>
+                                  <Pill className={readinessPillClass(item.state)}>{item.value}</Pill>
+                                </div>
+                                <p className="mt-1 text-[11px] font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="mt-3 grid gap-3 xl:grid-cols-3">
                         <div className="rounded-xl border border-purple-100 bg-white p-3">
                           <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Polish current draft</p>
