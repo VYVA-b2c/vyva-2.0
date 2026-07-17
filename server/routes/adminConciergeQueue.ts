@@ -2,23 +2,27 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { pool } from "../db.js";
-import { withConciergeExecutionTask } from "../../shared/conciergeActionExecution.js";
+import { appendConciergeExecutionAudit, withConciergeExecutionTask } from "../../shared/conciergeActionExecution.js";
 import {
   OPERATOR_CONCIERGE_QUEUE_STATUSES,
+  adapterIncidentFromPayload,
   buildOperatorConciergeQueueTotals,
   executionTaskFromPayload,
   isOperatorConciergeQueueAction,
   isOperatorConciergeQueueStatus,
   normalizeOperatorConciergeQueueStatus,
-  type OperatorConciergeQueueAction,
+  type OperatorConciergeAdapterIncident,
   type OperatorConciergeQueueItem,
   type OperatorConciergeQueueStatus,
 } from "../../shared/conciergeOperatorQueue.js";
+import type { ConciergeChannelReadinessResult } from "../../shared/conciergeChannelReadiness.js";
+import { conciergeChannelReadinessForToolWithAdminSettings } from "../services/conciergeChannelReadiness.js";
+import { startPendingConciergeAction } from "../services/conciergeActions.js";
 
 const router = Router();
 
 const updateSchema = z.object({
-  action: z.enum(["assign", "in_progress", "done", "failed"]),
+  action: z.enum(["assign", "in_progress", "done", "failed", "retry_adapter", "manual_follow_up"]),
   outcome_note: z.string().trim().max(1000).optional().nullable(),
 });
 
@@ -101,6 +105,52 @@ function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+class QueueActionError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 409) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+function latestAdapterResultFromPayload(payload: unknown): Record<string, unknown> | null {
+  const data = objectPayload(payload);
+  const executionAdapter = objectPayload(data.execution_adapter);
+  if (executionAdapter.version === 1) return executionAdapter;
+  const adapterResult = objectPayload(data.adapter_result);
+  if (adapterResult.version === 1) return adapterResult;
+  return null;
+}
+
+function isLiveAdapterRecoveryCandidate(incident: OperatorConciergeAdapterIncident | null | undefined): boolean {
+  return Boolean(
+    incident
+      && incident.live
+      && (incident.status === "failed" || incident.status === "blocked"),
+  );
+}
+
+function retryBlockerLabel(readiness: ConciergeChannelReadinessResult): string {
+  return readiness.blockers[0] ?? `${readiness.channel ?? readiness.tool}_not_live_ready`;
+}
+
+async function retryReadinessForPendingPayload(
+  payload: Record<string, unknown>,
+  cache: Map<string, Promise<ConciergeChannelReadinessResult>>,
+): Promise<ConciergeChannelReadinessResult | null> {
+  const task = executionTaskFromPayload(payload);
+  if (!task?.active_tool) return null;
+  const key = `${task.active_tool}:live`;
+  if (!cache.has(key)) {
+    cache.set(key, conciergeChannelReadinessForToolWithAdminSettings({
+      tool: task.active_tool,
+      dryRun: false,
+    }));
+  }
+  return cache.get(key)!;
+}
+
 function operatorAssignmentFromPayload(payload: unknown) {
   const data = objectPayload(payload);
   return {
@@ -162,6 +212,7 @@ function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
   if (status === "ready" && task?.user_confirmed) status = "confirmed";
   if (!status) return null;
   const assignment = operatorAssignmentFromPayload(payload);
+  const adapterIncident = adapterIncidentFromPayload(payload);
 
   return {
     id: row.id,
@@ -183,6 +234,65 @@ function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
     user_confirmed: Boolean(task?.user_confirmed),
     confirmed_at: isoDate(task?.confirmed_at ?? row.confirmed_at),
     updated_at: isoDate(task?.updated_at ?? row.updated_at ?? row.confirmed_at ?? row.expires_at),
+    adapter_incident: adapterIncident,
+  };
+}
+
+async function pendingItemWithAdapterPolicy(
+  row: PendingQueueRow,
+  readinessCache: Map<string, Promise<ConciergeChannelReadinessResult>>,
+): Promise<OperatorConciergeQueueItem | null> {
+  const item = pendingItem(row);
+  if (!item?.adapter_incident) return item;
+
+  const incident = item.adapter_incident;
+  if (!isLiveAdapterRecoveryCandidate(incident)) {
+    return {
+      ...item,
+      adapter_incident: {
+        ...incident,
+        retry_allowed: false,
+        retry_blocker: incident.live ? "adapter_status_not_retryable" : "not_a_live_adapter_attempt",
+        manual_follow_up_allowed: false,
+      },
+    };
+  }
+
+  if (!item.user_confirmed) {
+    return {
+      ...item,
+      adapter_incident: {
+        ...incident,
+        retry_allowed: false,
+        retry_blocker: "user_reconfirmation_required",
+        manual_follow_up_allowed: false,
+      },
+    };
+  }
+
+  const payload = currentPendingPayload(row);
+  const currentReadiness = await retryReadinessForPendingPayload(payload, readinessCache);
+  if (!currentReadiness) {
+    return {
+      ...item,
+      adapter_incident: {
+        ...incident,
+        retry_allowed: false,
+        retry_blocker: "tool_readiness_missing",
+        manual_follow_up_allowed: true,
+      },
+    };
+  }
+
+  const retryAllowed = currentReadiness.external_action_allowed === true;
+  return {
+    ...item,
+    adapter_incident: {
+      ...incident,
+      retry_allowed: retryAllowed,
+      retry_blocker: retryAllowed ? null : retryBlockerLabel(currentReadiness),
+      manual_follow_up_allowed: true,
+    },
   };
 }
 
@@ -219,7 +329,7 @@ async function loadPendingQueueRow(pendingId: string): Promise<PendingQueueRow |
 
 function buildUpdatedPendingPayload(
   row: PendingQueueRow,
-  action: OperatorConciergeQueueAction,
+  action: "in_progress" | "done" | "failed",
   note: string | null,
   req: Request,
 ): Record<string, unknown> {
@@ -365,6 +475,155 @@ async function closePending(row: PendingQueueRow, action: "done" | "failed", not
   }
 }
 
+function recoveryContext(row: PendingQueueRow) {
+  const payload = currentPendingPayload(row);
+  const task = executionTaskFromPayload(payload);
+  const incident = adapterIncidentFromPayload(payload);
+  const adapterResult = latestAdapterResultFromPayload(payload);
+
+  if (!isLiveAdapterRecoveryCandidate(incident)) {
+    throw new QueueActionError("Only failed or blocked live adapter attempts can use this recovery action.");
+  }
+  if (!task?.user_confirmed) {
+    throw new QueueActionError("The user must confirm again before this live Concierge action can be retried or routed.");
+  }
+  if (!task.active_tool) {
+    throw new QueueActionError("This Concierge task is missing its active channel.");
+  }
+
+  return { payload, task, incident, adapterResult };
+}
+
+async function currentLiveReadinessForRetry(row: PendingQueueRow): Promise<ConciergeChannelReadinessResult> {
+  const payload = currentPendingPayload(row);
+  const task = executionTaskFromPayload(payload);
+  if (!task?.active_tool) throw new QueueActionError("This Concierge task is missing its active channel.");
+  return conciergeChannelReadinessForToolWithAdminSettings({
+    tool: task.active_tool,
+    dryRun: false,
+  });
+}
+
+function buildRecoveryAuditBase(
+  row: PendingQueueRow,
+  req: Request,
+  note: string | null,
+  timestamp: string,
+): Record<string, unknown> {
+  return withAssignment({
+    ...(row.action_payload ?? {}),
+    operator_note: note,
+    operator_updated_at: timestamp,
+  }, req);
+}
+
+async function retryPendingAdapter(row: PendingQueueRow, note: string | null, req: Request) {
+  const { task, adapterResult } = recoveryContext(row);
+  const readiness = await currentLiveReadinessForRetry(row);
+  if (!readiness.external_action_allowed) {
+    throw new QueueActionError(`The ${readiness.label.toLowerCase()} channel is not ready for retry (${retryBlockerLabel(readiness)}).`);
+  }
+
+  const now = new Date().toISOString();
+  const retryPayload = withConciergeExecutionTask({
+    useCase: row.use_case,
+    payload: appendConciergeExecutionAudit(buildRecoveryAuditBase(row, req, note, now), {
+      event: "adapter_retry_requested",
+      at: now,
+      source: "operator_queue",
+      pending_status: "pending",
+      lifecycle_status: "confirmed",
+      mode: "operator_queue",
+      requested_tool: task.requested_tool,
+      active_tool: task.active_tool,
+      action_type: task.action_type,
+      user_confirmed: true,
+      external_action_allowed: readiness.external_action_allowed,
+      execution_mode: "live",
+      channel_readiness: readiness,
+      adapter_result: adapterResult ?? undefined,
+      reason: note || "operator_retry_requested",
+    }),
+    providerName: row.provider_name,
+    providerPhone: row.provider_phone,
+    summary: row.action_summary,
+    pendingStatus: "pending",
+    lifecycleStatus: "confirmed",
+    userConfirmed: true,
+    confirmationSource: "operator_adapter_retry",
+    channelReadiness: readiness,
+    externalActionAllowed: false,
+    executionMode: "manual_review",
+    outcome: note || row.action_summary || "operator retry requested",
+    now,
+  });
+
+  await pool.query(
+    `
+      update concierge_pending
+      set status = 'pending', action_payload = $2::jsonb, updated_at = now()
+      where id = $1::uuid
+    `,
+    [row.id, JSON.stringify(retryPayload)],
+  );
+
+  try {
+    return await startPendingConciergeAction(row.id, row.user_id, "operator_adapter_retry");
+  } catch (err) {
+    throw new QueueActionError(err instanceof Error ? err.message : "Adapter retry could not be completed.");
+  }
+}
+
+async function queueManualFollowUp(row: PendingQueueRow, note: string | null, req: Request): Promise<void> {
+  const { task, adapterResult } = recoveryContext(row);
+  const now = new Date().toISOString();
+  const payload = withConciergeExecutionTask({
+    useCase: row.use_case,
+    payload: appendConciergeExecutionAudit({
+      ...buildRecoveryAuditBase(row, req, note, now),
+      manual_follow_up_queued_at: now,
+      manual_follow_up_note: note,
+    }, {
+      event: "adapter_manual_follow_up_queued",
+      at: now,
+      source: "operator_queue",
+      pending_status: "pending",
+      lifecycle_status: "confirmed",
+      mode: "operator_queue",
+      requested_tool: task.requested_tool,
+      active_tool: task.active_tool,
+      action_type: task.action_type,
+      user_confirmed: true,
+      external_action_allowed: false,
+      execution_mode: "manual_review",
+      channel_readiness: task.channel_readiness,
+      adapter_result: adapterResult ?? undefined,
+      reason: note || "manual_follow_up_queued",
+    }),
+    providerName: row.provider_name,
+    providerPhone: row.provider_phone,
+    summary: row.action_summary,
+    pendingStatus: "pending",
+    lifecycleStatus: "confirmed",
+    userConfirmed: true,
+    confirmationSource: "operator_manual_follow_up",
+    channelReadiness: task.channel_readiness,
+    externalActionAllowed: false,
+    executionMode: "manual_review",
+    outcome: note || row.action_summary || "manual follow-up queued",
+    now,
+  });
+
+  await pool.query(
+    `
+      update concierge_pending
+      set status = 'pending', action_payload = $2::jsonb, updated_at = now()
+      where id = $1::uuid
+    `,
+    [row.id, JSON.stringify(payload)],
+  );
+}
+
 function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
   const payloadWithTask = executionTaskFromPayload(row.outcome_payload)
     ? row.outcome_payload
@@ -382,6 +641,7 @@ function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
   const status = normalizeOperatorConciergeQueueStatus(task?.lifecycle_status ?? row.outcome);
   if (!status) return null;
   const assignment = operatorAssignmentFromPayload(payloadWithTask);
+  const adapterIncident = adapterIncidentFromPayload(payloadWithTask, row.outcome_payload, row.action_payload);
 
   return {
     id: row.id,
@@ -403,6 +663,7 @@ function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
     user_confirmed: Boolean(task?.user_confirmed ?? true),
     confirmed_at: isoDate(task?.confirmed_at ?? row.started_at),
     updated_at: isoDate(task?.updated_at ?? row.completed_at ?? row.started_at),
+    adapter_incident: adapterIncident,
   };
 }
 
@@ -482,8 +743,12 @@ router.get("/", async (req: Request, res: Response) => {
       ),
     ]);
 
+    const readinessCache = new Map<string, Promise<ConciergeChannelReadinessResult>>();
+    const pendingItems = await Promise.all(
+      pendingResult.rows.map((row) => pendingItemWithAdapterPolicy(row, readinessCache)),
+    );
     const allItems = sortByUpdatedAt([
-      ...pendingResult.rows.map(pendingItem),
+      ...pendingItems,
       ...sessionResult.rows.map(sessionItem),
     ].filter((item): item is OperatorConciergeQueueItem => Boolean(item)));
     const items = requestedStatus ? allItems.filter((item) => item.status === requestedStatus) : allItems;
@@ -531,12 +796,20 @@ router.patch("/:id", async (req: Request, res: Response) => {
       await updatePendingAssignment(row, req);
     } else if (parsed.data.action === "in_progress") {
       await updatePendingInProgress(row, note, req);
-    } else {
+    } else if (parsed.data.action === "done" || parsed.data.action === "failed") {
       await closePending(row, parsed.data.action, note, req);
+    } else if (parsed.data.action === "retry_adapter") {
+      const retryResult = await retryPendingAdapter(row, note, req);
+      return res.json({ ok: true, retry: retryResult });
+    } else if (parsed.data.action === "manual_follow_up") {
+      await queueManualFollowUp(row, note, req);
     }
 
     return res.json({ ok: true });
   } catch (err) {
+    if (err instanceof QueueActionError) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
     console.error("[admin/concierge/queue] failed to update task", err);
     return res.status(500).json({ error: "Failed to update Concierge task." });
   }

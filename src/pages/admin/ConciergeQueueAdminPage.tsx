@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, Clock3, Loader2, RefreshCw, ShieldCheck, Wrench, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, Loader2, RefreshCw, RotateCcw, ShieldCheck, Wrench, X } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  OPERATOR_CONCIERGE_ADAPTER_STATUSES,
   OPERATOR_CONCIERGE_QUEUE_STATUSES,
   OPERATOR_CONCIERGE_QUEUE_STATUS_LABELS,
+  buildOperatorConciergeAdapterTotals,
   buildOperatorConciergeQueueTotals,
   emptyOperatorConciergeQueueTotals,
   filterOperatorConciergeQueueItems,
+  type OperatorConciergeAdapterStatus,
   type OperatorConciergeQueueItem,
   type OperatorConciergeQueueStatus,
   type OperatorConciergeQueueTotals,
 } from "../../../shared/conciergeOperatorQueue";
 
 type QueueFilter = OperatorConciergeQueueStatus | "all";
-type QueueAction = "in_progress" | "done" | "failed";
+type AdapterFilter = OperatorConciergeAdapterStatus | "all";
+type QueueAction = "in_progress" | "done" | "failed" | "retry_adapter" | "manual_follow_up";
 type OwnerFilter = "all" | "mine" | "unassigned";
 
 type QueueResponse = {
@@ -51,6 +55,20 @@ const statusIcons: Record<OperatorConciergeQueueStatus, typeof AlertCircle> = {
   failed: AlertCircle,
 };
 
+const adapterStatusLabels: Record<OperatorConciergeAdapterStatus, string> = {
+  blocked: "Blocked",
+  failed: "Failed",
+  sent: "Sent",
+  simulated: "Simulated",
+};
+
+const adapterStatusStyles: Record<OperatorConciergeAdapterStatus, string> = {
+  blocked: "border-amber-200 bg-amber-50 text-amber-800",
+  failed: "border-red-200 bg-red-50 text-red-700",
+  sent: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  simulated: "border-blue-200 bg-blue-50 text-blue-800",
+};
+
 function cleanLabel(value: string | null | undefined) {
   return (value ?? "")
     .replace(/^FLOW_/, "")
@@ -70,6 +88,20 @@ function formatDate(value: string | null | undefined) {
   }).format(date);
 }
 
+function incidentSummary(item: OperatorConciergeQueueItem) {
+  const incident = item.adapter_incident;
+  if (!incident) return "No adapter attempt yet";
+  return incident.error || incident.blocker || incident.result || "No adapter result";
+}
+
+function incidentModeLabel(item: OperatorConciergeQueueItem) {
+  const incident = item.adapter_incident;
+  if (!incident) return "No channel action";
+  if (incident.simulated) return "Simulated";
+  if (incident.live) return "Live";
+  return cleanLabel(incident.mode) || "Adapter";
+}
+
 function mergeTotals(items: OperatorConciergeQueueItem[], responseTotals?: Partial<OperatorConciergeQueueTotals>): OperatorConciergeQueueTotals {
   return {
     ...buildOperatorConciergeQueueTotals(items),
@@ -82,6 +114,7 @@ export default function ConciergeQueueAdminPage() {
   const [items, setItems] = useState<OperatorConciergeQueueItem[]>([]);
   const [totals, setTotals] = useState<OperatorConciergeQueueTotals>(emptyOperatorConciergeQueueTotals());
   const [filter, setFilter] = useState<QueueFilter>("all");
+  const [adapterFilter, setAdapterFilter] = useState<AdapterFilter>("all");
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -131,16 +164,21 @@ export default function ConciergeQueueAdminPage() {
     item.source === "pending"
       && item.user_confirmed
       && item.status !== "done"
-      && item.status !== "failed"
+      && (item.status !== "failed" || Boolean(item.adapter_incident?.manual_follow_up_allowed || item.adapter_incident?.retry_allowed))
       && isUnassigned(item)
   );
   const visibleItems = useMemo(() => {
     const statusFiltered = filterOperatorConciergeQueueItems(items, filter);
-    if (ownerFilter === "mine") return statusFiltered.filter(isAssignedToCurrentOperator);
-    if (ownerFilter === "unassigned") return statusFiltered.filter(isUnassigned);
-    return statusFiltered;
-  }, [filter, isAssignedToCurrentOperator, isUnassigned, items, ownerFilter]);
+    const adapterFiltered = adapterFilter === "all"
+      ? statusFiltered
+      : statusFiltered.filter((item) => item.adapter_incident?.status === adapterFilter);
+    if (ownerFilter === "mine") return adapterFiltered.filter(isAssignedToCurrentOperator);
+    if (ownerFilter === "unassigned") return adapterFiltered.filter(isUnassigned);
+    return adapterFiltered;
+  }, [adapterFilter, filter, isAssignedToCurrentOperator, isUnassigned, items, ownerFilter]);
   const allCount = useMemo(() => OPERATOR_CONCIERGE_QUEUE_STATUSES.reduce((sum, status) => sum + totals[status], 0), [totals]);
+  const adapterTotals = useMemo(() => buildOperatorConciergeAdapterTotals(items), [items]);
+  const adapterAllCount = useMemo(() => OPERATOR_CONCIERGE_ADAPTER_STATUSES.reduce((sum, status) => sum + adapterTotals[status], 0), [adapterTotals]);
   const mineCount = useMemo(() => items.filter(isAssignedToCurrentOperator).length, [isAssignedToCurrentOperator, items]);
   const unassignedCount = useMemo(() => items.filter(isUnassigned).length, [isUnassigned, items]);
   const selectedCanAct = Boolean(
@@ -148,6 +186,12 @@ export default function ConciergeQueueAdminPage() {
       && selectedItem.user_confirmed
       && selectedItem.status !== "done"
       && selectedItem.status !== "failed"
+      && canCurrentOperatorAct(selectedItem),
+  );
+  const selectedCanRecoverIncident = Boolean(
+    selectedItem?.source === "pending"
+      && selectedItem.user_confirmed
+      && selectedItem.adapter_incident?.live
       && canCurrentOperatorAct(selectedItem),
   );
 
@@ -168,9 +212,16 @@ export default function ConciergeQueueAdminPage() {
       setSelectedItem(null);
       setOutcomeNote("");
       await refresh();
-      setMessage("Concierge task updated.");
+      setMessage(action === "retry_adapter"
+        ? "Adapter retry requested."
+        : action === "manual_follow_up"
+          ? "Manual follow-up queued."
+          : "Concierge task updated.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Task could not be updated.");
+      if (action === "retry_adapter" || action === "manual_follow_up") {
+        await refresh();
+      }
     } finally {
       setSavingAction(null);
     }
@@ -226,11 +277,14 @@ export default function ConciergeQueueAdminPage() {
                 Showing {visibleItems.length} of {allCount} Concierge tasks.
               </p>
             </div>
-            {filter !== "all" && (
+            {(filter !== "all" || adapterFilter !== "all") && (
               <button
                 type="button"
                 className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800"
-                onClick={() => setFilter("all")}
+                onClick={() => {
+                  setFilter("all");
+                  setAdapterFilter("all");
+                }}
               >
                 Show all
               </button>
@@ -283,6 +337,56 @@ export default function ConciergeQueueAdminPage() {
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-5 border-t border-[#eadfd5] pt-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-[#2f2135]">Channel attempts</h3>
+                <p className="mt-1 text-xs font-bold text-[#7d6b65]">Filter by the last adapter result recorded for each Concierge task.</p>
+              </div>
+              <span className="text-sm font-black text-[#7d6b65]">{adapterAllCount} with adapter history</span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              <button
+                type="button"
+                onClick={() => setAdapterFilter("all")}
+                aria-pressed={adapterFilter === "all"}
+                className={`min-h-16 rounded-2xl border px-4 py-3 text-left transition ${
+                  adapterFilter === "all"
+                    ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                    : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                }`}
+                data-testid="admin-concierge-adapter-filter-all"
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-black">All attempts</span>
+                  <span className="text-xl font-black leading-none">{adapterAllCount}</span>
+                </span>
+              </button>
+              {OPERATOR_CONCIERGE_ADAPTER_STATUSES.map((status) => {
+                const active = adapterFilter === status;
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setAdapterFilter(status)}
+                    aria-pressed={active}
+                    className={`min-h-16 rounded-2xl border px-4 py-3 text-left transition ${
+                      active
+                        ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                        : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                    }`}
+                    data-testid={`admin-concierge-adapter-filter-${status}`}
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-black">{adapterStatusLabels[status]}</span>
+                      <span className="text-xl font-black leading-none">{adapterTotals[status]}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2" aria-label="Owner filters">
@@ -342,6 +446,16 @@ export default function ConciergeQueueAdminPage() {
                           {cleanLabel(item.active_tool)}
                         </span>
                       )}
+                      {item.adapter_incident && (
+                        <span className={`rounded-full border px-3 py-1 text-xs font-black ${adapterStatusStyles[item.adapter_incident.status]}`}>
+                          {adapterStatusLabels[item.adapter_incident.status]}
+                        </span>
+                      )}
+                      {item.adapter_incident && (
+                        <span className="rounded-full bg-[#f7f2eb] px-3 py-1 text-xs font-black text-[#6b5a53]">
+                          {incidentModeLabel(item)}
+                        </span>
+                      )}
                     </div>
                     <h3 className="mt-3 text-xl font-black text-[#2f2135]">{item.action_summary}</h3>
                     <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
@@ -356,7 +470,7 @@ export default function ConciergeQueueAdminPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
                   <div className="rounded-2xl bg-white px-4 py-3">
                     <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Provider</p>
                     <p className="mt-1 font-bold text-[#2f2135]">{item.provider_name || "No provider saved"}</p>
@@ -372,6 +486,18 @@ export default function ConciergeQueueAdminPage() {
                     <p className="mt-1 font-bold text-[#2f2135]">
                       {item.missing_labels.length > 0 ? item.missing_labels.join(", ") : "Nothing obvious"}
                     </p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Channel result</p>
+                    {item.adapter_incident ? (
+                      <>
+                        <p className="mt-1 font-bold text-[#2f2135]">{cleanLabel(item.adapter_incident.channel) || cleanLabel(item.adapter_incident.tool) || "adapter"}</p>
+                        <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{incidentSummary(item)}</p>
+                        <p className="mt-1 text-xs font-bold text-[#8b7a73]">{formatDate(item.adapter_incident.attempted_at)}</p>
+                      </>
+                    ) : (
+                      <p className="mt-1 font-bold text-[#2f2135]">No adapter attempt</p>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
@@ -464,6 +590,70 @@ export default function ConciergeQueueAdminPage() {
               </div>
             </div>
 
+            {selectedItem.adapter_incident && (
+              <section className="mt-5 rounded-2xl border border-[#eadfd5] bg-[#fffdfb] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Channel incident</p>
+                    <h3 className="mt-1 text-xl font-black text-[#2f2135]">
+                      {adapterStatusLabels[selectedItem.adapter_incident.status]} - {incidentModeLabel(selectedItem)}
+                    </h3>
+                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
+                      {cleanLabel(selectedItem.adapter_incident.channel) || cleanLabel(selectedItem.adapter_incident.tool) || "adapter"}
+                      {selectedItem.adapter_incident.adapter ? ` via ${selectedItem.adapter_incident.adapter}` : ""}
+                    </p>
+                  </div>
+                  <span className={`rounded-full border px-3 py-1 text-xs font-black ${adapterStatusStyles[selectedItem.adapter_incident.status]}`}>
+                    {adapterStatusLabels[selectedItem.adapter_incident.status]}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Provider target</p>
+                    <p className="mt-1 font-bold text-[#2f2135]">{selectedItem.adapter_incident.provider_name || selectedItem.provider_name || "No provider saved"}</p>
+                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{selectedItem.adapter_incident.provider_contact || selectedItem.provider_phone || "No contact saved"}</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Latest result</p>
+                    <p className="mt-1 font-bold text-[#2f2135]">{incidentSummary(selectedItem)}</p>
+                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Attempted {formatDate(selectedItem.adapter_incident.attempted_at)}</p>
+                  </div>
+                </div>
+                {selectedItem.adapter_incident.retry_blocker && !selectedItem.adapter_incident.retry_allowed && (
+                  <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                    Retry blocked: {selectedItem.adapter_incident.retry_blocker}
+                  </div>
+                )}
+                {selectedItem.adapter_incident.manual_follow_up_queued_at && (
+                  <div className="mt-3 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">
+                    Manual follow-up queued {formatDate(selectedItem.adapter_incident.manual_follow_up_queued_at)}.
+                  </div>
+                )}
+                {selectedItem.adapter_incident.attempts.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Attempt history</p>
+                    <div className="mt-2 grid gap-2">
+                      {selectedItem.adapter_incident.attempts.map((attempt, index) => (
+                        <div key={`${attempt.event}-${attempt.at ?? index}`} className="rounded-2xl bg-[#fbf8f5] px-4 py-3 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-black text-[#2f2135]">{cleanLabel(attempt.event)}</span>
+                            <span className="font-bold text-[#7d6b65]">{formatDate(attempt.at)}</span>
+                          </div>
+                          <p className="mt-1 font-semibold text-[#7d6b65]">
+                            {attempt.status ? adapterStatusLabels[attempt.status] : cleanLabel(attempt.mode) || "Audit"}
+                            {attempt.channel ? ` - ${cleanLabel(attempt.channel)}` : ""}
+                          </p>
+                          {(attempt.error || attempt.blocker || attempt.reason || attempt.result) && (
+                            <p className="mt-1 font-semibold text-[#2f2135]">{attempt.error || attempt.blocker || attempt.reason || attempt.result}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
             <label className="mt-5 block">
               <span className="text-sm font-black text-[#4d4351]">Operator note</span>
               <textarea
@@ -515,7 +705,42 @@ export default function ConciergeQueueAdminPage() {
               </div>
             ) : (
               <div className="mt-5 rounded-2xl bg-[#fbf8f5] px-4 py-3 text-sm font-bold text-[#7d6b65]">
-                This task is read-only here. It is either already closed or still awaiting user confirmation.
+                Standard task controls are read-only here. It is either already closed, failed, or still awaiting user confirmation.
+              </div>
+            )}
+
+            {selectedItem.adapter_incident && (selectedItem.adapter_incident.status === "failed" || selectedItem.adapter_incident.status === "blocked") && (
+              <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-[#fffdfb] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Recovery</p>
+                    <p className="mt-1 text-sm font-bold text-[#7d6b65]">
+                      Retry checks live readiness again before any provider contact. Manual follow-up keeps the task queued for operator handling.
+                    </p>
+                  </div>
+                  {!selectedCanRecoverIncident && (
+                    <span className="rounded-full bg-[#fbf8f5] px-3 py-1 text-xs font-black text-[#7d6b65]">Not available</span>
+                  )}
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 text-sm font-black text-blue-800 transition hover:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => updateTask("retry_adapter")}
+                    disabled={!selectedCanRecoverIncident || !selectedItem.adapter_incident.retry_allowed || Boolean(savingAction)}
+                  >
+                    <RotateCcw size={16} aria-hidden="true" />
+                    {savingAction === "retry_adapter" ? "Retrying..." : "Retry live action"}
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-800 transition hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => updateTask("manual_follow_up")}
+                    disabled={!selectedCanRecoverIncident || !selectedItem.adapter_incident.manual_follow_up_allowed || Boolean(savingAction)}
+                  >
+                    {savingAction === "manual_follow_up" ? "Queuing..." : "Manual follow-up queued"}
+                  </button>
+                </div>
               </div>
             )}
           </section>

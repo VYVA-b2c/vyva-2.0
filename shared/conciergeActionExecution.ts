@@ -91,6 +91,8 @@ export type ConciergeExecutionAuditEvent =
   | "adapter_execution_failed"
   | "adapter_execution_simulated"
   | "adapter_execution_succeeded"
+  | "adapter_retry_requested"
+  | "adapter_manual_follow_up_queued"
   | "blocked_missing_info"
   | "blocked_channel_not_ready"
   | "user_confirmed"
