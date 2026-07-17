@@ -38,7 +38,6 @@ describe("cross-app workflow completion audit", () => {
 
     expect(crossAppWorkflowAuditEntriesForStatus("partial").map((entry) => entry.id)).toEqual(
       expect.arrayContaining([
-        "health.medication-research",
         "admin.content-management",
       ]),
     );
@@ -116,11 +115,10 @@ describe("cross-app workflow completion audit", () => {
 
   it("names the next implementation priorities in order", () => {
     expect(CROSS_APP_WORKFLOW_NEXT_IMPLEMENTATION_ORDER.map((item) => item.id)).toEqual([
-      "next.medication-research-sources",
       "next.admin-content-index",
     ]);
     expect(CROSS_APP_WORKFLOW_NEXT_IMPLEMENTATION_ORDER[0].auditEntryIds).toEqual(
-      ["health.medication-research"],
+      ["admin.content-management"],
     );
   });
 });

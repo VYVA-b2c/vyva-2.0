@@ -206,17 +206,14 @@ describe("cross-app workflow registry", () => {
     expect(summary.bySurface.fast_help.total).toBeGreaterThan(0);
     expect(summary.bySurface.game_action.total).toBeGreaterThan(0);
     expect(WORKFLOW_STATUSES.reduce((total, status) => total + summary.byStatus[status], 0)).toBe(summary.workflows.total);
-    expect(summary.partialWorkflows).toEqual(expect.arrayContaining([
-      APP_WORKFLOW_REFERENCES.medicationResearch,
-    ]));
+    expect(summary.partialWorkflows).not.toContain(APP_WORKFLOW_REFERENCES.medicationResearch);
     expect(summary.partialWorkflows).not.toContain(APP_WORKFLOW_REFERENCES.learningReadAloud);
   });
 
   it("surfaces the next incomplete implementation candidates from the registry", () => {
     const candidates = nextWorkflowImplementationCandidates(3);
 
-    expect(candidates).toHaveLength(1);
+    expect(candidates).toHaveLength(0);
     expect(candidates.every((candidate) => candidate.coverageState !== "complete")).toBe(true);
-    expect(candidates[0].coverageState).toBe("partial");
   });
 });
