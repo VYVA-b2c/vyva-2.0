@@ -24,11 +24,9 @@ The strongest areas are:
 - Concierge transport, OTC pharmacy, medical appointment, home service, shopping, care navigation, Safe Home, and completed-history coverage.
 - Trusted provider setup categories.
 
-The shared Show VYVA result contract, provider setup return loop, external-action readiness shell, provider comparison experience, and source-backed medication update review are now implemented.
+The shared Show VYVA result contract, provider setup return loop, external-action readiness shell, provider comparison experience, source-backed medication update review, and unified admin content index are now implemented.
 
-The biggest remaining gaps are:
-
-- A connected admin content index for home nudges, curated activities, lessons, and room prompts.
+All workflows represented in this audit now have a usable completion path. New work should be added to the structured audit before it is treated as a launch dependency.
 
 ## Reusable Flows
 
@@ -42,4 +40,4 @@ The biggest remaining gaps are:
 
 ## Next Implementation Order
 
-1. Connect admin content operations.
+There are no incomplete workflows in the current structured audit.

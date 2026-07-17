@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -90,6 +91,8 @@ function Field({ label, optional, children }: { label: string; optional?: boolea
 }
 
 export default function HomeCardsAdminPage() {
+  const [searchParams] = useSearchParams();
+  const focusedCardId = searchParams.get("focus");
   const [cards, setCards] = useState<HomePlanCardAdmin[]>([]);
   const [draft, setDraft] = useState<HomePlanCardAdmin>(emptyCard);
   const [cardQueueFilter, setCardQueueFilter] = useState<CardQueueFilter>("all");
@@ -169,6 +172,14 @@ export default function HomeCardsAdminPage() {
     refresh().catch((err) => setMessage(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!focusedCardId || cards.length === 0) return;
+    setCardQueueFilter("all");
+    window.setTimeout(() => {
+      document.getElementById(`home-card-${focusedCardId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+  }, [cards.length, focusedCardId]);
 
   const visibleCards = useMemo(
     () => cards.filter((card) => matchesCardQueue(card, cardQueueFilter)),
@@ -302,7 +313,7 @@ export default function HomeCardsAdminPage() {
                 No cards match this health queue.
               </div>
             ) : visibleCards.map((card) => (
-              <article key={card.card_id} className="rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
+              <article id={`home-card-${card.card_id}`} key={card.card_id} className={`rounded-[2rem] border bg-white p-5 shadow-sm ${focusedCardId === card.card_id ? "border-purple-500 ring-4 ring-purple-100" : "border-[#eadfd5]"}`}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="break-words text-xl font-black">{card.card_id}</p>

@@ -1,9 +1,9 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
-import { socialRooms } from "../../shared/schema.js";
+import { socialRooms, socialRoomSessions } from "../../shared/schema.js";
 import { resolveSocialRoomSlug } from "../lib/socialRoomsSeed.js";
 import {
   listTogetherModeration,
@@ -114,6 +114,16 @@ const participationDiscoverySchema = z.object({
   maxResults: z.coerce.number().int().min(1).max(12).optional(),
 });
 
+const roomPromptPatchSchema = z.object({
+  topicEn: z.string().trim().min(1).max(240),
+  topicEs: z.string().trim().min(1).max(240),
+  topicDe: z.string().trim().min(1).max(240),
+  openerEn: z.string().trim().min(1).max(500),
+  openerEs: z.string().trim().min(1).max(500),
+  openerDe: z.string().trim().min(1).max(500),
+  isLive: z.boolean(),
+});
+
 async function resolveRoomId(roomSlug: string) {
   try {
     const [room] = await db
@@ -150,6 +160,69 @@ function forceAiDiscoveryDraft<T extends z.infer<typeof participationEventSchema
     needsLiveCheck: true,
   };
 }
+
+router.get("/room-prompts", async (_req: Request, res: Response) => {
+  try {
+    const rows = await db
+      .select({
+        id: socialRoomSessions.id,
+        roomId: socialRooms.id,
+        roomSlug: socialRooms.slug,
+        roomName: socialRooms.name_en,
+        sessionDate: socialRoomSessions.session_date,
+        topicEn: socialRoomSessions.topic_en,
+        topicEs: socialRoomSessions.topic_es,
+        topicDe: socialRoomSessions.topic_de,
+        openerEn: socialRoomSessions.opener_en,
+        openerEs: socialRoomSessions.opener_es,
+        openerDe: socialRoomSessions.opener_de,
+        activityType: socialRoomSessions.activity_type,
+        isLive: socialRoomSessions.is_live,
+        createdAt: socialRoomSessions.created_at,
+      })
+      .from(socialRoomSessions)
+      .innerJoin(socialRooms, eq(socialRoomSessions.room_id, socialRooms.id))
+      .orderBy(desc(socialRoomSessions.created_at))
+      .limit(1000);
+
+    return res.json({
+      prompts: rows.map((row) => ({
+        ...row,
+        createdAt: row.createdAt?.toISOString() ?? null,
+      })),
+    });
+  } catch (error) {
+    console.error("[admin/social] room prompts load failed", error);
+    return res.status(500).json({ error: "Room prompts could not be loaded." });
+  }
+});
+
+router.patch("/room-prompts/:sessionId", async (req: Request, res: Response) => {
+  const parsed = roomPromptPatchSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    const [updated] = await db
+      .update(socialRoomSessions)
+      .set({
+        topic_en: parsed.data.topicEn,
+        topic_es: parsed.data.topicEs,
+        topic_de: parsed.data.topicDe,
+        opener_en: parsed.data.openerEn,
+        opener_es: parsed.data.openerEs,
+        opener_de: parsed.data.openerDe,
+        is_live: parsed.data.isLive,
+      })
+      .where(eq(socialRoomSessions.id, req.params.sessionId))
+      .returning();
+
+    if (!updated) return res.status(404).json({ error: "Room prompt not found." });
+    return res.json({ ok: true, prompt: updated });
+  } catch (error) {
+    console.error("[admin/social] room prompt update failed", error);
+    return res.status(500).json({ error: "Room prompt could not be saved." });
+  }
+});
 
 router.get("/participate/events", async (req: Request, res: Response) => {
   const language = parseParticipationLanguage(req.query.lang as string | undefined);
