@@ -87,6 +87,10 @@ export type ConciergeConfirmedExecutionPlan = {
 
 export type ConciergeExecutionAuditEvent =
   | "created"
+  | "adapter_execution_blocked"
+  | "adapter_execution_failed"
+  | "adapter_execution_simulated"
+  | "adapter_execution_succeeded"
   | "blocked_missing_info"
   | "blocked_channel_not_ready"
   | "user_confirmed"
@@ -111,6 +115,7 @@ export type ConciergeExecutionAuditEntry = {
   external_action_allowed?: boolean;
   execution_mode?: ConciergeExecutionMode;
   channel_readiness?: ConciergeChannelReadinessResult;
+  adapter_result?: Record<string, unknown>;
   dry_run?: boolean;
   reason?: string;
   missing_requirements?: ConciergeExecutionMissingRequirement[];
@@ -130,6 +135,7 @@ export type ConciergeExecutionBuildInput = {
   channelReadiness?: ConciergeChannelReadinessResult;
   externalActionAllowed?: boolean;
   executionMode?: ConciergeExecutionMode;
+  adapterResult?: Record<string, unknown>;
   now?: string;
   failureReason?: string;
   outcome?: string;
@@ -320,6 +326,7 @@ export function withConciergeExecutionTask(input: ConciergeExecutionBuildInput):
   const payload = input.payload ?? {};
   return {
     ...payload,
+    ...(input.adapterResult ? { execution_adapter: input.adapterResult } : {}),
     execution_task: buildConciergeExecutionTask(input),
   };
 }

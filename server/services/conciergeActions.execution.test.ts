@@ -18,6 +18,7 @@ import {
   startPendingConciergeAction,
 } from "./conciergeActions.js";
 import { CONCIERGE_DRY_RUN_FIXTURES } from "../../shared/conciergeDryRun";
+import { conciergeProductionChannelForTool } from "../../shared/conciergeChannelReadiness";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -116,6 +117,10 @@ describe("confirmed Concierge action execution", () => {
     delete process.env.CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_READY;
     delete process.env.CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_CONFIGURED;
     delete process.env.CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_VERIFIED;
+    delete process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT;
+    delete process.env.CONCIERGE_WHATSAPP_LIVE_ENDPOINT;
+    delete process.env.CONCIERGE_FORM_APPLICATION_LIVE_ENDPOINT;
+    delete process.env.CONCIERGE_DOCUMENT_UPLOAD_LIVE_ENDPOINT;
     dbMock.db.select.mockReset();
     dbMock.pool.query.mockReset();
     dbMock.pool.connect.mockReset();
@@ -156,6 +161,7 @@ describe("confirmed Concierge action execution", () => {
       status: "pending",
       conversationId: null,
       callSid: null,
+      message: "Concierge action confirmed and queued for VYVA review.",
     });
     expect(globalThis.fetch).not.toHaveBeenCalled();
 
@@ -268,6 +274,14 @@ describe("confirmed Concierge action execution", () => {
 
   it("records user-controlled draft confirmation without starting a direct call", async () => {
     process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      id: "email-adapter-1",
+      result: "sent",
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
     mockPendingRow({
       id: "33333333-3333-3333-3333-333333333333",
       user_id: "user-1",
@@ -294,7 +308,10 @@ describe("confirmed Concierge action execution", () => {
       conversationId: null,
       callSid: null,
     });
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://adapter.example.test/email",
+      expect.objectContaining({ method: "POST" }),
+    );
 
     const payload = lastUpdatedPayload();
     expect(payload.execution_task).toMatchObject({
@@ -310,18 +327,37 @@ describe("confirmed Concierge action execution", () => {
         external_action_allowed: true,
       },
     });
+    expect(payload.execution_adapter).toMatchObject({
+      adapter: "concierge_email_adapter",
+      mode: "live",
+      channel: "email",
+      status: "sent",
+      result_id: "email-adapter-1",
+    });
     expect(payload.execution_audit).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        event: "user_confirmed",
+        event: "adapter_execution_succeeded",
         mode: "user_controlled_handoff",
         external_action_allowed: true,
         execution_mode: "live",
+        adapter_result: expect.objectContaining({
+          adapter: "concierge_email_adapter",
+          status: "sent",
+        }),
       }),
     ]));
   });
 
   it("records a ready form/application confirmation as a live user-controlled channel", async () => {
     process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_FORM_APPLICATION_LIVE_ENDPOINT = "https://adapter.example.test/form";
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      id: "form-adapter-1",
+      result: "submitted",
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
     mockPendingRow({
       id: "12121212-1212-4212-8212-121212121212",
       user_id: "user-1",
@@ -355,8 +391,12 @@ describe("confirmed Concierge action execution", () => {
       status: "pending",
       conversationId: null,
       callSid: null,
+      message: "submitted",
     });
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://adapter.example.test/form",
+      expect.objectContaining({ method: "POST" }),
+    );
 
     const payload = lastUpdatedPayload();
     expect(payload.execution_task).toMatchObject({
@@ -372,12 +412,23 @@ describe("confirmed Concierge action execution", () => {
         external_action_allowed: true,
       },
     });
+    expect(payload.execution_adapter).toMatchObject({
+      adapter: "concierge_form_application_adapter",
+      mode: "live",
+      channel: "form_application",
+      status: "sent",
+      result_id: "form-adapter-1",
+    });
     expect(payload.execution_audit).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        event: "operator_handoff_queued",
+        event: "adapter_execution_succeeded",
         mode: "operator_queue",
         external_action_allowed: true,
         execution_mode: "live",
+        adapter_result: expect.objectContaining({
+          adapter: "concierge_form_application_adapter",
+          status: "sent",
+        }),
       }),
     ]));
   });
@@ -421,10 +472,14 @@ describe("confirmed Concierge action execution", () => {
     });
     expect(payload.execution_audit).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        event: "blocked_channel_not_ready",
+        event: "adapter_execution_blocked",
         mode: "operator_queue",
         external_action_allowed: false,
         execution_mode: "blocked",
+        adapter_result: expect.objectContaining({
+          adapter: "concierge_email_adapter",
+          status: "blocked",
+        }),
       }),
     ]));
   });
@@ -527,6 +582,14 @@ describe("confirmed Concierge action execution", () => {
 
   it("uses admin console readiness settings to make a configured channel live-capable", async () => {
     process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      id: "email-adapter-2",
+      result: "sent",
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
     mockPendingRow({
       id: "89898989-8989-4898-8989-898989898989",
       user_id: "user-1",
@@ -567,6 +630,12 @@ describe("confirmed Concierge action execution", () => {
         verified: true,
         external_action_allowed: true,
       },
+    });
+    expect(payload.execution_adapter).toMatchObject({
+      adapter: "concierge_email_adapter",
+      mode: "live",
+      status: "sent",
+      result_id: "email-adapter-2",
     });
   });
 
@@ -613,13 +682,22 @@ describe("confirmed Concierge action execution", () => {
       dry_run: true,
       active_tool: "phone_call",
     });
+    expect(payload.execution_adapter).toMatchObject({
+      adapter: "concierge_phone_call_adapter",
+      mode: "dry_run",
+      channel: "phone_call",
+      status: "simulated",
+    });
     expect(payload.execution_audit).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        event: "operator_handoff_queued",
+        event: "adapter_execution_simulated",
         mode: "operator_queue",
         dry_run: true,
         external_action_allowed: false,
-        reason: "dry_run_simulation",
+        adapter_result: expect.objectContaining({
+          adapter: "concierge_phone_call_adapter",
+          status: "simulated",
+        }),
       }),
     ]));
   });
@@ -666,10 +744,20 @@ describe("confirmed Concierge action execution", () => {
       dry_run: true,
       outcome: "Simulated dry-run outcome: Dry-run insurance paperwork request.",
     });
+    expect(actionPayload.execution_adapter).toMatchObject({
+      adapter: "concierge_email_adapter",
+      mode: "dry_run",
+      channel: "email",
+      status: "simulated",
+    });
     expect(outcomePayload).toMatchObject({
       dry_run: true,
       simulated_outcome: true,
       no_real_provider_contact: true,
+      adapter: "concierge_email_adapter",
+      adapter_mode: "dry_run",
+      adapter_channel: "email",
+      adapter_status: "simulated",
     });
     expect(outcomePayload.execution_task).toMatchObject({
       dry_run: true,
@@ -721,6 +809,20 @@ describe("confirmed Concierge action execution", () => {
           created_at: "2026-07-14T10:00:00.000Z",
           updated_at: "2026-07-14T10:01:00.000Z",
         },
+        execution_adapter: {
+          version: 1,
+          adapter: "concierge_email_adapter",
+          mode: "live",
+          channel: "email",
+          tool: "email",
+          status: "sent",
+          attempted_at: "2026-07-14T10:02:00.000Z",
+          provider_name: "Clinic desk",
+          provider_contact: "clinic@example.com",
+          external_action_allowed: true,
+          result: "sent",
+          result_id: "email-adapter-live-1",
+        },
       },
       language: "en",
       status: "pending",
@@ -736,12 +838,31 @@ describe("confirmed Concierge action execution", () => {
     const insertCall = client.query.mock.calls.find(([sql]) => String(sql).includes("insert into concierge_sessions"));
     expect(insertCall).toBeTruthy();
     const params = insertCall?.[1] as unknown[];
+    const actionPayload = JSON.parse(params[8] as string) as Record<string, unknown>;
     const outcomePayload = JSON.parse(params[9] as string) as Record<string, unknown>;
+    expect(actionPayload.execution_adapter).toMatchObject({
+      adapter: "concierge_email_adapter",
+      mode: "live",
+      channel: "email",
+      status: "sent",
+      result_id: "email-adapter-live-1",
+    });
     expect(outcomePayload).toMatchObject({
       provider_email: "clinic@example.com",
       execution_mode: "live",
       live_action: true,
       external_action_allowed: true,
+      adapter: "concierge_email_adapter",
+      adapter_mode: "live",
+      adapter_channel: "email",
+      adapter_provider: "Clinic desk",
+      adapter_provider_contact: "clinic@example.com",
+      adapter_attempted_at: "2026-07-14T10:02:00.000Z",
+      adapter_status: "sent",
+      adapter_result: expect.objectContaining({
+        adapter: "concierge_email_adapter",
+        result_id: "email-adapter-live-1",
+      }),
       channel_readiness: {
         channel: "email",
         status: "ready",
@@ -781,13 +902,38 @@ describe("confirmed Concierge action execution", () => {
       const insertCall = client.query.mock.calls.find(([sql]) => String(sql).includes("insert into concierge_sessions"));
       expect(insertCall, fixture.reference).toBeTruthy();
       const params = insertCall?.[1] as unknown[];
+      const actionPayload = JSON.parse(params[8] as string) as Record<string, unknown>;
       const outcomePayload = JSON.parse(params[9] as string) as Record<string, unknown>;
+      const channel = conciergeProductionChannelForTool(fixture.endpoint.tool);
       expect(params[10], fixture.reference).toContain("Simulated dry-run outcome");
       expect(outcomePayload, fixture.reference).toMatchObject({
         dry_run: true,
         simulated_outcome: true,
         no_real_provider_contact: true,
       });
+      if (channel) {
+        expect(actionPayload.execution_adapter, fixture.reference).toMatchObject({
+          adapter: `concierge_${channel}_adapter`,
+          mode: "dry_run",
+          channel,
+          status: "simulated",
+        });
+        expect(outcomePayload, fixture.reference).toMatchObject({
+          adapter: `concierge_${channel}_adapter`,
+          adapter_mode: "dry_run",
+          adapter_channel: channel,
+          adapter_status: "simulated",
+          adapter_result: expect.objectContaining({
+            adapter: `concierge_${channel}_adapter`,
+            mode: "dry_run",
+            channel,
+            status: "simulated",
+          }),
+        });
+      } else {
+        expect(actionPayload.execution_adapter, fixture.reference).toBeUndefined();
+        expect(outcomePayload.adapter, fixture.reference).toBeUndefined();
+      }
     }
   });
 });
