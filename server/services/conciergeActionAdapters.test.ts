@@ -192,6 +192,29 @@ describe("Concierge action adapters", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it("blocks every live adapter before external contact when the payload contract is incomplete", async () => {
+    for (const spec of channelSpecs) {
+      vi.mocked(globalThis.fetch).mockReset();
+      if (spec.liveEnv && spec.liveTarget) process.env[spec.liveEnv] = spec.liveTarget;
+
+      const result = await executeConciergeActionAdapter(adapterInput(spec, {
+        payload: { execution_channel: spec.channel },
+        providerPhone: null,
+      }));
+
+      expect(result, spec.channel).toMatchObject({
+        mode: "live",
+        channel: spec.channel,
+        status: "blocked",
+        result: "blocked",
+        external_action_allowed: false,
+      });
+      expect(result.blocker, spec.channel).toContain("adapter_payload_contract_incomplete");
+      expect(result.blocker, spec.channel).toContain("adapter_payload_missing_provider_contact");
+      expect(globalThis.fetch, spec.channel).not.toHaveBeenCalled();
+    }
+  });
+
   it("returns failed live results for every channel when the live provider request fails", async () => {
     for (const spec of channelSpecs) {
       vi.mocked(globalThis.fetch).mockReset();

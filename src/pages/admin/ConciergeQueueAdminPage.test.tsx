@@ -162,6 +162,61 @@ const failedAdapterTask: OperatorConciergeQueueItem = {
       },
     ],
   },
+  adapter_payload_preview: {
+    version: 1,
+    adapter: "concierge_email_adapter",
+    channel: "email",
+    tool: "email",
+    provider_name: "City Clinic",
+    provider_contact: "frontdesk@example.com",
+    summary: "Email clinic paperwork",
+    pending_id: "pending-failed",
+    user_id: "user-5",
+    valid: true,
+    missing_fields: [],
+    blockers: [],
+    outbound_payload: {
+      pending_id: "pending-failed",
+      user_id: "user-5",
+      channel: "email",
+      tool: "email",
+      provider_name: "City Clinic",
+      provider_contact: "frontdesk@example.com",
+      summary: "Email clinic paperwork",
+      action_payload: {
+        provider_email: "frontdesk@example.com",
+        email_body: "Please send the paperwork.",
+      },
+    },
+  },
+};
+
+const missingPayloadTask: OperatorConciergeQueueItem = {
+  ...failedAdapterTask,
+  id: "pending-missing-payload",
+  action_summary: "Retry paperwork email",
+  adapter_incident: {
+    ...failedAdapterTask.adapter_incident!,
+    retry_allowed: false,
+    retry_blocker: "adapter_payload_missing_provider_contact",
+  },
+  adapter_payload_preview: {
+    ...failedAdapterTask.adapter_payload_preview!,
+    provider_contact: null,
+    valid: false,
+    missing_fields: [
+      {
+        key: "provider_contact",
+        label: "Provider email address",
+        detail: "Add the provider email address before sending this action.",
+      },
+    ],
+    blockers: ["adapter_payload_missing_provider_contact"],
+    outbound_payload: {
+      ...failedAdapterTask.adapter_payload_preview!.outbound_payload!,
+      provider_contact: null,
+    },
+  },
 };
 
 function jsonResponse(body: unknown) {
@@ -306,6 +361,10 @@ describe("ConciergeQueueAdminPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open task" }));
 
     const dialog = screen.getByRole("dialog", { name: "Email clinic paperwork" });
+    expect(dialog).toHaveTextContent("Payload preview");
+    expect(dialog).toHaveTextContent("Contract ready");
+    expect(dialog).toHaveTextContent("frontdesk@example.com");
+    expect(dialog).toHaveTextContent('"provider_email": "frontdesk@example.com"');
     expect(dialog).toHaveTextContent("Channel incident");
     expect(dialog).toHaveTextContent("Adapter endpoint failed with 500.");
     expect(dialog).toHaveTextContent("adapter retry requested");
@@ -323,6 +382,20 @@ describe("ConciergeQueueAdminPage", () => {
     ));
     expect(retryCall).toBeTruthy();
     expect(String(retryCall?.[1]?.body)).toContain("Endpoint fixed; retrying.");
+  });
+
+  it("shows missing adapter payload contract fields before retry", async () => {
+    renderPage([missingPayloadTask]);
+
+    expect(await screen.findByText("Retry paperwork email")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open task" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Retry paperwork email" });
+    expect(dialog).toHaveTextContent("Missing fields");
+    expect(dialog).toHaveTextContent("Provider email address");
+    expect(dialog).toHaveTextContent("Add the provider email address before sending this action.");
+    expect(dialog).toHaveTextContent("Retry blocked: adapter_payload_missing_provider_contact");
+    expect(within(dialog).getByRole("button", { name: "Retry live action" })).toBeDisabled();
   });
 
   it("queues manual follow-up for a failed live adapter task", async () => {

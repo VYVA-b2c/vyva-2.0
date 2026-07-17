@@ -121,6 +121,10 @@ const failedPendingRow = {
   },
 };
 
+function cloneFailedPendingRow() {
+  return JSON.parse(JSON.stringify(failedPendingRow)) as typeof failedPendingRow;
+}
+
 function buildApp() {
   const app = express();
   app.use(express.json());
@@ -163,6 +167,20 @@ describe("admin Concierge queue adapter recovery", () => {
       retry_blocker: "email_not_verified",
       manual_follow_up_allowed: true,
     });
+    expect(response.body.items[0].adapter_payload_preview).toMatchObject({
+      adapter: "concierge_email_adapter",
+      channel: "email",
+      provider_name: "City Clinic",
+      provider_contact: "frontdesk@example.com",
+      summary: "Email clinic paperwork",
+      valid: true,
+      outbound_payload: expect.objectContaining({
+        pending_id: failedPendingRow.id,
+        user_id: "user-1",
+        channel: "email",
+        provider_contact: "frontdesk@example.com",
+      }),
+    });
   });
 
   it("blocks live adapter retry when current readiness is not passing", async () => {
@@ -204,6 +222,53 @@ describe("admin Concierge queue adapter recovery", () => {
       "user-1",
       "operator_adapter_retry",
     );
+  });
+
+  it("blocks adapter retry before start when the payload contract is incomplete", async () => {
+    const row = cloneFailedPendingRow();
+    const actionPayload = row.action_payload as Record<string, unknown>;
+    delete actionPayload.provider_email;
+    (actionPayload.execution_adapter as Record<string, unknown>).provider_contact = null;
+
+    dbMock.pool.query.mockResolvedValueOnce({ rows: [row] });
+
+    const response = await request(buildApp())
+      .patch(`/api/admin/concierge/queue/${failedPendingRow.id}`)
+      .send({ action: "retry_adapter", outcome_note: "try again" })
+      .expect(409);
+
+    expect(response.body.error).toContain("Provider email address");
+    expect(dbMock.pool.query).toHaveBeenCalledTimes(1);
+    expect(actionsMock.startPendingConciergeAction).not.toHaveBeenCalled();
+  });
+
+  it("lists missing payload contract fields before retry", async () => {
+    const row = cloneFailedPendingRow();
+    const actionPayload = row.action_payload as Record<string, unknown>;
+    delete actionPayload.provider_email;
+    (actionPayload.execution_adapter as Record<string, unknown>).provider_contact = null;
+
+    dbMock.pool.query
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const response = await request(buildApp())
+      .get("/api/admin/concierge/queue")
+      .expect(200);
+
+    expect(response.body.items[0].adapter_payload_preview).toMatchObject({
+      valid: false,
+      missing_fields: expect.arrayContaining([
+        expect.objectContaining({
+          key: "provider_contact",
+          label: "Provider email address",
+        }),
+      ]),
+    });
+    expect(response.body.items[0].adapter_incident).toMatchObject({
+      retry_allowed: false,
+      retry_blocker: "adapter_payload_missing_provider_contact",
+    });
   });
 
   it("records manual follow-up without calling the live adapter path", async () => {
