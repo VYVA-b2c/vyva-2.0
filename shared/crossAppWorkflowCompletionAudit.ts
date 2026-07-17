@@ -148,13 +148,17 @@ export const CROSS_APP_WORKFLOW_COMPLETION_AUDIT: CrossAppWorkflowAuditEntry[] =
     area: "health",
     surface: "sub_action",
     references: [APP_WORKFLOW_REFERENCES.medicationResearch],
-    status: "partial",
+    status: "complete",
     reusableFlow: "RFL_MEDICATION_SUPPORT",
     routes: ["/meds"],
-    evidence: ["The registry marks medication research as partial because it still needs stronger source and citation handling."],
-    blockers: ["Needs reliable citation/source plumbing before it becomes a mature clinical workflow."],
-    nextImplementation: "Add source-backed medication update summaries that produce clinician discussion points, not dosing advice.",
-    priority: "next",
+    evidence: [
+      "Medication Research checks saved medicines against dated AEMPS, FDA, and PubMed records and preserves the source title, publisher, date, jurisdiction, direct link, and original wording.",
+      "The UI distinguishes recalls, safety warnings, availability changes, and general information across all app languages. Evidence is verified only when its medicine or ingredient, jurisdiction, date, and known formulation match; stale, conflicting, and non-exact evidence is marked Not verified with the reason.",
+      "Appointment handoff prepares source-backed medicine details and clinician questions only after explicit confirmation, with another confirmation still required in Concierge and no dose-change advice.",
+    ],
+    blockers: [],
+    nextImplementation: "Monitor source adapter health and expand jurisdictions only when an authoritative public medicine source is available.",
+    priority: "later",
   },
   {
     id: "health.vitals-reports",
@@ -521,12 +525,6 @@ export const CROSS_APP_REUSABLE_WORKFLOWS: CrossAppReusableWorkflow[] = [
 ];
 
 export const CROSS_APP_WORKFLOW_NEXT_IMPLEMENTATION_ORDER: CrossAppWorkflowNextPriority[] = [
-  {
-    id: "next.medication-research-sources",
-    title: "Add source-backed medication research updates",
-    reason: "Medication updates still need reliable citations and clinician discussion points without dosing advice.",
-    auditEntryIds: ["health.medication-research"],
-  },
   {
     id: "next.admin-content-index",
     title: "Connect admin content operations",

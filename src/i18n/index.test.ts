@@ -267,6 +267,33 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps official medication update evidence and confirmation copy localized", () => {
+    const expectedTitles = {
+      en: "Medication updates",
+      es: "Actualizaciones de medicacion",
+      fr: "Actualites des medicaments",
+      de: "Medikamenten-Aktualisierungen",
+      it: "Aggiornamenti sui farmaci",
+      pt: "Atualizacoes de medicamentos",
+    } as const;
+
+    for (const [language, title] of Object.entries(expectedTitles)) {
+      const code = language as keyof typeof expectedTitles;
+      expect(translate(code, "meds.updates.title")).toBe(title);
+      expect(translate(code, "meds.updates.kind.recall")).not.toBe("meds.updates.kind.recall");
+      expect(translate(code, "meds.updates.kind.safety_warning")).not.toBe("meds.updates.kind.safety_warning");
+      expect(translate(code, "meds.updates.kind.availability_change")).not.toBe("meds.updates.kind.availability_change");
+      expect(translate(code, "meds.updates.kind.general_information")).not.toBe("meds.updates.kind.general_information");
+      expect(translate(code, "meds.updates.verification.not_verified")).not.toBe("meds.updates.verification.not_verified");
+      expect(translate(code, "meds.updates.verificationReason.formulation_unconfirmed")).not.toBe("meds.updates.verificationReason.formulation_unconfirmed");
+      expect(translate(code, "meds.updates.freshness.stale")).not.toBe("meds.updates.freshness.stale");
+      expect(translate(code, "meds.updates.openSource")).not.toBe("meds.updates.openSource");
+      expect(translate(code, "meds.updates.noMedicinesTitle")).not.toBe("meds.updates.noMedicinesTitle");
+      expect(translate(code, "meds.updates.confirmText")).not.toBe("meds.updates.confirmText");
+      expect(translate(code, "meds.updates.prepareAppointment")).not.toBe("meds.updates.prepareAppointment");
+    }
+  });
+
   it("keeps adherence report service actions localized for supported account languages", () => {
     const expected = {
       en: ["Medication help in one tap", "Prepare refill", "Medication appointment"],

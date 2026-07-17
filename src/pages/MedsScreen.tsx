@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import type { MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
+import MedicationUpdatesPanel from "@/components/MedicationUpdatesPanel";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 import {
   PurpleModal,
@@ -21,6 +22,7 @@ import { apiFetch } from "@/lib/queryClient";
 import {
   medicationListSummary,
   medicationRefillShoppingState,
+  medicationReviewAppointmentState,
 } from "@/lib/medicationServiceActions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -824,6 +826,7 @@ const MedsScreen = () => {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantTitle, setAssistantTitle] = useState("");
   const [assistantPrompt, setAssistantPrompt] = useState("");
+  const [medicationUpdatesOpen, setMedicationUpdatesOpen] = useState(false);
 
   useEffect(() => {
     setConfirmedDoseCounts(new Map());
@@ -1244,7 +1247,23 @@ const MedsScreen = () => {
       toggleMedicationVoiceCapture();
       return;
     }
+    if (action.id === "advances") {
+      setMedicationUpdatesOpen(true);
+      return;
+    }
     openAssistant(action.prompt, action.sheetTitle);
+  }
+
+  function prepareMedicationUpdateAppointment(context: string) {
+    setMedicationUpdatesOpen(false);
+    navigate("/concierge", {
+      state: medicationReviewAppointmentState(
+        medicationSummary,
+        context,
+        language,
+        "medication_support",
+      ),
+    });
   }
 
   function openSafetyCaseSheet(safetyCase: MedicationSafetyCase) {
@@ -2304,6 +2323,13 @@ const MedsScreen = () => {
         onOpenChange={setAssistantOpen}
         title={assistantTitle}
         initialPrompt={assistantPrompt}
+      />
+
+      <MedicationUpdatesPanel
+        open={medicationUpdatesOpen}
+        onOpenChange={setMedicationUpdatesOpen}
+        language={language}
+        onPrepareAppointment={prepareMedicationUpdateAppointment}
       />
 
       {caseSheetOpen ? (
