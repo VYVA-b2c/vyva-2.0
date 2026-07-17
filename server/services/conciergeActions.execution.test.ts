@@ -39,10 +39,13 @@ function mockProfile() {
   });
 }
 
-function mockPendingRow(row: Record<string, unknown>) {
+function mockPendingRow(row: Record<string, unknown>, channelSettingsRows: Record<string, unknown>[] = []) {
   dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
     if (sql.includes("from concierge_pending")) {
       return { rows: [row] };
+    }
+    if (sql.includes("from concierge_channel_readiness_settings")) {
+      return { rows: channelSettingsRows };
     }
     if (sql.includes("update concierge_pending")) {
       return { rows: [], rowCount: 1, params };
@@ -94,6 +97,9 @@ describe("confirmed Concierge action execution", () => {
     delete process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_READY;
     delete process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED;
     delete process.env.CONCIERGE_FORM_APPLICATION_CHANNEL_VERIFIED;
+    delete process.env.CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_READY;
+    delete process.env.CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_CONFIGURED;
+    delete process.env.CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_VERIFIED;
     dbMock.db.select.mockReset();
     dbMock.pool.query.mockReset();
     dbMock.pool.connect.mockReset();
@@ -409,6 +415,105 @@ describe("confirmed Concierge action execution", () => {
         execution_mode: "blocked",
       }),
     ]));
+  });
+
+  it("lets admin console settings pause a configured channel before live handoff", async () => {
+    process.env.CONCIERGE_EMAIL_CHANNEL_READY = "true";
+    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_CHANNEL_VERIFIED = "true";
+    mockPendingRow({
+      id: "78787878-7878-4787-8787-787878787878",
+      user_id: "user-1",
+      use_case: "send_message",
+      provider_id: null,
+      provider_name: "Clinic desk",
+      provider_phone: null,
+      found_externally: false,
+      action_summary: "Email draft prepared for the clinic.",
+      action_payload: {
+        execution_channel: "email",
+        provider_email: "clinic@example.com",
+        email_subject: "Question about my appointment",
+        email_body: "Hello, I would like to confirm my appointment details.",
+      },
+      language: "en",
+      status: "pending",
+    }, [{
+      channel: "email",
+      admin_enabled: false,
+      verified: true,
+      notes: "Admin paused after QA.",
+      updated_by: "admin-1",
+      updated_at: new Date("2026-07-16T10:00:00.000Z"),
+    }]);
+
+    await expect(confirmPendingConciergeActionReview("78787878-7878-4787-8787-787878787878", "user-1"))
+      .rejects.toThrow(/email channel is not ready for live Concierge actions/i);
+
+    const payload = lastUpdatedPayload();
+    expect(payload.execution_task).toMatchObject({
+      active_tool: "email",
+      external_action_allowed: false,
+      execution_mode: "blocked",
+      channel_readiness: {
+        channel: "email",
+        status: "disabled",
+        admin_enabled: false,
+        configured: true,
+        verified: true,
+        external_action_allowed: false,
+      },
+    });
+  });
+
+  it("uses admin console readiness settings to make a configured channel live-capable", async () => {
+    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    mockPendingRow({
+      id: "89898989-8989-4898-8989-898989898989",
+      user_id: "user-1",
+      use_case: "send_message",
+      provider_id: null,
+      provider_name: "Clinic desk",
+      provider_phone: null,
+      found_externally: false,
+      action_summary: "Email draft prepared for the clinic.",
+      action_payload: {
+        execution_channel: "email",
+        provider_email: "clinic@example.com",
+        email_subject: "Question about my appointment",
+        email_body: "Hello, I would like to confirm my appointment details.",
+      },
+      language: "en",
+      status: "pending",
+    }, [{
+      channel: "email",
+      admin_enabled: true,
+      verified: true,
+      notes: "QA inbox verified.",
+      updated_by: "admin-1",
+      updated_at: new Date("2026-07-16T10:00:00.000Z"),
+    }]);
+
+    await expect(confirmPendingConciergeActionReview("89898989-8989-4898-8989-898989898989", "user-1"))
+      .resolves.toMatchObject({
+        pendingId: "89898989-8989-4898-8989-898989898989",
+        status: "pending",
+      });
+
+    const payload = lastUpdatedPayload();
+    expect(payload.execution_task).toMatchObject({
+      active_tool: "email",
+      external_action_allowed: true,
+      execution_mode: "live",
+      channel_readiness: {
+        channel: "email",
+        status: "ready",
+        admin_enabled: true,
+        configured: true,
+        verified: true,
+        external_action_allowed: true,
+      },
+    });
   });
 
   it("confirms a dry-run phone action without starting the outbound caller", async () => {

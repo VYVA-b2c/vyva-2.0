@@ -7,6 +7,7 @@ import {
   CircleCheck,
   CircleHelp,
   Coins,
+  ExternalLink,
   MapPin,
   Send,
   ShieldCheck,
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import {
   PROVIDER_COMPARISON_CRITERIA,
   type ProviderComparisonCriterion,
+  type ProviderComparisonEvidenceSourceType,
   type ProviderComparisonEvidenceStatus,
   type ProviderComparisonOption,
 } from "../../shared/providerComparison";
@@ -32,7 +34,12 @@ interface ProviderComparisonCopy {
   noSource: string;
   verified: string;
   reported: string;
+  conflicting: string;
+  conflictHelp: string;
   unknown: string;
+  checked: (value: string) => string;
+  unchecked: string;
+  sourceTypes: Record<ProviderComparisonEvidenceSourceType, string>;
   shortlist: string;
   removeShortlist: string;
   saveProvider: string;
@@ -57,8 +64,13 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     source: "Source",
     noSource: "Source not provided",
     verified: "Verified",
-    reported: "Needs checking",
+    reported: "Not independently verified",
+    conflicting: "Sources disagree",
+    conflictHelp: "Review this detail before deciding.",
     unknown: "Not provided",
+    checked: (value) => `Checked ${value}`,
+    unchecked: "Check time not provided",
+    sourceTypes: { official: "Official source", provider_owned: "Provider source", regulated: "Regulated source", directory: "Directory", platform: "Platform", community: "Community source", manual: "Manually added", unknown: "Source type not known" },
     shortlist: "Add to shortlist",
     removeShortlist: "Remove from shortlist",
     saveProvider: "Save provider",
@@ -81,8 +93,13 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     source: "Fuente",
     noSource: "Fuente no indicada",
     verified: "Verificado",
-    reported: "Por comprobar",
+    reported: "Sin verificacion independiente",
+    conflicting: "Las fuentes no coinciden",
+    conflictHelp: "Revisa este dato antes de decidir.",
     unknown: "No indicado",
+    checked: (value) => `Comprobado ${value}`,
+    unchecked: "Hora de comprobacion no indicada",
+    sourceTypes: { official: "Fuente oficial", provider_owned: "Fuente del proveedor", regulated: "Fuente regulada", directory: "Directorio", platform: "Plataforma", community: "Fuente comunitaria", manual: "Anadido manualmente", unknown: "Tipo de fuente desconocido" },
     shortlist: "Anadir a favoritos",
     removeShortlist: "Quitar de favoritos",
     saveProvider: "Guardar proveedor",
@@ -105,8 +122,13 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     source: "Quelle",
     noSource: "Quelle nicht angegeben",
     verified: "Geprueft",
-    reported: "Zu pruefen",
+    reported: "Nicht unabhaengig geprueft",
+    conflicting: "Quellen widersprechen sich",
+    conflictHelp: "Diese Angabe vor der Entscheidung pruefen.",
     unknown: "Nicht angegeben",
+    checked: (value) => `Geprueft ${value}`,
+    unchecked: "Pruefzeit nicht angegeben",
+    sourceTypes: { official: "Offizielle Quelle", provider_owned: "Anbieterquelle", regulated: "Regulierte Quelle", directory: "Verzeichnis", platform: "Plattform", community: "Gemeinschaftsquelle", manual: "Manuell hinzugefuegt", unknown: "Quellentyp unbekannt" },
     shortlist: "Zur Auswahl hinzufuegen",
     removeShortlist: "Aus Auswahl entfernen",
     saveProvider: "Anbieter speichern",
@@ -129,8 +151,13 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     source: "Source",
     noSource: "Source non indiquee",
     verified: "Verifie",
-    reported: "A verifier",
+    reported: "Non verifie independamment",
+    conflicting: "Les sources divergent",
+    conflictHelp: "Verifiez ce detail avant de choisir.",
     unknown: "Non indique",
+    checked: (value) => `Verifie ${value}`,
+    unchecked: "Date de verification non indiquee",
+    sourceTypes: { official: "Source officielle", provider_owned: "Source du prestataire", regulated: "Source reglementee", directory: "Annuaire", platform: "Plateforme", community: "Source communautaire", manual: "Ajoute manuellement", unknown: "Type de source inconnu" },
     shortlist: "Ajouter a la selection",
     removeShortlist: "Retirer de la selection",
     saveProvider: "Enregistrer",
@@ -153,8 +180,13 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     source: "Fonte",
     noSource: "Fonte non indicata",
     verified: "Verificato",
-    reported: "Da verificare",
+    reported: "Non verificato in modo indipendente",
+    conflicting: "Le fonti non concordano",
+    conflictHelp: "Controlla questo dato prima di decidere.",
     unknown: "Non indicato",
+    checked: (value) => `Controllato ${value}`,
+    unchecked: "Data del controllo non indicata",
+    sourceTypes: { official: "Fonte ufficiale", provider_owned: "Fonte del fornitore", regulated: "Fonte regolamentata", directory: "Elenco", platform: "Piattaforma", community: "Fonte comunitaria", manual: "Aggiunto manualmente", unknown: "Tipo di fonte sconosciuto" },
     shortlist: "Aggiungi alla selezione",
     removeShortlist: "Rimuovi dalla selezione",
     saveProvider: "Salva fornitore",
@@ -177,8 +209,13 @@ const COPY: Record<ProviderComparisonLocale, ProviderComparisonCopy> = {
     source: "Fonte",
     noSource: "Fonte nao indicada",
     verified: "Verificado",
-    reported: "Por verificar",
+    reported: "Sem verificacao independente",
+    conflicting: "As fontes nao coincidem",
+    conflictHelp: "Reveja este dado antes de decidir.",
     unknown: "Nao indicado",
+    checked: (value) => `Verificado ${value}`,
+    unchecked: "Hora de verificacao nao indicada",
+    sourceTypes: { official: "Fonte oficial", provider_owned: "Fonte do fornecedor", regulated: "Fonte regulada", directory: "Diretorio", platform: "Plataforma", community: "Fonte comunitaria", manual: "Adicionado manualmente", unknown: "Tipo de fonte desconhecido" },
     shortlist: "Adicionar a selecao",
     removeShortlist: "Remover da selecao",
     saveProvider: "Guardar fornecedor",
@@ -209,6 +246,9 @@ function supportedLocale(locale: string): ProviderComparisonLocale {
 }
 
 function statusPresentation(status: ProviderComparisonEvidenceStatus, copy: ProviderComparisonCopy) {
+  if (status === "conflicting") {
+    return { label: copy.conflicting, Icon: CircleAlert, className: "bg-red-50 text-red-700" };
+  }
   if (status === "verified") {
     return { label: copy.verified, Icon: CircleCheck, className: "bg-emerald-50 text-emerald-800" };
   }
@@ -216,6 +256,13 @@ function statusPresentation(status: ProviderComparisonEvidenceStatus, copy: Prov
     return { label: copy.reported, Icon: CircleAlert, className: "bg-amber-50 text-amber-800" };
   }
   return { label: copy.unknown, Icon: CircleHelp, className: "bg-slate-100 text-slate-600" };
+}
+
+function checkedAtLabel(value: string | null, locale: string, copy: ProviderComparisonCopy): string {
+  if (!value) return copy.unchecked;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return copy.unchecked;
+  return copy.checked(new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(date));
 }
 
 export interface ProviderComparisonPanelProps {
@@ -308,17 +355,40 @@ export function ProviderComparisonPanel({
                   const CriterionIcon = CRITERION_ICONS[criterion];
                   const status = statusPresentation(fact.status, copy);
                   return (
-                    <div key={criterion} className="grid min-h-[68px] grid-cols-[26px_minmax(0,1fr)] gap-2 py-2.5">
+                    <div key={criterion} className="grid min-h-[104px] grid-cols-[26px_minmax(0,1fr)] gap-2 py-2.5" data-testid={`provider-fact-${option.id}-${criterion}`}>
                       <CriterionIcon size={17} className="mt-0.5 text-[#0F766E]" aria-hidden="true" />
                       <div className="min-w-0">
                         <dt className="font-body text-[11px] font-black uppercase text-vyva-text-2">{copy.criteria[criterion]}</dt>
                         <dd className="mt-0.5 break-words font-body text-[13px] font-semibold leading-snug text-vyva-text-1">
                           {fact.value || copy.unknown}
                         </dd>
-                        <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-body text-[10px] font-bold ${status.className}`}>
-                          <status.Icon size={11} aria-hidden="true" />
-                          {status.label}
-                        </span>
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-body text-[10px] font-bold ${status.className}`}>
+                            <status.Icon size={11} aria-hidden="true" />
+                            {status.label}
+                          </span>
+                          <span className="rounded-full bg-[#F5F3FF] px-2 py-0.5 font-body text-[10px] font-bold text-vyva-purple">
+                            {copy.sourceTypes[fact.sourceType]}
+                          </span>
+                        </div>
+                        <p className="mt-1 flex min-w-0 items-center gap-1 font-body text-[10px] font-semibold leading-snug text-vyva-text-2" data-testid={`provider-fact-source-${option.id}-${criterion}`}>
+                          <ShieldCheck size={11} className="shrink-0" aria-hidden="true" />
+                          <span className="min-w-0 break-words">{fact.source || copy.noSource}</span>
+                          {fact.sourceUrl ? (
+                            <a href={fact.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${copy.source}: ${fact.source || copy.noSource}`} className="shrink-0 text-vyva-purple">
+                              <ExternalLink size={11} aria-hidden="true" />
+                            </a>
+                          ) : null}
+                        </p>
+                        <p className="mt-0.5 flex items-center gap-1 font-body text-[10px] font-semibold text-vyva-text-3" data-testid={`provider-fact-checked-${option.id}-${criterion}`}>
+                          <CalendarClock size={11} aria-hidden="true" />
+                          {checkedAtLabel(fact.checkedAt, locale, copy)}
+                        </p>
+                        {fact.conflict ? (
+                          <p className="mt-1 rounded-md bg-red-50 px-2 py-1 font-body text-[10px] font-bold text-red-700" data-testid={`provider-fact-conflict-${option.id}-${criterion}`}>
+                            {copy.conflictHelp}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   );

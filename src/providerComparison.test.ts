@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   buildProviderComparisonOptions,
+  buildProviderComparisonFact,
+  buildProviderContactPlan,
   buildProviderContactPayload,
+  buildProviderRecheckContext,
   buildProviderShortlistRecheckPayload,
   buildProviderShortlistReview,
   buildProviderShortlistPayload,
   buildTrustedProviderPrefill,
   parseProviderShortlistPayload,
+  providerFactFreshness,
   providerShortlistFreshness,
   updateProviderShortlistPayload,
 } from "../shared/providerComparison";
@@ -21,6 +25,9 @@ const sourceOptions = [
     booking_url: "https://example.test/book",
     source_label: "Regional health directory",
     source_status: "verified" as const,
+    source_type: "directory" as const,
+    source_url: "https://directory.example/harbour",
+    checked_at: "2026-07-01T09:30:00.000Z",
     comparison: {
       distance: { criterion: "distance" as const, value: "1.2 km", status: "verified" as const, source: "Map listing" },
       price: { criterion: "price" as const, value: "First visit EUR 60", status: "reported" as const, source: "Provider website" },
@@ -43,7 +50,107 @@ describe("provider comparison contract", () => {
     expect(options[0].facts.distance).toMatchObject({ value: "1.2 km", status: "verified" });
     expect(options[0].facts.accessibility).toMatchObject({ value: null, status: "unknown" });
     expect(options[0].facts.coverage).toMatchObject({ value: null, status: "unknown" });
+    expect(options[0].facts.price).toMatchObject({
+      sourceType: "directory",
+      sourceUrl: "https://directory.example/harbour",
+      checkedAt: "2026-07-01T09:30:00.000Z",
+    });
+    for (const criterion of ["price", "availability", "accessibility", "coverage", "reputation"] as const) {
+      expect(options[0].facts[criterion]).toMatchObject({
+        sourceType: "directory",
+        checkedAt: "2026-07-01T09:30:00.000Z",
+      });
+    }
     expect(options[0].whyMaySuitYou).toContain("1.2 km");
+  });
+
+  it("prioritizes official or provider evidence and flags conflicting values", () => {
+    const fact = buildProviderComparisonFact("price", [
+      {
+        value: "EUR 75",
+        status: "reported",
+        source: "Regional directory",
+        sourceType: "directory",
+        sourceUrl: "https://directory.example/clinic",
+        checkedAt: "2026-07-10T09:00:00.000Z",
+      },
+      {
+        value: "EUR 70",
+        status: "verified",
+        source: "Clinic price list",
+        sourceType: "provider_owned",
+        sourceUrl: "https://clinic.example/prices",
+        checkedAt: "2026-07-10T08:00:00.000Z",
+      },
+    ]);
+
+    expect(fact).toMatchObject({
+      value: "EUR 70",
+      status: "conflicting",
+      source: "Clinic price list",
+      sourceType: "provider_owned",
+      checkedAt: "2026-07-10T08:00:00.000Z",
+      conflict: true,
+    });
+    expect(fact.evidence).toHaveLength(2);
+  });
+
+  it("drops unsafe evidence links at the shared contract boundary", () => {
+    const fact = buildProviderComparisonFact("availability", [
+      {
+        value: "Tomorrow morning",
+        status: "reported",
+        source: "Provider message",
+        sourceType: "provider_owned",
+        sourceUrl: "javascript:alert('unsafe')",
+        checkedAt: "2026-07-10T08:00:00.000Z",
+      },
+    ]);
+
+    expect(fact.sourceUrl).toBeNull();
+    expect(fact.evidence[0].sourceUrl).toBeNull();
+  });
+
+  it("keeps complementary availability and reputation evidence without a false conflict", () => {
+    const availability = buildProviderComparisonFact("availability", [
+      {
+        value: "Opening hours Mo-Fr 09:00-18:00",
+        status: "verified",
+        source: "Clinic website",
+        sourceType: "provider_owned",
+        sourceUrl: "https://clinic.example/hours",
+        checkedAt: "2026-07-10T08:00:00.000Z",
+      },
+      {
+        value: "Appears open now",
+        status: "reported",
+        source: "Google Places",
+        sourceType: "directory",
+        sourceUrl: "https://maps.example/clinic",
+        checkedAt: "2026-07-10T08:05:00.000Z",
+      },
+    ]);
+    const reputation = buildProviderComparisonFact("reputation", [
+      {
+        value: "Listed in a regulated directory",
+        status: "verified",
+        source: "Health register",
+        sourceType: "regulated",
+        sourceUrl: "https://health.gov/clinic",
+        checkedAt: "2026-07-10T08:00:00.000Z",
+      },
+      {
+        value: "4.6/5 (120 reviews)",
+        status: "reported",
+        source: "Google Places",
+        sourceType: "directory",
+        sourceUrl: "https://maps.example/clinic",
+        checkedAt: "2026-07-10T08:05:00.000Z",
+      },
+    ]);
+
+    expect(availability).toMatchObject({ conflict: false, status: "verified" });
+    expect(reputation).toMatchObject({ conflict: false, status: "verified" });
   });
 
   it("builds a saved shortlist without authorizing external action", () => {
@@ -103,6 +210,36 @@ describe("provider comparison contract", () => {
       status: "stale",
     });
     expect(providerShortlistFreshness(null)).toEqual({ status: "unknown", ageMs: null });
+    expect(providerFactFreshness(selected[0].facts.price, new Date("2026-07-10T10:00:00.000Z"))).toMatchObject({
+      status: "stale",
+    });
+  });
+
+  it("builds a recheck request that prefers first-party sources and keeps provider targets", () => {
+    const selected = buildProviderComparisonOptions(sourceOptions).slice(0, 2);
+    const shortlist = parseProviderShortlistPayload(buildProviderShortlistPayload(selected, {
+      mode: "specialist",
+      query: "dermatologist nearby",
+    }))!;
+
+    expect(buildProviderRecheckContext(shortlist)).toEqual({
+      preferredSources: ["official", "provider_owned", "regulated", "directory"],
+      criteria: ["price", "availability", "accessibility", "coverage", "reputation"],
+      providers: [
+        {
+          id: "clinic-1",
+          name: "Harbour Clinic",
+          officialWebsite: "https://example.test/book",
+          directoryUrl: null,
+        },
+        {
+          id: "second-clinic-2",
+          name: "Second Clinic",
+          officialWebsite: null,
+          directoryUrl: null,
+        },
+      ],
+    });
   });
 
   it("keeps the saved snapshot while recording changed and unavailable providers", () => {
@@ -147,12 +284,28 @@ describe("provider comparison contract", () => {
 
   it("requires final confirmation for contact and supports trusted-provider setup", () => {
     const option = buildProviderComparisonOptions(sourceOptions)[0];
-    const contact = buildProviderContactPayload(option, { mode: "specialist" });
+    const contact = buildProviderContactPayload(option, {
+      mode: "specialist",
+      query: "a dermatology appointment",
+      locale: "en",
+    });
     const prefill = buildTrustedProviderPrefill(option, "doctor_clinic");
 
     expect(contact).toMatchObject({
       task_type: "provider_contact_preparation",
+      provider_contact_handoff_version: 1,
       provider_phone: "+34 600 111 222",
+      selected_channel: "booking_url",
+      execution_channel: "booking_url",
+      requested_tool: "booking_link",
+      live_handoff_flow: "verified_provider_contact_v1",
+      provider_verification: {
+        status: "verified",
+        source: "Regional health directory",
+        checked_at: "2026-07-01T09:30:00.000Z",
+      },
+      email_body: expect.stringContaining("a dermatology appointment"),
+      call_script: expect.stringContaining("Please do not book or charge anything yet"),
       confirmation_required_before_action: true,
       no_external_action_without_confirmation: true,
       user_confirmed: false,
@@ -164,5 +317,34 @@ describe("provider comparison contract", () => {
       booking_url: "https://example.test/book",
       can_contact_after_confirmation: true,
     });
+  });
+
+  it("uses a valid saved channel preference and falls back through official booking, phone, WhatsApp, and email", () => {
+    const option = buildProviderComparisonOptions([{
+      ...sourceOptions[0],
+      preferred_channel: "phone",
+      email: "hello@harbour.example",
+      whatsapp: "+34 600 111 333",
+    }])[0];
+    expect(buildProviderContactPlan(option, { query: "an appointment" })).toMatchObject({
+      channel: "phone",
+      requestedTool: "phone_call",
+      availableChannels: ["booking_url", "phone", "whatsapp", "email"],
+    });
+
+    const noPreference = { ...option, contact: { ...option.contact, preferredChannel: null } };
+    expect(buildProviderContactPlan(noPreference).channel).toBe("booking_url");
+  });
+
+  it("can mark a contacted provider unavailable while keeping the saved shortlist", () => {
+    const selected = buildProviderComparisonOptions(sourceOptions).slice(0, 2);
+    const payload = buildProviderShortlistPayload(selected, { mode: "specialist" });
+    payload.contact_unavailable_provider_ids = [selected[0].id];
+    const shortlist = parseProviderShortlistPayload(payload)!;
+    const review = buildProviderShortlistReview(shortlist);
+
+    expect(shortlist.unavailableProviderIds).toEqual([selected[0].id]);
+    expect(review.items[0]).toMatchObject({ available: false });
+    expect(review.items[1]).toMatchObject({ available: true });
   });
 });

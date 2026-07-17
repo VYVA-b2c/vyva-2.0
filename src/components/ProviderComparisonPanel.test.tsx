@@ -10,9 +10,12 @@ const options = buildProviderComparisonOptions([
     category: "Doctor",
     source_label: "Regional directory",
     source_status: "verified",
+    source_type: "directory",
+    source_url: "https://directory.example/harbour",
+    checked_at: "2026-07-10T09:00:00.000Z",
     comparison: {
       distance: { criterion: "distance", value: "1.2 km", status: "verified", source: "Map listing" },
-      price: { criterion: "price", value: "EUR 60", status: "reported", source: "Provider website" },
+      price: { criterion: "price", value: "EUR 60", status: "reported", source: "Provider website", sourceType: "provider_owned", sourceUrl: "https://clinic.example/prices", checkedAt: "2026-07-10T08:30:00.000Z" },
       reputation: { criterion: "reputation", value: "4.6 from 120 reviews", status: "reported", source: "Public reviews" },
       availability: { criterion: "availability", value: "Tuesday", status: "reported", source: "Provider website" },
       accessibility: { criterion: "accessibility", value: null, status: "unknown", source: null },
@@ -39,6 +42,10 @@ describe("ProviderComparisonPanel", () => {
     expect(panel).toHaveTextContent("Insurance / coverage");
     expect(panel).toHaveTextContent("Not provided");
     expect(panel).toHaveTextContent("Why this may suit you");
+    expect(screen.getByTestId("provider-fact-provider-a-price")).toHaveTextContent("Not independently verified");
+    expect(screen.getByTestId("provider-fact-provider-a-price")).toHaveTextContent("Provider source");
+    expect(screen.getByTestId("provider-fact-source-provider-a-price")).toHaveTextContent("Provider website");
+    expect(screen.getByTestId("provider-fact-checked-provider-a-price")).not.toHaveTextContent("Check time not provided");
     expect(panel).not.toHaveTextContent("/100");
     expect(panel).not.toHaveTextContent("VYVA score");
   });
@@ -141,5 +148,43 @@ describe("ProviderComparisonPanel", () => {
     expect(screen.getByTestId("button-provider-comparison-save-provider-a")).toBeDisabled();
     expect(screen.getByTestId("button-provider-comparison-contact-provider-a")).toBeDisabled();
     expect(screen.getByTestId("button-provider-comparison-choose-provider-a")).toBeDisabled();
+  });
+
+  it("shows a clear warning when evidence sources conflict", () => {
+    const conflicting = buildProviderComparisonOptions([{
+      id: "provider-conflict",
+      name: "Harbour Clinic",
+      category: "Doctor",
+      comparison: {
+        price: {
+          criterion: "price",
+          value: "EUR 70",
+          status: "verified",
+          source: "Clinic price list",
+          sourceType: "provider_owned",
+          checkedAt: "2026-07-10T08:00:00.000Z",
+          evidence: [
+            { value: "EUR 70", status: "verified", source: "Clinic price list", sourceType: "provider_owned", sourceUrl: "https://clinic.example/prices", checkedAt: "2026-07-10T08:00:00.000Z" },
+            { value: "EUR 75", status: "reported", source: "Regional directory", sourceType: "directory", sourceUrl: "https://directory.example/clinic", checkedAt: "2026-07-10T09:00:00.000Z" },
+          ],
+          sourceUrl: "https://clinic.example/prices",
+          conflict: true,
+        },
+      },
+    }]);
+
+    render(
+      <ProviderComparisonPanel
+        options={conflicting}
+        locale="en"
+        shortlistedIds={[]}
+        onToggleShortlist={vi.fn()}
+        onSaveProvider={vi.fn()}
+        onPrepareContact={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("provider-fact-provider-conflict-price")).toHaveTextContent("Sources disagree");
+    expect(screen.getByTestId("provider-fact-conflict-provider-conflict-price")).toHaveTextContent("Review this detail before deciding");
   });
 });

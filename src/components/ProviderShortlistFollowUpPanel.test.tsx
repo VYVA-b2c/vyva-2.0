@@ -102,8 +102,8 @@ describe("ProviderShortlistFollowUpPanel", () => {
       category: "Doctor",
       phone: "+34 600 999 888",
       comparison: {
-        price: { criterion: "price", value: "EUR 75", status: "verified" },
-        availability: { criterion: "availability", value: "Wednesday", status: "reported" },
+        price: { criterion: "price", value: "EUR 75", status: "verified", source: "Clinic price list", sourceType: "provider_owned", checkedAt: "2026-07-10T11:30:00.000Z" },
+        availability: { criterion: "availability", value: "Wednesday", status: "reported", source: "Regional directory", sourceType: "directory", checkedAt: "2026-07-10T11:35:00.000Z" },
       },
     }]);
     const refreshed = parseProviderShortlistPayload(
@@ -128,6 +128,8 @@ describe("ProviderShortlistFollowUpPanel", () => {
 
     expect(screen.getByTestId("provider-shortlist-change-review")).toHaveTextContent("What changed");
     expect(screen.getByTestId("provider-shortlist-review-clinic-a")).toHaveTextContent("EUR 75");
+    expect(screen.getByTestId("provider-shortlist-review-clinic-a")).toHaveTextContent("Clinic price list");
+    expect(screen.getByTestId("provider-shortlist-review-clinic-a")).toHaveTextContent("Not independently verified");
     expect(screen.getByTestId("provider-shortlist-review-clinic-b")).toHaveTextContent("Not found in the latest check");
     expect(screen.getByTestId("button-provider-comparison-contact-clinic-b")).toBeDisabled();
     expect(screen.getByTestId("button-provider-comparison-choose-clinic-b")).toBeDisabled();

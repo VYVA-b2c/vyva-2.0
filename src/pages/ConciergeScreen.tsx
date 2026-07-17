@@ -125,7 +125,9 @@ import {
 } from "../../shared/conciergeGuidedDetails";
 import {
   buildProviderComparisonOptions,
+  buildProviderContactPlan,
   buildProviderContactPayload,
+  buildProviderRecheckContext,
   buildProviderShortlistRecheckPayload,
   buildProviderShortlistPayload,
   buildTrustedProviderPrefill,
@@ -133,6 +135,7 @@ import {
   updateProviderShortlistPayload,
   type ProviderComparisonOption,
   type ProviderComparisonSourceOption,
+  type ProviderRecheckContext,
   type ProviderShortlistState,
 } from "../../shared/providerComparison";
 
@@ -2062,6 +2065,8 @@ async function saveConfirmedAppointmentFromProviderReply(params: {
   const providerName = String(payload.provider_name || item.provider_name || (params.isSpanish ? "clinica" : "clinic"));
   const providerReply = form.providerReply.trim();
   const reference = form.reference.trim();
+  const price = form.price.trim();
+  const followUp = form.followUp.trim();
   const notes = form.notes.trim();
   const appointmentType = payloadString(item.action_payload, ["appointment_type", "type"]) || "medical";
   const reason = payloadString(item.action_payload, ["appointment_reason", "reason", "detail", "notes"]) || item.action_summary;
@@ -2069,6 +2074,8 @@ async function saveConfirmedAppointmentFromProviderReply(params: {
   const description = [
     reason ? `Reason: ${reason}` : "",
     providerReply ? `Provider reply: ${providerReply}` : "",
+    price ? `Price: ${price}` : "",
+    followUp ? `Follow-up: ${followUp}` : "",
     reference ? `Reference: ${reference}` : "",
     notes ? `Notes: ${notes}` : "",
   ].filter(Boolean).join("\n").slice(0, 1000);
@@ -2161,15 +2168,18 @@ async function saveConfirmedHomeServiceFromProviderReply(params: {
   const accessNotes = payloadString(item.action_payload, ["home_access_or_safety_notes", "access_notes", "safety_notes"]);
   const providerReply = form.providerReply.trim();
   const reference = form.reference.trim();
+  const explicitPrice = form.price.trim();
+  const followUp = form.followUp.trim();
   const notes = form.notes.trim();
   const location = form.location.trim() || payloadString(item.action_payload, ["location", "address", "home_address"]) || null;
-  const estimatedCost = estimateFromHomeServiceReply(providerReply, notes);
+  const estimatedCost = explicitPrice || estimateFromHomeServiceReply(providerReply, notes);
   const description = [
     problem ? `Problem: ${problem}` : "",
     urgency ? `Urgency: ${urgency}` : "",
     accessNotes ? `Access/safety: ${accessNotes}` : "",
     providerReply ? `Provider reply: ${providerReply}` : "",
     estimatedCost ? `Estimate: ${estimatedCost}` : "",
+    followUp ? `Follow-up: ${followUp}` : "",
     reference ? `Reference: ${reference}` : "",
     notes ? `Notes: ${notes}` : "",
   ].filter(Boolean).join("\n").slice(0, 1000);
@@ -2712,13 +2722,32 @@ async function saveCompletedOtcPharmacyRequest(params: {
   });
 }
 
-async function searchOffers(query: string, locale: string, documentContext?: BillDocumentAnalysis): Promise<OffersSearchResponse> {
+async function searchOffers(
+  query: string,
+  locale: string,
+  documentContext?: BillDocumentAnalysis,
+  recheckContext?: ProviderRecheckContext,
+  providerMode?: ProviderSearchMode | null,
+): Promise<OffersSearchResponse> {
   const res = await apiFetch("/api/offers/search", {
     method: "POST",
     body: JSON.stringify({
       query,
       locale,
+      provider_mode: providerMode ?? undefined,
       document_context: documentContext,
+      recheck_context: recheckContext
+        ? {
+            preferred_sources: recheckContext.preferredSources,
+            criteria: recheckContext.criteria,
+            providers: recheckContext.providers.map((provider) => ({
+              id: provider.id,
+              name: provider.name,
+              official_website: provider.officialWebsite,
+              directory_url: provider.directoryUrl,
+            })),
+          }
+        : undefined,
     }),
   });
   if (!res.ok) {
@@ -2738,10 +2767,11 @@ async function saveProviderShortlistAction(params: {
 }) {
   const payload = buildProviderShortlistPayload(params.options, {
     mode: params.mode,
-    query: params.query,
-    criteria: params.criteria,
-    flowReference: params.flowReference,
-    resumeContext: {
+      query: params.query,
+      criteria: params.criteria,
+      flowReference: params.flowReference,
+      locale: params.locale,
+      resumeContext: {
       kind: "provider_search",
       mode: params.mode,
       query: params.query,
@@ -5743,6 +5773,73 @@ function PendingActionReviewCard({
   );
 }
 
+function isVerifiedProviderContactHandoff(item: ConciergePendingItem | null | undefined): item is ConciergePendingItem {
+  return item?.action_payload?.live_handoff_flow === "verified_provider_contact_v1";
+}
+
+function providerContactSourceShortlistId(item: ConciergePendingItem): string {
+  return payloadString(item.action_payload, ["source_shortlist_pending_id"]);
+}
+
+function providerContactSelectedProviderId(item: ConciergePendingItem): string {
+  const comparison = isRecord(item.action_payload?.comparison) ? item.action_payload?.comparison : null;
+  return comparison && typeof comparison.id === "string" ? comparison.id.trim() : "";
+}
+
+function ProviderContactHandoffPanel({ item, isSpanish }: { item: ConciergePendingItem; isSpanish: boolean }) {
+  const payload = item.action_payload;
+  const verification = isRecord(payload?.provider_verification) ? payload.provider_verification : null;
+  const status = verification && typeof verification.status === "string" ? verification.status : "unknown";
+  const source = verification && typeof verification.source === "string" ? verification.source : "";
+  const checkedAt = verification && typeof verification.checked_at === "string" ? verification.checked_at : "";
+  const checkedDate = checkedAt && Number.isFinite(new Date(checkedAt).getTime())
+    ? new Intl.DateTimeFormat(isSpanish ? "es-ES" : "en-GB", { dateStyle: "medium" }).format(new Date(checkedAt))
+    : "";
+  const exactContent = payloadString(payload, ["call_script", "whatsapp_message", "email_body", "draft_message"]);
+
+  return (
+    <section
+      className="mt-3 rounded-[22px] border border-[#BFE7E1] bg-[#F8FFFC] p-4"
+      data-testid="panel-provider-contact-handoff"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#0F766E] shadow-sm">
+          <ShieldCheck size={18} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+            {isSpanish ? "Contacto comprobado" : "Checked contact"}
+          </p>
+          <p className="mt-1 font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {item.provider_name || payloadString(payload, ["selected_provider_name", "provider_name"])}
+          </p>
+          <p className="mt-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {status === "verified"
+              ? (isSpanish ? "Fuente verificada" : "Verified source")
+              : status === "reported"
+                ? (isSpanish ? "Informacion publicada; revisa antes de continuar" : "Published information; review before continuing")
+                : (isSpanish ? "La fuente no esta verificada" : "Source is not verified")}
+            {source ? ` - ${source}` : ""}{checkedDate ? ` - ${checkedDate}` : ""}
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 font-body text-[11px] font-black text-[#0F766E]">
+          {handoffChannelLabel(item, isSpanish)}
+        </span>
+      </div>
+      {exactContent ? (
+        <div className="mt-3 rounded-[16px] border border-[#D9ECE8] bg-white p-3">
+          <p className="font-body text-[10px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+            {isSpanish ? "Esto es lo que VYVA dira o enviara" : "What VYVA will say or send"}
+          </p>
+          <p className="mt-1 whitespace-pre-wrap font-body text-[13px] font-semibold leading-relaxed text-vyva-text-1">
+            {exactContent}
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function BookingFormSupportPanel({
   item,
   plan,
@@ -6040,6 +6137,20 @@ function PhoneCallOutcomePanel({
           onChange={(event) => onFormChange("reference", event.target.value)}
           placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
           data-testid={`input-phone-outcome-reference-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DDD6FE] bg-white font-body text-[14px]"
+        />
+        <Input
+          value={form.price}
+          onChange={(event) => onFormChange("price", event.target.value)}
+          placeholder={isSpanish ? "Precio opcional" : "Price optional"}
+          data-testid={`input-phone-outcome-price-${item.id}`}
+          className="h-[44px] rounded-[14px] border-[#DDD6FE] bg-white font-body text-[14px]"
+        />
+        <Input
+          value={form.followUp}
+          onChange={(event) => onFormChange("followUp", event.target.value)}
+          placeholder={isSpanish ? "Seguimiento opcional" : "Follow-up optional"}
+          data-testid={`input-phone-outcome-follow-up-${item.id}`}
           className="h-[44px] rounded-[14px] border-[#DDD6FE] bg-white font-body text-[14px]"
         />
         <textarea
@@ -6464,6 +6575,20 @@ function ProviderReplyPanel({
               placeholder={isSpanish ? "Lugar opcional" : "Place optional"}
               data-testid={`input-provider-reply-location-${item.id}`}
               className="h-[44px] rounded-[14px] border-[#DBEAFE] bg-white font-body text-[14px] sm:col-span-2"
+            />
+            <Input
+              value={form.price}
+              onChange={(event) => onFormChange("price", event.target.value)}
+              placeholder={isSpanish ? "Precio confirmado opcional" : "Confirmed price optional"}
+              data-testid={`input-provider-reply-price-${item.id}`}
+              className="h-[44px] rounded-[14px] border-[#DBEAFE] bg-white font-body text-[14px]"
+            />
+            <Input
+              value={form.followUp}
+              onChange={(event) => onFormChange("followUp", event.target.value)}
+              placeholder={isSpanish ? "Seguimiento opcional" : "Follow-up optional"}
+              data-testid={`input-provider-reply-follow-up-${item.id}`}
+              className="h-[44px] rounded-[14px] border-[#DBEAFE] bg-white font-body text-[14px]"
             />
             <textarea
               value={form.providerReply}
@@ -7176,6 +7301,8 @@ type ProviderReplyForm = {
   scheduledFor: string;
   reference: string;
   location: string;
+  price: string;
+  followUp: string;
   providerReply: string;
   notes: string;
   followUpQuestion: string;
@@ -7192,6 +7319,8 @@ type PhoneCallOutcomeForm = {
   status: PhoneCallOutcomeStatus;
   scheduledFor: string;
   reference: string;
+  price: string;
+  followUp: string;
   notes: string;
 };
 
@@ -7672,6 +7801,8 @@ const EMPTY_PROVIDER_REPLY_FORM: ProviderReplyForm = {
   scheduledFor: "",
   reference: "",
   location: "",
+  price: "",
+  followUp: "",
   providerReply: "",
   notes: "",
   followUpQuestion: "",
@@ -7686,6 +7817,8 @@ const EMPTY_PHONE_CALL_OUTCOME_FORM: PhoneCallOutcomeForm = {
   status: "confirmed",
   scheduledFor: "",
   reference: "",
+  price: "",
+  followUp: "",
   notes: "",
 };
 
@@ -7712,6 +7845,8 @@ function providerReplyFormHasDetails(form: ProviderReplyForm): boolean {
     form.scheduledFor.trim() ||
     form.reference.trim() ||
     form.location.trim() ||
+    form.price.trim() ||
+    form.followUp.trim() ||
     form.providerReply.trim() ||
     form.notes.trim(),
   );
@@ -7736,6 +7871,8 @@ function providerReplyInitialForm(item: ConciergePendingItem, isSpanish: boolean
     scheduledFor,
     reference: payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]),
     location: payloadString(payload, ["location", "address", "destination_address", "home_address"]),
+    price: payloadString(payload, ["price", "price_estimate", "estimated_cost", "cost"]),
+    followUp: payloadString(payload, ["follow_up", "follow_up_date", "next_step"]),
     providerReply: payloadString(payload, ["provider_reply", "fulfillment_note"]),
     notes: "",
     followUpQuestion: isSpanish
@@ -7759,6 +7896,8 @@ function providerReplyOutcomePayload(item: ConciergePendingItem, form: ProviderR
     scheduled_for: form.scheduledFor.trim() || payloadString(payload, ["scheduled_for", "requested_time", "time"]) || null,
     reference: form.reference.trim() || payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]) || null,
     location: form.location.trim() || payloadString(payload, ["location", "address", "destination_address", "home_address"]) || null,
+    price: form.price.trim() || payloadString(payload, ["price", "price_estimate", "estimated_cost", "cost"]) || null,
+    follow_up: form.followUp.trim() || payloadString(payload, ["follow_up", "follow_up_date", "next_step"]) || null,
     notes: form.notes.trim() || null,
     live_handoff_status: "completed",
     live_handoff_outcome: "provider_confirmed",
@@ -7975,6 +8114,8 @@ function phoneCallOutcomePayload(item: ConciergePendingItem, form: PhoneCallOutc
     call_script: phoneCallScript(item, isSpanish),
     scheduled_for: form.scheduledFor.trim() || payloadString(payload, ["scheduled_for", "requested_time", "time"]) || null,
     reference: form.reference.trim() || payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]) || null,
+    price: form.price.trim() || payloadString(payload, ["price", "price_estimate", "estimated_cost", "cost"]) || null,
+    follow_up: form.followUp.trim() || payloadString(payload, ["follow_up", "follow_up_date", "next_step"]) || null,
     notes: form.notes.trim() || null,
     live_handoff_status: liveHandoffStatusForPhoneOutcome(form.status),
     live_handoff_outcome: form.status,
@@ -9687,7 +9828,7 @@ const ConciergeScreen = () => {
       setProviderReplyError(null);
       setProviderReplyNotice(null);
     },
-    onSuccess: async (result) => {
+    onSuccess: async (result, { item }) => {
       setProviderReplyMode(null);
       setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
       const completionStatus = isRecord(result) && typeof result.completionStatus === "string" ? result.completionStatus : "";
@@ -9709,6 +9850,7 @@ const ConciergeScreen = () => {
               ? "Cita guardada en Scheduled Support. La tarea queda cerrada."
               : "Appointment saved in Scheduled Support. The task is closed.")
           : (isSpanish ? "Respuesta guardada. La tarea queda cerrada." : "Reply saved. The task is closed."));
+      await resumeProviderHandoffSource(item, "completed");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
@@ -9779,10 +9921,11 @@ const ConciergeScreen = () => {
       setProviderReplyError(null);
       setProviderReplyNotice(null);
     },
-    onSuccess: async () => {
+    onSuccess: async (_result, { item }) => {
       setProviderReplyMode(null);
       setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
       setProviderReplyNotice(isSpanish ? "Tarea completada." : "Task completed.");
+      await resumeProviderHandoffSource(item, "completed");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
@@ -9844,13 +9987,16 @@ const ConciergeScreen = () => {
       setPhoneCallOutcomeError(null);
       setPhoneCallOutcomeNotice(null);
     },
-    onSuccess: async (_result, { form }) => {
+    onSuccess: async (_result, { item, form }) => {
       setPhoneCallOutcomeForm(EMPTY_PHONE_CALL_OUTCOME_FORM);
       setPhoneCallOutcomeNotice(form.status === "no_answer"
         ? (isSpanish ? "Sin respuesta. La tarea sigue abierta." : "No answer. The task stays open.")
         : form.status === "needs_info"
           ? (isSpanish ? "Faltan datos. La tarea sigue abierta." : "More information is needed. The task stays open.")
           : (isSpanish ? "Llamada guardada. La tarea queda cerrada." : "Call saved. The task is closed."));
+      if (form.status === "confirmed" || form.status === "cancelled") {
+        await resumeProviderHandoffSource(item, form.status === "confirmed" ? "completed" : "failed");
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
@@ -10040,7 +10186,13 @@ const ConciergeScreen = () => {
       const criteria = (shortlist.context.criteria ?? []).filter(isProviderSearchCriterion);
       const query = shortlist.context.query?.trim() || providerSearchModeLabel(mode, isSpanish);
       const criteriaQuery = buildProviderSearchQuery(query, criteria, mode, isSpanish);
-      const result = await searchOffers(criteriaQuery, language);
+      const result = await searchOffers(
+        criteriaQuery,
+        language,
+        undefined,
+        buildProviderRecheckContext(shortlist),
+        mode,
+      );
       const latestOptions = buildProviderComparisonOptions(result.options);
       return patchPendingConciergeAction({
         pendingId: item.id,
@@ -10302,22 +10454,22 @@ const ConciergeScreen = () => {
         const sourceShortlistPayload = isRecord(prefill.payload?.source_shortlist_payload)
           ? prefill.payload.source_shortlist_payload
           : {};
-        await completePendingConciergeAction({
+        await patchPendingConciergeAction({
           pendingId: sourceShortlistId,
-          outcomeSummary: "Provider selected and contact preparation started.",
-          outcomePayload: {
+          actionPayload: {
             ...sourceShortlistPayload,
             shortlist_status: "contact_prepared",
             selected_provider_name: prefill.payload?.selected_provider_name ?? null,
             related_contact_task_pending_id: _result.pendingId ?? null,
-            no_external_action_taken: true,
+            contact_handoff_status: "ready_for_confirmation",
             confirmation_still_required: true,
+            no_external_action_taken: true,
           },
         });
       }
+      if (_result.pendingId) setVisibleActionId(_result.pendingId);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
-        sourceShortlistId ? queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }) : Promise.resolve(),
       ]);
     },
     onError: (error) => {
@@ -11254,7 +11406,7 @@ const ConciergeScreen = () => {
     resetProviderShortlistState();
     try {
       const criteriaQuery = buildProviderSearchQuery(query, providerSearchCriteria, providerSearchMode, isSpanish);
-      const result = await searchOffers(criteriaQuery, language, documentContext);
+      const result = await searchOffers(criteriaQuery, language, documentContext, undefined, providerSearchMode);
       setOffersResult(result);
     } catch {
       setOffersError(isSpanish
@@ -12116,7 +12268,93 @@ const ConciergeScreen = () => {
     providerMarkCompleteMutation.mutate({ item });
   }
 
+  async function resumeProviderHandoffSource(
+    item: ConciergePendingItem,
+    outcome: "completed" | "failed" | "unavailable",
+  ): Promise<boolean> {
+    const sourceId = providerContactSourceShortlistId(item);
+    if (!sourceId) {
+      const resumeContext = isRecord(item.action_payload?.resume_context) ? item.action_payload.resume_context : null;
+      const originalQuery = resumeContext && typeof resumeContext.query === "string" ? resumeContext.query.trim() : "";
+      if (!originalQuery) return false;
+      setInput(outcome === "completed"
+        ? (isSpanish
+          ? `Continua mi solicitud original: ${originalQuery}. Usa el resultado guardado y no repitas los pasos completados.`
+          : `Continue my original request: ${originalQuery}. Use the saved outcome and do not repeat completed steps.`)
+        : (isSpanish
+          ? `Continua mi solicitud original: ${originalQuery}. El contacto no se completo; ayudame con la siguiente opcion sin repetir mis datos.`
+          : `Continue my original request: ${originalQuery}. Contact was not completed; help with the next option without asking for the same details again.`));
+      setIsRightNowHidden(false);
+      window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
+      return true;
+    }
+    const source = pendingActions.find((candidate) => candidate.id === sourceId);
+    const shortlist = parseProviderShortlistPayload(source?.action_payload);
+    if (!source?.action_payload || !shortlist) return false;
+
+    const selectedProviderId = providerContactSelectedProviderId(item) || shortlist.preferredProviderId || "";
+    const unavailableProviderIds = new Set(shortlist.unavailableProviderIds);
+    if (outcome === "unavailable" && selectedProviderId) unavailableProviderIds.add(selectedProviderId);
+    const nextPayload = updateProviderShortlistPayload(source.action_payload, shortlist.options, {
+      preferredProviderId: outcome === "completed" ? selectedProviderId || null : null,
+      status: outcome === "completed" ? "preferred_selected" : "open",
+    });
+
+    await patchPendingConciergeAction({
+      pendingId: sourceId,
+      actionPayload: {
+        ...nextPayload,
+        contact_handoff_status: outcome,
+        contact_handoff_provider_id: selectedProviderId || null,
+        contact_handoff_provider_name: item.provider_name ?? payloadString(item.action_payload, ["selected_provider_name"]),
+        contact_handoff_updated_at: new Date().toISOString(),
+        contact_unavailable_provider_ids: [...unavailableProviderIds],
+        related_contact_task_pending_id: null,
+        confirmation_still_required: false,
+      },
+    });
+
+    setVisibleActionId(sourceId);
+    setIsRightNowHidden(false);
+    setActiveProviderShortlistNotice(outcome === "completed"
+      ? (isSpanish ? "Contacto guardado. Continua con tu solicitud original." : "Contact saved. Continue with your original request.")
+      : outcome === "unavailable"
+        ? (isSpanish ? "Este proveedor no esta disponible. Elige otra opcion guardada." : "This provider is unavailable. Choose another saved option.")
+        : (isSpanish ? "El contacto no se completo. Puedes probar otra opcion guardada." : "Contact was not completed. You can try another saved option."));
+    return true;
+  }
+
   function handleProviderUnavailable(item: ConciergePendingItem) {
+    if (isVerifiedProviderContactHandoff(item) && providerContactSourceShortlistId(item)) {
+      setProviderReplyMode(null);
+      setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
+      setProviderReplyError(null);
+      setProviderReplyNotice(isSpanish ? "Volviendo a tus opciones guardadas." : "Returning to your saved options.");
+      void (async () => {
+        await resumeProviderHandoffSource(item, "unavailable");
+        await completePendingConciergeAction({
+          pendingId: item.id,
+          outcomeSummary: isSpanish ? "Proveedor no disponible." : "Provider unavailable.",
+          outcomePayload: {
+            ...(item.action_payload ?? {}),
+            live_handoff_status: "failed",
+            live_handoff_outcome: "provider_unavailable",
+            provider_unavailable: true,
+            returned_to_shortlist: true,
+            no_external_action_without_confirmation: true,
+          },
+        });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+          queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+        ]);
+      })().catch((error) => {
+        setProviderReplyError(error instanceof Error
+          ? error.message
+          : (isSpanish ? "No he podido volver a la seleccion." : "I could not return to the shortlist."));
+      });
+      return;
+    }
     const recovery = providerUnavailableRecoveryPlan(item, isSpanish);
     setProviderReplyMode(null);
     setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
@@ -12625,14 +12863,42 @@ const ConciergeScreen = () => {
   }
 
   function handlePrepareComparisonContact(option: ProviderComparisonOption) {
-    const comparisonIndex = providerComparisonOptions.findIndex((candidate) => candidate.id === option.id);
-    const raw = comparisonIndex >= 0 ? offersResult?.options[comparisonIndex] : undefined;
-    if (!raw) return;
-    if (providerSearchMode) {
-      handleProviderSearchAssistance(raw);
-      return;
-    }
-    handleOfferAssistance(raw);
+    const mode = providerSearchMode ?? "shopping-seller";
+    const context = {
+      mode,
+      query: offersQuery.trim() || providerSearchModeLabel(mode, isSpanish),
+      criteria: providerSearchCriteria,
+      flowReference: providerSearchFlowReference(mode),
+      locale,
+      resumeContext: {
+        kind: "provider_search",
+        mode,
+        query: offersQuery.trim(),
+        criteria: providerSearchCriteria,
+      },
+    };
+    const plan = buildProviderContactPlan(option, context);
+    const isSeller = mode === "shopping-seller";
+    prepareConciergeRequest(
+      isSpanish
+        ? `Revisa el contacto preparado con ${option.name}. Nada se envia, llama ni reserva hasta que confirmes.`
+        : `Review the prepared contact with ${option.name}. Nothing is sent, called, or booked until you confirm.`,
+      {
+        flowReference: providerSearchFlowReference(mode),
+        requestedTool: plan.requestedTool,
+        actionLabel: isSeller
+          ? (isSpanish ? "Revisar oferta" : "Review deal")
+          : (isSpanish ? "Preparar contacto" : "Prepare contact"),
+        summary: isSeller
+          ? (isSpanish ? `Comparacion preparada: ${option.name}.` : `Deal comparison prepared: ${option.name}.`)
+          : (isSpanish ? `Busqueda de proveedor preparada: ${option.name}.` : `Provider search prepared: ${option.name}.`),
+        payload: buildProviderContactPayload(option, context),
+        useCase: mode === "shopping-seller" ? "find_offers" : "find_provider",
+        providerSearchMode: mode,
+        providerSearchCriteria,
+        providerSearchQuery: context.query,
+      },
+    );
   }
 
   function providerShortlistMode(shortlist: ProviderShortlistState): ProviderSearchMode {
@@ -12693,18 +12959,10 @@ const ConciergeScreen = () => {
   }
 
   function handlePrepareActiveShortlistContact(item: ConciergePendingItem, shortlist: ProviderShortlistState, option: ProviderComparisonOption) {
-    const channel = option.contact.preferredChannel?.toLowerCase();
-    const requestedTool: ConciergeToolRequirement = channel === "email" || option.contact.email
-      ? "email"
-      : channel === "whatsapp" || option.contact.whatsapp
-        ? "whatsapp"
-        : channel === "booking_link" || option.contact.bookingUrl
-          ? "booking_link"
-          : option.contact.phone
-            ? "phone_call"
-            : "operator_review";
     const mode = providerShortlistMode(shortlist);
-    const contactPayload = buildProviderContactPayload(option, shortlist.context);
+    const context = { ...shortlist.context, locale };
+    const plan = buildProviderContactPlan(option, context);
+    const contactPayload = buildProviderContactPayload(option, context);
     const updatedShortlistPayload = updateProviderShortlistPayload(item.action_payload ?? {}, shortlist.options, {
       preferredProviderId: option.id,
     });
@@ -12718,7 +12976,7 @@ const ConciergeScreen = () => {
           : `Prepare contact with ${option.name}. Do not call, message, or book until I confirm.`,
         {
           flowReference: isConciergeFlowReference(shortlist.context.flowReference) ? shortlist.context.flowReference : providerSearchFlowReference(mode),
-          requestedTool,
+          requestedTool: plan.requestedTool,
           actionLabel: isSpanish ? "Preparar contacto" : "Prepare contact",
           summary: isSpanish ? `Contacto preparado con ${option.name}.` : `Contact prepared with ${option.name}.`,
           payload: {
@@ -12981,6 +13239,10 @@ const ConciergeScreen = () => {
 
   const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
   const activeActionProviderShortlist = parseProviderShortlistPayload(activeAction?.action_payload);
+  const activeActionProviderShortlistNotice = activeProviderShortlistNotice
+    ?? (activeActionProviderShortlist && activeAction?.action_payload?.contact_handoff_status === "unavailable"
+      ? (isSpanish ? "Este proveedor no esta disponible. Elige otra opcion guardada." : "This provider is unavailable. Choose another saved option.")
+      : null);
   const activeActionIsDryRun = activeAction ? isConciergeDryRunPayload(activeAction.action_payload) : false;
   const queuedActions = activeAction ? pendingActions.filter((action) => action.id !== activeAction.id) : [];
   const queuedActionCount = queuedActions.length;
@@ -15091,7 +15353,7 @@ const ConciergeScreen = () => {
                 locale={locale}
                 busy={activeProviderShortlistMutation.isPending || completeProviderShortlistMutation.isPending || recheckProviderShortlistMutation.isPending}
                 rechecking={recheckProviderShortlistMutation.isPending}
-                notice={activeProviderShortlistNotice}
+                notice={activeActionProviderShortlistNotice}
                 error={activeProviderShortlistError}
                 onRemove={(option) => handleRemoveActiveShortlistOption(activeAction, activeActionProviderShortlist, option)}
                 onAdd={() => handleAddActiveShortlistOption(activeAction, activeActionProviderShortlist)}
@@ -15125,6 +15387,10 @@ const ConciergeScreen = () => {
                 checklist={activeActionChecklist}
                 onAction={handleActiveChecklistAction}
               />
+            ) : null}
+
+            {isVerifiedProviderContactHandoff(activeAction) ? (
+              <ProviderContactHandoffPanel item={activeAction} isSpanish={isSpanish} />
             ) : null}
 
             {activeActionShowVyvaGuide ? (

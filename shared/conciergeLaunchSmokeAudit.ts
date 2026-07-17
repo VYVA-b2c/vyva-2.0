@@ -6,6 +6,10 @@ import {
   type ConciergeExecutionTask,
 } from "./conciergeActionExecution";
 import {
+  evaluateConciergeChannelReadiness,
+  type ConciergeChannelReadinessFlags,
+} from "./conciergeChannelReadiness";
+import {
   conciergeFlowCoverageEntryPoints,
   getConciergeFlowCoverage,
   missingConciergeFlowCoverage,
@@ -33,6 +37,14 @@ export type ConciergeLaunchSmokeCheckId =
 export type ConciergeLaunchSmokeScenario = ConciergeExecutionBuildInput & {
   reference: ConciergeFlowReference;
   expectedSetupFocus?: ConciergeProviderCategoryId;
+};
+
+const LAUNCH_SMOKE_READY_CHANNEL_FLAGS: ConciergeChannelReadinessFlags = {
+  phone_call: { adminEnabled: true, configured: true, verified: true },
+  email: { adminEnabled: true, configured: true, verified: true },
+  whatsapp: { adminEnabled: true, configured: true, verified: true },
+  form_application: { adminEnabled: true, configured: true, verified: true },
+  document_upload: { adminEnabled: true, configured: true, verified: true },
 };
 
 export interface ConciergeLaunchSmokeCheck {
@@ -370,8 +382,14 @@ function handoffAndHistoryCheck(
 export function buildConciergeLaunchSmokeAudit(): ConciergeLaunchSmokeFlowAudit[] {
   return CONCIERGE_FLOW_REGISTRY.map((flow) => {
     const scenario = CONCIERGE_LAUNCH_SMOKE_SCENARIOS[flow.reference];
-    const task = buildConciergeExecutionTask(scenario);
-    const confirmedPlan = planConciergeConfirmedExecution(scenario);
+    const preliminaryTask = buildConciergeExecutionTask(scenario);
+    const channelReadiness = evaluateConciergeChannelReadiness({
+      tool: preliminaryTask.active_tool,
+      flags: LAUNCH_SMOKE_READY_CHANNEL_FLAGS,
+    });
+    const scenarioWithReadyChannels = { ...scenario, channelReadiness };
+    const task = buildConciergeExecutionTask(scenarioWithReadyChannels);
+    const confirmedPlan = planConciergeConfirmedExecution(scenarioWithReadyChannels);
     const checks = [
       entryPointCheck(flow.reference),
       providerSetupCheck(flow.reference),

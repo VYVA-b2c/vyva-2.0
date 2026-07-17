@@ -80,6 +80,25 @@ export function conciergeProductionChannelForTool(
   }
 }
 
+export function conciergeToolForProductionChannel(
+  channel: ConciergeProductionChannel,
+): ConciergeToolRequirement {
+  switch (channel) {
+    case "phone_call":
+      return "phone_call";
+    case "email":
+      return "email";
+    case "whatsapp":
+      return "whatsapp";
+    case "form_application":
+      return "booking_link";
+    case "document_upload":
+      return "camera_or_upload";
+    default:
+      return "operator_review";
+  }
+}
+
 function blocker(channel: ConciergeProductionChannel, suffix: string): string {
   return `${channel}_${suffix}`;
 }
