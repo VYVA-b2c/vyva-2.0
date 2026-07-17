@@ -4743,6 +4743,21 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-campaign-launch-control-manual")).toHaveTextContent("Track first result");
     expect(screen.getByTestId("marketing-campaign-launch-control-audience")).toHaveTextContent("1 saved");
     expect(screen.getByTestId("marketing-campaign-launch-control-relationship")).toHaveTextContent("8 signals");
+    expect(screen.getByTestId("marketing-campaign-approval-pass")).toHaveTextContent("Approval pass");
+    expect(screen.getByTestId("marketing-campaign-approval-pass")).toHaveTextContent("2 approval items need review");
+    expect(screen.getByTestId("marketing-campaign-approval-content")).toHaveTextContent("2 linked");
+    expect(screen.getByTestId("marketing-campaign-approval-claims")).toHaveTextContent("No obvious medical");
+    expect(screen.getByTestId("marketing-campaign-approval-consent")).toHaveTextContent("1 saved email recipient needs consent review");
+    expect(screen.getByTestId("marketing-campaign-approval-tracking")).toHaveTextContent("Plan to track LinkedIn results");
+    const approvalNote = screen.getByTestId("textarea-marketing-campaign-approval-note") as HTMLTextAreaElement;
+    expect(approvalNote.value).toContain("VYVA campaign approval note");
+    expect(approvalNote.value).toContain("Approval status: 2 approval items need review");
+    expect(approvalNote.value).toContain("Publish only after the review items are accepted");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-approval-note"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign approval note"));
+    });
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign approval note copied.");
     expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Creative accelerator");
     expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Creative is ready to improve");
     expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("2/2");

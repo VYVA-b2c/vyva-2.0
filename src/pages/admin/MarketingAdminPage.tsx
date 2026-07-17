@@ -21,6 +21,7 @@ import {
   Search,
   Send,
   Settings,
+  ShieldCheck,
   Sparkles,
   Trash2,
   UsersRound,
@@ -997,6 +998,12 @@ type CampaignLaunchControlItem = CampaignReadinessItem & {
   buttonType?: "button" | "submit";
   disabled?: boolean;
   onSelect?: () => void;
+};
+
+type CampaignApprovalItem = CampaignReadinessItem & {
+  label: string;
+  value: string;
+  icon: LucideIcon;
 };
 
 type AudienceHealthAction = CampaignReadinessItem & {
@@ -17714,6 +17721,153 @@ export default function MarketingAdminPage() {
     : firstCampaignContentAsset
       ? `${linkedCampaignContentCount}/${campaignReadinessChannels.length} planned channel${campaignReadinessChannels.length === 1 ? "" : "s"} have linked content. Preview it or copy the AI brief for improvement.`
       : "Add at least one content asset before this campaign can move toward launch.";
+  const campaignLinkedContentAssets = Array.from(new Map(campaignReadinessChannels
+    .map((channelDraft) => channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null)
+    .filter((item): item is ContentAsset => Boolean(item))
+    .map((item) => [item.id, item])).values());
+  const campaignPotentialClaimMatches = Array.from(new Set(campaignLinkedContentAssets.flatMap((asset) => {
+    const reviewText = [
+      asset.title,
+      asset.subject,
+      asset.body,
+      asset.htmlBody,
+      JSON.stringify(asset.designJson ?? {}),
+    ].filter(Boolean).join(" ");
+    const matches: string[] = [];
+    if (/\b(cure|cures|cured|guarantee|guaranteed|diagnose|diagnosis|prescribe|prescription|medical advice|replace (a )?doctor|prevent falls?|prevents falls?|treats?|treatment)\b/i.test(reviewText)) {
+      matches.push(`${asset.title}: possible medical or guarantee claim`);
+    }
+    return matches;
+  }))).slice(0, 6);
+  const savedEmailRecipientCount = savedCampaignRecipients.filter((recipient) => recipient.channel === "email").length;
+  const savedEmailRecipientConsentReviewCount = savedCampaignRecipients.filter((recipient) => recipient.channel === "email").filter((recipient) => {
+    const contact = contactByCampaignRecipientId.get(recipient.id) ?? null;
+    const consentStatus = contact?.consentStatus ?? String(recordValue(recipient.snapshot).consentStatus ?? "unknown");
+    return consentStatus !== "opted_in";
+  }).length;
+  const campaignNeedsTimedApproval = ["scheduled", "published"].includes(campaignEditDraft.status);
+  const campaignApprovalItems: CampaignApprovalItem[] = editingCampaign ? [
+    {
+      key: "content",
+      label: "Creative",
+      title: "Content completeness",
+      value: missingCampaignContentChannels.length ? `${missingCampaignContentChannels.length} missing` : `${campaignLinkedContentAssets.length} linked`,
+      state: missingCampaignContentChannels.length ? "blocked" : "ready",
+      detail: missingCampaignContentChannels.length
+        ? `Create or attach content for ${missingCampaignContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")} before approval.`
+        : "Every planned route has a linked content asset.",
+      icon: FileText,
+    },
+    {
+      key: "claims",
+      label: "Safety",
+      title: "Claims and tone",
+      value: campaignPotentialClaimMatches.length ? `${campaignPotentialClaimMatches.length} review` : "Clean",
+      state: campaignPotentialClaimMatches.length ? "needs_action" : campaignLinkedContentAssets.length ? "ready" : "blocked",
+      detail: campaignPotentialClaimMatches.length
+        ? `Review: ${campaignPotentialClaimMatches.join("; ")}.`
+        : campaignLinkedContentAssets.length
+          ? "No obvious medical, cure, guarantee, or doctor-replacement claims found in linked copy."
+          : "Add content before checking claim safety.",
+      icon: ShieldCheck,
+    },
+    {
+      key: "consent",
+      label: "Audience",
+      title: "Consent and recipients",
+      value: draftEmailChannel ? `${savedEmailRecipientCount || savedCampaignRecipientCount} email` : "Manual only",
+      state: draftEmailChannel
+        ? savedCampaignRecipientCount <= 0
+          ? "blocked"
+          : savedEmailRecipientConsentReviewCount > 0
+            ? "needs_action"
+            : "ready"
+        : "planning",
+      detail: draftEmailChannel
+        ? savedCampaignRecipientCount <= 0
+          ? "Snapshot recipients before live email approval."
+          : savedEmailRecipientConsentReviewCount > 0
+            ? `${savedEmailRecipientConsentReviewCount} saved email recipient${savedEmailRecipientConsentReviewCount === 1 ? "" : "s"} ${savedEmailRecipientConsentReviewCount === 1 ? "needs" : "need"} consent review before sending.`
+            : "Saved email recipients are mapped with opted-in consent."
+        : "No email send route; confirm the owner for manual, social, phone, print, or event publishing.",
+      icon: UsersRound,
+    },
+    {
+      key: "timing",
+      label: "Timing",
+      title: "Schedule and save state",
+      value: hasUnsavedCampaignSendChanges ? "Save first" : campaignEditDraft.scheduleStartsAt ? "Timed" : "Draft",
+      state: hasUnsavedCampaignSendChanges
+        ? "needs_action"
+        : campaignNeedsTimedApproval && !campaignEditDraft.scheduleStartsAt
+          ? "blocked"
+          : campaignEditDraft.scheduleStartsAt
+            ? "ready"
+            : "planning",
+      detail: hasUnsavedCampaignSendChanges
+        ? "Save campaign changes before final approval so the schedule, channels, content, and recipients match the review note."
+        : campaignEditDraft.scheduleStartsAt
+          ? `Launch window starts ${formatDate(fromDateTimeLocal(campaignEditDraft.scheduleStartsAt))}.`
+          : "No fixed schedule yet; keep as draft or choose a launch time before scheduling.",
+      icon: CalendarDays,
+    },
+    {
+      key: "tracking",
+      label: "After launch",
+      title: "Tracking route",
+      value: planningOnlyCampaignChannels.length
+        ? `${manualPublishResults.length}/${planningOnlyCampaignChannels.length} tracked`
+        : draftEmailChannel ? "Email metrics" : "No route",
+      state: planningOnlyCampaignChannels.length
+        ? manualPublishResults.length > 0
+          ? "ready"
+          : "needs_action"
+        : draftEmailChannel
+          ? "ready"
+          : "blocked",
+      detail: planningOnlyCampaignChannels.length
+        ? manualPublishResults.length > 0
+          ? "Manual/social/offline outcomes are being saved back to the campaign."
+          : `Plan to track ${planningOnlyCampaignChannels.map((channel) => channelLabel[channel.channel]).join(", ")} results after publishing.`
+        : draftEmailChannel
+          ? "Email results will come through VYVA campaign metrics after send."
+          : "Add at least one channel before this campaign can be approved.",
+      icon: Waypoints,
+    },
+  ] : [];
+  const campaignApprovalReadyCount = campaignApprovalItems.filter((item) => item.state === "ready").length;
+  const campaignApprovalBlockedCount = campaignApprovalItems.filter((item) => item.state === "blocked").length;
+  const campaignApprovalNeedsActionCount = campaignApprovalItems.filter((item) => item.state === "needs_action").length;
+  const campaignApprovalSummary = campaignApprovalBlockedCount > 0
+    ? `${campaignApprovalBlockedCount} approval block${campaignApprovalBlockedCount === 1 ? "" : "s"}`
+    : campaignApprovalNeedsActionCount > 0
+      ? `${campaignApprovalNeedsActionCount} approval item${campaignApprovalNeedsActionCount === 1 ? "" : "s"} need review`
+      : "Approval ready";
+  const campaignApprovalNote = editingCampaign ? [
+    "VYVA campaign approval note",
+    `Campaign: ${campaignEditDraft.name || editingCampaign.name}`,
+    `Status: ${campaignEditDraft.status}`,
+    `Audience: ${campaignEditDraft.audienceType.toUpperCase()}`,
+    selectedCampaignTargetAudience
+      ? `Target list: ${selectedCampaignTargetAudience.name} (${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} mapped)`
+      : "Target list: all eligible contacts",
+    `Channels: ${campaignReadinessChannels.map((channel) => channelLabel[channel.channel]).join(", ") || "None"}`,
+    `Schedule: ${campaignEditDraft.scheduleStartsAt ? formatDate(fromDateTimeLocal(campaignEditDraft.scheduleStartsAt)) : "Not scheduled"}`,
+    `Saved recipients: ${savedCampaignRecipientCount}`,
+    `Approval status: ${campaignApprovalSummary}`,
+    "",
+    "Approval checks:",
+    ...campaignApprovalItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Operator decision:",
+    campaignApprovalBlockedCount > 0
+      ? "Do not publish yet. Resolve blocked approval checks first."
+      : campaignApprovalNeedsActionCount > 0
+        ? "Publish only after the review items are accepted by the campaign owner."
+        : "Ready for final owner approval and explicit send/manual publishing.",
+    "",
+    "Final safety note: keep copy practical, consent-aware, and non-clinical. Do not imply diagnosis, treatment, cure, or guaranteed outcomes.",
+  ].join("\n") : "";
   const unmappedAudienceMemberCount = latestSyncRun
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
@@ -21086,6 +21240,64 @@ export default function MarketingAdminPage() {
                                 );
                               })}
                             </div>
+                          </div>
+                        ) : null}
+                        {campaignApprovalItems.length ? (
+                          <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3" data-testid="marketing-campaign-approval-pass">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Approval pass</p>
+                                <h4 className="mt-1 text-base font-black text-[#241133]">Can this campaign safely move forward?</h4>
+                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#5f6f62]">Checks copy completeness, claim risk, consent, timing, and tracking before someone sends or publishes.</p>
+                              </div>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <Pill className={campaignApprovalBlockedCount > 0 ? "bg-red-50 text-red-800" : campaignApprovalNeedsActionCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-100 text-emerald-800"}>
+                                  {campaignApprovalSummary}
+                                </Pill>
+                                <Pill className="bg-white text-emerald-800">{campaignApprovalReadyCount}/{campaignApprovalItems.length} clear</Pill>
+                                <button
+                                  type="button"
+                                  onClick={() => void copyCampaignHandoffText("Campaign approval note", campaignApprovalNote)}
+                                  disabled={!campaignApprovalNote.trim()}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                  data-testid="button-marketing-copy-campaign-approval-note"
+                                >
+                                  <Copy size={14} /> Copy approval note
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-2 xl:grid-cols-5" data-testid="marketing-campaign-approval-items">
+                              {campaignApprovalItems.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                  <article key={item.key} className={`rounded-lg border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-approval-${item.key}`}>
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-75">{item.label}</p>
+                                        <h5 className="mt-1 text-sm font-black">{item.title}</h5>
+                                      </div>
+                                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white shadow-sm">
+                                        <Icon size={14} aria-hidden="true" />
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                      <span className="text-base font-black">{item.value}</span>
+                                      <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                    </div>
+                                    <p className="mt-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                            <details className="mt-3 rounded-xl border border-emerald-100 bg-white p-3">
+                              <summary className="cursor-pointer text-xs font-black text-emerald-800">Approval note text</summary>
+                              <textarea
+                                readOnly
+                                className={`${textareaClass} mt-3 min-h-[180px] bg-[#fffaf4] text-xs`}
+                                value={campaignApprovalNote}
+                                data-testid="textarea-marketing-campaign-approval-note"
+                              />
+                            </details>
                           </div>
                         ) : null}
                         {editingCampaign ? (
