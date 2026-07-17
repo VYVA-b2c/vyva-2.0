@@ -9301,7 +9301,8 @@ export default function MarketingAdminPage() {
     }
 
     if (readiness.label === "Snapshot recipients") {
-      setCampaignEmailFeedback("Recipient snapshot is the next step. Review the preview, then save the campaign.");
+      setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: true }));
+      setCampaignEmailFeedback("Recipient snapshot is enabled. Review the preview, then save the campaign.");
       setMessage(`Opened "${campaign.name}" to snapshot campaign recipients.`);
       return;
     }
@@ -18271,7 +18272,8 @@ export default function MarketingAdminPage() {
     && campaignHasUsableContent(campaign)
   ));
   const scheduledEmailCampaignWithoutRecipients = campaigns.find((campaign) => (
-    campaign.status === "scheduled"
+    campaign.id !== campaignNeedingAudience?.id
+    && campaign.status === "scheduled"
     && campaign.recipientCount <= 0
     && campaign.channels.some((channel) => channel.channel === "email" && channelHasUsableContent(channel))
   ));
@@ -18373,6 +18375,8 @@ export default function MarketingAdminPage() {
       onSelect: () => {
         startCampaignEdit(campaignNeedingAudience);
         setActiveTab("dashboard");
+        setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: true }));
+        setCampaignEmailFeedback("Recipient snapshot is enabled. Review the preview, then save the campaign.");
         setMessage(`Opened "${campaignNeedingAudience.name}" to snapshot campaign recipients.`);
       },
     }] : []),
@@ -18386,6 +18390,8 @@ export default function MarketingAdminPage() {
       onSelect: () => {
         startCampaignEdit(scheduledEmailCampaignWithoutRecipients);
         setActiveTab("dashboard");
+        setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: true }));
+        setCampaignEmailFeedback("Recipient snapshot is enabled. Review the preview, then save the campaign.");
         setMessage(`Opened "${scheduledEmailCampaignWithoutRecipients.name}" to snapshot recipients before sending.`);
       },
     }] : []),

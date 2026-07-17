@@ -1281,8 +1281,21 @@ describe("MarketingAdminPage", () => {
       configurable: true,
       value: { writeText: clipboardWriteText },
     });
+    const snapshotCampaign = {
+      ...campaigns[0],
+      id: "campaign-snapshot",
+      name: "Birthday Wishes",
+      audienceType: "b2b",
+      recipientCount: 0,
+      recipients: [],
+      channels: [{
+        ...campaigns[0].channels[0],
+        id: "channel-snapshot-email",
+        contentAssetId: "content-1",
+      }],
+    };
 
-    renderPage();
+    renderPage({}, { campaigns: [campaigns[0], snapshotCampaign, campaigns[1]] });
 
     await screen.findByTestId("marketing-dashboard-tab");
 
@@ -1332,6 +1345,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Fix campaign creative gap");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("LinkedIn content");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Add recipient snapshots");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Birthday Wishes");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Create a full launch kit");
     expect(screen.getByTestId("button-marketing-action-template-launch-kit")).toHaveTextContent("Create full launch kit");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Prepare manual channel handoff");
@@ -1358,6 +1373,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Creative rescue brief copied.");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Content");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Add content for LinkedIn");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-action-campaign-audience"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Birthday Wishes");
+    expect(screen.getByTestId("checkbox-marketing-edit-campaign-snapshot")).toBeChecked();
+    expect(screen.getByTestId("marketing-campaign-recipient-preview")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-recipient-preview")).toHaveTextContent("1 channel snapshot");
+    expect(screen.getByTestId("button-marketing-readiness-save-campaign")).toHaveTextContent("Save + snapshot recipients");
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Recipient snapshot is enabled");
+    expect(screen.getByText('Opened "Birthday Wishes" to snapshot campaign recipients.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-action-ready-email"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
