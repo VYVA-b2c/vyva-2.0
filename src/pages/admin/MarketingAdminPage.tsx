@@ -10889,6 +10889,10 @@ export default function MarketingAdminPage() {
     () => campaignStudioScheduleSuggestions(selectedCampaignStudioPlay, campaignStudioSelectedChannels, selectedCampaignStudioTargetAudience),
     [selectedCampaignStudioPlay, campaignStudioSelectedChannels, selectedCampaignStudioTargetAudience],
   );
+  const campaignStudioBestSchedule = campaignStudioSmartSchedules[0] ?? null;
+  const campaignStudioCanOptimizeSchedule = Boolean(
+    campaignStudioBestSchedule && campaignStudioBestSchedule.value !== campaignStudioSchedule,
+  );
   const campaignStudioRecommendedChannels = useMemo(
     () => recommendedCampaignStudioChannels(selectedCampaignStudioPlay),
     [selectedCampaignStudioPlay],
@@ -10902,7 +10906,7 @@ export default function MarketingAdminPage() {
         && contactMatchesAudienceList(contact, targetAudience)
       ));
       const reachableContacts = matchingContacts.filter((contact) => (
-        channels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+        channels.some((channel) => contactReachableForChannel(contact, channel))
       )).length;
       const templateMatches = contentTemplateGallery.filter((template) => (
         channels.includes(template.channel)
@@ -12571,6 +12575,14 @@ export default function MarketingAdminPage() {
     updateCampaignStudio({ channel, selectedChannels: [channel] });
     setCampaignStudioFeedback(
       `Primary route switched to ${channelLabel[channel]} for better reach (${campaignStudioBestChannelReach.count} reachable contact${campaignStudioBestChannelReach.count === 1 ? "" : "s"}).`,
+    );
+  }
+
+  function applyCampaignStudioBestSchedule() {
+    if (!campaignStudioBestSchedule) return;
+    updateCampaignStudio({ scheduleStartsAt: campaignStudioBestSchedule.value });
+    setCampaignStudioFeedback(
+      `Schedule set: ${campaignStudioBestSchedule.label} (${formatDate(fromDateTimeLocal(campaignStudioBestSchedule.value))}). ${campaignStudioBestSchedule.detail}`,
     );
   }
 
@@ -18597,7 +18609,19 @@ export default function MarketingAdminPage() {
                           <h3 className="mt-1 text-lg font-black text-[#241133]">Pick a practical publish window</h3>
                           <p className="mt-1 text-xs font-bold text-[#7d6b65]">Suggestions adapt to the selected audience and channel pack so scheduling is not just a blank date field.</p>
                         </div>
-                        <Pill className="bg-purple-50 text-purple-800">{formatDate(fromDateTimeLocal(campaignStudioSchedule))}</Pill>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Pill className="bg-purple-50 text-purple-800">{formatDate(fromDateTimeLocal(campaignStudioSchedule))}</Pill>
+                          {campaignStudioCanOptimizeSchedule && campaignStudioBestSchedule ? (
+                            <button
+                              type="button"
+                              onClick={applyCampaignStudioBestSchedule}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:border-purple-300 hover:bg-purple-50"
+                              data-testid="button-marketing-campaign-studio-use-best-schedule"
+                            >
+                              <Clock size={13} aria-hidden="true" /> Use {campaignStudioBestSchedule.label}
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="mt-3 grid gap-2 md:grid-cols-3">
                         {campaignStudioSmartSchedules.map((suggestion) => {

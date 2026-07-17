@@ -3741,6 +3741,10 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
     expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Pick a practical publish window");
     expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Partner morning");
+    expect(screen.getByTestId("button-marketing-campaign-studio-use-best-schedule")).toHaveTextContent("Use Partner morning");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-use-best-schedule"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Schedule set: Partner morning");
+    expect(screen.getByTestId("button-marketing-campaign-studio-schedule-primary")).toHaveTextContent("Selected");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-schedule-relationship"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Schedule set: Follow-up afternoon");
     expect(screen.getByTestId("button-marketing-campaign-studio-schedule-relationship")).toHaveTextContent("Selected");
