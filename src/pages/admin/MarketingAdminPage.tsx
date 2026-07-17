@@ -8918,6 +8918,41 @@ export default function MarketingAdminPage() {
     setCampaignEmailFeedback("");
   }, [audiences]);
 
+  const openCampaignForNextAction = useCallback((campaign: Campaign) => {
+    const readiness = campaignRowReadiness(campaign, contentById, audiences);
+    startCampaignEdit(campaign);
+    setActiveTab("dashboard");
+
+    if (readiness.label === "Needs content") {
+      const missingChannels = campaign.channels
+        .filter((channel) => !channel.contentAssetId || !contentById.has(channel.contentAssetId))
+        .map((channel) => channel.channel);
+      const missingChannelLabel = formatChannelList(missingChannels);
+      const contentLabel = missingChannels.length === 1 ? `${missingChannelLabel} content` : `${missingChannelLabel} content assets`;
+      setCampaignEmailFeedback(`Creative accelerator opened. Create or link ${contentLabel} before this campaign can launch.`);
+      setMessage(`Opened "${campaign.name}" to fix the creative gap: ${missingChannelLabel}.`);
+      return;
+    }
+
+    if (readiness.label === "Snapshot recipients") {
+      setCampaignEmailFeedback("Recipient snapshot is the next step. Review the preview, then save the campaign.");
+      setMessage(`Opened "${campaign.name}" to snapshot campaign recipients.`);
+      return;
+    }
+
+    if (readiness.label === "Ready to send") {
+      setMessage(`Opened "${campaign.name}" for final email review.`);
+      return;
+    }
+
+    if (readiness.label === "Manual handoff") {
+      setMessage(`Opened "${campaign.name}" to prepare non-email channel handoff.`);
+      return;
+    }
+
+    setMessage(`Opened "${campaign.name}" for campaign setup.`);
+  }, [audiences, contentById, startCampaignEdit]);
+
   const campaignPerformanceInsights = useMemo<CampaignPerformanceInsight[]>(() => {
     const grouped = new Map<string, MarketingCampaignMetric[]>();
     for (const metric of visibleCampaignMetrics) {
@@ -17082,6 +17117,11 @@ export default function MarketingAdminPage() {
     && campaign.channels.some((channel) => channel.channel === "email" && channelHasUsableContent(channel))
   ));
   const campaignMissingChannelContent = campaigns.find((campaign) => campaign.channels.some((channel) => !channelHasUsableContent(channel)));
+  const campaignMissingChannelContentLabels = campaignMissingChannelContent
+    ? formatChannelList(campaignMissingChannelContent.channels
+      .filter((channel) => !channelHasUsableContent(channel))
+      .map((channel) => channel.channel))
+    : "";
   const campaignNeedingAudience = campaigns.find((campaign) => (
     !["archived", "published"].includes(campaign.status)
     && campaign.recipientCount <= 0
@@ -17168,15 +17208,13 @@ export default function MarketingAdminPage() {
     }] : []),
     ...(campaignMissingChannelContent ? [{
       key: "campaign-content",
-      title: "Attach campaign content",
-      detail: `"${campaignMissingChannelContent.name}" has at least one channel without linked content.`,
+      title: "Fix campaign creative gap",
+      detail: `"${campaignMissingChannelContent.name}" is missing ${campaignMissingChannelContentLabels || "channel"} content. Open the Creative accelerator to generate or link it.`,
       state: "blocked" as CampaignReadinessState,
-      actionLabel: "Open campaign",
+      actionLabel: "Fix creative gap",
       icon: Megaphone,
       onSelect: () => {
-        startCampaignEdit(campaignMissingChannelContent);
-        setActiveTab("dashboard");
-        setMessage(`Opened "${campaignMissingChannelContent.name}" to attach missing channel content.`);
+        openCampaignForNextAction(campaignMissingChannelContent);
       },
     }] : []),
     ...(campaignNeedingAudience ? [{
@@ -19904,7 +19942,7 @@ export default function MarketingAdminPage() {
                     metricsByCampaignId={campaignMetricSummaryByCampaignId}
                     audiences={audiences}
                     activeCampaignId={editingCampaignId}
-                    onEdit={startCampaignEdit}
+                    onEdit={openCampaignForNextAction}
                     onDelete={(campaign) => deleteCampaign(campaign).catch((error) => setMessage(error.message))}
                     onPreviewContent={previewContent}
                     onEditContent={startContentEdit}

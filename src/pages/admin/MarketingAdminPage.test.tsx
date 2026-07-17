@@ -1305,13 +1305,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review ready email send");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Replace missing Lovable content");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review audience mapping");
-    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Attach campaign content");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Fix campaign creative gap");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("LinkedIn content");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Prepare manual channel handoff");
     expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-1")).toHaveTextContent("Review send");
     expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-2")).toHaveTextContent("Attach content");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-row-next-campaign-2"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Fix the creative gap");
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Creative accelerator opened");
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("LinkedIn content");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Content");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Add content for LinkedIn");
 
@@ -1334,7 +1339,9 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     fireEvent.click(screen.getByTestId("button-marketing-action-campaign-content"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
-    expect(screen.getByText('Opened "Partner outreach" to attach missing channel content.')).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Fix the creative gap");
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Creative accelerator opened");
+    expect(screen.getByText('Opened "Partner outreach" to fix the creative gap: LinkedIn.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     fireEvent.click(screen.getByTestId("button-marketing-action-manual-handoff"));
