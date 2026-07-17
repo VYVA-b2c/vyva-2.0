@@ -1864,6 +1864,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-design-brief-instagram-trust-carousel")).toHaveTextContent("Slides: What changed today?");
     expect(screen.getByTestId("marketing-content-template-design-brief-tiktok-feature-demo")).toHaveTextContent("Layout: short-video-demo");
     expect(screen.getByTestId("marketing-content-template-design-brief-tiktok-feature-demo")).toHaveTextContent("Beats: hook / screen demo");
+    expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("Recommended launch kit");
+    expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("starter templates");
+    expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("AI command ready");
     expect(screen.getByTestId("marketing-template-packs")).toHaveTextContent("Family onboarding");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("5 templates");
@@ -2548,6 +2551,35 @@ describe("MarketingAdminPage", () => {
     expect(partnerTemplateBrief.value).toContain("Audience/list: Partners.");
     expect(partnerTemplateBrief.value).toContain("Channels: LinkedIn");
     expect(partnerTemplateBrief.value).toContain("AI direction: adapt this into a polished campaign pack");
+  });
+
+  it("surfaces a recommended launch kit above the template library", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("Recommended launch kit");
+    expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("starter templates");
+    expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("AI command ready");
+
+    fireEvent.click(screen.getByTestId("button-marketing-recommended-launch-kit-copy-ai"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template pack AI command"));
+    });
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI command copied");
+
+    fireEvent.click(screen.getByTestId("button-marketing-recommended-launch-kit-open"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing recommended launch kit");
+
+    fireEvent.click(screen.getByTestId("button-marketing-recommended-launch-kit-studio"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded");
   });
 
   it("starts a campaign planner draft from a content template", async () => {

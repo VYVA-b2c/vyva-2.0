@@ -12448,6 +12448,18 @@ export default function MarketingAdminPage() {
     ? contentTemplatePacksWithStats.find(({ pack }) => pack.templateIds.includes(bestContentTemplateRecommendation.template.id)) ?? null
     : null;
   const bestCampaignStudioTemplatePack = campaignStudioTemplatePackRecommendations[0] ?? bestContentTemplatePack;
+  const recommendedContentLaunchKit = bestCampaignStudioTemplatePack
+    ?? contentTemplatePacksWithStats.find(({ templates }) => templates.length > 0)
+    ?? null;
+  const recommendedContentLaunchKitReasons = recommendedContentLaunchKit
+    ? "reasons" in recommendedContentLaunchKit
+      ? recommendedContentLaunchKit.reasons.slice(0, 4)
+      : [
+          `${recommendedContentLaunchKit.templates.length} template${recommendedContentLaunchKit.templates.length === 1 ? "" : "s"}`,
+          recommendedContentLaunchKit.channels.length ? `${formatChannelList(recommendedContentLaunchKit.channels)} channel kit` : "No channels yet",
+          recommendedContentLaunchKit.categories.slice(0, 2).join(" + ") || "Reusable campaign starter",
+        ]
+    : [];
   const campaignStudioLaunchPathItems: CampaignStudioLaunchPathItem[] = [
     {
       key: "goal",
@@ -22146,6 +22158,78 @@ export default function MarketingAdminPage() {
                       Sync reported missing references, but no placeholder rows are loaded in this view yet. Run the one-way sync again after Lovable exports the referenced content bodies.
                     </p>
                   )}
+                </div>
+              ) : null}
+
+              {recommendedContentLaunchKit ? (
+                <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 via-white to-emerald-50 p-5 shadow-sm" data-testid="marketing-recommended-launch-kit">
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-center">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill className="bg-purple-700 text-white">Recommended launch kit</Pill>
+                        <Pill className={readinessPillClass(recommendedContentLaunchKit.state)}>{readinessLabel(recommendedContentLaunchKit.state)}</Pill>
+                        {recommendedContentLaunchKit.channels.map((channel) => (
+                          <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                        ))}
+                      </div>
+                      <h3 className="mt-3 font-serif text-2xl text-[#241133]">{recommendedContentLaunchKit.pack.title}</h3>
+                      <p className="mt-1 text-sm font-black leading-relaxed text-[#5b4a46]">{recommendedContentLaunchKit.pack.focus}</p>
+                      <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{recommendedContentLaunchKit.pack.description}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Pill className="bg-white text-[#5b4a46]">{recommendedContentLaunchKit.templates.length} starter templates</Pill>
+                        {recommendedContentLaunchKitReasons.map((reason) => (
+                          <Pill key={reason} className="bg-white text-[#5b4a46]">{reason}</Pill>
+                        ))}
+                      </div>
+                      <p className="mt-3 rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                        <span className="font-black text-purple-700">AI command ready:</span> {recommendedContentLaunchKit.pack.aiPrompt}
+                      </p>
+                    </div>
+                    <div className="grid gap-2">
+                      <button
+                        type="button"
+                        onClick={() => loadContentTemplatePackInStudio(recommendedContentLaunchKit.pack, recommendedContentLaunchKit.heroTemplate, recommendedContentLaunchKit.channels)}
+                        disabled={contentSaving}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        data-testid="button-marketing-recommended-launch-kit-studio"
+                      >
+                        <Sparkles size={15} /> Customize in studio
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void createCampaignPlanFromTemplatePack(recommendedContentLaunchKit.pack, recommendedContentLaunchKit.templates, recommendedContentLaunchKit.heroTemplate)}
+                        disabled={contentSaving || campaignSaving || recommendedContentLaunchKit.templates.length === 0}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        data-testid="button-marketing-recommended-launch-kit-create"
+                      >
+                        <Zap size={15} /> Create full launch kit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void copyTemplatePackAiCommand(recommendedContentLaunchKit.pack, recommendedContentLaunchKit.templates)}
+                        disabled={contentSaving || recommendedContentLaunchKit.templates.length === 0}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 text-sm font-black text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                        data-testid="button-marketing-recommended-launch-kit-copy-ai"
+                      >
+                        <Sparkles size={14} /> Copy AI command
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContentTemplatePackFilter(recommendedContentLaunchKit.pack.id);
+                          setContentTemplateSearch("");
+                          setContentTemplateChannelFilter("all");
+                          setContentTemplateAudienceFilter("all");
+                          setContentTemplateCategoryFilter("all");
+                          setContentActionFeedback(`Showing recommended launch kit: ${recommendedContentLaunchKit.pack.title}.`);
+                        }}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 hover:bg-purple-50"
+                        data-testid="button-marketing-recommended-launch-kit-open"
+                      >
+                        <Search size={14} /> Open pack
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : null}
 
