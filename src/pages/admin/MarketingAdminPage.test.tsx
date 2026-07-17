@@ -1276,6 +1276,12 @@ describe("MarketingAdminPage", () => {
   });
 
   it("surfaces recommended next actions and routes to the right work area", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -1283,6 +1289,19 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Next best move");
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Finish Lovable sync setup");
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("The export endpoint is ready");
+    expect(screen.getByTestId("marketing-operator-brief")).toHaveTextContent("Daily AI operator brief");
+    expect(screen.getByTestId("marketing-operator-brief")).toHaveTextContent("One work order");
+    expect(screen.getByTestId("button-marketing-operator-brief-priority")).toHaveTextContent("Finish Lovable sync setup");
+    expect(screen.getByTestId("button-marketing-operator-brief-creative")).toHaveTextContent("Creative coverage");
+    const operatorBrief = screen.getByTestId("textarea-marketing-operator-brief") as HTMLTextAreaElement;
+    expect(operatorBrief.value).toContain("VYVA marketing daily operator brief");
+    expect(operatorBrief.value).toContain("Next best move: Finish Lovable sync setup");
+    expect(operatorBrief.value).toContain("Operating rules:");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-operator-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA marketing daily operator brief"));
+    });
+    expect(screen.getByTestId("marketing-operator-brief-feedback")).toHaveTextContent("Daily operator brief copied.");
     fireEvent.click(screen.getByTestId("button-marketing-priority-action-sync-config"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Lovable sync");
 

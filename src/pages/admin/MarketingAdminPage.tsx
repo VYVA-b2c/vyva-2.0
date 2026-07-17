@@ -738,6 +738,13 @@ type MarketingOpportunityRadarItem = CampaignReadinessItem & {
   onSecondarySelect?: () => void;
 };
 
+type MarketingOperatorBriefItem = CampaignReadinessItem & {
+  value: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+};
+
 type CampaignAudienceInsightItem = {
   key: string;
   title: string;
@@ -8769,6 +8776,7 @@ export default function MarketingAdminPage() {
   const [campaignEmailSending, setCampaignEmailSending] = useState(false);
   const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
   const [campaignHandoffCopyFeedback, setCampaignHandoffCopyFeedback] = useState("");
+  const [marketingOperatorBriefFeedback, setMarketingOperatorBriefFeedback] = useState("");
   const [manualPublishDraft, setManualPublishDraft] = useState<ManualPublishTrackerDraft>(() => emptyManualPublishTrackerDraft());
   const [manualPublishSaving, setManualPublishSaving] = useState(false);
   const [manualPublishFeedback, setManualPublishFeedback] = useState("");
@@ -14237,6 +14245,41 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function copyMarketingOperatorBrief() {
+    const label = "Daily operator brief";
+    if (!marketingOperatorBriefText.trim()) {
+      const feedback = `${label} is empty.`;
+      setMarketingOperatorBriefFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(marketingOperatorBriefText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = marketingOperatorBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setMarketingOperatorBriefFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setMarketingOperatorBriefFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
   async function copyContactRelationshipCommandBrief() {
     const label = "Relationship command brief";
     if (!contactRelationshipCommandBriefText.trim()) {
@@ -17999,6 +18042,104 @@ export default function MarketingAdminPage() {
     }] : []),
   ].slice(0, 6);
 
+  const topCampaignRecommendation = dashboardCampaignRecommendations[0] ?? null;
+  const topCampaignPackMatch = topCampaignRecommendation?.packMatch ?? null;
+  const marketingOperatorBriefItems: MarketingOperatorBriefItem[] = [
+    {
+      key: "priority",
+      title: primaryMarketingAction?.title ?? "No urgent setup work",
+      value: primaryMarketingAction ? readinessLabel(primaryMarketingAction.state) : "Ready",
+      detail: primaryMarketingAction?.detail ?? "Start from a campaign play, template, imported list, or performance insight.",
+      state: primaryMarketingAction?.state ?? "ready",
+      actionLabel: primaryMarketingAction?.actionLabel ?? "Open studio",
+      icon: PrimaryMarketingActionIcon,
+      onSelect: primaryMarketingAction?.onSelect ?? (() => {
+        setActiveTab("dashboard");
+        setMessage("Use Smart campaign studio to choose a playbook, generate AI copy, and create a campaign.");
+      }),
+    },
+    {
+      key: "sync",
+      title: "Import health",
+      value: latestSyncRun ? latestSyncRun.status : syncState.configured ? "Configured" : "Blocked",
+      detail: !syncState.configured
+        ? "Finish Lovable token setup before relying on imported marketing data."
+        : latestSyncRun
+          ? `Latest Lovable import ${latestSyncRun.status} on ${formatDate(latestSyncRun.completedAt || latestSyncRun.createdAt)}.`
+          : "Sync is configured, but no import run has been recorded yet.",
+      state: !syncState.configured ? "blocked" : latestSyncRun?.status === "failed" ? "blocked" : latestSyncRun ? "ready" : "planning",
+      actionLabel: "Open sync",
+      icon: RefreshCw,
+      onSelect: () => {
+        setActiveTab("settings");
+        setMessage("Open Settings to review Lovable sync and import coverage.");
+      },
+    },
+    {
+      key: "creative",
+      title: "Creative coverage",
+      value: `${launchLaneContentReadyCount} assets`,
+      detail: campaignMissingChannelContent
+        ? `"${campaignMissingChannelContent.name}" still needs ${campaignMissingChannelContentLabels || "channel"} content.`
+        : missingLovableReferenceCount > 0
+          ? `${missingLovableReferenceCount} Lovable reference${missingLovableReferenceCount === 1 ? "" : "s"} still need real copy/design.`
+          : "Reusable content assets are ready for campaign planning.",
+      state: campaignMissingChannelContent || missingLovableReferenceCount > 0 ? "needs_action" : launchLaneContentReadyCount > 0 ? "ready" : "planning",
+      actionLabel: campaignMissingChannelContent ? "Fix creative" : "Open content",
+      icon: FileText,
+      onSelect: () => {
+        if (campaignMissingChannelContent) {
+          openCampaignForNextAction(campaignMissingChannelContent);
+          return;
+        }
+        setActiveTab("content");
+        setMessage("Open Content to review reusable campaign assets and templates.");
+      },
+    },
+    {
+      key: "campaign",
+      title: "Best campaign starter",
+      value: topCampaignRecommendation ? topCampaignRecommendation.recommendation.play.label : "Choose play",
+      detail: topCampaignRecommendation
+        ? `${topCampaignRecommendation.recommendation.reachableContacts} reachable contacts, ${topCampaignRecommendation.recommendation.templateMatches} template matches${topCampaignPackMatch ? `, and ${topCampaignPackMatch.pack.title} available as a launch kit.` : "."}`
+        : "No campaign starter is ranked yet. Import contacts/content or create a local template.",
+      state: topCampaignRecommendation?.recommendation.state ?? "planning",
+      actionLabel: topCampaignPackMatch ? "Load launch kit" : "Open studio",
+      icon: Sparkles,
+      onSelect: () => {
+        if (topCampaignRecommendation) {
+          applyCampaignStudioPlayRecommendation(topCampaignRecommendation.recommendation);
+          return;
+        }
+        setActiveTab("dashboard");
+        setMessage("Use Smart campaign studio to choose a campaign starter.");
+      },
+    },
+  ];
+  const marketingOperatorBriefText = [
+    "VYVA marketing daily operator brief",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    `Next best move: ${primaryMarketingAction?.title ?? "No urgent setup work"} (${primaryMarketingAction ? readinessLabel(primaryMarketingAction.state) : "Ready"})`,
+    `Why: ${primaryMarketingAction?.detail ?? "The marketing workspace is clear enough to start a new campaign play."}`,
+    "",
+    "Command items:",
+    ...marketingOperatorBriefItems.map((item, index) => `${index + 1}. ${item.title} - ${item.value}: ${item.detail} Next: ${item.actionLabel}.`),
+    "",
+    "Launch lane:",
+    ...launchLaneItems.map((item, index) => `${index + 1}. ${item.title} - ${item.value} (${readinessLabel(item.state)}): ${item.detail}`),
+    "",
+    "Recommended campaign starters:",
+    ...(dashboardCampaignRecommendations.length
+      ? dashboardCampaignRecommendations.slice(0, 3).map(({ recommendation, packMatch }, index) => `${index + 1}. ${recommendation.play.label} - ${recommendation.reachableContacts} reachable contacts, ${recommendation.templateMatches} templates${packMatch ? `, pack: ${packMatch.pack.title}` : ""}.`)
+      : ["No campaign starter ranked yet."]),
+    "",
+    "Operating rules:",
+    "- Send email only from campaign details after final review.",
+    "- Treat WhatsApp, phone, print, event, and social routes as manual handoffs until their provider controls are enabled.",
+    "- Track manual publishing outcomes back in the campaign so follow-up relationships are not lost.",
+  ].join("\n");
+
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
@@ -18135,6 +18276,72 @@ export default function MarketingAdminPage() {
                         </button>
                       )}
                       <p className="text-xs font-bold leading-relaxed text-[#7d6b65]">One click takes you to the work area that unblocks the most marketing progress.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm" data-testid="marketing-operator-brief">
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+                    <div>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">Daily AI operator brief</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">One work order for today’s marketing admin</h3>
+                          <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                            Compresses import health, content gaps, audience readiness, campaign starters, and launch rules into a copyable brief.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyMarketingOperatorBrief()}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white shadow-sm transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                          data-testid="button-marketing-copy-operator-brief"
+                        >
+                          <Copy size={14} aria-hidden="true" /> Copy brief
+                        </button>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        {marketingOperatorBriefItems.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={item.onSelect}
+                              className={`min-h-[136px] rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                              data-testid={`button-marketing-operator-brief-${item.key}`}
+                            >
+                              <span className="flex items-start justify-between gap-2">
+                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                                  <Icon size={16} aria-hidden="true" />
+                                </span>
+                                <Pill className={readinessPillClass(item.state)}>{item.value}</Pill>
+                              </span>
+                              <span className="mt-3 block text-sm font-black text-[#241133]">{item.title}</span>
+                              <span className="mt-1 line-clamp-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                              <span className="mt-2 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                                {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-violet-100 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">Copyable brief</p>
+                        <Pill className="bg-violet-50 text-violet-800">{marketingOperatorBriefItems.length} commands</Pill>
+                      </div>
+                      <textarea
+                        readOnly
+                        className="mt-3 min-h-[280px] w-full resize-y rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 font-mono text-xs font-semibold leading-relaxed text-[#2f2135]"
+                        value={marketingOperatorBriefText}
+                        data-testid="textarea-marketing-operator-brief"
+                      />
+                      {marketingOperatorBriefFeedback ? (
+                        <p className={`mt-3 rounded-xl px-3 py-2 text-xs font-black ${marketingOperatorBriefFeedback.includes("Could not") || marketingOperatorBriefFeedback.includes("empty") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite" data-testid="marketing-operator-brief-feedback">
+                          {marketingOperatorBriefFeedback}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
