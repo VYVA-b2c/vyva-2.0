@@ -99,6 +99,7 @@ Pass evidence:
 - Dry-run history: Mode is `Test mode, no real contact`.
 - Pilot history: Mode is `Live action`.
 - Queue or adapter record: adapter is `concierge_email_adapter`, status is `sent`, and provider/contact match the approved pilot task.
+- Command-line email self-check evidence is standalone-script-only. It does not create a completed-history row; use an app-triggered task for the `Live action` history check.
 
 ## Pilot Path: Forms / Applications
 
