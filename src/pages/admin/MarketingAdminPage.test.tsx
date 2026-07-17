@@ -3731,6 +3731,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.queryByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-category-all"));
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-channel"), { target: { value: "tiktok" } });
+    expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Switch to LinkedIn before creating this campaign.");
+    expect(screen.getByTestId("button-marketing-campaign-studio-use-best-channel")).toHaveTextContent("Use LinkedIn route");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-use-best-channel"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Primary route switched to LinkedIn for better reach (1 reachable contact).");
+    expect(screen.queryByTestId("marketing-campaign-studio-channel-copy-tiktok")).not.toBeInTheDocument();
     fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
     expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Pick a practical publish window");
     expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Partner morning");

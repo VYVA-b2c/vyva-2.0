@@ -6778,6 +6778,16 @@ function recipientForChannel(contact: MarketingContact, channel: Channel) {
   return contact.email || contact.whatsappNumber || contact.phoneNumber || contact.id;
 }
 
+function contactReachableForChannel(contact: MarketingContact, channel: Channel) {
+  if (channel === "email" || channel === "whatsapp") return Boolean(recipientForChannel(contact, channel));
+  const availability = contact.channelAvailability;
+  if (availability && Object.keys(availability).length > 0) {
+    const value = availability[channel];
+    return value === true || value === "true" || value === 1 || value === "1";
+  }
+  return Boolean(recipientForChannel(contact, channel));
+}
+
 function recipientSnapshot(contact: MarketingContact) {
   return {
     fullName: contact.fullName,
@@ -10967,21 +10977,21 @@ export default function MarketingAdminPage() {
     return true;
   }), [contacts, selectedCampaignStudioPlay, selectedCampaignStudioTargetAudience]);
   const campaignStudioRecipientPreview = useMemo(() => campaignStudioAudiencePool.filter((contact) => {
-    return Boolean(recipientForChannel(contact, campaignStudio.channel));
+    return contactReachableForChannel(contact, campaignStudio.channel);
   }), [campaignStudio.channel, campaignStudioAudiencePool]);
   const campaignStudioChannelReach = useMemo(() => CHANNELS.map((channel) => ({
     channel,
-    count: campaignStudioAudiencePool.filter((contact) => Boolean(recipientForChannel(contact, channel))).length,
+    count: campaignStudioAudiencePool.filter((contact) => contactReachableForChannel(contact, channel)).length,
   })), [campaignStudioAudiencePool]);
   const campaignStudioRecipientPreviewByChannel = useMemo(() => new Map(campaignStudioSelectedChannels.map((channel) => [
     channel,
-    campaignStudioAudiencePool.filter((contact) => Boolean(recipientForChannel(contact, channel))),
+    campaignStudioAudiencePool.filter((contact) => contactReachableForChannel(contact, channel)),
   ])), [campaignStudioAudiencePool, campaignStudioSelectedChannels]);
   const campaignStudioRecipientSample = useMemo(() => {
     const samples: Array<{ contact: MarketingContact; channels: Channel[] }> = [];
     const seen = new Set<string>();
     campaignStudioAudiencePool.forEach((contact) => {
-      const channels = campaignStudioSelectedChannels.filter((channel) => Boolean(recipientForChannel(contact, channel)));
+      const channels = campaignStudioSelectedChannels.filter((channel) => contactReachableForChannel(contact, channel));
       if (!channels.length) return;
       const key = contact.id || contact.email || contact.whatsappNumber || contact.phoneNumber || contact.fullName;
       if (seen.has(key)) return;
@@ -11113,6 +11123,9 @@ export default function MarketingAdminPage() {
     if (b.channel === selectedCampaignStudioPlay.defaultChannel) return 1;
     return CHANNELS.indexOf(a.channel) - CHANNELS.indexOf(b.channel);
   })[0] ?? { channel: campaignStudio.channel, count: 0 };
+  const campaignStudioPrimaryChannelReach = campaignStudioChannelReach.find((item) => item.channel === campaignStudio.channel)?.count ?? 0;
+  const campaignStudioCanOptimizeReach = campaignStudioBestChannelReach.channel !== campaignStudio.channel
+    && campaignStudioBestChannelReach.count > campaignStudioPrimaryChannelReach;
   const campaignStudioConsentCounts = {
     optedIn: campaignStudioAudiencePool.filter((contact) => contact.consentStatus === "opted_in").length,
     optedOut: campaignStudioAudiencePool.filter((contact) => contact.consentStatus === "opted_out").length,
@@ -12551,6 +12564,14 @@ export default function MarketingAdminPage() {
       channel: selectedCampaignStudioPlay.defaultChannel,
       selectedChannels: campaignStudioRecommendedChannels,
     });
+  }
+
+  function applyCampaignStudioBestReachChannel() {
+    const channel = campaignStudioBestChannelReach.channel;
+    updateCampaignStudio({ channel, selectedChannels: [channel] });
+    setCampaignStudioFeedback(
+      `Primary route switched to ${channelLabel[channel]} for better reach (${campaignStudioBestChannelReach.count} reachable contact${campaignStudioBestChannelReach.count === 1 ? "" : "s"}).`,
+    );
   }
 
   function applyCampaignStudioPlayRecommendation(recommendation: CampaignStudioPlayRecommendation) {
@@ -18851,9 +18872,19 @@ export default function MarketingAdminPage() {
                           </div>
                         ))}
                       </div>
-                      <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-audience-recommendation">
-                        Recommendation: {campaignStudioAudienceRecommendation}
-                      </p>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-audience-recommendation">
+                        <p>Recommendation: {campaignStudioAudienceRecommendation}</p>
+                        {campaignStudioCanOptimizeReach ? (
+                          <button
+                            type="button"
+                            onClick={applyCampaignStudioBestReachChannel}
+                            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:border-purple-300 hover:bg-purple-50"
+                            data-testid="button-marketing-campaign-studio-use-best-channel"
+                          >
+                            <Sparkles size={13} aria-hidden="true" /> Use {channelLabel[campaignStudioBestChannelReach.channel]} route
+                          </button>
+                        ) : null}
+                      </div>
                       <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-studio-recipient-sample">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
