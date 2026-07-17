@@ -10898,6 +10898,12 @@ export default function MarketingAdminPage() {
       })
       .slice(0, 6)
   ), [campaignStudioPlayRecommendations, content]);
+  const dashboardCampaignRecommendations = useMemo(() => (
+    campaignStudioPlayRecommendations.slice(0, 3).map((recommendation) => ({
+      recommendation,
+      packMatch: contentTemplatePacksWithStats.find(({ pack }) => pack.studioPlayId === recommendation.play.id) ?? null,
+    }))
+  ), [campaignStudioPlayRecommendations, contentTemplatePacksWithStats]);
   const campaignStudioPrimaryAiDraft = campaignStudioAiDrafts[campaignStudio.channel] ?? null;
   const campaignStudioGenerated = campaignStudioPrimaryAiDraft ?? campaignStudioTemplateDraft;
   const campaignStudioCreativeVariants = useMemo(
@@ -17493,6 +17499,73 @@ export default function MarketingAdminPage() {
                             {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
                           </span>
                         </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="mb-4 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-campaign-cockpit">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Recommended campaigns</p>
+                      <h3 className="mt-1 text-lg font-black text-[#241133]">Pick the next useful campaign in one glance</h3>
+                      <p className="mt-1 text-xs font-bold text-[#6b5b54]">Ranked by reachable contacts, matching template packs, and useful channel coverage.</p>
+                    </div>
+                    <Pill className="bg-purple-50 text-purple-800">{dashboardCampaignRecommendations.length} smart picks</Pill>
+                  </div>
+                  <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                    {dashboardCampaignRecommendations.map(({ recommendation, packMatch }, index) => {
+                      const packReady = Boolean(packMatch?.templates.length);
+                      return (
+                        <article
+                          key={recommendation.play.id}
+                          className={`rounded-2xl border p-4 ${readinessClass(recommendation.state)}`}
+                          data-testid={`marketing-campaign-cockpit-card-${recommendation.play.id}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <Pill className={readinessPillClass(recommendation.state)}>{index === 0 ? "Best next" : readinessLabel(recommendation.state)}</Pill>
+                              <h4 className="mt-2 text-base font-black text-[#241133]">{recommendation.play.label}</h4>
+                              <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{recommendation.play.brief}</p>
+                            </div>
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                              <Sparkles size={17} aria-hidden="true" />
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {recommendation.channels.slice(0, 4).map((channel) => (
+                              <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                            ))}
+                            {recommendation.channels.length > 4 ? <Pill className="bg-white text-[#5b4a46]">+{recommendation.channels.length - 4}</Pill> : null}
+                          </div>
+                          <div className="mt-3 grid gap-1.5 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-xs font-black text-[#5b4a46]">
+                            <span>{recommendation.reachableContacts} reachable contact{recommendation.reachableContacts === 1 ? "" : "s"}</span>
+                            <span>{recommendation.templateMatches} matching starter template{recommendation.templateMatches === 1 ? "" : "s"}</span>
+                            <span>{recommendation.targetAudience ? `Best list: ${recommendation.targetAudience.name}` : "Best list: none yet"}</span>
+                            <span>{packMatch ? `Pack: ${packMatch.pack.title}` : "Pack: template matches only"}</span>
+                          </div>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              onClick={() => applyCampaignStudioPlayRecommendation(recommendation)}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                              data-testid={`button-marketing-cockpit-load-${recommendation.play.id}`}
+                            >
+                              <Sparkles size={14} aria-hidden="true" /> Load plan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!packMatch) return;
+                                void createCampaignPlanFromTemplatePack(packMatch.pack, packMatch.templates, packMatch.heroTemplate);
+                              }}
+                              disabled={!packReady || contentSaving || campaignSaving}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              data-testid={`button-marketing-cockpit-create-${recommendation.play.id}`}
+                            >
+                              <Plus size={14} aria-hidden="true" /> Create pack
+                            </button>
+                          </div>
+                        </article>
                       );
                     })}
                   </div>

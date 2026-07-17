@@ -1334,6 +1334,27 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByText('Opened "Caregiver welcome" to prepare non-email channel handoff.')).toBeInTheDocument();
   });
 
+  it("promotes recommended campaigns from the dashboard into the campaign studio", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    expect(screen.getByTestId("marketing-campaign-cockpit")).toHaveTextContent("Recommended campaigns");
+    expect(screen.getByTestId("marketing-campaign-cockpit")).toHaveTextContent("Pick the next useful campaign in one glance");
+    expect(screen.getByTestId("marketing-campaign-cockpit")).toHaveTextContent("smart picks");
+    expect(screen.getByTestId("marketing-campaign-cockpit")).toHaveTextContent("Event reminder");
+    expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("reachable contact");
+    expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("matching starter template");
+    expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("Best list: Partners");
+
+    fireEvent.click(screen.getByTestId("button-marketing-cockpit-load-event-reminder"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Playbook loaded: Event reminder");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+  });
+
   it("shows all imported Lovable details instead of hiding rows behind preview caps", async () => {
     const manyRecipients = Array.from({ length: 105 }, (_, index) => {
       const recipientNumber = index + 1;
