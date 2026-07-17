@@ -3008,6 +3008,62 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("duplicates imported content as a clean editable draft", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-duplicate-content-content-2"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Creating editable draft copy of "Partner post"');
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const postPayload = JSON.parse(String(postCall?.[1]?.body ?? "{}"));
+    expect(postPayload).toMatchObject({
+      title: "Copy of Partner post",
+      channel: "linkedin",
+      language: "en",
+      status: "draft",
+      subject: null,
+      body: "Partner update",
+      htmlBody: "<h1>Partner update</h1>",
+      ctaLabel: "Read more",
+      ctaUrl: "https://v2.vyva.life/partners",
+      source: "vyva_duplicate",
+      lovableExternalId: null,
+      designJson: content[1].designJson,
+      mediaAssets: content[1].mediaAssets,
+      metadata: expect.objectContaining({
+        extraLovableOnlyField: "kept",
+        lovable_source_type: "social_post",
+        duplicatedFrom: {
+          contentId: "content-2",
+          title: "Partner post",
+          source: "lovable",
+          lovableExternalId: "lovable-content-2",
+          duplicatedAt: expect.any(String),
+        },
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
+      expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Copy of Partner post");
+    });
+    expect(screen.getByTestId("select-marketing-edit-content-status")).toHaveValue("draft");
+    expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("vyva_duplicate");
+    expect(screen.getByTestId("input-marketing-edit-content-lovable-id")).toHaveValue("");
+    expect(screen.getByTestId("textarea-marketing-edit-content-html")).toHaveValue("<h1>Partner update</h1>");
+    expect(screen.getByTestId("textarea-marketing-edit-content-design-json")).toHaveValue(JSON.stringify(content[1].designJson, null, 2));
+    expect(screen.getByTestId("textarea-marketing-edit-content-media-assets")).toHaveValue(JSON.stringify(content[1].mediaAssets, null, 2));
+    expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Created.");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Created editable draft copy "Copy of Partner post".');
+  });
+
   it("polishes imported content with AI before saving the same content record", async () => {
     renderPage();
 

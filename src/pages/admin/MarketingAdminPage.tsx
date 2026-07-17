@@ -6735,6 +6735,24 @@ function contentPayloadFromDraft(draft: ContentEditDraft) {
   };
 }
 
+function contentDuplicateTitle(title: string) {
+  const trimmed = title.trim() || "Untitled content";
+  return /^copy of /i.test(trimmed) ? `${trimmed} copy` : `Copy of ${trimmed}`;
+}
+
+function contentDuplicateMetadata(content: ContentAsset) {
+  return {
+    ...recordValue(content.metadata),
+    duplicatedFrom: {
+      contentId: content.id,
+      title: content.title,
+      source: content.source,
+      lovableExternalId: content.lovableExternalId ?? null,
+      duplicatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function mediaEditDraftFromAsset(asset: MarketingMediaAsset): MediaEditDraft {
   return {
     contentAssetId: asset.contentAssetId ?? "",
@@ -15520,6 +15538,53 @@ export default function MarketingAdminPage() {
     scrollToContentActionRow(contentAsset.id);
   }
 
+  async function duplicateContentAsDraft(contentAsset: ContentAsset) {
+    setActiveTab("content");
+    setContentSaving(true);
+    setContentFeedback("Creating editable content copy...");
+    setContentActionFeedback(`Creating editable draft copy of "${contentAsset.title}"...`);
+    setConfirmingContentDeleteId(null);
+    try {
+      const result = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+        method: "POST",
+        body: JSON.stringify({
+          title: contentDuplicateTitle(contentAsset.title),
+          channel: contentAsset.channel,
+          language: contentAsset.language || "en",
+          status: "draft",
+          subject: contentAsset.subject ?? null,
+          body: contentAsset.body ?? "",
+          htmlBody: contentAsset.htmlBody ?? null,
+          ctaLabel: contentAsset.ctaLabel ?? null,
+          ctaUrl: contentAsset.ctaUrl ?? null,
+          source: "vyva_duplicate",
+          lovableExternalId: null,
+          designJson: recordValue(contentAsset.designJson),
+          mediaAssets: Array.isArray(contentAsset.mediaAssets) ? contentAsset.mediaAssets : [],
+          metadata: contentDuplicateMetadata(contentAsset),
+        }),
+      });
+      setContent((current) => [result.content, ...current.filter((item) => item.id !== result.content.id)]);
+      setSelectedContentId(result.content.id);
+      setEditingContentId(result.content.id);
+      setContentEditDraft(contentEditDraftFromContent(result.content));
+      setContentVariantChannel(nextContentVariantChannel(result.content.channel));
+      setContentDrawerMode("edit");
+      setContentFeedback("Created.");
+      setContentActionFeedback(`Created editable draft copy "${result.content.title}".`);
+      setMessage(`Content draft copied: ${result.content.title}.`);
+      scrollToContentActionRow(result.content.id);
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Content copy could not be created.";
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentSaving(false);
+    }
+  }
+
   function applyCampaignExperimentSuggestion(suggestion: CampaignExperimentSuggestion) {
     const campaign = campaignById.get(suggestion.campaignId);
     if (!campaign) {
@@ -24061,6 +24126,9 @@ export default function MarketingAdminPage() {
                                   <button type="button" onClick={() => startContentEdit(item)} aria-expanded={isEditingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isEditingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
                                     <Pencil size={13} /> {isEditingContent ? "Editing" : "Edit"}
                                   </button>
+                                  <button type="button" onClick={() => void duplicateContentAsDraft(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentSaving} data-testid={`button-marketing-duplicate-content-${item.id}`}>
+                                    <Copy size={13} /> Duplicate
+                                  </button>
                                   <button type="button" onClick={() => startCampaignFromContentAsset(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentSaving} data-testid={`button-marketing-start-campaign-content-${item.id}`}>
                                     <Megaphone size={13} /> Campaign
                                   </button>
@@ -24143,6 +24211,9 @@ export default function MarketingAdminPage() {
                                         <div className="flex flex-wrap gap-2">
                                           <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700">
                                             <ArrowDown size={12} /> Focus preview
+                                          </button>
+                                          <button type="button" onClick={() => void duplicateContentAsDraft(item)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700" disabled={contentSaving} data-testid={`button-marketing-duplicate-preview-content-${item.id}`}>
+                                            <Copy size={12} /> Duplicate draft
                                           </button>
                                           <button type="button" onClick={() => startContentEdit(item)} className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-purple-700 px-3 text-xs font-black text-white">
                                             <Pencil size={12} /> Edit
