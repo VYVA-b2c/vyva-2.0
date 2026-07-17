@@ -20,7 +20,7 @@ import {
 
 type QueueFilter = OperatorConciergeQueueStatus | "all";
 type AdapterFilter = OperatorConciergeAdapterStatus | "all";
-type QueueAction = "in_progress" | "done" | "failed" | "retry_adapter" | "manual_follow_up";
+type QueueAction = "in_progress" | "done" | "failed" | "retry_adapter" | "manual_follow_up" | "request_reconfirmation";
 type OwnerFilter = "all" | "mine" | "unassigned";
 
 type QueueResponse = {
@@ -230,12 +230,14 @@ export default function ConciergeQueueAdminPage() {
       await refresh();
       setMessage(action === "retry_adapter"
         ? "Adapter retry requested."
+        : action === "request_reconfirmation"
+          ? "User reconfirmation requested."
         : action === "manual_follow_up"
           ? "Manual follow-up queued."
           : "Concierge task updated.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Task could not be updated.");
-      if (action === "retry_adapter" || action === "manual_follow_up") {
+      if (action === "retry_adapter" || action === "manual_follow_up" || action === "request_reconfirmation") {
         await refresh();
       }
     } finally {
@@ -675,6 +677,42 @@ export default function ConciergeQueueAdminPage() {
                     )}
                   </div>
                 )}
+                {selectedItem.reconfirmation_request && (
+                  <div
+                    className={`mt-3 rounded-2xl px-4 py-3 ${
+                      selectedItem.reconfirmation_request.status === "needed"
+                        ? "bg-amber-50 text-amber-900"
+                        : "bg-emerald-50 text-emerald-800"
+                    }`}
+                    data-testid="panel-admin-reconfirmation-request"
+                  >
+                    <p className="text-sm font-black">
+                      {selectedItem.reconfirmation_request.status === "needed"
+                        ? "Reconfirmation requested"
+                        : "Reconfirmation resolved"}
+                    </p>
+                    <p className="mt-1 text-sm font-bold">
+                      Changed details: {approvalChangedLabels(selectedItem.reconfirmation_request.changed_fields)}.
+                    </p>
+                    <p className="mt-1 text-xs font-bold">
+                      Requested {formatDate(selectedItem.reconfirmation_request.requested_at)}
+                      {selectedItem.reconfirmation_request.resolved_at ? ` - resolved ${formatDate(selectedItem.reconfirmation_request.resolved_at)}` : ""}
+                    </p>
+                    {selectedItem.reconfirmation_request.payload_preview && (
+                      <div className="mt-3 grid gap-2 md:grid-cols-3">
+                        <div className="rounded-2xl bg-white/70 px-3 py-2">
+                          <p className="text-[11px] font-black uppercase tracking-[0.1em]">Provider</p>
+                          <p className="mt-1 text-sm font-black">{selectedItem.reconfirmation_request.payload_preview.provider_name || "No provider saved"}</p>
+                          <p className="mt-1 text-xs font-bold">{selectedItem.reconfirmation_request.payload_preview.provider_contact || "No contact saved"}</p>
+                        </div>
+                        <div className="rounded-2xl bg-white/70 px-3 py-2 md:col-span-2">
+                          <p className="text-[11px] font-black uppercase tracking-[0.1em]">Current user preview</p>
+                          <p className="mt-1 text-sm font-black">{selectedItem.reconfirmation_request.payload_preview.summary || "No summary saved"}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="mt-4">
                   <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Outbound payload</p>
                   <pre className="mt-2 max-h-72 overflow-auto rounded-2xl bg-[#1f1724] p-4 text-xs font-semibold leading-relaxed text-[#fffaf4]">
@@ -818,7 +856,17 @@ export default function ConciergeQueueAdminPage() {
                     <span className="rounded-full bg-[#fbf8f5] px-3 py-1 text-xs font-black text-[#7d6b65]">Not available</span>
                   )}
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {selectedItem.adapter_approval?.requires_reconfirmation && (
+                    <button
+                      type="button"
+                      className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-800 transition hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => updateTask("request_reconfirmation")}
+                      disabled={!selectedCanRecoverIncident || selectedItem.reconfirmation_request?.status === "needed" || Boolean(savingAction)}
+                    >
+                      {savingAction === "request_reconfirmation" ? "Requesting..." : "Request user reconfirmation"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 text-sm font-black text-blue-800 transition hover:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60"

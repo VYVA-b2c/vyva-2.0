@@ -107,6 +107,7 @@ const INTERNAL_ACTION_PAYLOAD_KEYS = new Set([
   "execution_task",
   "execution_audit",
   "execution_adapter",
+  "reconfirmation_request",
   "operator_assigned_to",
   "operator_assigned_email",
   "operator_assigned_at",

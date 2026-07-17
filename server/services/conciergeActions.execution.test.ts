@@ -19,6 +19,10 @@ import {
 } from "./conciergeActions.js";
 import { CONCIERGE_DRY_RUN_FIXTURES } from "../../shared/conciergeDryRun";
 import { conciergeProductionChannelForTool } from "../../shared/conciergeChannelReadiness";
+import {
+  buildConciergeAdapterApprovalFingerprint,
+  compareConciergeAdapterApprovalFingerprint,
+} from "../../shared/conciergeAdapterPayloadContract";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -343,6 +347,154 @@ describe("confirmed Concierge action execution", () => {
           adapter: "concierge_email_adapter",
           status: "sent",
         }),
+      }),
+    ]));
+  });
+
+  it("resolves an operator reconfirmation request without firing the live channel", async () => {
+    const originalApprovedPayload = {
+      execution_channel: "email",
+      provider_email: "clinic@example.com",
+      email_subject: "Question about my appointment",
+      email_body: "Hello, I would like to confirm my appointment details.",
+    };
+    const updatedPayload = {
+      ...originalApprovedPayload,
+      email_body: "Hello, please confirm the updated appointment paperwork.",
+    };
+    mockPendingRow({
+      id: "96969696-9696-4696-8696-969696969696",
+      user_id: "user-1",
+      use_case: "send_message",
+      provider_id: null,
+      provider_name: "Clinic desk",
+      provider_phone: null,
+      found_externally: false,
+      action_summary: "Email updated clinic paperwork.",
+      action_payload: {
+        ...updatedPayload,
+        reconfirmation_request: {
+          version: 1,
+          status: "needed",
+          requested_at: "2026-07-01T10:30:00.000Z",
+          requested_by: "admin-1",
+          changed_fields: ["payload"],
+          payload_preview: {
+            version: 1,
+            adapter: "concierge_email_adapter",
+            channel: "email",
+            tool: "email",
+            provider_name: "Clinic desk",
+            provider_contact: "clinic@example.com",
+            summary: "Email updated clinic paperwork.",
+            pending_id: "96969696-9696-4696-8696-969696969696",
+            user_id: "user-1",
+            valid: true,
+            missing_fields: [],
+            blockers: [],
+            outbound_payload: {
+              provider_contact: "clinic@example.com",
+              summary: "Email updated clinic paperwork.",
+            },
+          },
+        },
+        execution_adapter: {
+          version: 1,
+          adapter: "concierge_email_adapter",
+          mode: "live",
+          channel: "email",
+          tool: "email",
+          status: "failed",
+          attempted_at: "2026-07-01T10:20:00.000Z",
+          provider_name: "Clinic desk",
+          provider_contact: "clinic@example.com",
+          external_action_allowed: true,
+          result: "failed",
+          error: "adapter failed",
+        },
+        execution_task: {
+          version: 1,
+          flow_reference: "FLOW_TOOL_GATED_TASK",
+          action_type: "message",
+          requested_tool: "email",
+          active_tool: "email",
+          lifecycle_status: "ready",
+          provider_ready: true,
+          missing_requirements: [],
+          confirmation_required: true,
+          user_confirmed: false,
+          external_action_allowed: false,
+          execution_mode: "manual_review",
+          channel_readiness: {
+            version: 1,
+            tool: "email",
+            channel: "email",
+            label: "Email",
+            status: "ready",
+            ready: true,
+            admin_enabled: true,
+            configured: true,
+            verified: true,
+            dry_run: false,
+            external_action_allowed: true,
+            blockers: [],
+          },
+          confirmation_source: "operator_reconfirmation_request",
+          confirmed_at: "2026-07-01T10:00:00.000Z",
+          created_at: "2026-07-01T09:59:00.000Z",
+          updated_at: "2026-07-01T10:30:00.000Z",
+          failure_reason: "user_reconfirmation_required",
+          approval_fingerprint: buildConciergeAdapterApprovalFingerprint({
+            tool: "email",
+            payload: originalApprovedPayload,
+            providerName: "Clinic desk",
+            summary: "Email clinic paperwork.",
+            approvedAt: "2026-07-01T10:00:00.000Z",
+          }),
+        },
+      },
+      language: "en",
+      status: "pending",
+    }, [passedChannelSettingsRow("email", {
+      adapter_live_endpoint_url: "https://adapter.example.test/email",
+    })]);
+
+    const result = await confirmPendingConciergeActionReview("96969696-9696-4696-8696-969696969696", "user-1");
+
+    expect(result).toMatchObject({
+      status: "pending",
+      message: "Updated Concierge action approved and ready for VYVA retry.",
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    const payload = lastUpdatedPayload();
+    expect(payload.reconfirmation_request).toMatchObject({
+      status: "resolved",
+      resolved_source: "user_controlled_execution",
+    });
+    expect(payload.execution_adapter).toMatchObject({
+      status: "failed",
+      error: "adapter failed",
+    });
+    expect(payload.execution_task).toMatchObject({
+      lifecycle_status: "confirmed",
+      user_confirmed: true,
+      confirmation_source: "user_controlled_execution",
+      active_tool: "email",
+    });
+    const task = payload.execution_task as Record<string, unknown>;
+    const comparison = compareConciergeAdapterApprovalFingerprint({
+      tool: "email",
+      payload,
+      providerName: "Clinic desk",
+      summary: "Email updated clinic paperwork.",
+    }, task.approval_fingerprint);
+    expect(comparison.requires_reconfirmation).toBe(false);
+    expect(payload.execution_audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "user_reconfirmed",
+        source: "user_controlled_execution",
+        reason: "updated_details_approved",
       }),
     ]));
   });
