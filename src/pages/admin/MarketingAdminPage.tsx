@@ -430,7 +430,7 @@ type SyncRun = {
   createdAt: string | null;
 };
 
-type LovableExportPreview = {
+type SourceExportPreview = {
   ok: boolean;
   checkedAt: string;
   apiUrl: string | null;
@@ -2275,7 +2275,7 @@ function campaignChannelHandoffBrief(
     body ? `Copy:\n${body}` : "",
     ctaLabel || ctaUrl ? `CTA: ${[ctaLabel, ctaUrl].filter(Boolean).join(" - ")}` : "",
     mediaUrls.length ? `Media:\n${mediaUrls.map((url) => `- ${url}`).join("\n")}` : "",
-    contentAsset.lovableExternalId ? `Lovable content ID: ${contentAsset.lovableExternalId}` : "",
+    contentAsset.lovableExternalId ? `Source content ID: ${contentAsset.lovableExternalId}` : "",
   ];
   return lines.filter(Boolean).join("\n\n");
 }
@@ -2382,7 +2382,7 @@ const lovableContentSourceLabels: Record<string, string> = {
   content_brief: "Content brief",
   journey_step_preset: "Journey step preset",
   social_post: "Social post",
-  missing_lovable_reference: "Missing Lovable reference",
+  missing_lovable_reference: "Missing Source reference",
 };
 
 function metadataString(value: unknown, key: string) {
@@ -2398,14 +2398,14 @@ function contentOriginKey(item: ContentAsset) {
 
 function contentSourceLabel(key: string) {
   if (key === "vyva") return "VYVA";
-  if (key === "lovable") return "Lovable content";
+  if (key === "lovable") return "Source content";
   return lovableContentSourceLabels[key] ?? key.replace(/_/g, " ");
 }
 
 function contentOriginLabel(item: ContentAsset) {
   const sourceType = contentOriginKey(item);
   if (sourceType) return contentSourceLabel(sourceType);
-  if (item.source === "lovable") return "Lovable content";
+  if (item.source === "lovable") return "Source content";
   return item.source;
 }
 
@@ -2490,7 +2490,7 @@ function lovableContentSourceDetails(content: ContentAsset) {
   const lovable = recordValue(metadata.lovable);
   if (content.source !== "lovable" && Object.keys(lovable).length === 0) return [];
   const rows = new Map<string, string>();
-  if (content.lovableExternalId) rows.set("Lovable ID", content.lovableExternalId);
+  if (content.lovableExternalId) rows.set("Source ID", content.lovableExternalId);
   rows.set("Source type", contentOriginLabel(content));
   if (content.updatedAt) rows.set("VYVA updated", formatDate(content.updatedAt));
   if (content.createdAt) rows.set("VYVA created", formatDate(content.createdAt));
@@ -6959,25 +6959,25 @@ function syncFieldCoverageItems(summary: Record<string, unknown>) {
 }
 
 function syncCompletionMessage(summary?: Record<string, unknown>) {
-  if (!summary) return "Lovable sync completed.";
+  if (!summary) return "Source sync completed.";
   const nestedImported = syncCountItems(summary, "imported");
   const flatImported = (Object.keys(syncCountLabels) as SyncCountKey[])
     .map((key) => ({ key, label: syncCountLabels[key], value: numberValue(summary[key]) }))
     .filter((item) => item.value > 0);
   const imported = nestedImported.length ? nestedImported : flatImported;
-  if (!imported.length) return "Lovable sync completed. No import counts were reported.";
+  if (!imported.length) return "Source sync completed. No import counts were reported.";
   const visible = imported.slice(0, 6).map((item) => `${item.label}: ${item.value}`).join(", ");
   const hiddenCount = imported.length - 6;
-  return `Lovable sync completed. Imported ${visible}${hiddenCount > 0 ? `, +${hiddenCount} more` : ""}.`;
+  return `Source sync completed. Imported ${visible}${hiddenCount > 0 ? `, +${hiddenCount} more` : ""}.`;
 }
 
 function exportPreviewMessage(summary?: Record<string, unknown>) {
-  if (!summary) return "Lovable export checked.";
+  if (!summary) return "Source export checked.";
   const exported = syncCountItems(summary, "exported");
-  if (!exported.length) return "Lovable export checked. No export counts were reported.";
+  if (!exported.length) return "Source export checked. No export counts were reported.";
   const visible = exported.slice(0, 6).map((item) => `${item.label}: ${item.value}`).join(", ");
   const hiddenCount = exported.length - 6;
-  return `Lovable export contains ${visible}${hiddenCount > 0 ? `, +${hiddenCount} more` : ""}.`;
+  return `Source export contains ${visible}${hiddenCount > 0 ? `, +${hiddenCount} more` : ""}.`;
 }
 
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
@@ -7010,13 +7010,13 @@ function MetadataPanel({ title, value, testId }: { title: string; value?: Record
   );
 }
 
-function LovableContentSourceDetails({ content }: { content: ContentAsset }) {
+function SourceContentSourceDetails({ content }: { content: ContentAsset }) {
   const rows = lovableContentSourceDetails(content);
   if (!rows.length) return null;
   return (
     <div className="rounded-xl border border-violet-100 bg-violet-50 p-3" data-testid="marketing-content-source-details">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-900">Lovable source details</p>
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-900">Imported source details</p>
         <Pill className="bg-white text-violet-800">{contentOriginLabel(content)}</Pill>
       </div>
       <dl className="mt-3 grid gap-2 md:grid-cols-2">
@@ -7072,7 +7072,7 @@ function MediaPreviewTile({ url, label, testId }: { url: string; label?: string;
   );
 }
 
-function LovableDesignPreview({
+function SourceDesignPreview({
   contentAsset,
   testId = "marketing-content-design-preview",
   mediaTestIdPrefix = "marketing-content-design-media",
@@ -7088,7 +7088,7 @@ function LovableDesignPreview({
     <div className="rounded-xl border border-purple-100 bg-[#fbf7ff] p-3" data-testid={testId}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Lovable design preview</p>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Source design preview</p>
           <p className="mt-1 text-xs font-bold text-[#7d6b65]">{blocks.length} visible design block{blocks.length === 1 ? "" : "s"} parsed from imported builder data.</p>
         </div>
         <Pill className="bg-purple-50 text-purple-800">Design rendered</Pill>
@@ -7184,7 +7184,7 @@ function LinkedContentPreview({
         </div>
       ) : null}
       {contentAsset.lovableExternalId ? (
-        <p className="mt-2 break-all text-xs font-bold text-[#8b7a73]">Lovable ID: {contentAsset.lovableExternalId}</p>
+        <p className="mt-2 break-all text-xs font-bold text-[#8b7a73]">Source ID: {contentAsset.lovableExternalId}</p>
       ) : null}
     </div>
   );
@@ -7321,7 +7321,7 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
         <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-950" data-testid={`marketing-sync-export-metadata-${run.id}`}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <p className="uppercase tracking-[0.12em] text-blue-800">Lovable export snapshot</p>
+              <p className="uppercase tracking-[0.12em] text-blue-800">Source export snapshot</p>
               <p className="mt-1 font-black">Dataset: {exportMetadata.dataset || "unknown"}</p>
               {exportMetadata.exportedAt ? <p className="mt-1 font-semibold">Exported at {formatDate(exportMetadata.exportedAt)}</p> : null}
               {exportMetadata.apiUrl ? <p className="mt-1 font-semibold">Endpoint: {exportMetadata.apiUrl}</p> : null}
@@ -7361,7 +7361,7 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
                     <span className="font-black">{item.label}</span>
                     <span>{detail}</span>
                   </div>
-                  <p className="mt-1 font-semibold">Lovable {item.exported} / VYVA {item.imported}</p>
+                  <p className="mt-1 font-semibold">Source {item.exported} / VYVA {item.imported}</p>
                 </div>
               );
             })}
@@ -7370,7 +7370,7 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
       ) : null}
       {exported.length ? (
         <div>
-          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Exported by Lovable</p>
+          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Exported by source</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {exported.map((item) => <Pill key={`exported-${item.key}`} className="bg-blue-50 text-blue-800">{item.label}: {item.value}</Pill>)}
           </div>
@@ -7428,15 +7428,15 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
           </div>
         </div>
       ) : null}
-      <LovableDestinationMap summary={run.summary} />
+      <SourceDestinationMap summary={run.summary} />
     </div>
   );
 }
 
-function LovableImportCoveragePanel({
+function SourceImportCoveragePanel({
   run,
-  title = "Lovable import coverage",
-  subtitle = "Latest sync coverage across Lovable export and VYVA import.",
+  title = "Source import coverage",
+  subtitle = "Latest sync coverage across Source export and VYVA import.",
   focusKeys,
   onOpenSettings,
 }: {
@@ -7456,12 +7456,12 @@ function LovableImportCoveragePanel({
   const unmappedCampaignRecipientCount = run ? syncUnmappedCampaignRecipientCount(run.summary) : 0;
   const isFailed = run?.status === "failed";
   const coverageNote = !run
-    ? "No Lovable sync has run yet. Run sync from Settings to import campaigns, content, contacts, lists, media, metrics, and journey history."
+    ? "No Source sync has run yet. Run sync from Settings to import campaigns, content, contacts, lists, media, metrics, and journey history."
     : isFailed
-      ? (run.error || "The last Lovable sync failed. Open Settings to inspect the error and retry.")
+      ? (run.error || "The last Source sync failed. Open Settings to inspect the error and retry.")
       : focusedParity.length
-        ? "Use this as the quick truth table for what Lovable sent versus what VYVA stored."
-        : "The last Lovable sync did not report import coverage counts.";
+        ? "Use this as the quick truth table for what Source sent versus what VYVA stored."
+        : "The last Source sync did not report import coverage counts.";
 
   return (
     <SectionCard
@@ -7503,7 +7503,7 @@ function LovableImportCoveragePanel({
                     <p className="font-black">{item.label}</p>
                     <Pill className={badgeClass}>{detail}</Pill>
                   </div>
-                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">Lovable {item.exported} / VYVA {item.imported}</p>
+                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">Source {item.exported} / VYVA {item.imported}</p>
                   {item.skipped ? <p className="mt-1 text-xs font-bold text-amber-800">Skipped: {item.skipped}</p> : null}
                 </div>
               );
@@ -7512,7 +7512,7 @@ function LovableImportCoveragePanel({
         ) : null}
         {contentSources.length ? (
           <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-content-source-buckets">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable content buckets</p>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Source content buckets</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {contentSources.map((item) => <Pill key={item.key} className="bg-purple-50 text-purple-800">{item.label}: {item.value}</Pill>)}
             </div>
@@ -7520,7 +7520,7 @@ function LovableImportCoveragePanel({
         ) : null}
         {fieldCoverage.length ? (
           <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-field-coverage">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped Lovable fields</p>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped Source fields</p>
             <div className="mt-2 grid gap-2">
               {fieldCoverage.map((item) => (
                 <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
@@ -7556,7 +7556,7 @@ function LovableImportCoveragePanel({
             </div>
           </div>
         ) : null}
-        {run ? <LovableDestinationMap summary={run.summary} /> : null}
+        {run ? <SourceDestinationMap summary={run.summary} /> : null}
         {unmappedCount || unmappedCampaignRecipientCount ? (
           <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-lovable-unmapped-summary">
             {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
@@ -7568,15 +7568,15 @@ function LovableImportCoveragePanel({
   );
 }
 
-function LovableDestinationMap({ summary }: { summary: Record<string, unknown> }) {
+function SourceDestinationMap({ summary }: { summary: Record<string, unknown> }) {
   const rows = lovableDestinationRows.map((row) => ({ ...row, count: syncDestinationCount(summary, row) }));
   const hasCounts = rows.some((row) => row.count > 0);
   return (
     <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-destination-map">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Where Lovable data appears</p>
-          <p className="mt-1 text-xs font-semibold text-[#8b7a73]">Use this map to find each imported Lovable source in VYVA after preview or sync.</p>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Where Source data appears</p>
+          <p className="mt-1 text-xs font-semibold text-[#8b7a73]">Use this map to find each imported source data in VYVA after preview or sync.</p>
         </div>
         <Pill className={hasCounts ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{hasCounts ? "mapped" : "waiting for sync"}</Pill>
       </div>
@@ -7684,7 +7684,7 @@ export default function MarketingAdminPage() {
   const [syncState, setSyncState] = useState<SyncState>(emptySync);
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
-  const [exportPreview, setExportPreview] = useState<LovableExportPreview | null>(null);
+  const [exportPreview, setExportPreview] = useState<SourceExportPreview | null>(null);
   const [exportPreviewRunning, setExportPreviewRunning] = useState(false);
   const [exportPreviewFeedback, setExportPreviewFeedback] = useState("");
   const [contactFeedback, setContactFeedback] = useState("");
@@ -7824,7 +7824,7 @@ export default function MarketingAdminPage() {
       setAudiences(audienceBody.audiences);
     });
 
-    const syncRequest = api<SyncState>("/api/admin/marketing/sync/lovable").then((syncBody) => {
+    const syncRequest = api<SyncState>("/api/admin/marketing/sync/source").then((syncBody) => {
       setSyncState(syncBody);
     });
 
@@ -9442,18 +9442,18 @@ export default function MarketingAdminPage() {
   const selectedContentDesignSummary = useMemo(() => selectedContent ? designShapeSummary(selectedContent.designJson) : null, [selectedContent]);
   const selectedContentMediaPreviewUrls = useMemo(() => selectedContent ? contentMediaPreviewUrls(selectedContent, selectedContentMediaAssets) : [], [selectedContent, selectedContentMediaAssets]);
   const latestSyncRun = syncState.runs[0] ?? null;
-  const missingLovableReferenceContent = useMemo(
+  const missingSourceReferenceContent = useMemo(
     () => content.filter((item) => contentOriginKey(item) === "missing_lovable_reference"),
     [content],
   );
-  const missingLovableReferenceCount = useMemo(() => {
-    if (!latestSyncRun) return missingLovableReferenceContent.length;
+  const missingSourceReferenceCount = useMemo(() => {
+    if (!latestSyncRun) return missingSourceReferenceContent.length;
     return Math.max(
-      missingLovableReferenceContent.length,
+      missingSourceReferenceContent.length,
       syncCountValue(latestSyncRun.summary, "imported", "missingContentReferences"),
       numberValue(recordValue(latestSyncRun.summary.contentSourceCounts).missing_lovable_reference),
     );
-  }, [latestSyncRun, missingLovableReferenceContent.length]);
+  }, [latestSyncRun, missingSourceReferenceContent.length]);
 
   useEffect(() => {
     if (!selectedContentId || contentIdSet.has(selectedContentId)) return;
@@ -9489,14 +9489,14 @@ export default function MarketingAdminPage() {
     if (content.length > 0) return null;
     if (!latestSyncRun) {
       return {
-        title: "No Lovable content has been imported yet.",
-        detail: "Run the one-way sync in Settings. If Lovable exports content, it will appear here as email templates, social posts, briefs, or assets.",
+        title: "No Source content has been imported yet.",
+        detail: "Run the one-way sync in Settings. If Source exports content, it will appear here as email templates, social posts, briefs, or assets.",
         action: "open_settings" as const,
       };
     }
     if (latestSyncRun.status === "failed") {
       return {
-        title: "Last Lovable sync failed.",
+        title: "Last Source sync failed.",
         detail: latestSyncRun.error || "Open Settings to review the sync error, fix the export endpoint or token, then run sync again.",
         action: "open_settings" as const,
       };
@@ -9506,7 +9506,7 @@ export default function MarketingAdminPage() {
     const skippedContent = syncCountValue(latestSyncRun.summary, "skipped", "content");
     if (exportedContent > 0 && importedContent === 0) {
       return {
-        title: "Lovable exported content, but VYVA did not import it.",
+        title: "Source exported content, but VYVA did not import it.",
         detail: `Last sync saw ${exportedContent} content row${exportedContent === 1 ? "" : "s"}${skippedContent ? ` and skipped ${skippedContent}` : ""}. Open Settings to inspect skipped counts and field coverage.`,
         action: "open_settings" as const,
       };
@@ -9519,8 +9519,8 @@ export default function MarketingAdminPage() {
       };
     }
     return {
-      title: "Last sync did not receive content from Lovable.",
-      detail: "Ask the Lovable export to include content, saved email templates, content briefs, social posts, templates, or assets, then run sync again.",
+      title: "Last sync did not receive content from Source.",
+      detail: "Ask the Source export to include content, saved email templates, content briefs, social posts, templates, or assets, then run sync again.",
       action: "open_settings" as const,
     };
   }, [content.length, latestSyncRun, visibleContent.length]);
@@ -14041,7 +14041,7 @@ export default function MarketingAdminPage() {
         metadata: {
           ...existingMetadata,
           localizedFromContentId: editingContentId,
-          localizedFromLovableExternalId: currentDraft.lovableExternalId || null,
+          localizedFromSourceExternalId: currentDraft.lovableExternalId || null,
           localization: {
             source: result.source,
             sourceLanguage,
@@ -14151,7 +14151,7 @@ export default function MarketingAdminPage() {
       metadata: {
         ...existingMetadata,
         channelVariantFromContentId: sourceContentId,
-        channelVariantFromLovableExternalId: currentDraft.lovableExternalId || null,
+        channelVariantFromSourceExternalId: currentDraft.lovableExternalId || null,
         channelVariant: {
           source: result.source,
           sourceChannel: currentDraft.channel,
@@ -14368,7 +14368,7 @@ export default function MarketingAdminPage() {
   async function deleteMediaAsset(asset: MarketingMediaAsset) {
     if (confirmingMediaDeleteId !== asset.id) {
       setConfirmingMediaDeleteId(asset.id);
-      setMediaFeedback(`Click Confirm delete to remove this VYVA media reference. The original Lovable URL is not changed.`);
+      setMediaFeedback(`Click Confirm delete to remove this VYVA media reference. The original Source URL is not changed.`);
       return;
     }
     setMediaSaving(true);
@@ -14969,18 +14969,18 @@ export default function MarketingAdminPage() {
     }
   }
 
-  async function runLovableSync() {
+  async function runSourceSync() {
     setSyncFeedback("");
-    setMessage("Running Lovable sync...");
+    setMessage("Running Source sync...");
     setSyncRunning(true);
     try {
-      const result = await api<{ summary?: Record<string, unknown> }>("/api/admin/marketing/sync/lovable/run", { method: "POST" });
+      const result = await api<{ summary?: Record<string, unknown> }>("/api/admin/marketing/sync/source/run", { method: "POST" });
       const completionMessage = syncCompletionMessage(result.summary);
       await refreshAll();
       setMessage(completionMessage);
       setSyncFeedback(completionMessage);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Lovable sync failed.";
+      const errorMessage = error instanceof Error ? error.message : "Source sync failed.";
       setMessage(errorMessage);
       setSyncFeedback(errorMessage);
     } finally {
@@ -14988,18 +14988,18 @@ export default function MarketingAdminPage() {
     }
   }
 
-  async function previewLovableExport() {
+  async function previewSourceExport() {
     setExportPreviewFeedback("");
-    setMessage("Checking Lovable export...");
+    setMessage("Checking Source export...");
     setExportPreviewRunning(true);
     try {
-      const result = await api<LovableExportPreview>("/api/admin/marketing/sync/lovable/preview");
+      const result = await api<SourceExportPreview>("/api/admin/marketing/sync/source/preview");
       const completionMessage = exportPreviewMessage(result.summary);
       setExportPreview(result);
       setExportPreviewFeedback(completionMessage);
       setMessage(completionMessage);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Lovable export preview failed.";
+      const errorMessage = error instanceof Error ? error.message : "Source export preview failed.";
       setExportPreview(null);
       setExportPreviewFeedback(errorMessage);
       setMessage(errorMessage);
@@ -15009,9 +15009,9 @@ export default function MarketingAdminPage() {
   }
 
   const syncBlockedReason = !syncState.configured
-    ? "Set VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY before running a sync. The default Lovable export endpoint is already built in, and can be overridden with VYVA_MARKETING_EXPORT_URL."
+    ? "Set VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY before running a sync. The default Source export endpoint is already built in, and can be overridden with VYVA_MARKETING_EXPORT_URL."
     : syncState.canRunSync === false
-      ? `Only the super admin${syncState.requiredRunnerEmail ? ` (${syncState.requiredRunnerEmail})` : ""} can run Lovable sync.`
+      ? `Only the super admin${syncState.requiredRunnerEmail ? ` (${syncState.requiredRunnerEmail})` : ""} can run Source sync.`
       : "";
   const syncButtonDisabled = Boolean(syncBlockedReason) || syncRunning;
   const exportPreviewButtonDisabled = Boolean(syncBlockedReason) || exportPreviewRunning || syncRunning;
@@ -15715,25 +15715,25 @@ export default function MarketingAdminPage() {
   const marketingActionCenterItems: MarketingActionCenterItem[] = [
     ...(!syncState.configured ? [{
       key: "sync-config",
-      title: "Finish Lovable sync setup",
+      title: "Finish Source sync setup",
       detail: "The export endpoint is ready, but the server still needs a bearer token before admins can run a sync.",
       state: "blocked" as CampaignReadinessState,
       actionLabel: "Open settings",
       icon: Settings,
       onSelect: () => {
         setActiveTab("settings");
-        setMessage("Open Settings to finish Lovable sync configuration.");
+        setMessage("Open Settings to finish Source sync configuration.");
       },
     }] : latestSyncRun?.status === "failed" ? [{
       key: "sync-failed",
-      title: "Fix the last Lovable sync",
+      title: "Fix the last Source sync",
       detail: latestSyncRun.error || "The last import failed. Review the latest run before creating new campaigns from stale data.",
       state: "blocked" as CampaignReadinessState,
       actionLabel: "Review sync",
       icon: Settings,
       onSelect: () => {
         setActiveTab("settings");
-        setMessage("Review the failed Lovable sync run.");
+        setMessage("Review the failed Source sync run.");
       },
     }] : []),
     ...(firstReadyEmailCampaign ? [{
@@ -15749,10 +15749,10 @@ export default function MarketingAdminPage() {
         setMessage(`Opened "${firstReadyEmailCampaign.name}" for final email review.`);
       },
     }] : []),
-    ...(missingLovableReferenceCount > 0 ? [{
+    ...(missingSourceReferenceCount > 0 ? [{
       key: "missing-content",
-      title: "Replace missing Lovable content",
-      detail: `${missingLovableReferenceCount} campaign or journey reference still needs real copy, HTML, design, or media.`,
+      title: "Replace missing Source content",
+      detail: `${missingSourceReferenceCount} campaign or journey reference still needs real copy, HTML, design, or media.`,
       state: "blocked" as CampaignReadinessState,
       actionLabel: "Show placeholders",
       icon: FileText,
@@ -15761,7 +15761,7 @@ export default function MarketingAdminPage() {
         setSearch("");
         setChannelFilter("all");
         setContentSourceFilter("missing_lovable_reference");
-        setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
+        setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
       },
     }] : []),
     ...(unmappedAudienceMemberCount > 0 || unmappedCampaignRecipientCount > 0 ? [{
@@ -15776,7 +15776,7 @@ export default function MarketingAdminPage() {
         setContactView("lists");
         setSearch("");
         setContactListFilter("all");
-        setAudienceFeedback("Review imported lists with unmapped Lovable members.");
+        setAudienceFeedback("Review imported lists with unmapped Source members.");
       },
     }] : []),
     ...(campaignMissingChannelContent ? [{
@@ -15855,7 +15855,7 @@ export default function MarketingAdminPage() {
       value: syncState.configured ? latestSyncRun?.status === "succeeded" ? "Synced" : "Configured" : "Blocked",
       state: !syncState.configured ? "blocked" : latestSyncRun?.status === "failed" ? "needs_action" : latestSyncRun ? "ready" : "planning",
       detail: !syncState.configured
-        ? "Add the Lovable export token before importing source campaigns, contacts, and content."
+        ? "Add the Source export token before importing source campaigns, contacts, and content."
         : latestSyncRun?.status === "failed"
           ? "The last import failed; review Settings before relying on imported data."
           : latestSyncRun
@@ -15865,7 +15865,7 @@ export default function MarketingAdminPage() {
       icon: RefreshCw,
       onSelect: () => {
         setActiveTab("settings");
-        setMessage(syncState.configured ? "Open Settings to review or run the Lovable import." : "Open Settings to finish Lovable sync setup.");
+        setMessage(syncState.configured ? "Open Settings to review or run the Source import." : "Open Settings to finish Source sync setup.");
       },
     },
     {
@@ -15895,22 +15895,22 @@ export default function MarketingAdminPage() {
     {
       key: "creative",
       title: "Creative",
-      value: missingLovableReferenceCount > 0 ? `${missingLovableReferenceCount} missing` : `${launchLaneContentReadyCount} ready`,
-      state: missingLovableReferenceCount > 0 ? "blocked" : launchLaneContentReadyCount > 0 ? "ready" : content.length > 0 ? "needs_action" : "planning",
-      detail: missingLovableReferenceCount > 0
-        ? "Replace placeholder Lovable references with real copy, HTML, design, or media."
+      value: missingSourceReferenceCount > 0 ? `${missingSourceReferenceCount} missing` : `${launchLaneContentReadyCount} ready`,
+      state: missingSourceReferenceCount > 0 ? "blocked" : launchLaneContentReadyCount > 0 ? "ready" : content.length > 0 ? "needs_action" : "planning",
+      detail: missingSourceReferenceCount > 0
+        ? "Replace placeholder Source references with real copy, HTML, design, or media."
         : launchLaneContentReadyCount > 0
           ? "Content assets are ready to attach, adapt with AI, or turn into campaigns."
           : "Create a content draft or use the AI template gaps before campaign launch.",
-      actionLabel: missingLovableReferenceCount > 0 ? "Show gaps" : "Open content",
+      actionLabel: missingSourceReferenceCount > 0 ? "Show gaps" : "Open content",
       icon: FileText,
       onSelect: () => {
         setActiveTab("content");
         setSearch("");
         setChannelFilter("all");
-        if (missingLovableReferenceCount > 0) {
+        if (missingSourceReferenceCount > 0) {
           setContentSourceFilter("missing_lovable_reference");
-          setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
+          setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
         } else {
           setContentSourceFilter("all");
           setContentActionFeedback("Open content assets, AI variants, and template packs.");
@@ -15955,7 +15955,7 @@ export default function MarketingAdminPage() {
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Marketing"
-          subtitle="Campaign planning, Lovable migration, audiences, content, schedules, and email dispatch through the existing VYVA provider stack."
+          subtitle="Campaign planning, Source migration, audiences, content, schedules, and email dispatch through the existing VYVA provider stack."
         >
           <button className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-3 font-bold text-white" onClick={() => refreshAll().catch((error) => setMessage(error.message))}>
             <RefreshCw size={16} /> Refresh
@@ -15971,7 +15971,7 @@ export default function MarketingAdminPage() {
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.18em] text-purple-200">Marketing engine foundation</p>
                 <h2 className="mt-2 text-3xl font-black">Plan campaigns now. Send email safely.</h2>
-                <p className="mt-2 max-w-3xl text-sm font-semibold text-white/70">This module absorbs Lovable marketing data and sends saved email campaign snapshots through VYVA. WhatsApp and social channels remain planning-only until their provider controls are ready.</p>
+                <p className="mt-2 max-w-3xl text-sm font-semibold text-white/70">This module absorbs Source marketing data and sends saved email campaign snapshots through VYVA. WhatsApp and social channels remain planning-only until their provider controls are ready.</p>
               </div>
               <Pill className="bg-white/10 text-white"><CheckCircle2 size={13} className="mr-1" /> Email enabled</Pill>
             </div>
@@ -16031,7 +16031,7 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Clicks tracked" value={analyticsTotals.clicked} icon={CheckCircle2} />
               </div>
 
-              <LovableImportCoveragePanel
+              <SourceImportCoveragePanel
                 run={latestSyncRun}
                 onOpenSettings={() => setActiveTab("settings")}
               />
@@ -16192,7 +16192,7 @@ export default function MarketingAdminPage() {
                 </SectionCard>
               </div>
 
-              <SectionCard title="Analytics snapshots" subtitle={`${visibleCampaignMetrics.length} visible of ${campaignMetrics.length} imported performance rows from Lovable or future providers.`}>
+              <SectionCard title="Analytics snapshots" subtitle={`${visibleCampaignMetrics.length} visible of ${campaignMetrics.length} imported performance rows from Source or future providers.`}>
                 {visibleCampaignMetrics.length === 0 ? (
                   <EmptyState text={campaignMetrics.length ? "No imported analytics match the current filters." : "No campaign analytics imported yet."} />
                 ) : (
@@ -16285,7 +16285,7 @@ export default function MarketingAdminPage() {
                               <tr key={metric.id} className="border-t border-[#f0e7df]">
                                 <td className="px-4 py-3 font-black">
                                   <p>{metric.campaignName || metric.lovableExternalId || "Unlinked campaign"}</p>
-                                  {metric.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable metric ID: {metric.lovableExternalId}</p> : null}
+                                  {metric.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Source metric ID: {metric.lovableExternalId}</p> : null}
                                 </td>
                                 <td className="px-4 py-3 font-bold">{metric.channel}</td>
                                 <td className="px-4 py-3 font-bold">{metric.sent}</td>
@@ -18266,7 +18266,7 @@ export default function MarketingAdminPage() {
                           </div>
                         </div>
                         {editingCampaign.lovableExternalId ? (
-                          <p className="mt-3 break-all rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">Lovable ID: {editingCampaign.lovableExternalId}</p>
+                          <p className="mt-3 break-all rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">Source ID: {editingCampaign.lovableExternalId}</p>
                         ) : null}
                         {campaignOperatorBriefItems.length ? (
                           <div className="mt-3 grid gap-2 xl:grid-cols-4" data-testid="marketing-campaign-operator-brief">
@@ -18699,7 +18699,7 @@ export default function MarketingAdminPage() {
                         <Field label="Source">
                           <input className={inputClass} value={campaignEditDraft.source} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, source: event.target.value }))} data-testid="input-marketing-edit-campaign-source" />
                         </Field>
-                        <Field label="Lovable ID">
+                        <Field label="Source ID">
                           <input className={inputClass} value={campaignEditDraft.lovableExternalId} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} data-testid="input-marketing-edit-campaign-lovable-id" />
                         </Field>
                       </div>
@@ -18924,7 +18924,7 @@ export default function MarketingAdminPage() {
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-black text-[#241133]">Campaign channels</p>
-                            <p className="text-xs font-bold text-[#8b7a73]">Imported Lovable channels stay here. Email can send; social channels remain planning/tracking rows.</p>
+                            <p className="text-xs font-bold text-[#8b7a73]">Imported Source channels stay here. Email can send; social channels remain planning/tracking rows.</p>
                           </div>
                           <button type="button" onClick={addCampaignChannel} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white" data-testid="button-marketing-add-campaign-channel">
                             <Plus size={14} /> Add channel
@@ -19334,7 +19334,7 @@ export default function MarketingAdminPage() {
                             <div>
                               <h3 className="font-black">{journey.name}</h3>
                               <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{journey.objective || "No objective yet."}</p>
-                              {journey.source === "lovable" ? <p className="mt-1 text-xs font-bold text-[#8b7a73]">Lovable source can reimport this after sync.</p> : null}
+                              {journey.source === "lovable" ? <p className="mt-1 text-xs font-bold text-[#8b7a73]">Imported source can update this after sync.</p> : null}
                               <p className="mt-1 text-xs font-bold text-[#7d6b65]">{activeEnrollmentsByJourneyId.get(journey.id) ?? 0} active / {enrollmentsByJourneyId.get(journey.id) ?? 0} total enrollments</p>
                               {(journey.triggerType || journey.goalType || journeyAudience || journeyAudienceReference) ? (
                                 <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-black" data-testid={`marketing-journey-logic-${journey.id}`}>
@@ -19456,7 +19456,7 @@ export default function MarketingAdminPage() {
                         <Field label="Source">
                           <input className={inputClass} value={journeyEditDraft.source} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, source: event.target.value }))} disabled={journeySaving} data-testid="input-marketing-edit-journey-source" />
                         </Field>
-                        <Field label="Lovable ID">
+                        <Field label="Source ID">
                           <input className={inputClass} value={journeyEditDraft.lovableExternalId} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} disabled={journeySaving} data-testid="input-marketing-edit-journey-lovable-id" />
                         </Field>
                       </div>
@@ -19575,7 +19575,7 @@ export default function MarketingAdminPage() {
                                       <input className={inputClass} value={step.templateKind} onChange={(event) => updateJourneyStep(step.id, { templateKind: event.target.value })} placeholder="email_template" disabled={journeySaving} data-testid={`input-marketing-journey-step-template-kind-${index}`} />
                                     </Field>
                                     <Field label="Template ref">
-                                      <input className={inputClass} value={step.templateRef} onChange={(event) => updateJourneyStep(step.id, { templateRef: event.target.value })} placeholder="Lovable or VYVA template ID" disabled={journeySaving} data-testid={`input-marketing-journey-step-template-ref-${index}`} />
+                                      <input className={inputClass} value={step.templateRef} onChange={(event) => updateJourneyStep(step.id, { templateRef: event.target.value })} placeholder="Source or VYVA template ID" disabled={journeySaving} data-testid={`input-marketing-journey-step-template-ref-${index}`} />
                                     </Field>
                                   </div>
                                   <LinkedContentPreview
@@ -19662,7 +19662,7 @@ export default function MarketingAdminPage() {
                           </div>
                         </div>
                         {enrollment.lovableExternalId ? (
-                          <p className="mt-2 break-all text-xs font-bold text-[#8b7a73]">Lovable enrollment ID: {enrollment.lovableExternalId}</p>
+                          <p className="mt-2 break-all text-xs font-bold text-[#8b7a73]">Source enrollment ID: {enrollment.lovableExternalId}</p>
                         ) : null}
                         <MetadataPanel title="Imported enrollment metadata" value={enrollment.metadata} testId={`marketing-journey-enrollment-metadata-${enrollment.id}`} />
                         {enrollment.events.length ? (
@@ -19693,21 +19693,21 @@ export default function MarketingAdminPage() {
 
           {activeTab === "content" && (
             <div className="grid gap-4" data-testid="marketing-content-tab">
-              <LovableImportCoveragePanel
+              <SourceImportCoveragePanel
                 run={latestSyncRun}
-                title="Lovable content coverage"
-                subtitle="Quickly see whether Lovable exported templates, social posts, briefs, media, and campaign links."
+                title="Source content coverage"
+                subtitle="Quickly see whether Source exported templates, social posts, briefs, media, and campaign links."
                 focusKeys={["content", "mediaAssets", "campaigns", "campaignChannels", "journeys"]}
                 onOpenSettings={() => setActiveTab("settings")}
               />
-              {missingLovableReferenceCount > 0 ? (
+              {missingSourceReferenceCount > 0 ? (
                 <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm" data-testid="marketing-missing-content-reference-panel">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="max-w-4xl">
-                      <p className="text-sm font-black uppercase tracking-[0.12em] text-amber-900">Needs Lovable content</p>
-                      <h3 className="mt-1 font-serif text-2xl text-[#241133]">Lovable referenced content that was not exported.</h3>
+                      <p className="text-sm font-black uppercase tracking-[0.12em] text-amber-900">Needs Source content</p>
+                      <h3 className="mt-1 font-serif text-2xl text-[#241133]">Source referenced content that was not exported.</h3>
                       <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">
-                        {missingLovableReferenceCount} campaign or journey content reference{missingLovableReferenceCount === 1 ? "" : "s"} arrived without the real body, HTML, design, or media. VYVA kept placeholder records so campaign and journey links do not break, but these need the matching Lovable export data or a replacement content asset here.
+                        {missingSourceReferenceCount} campaign or journey content reference{missingSourceReferenceCount === 1 ? "" : "s"} arrived without the real body, HTML, design, or media. VYVA kept placeholder records so campaign and journey links do not break, but these need the matching Source export data or a replacement content asset here.
                       </p>
                     </div>
                     <button
@@ -19717,25 +19717,25 @@ export default function MarketingAdminPage() {
                         setSearch("");
                         setChannelFilter("all");
                         setContentSourceFilter("missing_lovable_reference");
-                        setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
+                        setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
                       }}
                       data-testid="button-marketing-show-missing-content"
                     >
                       <Search size={15} /> Show placeholders
                     </button>
                   </div>
-                  {missingLovableReferenceContent.length ? (
+                  {missingSourceReferenceContent.length ? (
                     <div className="mt-4 grid gap-2">
-                      {missingLovableReferenceContent.map((item) => (
+                      {missingSourceReferenceContent.map((item) => (
                         <div key={item.id} className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#5b4a46]">
                           <span className="font-black text-[#241133]">{item.title}</span>
-                          {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</span> : null}
+                          {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Source ID: {item.lovableExternalId}</span> : null}
                         </div>
                       ))}
                     </div>
                   ) : (
                     <p className="mt-4 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#6f5f59]">
-                      Sync reported missing references, but no placeholder rows are loaded in this view yet. Run the one-way sync again after Lovable exports the referenced content bodies.
+                      Sync reported missing references, but no placeholder rows are loaded in this view yet. Run the one-way sync again after Source exports the referenced content bodies.
                     </p>
                   )}
                 </div>
@@ -20484,7 +20484,7 @@ export default function MarketingAdminPage() {
                     <div className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4" data-testid="marketing-content-empty-diagnostic">
                       <p className="text-center text-sm font-black text-[#241133]">{contentEmptyDiagnostic?.title ?? "No content matches the filters."}</p>
                       <p className="mx-auto mt-2 max-w-3xl text-center text-sm font-bold text-[#8b7a73]">
-                        {contentEmptyDiagnostic?.detail ?? "Clear filters or run Lovable sync from Settings."}
+                        {contentEmptyDiagnostic?.detail ?? "Clear filters or run Source sync from Settings."}
                       </p>
                       {contentEmptyDiagnostic ? (
                         <div className="mt-3 flex justify-center">
@@ -20570,7 +20570,7 @@ export default function MarketingAdminPage() {
                               </td>
                               <td className="max-w-[240px] px-4 py-3">
                                 <p className="text-xs font-black text-[#241133]">{item.source}</p>
-                                {item.lovableExternalId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {item.lovableExternalId}</p> : null}
+                                {item.lovableExternalId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Source ID: {item.lovableExternalId}</p> : null}
                                 {timelineParts.length ? (
                                   <div className="mt-2 grid gap-1" data-testid={`marketing-content-timeline-${item.id}`}>
                                     {timelineParts.map((part) => (
@@ -20628,7 +20628,7 @@ export default function MarketingAdminPage() {
                                     {isConfirmingDelete ? (
                                       <>
                                         <p className="font-black">Confirm delete?</p>
-                                        <p className="mt-1 text-red-700">Lovable is not changed.</p>
+                                        <p className="mt-1 text-red-700">Source is not changed.</p>
                                         <div className="mt-2 flex flex-wrap gap-1.5">
                                           <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-red-700 px-2 font-black text-white" disabled={contentSaving} data-testid={`button-marketing-confirm-delete-content-inline-${item.id}`}>
                                             <Trash2 size={12} /> Confirm
@@ -20667,7 +20667,7 @@ export default function MarketingAdminPage() {
                                               {contentOriginLabel(item)}
                                             </Pill>
                                             {item.hasHtml ? <Pill className="bg-blue-50 text-blue-800">Rendered HTML available</Pill> : null}
-                                            {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Lovable design data</Pill> : null}
+                                            {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Source design data</Pill> : null}
                                             {item.mediaAssetCount ? <Pill className="bg-emerald-50 text-emerald-800">{item.mediaAssetCount} media refs</Pill> : null}
                                           </div>
                                           <p className="mt-1 text-[#5b4a46]">{item.subject || "No subject yet."}</p>
@@ -20675,7 +20675,7 @@ export default function MarketingAdminPage() {
                                             <p className="mt-2 text-xs font-black text-purple-700">CTA: {[item.ctaLabel, item.ctaUrl].filter(Boolean).join(" -> ")}</p>
                                           ) : null}
                                           <p className="mt-2 max-w-4xl whitespace-pre-wrap text-xs font-semibold leading-relaxed text-[#6f5f59]">{item.body || "No body copy yet."}</p>
-                                          {item.lovableExternalId ? <p className="mt-2 break-all text-xs font-semibold text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</p> : null}
+                                          {item.lovableExternalId ? <p className="mt-2 break-all text-xs font-semibold text-[#8b7a73]">Source ID: {item.lovableExternalId}</p> : null}
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                           <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="inline-flex min-h-9 items-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700">
@@ -20701,7 +20701,7 @@ export default function MarketingAdminPage() {
                                             className="h-[320px] w-full rounded-xl border border-[#eadfd5] bg-white"
                                           />
                                         ) : null}
-                                        <LovableDesignPreview
+                                        <SourceDesignPreview
                                           contentAsset={item}
                                           testId={`marketing-content-inline-design-preview-${item.id}`}
                                           mediaTestIdPrefix={`marketing-content-inline-design-media-${item.id}`}
@@ -20800,7 +20800,7 @@ export default function MarketingAdminPage() {
                                       <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div>
                                           <p>Click Confirm delete to remove this content.</p>
-                                          <p className="mt-1 text-xs font-semibold text-red-700">This removes the VYVA planning record only. Lovable is not changed.</p>
+                                          <p className="mt-1 text-xs font-semibold text-red-700">This removes the VYVA planning record only. Source is not changed.</p>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                           <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-red-700 px-3 text-xs font-black text-white" disabled={contentSaving} data-testid={`button-marketing-confirm-delete-content-${item.id}`}>
@@ -20888,7 +20888,7 @@ export default function MarketingAdminPage() {
                       <Field label="Source">
                         <input className={inputClass} value={contentEditDraft.source} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, source: event.target.value }) : draft)} disabled={contentSaving} data-testid="input-marketing-edit-content-source" />
                       </Field>
-                      <Field label="Lovable ID">
+                      <Field label="Source ID">
                         <input className={inputClass} value={contentEditDraft.lovableExternalId} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, lovableExternalId: event.target.value }) : draft)} disabled={contentSaving} data-testid="input-marketing-edit-content-lovable-id" />
                       </Field>
                     </div>
@@ -21071,11 +21071,11 @@ export default function MarketingAdminPage() {
                         <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm font-bold text-violet-900" data-testid="marketing-content-origin-summary">
                           Imported from {contentOriginLabel(selectedContent)}
                           {selectedContent.lovableExternalId ? (
-                            <span className="break-all"> - Lovable ID: {selectedContent.lovableExternalId}</span>
+                            <span className="break-all"> - Source ID: {selectedContent.lovableExternalId}</span>
                           ) : null}
                         </div>
                       ) : null}
-                      <LovableContentSourceDetails content={selectedContent} />
+                      <SourceContentSourceDetails content={selectedContent} />
                       <ContentUsageList
                         usages={selectedContentUsage}
                         testId="marketing-selected-content-usage"
@@ -21094,14 +21094,14 @@ export default function MarketingAdminPage() {
                           {selectedContent.body || "No body copy yet."}
                         </div>
                       )}
-                      <LovableDesignPreview contentAsset={selectedContent} />
+                      <SourceDesignPreview contentAsset={selectedContent} />
                       <div className="grid gap-2 md:grid-cols-3">
                         <Pill className={selectedContent.hasDesign ? "bg-purple-50 text-purple-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{selectedContent.hasDesign ? "Design JSON present" : "No design JSON"}</Pill>
                         <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>
                         <Pill className={channelClass(selectedContent.channel)}>{channelLabel[selectedContent.channel]}</Pill>
                       </div>
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-content-design-media-summary">
-                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable design/media</p>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Source design/media</p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {selectedContentDesignSummary?.arrayKeys.length ? selectedContentDesignSummary.arrayKeys.map((item) => (
                             <Pill key={item.key} className="bg-purple-50 text-purple-800">Design {item.key}: {item.count}</Pill>
@@ -21181,7 +21181,7 @@ export default function MarketingAdminPage() {
                         <Field label="Local URL">
                           <input className={inputClass} value={mediaEditDraft.localUrl} onChange={(event) => setMediaEditDraft((draft) => draft ? ({ ...draft, localUrl: event.target.value }) : draft)} disabled={mediaSaving} data-testid="input-marketing-edit-media-local-url" />
                         </Field>
-                        <Field label="Lovable ID">
+                        <Field label="Source ID">
                           <input className={inputClass} value={mediaEditDraft.lovableExternalId} onChange={(event) => setMediaEditDraft((draft) => draft ? ({ ...draft, lovableExternalId: event.target.value }) : draft)} disabled={mediaSaving} data-testid="input-marketing-edit-media-lovable-id" />
                         </Field>
                       </div>
@@ -21225,7 +21225,7 @@ export default function MarketingAdminPage() {
                             <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
                           </div>
                           <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
-                          {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable ID: {asset.lovableExternalId}</p> : null}
+                          {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Source ID: {asset.lovableExternalId}</p> : null}
                           {timelineParts.length ? (
                             <div className="mt-2 flex flex-wrap gap-1.5" data-testid={`marketing-media-timeline-${asset.id}`}>
                               {timelineParts.map((part) => <Pill key={part} className="bg-white text-[#7d6b65]">{part}</Pill>)}
@@ -21667,7 +21667,7 @@ export default function MarketingAdminPage() {
                       <Field label="Source">
                         <input className={inputClass} value={contactEditDraft.source} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, source: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-source" />
                       </Field>
-                      <Field label="Lovable ID">
+                      <Field label="Source ID">
                         <input className={inputClass} value={contactEditDraft.lovableExternalId} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, lovableExternalId: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-lovable-id" />
                       </Field>
                       <Field label="Profile ID">
@@ -21889,7 +21889,7 @@ export default function MarketingAdminPage() {
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-black text-[#241133]">Contact segmentation</p>
-                          <p className="text-xs font-bold text-[#7d6b65]">Filter imported Lovable contacts by list, consent, market, language, category, vertical, and source.</p>
+                          <p className="text-xs font-bold text-[#7d6b65]">Filter imported Source contacts by list, consent, market, language, category, vertical, and source.</p>
                         </div>
                         <button
                           type="button"
@@ -21974,7 +21974,7 @@ export default function MarketingAdminPage() {
                             <th className="px-4 py-3">Category</th>
                             <th className="px-4 py-3">Vertical</th>
                             <th className="px-4 py-3">Market</th>
-                            <th className="px-4 py-3">Lovable profile</th>
+                            <th className="px-4 py-3">Source profile</th>
                             <th className="px-4 py-3">Tags / lists</th>
                             <th className="px-4 py-3">Consent</th>
                             <th className="px-4 py-3">Source</th>
@@ -22038,7 +22038,7 @@ export default function MarketingAdminPage() {
                                   <div className="grid gap-2">
                                     <p className="font-bold">{contact.source}</p>
                                     {contact.lovableExternalId ? (
-                                      <p className="break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {contact.lovableExternalId}</p>
+                                      <p className="break-all text-xs font-semibold text-[#7d6b65]">Source ID: {contact.lovableExternalId}</p>
                                     ) : null}
                                     {contact.profileId ? (
                                       <p className="break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p>
@@ -22132,7 +22132,7 @@ export default function MarketingAdminPage() {
                       })}
                     </div>
                   </SectionCard>
-                  <SectionCard title="List builder" subtitle="Store reusable Lovable-style lists with optional rules and contact external IDs.">
+                  <SectionCard title="List builder" subtitle="Store reusable Source-style lists with optional rules and contact external IDs.">
                     <form className="grid gap-3" onSubmit={(event) => createAudience(event).catch((error) => {
                       setAudienceFeedback(error.message);
                       setMessage(error.message);
@@ -22204,7 +22204,7 @@ export default function MarketingAdminPage() {
                     <div ref={audienceEditorPanelRef} tabIndex={-1}>
                     <SectionCard
                       title="List editor"
-                      subtitle={editingAudience ? `Editing ${editingAudience.name}. Members are stored as Lovable contact external IDs.` : "Edit imported or manually created marketing lists."}
+                      subtitle={editingAudience ? `Editing ${editingAudience.name}. Members are stored as Source contact external IDs.` : "Edit imported or manually created marketing lists."}
                       action={editingAudience ? <Pill className="bg-purple-50 text-purple-800">{editingAudience.source}</Pill> : null}
                     >
                       <form className="grid gap-3" onSubmit={(event) => void saveAudienceEdit(event)} data-testid="marketing-audience-editor-form">
@@ -22268,7 +22268,7 @@ export default function MarketingAdminPage() {
                       <Field label="Source">
                         <input className={inputClass} value={audienceEditDraft.source} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, source: event.target.value }) : draft)} disabled={audienceSaving} data-testid="input-marketing-edit-audience-source" />
                       </Field>
-                      <Field label="Lovable ID">
+                      <Field label="Source ID">
                         <input className={inputClass} value={audienceEditDraft.lovableExternalId} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, lovableExternalId: event.target.value }) : draft)} disabled={audienceSaving} data-testid="input-marketing-edit-audience-lovable-id" />
                       </Field>
                     </div>
@@ -22493,15 +22493,15 @@ export default function MarketingAdminPage() {
           {activeTab === "settings" && (
             <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]" data-testid="marketing-settings-tab">
               <SectionCard
-                title="Lovable sync"
-                subtitle="One-way import into VYVA. Nothing is written back to Lovable."
+                title="Source sync"
+                subtitle="One-way import into VYVA. Nothing is written back to Source."
                 action={<Pill className={syncState.configured ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}>{syncState.configured ? "Configured" : "Not configured"}</Pill>}
               >
                 <div className="grid gap-3">
                   <div className="rounded-xl bg-[#fffaf4] p-4">
                     <p className="text-sm font-bold text-[#7d6b65]">Mode</p>
                     <p className="font-black">{syncState.mode}</p>
-                    <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Default Lovable export endpoint"}</p>
+                    <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Default Source export endpoint"}</p>
                     <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-sync-env-diagnostics">
                       <p className="text-sm font-black text-[#2f2135]">Server configuration check</p>
                       {syncDiagnostics ? (
@@ -22509,9 +22509,9 @@ export default function MarketingAdminPage() {
                           <p>Endpoint source: {syncDiagnostics.apiUrlSource ?? "unknown"}{syncDiagnostics.hasDefaultEndpoint ? " (built-in default)" : ""}</p>
                           <p>Bearer token available: {yesNo(syncDiagnostics.hasBearerToken)}</p>
                           <p>VYVA_MARKETING_EXPORT_TOKEN: {yesNo(tokenAliasPresent.VYVA_MARKETING_EXPORT_TOKEN)}</p>
-                          <p>LOVABLE_MARKETING_API_KEY: {yesNo(tokenAliasPresent.LOVABLE_MARKETING_API_KEY)}</p>
+                          <p>SOURCE_MARKETING_API_KEY: {yesNo(tokenAliasPresent.SOURCE_MARKETING_API_KEY)}</p>
                           <p>VYVA_MARKETING_EXPORT_URL: {yesNo(urlAliasPresent.VYVA_MARKETING_EXPORT_URL)}</p>
-                          <p>LOVABLE_MARKETING_API_URL: {yesNo(urlAliasPresent.LOVABLE_MARKETING_API_URL)}</p>
+                          <p>SOURCE_MARKETING_API_URL: {yesNo(urlAliasPresent.SOURCE_MARKETING_API_URL)}</p>
                           <p>Token source: {syncDiagnostics.tokenSource ?? "none"}</p>
                           <p>Sync API build: {syncState.backendBuild ?? "unavailable"}</p>
                         </div>
@@ -22538,16 +22538,16 @@ export default function MarketingAdminPage() {
                     <button
                       type="button"
                       disabled={exportPreviewButtonDisabled}
-                      onClick={() => void previewLovableExport()}
+                      onClick={() => void previewSourceExport()}
                       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
                       data-testid="button-marketing-preview-export"
                     >
-                      <Eye size={16} /> {exportPreviewRunning ? "Checking export..." : "Check Lovable export"}
+                      <Eye size={16} /> {exportPreviewRunning ? "Checking export..." : "Check Source export"}
                     </button>
                     <button
                       type="button"
                       disabled={syncButtonDisabled}
-                      onClick={() => void runLovableSync()}
+                      onClick={() => void runSourceSync()}
                       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                       data-testid="button-marketing-run-sync"
                     >
@@ -22562,7 +22562,7 @@ export default function MarketingAdminPage() {
                       {exportPreviewFeedback}
                     </p>
                   ) : null}
-                  {exportPreview ? <LovableExportPreviewDiagnostics preview={exportPreview} /> : null}
+                  {exportPreview ? <SourceExportPreviewDiagnostics preview={exportPreview} /> : null}
                   {syncFeedbackText ? (
                     <p
                       className={`rounded-xl px-4 py-3 text-sm font-bold ${syncFeedbackIsError ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}
@@ -22572,7 +22572,7 @@ export default function MarketingAdminPage() {
                     </p>
                   ) : null}
                   <div className="grid gap-2">
-                    {syncState.runs.length === 0 ? <EmptyState text="No Lovable sync runs yet." /> : syncState.runs.map((run) => (
+                    {syncState.runs.length === 0 ? <EmptyState text="No Source sync runs yet." /> : syncState.runs.map((run) => (
                       <div key={run.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <Pill className={statusClass(run.status)}>{run.status}</Pill>
@@ -22607,7 +22607,7 @@ export default function MarketingAdminPage() {
   );
 }
 
-function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPreview }) {
+function SourceExportPreviewDiagnostics({ preview }: { preview: SourceExportPreview }) {
   const exported = syncCountItems(preview.summary, "exported");
   const contentSourceCounts = Object.entries(recordValue(preview.summary.contentSourceCounts))
     .map(([key, value]) => ({ key, value: numberValue(value) }))
@@ -22624,7 +22624,7 @@ function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPr
     <div className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs font-bold text-blue-950" data-testid="marketing-export-preview">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="uppercase tracking-[0.12em] text-blue-800">Lovable export preview</p>
+          <p className="uppercase tracking-[0.12em] text-blue-800">Source export preview</p>
           <p className="mt-1 text-sm font-black">Dataset: {preview.dataset || "unknown"}</p>
           {preview.exportedAt ? <p className="mt-1 text-xs font-semibold">Exported at {formatDate(preview.exportedAt)}</p> : null}
         </div>
@@ -22637,7 +22637,7 @@ function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPr
             {exported.map((item) => <Pill key={`preview-exported-${item.key}`} className="bg-white text-blue-800">{item.label}: {item.value}</Pill>)}
           </div>
         </div>
-      ) : <p className="rounded-lg bg-white p-3 text-sm font-black text-amber-800">Lovable returned no recognized marketing rows.</p>}
+      ) : <p className="rounded-lg bg-white p-3 text-sm font-black text-amber-800">Source returned no recognized marketing rows.</p>}
       {contentSourceCounts.length ? (
         <div>
           <p className="uppercase tracking-[0.12em] text-blue-800">Content source buckets</p>
@@ -22687,9 +22687,9 @@ function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPr
           </div>
         </div>
       ) : null}
-      <LovableDestinationMap summary={preview.summary} />
-      <MetadataPanel title="Recognized sample rows from Lovable" value={sampleRows} testId="marketing-export-preview-samples" />
-      <MetadataPanel title="Raw top-level Lovable array samples" value={rawArraySamples} testId="marketing-export-preview-raw-samples" />
+      <SourceDestinationMap summary={preview.summary} />
+      <MetadataPanel title="Recognized sample rows from Source" value={sampleRows} testId="marketing-export-preview-samples" />
+      <MetadataPanel title="Raw top-level Source array samples" value={rawArraySamples} testId="marketing-export-preview-raw-samples" />
     </div>
   );
 }
