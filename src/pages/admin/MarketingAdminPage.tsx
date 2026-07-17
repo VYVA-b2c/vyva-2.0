@@ -682,6 +682,7 @@ type CampaignReadinessItem = {
 type MarketingActionCenterItem = CampaignReadinessItem & {
   actionLabel: string;
   icon: LucideIcon;
+  disabled?: boolean;
   onSelect: () => void;
 };
 
@@ -17138,7 +17139,10 @@ export default function MarketingAdminPage() {
   )));
   const firstReadyEmailCampaign = readyEmailCampaigns[0];
   const firstManualHandoffCampaign = manualHandoffCampaigns[0];
-  const starterTemplate = contentTemplateGallery[0] ?? null;
+  const actionCenterTemplatePack = bestCampaignStudioTemplatePack
+    ?? contentTemplatePacksWithStats.find(({ templates }) => templates.length > 0)
+    ?? null;
+  const starterTemplate = actionCenterTemplatePack ? null : contentTemplateGallery[0] ?? null;
   const marketingActionCenterItems: MarketingActionCenterItem[] = [
     ...(!syncState.configured ? [{
       key: "sync-config",
@@ -17241,6 +17245,19 @@ export default function MarketingAdminPage() {
         startCampaignEdit(scheduledEmailCampaignWithoutRecipients);
         setActiveTab("dashboard");
         setMessage(`Opened "${scheduledEmailCampaignWithoutRecipients.name}" to snapshot recipients before sending.`);
+      },
+    }] : []),
+    ...(actionCenterTemplatePack ? [{
+      key: "template-launch-kit",
+      title: "Create a full launch kit",
+      detail: `Use "${actionCenterTemplatePack.pack.title}" to create ${actionCenterTemplatePack.templates.length} content asset${actionCenterTemplatePack.templates.length === 1 ? "" : "s"}, ${actionCenterTemplatePack.channels.length} channel route${actionCenterTemplatePack.channels.length === 1 ? "" : "s"}, recipient snapshots, and launch packet metadata in one pass.`,
+      state: actionCenterTemplatePack.state === "blocked" ? "needs_action" as CampaignReadinessState : actionCenterTemplatePack.state,
+      actionLabel: campaignSaving || contentSaving ? "Creating..." : "Create full launch kit",
+      icon: Zap,
+      disabled: campaignSaving || contentSaving,
+      onSelect: () => {
+        setActiveTab("dashboard");
+        void createCampaignPlanFromTemplatePack(actionCenterTemplatePack.pack, actionCenterTemplatePack.templates, actionCenterTemplatePack.heroTemplate);
       },
     }] : []),
     ...(firstManualHandoffCampaign ? [{
@@ -17823,7 +17840,8 @@ export default function MarketingAdminPage() {
                         key={item.key}
                         type="button"
                         onClick={item.onSelect}
-                        className="group min-h-[154px] rounded-2xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-left shadow-sm transition hover:border-purple-200 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                        disabled={item.disabled}
+                        className="group min-h-[154px] rounded-2xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-left shadow-sm transition hover:border-purple-200 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
                         data-testid={`button-marketing-action-${item.key}`}
                       >
                         <span className="flex items-start justify-between gap-3">

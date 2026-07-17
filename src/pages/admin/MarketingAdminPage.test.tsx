@@ -1308,6 +1308,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Fix campaign creative gap");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("LinkedIn content");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Create a full launch kit");
+    expect(screen.getByTestId("button-marketing-action-template-launch-kit")).toHaveTextContent("Create full launch kit");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Prepare manual channel handoff");
     expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-1")).toHaveTextContent("Review send");
     expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-2")).toHaveTextContent("Attach content");
