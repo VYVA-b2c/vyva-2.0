@@ -142,6 +142,10 @@ import {
   type ProviderRecheckContext,
   type ProviderShortlistState,
 } from "../../shared/providerComparison";
+import {
+  selectConciergeSavedProvider,
+  savedProviderIsTrusted,
+} from "../../shared/conciergeSavedProviders";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -258,6 +262,10 @@ type ConciergeProfileSummary = {
     preferredChannel?: string | null;
     preferred_channel?: string | null;
     address?: string | null;
+    websiteUrl?: string | null;
+    notes?: string | null;
+    isTrusted?: boolean | null;
+    isDefault?: boolean | null;
   }>;
   coverage?: CoverageReadinessSummary | null;
   serviceReadiness?: {
@@ -3454,13 +3462,7 @@ function appointmentConfirmationItems(params: {
 }
 
 function savedPharmacyProviderDetails(profile: ConciergeProfileSummary | null | undefined): SavedConciergeProvider | null {
-  return profile?.savedProviders?.find((provider) => {
-    const searchable = [provider.role, provider.category, provider.name]
-      .filter((value): value is string => typeof value === "string")
-      .join(" ")
-      .toLowerCase();
-    return /pharmacy|drugstore|chemist|farmacia/.test(searchable);
-  }) ?? null;
+  return selectConciergeSavedProvider(profile?.savedProviders, "pharmacy");
 }
 
 function savedPharmacyName(profile: ConciergeProfileSummary | null | undefined): string {
@@ -3474,13 +3476,7 @@ function profileHasSavedPharmacy(profile: ConciergeProfileSummary | null | undef
 }
 
 function savedMedicalProviderDetails(profile: ConciergeProfileSummary | null | undefined): SavedConciergeProvider | null {
-  return profile?.savedProviders?.find((provider) => {
-    const searchable = [provider.role, provider.category, provider.name]
-      .filter((value): value is string => typeof value === "string")
-      .join(" ")
-      .toLowerCase();
-    return /doctor|clinic|medical|gp|physio|physiotherapy|dentist|health|hospital/.test(searchable);
-  }) ?? null;
+  return selectConciergeSavedProvider(profile?.savedProviders, "doctor_clinic");
 }
 
 function savedMedicalProviderName(profile: ConciergeProfileSummary | null | undefined): string {
@@ -3494,13 +3490,7 @@ function profileHasSavedMedicalProvider(profile: ConciergeProfileSummary | null 
 }
 
 function savedTransportProviderDetails(profile: ConciergeProfileSummary | null | undefined): SavedConciergeProvider | null {
-  return profile?.savedProviders?.find((item) => {
-    const searchable = [item.role, item.category, item.name]
-      .filter((value): value is string => typeof value === "string")
-      .join(" ")
-      .toLowerCase();
-    return /transport|taxi|cab|ride|driver|chauffeur|car service|medical transport/.test(searchable);
-  }) ?? null;
+  return selectConciergeSavedProvider(profile?.savedProviders, "transport");
 }
 
 function savedTransportProviderName(profile: ConciergeProfileSummary | null | undefined): string {
@@ -3517,17 +3507,7 @@ function savedHomeServiceProviderDetails(
   profile: ConciergeProfileSummary | null | undefined,
   serviceType: HomeServiceType | null,
 ): SavedConciergeProvider | null {
-  const providers = profile?.savedProviders ?? [];
-  const searchText = (provider: SavedConciergeProvider) => (
-    [provider.role, provider.category, provider.name]
-      .filter((value): value is string => typeof value === "string")
-      .join(" ")
-      .toLowerCase()
-  );
-  const matchesTerms = (
-    provider: SavedConciergeProvider,
-    terms: string[],
-  ) => terms.some((term) => searchText(provider).includes(term.toLowerCase()));
+  const providers = (profile?.savedProviders ?? []).filter(savedProviderIsTrusted);
   const serviceTerms = serviceType
     ? HOME_SERVICE_TYPES.find((item) => item.key === serviceType)?.searchTerms ?? []
     : [];
@@ -3551,11 +3531,7 @@ function savedHomeServiceProviderDetails(
     "limpieza",
   ];
 
-  return (
-    (serviceTerms.length > 0 ? providers.find((provider) => matchesTerms(provider, serviceTerms)) : null)
-    ?? providers.find((provider) => matchesTerms(provider, generalTerms))
-    ?? null
-  );
+  return selectConciergeSavedProvider(providers, "home_service", serviceTerms.length > 0 ? serviceTerms : generalTerms);
 }
 
 function preferredToolForSavedProvider(
@@ -9239,7 +9215,7 @@ const ConciergeScreen = () => {
         returnTo: "/concierge",
         setupFocus: TRANSPORT_SETUP_FOCUS,
         setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
-        setupReason: "Add a saved transport provider",
+        setupReason: "Add or choose a saved transport provider",
         conciergeResume: {
           kind: "transport",
           message,
@@ -9250,7 +9226,7 @@ const ConciergeScreen = () => {
         },
         notice: isSpanish
           ? "Guarda un taxi o transporte preferido para usarlo primero."
-          : "Save a preferred taxi or transport provider to check first.",
+          : "Add or choose a preferred taxi or transport provider to check first.",
       },
     });
   }, [
@@ -9271,7 +9247,7 @@ const ConciergeScreen = () => {
         returnTo: "/concierge",
         setupFocus: MEDICAL_APPOINTMENT_SETUP_FOCUS,
         setupFlow: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
-        setupReason: "Add a saved doctor or clinic",
+        setupReason: "Add or choose a saved doctor or clinic",
         conciergeResume: {
           kind: "medical_appointment",
           appointmentType,
@@ -9279,7 +9255,7 @@ const ConciergeScreen = () => {
         },
         notice: isSpanish
           ? "Guarda un medico o clinica de confianza para usarlo primero."
-          : "Save a trusted doctor or clinic so VYVA can use it first.",
+          : "Add or choose a trusted doctor or clinic so VYVA can use it first.",
       },
     });
   }, [appointmentNote, appointmentRequest?.appointment_type, isSpanish, navigate, selectedAppointmentChip?.key]);
@@ -10611,15 +10587,15 @@ const ConciergeScreen = () => {
     : (isSpanish ? "Ej. dermatologia, martes por la manana, WhatsApp si se puede" : "E.g. dermatology, Tuesday morning, WhatsApp if possible");
   const noSavedProviderTitle = isHomeServiceAppointment
     ? (isSpanish ? "Sin opcion clara todavia" : "No clear option yet")
-    : (isSpanish ? "No hay proveedor guardado para esto." : "No saved provider for this yet.");
+    : (isSpanish ? "No hay proveedor de confianza elegido." : "No trusted provider selected.");
   const noSavedProviderBody = isHomeServiceAppointment
     ? (isSpanish
       ? "VYVA puede buscar opciones fiables cerca antes de contactar con nadie."
       : "VYVA can search trusted nearby options before anyone is contacted.")
     : isMedicalAppointmentWithoutProvider
       ? (isSpanish
-        ? "Guarda un medico o clinica de confianza para usarlo primero, o busca opciones para revisar."
-        : "Save a trusted doctor or clinic to use first, or look for options to review.")
+        ? "Anade o elige un medico o clinica de confianza, o busca opciones para revisar."
+        : "Add or choose a trusted doctor or clinic, or look for options to review.")
       : null;
   const appointmentDiscoverLabel = isHomeServiceAppointment
     ? (isSpanish ? "Buscar opciones fiables" : "Find trusted options")
@@ -12051,7 +12027,7 @@ const ConciergeScreen = () => {
           returnTo: "/concierge",
           setupFocus: TRANSPORT_SETUP_FOCUS,
           setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
-          setupReason: "Add a saved transport provider",
+          setupReason: "Add or choose a saved transport provider",
           conciergeResume: {
             kind: "transport",
             message,
@@ -12062,7 +12038,7 @@ const ConciergeScreen = () => {
           },
           notice: isSpanish
             ? "Guarda un taxi o transporte preferido. VYVA seguira pidiendo tu OK antes de reservar."
-            : "Save a preferred taxi or transport provider. VYVA will still ask for your OK before booking.",
+            : "Add or choose a preferred taxi or transport provider. VYVA will still ask for your OK before booking.",
         },
       });
       return;
@@ -12107,7 +12083,7 @@ const ConciergeScreen = () => {
           returnTo: "/concierge",
           setupFocus: isHomeService ? "home_service" : MEDICAL_APPOINTMENT_SETUP_FOCUS,
           setupFlow: isHomeService ? CONCIERGE_FLOW_REFERENCES.homeService : MEDICAL_APPOINTMENT_FLOW_REFERENCE,
-          setupReason: isHomeService ? "Add a saved home service provider" : "Add a saved doctor or clinic",
+          setupReason: isHomeService ? "Add or choose a saved home service provider" : "Add or choose a saved doctor or clinic",
           conciergeResume: isHomeService
             ? {
               kind: "home_service",
@@ -12125,10 +12101,10 @@ const ConciergeScreen = () => {
           notice: isHomeService
             ? (isSpanish
               ? "Guarda un proveedor de casa de confianza. VYVA pedira confirmacion antes de contactar."
-              : "Save a trusted home service provider. VYVA will ask before contacting.")
+              : "Add or choose a trusted home service provider. VYVA will ask before contacting.")
             : (isSpanish
               ? "Guarda un medico o clinica de confianza. VYVA pedira confirmacion antes de contactar."
-              : "Save a trusted doctor or clinic. VYVA will ask before contacting."),
+              : "Add or choose a trusted doctor or clinic. VYVA will ask before contacting."),
         },
       });
       return;
@@ -12139,14 +12115,14 @@ const ConciergeScreen = () => {
         returnTo: "/concierge",
         setupFocus: "other",
         setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
-        setupReason: "Add a trusted provider",
+        setupReason: "Add or choose a trusted provider",
         conciergeResume: {
           kind: "generic",
           message,
         },
         notice: isSpanish
           ? "Guarda el proveedor de confianza. VYVA seguira pidiendo tu OK antes de contactar."
-          : "Save the trusted provider. VYVA will still ask for your OK before contacting.",
+          : "Add or choose the trusted provider. VYVA will still ask for your OK before contacting.",
       },
     });
   }
@@ -13145,7 +13121,7 @@ const ConciergeScreen = () => {
         returnTo: "/concierge",
         setupFocus: providerSearchSetupFocus(providerSearchMode),
         setupFlow: providerSearchFlowReference(providerSearchMode),
-        setupReason: "Add a trusted provider",
+        setupReason: "Add or choose a trusted provider",
         conciergeResume: {
           kind: "provider_search",
           mode: providerSearchMode,
@@ -13154,7 +13130,7 @@ const ConciergeScreen = () => {
         },
         notice: isSpanish
           ? "Guarda un proveedor de confianza para que VYVA pueda usarlo primero."
-          : "Save a trusted provider so VYVA can use it first.",
+          : "Add or choose a trusted provider so VYVA can use it first.",
       },
     });
   }
@@ -14772,7 +14748,7 @@ const ConciergeScreen = () => {
                             ? (isSpanish ? `Primero: ${savedTransportProvider}.` : `Saved provider first: ${savedTransportProvider}.`)
                             : (isSpanish ? "Primero revisamos tu proveedor guardado." : "Saved provider is checked first.")
                         )
-                        : (isSpanish ? "Sin proveedor guardado. Guarda un transporte de confianza para activar reservas." : "No saved provider yet. Save a trusted transport provider to activate ride help.")}
+                        : (isSpanish ? "Sin proveedor de confianza elegido. Anade o elige uno para continuar." : "No trusted provider selected. Add or choose one to continue.")}
                     </p>
                   </div>
                   {!hasSavedTransportProvider ? (
@@ -14959,7 +14935,7 @@ const ConciergeScreen = () => {
                       ? <Loader2 size={18} className="animate-spin" />
                       : hasSavedTransportProvider ? <Search size={18} /> : <ShieldCheck size={18} />}
                     {!hasSavedTransportProvider
-                      ? (isSpanish ? "Anadir transporte" : "Add transport provider")
+                      ? (isSpanish ? "Anadir o elegir transporte" : "Add or choose transport")
                       : (isSpanish ? "Comparar viajes seguros" : "Compare safe rides")}
                   </button>
                   <button
@@ -16801,7 +16777,7 @@ const ConciergeScreen = () => {
                     className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} mt-2 border-[#FCD34D] text-[#92400E]`}
                   >
                     <ShieldCheck size={16} className="mr-2" />
-                    {isSpanish ? "Anadir medico o clinica" : "Add doctor or clinic"}
+                    {isSpanish ? "Anadir o elegir medico o clinica" : "Add or choose doctor or clinic"}
                   </button>
                 ) : null}
                 {appointmentNotice && appointmentOptions.length === 0 && (!isHomeServiceWithoutProvider || appointmentDiscovery) && (
@@ -17720,7 +17696,7 @@ const ConciergeScreen = () => {
                               data-testid="button-provider-search-setup"
                             >
                               <PencilLine size={15} className="mr-2" />
-                              {isSpanish ? "Guardar proveedor" : "Set up trusted provider"}
+                              {isSpanish ? "Anadir o elegir proveedor" : "Add or choose provider"}
                             </Button>
                           </div>
                         )}

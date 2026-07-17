@@ -33,6 +33,12 @@ interface ProfileData {
     category?: string | null;
     phone?: string | null;
     address?: string | null;
+    email?: string | null;
+    whatsapp?: string | null;
+    websiteUrl?: string | null;
+    notes?: string | null;
+    isTrusted?: boolean;
+    isDefault?: boolean;
   }>;
   serviceReadiness?: {
     hasSavedPharmacy?: boolean;

@@ -1366,6 +1366,8 @@ const sectionSchemas: Record<string, z.ZodTypeAny> = {
       online_order_url: z.string().optional(),
       menu_url:         z.string().optional(),
       notes:            z.string().optional(),
+      is_trusted:       z.boolean().optional(),
+      is_default:       z.boolean().optional(),
     })).optional(),
   }),
   emergency: z.object({
