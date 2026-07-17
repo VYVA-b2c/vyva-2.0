@@ -1382,6 +1382,26 @@ const pt = {
       },
       ridePrefill: "Ajude-me a encontrar opcoes de transporte seguro. Pergunte destino e horario, e nao reserve nada sem a minha confirmacao.",
     },
+    contextualFastHelp: {
+      reasons: {
+        healthAttention: "Um sinal de saude recente pode precisar de atencao",
+        checkinDue: "O seu check-in de hoje esta pendente",
+        preventionFocus: "Um passo de prevencao util para hoje",
+        careReady: "Os seus dados de cuidados guardados podem ajudar",
+        transportReady: "O seu transporte guardado esta pronto",
+        accessibleTransport: "Podemos incluir as suas necessidades de mobilidade",
+        coverageMissing: "A VYVA pode ajudar a organizar a cobertura",
+        morningStep: "Um passo simples para comecar o dia",
+        daytimePlan: "Util para os planos de hoje",
+        eveningSafety: "Aqui se algo o preocupar esta noite",
+        generalHealth: "Um ponto calmo para comecar",
+        simplePrevention: "Um passo simples de cada vez",
+        compareCare: "Compare apoio sem pressao",
+        prepareTransport: "Prepare a viagem antes de reservar",
+        organizePaperwork: "Prepare tudo antes de enviar",
+        safetyFallback: "Aqui sempre que algo parecer inseguro",
+      },
+    },
   },
   concierge: {
     fastHelp: {

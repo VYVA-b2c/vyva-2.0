@@ -14,6 +14,16 @@ import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
+import {
+  HOME_FAST_HELP_REASON_FALLBACKS,
+  homeFastHelpHistoryStorageKey,
+  rankContextualHomeFastHelp,
+  readHomeFastHelpHistory,
+  recordHomeFastHelpUse,
+  writeHomeFastHelpHistory,
+  type ContextualHomeFastHelpActionId,
+  type HomeFastHelpActivity,
+} from "@/lib/contextualHomeFastHelp";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import {
   isShowVyvaPreparedTask,
@@ -325,6 +335,42 @@ function conciergeCompletedHomeTaskKind(item: ConciergeCompletedHomeItem) {
   return conciergeTaskKind(item.use_case, item.outcome_payload);
 }
 
+function contextualFastHelpActionForConciergeKind(
+  kind: ReturnType<typeof conciergeTaskKind>,
+): ContextualHomeFastHelpActionId | null {
+  switch (kind) {
+    case "ride":
+      return "book-ride";
+    case "appointment":
+    case "homeService":
+    case "pharmacy":
+    case "provider":
+    case "providerShortlist":
+      return "find-care";
+    case "admin":
+      return "paperwork-help";
+    case "safety":
+      return "safe-home";
+    default:
+      return null;
+  }
+}
+
+function contextualFastHelpRemoteActivity(
+  completed: ConciergeCompletedHomeSignal | null | undefined,
+): HomeFastHelpActivity[] {
+  return completed?.items?.flatMap((item) => {
+    const actionId = contextualFastHelpActionForConciergeKind(conciergeCompletedHomeTaskKind(item));
+    const occurredAt = item.completed_at?.trim();
+    if (!actionId || !occurredAt || Number.isNaN(new Date(occurredAt).getTime())) return [];
+    const outcome = item.outcome?.toLowerCase() ?? "";
+    const status = outcome.includes("dismiss") || outcome.includes("cancel") || outcome.includes("declin")
+      ? "dismissed" as const
+      : "completed" as const;
+    return [{ actionId, status, occurredAt }];
+  }) ?? [];
+}
+
 function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
   switch (conciergeHomeTaskKind(item)) {
     case "ride":
@@ -595,11 +641,19 @@ const HomeScreen = () => {
   const { firstName: profileFirstName, profile } = useProfile();
   const [fastHelpStartIndex, setFastHelpStartIndex] = useState(0);
   const [conciergeClockMs, setConciergeClockMs] = useState(() => Date.now());
+  const homeFastHelpHistoryKey = homeFastHelpHistoryStorageKey(profile?.profileId);
+  const [homeFastHelpHistory, setHomeFastHelpHistory] = useState<HomeFastHelpActivity[]>(() => (
+    readHomeFastHelpHistory(homeFastHelpHistoryKey)
+  ));
 
   useEffect(() => {
     const timer = window.setInterval(() => setConciergeClockMs(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    setHomeFastHelpHistory(readHomeFastHelpHistory(homeFastHelpHistoryKey));
+  }, [homeFastHelpHistoryKey]);
 
   const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
@@ -747,6 +801,14 @@ const HomeScreen = () => {
 
   const handleNavigate = (path: string, options?: NavigateOptions) => {
     guardPath(path, options);
+  };
+
+  const rememberHomeFastHelpUse = (actionId: ContextualHomeFastHelpActionId) => {
+    setHomeFastHelpHistory((current) => {
+      const next = recordHomeFastHelpUse(current, actionId);
+      writeHomeFastHelpHistory(homeFastHelpHistoryKey, next);
+      return next;
+    });
   };
 
   const handleAgentCardOpen = (card: HomeAgentCard) => {
@@ -1052,9 +1114,46 @@ const HomeScreen = () => {
     onClick: () => handleNavigate("/concierge", { state: { focusRightNow: true, conciergePendingId: activeConciergeHomeTask.id } }),
     testId: "button-home-fast-concierge-status",
   } : null;
+  const activeContextualFastHelpActionId = activeConciergeHomeTask
+    ? contextualFastHelpActionForConciergeKind(conciergeHomeTaskKind(activeConciergeHomeTask))
+    : null;
+  const remoteFastHelpActivity = contextualFastHelpRemoteActivity(conciergeCompletedHomeSignal);
+  const contextualFastHelpRanking = rankContextualHomeFastHelp({
+    activeTaskActionId: activeContextualFastHelpActionId,
+    activity: [...homeFastHelpHistory, ...remoteFastHelpActivity],
+    hour: new Date(conciergeClockMs).getHours(),
+    nowMs: conciergeClockMs,
+    profile: profile?.serviceReadiness,
+    signals: {
+      alertSeverity: latestVitalsHomeSignal?.latest_alert?.severity,
+      checkinStatus: checkinHomeSignal?.status,
+      preventionFocus: preventionHomeSignal?.focus,
+      recommendedAction: latestVitalsHomeSignal?.analysis?.recommended_action,
+      safetyStatus: latestVitalsHomeSignal?.analysis?.safety_status,
+    },
+    visibleCount: activeConciergeFastHelpAction ? 2 : 3,
+  });
+  const homeMasterFastHelpActionById = new Map(
+    homeMasterFastHelpActions.map((action) => [action.id as ContextualHomeFastHelpActionId, action]),
+  );
+  const contextualHomeMasterFastHelpActions = contextualFastHelpRanking.flatMap((ranked) => {
+    const action = homeMasterFastHelpActionById.get(ranked.id);
+    if (!action) return [];
+    return [{
+      ...action,
+      detail: t(
+        `home.contextualFastHelp.reasons.${ranked.reason}`,
+        HOME_FAST_HELP_REASON_FALLBACKS[ranked.reason],
+      ),
+      onClick: () => {
+        rememberHomeFastHelpUse(ranked.id);
+        action.onClick();
+      },
+    }];
+  });
   const homeMasterFastHelpActionsWithStatus = activeConciergeFastHelpAction
-    ? [activeConciergeFastHelpAction, ...homeMasterFastHelpActions]
-    : homeMasterFastHelpActions;
+    ? [activeConciergeFastHelpAction, ...contextualHomeMasterFastHelpActions]
+    : contextualHomeMasterFastHelpActions;
   const conciergeRightNowNudge = activeConciergeHomeTask ? (
     <div
       data-testid="card-home-concierge-resume"

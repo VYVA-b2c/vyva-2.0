@@ -7,7 +7,17 @@ const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
 const queryMock = vi.fn();
 const voiceHeroMock = vi.hoisted(() => vi.fn());
-const profileMock = vi.hoisted(() => ({ firstName: "Karim", withGpContact: true }));
+const profileMock = vi.hoisted(() => ({
+  firstName: "Karim",
+  profileId: "profile-home",
+  serviceReadiness: {
+    hasSavedDoctor: undefined as boolean | undefined,
+    hasSavedTransportProvider: undefined as boolean | undefined,
+    hasMobilityInfo: undefined as boolean | undefined,
+    hasCoverageInfo: undefined as boolean | undefined,
+  },
+  withGpContact: true,
+}));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -22,11 +32,16 @@ vi.mock("@/contexts/ProfileContext", () => ({
     firstName: profileMock.firstName,
     profile: profileMock.withGpContact
       ? {
+          profileId: profileMock.profileId,
           gpName: "Dr Garcia",
           gpPhone: "+34 612 345 678",
           gpEmail: "gp@example.com",
+          serviceReadiness: profileMock.serviceReadiness,
         }
-      : {},
+      : {
+          profileId: profileMock.profileId,
+          serviceReadiness: profileMock.serviceReadiness,
+        },
   }),
 }));
 
@@ -211,6 +226,10 @@ describe("Home fast service actions", () => {
     voiceHeroMock.mockClear();
     profileMock.firstName = "Karim";
     profileMock.withGpContact = true;
+    profileMock.serviceReadiness.hasSavedDoctor = undefined;
+    profileMock.serviceReadiness.hasSavedTransportProvider = undefined;
+    profileMock.serviceReadiness.hasMobilityInfo = undefined;
+    profileMock.serviceReadiness.hasCoverageInfo = undefined;
     window.localStorage.clear();
     window.sessionStorage.clear();
     queryMock.mockImplementation((queryKey: unknown[]) => {
@@ -659,8 +678,13 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-concierge-follow-up")).toHaveTextContent("Follow up");
     expect(screen.getByTestId("button-home-concierge-got-reply")).toHaveTextContent("I got a reply");
     expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check ride status");
-    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
-    expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
+    const fastHelp = screen.getByTestId("home-fast-help");
+    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
+    expect(screen.queryByTestId("button-home-fast-book-ride")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("button-home-fast-feel-better")
+      || screen.queryByTestId("button-home-fast-safe-home"),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
@@ -699,7 +723,9 @@ describe("Home fast service actions", () => {
     expect(guardPathMock).not.toHaveBeenCalledWith("/chat", undefined);
   });
 
-  it("renders three visible rotating Fast help actions", () => {
+  it("renders three stable contextual Fast help actions", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     render(<HomeScreen />);
 
     const fastHelp = screen.getByTestId("home-fast-help");
@@ -708,9 +734,16 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
     expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
     expect(screen.getByTestId("button-home-fast-find-care")).toHaveTextContent("Find Care");
+
+    vi.advanceTimersByTime(20_000);
+
+    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
+    expect(screen.getByTestId("button-home-fast-find-care")).toBeInTheDocument();
   });
 
   it("opens Find Care as a structured Concierge provider search", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     render(<HomeScreen />);
 
     fireEvent.click(screen.getByTestId("button-home-fast-find-care"));
@@ -727,6 +760,53 @@ describe("Home fast service actions", () => {
         }),
       },
     });
+    expect(JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-history:v1:profile-home") ?? "[]",
+    )).toEqual(expect.arrayContaining([
+      expect.objectContaining({ actionId: "find-care", status: "used" }),
+    ]));
+  });
+
+  it("puts an urgent health signal first with a reassuring reason", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/vitals-engine/latest") {
+        return {
+          data: { analysis: { safety_status: "attention", recommended_action: "Seek care today" } },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const actions = within(screen.getByTestId("home-fast-help")).getAllByRole("button");
+    expect(actions[0]).toHaveAttribute("data-testid", "button-home-fast-feel-better");
+    expect(actions[0]).toHaveTextContent("A recent health signal may need attention");
+  });
+
+  it("uses saved transport readiness and avoids a recently used action", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    profileMock.serviceReadiness.hasSavedTransportProvider = true;
+    window.localStorage.setItem("vyva:home-fast-help-history:v1:profile-home", JSON.stringify([{
+      actionId: "feel-better",
+      status: "used",
+      occurredAt: "2026-07-17T13:30:00.000Z",
+    }]));
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("button-home-fast-book-ride")).toHaveTextContent("Your transport setup is ready");
+    expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-fast-safe-home")).toBeInTheDocument();
   });
 
   it("renders the session-aware main hero CTA", () => {
