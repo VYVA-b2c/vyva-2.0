@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomeScreen from "./HomeScreen";
@@ -828,22 +828,25 @@ describe("Home fast service actions", () => {
     expect(guardPathMock).not.toHaveBeenCalledWith("/chat", undefined);
   });
 
-  it("renders three stable contextual Fast help actions", () => {
+  it("renders three contextual Fast help actions that stay stable throughout the day", () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    vi.setSystemTime(new Date("2026-07-17T08:00:00.000Z"));
     render(<HomeScreen />);
 
     const fastHelp = screen.getByTestId("home-fast-help");
     expect(fastHelp).toHaveTextContent("Fast help");
-    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
+    const initialActions = within(fastHelp).getAllByRole("button").map((button) => button.dataset.testid);
+    expect(initialActions).toHaveLength(3);
     expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
     expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
     expect(screen.getByTestId("button-home-fast-find-care")).toHaveTextContent("Find Care");
 
-    vi.advanceTimersByTime(20_000);
+    act(() => {
+      vi.setSystemTime(new Date("2026-07-17T20:00:00.000Z"));
+      vi.advanceTimersByTime(60_000);
+    });
 
-    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-home-fast-find-care")).toBeInTheDocument();
+    expect(within(fastHelp).getAllByRole("button").map((button) => button.dataset.testid)).toEqual(initialActions);
   });
 
   it("opens Find Care as a structured Concierge provider search", () => {
