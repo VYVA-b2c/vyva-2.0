@@ -154,21 +154,20 @@ describe("ConciergeReadinessAdminPage", () => {
     const channelSection = screen.getByTestId("section-concierge-channel-readiness");
     expect(within(channelSection).getByRole("heading", { name: /channel readiness/i })).toBeInTheDocument();
     expect(screen.getAllByTestId(/row-concierge-channel-/)).toHaveLength(5);
-    expect(channelSection).toHaveTextContent("Setup");
-    expect(channelSection).toHaveTextContent("Verification");
-    expect(channelSection).toHaveTextContent("Next action");
-    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Missing setup");
-    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Probe not run");
-    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Test mode simulated");
+    expect(channelSection).toHaveTextContent("Status");
+    expect(channelSection).toHaveTextContent("Action");
+    expect(channelSection).toHaveTextContent("Advanced");
+    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Needs setup");
+    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Finish setup first");
     expect(within(screen.getByTestId("row-concierge-channel-phone-call")).getByLabelText("Phone calls live endpoint")).toBeDisabled();
-    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Probe passed");
-    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Email pilot: live-ready on");
-    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Live gate open");
+    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Ready for live use");
+    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("No action needed");
+    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Turn off live use");
     expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Admin console");
     expect(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Email live endpoint")).toHaveValue("https://adapter.example.test/email");
     expect(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Email credential reference")).toHaveValue("vault/vyva/email-adapter");
     expect(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Email QA target")).toHaveValue("concierge@example.test");
-    expect(screen.getByTestId("row-concierge-channel-whatsapp")).toHaveTextContent("Add setup details");
+    expect(screen.getByTestId("row-concierge-channel-whatsapp")).toHaveTextContent("Add setup in Advanced");
     expect(channelSection).not.toHaveTextContent("Cannot contact providers");
     expect(channelSection).not.toHaveTextContent("Test mode blocks live contact");
     expect(JSON.stringify(channelSection.textContent)).not.toContain("secret");
@@ -197,26 +196,25 @@ describe("ConciergeReadinessAdminPage", () => {
     renderPage();
 
     const phoneRow = screen.getByTestId("row-concierge-channel-phone-call");
-    expect(within(phoneRow).getByRole("button", { name: /run verification/i })).toBeDisabled();
-    expect(within(phoneRow).getByLabelText("Live-ready")).toBeDisabled();
+    expect(within(phoneRow).queryByRole("button", { name: /run verification/i })).not.toBeInTheDocument();
+    expect(within(phoneRow).queryByRole("button", { name: /turn on live use/i })).not.toBeInTheDocument();
+    expect(within(phoneRow).getByText("Live use unlocks after setup and verification.")).toBeInTheDocument();
 
     const formRow = screen.getByTestId("row-concierge-channel-form-application");
     expect(within(formRow).getByRole("button", { name: /run verification/i })).not.toBeDisabled();
-    expect(within(formRow).getByLabelText("Live-ready")).toBeDisabled();
-    expect(within(formRow).getByText("Probe not run")).toBeInTheDocument();
+    expect(within(formRow).queryByRole("button", { name: /turn on live use/i })).not.toBeInTheDocument();
+    expect(within(formRow).getByText("Live use unlocks after setup and verification.")).toBeInTheDocument();
 
     const emailRow = screen.getByTestId("row-concierge-channel-email");
-    expect(within(emailRow).getByText("Verified")).toBeInTheDocument();
-    expect(within(emailRow).getByLabelText("Live-ready")).toBeChecked();
-    expect(within(emailRow).getByLabelText("Live-ready")).not.toBeDisabled();
+    expect(within(emailRow).getByText("Ready for live use")).toBeInTheDocument();
+    expect(within(emailRow).getByRole("button", { name: /turn off live use/i })).not.toBeDisabled();
 
-    expect(screen.getByTestId("row-concierge-channel-document-upload")).toHaveTextContent("Ready to enable");
+    expect(screen.getByTestId("row-concierge-channel-document-upload")).toHaveTextContent("Checked, off");
+    expect(within(screen.getByTestId("row-concierge-channel-document-upload")).getByRole("button", { name: /turn on live use/i })).not.toBeDisabled();
   });
 
-  it("saves a ready channel through the admin channel-readiness API", async () => {
+  it("keeps live-ready changes behind a native confirmation form", () => {
     const initialEmail = channelRow({ channel: "email", configured: true, verified: true, adminEnabled: false });
-    const readyEmail = channelRow({ channel: "email", configured: true, verified: true, adminEnabled: true, notes: "QA inbox verified." });
-    apiFetchMock.mockResolvedValueOnce(jsonResponse({ channel: readyEmail }));
 
     renderPage(undefined, [
       initialEmail,
@@ -231,17 +229,9 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(liveForm).toHaveAttribute("action", "/api/admin/concierge/channel-readiness/email/live-ready/on");
     expect(within(liveForm).getByDisplayValue("email")).toHaveAttribute("name", "channel");
     expect(within(liveForm).getByDisplayValue("live-ready")).toHaveAttribute("name", "action");
-
-    fireEvent.click(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Live-ready"));
-
-    expect(apiFetchMock).toHaveBeenCalledWith(
-      "/api/admin/concierge/channel-readiness/email",
-      expect.objectContaining({ method: "PATCH" }),
-    );
-    const body = JSON.parse(String(apiFetchMock.mock.calls[0][1]?.body));
-    expect(body).toEqual({ admin_enabled: true });
-    expect(await screen.findByText("Email readiness updated.")).toBeInTheDocument();
-    expect(within(screen.getByTestId("row-concierge-channel-email")).getByText("Live gate open")).toBeInTheDocument();
+    expect(within(liveForm).getByRole("button", { name: /turn on live use/i })).not.toBeDisabled();
+    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Checked, off");
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("saves adapter setup references and keeps live disabled until the next probe passes", async () => {
@@ -279,7 +269,8 @@ describe("ConciergeReadinessAdminPage", () => {
     const row = screen.getByTestId("row-concierge-channel-whatsapp");
     expect(row).toHaveTextContent("Admin console");
     expect(row).toHaveTextContent("Not verified");
-    expect(within(row).getByLabelText("Live-ready")).toBeDisabled();
+    expect(row).toHaveTextContent("Live use unlocks after setup and verification.");
+    expect(within(row).queryByRole("button", { name: /turn on live use/i })).not.toBeInTheDocument();
   });
 
   it("posts channel verification through a native form and surfaces failed blockers", () => {
@@ -309,7 +300,8 @@ describe("ConciergeReadinessAdminPage", () => {
 
     expect(screen.getByTestId("row-concierge-channel-form-application")).toHaveTextContent("Probe failed");
     expect(screen.getByTestId("row-concierge-channel-form-application")).toHaveTextContent(blocker);
-    expect(within(screen.getByTestId("row-concierge-channel-form-application")).getByLabelText("Live-ready")).toBeDisabled();
+    expect(screen.getByTestId("row-concierge-channel-form-application")).toHaveTextContent("Live use unlocks after setup and verification.");
+    expect(within(screen.getByTestId("row-concierge-channel-form-application")).queryByRole("button", { name: /turn on live use/i })).not.toBeInTheDocument();
   });
 
   it("shows channel form redirect errors after a browser form post", () => {
