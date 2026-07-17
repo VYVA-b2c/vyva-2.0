@@ -17497,7 +17497,7 @@ export default function MarketingAdminPage() {
     setMessage("Filtered audience loaded into the list builder.");
   }
 
-  async function createAudienceFromCurrentFilters() {
+  async function createAudienceFromCurrentFilters(openInCampaignStudio = false) {
     if (visibleContacts.length === 0) {
       const feedback = "No visible contacts match the current filters.";
       setAudienceFeedback(feedback);
@@ -17525,15 +17525,21 @@ export default function MarketingAdminPage() {
         }),
       });
       setAudiences((current) => [result.audience, ...current.filter((audience) => audience.id !== result.audience.id)]);
-      setActiveTab("contacts");
-      setContactView("lists");
-      setEditingAudienceId(result.audience.id);
-      setAudienceEditDraft(audienceEditDraftFromAudience(result.audience));
-      setConfirmingAudienceDeleteId(null);
       setFilteredAudienceName("");
-      setAudienceFeedback(`Created filtered audience "${result.audience.name}" with ${filteredAudienceMemberIds.length} member${filteredAudienceMemberIds.length === 1 ? "" : "s"}.`);
-      setMessage(`Filtered audience created: ${result.audience.name}.`);
-      scrollToContentPanel(audienceEditorPanelRef);
+      if (openInCampaignStudio) {
+        const strategy = audienceStrategyBrief(result.audience, contacts);
+        loadAudienceStrategyInStudio(result.audience, strategy);
+        setAudienceFeedback(`Created filtered audience "${result.audience.name}" and loaded it into the campaign studio.`);
+      } else {
+        setActiveTab("contacts");
+        setContactView("lists");
+        setEditingAudienceId(result.audience.id);
+        setAudienceEditDraft(audienceEditDraftFromAudience(result.audience));
+        setConfirmingAudienceDeleteId(null);
+        setAudienceFeedback(`Created filtered audience "${result.audience.name}" with ${filteredAudienceMemberIds.length} member${filteredAudienceMemberIds.length === 1 ? "" : "s"}.`);
+        setMessage(`Filtered audience created: ${result.audience.name}.`);
+        scrollToContentPanel(audienceEditorPanelRef);
+      }
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Filtered audience could not be created.";
@@ -27034,7 +27040,7 @@ export default function MarketingAdminPage() {
                             data-testid="textarea-marketing-filtered-audience-rules"
                           />
                         </details>
-                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                        <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
                           <button
                             type="button"
                             onClick={() => void createAudienceFromCurrentFilters()}
@@ -27043,6 +27049,15 @@ export default function MarketingAdminPage() {
                             data-testid="button-marketing-save-filtered-audience"
                           >
                             <Save size={14} /> {audienceSaving ? "Saving..." : "Save audience"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void createAudienceFromCurrentFilters(true)}
+                            disabled={audienceSaving || visibleContacts.length === 0}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid="button-marketing-save-filtered-audience-build-campaign"
+                          >
+                            <Sparkles size={14} /> {audienceSaving ? "Saving..." : "Save + build"}
                           </button>
                           <button
                             type="button"

@@ -754,6 +754,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
   contacts?: unknown[];
   content?: unknown[];
   mediaAssets?: unknown[];
+  audiences?: unknown[];
   analytics?: typeof analytics;
 } = {}) {
   const syncResponse = { ...sync, ...syncOverride };
@@ -761,6 +762,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
   const contactsResponse = dataOverride.contacts ?? contacts;
   let contentResponse = dataOverride.content ?? content;
   const mediaAssetsResponse = dataOverride.mediaAssets ?? mediaAssets;
+  let audiencesResponse = dataOverride.audiences ?? audiences;
   const analyticsResponse = dataOverride.analytics ?? analytics;
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
@@ -773,7 +775,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
     if (path === "/api/admin/marketing/media" && method === "GET") return jsonResponse({ mediaAssets: mediaAssetsResponse });
     if (path === "/api/admin/marketing/analytics" && method === "GET") return jsonResponse(analyticsResponse);
     if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts: contactsResponse });
-    if (path === "/api/admin/marketing/audiences" && method === "GET") return jsonResponse({ audiences });
+    if (path === "/api/admin/marketing/audiences" && method === "GET") return jsonResponse({ audiences: audiencesResponse });
     if (path === "/api/admin/marketing/sync/source" && method === "GET") return jsonResponse(syncResponse);
     if (path === "/api/admin/marketing/sync/source/preview" && method === "GET") return jsonResponse(exportPreview);
     if (path === "/api/admin/marketing/sync/source/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
@@ -829,7 +831,11 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
     if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
     if (path === "/api/admin/marketing/contacts/contact-2" && method === "PATCH") return jsonResponse({ ok: true, contact: contactFromRequestBody("contact-2", init) });
     if (path === "/api/admin/marketing/contacts/contact-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContactId: "contact-2" });
-    if (path === "/api/admin/marketing/audiences" && method === "POST") return jsonResponse({ ok: true, audience: audienceFromRequestBody("audience-created", init) }, { status: 201 });
+    if (path === "/api/admin/marketing/audiences" && method === "POST") {
+      const createdAudience = audienceFromRequestBody("audience-created", init);
+      audiencesResponse = [createdAudience, ...audiencesResponse.filter((item) => (item as { id?: string }).id !== createdAudience.id)];
+      return jsonResponse({ ok: true, audience: createdAudience }, { status: 201 });
+    }
     if (path === "/api/admin/marketing/audiences/audience-1" && method === "PATCH") return jsonResponse({ ok: true, audience: audienceFromRequestBody("audience-1", init) });
     if (path === "/api/admin/marketing/audiences/audience-1" && method === "DELETE") return jsonResponse({ ok: true, deletedAudienceId: "audience-1" });
     return jsonResponse({ error: `Unexpected request: ${method} ${path}` }, { status: 500 });
@@ -3756,6 +3762,28 @@ describe("MarketingAdminPage", () => {
     });
     expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-audience-editor-feedback")).toHaveTextContent('Created filtered audience "Spain partner segment"');
+  });
+
+  it("turns the current contact filters into a campaign studio audience", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.change(screen.getByTestId("select-marketing-contact-market-filter"), { target: { value: "spain" } });
+    fireEvent.change(screen.getByTestId("input-marketing-filtered-audience-name"), { target: { value: "Spain partner segment" } });
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-filtered-audience-build-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences", expect.objectContaining({ method: "POST" }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Audience loaded: Spain partner segment.');
+    });
+
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-created");
+    expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain("VYVA audience strategy brief: Spain partner segment");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-created");
   });
 
   it("edits and deletes imported marketing contacts", async () => {
