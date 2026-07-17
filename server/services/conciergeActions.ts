@@ -26,6 +26,10 @@ import {
   loadConciergeActionAdapterRuntimeConfig,
 } from "./conciergeChannelReadiness.js";
 import {
+  activeConciergeReconfirmationRequestFromPayload,
+  resolveConciergeReconfirmationRequestInPayload,
+} from "../../shared/conciergeReconfirmation.js";
+import {
   executeConciergeActionAdapter,
   type ConciergeActionAdapterMode,
   type ConciergeActionAdapterResult,
@@ -192,6 +196,28 @@ function adapterResultFromPayload(payload: Record<string, unknown> | null | unde
   const result = payload?.execution_adapter;
   if (!result || typeof result !== "object" || Array.isArray(result)) return null;
   return (result as ConciergeActionAdapterResult).version === 1 ? result as ConciergeActionAdapterResult : null;
+}
+
+const USER_RECONFIRMATION_CONFIRMATION_SOURCES = new Set([
+  "agent_confirmed",
+  "auto_start",
+  "confirm_endpoint",
+  "user_controlled_execution",
+  "user_confirmed",
+]);
+
+function shouldResolveReconfirmationRequest(options: { userConfirmed?: boolean; confirmationSource?: string }): boolean {
+  return Boolean(
+    options.userConfirmed === true
+      && options.confirmationSource
+      && USER_RECONFIRMATION_CONFIRMATION_SOURCES.has(options.confirmationSource),
+  );
+}
+
+function reconfirmationApprovalReason(pending: PendingRow): string | undefined {
+  return activeConciergeReconfirmationRequestFromPayload(pending.action_payload ?? {})
+    ? "updated_details_approved"
+    : undefined;
 }
 
 function withServerConciergeExecutionTask(
@@ -418,7 +444,7 @@ async function updatePendingStatus(
   const payloadWithAdapter = options.adapterResult
     ? { ...(pending.action_payload ?? {}), execution_adapter: options.adapterResult }
     : pending.action_payload ?? {};
-  const basePayload = options.auditEvent
+  const auditedPayload = options.auditEvent
     ? appendConciergeExecutionAudit(payloadWithAdapter, {
         event: options.auditEvent,
         at: now,
@@ -439,6 +465,30 @@ async function updatePendingStatus(
         missing_requirements: options.auditPlan?.missing_requirements,
       })
     : payloadWithAdapter;
+  const resolvedReconfirmation = shouldResolveReconfirmationRequest(options)
+    ? resolveConciergeReconfirmationRequestInPayload(auditedPayload, {
+        resolvedAt: now,
+        resolvedSource: options.confirmationSource,
+      })
+    : { payload: auditedPayload, request: null };
+  const basePayload = resolvedReconfirmation.request
+    ? appendConciergeExecutionAudit(resolvedReconfirmation.payload, {
+        event: "user_reconfirmed",
+        at: now,
+        source: options.confirmationSource ?? "concierge_actions_service",
+        pending_status: status,
+        lifecycle_status: options.lifecycleStatus,
+        mode: options.auditMode,
+        requested_tool: options.auditPlan?.requested_tool,
+        active_tool: options.auditPlan?.active_tool,
+        action_type: options.auditPlan?.action_type,
+        user_confirmed: true,
+        external_action_allowed: false,
+        execution_mode: "manual_review",
+        channel_readiness: options.channelReadiness ?? options.auditPlan?.channel_readiness,
+        reason: "updated_details_approved",
+      })
+    : resolvedReconfirmation.payload;
   const actionPayload = withServerConciergeExecutionTask({
     useCase: pending.use_case,
     payload: basePayload,
@@ -798,6 +848,8 @@ async function queueConfirmedConciergeAction(
       ? "Dry-run confirmed. VYVA recorded the simulated adapter handoff without contacting anyone."
       : (adapterResult?.status === "sent"
         ? adapterResult.result
+        : reason === "updated_details_approved"
+          ? "Updated Concierge action approved and ready for VYVA retry."
         : reason
         ? `Concierge action confirmed and queued for VYVA review (${reason}).`
         : plan.message),
@@ -875,11 +927,27 @@ async function confirmLoadedPendingConciergeAction(
   confirmationSource = "confirm_endpoint",
 ): Promise<TriggerResult> {
   const plan = await planForPendingConciergeAction(pending);
+  const reconfirmationReason = reconfirmationApprovalReason(pending);
 
   if (plan.mode === "needs_info") {
     await markPendingNeedsInfo(pending, confirmationSource, plan);
     const labels = missingLabels(plan);
     throw new Error(labels ? `Complete before confirming: ${labels}.` : plan.message);
+  }
+
+  if (reconfirmationReason) {
+    const queuedPlan = plan.mode === "direct_phone_call"
+      ? {
+          ...plan,
+          mode: "operator_queue" as const,
+          pending_status: "pending" as const,
+          lifecycle_status: "confirmed" as const,
+          external_action_allowed: false,
+          execution_mode: "manual_review" as const,
+          message: "Updated Concierge action approved and ready for VYVA retry.",
+        }
+      : plan;
+    return queueConfirmedConciergeAction(pending, profile, confirmationSource, queuedPlan, reconfirmationReason);
   }
 
   if (plan.mode === "direct_phone_call") {
@@ -935,6 +1003,7 @@ export async function confirmPendingConciergeActionReview(
   }
 
   const plan = await planForPendingConciergeAction(pending);
+  const reconfirmationReason = reconfirmationApprovalReason(pending);
 
   if (plan.mode === "needs_info") {
     await markPendingNeedsInfo(pending, confirmationSource, plan);
@@ -942,16 +1011,27 @@ export async function confirmPendingConciergeActionReview(
     throw new Error(labels ? `Complete before confirming: ${labels}.` : plan.message);
   }
 
-  if (!plan.dry_run && plan.channel_readiness.channel && !plan.channel_readiness.external_action_allowed) {
+  if (!reconfirmationReason && !plan.dry_run && plan.channel_readiness.channel && !plan.channel_readiness.external_action_allowed) {
     await markPendingChannelBlocked(pending, confirmationSource, plan);
     throw new Error(channelNotReadyMessage(plan));
   }
 
   const profile = await loadProfile(userId);
-  return queueConfirmedConciergeAction(pending, profile, confirmationSource, {
-    ...plan,
-    mode: "user_controlled_handoff",
-  });
+  const queuedPlan = reconfirmationReason && plan.mode === "direct_phone_call"
+    ? {
+        ...plan,
+        mode: "user_controlled_handoff" as const,
+        pending_status: "pending" as const,
+        lifecycle_status: "confirmed" as const,
+        external_action_allowed: false,
+        execution_mode: "manual_review" as const,
+        message: "Updated Concierge action approved and ready for VYVA retry.",
+      }
+    : {
+        ...plan,
+        mode: "user_controlled_handoff" as const,
+      };
+  return queueConfirmedConciergeAction(pending, profile, confirmationSource, queuedPlan, reconfirmationReason);
 }
 
 export async function cancelPendingConciergeAction(pendingId: string, userId: string): Promise<void> {

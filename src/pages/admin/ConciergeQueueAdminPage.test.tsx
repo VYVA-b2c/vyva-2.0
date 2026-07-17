@@ -451,6 +451,20 @@ describe("ConciergeQueueAdminPage", () => {
     expect(dialog).toHaveTextContent("Changed since approval: summary, payload.");
     expect(dialog).toHaveTextContent("Retry blocked: user reconfirmation required");
     expect(within(dialog).getByRole("button", { name: "Retry live action" })).toBeDisabled();
+
+    fireEvent.change(within(dialog).getByLabelText("Operator note"), {
+      target: { value: "Please approve the updated paperwork." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Request user reconfirmation" }));
+
+    expect(await screen.findByText("User reconfirmation requested.")).toBeInTheDocument();
+    const requestCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/concierge/queue/pending-stale-approval"
+      && init?.method === "PATCH"
+      && String(init.body).includes('"action":"request_reconfirmation"')
+    ));
+    expect(requestCall).toBeTruthy();
+    expect(String(requestCall?.[1]?.body)).toContain("Please approve the updated paperwork.");
   });
 
   it("queues manual follow-up for a failed live adapter task", async () => {

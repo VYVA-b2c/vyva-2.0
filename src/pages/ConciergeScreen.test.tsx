@@ -5822,6 +5822,97 @@ describe("ConciergeScreen route prefill", () => {
     expect(openMock).not.toHaveBeenCalled();
   });
 
+  it("shows updated reconfirmation details before approving a stale live action again", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "email-reconfirm-1",
+            use_case: "send_message",
+            provider_name: "Clinic desk",
+            provider_phone: null,
+            action_summary: "Email updated clinic paperwork.",
+            action_payload: {
+              execution_channel: "email",
+              provider_email: "clinic@example.com",
+              email_subject: "Updated paperwork",
+              email_body: "Hello, please confirm the updated appointment paperwork.",
+              reconfirmation_request: {
+                version: 1,
+                status: "needed",
+                requested_at: "2026-07-01T10:30:00.000Z",
+                requested_by: "admin-1",
+                changed_fields: ["payload"],
+                payload_preview: {
+                  version: 1,
+                  adapter: "concierge_email_adapter",
+                  channel: "email",
+                  tool: "email",
+                  provider_name: "Clinic desk",
+                  provider_contact: "clinic@example.com",
+                  summary: "Email updated clinic paperwork.",
+                  pending_id: "email-reconfirm-1",
+                  user_id: "user-1",
+                  valid: true,
+                  missing_fields: [],
+                  blockers: [],
+                  outbound_payload: {
+                    provider_name: "Clinic desk",
+                    provider_contact: "clinic@example.com",
+                    summary: "Email updated clinic paperwork.",
+                    action_payload: {
+                      email_body: "Hello, please confirm the updated appointment paperwork.",
+                    },
+                  },
+                },
+              },
+              execution_task: liveReadyExecutionTask("email", {
+                lifecycle_status: "ready",
+                user_confirmed: false,
+                external_action_allowed: false,
+                execution_mode: "manual_review",
+                confirmation_source: "operator_reconfirmation_request",
+                confirmed_at: "2026-07-01T10:00:00.000Z",
+                failure_reason: "user_reconfirmation_required",
+              }),
+            },
+            status: "pending",
+            language: "en",
+            confirmed_at: "2026-07-01T10:00:00.000Z",
+          }],
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/email-reconfirm-1/review-confirm")) {
+        return jsonResponse({
+          pendingId: "email-reconfirm-1",
+          status: "pending",
+          message: "Updated Concierge action approved and ready for VYVA retry.",
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({ items: [] });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-concierge-reconfirmation-request");
+    expect(panel).toHaveTextContent("Updated approval");
+    expect(panel).toHaveTextContent("Changed since your last OK: action details");
+    expect(panel).toHaveTextContent("Clinic desk");
+    expect(panel).toHaveTextContent("clinic@example.com");
+    expect(panel).toHaveTextContent("Email updated clinic paperwork.");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Review the updated details");
+
+    fireEvent.click(screen.getByTestId("button-concierge-confirm-email-reconfirm-1"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/email-reconfirm-1/review-confirm", { method: "POST" });
+    });
+  });
+
   it("labels dry-run tasks, blocks browser opens, and saves simulated completion history", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
     let completed = false;

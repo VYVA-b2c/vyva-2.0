@@ -295,6 +295,128 @@ describe("admin Concierge queue adapter recovery", () => {
     expect(actionsMock.startPendingConciergeAction).not.toHaveBeenCalled();
   });
 
+  it("records a user reconfirmation request with changed fields and the current payload preview", async () => {
+    const row = cloneFailedPendingRow();
+    row.action_summary = "Email updated clinic paperwork";
+    (row.action_payload as Record<string, unknown>).document_type = "appointment form";
+
+    dbMock.pool.query
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await request(buildApp())
+      .patch(`/api/admin/concierge/queue/${failedPendingRow.id}`)
+      .send({ action: "request_reconfirmation", outcome_note: "Updated document type" })
+      .expect(200);
+
+    const updateCall = dbMock.pool.query.mock.calls.find(([sql]) => String(sql).includes("update concierge_pending"));
+    expect(updateCall).toBeTruthy();
+    const payload = JSON.parse(updateCall?.[1]?.[1] as string) as Record<string, unknown>;
+    expect(payload.reconfirmation_request).toMatchObject({
+      version: 1,
+      status: "needed",
+      requested_by: "admin-1",
+      requested_by_email: "admin@example.com",
+      changed_fields: ["summary", "payload"],
+      reason: "Updated document type",
+      payload_preview: expect.objectContaining({
+        summary: "Email updated clinic paperwork",
+        provider_name: "City Clinic",
+        provider_contact: "frontdesk@example.com",
+        outbound_payload: expect.objectContaining({
+          summary: "Email updated clinic paperwork",
+          action_payload: expect.objectContaining({
+            document_type: "appointment form",
+          }),
+        }),
+      }),
+    });
+    expect(payload.execution_task).toMatchObject({
+      lifecycle_status: "ready",
+      user_confirmed: false,
+      confirmation_source: "operator_reconfirmation_request",
+      failure_reason: "user_reconfirmation_required",
+    });
+    expect(payload.execution_audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: "user_reconfirmation_requested",
+        source: "operator_queue",
+        reason: "Updated document type",
+        user_confirmed: false,
+      }),
+    ]));
+    expect(actionsMock.startPendingConciergeAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps retry blocked while the reconfirmation request is waiting for user approval", async () => {
+    const row = cloneFailedPendingRow();
+    row.status = "pending";
+    const actionPayload = row.action_payload as Record<string, unknown>;
+    actionPayload.reconfirmation_request = {
+      version: 1,
+      status: "needed",
+      requested_at: "2026-07-01T10:30:00.000Z",
+      requested_by: "admin-1",
+      changed_fields: ["summary", "payload"],
+      payload_preview: null,
+    };
+    (actionPayload.execution_task as Record<string, unknown>).user_confirmed = false;
+    (actionPayload.execution_task as Record<string, unknown>).lifecycle_status = "ready";
+
+    dbMock.pool.query.mockResolvedValueOnce({ rows: [row] });
+
+    const response = await request(buildApp())
+      .patch(`/api/admin/concierge/queue/${failedPendingRow.id}`)
+      .send({ action: "retry_adapter", outcome_note: "try before approval" })
+      .expect(409);
+
+    expect(response.body.error).toContain("User confirmation is required");
+    expect(actionsMock.startPendingConciergeAction).not.toHaveBeenCalled();
+  });
+
+  it("allows retry after user reconfirmation refreshes approval and readiness still passes", async () => {
+    const row = cloneFailedPendingRow();
+    row.action_summary = "Email updated clinic paperwork";
+    const actionPayload = row.action_payload as Record<string, unknown>;
+    actionPayload.document_type = "appointment form";
+    actionPayload.reconfirmation_request = {
+      version: 1,
+      status: "resolved",
+      requested_at: "2026-07-01T10:30:00.000Z",
+      requested_by: "admin-1",
+      changed_fields: ["summary", "payload"],
+      payload_preview: null,
+      resolved_at: "2026-07-01T10:35:00.000Z",
+      resolved_source: "confirm_endpoint",
+    };
+    const task = actionPayload.execution_task as Record<string, unknown>;
+    task.user_confirmed = true;
+    task.lifecycle_status = "confirmed";
+    task.confirmed_at = "2026-07-01T10:35:00.000Z";
+    task.approval_fingerprint = buildConciergeAdapterApprovalFingerprint({
+      tool: "email",
+      payload: actionPayload,
+      providerName: row.provider_name,
+      summary: row.action_summary,
+      approvedAt: "2026-07-01T10:35:00.000Z",
+    });
+
+    dbMock.pool.query
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await request(buildApp())
+      .patch(`/api/admin/concierge/queue/${failedPendingRow.id}`)
+      .send({ action: "retry_adapter", outcome_note: "approved again" })
+      .expect(200);
+
+    expect(actionsMock.startPendingConciergeAction).toHaveBeenCalledWith(
+      failedPendingRow.id,
+      "user-1",
+      "operator_adapter_retry",
+    );
+  });
+
   it("lists missing payload contract fields before retry", async () => {
     const row = cloneFailedPendingRow();
     const actionPayload = row.action_payload as Record<string, unknown>;

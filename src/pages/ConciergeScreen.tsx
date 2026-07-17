@@ -124,6 +124,10 @@ import {
   type ConciergeGuidedDetailQuestion,
 } from "../../shared/conciergeGuidedDetails";
 import {
+  activeConciergeReconfirmationRequestFromPayload,
+  type ConciergeReconfirmationRequest,
+} from "../../shared/conciergeReconfirmation";
+import {
   buildProviderComparisonOptions,
   buildProviderContactPayload,
   buildProviderShortlistPayload,
@@ -4567,12 +4571,22 @@ type PendingActionReviewDetail = {
   isMissing?: boolean;
 };
 
+type PendingActionReconfirmationSummary = {
+  changedFields: string;
+  providerName: string;
+  providerContact: string;
+  summary: string;
+  outboundPayload: unknown;
+  requestedAt: string;
+};
+
 type PendingActionReviewSummary = {
   title: string;
   eyebrow: string;
   summary: string;
   details: PendingActionReviewDetail[];
   missingDetails: string[];
+  reconfirmation?: PendingActionReconfirmationSummary | null;
 };
 
 type ActiveTaskChecklistItemState = "done" | "active" | "needed" | "waiting" | "warning";
@@ -4928,6 +4942,38 @@ function addReviewDetail(
   }
 }
 
+function reconfirmationFieldLabels(fields: string[], isSpanish: boolean): string {
+  const labels: Record<string, { en: string; es: string }> = {
+    approval: { en: "approval record", es: "registro de aprobacion" },
+    channel: { en: "contact route", es: "ruta de contacto" },
+    provider_name: { en: "provider", es: "proveedor" },
+    provider_contact: { en: "provider contact", es: "contacto del proveedor" },
+    summary: { en: "summary", es: "resumen" },
+    payload: { en: "action details", es: "detalles de la gestion" },
+  };
+  const values = fields.length > 0 ? fields : ["approval"];
+  return values.map((field) => {
+    const label = labels[field];
+    return label ? (isSpanish ? label.es : label.en) : humanizeValue(field);
+  }).join(", ");
+}
+
+function buildPendingActionReconfirmationSummary(
+  request: ConciergeReconfirmationRequest | null,
+  isSpanish: boolean,
+): PendingActionReconfirmationSummary | null {
+  if (!request) return null;
+  const preview = request.payload_preview;
+  return {
+    changedFields: reconfirmationFieldLabels(request.changed_fields, isSpanish),
+    providerName: preview?.provider_name || (isSpanish ? "Sin proveedor guardado" : "No provider saved"),
+    providerContact: preview?.provider_contact || (isSpanish ? "Sin contacto guardado" : "No contact saved"),
+    summary: preview?.summary || (isSpanish ? "Sin resumen guardado" : "No summary saved"),
+    outboundPayload: preview?.outbound_payload ?? {},
+    requestedAt: request.requested_at,
+  };
+}
+
 function buildPendingActionReviewSummary(params: {
   item: ConciergePendingItem;
   isSpanish: boolean;
@@ -4939,6 +4985,10 @@ function buildPendingActionReviewSummary(params: {
   const details: PendingActionReviewDetail[] = [];
   const missingDetails: string[] = [];
   const missing = isSpanish ? "Falta confirmar" : "Needs confirmation";
+  const reconfirmation = buildPendingActionReconfirmationSummary(
+    activeConciergeReconfirmationRequestFromPayload(payload),
+    isSpanish,
+  );
 
   addReviewDetail(
     details,
@@ -5082,11 +5132,20 @@ function buildPendingActionReviewSummary(params: {
   }
 
   return {
-    eyebrow: isSpanish ? "Tu OK primero" : "Your OK first",
-    title: isSpanish ? "Listo para revisar" : "Ready to review",
-    summary: nextStepHelper,
+    eyebrow: reconfirmation
+      ? (isSpanish ? "Confirma de nuevo" : "Fresh OK needed")
+      : (isSpanish ? "Tu OK primero" : "Your OK first"),
+    title: reconfirmation
+      ? (isSpanish ? "Revisa los datos actualizados" : "Review the updated details")
+      : (isSpanish ? "Listo para revisar" : "Ready to review"),
+    summary: reconfirmation
+      ? (isSpanish
+          ? "VYVA actualizo esta gestion. Nada se enviara, llamara ni reservara hasta que confirmes otra vez."
+          : "VYVA updated this action. Nothing will be sent, called, or booked until you approve it again.")
+      : nextStepHelper,
     details: details.slice(0, 8),
     missingDetails,
+    reconfirmation,
   };
 }
 
@@ -5704,6 +5763,55 @@ function PendingActionReviewCard({
           {isSpanish ? "Completa antes de confirmar: " : "Complete before confirming: "}
           {review.missingDetails.join(", ")}
         </p>
+      ) : null}
+
+      {review.reconfirmation ? (
+        <div
+          className="mt-3 rounded-[16px] border border-[#FBBF24] bg-[#FFFBEB] px-3 py-3"
+          data-testid="panel-concierge-reconfirmation-request"
+        >
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#92400E]">
+            {isSpanish ? "Aprobacion actualizada" : "Updated approval"}
+          </p>
+          <p className="mt-1 font-body text-[13px] font-black leading-snug text-[#78350F]">
+            {isSpanish ? "Cambio desde tu ultimo OK: " : "Changed since your last OK: "}
+            {review.reconfirmation.changedFields}
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="rounded-[13px] bg-white px-3 py-2">
+              <p className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#92400E]">
+                {isSpanish ? "Proveedor" : "Provider"}
+              </p>
+              <p className="mt-1 font-body text-[12px] font-black leading-snug text-vyva-text-1">
+                {review.reconfirmation.providerName}
+              </p>
+            </div>
+            <div className="rounded-[13px] bg-white px-3 py-2">
+              <p className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#92400E]">
+                {isSpanish ? "Contacto" : "Contact"}
+              </p>
+              <p className="mt-1 font-body text-[12px] font-black leading-snug text-vyva-text-1">
+                {review.reconfirmation.providerContact}
+              </p>
+            </div>
+            <div className="rounded-[13px] bg-white px-3 py-2">
+              <p className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#92400E]">
+                {isSpanish ? "Resumen" : "Summary"}
+              </p>
+              <p className="mt-1 font-body text-[12px] font-black leading-snug text-vyva-text-1">
+                {review.reconfirmation.summary}
+              </p>
+            </div>
+          </div>
+          <details className="mt-3">
+            <summary className="cursor-pointer font-body text-[12px] font-black text-[#92400E]">
+              {isSpanish ? "Ver datos preparados" : "Show prepared payload"}
+            </summary>
+            <pre className="mt-2 max-h-44 overflow-auto rounded-[13px] bg-[#2F2135] p-3 text-left font-mono text-[11px] leading-relaxed text-white">
+              {JSON.stringify(review.reconfirmation.outboundPayload ?? {}, null, 2)}
+            </pre>
+          </details>
+        </div>
       ) : null}
 
       <ConciergeApprovalPromise isSpanish={isSpanish} />
@@ -7415,6 +7523,7 @@ function conciergeOperatorAssigned(item: ConciergePendingItem): boolean {
 }
 
 function conciergeActionAlreadyConfirmed(item: ConciergePendingItem): boolean {
+  if (activeConciergeReconfirmationRequestFromPayload(item.action_payload)) return false;
   const task = getConciergeExecutionTask(item);
   return Boolean(
     task?.user_confirmed

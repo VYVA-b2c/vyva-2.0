@@ -3,6 +3,7 @@ import type {
   ConciergeAdapterApprovalComparison,
   ConciergeAdapterPayloadPreview,
 } from "./conciergeAdapterPayloadContract";
+import type { ConciergeReconfirmationRequest } from "./conciergeReconfirmation";
 
 export const OPERATOR_CONCIERGE_ADAPTER_STATUSES = [
   "blocked",
@@ -31,6 +32,7 @@ export const OPERATOR_CONCIERGE_QUEUE_ACTIONS = [
   "failed",
   "retry_adapter",
   "manual_follow_up",
+  "request_reconfirmation",
 ] as const;
 
 export type OperatorConciergeQueueAction = typeof OPERATOR_CONCIERGE_QUEUE_ACTIONS[number];
@@ -102,6 +104,7 @@ export type OperatorConciergeQueueItem = {
   adapter_incident?: OperatorConciergeAdapterIncident | null;
   adapter_payload_preview?: ConciergeAdapterPayloadPreview | null;
   adapter_approval?: ConciergeAdapterApprovalComparison | null;
+  reconfirmation_request?: ConciergeReconfirmationRequest | null;
 };
 
 export type OperatorConciergeQueueTotals = Record<OperatorConciergeQueueStatus, number>;

@@ -15,6 +15,10 @@ import {
   type OperatorConciergeQueueItem,
   type OperatorConciergeQueueStatus,
 } from "../../shared/conciergeOperatorQueue.js";
+import {
+  conciergeReconfirmationRequestFromPayload,
+  type ConciergeReconfirmationRequest,
+} from "../../shared/conciergeReconfirmation.js";
 import type { ConciergeChannelReadinessResult } from "../../shared/conciergeChannelReadiness.js";
 import {
   buildConciergeAdapterPayloadPreview,
@@ -28,7 +32,7 @@ import { startPendingConciergeAction } from "../services/conciergeActions.js";
 const router = Router();
 
 const updateSchema = z.object({
-  action: z.enum(["assign", "in_progress", "done", "failed", "retry_adapter", "manual_follow_up"]),
+  action: z.enum(["assign", "in_progress", "done", "failed", "retry_adapter", "manual_follow_up", "request_reconfirmation"]),
   outcome_note: z.string().trim().max(1000).optional().nullable(),
 });
 
@@ -268,6 +272,7 @@ function pendingItem(row: PendingQueueRow): OperatorConciergeQueueItem | null {
     adapter_incident: adapterIncident,
     adapter_payload_preview: adapterPayloadPreview,
     adapter_approval: adapterApproval,
+    reconfirmation_request: conciergeReconfirmationRequestFromPayload(payload),
   };
 }
 
@@ -321,6 +326,18 @@ async function pendingItemWithAdapterPolicy(
         retry_allowed: false,
         retry_blocker: incident.live ? "adapter_status_not_retryable" : "not_a_live_adapter_attempt",
         manual_follow_up_allowed: false,
+      },
+    };
+  }
+
+  if (item.reconfirmation_request?.status === "needed") {
+    return {
+      ...item,
+      adapter_incident: {
+        ...incident,
+        retry_allowed: false,
+        retry_blocker: "user_reconfirmation_required",
+        manual_follow_up_allowed: true,
       },
     };
   }
@@ -683,6 +700,78 @@ async function retryPendingAdapter(row: PendingQueueRow, note: string | null, re
   }
 }
 
+async function requestUserReconfirmation(row: PendingQueueRow, note: string | null, req: Request): Promise<void> {
+  const { payload, task, adapterResult } = recoveryContext(row);
+  const approvalComparison = adapterApprovalComparisonForRow(row, payload);
+  if (!approvalComparison?.requires_reconfirmation) {
+    throw new QueueActionError("This Concierge action still matches the user's saved approval.");
+  }
+
+  const preview = adapterPayloadPreviewForRow(row, payload);
+  const now = new Date().toISOString();
+  const operator = operatorIdentity(req);
+  const changedFields = approvalComparison.changed_fields.length > 0
+    ? approvalComparison.changed_fields
+    : ["approval"];
+  const requestState: ConciergeReconfirmationRequest = {
+    version: 1,
+    status: "needed",
+    requested_at: now,
+    requested_by: operator.id,
+    requested_by_email: operator.email,
+    changed_fields: changedFields,
+    payload_preview: preview,
+    reason: note || approvalComparison.reason || "approved_payload_changed",
+  };
+  const lifecycleStatus = task.missing_requirements.length > 0 ? "needs_info" : "ready";
+
+  const nextPayload = withConciergeExecutionTask({
+    useCase: row.use_case,
+    payload: appendConciergeExecutionAudit({
+      ...buildRecoveryAuditBase(row, req, note, now),
+      reconfirmation_request: requestState,
+    }, {
+      event: "user_reconfirmation_requested",
+      at: now,
+      source: "operator_queue",
+      pending_status: "pending",
+      lifecycle_status: lifecycleStatus,
+      mode: "operator_queue",
+      requested_tool: task.requested_tool,
+      active_tool: task.active_tool,
+      action_type: task.action_type,
+      user_confirmed: false,
+      external_action_allowed: false,
+      execution_mode: "manual_review",
+      channel_readiness: task.channel_readiness,
+      adapter_result: adapterResult ?? undefined,
+      reason: requestState.reason ?? undefined,
+    }),
+    providerName: row.provider_name,
+    providerPhone: row.provider_phone,
+    summary: row.action_summary,
+    pendingStatus: "pending",
+    lifecycleStatus,
+    userConfirmed: false,
+    confirmationSource: "operator_reconfirmation_request",
+    channelReadiness: task.channel_readiness,
+    externalActionAllowed: false,
+    executionMode: "manual_review",
+    failureReason: "user_reconfirmation_required",
+    outcome: note || row.action_summary || "user reconfirmation requested",
+    now,
+  });
+
+  await pool.query(
+    `
+      update concierge_pending
+      set status = 'pending', action_payload = $2::jsonb, updated_at = now()
+      where id = $1::uuid
+    `,
+    [row.id, JSON.stringify(nextPayload)],
+  );
+}
+
 async function queueManualFollowUp(row: PendingQueueRow, note: string | null, req: Request): Promise<void> {
   const { task, adapterResult } = recoveryContext(row);
   const now = new Date().toISOString();
@@ -789,6 +878,7 @@ function sessionItem(row: SessionQueueRow): OperatorConciergeQueueItem | null {
     adapter_incident: adapterIncident,
     adapter_payload_preview: adapterPayloadPreview,
     adapter_approval: adapterApproval,
+    reconfirmation_request: conciergeReconfirmationRequestFromPayload(objectPayload(payloadWithTask)),
   };
 }
 
@@ -928,6 +1018,8 @@ router.patch("/:id", async (req: Request, res: Response) => {
       return res.json({ ok: true, retry: retryResult });
     } else if (parsed.data.action === "manual_follow_up") {
       await queueManualFollowUp(row, note, req);
+    } else if (parsed.data.action === "request_reconfirmation") {
+      await requestUserReconfirmation(row, note, req);
     }
 
     return res.json({ ok: true });
