@@ -12358,7 +12358,7 @@ export default function MarketingAdminPage() {
       detail: bestCampaignStudioTemplatePack
         ? `${bestCampaignStudioTemplatePack.templates.length} templates cover ${formatChannelList(bestCampaignStudioTemplatePack.channels)} for this campaign route.`
         : "No full pack is selected yet. Review template matches or improve drafts with AI.",
-      actionLabel: bestCampaignStudioTemplatePack ? "Load pack" : "Review templates",
+      actionLabel: bestCampaignStudioTemplatePack ? "Customize kit" : "Review templates",
       icon: FileText,
       onSelect: () => {
         if (bestCampaignStudioTemplatePack) {
@@ -12373,12 +12373,12 @@ export default function MarketingAdminPage() {
     {
       key: "plan",
       title: "Campaign plan",
-      value: bestCampaignStudioTemplatePack ? "One-click pack plan" : "Studio campaign record",
+      value: bestCampaignStudioTemplatePack ? "Full launch kit" : "Studio campaign record",
       state: campaignStudioCreateDisabled ? "blocked" : bestCampaignStudioTemplatePack ? "ready" : "planning",
       detail: bestCampaignStudioTemplatePack
         ? `Create a linked campaign plan with ${bestCampaignStudioTemplatePack.templates.length} content assets, ${bestCampaignStudioTemplatePack.channels.length} channel route${bestCampaignStudioTemplatePack.channels.length === 1 ? "" : "s"}, and saved launch packet metadata.`
         : "Create from the current studio draft, or load a template pack first for a richer launch plan.",
-      actionLabel: bestCampaignStudioTemplatePack ? "Create pack plan" : "Create from studio",
+      actionLabel: bestCampaignStudioTemplatePack ? "Create full launch kit" : "Create from studio",
       icon: CalendarDays,
       disabled: bestCampaignStudioTemplatePack ? campaignSaving || contentSaving : campaignStudioCreateDisabled,
       onSelect: () => {
@@ -17421,7 +17421,7 @@ export default function MarketingAdminPage() {
       actionLabel: "Load in studio",
       icon: Sparkles,
       onSelect: () => applyCampaignStudioPlayRecommendation(recommendation),
-      secondaryActionLabel: packMatch ? "Create pack" : "No pack yet",
+      secondaryActionLabel: packMatch ? "Create full launch kit" : "No pack yet",
       secondaryDisabled: !packMatch || contentSaving || campaignSaving,
       onSecondarySelect: packMatch
         ? () => void createCampaignPlanFromTemplatePack(packMatch.pack, packMatch.templates, packMatch.heroTemplate)
@@ -17824,7 +17824,7 @@ export default function MarketingAdminPage() {
                               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-60"
                               data-testid={`button-marketing-cockpit-create-${recommendation.play.id}`}
                             >
-                              <Plus size={14} aria-hidden="true" /> Create pack
+                              <Plus size={14} aria-hidden="true" /> Create full launch kit
                             </button>
                           </div>
                         </article>
@@ -18464,7 +18464,7 @@ export default function MarketingAdminPage() {
                                 className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800"
                                 data-testid={`button-marketing-campaign-studio-template-pack-${pack.id}`}
                               >
-                                <Sparkles size={14} /> Load pack
+                                <Sparkles size={14} /> Customize kit
                               </button>
                             </div>
                           </article>

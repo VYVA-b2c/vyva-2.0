@@ -1286,7 +1286,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("AI ranked");
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("Event reminder");
     expect(screen.getByTestId("button-marketing-opportunity-play-event-reminder")).toHaveTextContent("Load in studio");
-    expect(screen.getByTestId("button-marketing-opportunity-create-play-event-reminder")).toHaveTextContent("Create pack");
+    expect(screen.getByTestId("button-marketing-opportunity-create-play-event-reminder")).toHaveTextContent("Create full launch kit");
     fireEvent.click(screen.getByTestId("button-marketing-opportunity-play-event-reminder"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Playbook loaded: Event reminder");
 
@@ -1397,7 +1397,7 @@ describe("MarketingAdminPage", () => {
     await screen.findByTestId("marketing-dashboard-tab");
 
     const radarCreateButton = screen.getByTestId("button-marketing-opportunity-create-play-event-reminder");
-    expect(radarCreateButton).toHaveTextContent("Create pack");
+    expect(radarCreateButton).toHaveTextContent("Create full launch kit");
     expect(radarCreateButton).not.toBeDisabled();
 
     fireEvent.click(radarCreateButton);
@@ -3815,8 +3815,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-channels")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-templates")).toHaveTextContent("Template pack");
     expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-templates")).toHaveTextContent("templates cover");
-    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-templates")).toHaveTextContent("Load pack");
-    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-plan")).toHaveTextContent("Create pack plan");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-templates")).toHaveTextContent("Customize kit");
+    expect(screen.getByTestId("button-marketing-campaign-studio-launch-path-plan")).toHaveTextContent("Create full launch kit");
     expect(screen.getByTestId("button-marketing-campaign-studio-command-primary")).toHaveTextContent("Improve with AI");
     expect(screen.getByTestId("button-marketing-campaign-studio-command-secondary")).toHaveTextContent("Create now");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-command-copy-packet"));
