@@ -6462,6 +6462,27 @@ function campaignChannelsPayload(draft: CampaignEditDraft) {
   }));
 }
 
+function campaignDuplicateName(name: string) {
+  const trimmed = name.trim() || "Untitled campaign";
+  return /^copy of /i.test(trimmed) ? `${trimmed} copy` : `Copy of ${trimmed}`;
+}
+
+function campaignDuplicateMetadata(campaign: Campaign) {
+  const metadata = { ...recordValue(campaign.metadata) };
+  delete metadata.manualPublishResults;
+  delete metadata.lastManualPublishResult;
+  return {
+    ...metadata,
+    duplicatedFrom: {
+      campaignId: campaign.id,
+      name: campaign.name,
+      source: campaign.source,
+      lovableExternalId: campaign.lovableExternalId ?? null,
+      duplicatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function campaignChannelsMatch(draft: CampaignEditDraft, campaign: Campaign) {
   const drafted = campaignChannelsPayload(draft);
   if (drafted.length !== campaign.channels.length) return false;
@@ -13748,6 +13769,51 @@ export default function MarketingAdminPage() {
       await refreshAll();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Campaign could not be saved.");
+    } finally {
+      setCampaignSaving(false);
+    }
+  }
+
+  async function duplicateCampaignAsDraft(campaign: Campaign) {
+    setCampaignSaving(true);
+    setConfirmingCampaignDeleteId(null);
+    setConfirmingCampaignSendId(null);
+    setTestEmailFeedback("");
+    setCampaignEmailFeedback("");
+    setManualPublishDraft(emptyManualPublishTrackerDraft());
+    setManualPublishFeedback("");
+    setMessage(`Duplicating "${campaign.name}" as a draft...`);
+    try {
+      const result = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
+        method: "POST",
+        body: JSON.stringify({
+          name: campaignDuplicateName(campaign.name),
+          audienceType: campaign.audienceType,
+          status: "draft",
+          objective: campaign.objective,
+          scheduleStartsAt: null,
+          scheduleEndsAt: null,
+          timezone: campaign.timezone || "Europe/Madrid",
+          source: "vyva_duplicate",
+          lovableExternalId: null,
+          metadata: campaignDuplicateMetadata(campaign),
+          channels: (campaign.channels.length ? campaign.channels : [{ channel: "email", contentAssetId: null }]).map((channel) => ({
+            channel: channel.channel,
+            contentAssetId: channel.contentAssetId ?? null,
+            status: "draft",
+            scheduledAt: null,
+            metadata: {
+              duplicatedFromChannelId: "id" in channel ? channel.id : null,
+            },
+          })),
+        }),
+      });
+      setCampaigns((current) => [result.campaign, ...current.filter((item) => item.id !== result.campaign.id)]);
+      setEditingCampaignId(result.campaign.id);
+      setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
+      setMessage(`Duplicated "${campaign.name}" as a clean draft. Add a fresh schedule or recipient snapshot when ready.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Campaign could not be duplicated.");
     } finally {
       setCampaignSaving(false);
     }
@@ -21133,6 +21199,7 @@ export default function MarketingAdminPage() {
                     audiences={audiences}
                     activeCampaignId={editingCampaignId}
                     onEdit={openCampaignForNextAction}
+                    onDuplicate={(campaign) => duplicateCampaignAsDraft(campaign).catch((error) => setMessage(error.message))}
                     onDelete={(campaign) => deleteCampaign(campaign).catch((error) => setMessage(error.message))}
                     onPreviewContent={previewContent}
                     onEditContent={startContentEdit}
@@ -21157,7 +21224,18 @@ export default function MarketingAdminPage() {
                             <h3 className="mt-1 text-lg font-black text-[#241133]">{editingCampaign.name}</h3>
                             <p className="mt-1 text-sm font-bold text-[#7d6b65]">{editingCampaign.objective || "No objective yet."}</p>
                           </div>
-                          <Pill className={statusClass(editingCampaign.status)}>{editingCampaign.status}</Pill>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => duplicateCampaignAsDraft(editingCampaign).catch((error) => setMessage(error.message))}
+                              disabled={campaignSaving}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                              data-testid="button-marketing-duplicate-selected-campaign"
+                            >
+                              <Copy size={14} /> Duplicate draft
+                            </button>
+                            <Pill className={statusClass(editingCampaign.status)}>{editingCampaign.status}</Pill>
+                          </div>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-[#7d6b65]">
                           <div className="rounded-lg bg-white p-2">
@@ -26258,6 +26336,7 @@ function CampaignTable({
   audiences = [],
   activeCampaignId,
   onEdit,
+  onDuplicate,
   onDelete,
   onPreviewContent,
   onEditContent,
@@ -26271,13 +26350,14 @@ function CampaignTable({
   audiences?: MarketingAudience[];
   activeCampaignId?: string | null;
   onEdit?: (campaign: Campaign) => void;
+  onDuplicate?: (campaign: Campaign) => void;
   onDelete?: (campaign: Campaign) => void;
   onPreviewContent?: (contentAsset: ContentAsset) => void;
   onEditContent?: (contentAsset: ContentAsset) => void;
   actionsDisabled?: boolean;
   confirmingDeleteId?: string | null;
 }) {
-  const showActions = Boolean(onEdit || onDelete);
+  const showActions = Boolean(onEdit || onDuplicate || onDelete);
   return (
     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
       <table className="w-full border-collapse text-left text-sm">
@@ -26417,6 +26497,11 @@ function CampaignTable({
                     {onEdit ? (
                       <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
                         <Pencil size={14} /> Edit
+                      </button>
+                    ) : null}
+                    {onDuplicate ? (
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDuplicate(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-duplicate-campaign-${campaign.id}`}>
+                        <Copy size={14} /> Duplicate
                       </button>
                     ) : null}
                     {onDelete ? (

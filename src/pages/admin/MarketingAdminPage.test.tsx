@@ -4711,6 +4711,59 @@ describe("MarketingAdminPage", () => {
     expect(objective.value).toContain("Channels: Email, WhatsApp, and LinkedIn.");
   });
 
+  it("duplicates an existing campaign as a clean editable draft", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+    fireEvent.click(screen.getByTestId("button-marketing-duplicate-selected-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns" && init?.method === "POST");
+    const postBody = JSON.parse(String(postCall?.[1]?.body));
+
+    expect(postBody).toMatchObject({
+      name: "Copy of Caregiver welcome",
+      audienceType: "b2c",
+      status: "draft",
+      objective: "Invite caregivers",
+      scheduleStartsAt: null,
+      scheduleEndsAt: null,
+      timezone: "Europe/Madrid",
+      source: "vyva_duplicate",
+      lovableExternalId: null,
+    });
+    expect(postBody).not.toHaveProperty("recipients");
+    expect(postBody.channels).toEqual([
+      expect.objectContaining({ channel: "email", contentAssetId: "content-1", status: "draft", scheduledAt: null }),
+      expect.objectContaining({ channel: "linkedin", contentAssetId: "content-2", status: "draft", scheduledAt: null }),
+    ]);
+    expect(postBody.metadata).toMatchObject({
+      extraCampaignField: "from-lovable",
+      lovable: { originalStatus: "queued" },
+      targetAudience: { lovableExternalId: "lovable-audience-1" },
+      duplicatedFrom: {
+        campaignId: "campaign-1",
+        name: "Caregiver welcome",
+        source: "lovable",
+        lovableExternalId: "lovable-campaign-1",
+      },
+    });
+    expect(postBody.metadata.duplicatedFrom.duplicatedAt).toEqual(expect.any(String));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Copy of Caregiver welcome");
+    });
+    expect(screen.getByTestId("select-marketing-edit-campaign-status")).toHaveValue("draft");
+    expect(screen.getByTestId("input-marketing-edit-campaign-schedule")).toHaveValue("");
+    expect(screen.getByTestId("input-marketing-edit-campaign-schedule-end")).toHaveValue("");
+    expect(screen.getByTestId("input-marketing-edit-campaign-source")).toHaveValue("vyva_duplicate");
+    expect(screen.getByTestId("input-marketing-edit-campaign-lovable-id")).toHaveValue("");
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("0");
+  });
+
   it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
