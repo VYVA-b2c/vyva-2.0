@@ -3724,10 +3724,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Sendable email campaign");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Local / offline event");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-mode-local-offline"));
-    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Local / offline event.");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Local / offline event with Local event operations template pack.");
     expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("event");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-recommendations")).toHaveTextContent("Local event operations");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-playbook-event-reminder"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Playbook loaded: Event reminder");
     expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");

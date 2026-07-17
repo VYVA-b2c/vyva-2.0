@@ -523,6 +523,7 @@ type CampaignLaunchMode = {
   creates: string;
   nextStep: string;
   quickStartId: string;
+  templatePackId: string;
   channels: Channel[];
 };
 
@@ -1994,6 +1995,7 @@ const campaignLaunchModes: CampaignLaunchMode[] = [
     creates: "Email content, VYVA campaign route, and recipient snapshots.",
     nextStep: "Review the email draft, send a test, then publish from campaign detail.",
     quickStartId: "caregiver-onboarding",
+    templatePackId: "family-onboarding",
     channels: ["email", "whatsapp"],
   },
   {
@@ -2004,6 +2006,7 @@ const campaignLaunchModes: CampaignLaunchMode[] = [
     creates: "Social copy, visual prompt, channel handoff, and optional email follow-up.",
     nextStep: "Polish with AI, copy the visual kit, then publish or track manually.",
     quickStartId: "monthly-care-digest",
+    templatePackId: "monthly-care-digest",
     channels: ["instagram", "facebook", "linkedin", "tiktok", "email"],
   },
   {
@@ -2014,6 +2017,7 @@ const campaignLaunchModes: CampaignLaunchMode[] = [
     creates: "Event route, print/phone handoff, RSVP prompt, and follow-up task.",
     nextStep: "Confirm venue details, copy the offline kit, then track attendance and replies.",
     quickStartId: "local-event-operations",
+    templatePackId: "local-event-operations",
     channels: ["event", "print", "sms", "whatsapp", "facebook"],
   },
   {
@@ -2024,6 +2028,7 @@ const campaignLaunchModes: CampaignLaunchMode[] = [
     creates: "Email/LinkedIn route, follow-up angle, contact sample, and reply path.",
     nextStep: "Review the best contact sample, improve with AI, then create the plan.",
     quickStartId: "partner-webinar",
+    templatePackId: "partner-growth",
     channels: ["email", "linkedin", "whatsapp"],
   },
 ];
@@ -12783,13 +12788,38 @@ export default function MarketingAdminPage() {
       setMessage(`Launch mode unavailable: ${mode.title}.`);
       return;
     }
+    const packMatch = contentTemplatePacksWithStats.find(({ pack }) => pack.id === mode.templatePackId) ?? null;
     const primaryChannel = mode.channels[0] ?? quickStart.channels[0] ?? "email";
+    const selectedChannels = uniqueChannels([
+      primaryChannel,
+      ...mode.channels,
+      ...(packMatch?.channels ?? []),
+    ]);
     applyCampaignIntentBriefText(quickStart.brief, "quick_start", {
       channel: primaryChannel,
-      selectedChannels: mode.channels.length ? mode.channels : quickStart.channels,
+      selectedChannels: selectedChannels.length ? selectedChannels : quickStart.channels,
+      toneId: packMatch?.pack.toneId,
+      angleId: packMatch?.pack.angleId,
     });
-    setCampaignStudioFeedback(`Launch mode loaded: ${mode.title}. ${mode.nextStep}`);
-    setMessage(`${mode.title} mode is ready. ${mode.creates}`);
+    if (packMatch) {
+      setContentTemplatePackFilter(packMatch.pack.id);
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+      if (packMatch.heroTemplate) {
+        setContentDraft(contentDraftFromTemplate(packMatch.heroTemplate));
+        setSelectedContentId(null);
+        setEditingContentId(null);
+        setContentEditDraft(null);
+        setContentDrawerMode(null);
+      }
+      setContentActionFeedback(`Loaded ${packMatch.pack.title} pack from ${mode.title} mode.`);
+      setContentFeedback(packMatch.heroTemplate ? `Starter template applied: ${packMatch.heroTemplate.title}.` : `Template pack loaded: ${packMatch.pack.title}.`);
+    }
+    const packText = packMatch ? ` with ${packMatch.pack.title} template pack` : "";
+    setCampaignStudioFeedback(`Launch mode loaded: ${mode.title}${packText}. ${mode.nextStep}`);
+    setMessage(`${mode.title} mode is ready. ${mode.creates}${packMatch ? ` Template pack: ${packMatch.pack.title}.` : ""}`);
   }
 
   function applyCampaignGoalPreset(preset: CampaignGoalPreset) {
