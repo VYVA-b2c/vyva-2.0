@@ -49,11 +49,18 @@ npm run concierge:email-pilot:check
 ```
 
 This validates adapter setup, the reserved QA probe, payload readiness, dry-run simulation, and the confirmation gate. It does not send email.
+Add `-- --evidence=artifacts/concierge-email-pilot-check.json` when you want a local JSON evidence file.
 
 To send the one controlled pilot email from the command line, set the confirmation phrase and pass `--send`:
 
 ```sh
 CONCIERGE_EMAIL_PILOT_SEND_CONFIRMATION=SEND_CONTROLLED_EMAIL_PILOT npm run concierge:email-pilot:check -- --send
+```
+
+For the final pilot run, include an evidence path:
+
+```sh
+CONCIERGE_EMAIL_PILOT_SEND_CONFIRMATION=SEND_CONTROLLED_EMAIL_PILOT npm run concierge:email-pilot:check -- --send --evidence=artifacts/concierge-email-pilot-live.json
 ```
 
 Only use `--send` after the selected recipient is the team-owned pilot inbox and the user has confirmed the exact provider, inbox, subject, body, and shared details.

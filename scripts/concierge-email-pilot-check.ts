@@ -1,5 +1,7 @@
 import "dotenv/config";
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import {
   evaluateConciergeChannelReadiness,
   type ConciergeChannelReadinessResult,
@@ -43,6 +45,14 @@ function line(label: string, value: string | boolean): void {
   console.log(`${label}: ${value}`);
 }
 
+function writeEvidence(path: string | null, evidence: Record<string, unknown>): void {
+  if (!path) return;
+  const outputPath = resolve(path);
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(evidence, null, 2)}\n`);
+  console.log(`evidence file: ${outputPath}`);
+}
+
 function readinessForProbe(configured: boolean, probePassed: boolean): ConciergeChannelReadinessResult {
   return evaluateConciergeChannelReadiness({
     tool: "email",
@@ -59,6 +69,7 @@ function readinessForProbe(configured: boolean, probePassed: boolean): Concierge
 
 async function main() {
   const shouldSend = flag("--send");
+  const evidencePath = argValue("--evidence");
   const pilotRecipients = conciergeEmailPilotRecipients();
   const recipient = argValue("--recipient") ?? pilotRecipients[0] ?? "";
   const subject = argValue("--subject") ?? "VYVA Concierge controlled email pilot";
@@ -89,6 +100,38 @@ async function main() {
     userId: "pilot-user",
     summary,
   });
+  const evidence: Record<string, unknown> = {
+    version: 1,
+    checked_at: new Date().toISOString(),
+    mode: shouldSend ? "send_requested" : "safe_check",
+    selected_recipient: mask(recipient),
+    owned_adapter_enabled: isOwnedConciergeEmailAdapterEnabled(),
+    configured,
+    resend_key_present: envPresent("RESEND_API_KEY"),
+    sender: mask(process.env.RESEND_FROM_EMAIL ?? process.env.NOTIFY_FROM_EMAIL ?? null),
+    pilot_recipient_count: pilotRecipients.length,
+    qa_probe: {
+      status: probe.status,
+      blocker: probe.blocker,
+    },
+    readiness: {
+      status: readiness.status,
+      external_action_allowed: readiness.external_action_allowed,
+      blockers: readiness.blockers,
+    },
+    payload: {
+      valid: preview.valid,
+      blockers: preview.blockers,
+    },
+    history_verification: {
+      required_after_live_send: true,
+      expected_completed_receipt_mode: "Live action",
+    },
+    rollback: {
+      required_after_live_send: true,
+      method: "Turn Email Live-ready off in /admin/concierge-readiness.",
+    },
+  };
 
   console.log("Concierge controlled email pilot check");
   line("owned adapter enabled", isOwnedConciergeEmailAdapterEnabled());
@@ -125,6 +168,11 @@ async function main() {
     }),
   });
   line("dry-run result", dryRun.status);
+  evidence.dry_run = {
+    status: dryRun.status,
+    result: dryRun.result,
+    external_action_allowed: dryRun.external_action_allowed,
+  };
   if (dryRun.status !== "simulated") blockers.push("Dry-run adapter result was not simulated.");
 
   const unconfirmed = await executeConciergeActionAdapter({
@@ -140,11 +188,18 @@ async function main() {
     channelReadiness: readiness,
   });
   line("unconfirmed live attempt", `${unconfirmed.status}${unconfirmed.blocker ? ` (${unconfirmed.blocker})` : ""}`);
+  evidence.unconfirmed_live_attempt = {
+    status: unconfirmed.status,
+    blocker: unconfirmed.blocker ?? null,
+    external_action_allowed: unconfirmed.external_action_allowed,
+  };
   if (unconfirmed.status !== "blocked" || unconfirmed.blocker !== "user_confirmation_required") {
     blockers.push("Unconfirmed live attempt was not blocked before send.");
   }
 
   if (blockers.length) {
+    evidence.blockers = blockers;
+    writeEvidence(evidencePath, evidence);
     console.error("\nPilot check blockers:");
     blockers.forEach((blocker) => console.error(`- ${blocker}`));
     process.exitCode = 1;
@@ -152,12 +207,17 @@ async function main() {
   }
 
   if (!shouldSend) {
+    evidence.safe_check_passed = true;
+    evidence.email_sent = false;
+    writeEvidence(evidencePath, evidence);
     console.log("\nSafe check passed. No email was sent.");
     console.log(`To send the controlled pilot email, rerun with --send and set CONCIERGE_EMAIL_PILOT_SEND_CONFIRMATION=${SEND_CONFIRMATION}.`);
     return;
   }
 
   if (process.env.CONCIERGE_EMAIL_PILOT_SEND_CONFIRMATION !== SEND_CONFIRMATION) {
+    evidence.blockers = [`Missing ${SEND_CONFIRMATION} send confirmation phrase.`];
+    writeEvidence(evidencePath, evidence);
     console.error(`\nRefusing to send. Set CONCIERGE_EMAIL_PILOT_SEND_CONFIRMATION=${SEND_CONFIRMATION} and rerun with --send.`);
     process.exitCode = 1;
     return;
@@ -178,6 +238,17 @@ async function main() {
 
   line("send result", result.status);
   line("provider result id", result.result_id ?? "none");
+  evidence.email_sent = result.status === "sent";
+  evidence.send_result = {
+    status: result.status,
+    result: result.result,
+    result_id: result.result_id ?? null,
+    provider_contact: mask(result.provider_contact),
+    external_action_allowed: result.external_action_allowed,
+    error: result.error ?? null,
+    blocker: result.blocker ?? null,
+  };
+  writeEvidence(evidencePath, evidence);
   if (result.status !== "sent") {
     console.error(result.error ?? result.blocker ?? "Controlled pilot send did not complete.");
     process.exitCode = 1;
