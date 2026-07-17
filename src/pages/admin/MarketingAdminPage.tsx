@@ -6870,6 +6870,24 @@ function audiencePayloadFromDraft(draft: AudienceEditDraft) {
   };
 }
 
+function audienceDuplicateName(name: string) {
+  const trimmed = name.trim() || "Untitled list";
+  return /^copy of /i.test(trimmed) ? `${trimmed} copy` : `Copy of ${trimmed}`;
+}
+
+function audienceDuplicateMetadata(audience: MarketingAudience) {
+  return {
+    ...recordValue(audience.metadata),
+    duplicatedFrom: {
+      audienceId: audience.id,
+      name: audience.name,
+      source: audience.source,
+      lovableExternalId: audience.lovableExternalId ?? null,
+      duplicatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function journeyPayloadFromDraft(draft: JourneyEditDraft, targetAudience: MarketingAudience | null = null) {
   const triggerConfig = stripJourneyAudienceSelection(parseJsonText(draft.triggerConfigText, "Trigger config"));
   const targetAudienceSnapshot = audienceSnapshot(targetAudience);
@@ -16630,6 +16648,42 @@ export default function MarketingAdminPage() {
     scrollToContentPanel(audienceEditorPanelRef);
   }
 
+  async function duplicateAudienceAsDraft(audience: MarketingAudience) {
+    setActiveTab("contacts");
+    setContactView("lists");
+    setAudienceSaving(true);
+    setConfirmingAudienceDeleteId(null);
+    setAudienceFeedback(`Creating editable copy of "${audience.name}"...`);
+    try {
+      const result = await api<{ audience: MarketingAudience }>("/api/admin/marketing/audiences", {
+        method: "POST",
+        body: JSON.stringify({
+          name: audienceDuplicateName(audience.name),
+          listType: audience.listType || "static",
+          description: audience.description ?? null,
+          rules: recordValue(audience.rules),
+          contactExternalIds: audience.contactExternalIds ?? [],
+          source: "vyva_duplicate",
+          lovableExternalId: null,
+          metadata: audienceDuplicateMetadata(audience),
+        }),
+      });
+      setAudiences((current) => [result.audience, ...current.filter((item) => item.id !== result.audience.id)]);
+      setEditingAudienceId(result.audience.id);
+      setAudienceEditDraft(audienceEditDraftFromAudience(result.audience));
+      setAudienceFeedback(`Created editable list copy "${result.audience.name}".`);
+      setMessage(`Audience list copied: ${result.audience.name}.`);
+      scrollToContentPanel(audienceEditorPanelRef);
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Audience copy could not be created.";
+      setAudienceFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setAudienceSaving(false);
+    }
+  }
+
   function cancelAudienceEdit() {
     setEditingAudienceId(null);
     setAudienceEditDraft(null);
@@ -26085,6 +26139,9 @@ export default function MarketingAdminPage() {
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button type="button" onClick={() => startAudienceEdit(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid={`button-marketing-edit-audience-${audience.id}`}>
                                 <Pencil size={13} /> Edit
+                              </button>
+                              <button type="button" onClick={() => void duplicateAudienceAsDraft(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid={`button-marketing-duplicate-audience-${audience.id}`}>
+                                <Copy size={13} /> Duplicate
                               </button>
                               <button type="button" onClick={() => void deleteAudience(audience)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingAudienceDeleteId === audience.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={audienceSaving} data-testid={`button-marketing-delete-audience-${audience.id}`}>
                                 <Trash2 size={13} /> {confirmingAudienceDeleteId === audience.id ? "Confirm delete" : "Delete"}

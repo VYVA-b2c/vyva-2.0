@@ -794,7 +794,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
     if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
     if (path === "/api/admin/marketing/contacts/contact-2" && method === "PATCH") return jsonResponse({ ok: true, contact: contactFromRequestBody("contact-2", init) });
     if (path === "/api/admin/marketing/contacts/contact-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContactId: "contact-2" });
-    if (path === "/api/admin/marketing/audiences" && method === "POST") return jsonResponse({ ok: true, audience: audiences[0] }, { status: 201 });
+    if (path === "/api/admin/marketing/audiences" && method === "POST") return jsonResponse({ ok: true, audience: audienceFromRequestBody("audience-created", init) }, { status: 201 });
     if (path === "/api/admin/marketing/audiences/audience-1" && method === "PATCH") return jsonResponse({ ok: true, audience: audienceFromRequestBody("audience-1", init) });
     if (path === "/api/admin/marketing/audiences/audience-1" && method === "DELETE") return jsonResponse({ ok: true, deletedAudienceId: "audience-1" });
     return jsonResponse({ error: `Unexpected request: ${method} ${path}` }, { status: 500 });
@@ -3583,6 +3583,53 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "DELETE" }));
     });
+  });
+
+  it("duplicates imported marketing audiences as editable VYVA lists", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-duplicate-audience-audience-1"));
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent('Creating editable copy of "Partners"');
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences", expect.objectContaining({ method: "POST" }));
+    });
+
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/audiences" && init?.method === "POST");
+    const postPayload = JSON.parse(String(postCall?.[1]?.body ?? "{}"));
+    expect(postPayload).toMatchObject({
+      name: "Copy of Partners",
+      listType: "static",
+      description: "Imported partner list",
+      rules: { market: "Spain" },
+      contactExternalIds: ["lovable-contact-2", "missing-contact"],
+      source: "vyva_duplicate",
+      lovableExternalId: null,
+      metadata: expect.objectContaining({
+        lovable: { sourceList: "Partners" },
+        duplicatedFrom: {
+          audienceId: "audience-1",
+          name: "Partners",
+          source: "lovable",
+          lovableExternalId: "lovable-audience-1",
+          duplicatedAt: expect.any(String),
+        },
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
+      expect(screen.getByTestId("input-marketing-edit-audience-name")).toHaveValue("Copy of Partners");
+    });
+    expect(screen.getByTestId("input-marketing-edit-audience-source")).toHaveValue("vyva_duplicate");
+    expect(screen.getByTestId("input-marketing-edit-audience-lovable-id")).toHaveValue("");
+    expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("lovable-contact-2\nmissing-contact");
+    expect(screen.getByTestId("textarea-marketing-edit-audience-rules")).toHaveValue(JSON.stringify({ market: "Spain" }, null, 2));
+    expect(screen.getByTestId("marketing-audience-editor-feedback")).toHaveTextContent('Created editable list copy "Copy of Partners".');
   });
 
   it("edits and deletes imported marketing audiences", async () => {
