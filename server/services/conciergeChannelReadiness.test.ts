@@ -40,6 +40,10 @@ function resetChannelEnv() {
     "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_READY",
     "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_CONFIGURED",
     "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_VERIFIED",
+    "CONCIERGE_EMAIL_LIVE_ENDPOINT",
+    "CONCIERGE_WHATSAPP_LIVE_ENDPOINT",
+    "CONCIERGE_FORM_APPLICATION_LIVE_ENDPOINT",
+    "CONCIERGE_DOCUMENT_UPLOAD_LIVE_ENDPOINT",
     "CONCIERGE_PHONE_CALL_QA_ENDPOINT",
     "CONCIERGE_PHONE_CALL_QA_PHONE_NUMBER",
     "CONCIERGE_EMAIL_QA_ENDPOINT",
@@ -81,6 +85,11 @@ describe("admin Concierge channel readiness", () => {
       verified: false,
       ready: false,
       external_action_allowed: false,
+      adapter_setup: {
+        configured: true,
+        source: "environment",
+        credential_reference: "ELEVENLABS_API_KEY",
+      },
       probe: {
         status: "not_run",
       },
@@ -102,8 +111,176 @@ describe("admin Concierge channel readiness", () => {
     expect(dbMock.pool.query).toHaveBeenCalledTimes(1);
   });
 
+  it("stores adapter setup references without marking the channel live-ready", async () => {
+    let selectCount = 0;
+    dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (/select\s+channel/i.test(sql)) {
+        selectCount += 1;
+        return {
+          rows: selectCount === 1 ? [] : [{
+            channel: "whatsapp",
+            admin_enabled: false,
+            verified: false,
+            notes: "Use WhatsApp adapter.",
+            last_probe_status: null,
+            last_probe_at: null,
+            last_probe_blocker: "Verification reset after adapter setup changed.",
+            last_probe_by: "admin-1",
+            adapter_live_endpoint_url: "https://adapter.example.test/whatsapp",
+            adapter_credential_reference: "vault/vyva/whatsapp-adapter",
+            adapter_qa_target: "+12025550101",
+            adapter_configured_by: "admin-1",
+            adapter_configured_at: new Date("2026-07-16T10:05:00.000Z"),
+            updated_by: "admin-1",
+            updated_at: new Date("2026-07-16T10:05:00.000Z"),
+          }],
+        };
+      }
+      if (sql.includes("insert into concierge_channel_readiness_settings")) {
+        expect(params).toEqual([
+          "whatsapp",
+          false,
+          false,
+          "Use WhatsApp adapter.",
+          null,
+          null,
+          "Verification reset after adapter setup changed.",
+          "admin-1",
+          "https://adapter.example.test/whatsapp",
+          "vault/vyva/whatsapp-adapter",
+          "+12025550101",
+          "admin-1",
+          expect.any(String),
+          "admin-1",
+        ]);
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [] };
+    });
+
+    const row = await updateAdminConciergeChannelReadiness({
+      channel: "whatsapp",
+      notes: "Use WhatsApp adapter.",
+      adapterLiveEndpointUrl: "https://adapter.example.test/whatsapp",
+      adapterCredentialReference: "vault/vyva/whatsapp-adapter",
+      adapterQaTarget: "+12025550101",
+      updatedBy: "admin-1",
+    });
+
+    expect(row).toMatchObject({
+      channel: "whatsapp",
+      configured: true,
+      verified: false,
+      admin_enabled: false,
+      ready: false,
+      external_action_allowed: false,
+      adapter_setup: {
+        configured: true,
+        source: "admin_console",
+        live_endpoint_url: "https://adapter.example.test/whatsapp",
+        credential_reference: "vault/vyva/whatsapp-adapter",
+        qa_target: "+12025550101",
+      },
+      probe: {
+        status: "not_run",
+        blocker: "Run a safe QA verification probe before enabling live actions.",
+      },
+    });
+    expect(JSON.stringify(row)).not.toContain("super-secret");
+  });
+
+  it("rejects secret-like credential values in adapter setup", async () => {
+    dbMock.pool.query.mockResolvedValue({ rows: [] });
+
+    await expect(updateAdminConciergeChannelReadiness({
+      channel: "email",
+      adapterCredentialReference: "Bearer sk-live-secret",
+      updatedBy: "admin-1",
+    })).rejects.toThrow(/reference name only/i);
+  });
+
+  it("runs probes against stored adapter QA targets", async () => {
+    let selectCount = 0;
+    dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (/select\s+channel/i.test(sql)) {
+        selectCount += 1;
+        return {
+          rows: selectCount === 1 ? [{
+            channel: "email",
+            admin_enabled: false,
+            verified: false,
+            notes: "Stored adapter config.",
+            last_probe_status: null,
+            last_probe_at: null,
+            last_probe_blocker: null,
+            last_probe_by: null,
+            adapter_live_endpoint_url: "https://adapter.example.test/email",
+            adapter_credential_reference: "vault/vyva/email-adapter",
+            adapter_qa_target: "concierge@example.test",
+            adapter_configured_by: "admin-1",
+            adapter_configured_at: new Date("2026-07-16T10:05:00.000Z"),
+            updated_by: "admin-1",
+            updated_at: new Date("2026-07-16T10:05:00.000Z"),
+          }] : [{
+            channel: "email",
+            admin_enabled: false,
+            verified: true,
+            notes: "Stored adapter config.",
+            last_probe_status: "pass",
+            last_probe_at: new Date("2026-07-16T10:10:00.000Z"),
+            last_probe_blocker: null,
+            last_probe_by: "admin-1",
+            adapter_live_endpoint_url: "https://adapter.example.test/email",
+            adapter_credential_reference: "vault/vyva/email-adapter",
+            adapter_qa_target: "concierge@example.test",
+            adapter_configured_by: "admin-1",
+            adapter_configured_at: new Date("2026-07-16T10:05:00.000Z"),
+            updated_by: "admin-1",
+            updated_at: new Date("2026-07-16T10:10:00.000Z"),
+          }],
+        };
+      }
+      if (sql.includes("insert into concierge_channel_readiness_settings")) {
+        expect(params).toEqual([
+          "email",
+          false,
+          true,
+          "Stored adapter config.",
+          "pass",
+          expect.any(String),
+          null,
+          "admin-1",
+          "admin-1",
+        ]);
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [] };
+    });
+
+    const row = await runAdminConciergeChannelVerificationProbe({
+      channel: "email",
+      updatedBy: "admin-1",
+    });
+
+    expect(row).toMatchObject({
+      channel: "email",
+      configured: true,
+      verified: true,
+      admin_enabled: false,
+      can_mark_ready: true,
+      adapter_setup: {
+        source: "admin_console",
+        qa_target: "concierge@example.test",
+      },
+      probe: {
+        status: "pass",
+        blocker: null,
+      },
+    });
+  });
+
   it("records a failed probe and keeps live-ready blocked for unsafe QA targets", async () => {
-    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
     process.env.CONCIERGE_EMAIL_QA_RECIPIENT = "clinic@gmail.com";
     let selectCount = 0;
     dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
@@ -165,31 +342,35 @@ describe("admin Concierge channel readiness", () => {
     const channels = [
       {
         channel: "phone_call" as const,
-        configuredEnv: "CONCIERGE_PHONE_CALL_CHANNEL_CONFIGURED",
+        configuredEnv: "ELEVENLABS_API_KEY",
+        extraConfiguredEnv: [
+          ["ELEVENLABS_CONCIERGE_CALLER_AGENT_ID", "agent-id"],
+          ["ELEVENLABS_CONCIERGE_PHONE_NUMBER_ID", "phone-id"],
+        ],
         qaEnv: "CONCIERGE_PHONE_CALL_QA_PHONE_NUMBER",
         qaTarget: "+12025550100",
       },
       {
         channel: "email" as const,
-        configuredEnv: "CONCIERGE_EMAIL_CHANNEL_CONFIGURED",
+        configuredEnv: "CONCIERGE_EMAIL_LIVE_ENDPOINT",
         qaEnv: "CONCIERGE_EMAIL_QA_RECIPIENT",
         qaTarget: "concierge@example.test",
       },
       {
         channel: "whatsapp" as const,
-        configuredEnv: "CONCIERGE_WHATSAPP_CHANNEL_CONFIGURED",
+        configuredEnv: "CONCIERGE_WHATSAPP_LIVE_ENDPOINT",
         qaEnv: "CONCIERGE_WHATSAPP_QA_PHONE_NUMBER",
         qaTarget: "+12025550101",
       },
       {
         channel: "form_application" as const,
-        configuredEnv: "CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED",
+        configuredEnv: "CONCIERGE_FORM_APPLICATION_LIVE_ENDPOINT",
         qaEnv: "CONCIERGE_FORM_APPLICATION_QA_URL",
         qaTarget: "https://concierge-form.test/booking",
       },
       {
         channel: "document_upload" as const,
-        configuredEnv: "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_CONFIGURED",
+        configuredEnv: "CONCIERGE_DOCUMENT_UPLOAD_LIVE_ENDPOINT",
         qaEnv: "CONCIERGE_DOCUMENT_UPLOAD_QA_URL",
         qaTarget: "qa://document-upload",
       },
@@ -197,7 +378,10 @@ describe("admin Concierge channel readiness", () => {
 
     for (const item of channels) {
       resetChannelEnv();
-      process.env[item.configuredEnv] = "true";
+      process.env[item.configuredEnv] = item.channel === "phone_call" ? "test-key" : `https://adapter.example.test/${item.channel}`;
+      item.extraConfiguredEnv?.forEach(([key, value]) => {
+        process.env[key] = value;
+      });
       process.env[item.qaEnv] = item.qaTarget;
       dbMock.pool.query.mockReset();
       let selectCount = 0;
@@ -258,7 +442,7 @@ describe("admin Concierge channel readiness", () => {
   });
 
   it("marks a configured channel live-capable after its latest probe passed", async () => {
-    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
     let selectCount = 0;
     dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (/select\s+channel/i.test(sql)) {
@@ -299,6 +483,11 @@ describe("admin Concierge channel readiness", () => {
           "2026-07-16T09:55:00.000Z",
           null,
           "admin-1",
+          null,
+          null,
+          null,
+          null,
+          null,
           "admin-1",
         ]);
         return { rows: [], rowCount: 1 };
@@ -337,7 +526,7 @@ describe("admin Concierge channel readiness", () => {
   });
 
   it("turns off live-ready when a verified channel is unverified", async () => {
-    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_LIVE_ENDPOINT = "https://adapter.example.test/email";
     let selectCount = 0;
     dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (/select\s+channel/i.test(sql)) {
@@ -378,6 +567,11 @@ describe("admin Concierge channel readiness", () => {
           null,
           "Verification reset by admin.",
           "admin-1",
+          null,
+          null,
+          null,
+          null,
+          null,
           "admin-1",
         ]);
         return { rows: [], rowCount: 1 };
