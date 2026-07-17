@@ -1880,7 +1880,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Seasonal wellbeing check-in email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Seasonal wellbeing phone check script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable seasonal check-in card");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("96 templates");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Premium family plan email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Instagram Premium benefits carousel");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable Premium family one-pager");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("102 templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -2167,6 +2170,39 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Routine activation pack into the campaign studio");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
 
+    expect(screen.getByTestId("marketing-template-pack-premium-family-upgrade")).toHaveTextContent("Premium family upgrade");
+    expect(screen.getByTestId("marketing-template-pack-premium-family-upgrade")).toHaveTextContent("6 templates");
+    expect(screen.getByTestId("marketing-template-pack-premium-family-upgrade")).toHaveTextContent("AI pack prompt");
+    expect(screen.getByTestId("marketing-template-pack-premium-family-upgrade")).toHaveTextContent("Print / direct mail");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-premium-family-upgrade"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Premium family upgrade template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Premium family plan email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Premium family WhatsApp nudge");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn Premium care operations note");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-premium-family-upgrade")).toHaveTextContent("Premium value story");
+    expect(screen.getByTestId("marketing-template-pack-sequence-premium-family-upgrade")).toHaveTextContent("One-page handoff");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-ai-premium-family-upgrade"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Premium family upgrade"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Premium family plan email"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Premium family upgrade AI command copied.");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-premium-family-upgrade"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Premium family upgrade");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Premium family upgrade pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("Clinic and pharmacy referral");
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("6 templates");
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("AI pack prompt");
@@ -2221,7 +2257,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("16");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("17");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Local event");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("3");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
@@ -3894,7 +3930,7 @@ describe("MarketingAdminPage", () => {
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("All plays");
-    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("27");
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("28");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Best next campaigns from your data");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Event reminder");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Choose launch mode");
