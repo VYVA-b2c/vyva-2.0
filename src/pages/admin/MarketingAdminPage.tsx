@@ -704,6 +704,9 @@ type MarketingOpportunityRadarItem = CampaignReadinessItem & {
   actionLabel: string;
   icon: LucideIcon;
   onSelect: () => void;
+  secondaryActionLabel?: string;
+  secondaryDisabled?: boolean;
+  onSecondarySelect?: () => void;
 };
 
 type CampaignAudienceInsightItem = {
@@ -17363,6 +17366,11 @@ export default function MarketingAdminPage() {
       actionLabel: "Load in studio",
       icon: Sparkles,
       onSelect: () => applyCampaignStudioPlayRecommendation(recommendation),
+      secondaryActionLabel: packMatch ? "Create pack" : "No pack yet",
+      secondaryDisabled: !packMatch || contentSaving || campaignSaving,
+      onSecondarySelect: packMatch
+        ? () => void createCampaignPlanFromTemplatePack(packMatch.pack, packMatch.templates, packMatch.heroTemplate)
+        : undefined,
     })),
     ...(firstReadyEmailCampaign ? [{
       key: "ready-email-send",
@@ -17573,12 +17581,10 @@ export default function MarketingAdminPage() {
                     {marketingOpportunityRadarItems.map((item) => {
                       const Icon = item.icon;
                       return (
-                        <button
+                        <article
                           key={item.key}
-                          type="button"
-                          onClick={item.onSelect}
-                          className={`min-h-[178px] rounded-2xl border p-4 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
-                          data-testid={`button-marketing-opportunity-${item.key}`}
+                          className={`flex min-h-[198px] flex-col rounded-2xl border p-4 text-left shadow-sm ${readinessClass(item.state)}`}
+                          data-testid={`marketing-opportunity-card-${item.key}`}
                         >
                           <span className="flex items-start justify-between gap-3">
                             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
@@ -17599,10 +17605,29 @@ export default function MarketingAdminPage() {
                               ))}
                             </span>
                           ) : null}
-                          <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
-                            {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                          <span className="mt-auto flex flex-wrap gap-2 pt-4">
+                            <button
+                              type="button"
+                              onClick={item.onSelect}
+                              className="inline-flex min-h-9 items-center justify-center gap-1 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                              data-testid={`button-marketing-opportunity-${item.key}`}
+                            >
+                              {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                            </button>
+                            {item.secondaryActionLabel ? (
+                              <button
+                                type="button"
+                                onClick={item.onSecondarySelect}
+                                disabled={item.secondaryDisabled || !item.onSecondarySelect}
+                                className="inline-flex min-h-9 items-center justify-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:border-[#eadfd8] disabled:bg-[#f7f1ec] disabled:text-[#9b8a82]"
+                                data-testid={`button-marketing-opportunity-create-${item.key}`}
+                              >
+                                <Plus size={12} aria-hidden="true" />
+                                {item.secondaryActionLabel}
+                              </button>
+                            ) : null}
                           </span>
-                        </button>
+                        </article>
                       );
                     })}
                   </div>

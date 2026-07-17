@@ -1286,6 +1286,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("AI ranked");
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("Event reminder");
     expect(screen.getByTestId("button-marketing-opportunity-play-event-reminder")).toHaveTextContent("Load in studio");
+    expect(screen.getByTestId("button-marketing-opportunity-create-play-event-reminder")).toHaveTextContent("Create pack");
     fireEvent.click(screen.getByTestId("button-marketing-opportunity-play-event-reminder"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Playbook loaded: Event reminder");
 
@@ -1364,6 +1365,28 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
 
     fireEvent.click(screen.getByTestId("button-marketing-cockpit-create-event-reminder"));
+
+    await waitFor(() => {
+      const packCampaignPost = apiFetchMock.mock.calls.find(([path, init]) => {
+        if (path !== "/api/admin/marketing/campaigns" || init?.method !== "POST") return false;
+        const payload = JSON.parse(String(init.body ?? "{}"));
+        return payload.metadata?.templatePackPlan?.packId === "local-event-relationship";
+      });
+      expect(packCampaignPost).toBeTruthy();
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created Local event relationship campaign plan");
+  });
+
+  it("creates a campaign pack directly from the opportunity radar", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    const radarCreateButton = screen.getByTestId("button-marketing-opportunity-create-play-event-reminder");
+    expect(radarCreateButton).toHaveTextContent("Create pack");
+    expect(radarCreateButton).not.toBeDisabled();
+
+    fireEvent.click(radarCreateButton);
 
     await waitFor(() => {
       const packCampaignPost = apiFetchMock.mock.calls.find(([path, init]) => {
