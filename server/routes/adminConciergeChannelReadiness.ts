@@ -10,6 +10,7 @@ import type { ConciergeProductionChannel } from "../../shared/conciergeChannelRe
 const adminConciergeChannelReadinessRouter = Router();
 
 const channelSchema = z.enum(["phone_call", "email", "whatsapp", "form_application", "document_upload"]);
+const liveReadyStateSchema = z.enum(["on", "off"]);
 
 const updateChannelSchema = z.object({
   admin_enabled: z.boolean().optional(),
@@ -32,6 +33,23 @@ const updateChannelSchema = z.object({
 function adminUserId(req: Request): string | null {
   const user = req.user as { id?: string; email?: string } | undefined;
   return user?.id ?? user?.email ?? null;
+}
+
+function isNativeFormPost(req: Request): boolean {
+  return Boolean(req.is("application/x-www-form-urlencoded") || req.is("multipart/form-data"));
+}
+
+function redirectToReadiness(
+  res: Response,
+  input: { channel: ConciergeProductionChannel; action: string; status: "ok" | "error"; message?: string },
+) {
+  const params = new URLSearchParams({
+    channel: input.channel,
+    action: input.action,
+    status: input.status,
+  });
+  if (input.message) params.set("message", input.message.slice(0, 240));
+  res.redirect(303, `/admin/concierge-readiness?${params.toString()}`);
 }
 
 adminConciergeChannelReadinessRouter.get("/", async (_req: Request, res: Response) => {
@@ -84,10 +102,68 @@ adminConciergeChannelReadinessRouter.post("/:channel/probe", async (req: Request
       channel: channel.data as ConciergeProductionChannel,
       updatedBy: adminUserId(req),
     });
+    if (isNativeFormPost(req)) {
+      return redirectToReadiness(res, {
+        channel: channel.data as ConciergeProductionChannel,
+        action: "probe",
+        status: row.probe.status === "pass" ? "ok" : "error",
+        message: row.probe.status === "pass"
+          ? `${row.label} verification passed.`
+          : `${row.label} verification failed: ${row.probe.blocker ?? "Review channel setup."}`,
+      });
+    }
     res.json({ channel: row });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not run Concierge channel verification.";
     const status = /migration|table|not available/i.test(message) ? 500 : 400;
+    if (isNativeFormPost(req)) {
+      return redirectToReadiness(res, {
+        channel: channel.data as ConciergeProductionChannel,
+        action: "probe",
+        status: "error",
+        message,
+      });
+    }
+    res.status(status).json({ error: message });
+  }
+});
+
+adminConciergeChannelReadinessRouter.post("/:channel/live-ready/:state", async (req: Request, res: Response) => {
+  const channel = channelSchema.safeParse(req.params.channel);
+  if (!channel.success) {
+    return res.status(404).json({ error: "Unknown Concierge channel." });
+  }
+  const state = liveReadyStateSchema.safeParse(req.params.state);
+  if (!state.success) {
+    return res.status(400).json({ error: "Unknown Live-ready state." });
+  }
+
+  try {
+    const row = await updateAdminConciergeChannelReadiness({
+      channel: channel.data as ConciergeProductionChannel,
+      adminEnabled: state.data === "on",
+      updatedBy: adminUserId(req),
+    });
+    if (isNativeFormPost(req)) {
+      return redirectToReadiness(res, {
+        channel: channel.data as ConciergeProductionChannel,
+        action: "live-ready",
+        status: "ok",
+        message: `${row.label} readiness updated.`,
+      });
+    }
+    res.json({ channel: row });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not update Concierge channel readiness.";
+    const status = /cannot|not ready|required setup/i.test(message) ? 400 : 500;
+    if (isNativeFormPost(req)) {
+      return redirectToReadiness(res, {
+        channel: channel.data as ConciergeProductionChannel,
+        action: "live-ready",
+        status: "error",
+        message,
+      });
+    }
     res.status(status).json({ error: message });
   }
 });

@@ -1497,6 +1497,18 @@ const de = {
         blockedAlternative: "Versuchen Sie stattdessen diesen hilfreichen Schritt",
       },
     },
+    recoveryNudge: {
+      title: "Dort weitermachen, wo Sie aufgehort haben",
+      detail: "Mit {{action}} weitermachen, wenn Sie bereit sind.",
+      blockedTitle: "Zuerst ein kurzer Schritt",
+      blockedDetail: "Offnen Sie {{action}}, um zu sehen, was noch fehlt.",
+      transportSetupTitle: "Zuerst kurz einrichten",
+      transportSetupDetail: "Speichern Sie einen vertrauten Fahrdienst, um Ihre Fahrt fortzusetzen.",
+      transportSetupNotice: "Speichern Sie ein vertrautes Taxi oder einen Fahrdienst und setzen Sie Ihre Fahrt fort.",
+      continue: "Weiter",
+      later: "Spater",
+      dismiss: "Ausblenden",
+    },
   },
   concierge: {
     fastHelp: {

@@ -30,6 +30,14 @@ export default defineConfig({
           include: ["src/**/*.{test,spec}.{ts,tsx}"],
         },
       },
+      {
+        extends: true,
+        test: {
+          name: "shared",
+          environment: "node",
+          include: ["shared/**/*.test.ts", "migrations/**/*.test.ts"],
+        },
+      },
       ...serverProjects,
     ],
   },

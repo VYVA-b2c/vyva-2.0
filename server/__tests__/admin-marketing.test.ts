@@ -181,9 +181,9 @@ describe("admin marketing router", () => {
       });
   });
 
-  it("keeps Lovable sync super-admin only", async () => {
+  it("keeps Source sync super-admin only", async () => {
     await request(buildApp("ops@example.com"))
-      .post("/api/admin/marketing/sync/lovable/run")
+      .post("/api/admin/marketing/sync/source/run")
       .expect(403)
       .expect((response) => {
         expect(response.body.error).toContain("Only the super admin");
@@ -255,15 +255,15 @@ describe("admin marketing router", () => {
       });
   });
 
-  it("reports whether the current admin can run Lovable sync", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+  it("reports whether the current admin can run Source sync", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
     vi.stubEnv("MARKETING_EMAIL_SCHEDULER_ENABLED", "true");
     vi.stubEnv("MARKETING_EMAIL_SCHEDULER_INTERVAL_MINUTES", "7");
     vi.stubEnv("MARKETING_EMAIL_SCHEDULER_INITIAL_DELAY_SECONDS", "12");
 
     await request(buildApp("ops@example.com"))
-      .get("/api/admin/marketing/sync/lovable")
+      .get("/api/admin/marketing/sync/source")
       .expect(200)
       .expect((response) => {
         expect(response.body).toMatchObject({
@@ -273,12 +273,12 @@ describe("admin marketing router", () => {
           realSendingLocked: false,
           requiredRunnerEmail: "karim.assad@mokadigital.net",
           diagnostics: {
-            apiUrlSource: "LOVABLE_MARKETING_API_URL",
+            apiUrlSource: "SOURCE_MARKETING_API_URL",
             tokenSource: "VYVA_MARKETING_EXPORT_TOKEN",
             hasDefaultEndpoint: false,
             hasBearerToken: true,
             tokenAliasPresent: {
-              LOVABLE_MARKETING_API_KEY: false,
+              SOURCE_MARKETING_API_KEY: false,
               VYVA_MARKETING_EXPORT_TOKEN: true,
             },
           },
@@ -299,7 +299,7 @@ describe("admin marketing router", () => {
       });
 
     await request(buildApp("karim.assad@mokadigital.net"))
-      .get("/api/admin/marketing/sync/lovable")
+      .get("/api/admin/marketing/sync/source")
       .expect(200)
       .expect((response) => {
         expect(response.body).toMatchObject({
@@ -335,8 +335,8 @@ describe("admin marketing router", () => {
       });
   });
 
-  it("previews the Lovable export without creating sync or marketing rows", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+  it("previews the Source export without creating sync or marketing rows", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
@@ -352,7 +352,7 @@ describe("admin marketing router", () => {
     ));
 
     await request(buildApp("karim.assad@mokadigital.net"))
-      .get("/api/admin/marketing/sync/lovable/preview")
+      .get("/api/admin/marketing/sync/source/preview")
       .expect(200)
       .expect((response) => {
         expect(response.body).toMatchObject({
@@ -395,7 +395,7 @@ describe("admin marketing router", () => {
         });
       });
 
-    expect(fetchMock).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", expect.objectContaining({
+    expect(fetchMock).toHaveBeenCalledWith("https://source.example.test/marketing-export", expect.objectContaining({
       headers: expect.objectContaining({ Authorization: "Bearer secret" }),
     }));
     expect(table("marketing_sync_runs")).toHaveLength(0);
@@ -403,8 +403,8 @@ describe("admin marketing router", () => {
     fetchMock.mockRestore();
   });
 
-  it("accepts VYVA export URL and token aliases for Lovable sync", async () => {
-    vi.stubEnv("VYVA_MARKETING_EXPORT_URL", "https://lovable.example.test/marketing-export");
+  it("accepts VYVA export URL and token aliases for Source sync", async () => {
+    vi.stubEnv("VYVA_MARKETING_EXPORT_URL", "https://source.example.test/marketing-export");
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "alias-secret");
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
@@ -417,13 +417,13 @@ describe("admin marketing router", () => {
     ));
 
     await request(buildApp("karim.assad@mokadigital.net"))
-      .get("/api/admin/marketing/sync/lovable")
+      .get("/api/admin/marketing/sync/source")
       .expect(200)
       .expect((response) => {
         expect(response.body).toMatchObject({
           configured: true,
           canRunSync: true,
-          apiUrl: "https://lovable.example.test",
+          apiUrl: "https://source.example.test",
           diagnostics: {
             apiUrlSource: "VYVA_MARKETING_EXPORT_URL",
             tokenSource: "VYVA_MARKETING_EXPORT_TOKEN",
@@ -433,13 +433,13 @@ describe("admin marketing router", () => {
       });
 
     await request(buildApp("karim.assad@mokadigital.net"))
-      .post("/api/admin/marketing/sync/lovable/run")
+      .post("/api/admin/marketing/sync/source/run")
       .expect(200)
       .expect((response) => {
         expect(response.body.ok).toBe(true);
       });
 
-    expect(fetchSpy).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", {
+    expect(fetchSpy).toHaveBeenCalledWith("https://source.example.test/marketing-export", {
       headers: {
         Authorization: "Bearer alias-secret",
         Accept: "application/json",
@@ -447,7 +447,7 @@ describe("admin marketing router", () => {
     });
   });
 
-  it("uses the VYVA Lovable export endpoint by default when only the token is configured", async () => {
+  it("uses the VYVA Source export endpoint by default when only the token is configured", async () => {
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "default-url-secret");
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
@@ -460,7 +460,7 @@ describe("admin marketing router", () => {
     ));
 
     await request(buildApp("karim.assad@mokadigital.net"))
-      .get("/api/admin/marketing/sync/lovable")
+      .get("/api/admin/marketing/sync/source")
       .expect(200)
       .expect((response) => {
         expect(response.body).toMatchObject({
@@ -477,7 +477,7 @@ describe("admin marketing router", () => {
       });
 
     await request(buildApp("karim.assad@mokadigital.net"))
-      .post("/api/admin/marketing/sync/lovable/run")
+      .post("/api/admin/marketing/sync/source/run")
       .expect(200);
 
     expect(fetchSpy).toHaveBeenCalledWith("https://hecijzbvpxeagcapxwwn.supabase.co/functions/v1/marketing-export", {
@@ -561,7 +561,7 @@ describe("admin marketing router", () => {
     const response = await request(buildApp())
       .post("/api/admin/marketing/campaigns")
       .send({
-        name: "Large Lovable campaign",
+        name: "Large Source campaign",
         status: "scheduled",
         audienceType: "b2c",
         channels: [{ channel: "email", status: "scheduled" }],
@@ -580,7 +580,7 @@ describe("admin marketing router", () => {
       .get("/api/admin/marketing/campaigns")
       .expect(200);
 
-    const campaign = listResponse.body.campaigns.find((item: { name: string }) => item.name === "Large Lovable campaign");
+    const campaign = listResponse.body.campaigns.find((item: { name: string }) => item.name === "Large Source campaign");
     expect(campaign.recipientCount).toBe(105);
     expect(campaign.recipients).toHaveLength(105);
     expect(campaign.recipients[104]).toMatchObject({ recipient: "caregiver-105@example.com" });
@@ -1385,13 +1385,13 @@ describe("admin marketing router", () => {
     expect(table("marketing_journey_steps")).toHaveLength(0);
   });
 
-  it("imports Lovable data one-way and upserts by external id", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
-    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+  it("imports Source data one-way and upserts by external id", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
+    vi.stubEnv("SOURCE_MARKETING_API_KEY", "secret");
     const longDesignBlocks = Array.from({ length: 14 }, (_, index) => ({
       type: "section",
       headline: `Long design section ${index + 1}`,
-      body: `Imported Lovable body ${index + 1}`,
+      body: `Imported Source body ${index + 1}`,
     }));
     const manyMediaAssets = Array.from({ length: 13 }, (_, index) => ({
       url: `https://cdn.example.test/gallery-${index + 1}.png`,
@@ -1411,7 +1411,7 @@ describe("admin marketing router", () => {
         mediaAssets: JSON.stringify([{ url: "https://cdn.example.test/hero.png", type: "image" }]),
         ctaLabel: "Start",
         ctaUrl: "https://v2.vyva.life/start",
-        extraLovableOnlyField: "kept in metadata",
+        extraSourceOnlyField: "kept in metadata",
       }, {
         id: "content:alias-content",
         template_name: "Alias-heavy email",
@@ -1425,7 +1425,7 @@ describe("admin marketing router", () => {
         cover_image_url: "https://cdn.example.test/alias-cover.png",
       }, {
         id: "content:long-design",
-        title: "Long Lovable builder page",
+        title: "Long Source builder page",
         channel: "email",
         email_design: JSON.stringify({ sections: longDesignBlocks }),
         mediaAssets: JSON.stringify(manyMediaAssets),
@@ -1600,11 +1600,11 @@ describe("admin marketing router", () => {
     ));
 
     const app = buildApp("karim.assad@mokadigital.net");
-    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
-    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+    await request(app).post("/api/admin/marketing/sync/source/run").expect(200);
+    await request(app).post("/api/admin/marketing/sync/source/run").expect(200);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", expect.objectContaining({
+    expect(fetchMock).toHaveBeenCalledWith("https://source.example.test/marketing-export", expect.objectContaining({
       headers: expect.objectContaining({
         Authorization: "Bearer secret",
       }),
@@ -1618,7 +1618,7 @@ describe("admin marketing router", () => {
       cta_url: "https://v2.vyva.life/start",
       metadata: {
         lovable: expect.objectContaining({
-          extraLovableOnlyField: "kept in metadata",
+          extraSourceOnlyField: "kept in metadata",
         }),
       },
     });
@@ -1631,9 +1631,9 @@ describe("admin marketing router", () => {
       cta_label: "Book now",
       cta_url: "https://v2.vyva.life/book",
     });
-    const longDesignContent = table("marketing_content_assets").find((row) => row.title === "Long Lovable builder page");
+    const longDesignContent = table("marketing_content_assets").find((row) => row.title === "Long Source builder page");
     expect(longDesignContent).toMatchObject({
-      body: expect.stringContaining("Imported Lovable body 14"),
+      body: expect.stringContaining("Imported Source body 14"),
       media_assets: expect.arrayContaining([
         expect.objectContaining({ url: "https://cdn.example.test/gallery-13.png" }),
       ]),
@@ -1945,7 +1945,7 @@ describe("admin marketing router", () => {
         dataset: "live",
         exportedAt: "2026-07-05T12:00:00.000Z",
         cursor: "cursor-1",
-        apiUrl: "https://lovable.example.test",
+        apiUrl: "https://source.example.test",
         topLevelKeys: expect.arrayContaining(["campaigns", "content", "contacts", "cursor", "dataset", "exportedAt"]),
       },
       unmapped: {
@@ -1958,7 +1958,7 @@ describe("admin marketing router", () => {
         content: expect.objectContaining({
           exportedFieldCount: expect.any(Number),
           firstClassFieldCount: expect.any(Number),
-          metadataOnlyFields: expect.arrayContaining(["extraLovableOnlyField"]),
+          metadataOnlyFields: expect.arrayContaining(["extraSourceOnlyField"]),
         }),
         media: expect.objectContaining({
           firstClassFields: expect.arrayContaining(["url", "type"]),
@@ -1983,9 +1983,9 @@ describe("admin marketing router", () => {
       });
   });
 
-  it("creates visible content placeholders for Lovable campaign references that are not exported", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
-    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+  it("creates visible content placeholders for Source campaign references that are not exported", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
+    vi.stubEnv("SOURCE_MARKETING_API_KEY", "secret");
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
         campaigns: [{
@@ -1999,14 +1999,14 @@ describe("admin marketing router", () => {
     ));
 
     const app = buildApp("karim.assad@mokadigital.net");
-    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+    await request(app).post("/api/admin/marketing/sync/source/run").expect(200);
 
     const placeholder = table("marketing_content_assets").find((row) => row.lovable_external_id === "content_brief:missing-brief");
     expect(placeholder).toMatchObject({
-      title: "Missing Lovable content brief: content_brief:missing-brief",
+      title: "Missing Source content brief: content_brief:missing-brief",
       channel: "email",
       status: "draft",
-      body: expect.stringContaining("Lovable referenced content_brief:missing-brief"),
+      body: expect.stringContaining("Source referenced content_brief:missing-brief"),
       design_json: expect.objectContaining({
         missing_lovable_reference: true,
         external_id: "content_brief:missing-brief",
@@ -2036,9 +2036,9 @@ describe("admin marketing router", () => {
     });
   });
 
-  it("creates visible content placeholders for Lovable journey step references that are not exported", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
-    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+  it("creates visible content placeholders for Source journey step references that are not exported", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
+    vi.stubEnv("SOURCE_MARKETING_API_KEY", "secret");
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
         journeys: [{
@@ -2058,14 +2058,14 @@ describe("admin marketing router", () => {
     ));
 
     const app = buildApp("karim.assad@mokadigital.net");
-    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+    await request(app).post("/api/admin/marketing/sync/source/run").expect(200);
 
     const placeholder = table("marketing_content_assets").find((row) => row.lovable_external_id === "saved_email_template:missing-template");
     expect(placeholder).toMatchObject({
-      title: "Missing Lovable email template: saved_email_template:missing-template",
+      title: "Missing Source email template: saved_email_template:missing-template",
       channel: "email",
       status: "draft",
-      body: expect.stringContaining("Lovable referenced saved_email_template:missing-template"),
+      body: expect.stringContaining("Source referenced saved_email_template:missing-template"),
       design_json: expect.objectContaining({
         missing_lovable_reference: true,
         external_id: "saved_email_template:missing-template",
@@ -2096,8 +2096,8 @@ describe("admin marketing router", () => {
     });
   });
 
-  it("uses imported Lovable HTML-only email templates as readable/sendable content", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+  it("uses imported Source HTML-only email templates as readable/sendable content", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
@@ -2124,7 +2124,7 @@ describe("admin marketing router", () => {
     ));
 
     const app = buildApp("karim.assad@mokadigital.net");
-    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+    await request(app).post("/api/admin/marketing/sync/source/run").expect(200);
 
     const content = table("marketing_content_assets").find((row) => row.title === "HTML only template");
     expect(content).toMatchObject({
@@ -2151,9 +2151,9 @@ describe("admin marketing router", () => {
     });
   });
 
-  it("promotes nested Lovable content fields into usable content assets", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
-    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+  it("promotes nested Source content fields into usable content assets", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
+    vi.stubEnv("SOURCE_MARKETING_API_KEY", "secret");
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
         content: [{
@@ -2183,7 +2183,7 @@ describe("admin marketing router", () => {
     ));
 
     const app = buildApp("karim.assad@mokadigital.net");
-    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+    await request(app).post("/api/admin/marketing/sync/source/run").expect(200);
 
     expect(table("marketing_content_assets")).toHaveLength(2);
     expect(table("marketing_content_assets").find((row) => row.title === "Nested welcome template")).toMatchObject({
@@ -2213,9 +2213,9 @@ describe("admin marketing router", () => {
     });
   });
 
-  it("maps Lovable CRM-style contact aliases and unsubscribe aliases into first-class contact fields", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
-    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+  it("maps Source CRM-style contact aliases and unsubscribe aliases into first-class contact fields", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
+    vi.stubEnv("SOURCE_MARKETING_API_KEY", "secret");
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
         contacts: [{
@@ -2243,7 +2243,7 @@ describe("admin marketing router", () => {
 
     const app = buildApp("karim.assad@mokadigital.net");
     await request(app)
-      .post("/api/admin/marketing/sync/lovable/run")
+      .post("/api/admin/marketing/sync/source/run")
       .expect(200);
 
     expect(table("marketing_contacts")).toHaveLength(1);
@@ -2290,9 +2290,9 @@ describe("admin marketing router", () => {
     });
   });
 
-  it("imports Lovable unsubscribe-only emails and blocks campaign sends to them", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
-    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+  it("imports Source unsubscribe-only emails and blocks campaign sends to them", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
+    vi.stubEnv("SOURCE_MARKETING_API_KEY", "secret");
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
         email_unsubscribes: [{
@@ -2305,7 +2305,7 @@ describe("admin marketing router", () => {
 
     const app = buildApp("karim.assad@mokadigital.net");
     await request(app)
-      .post("/api/admin/marketing/sync/lovable/run")
+      .post("/api/admin/marketing/sync/source/run")
       .expect(200);
 
     expect(table("marketing_contacts")).toHaveLength(1);
@@ -2360,9 +2360,9 @@ describe("admin marketing router", () => {
     expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
   });
 
-  it("merges top-level Lovable campaign channel and recipient rows into campaigns", async () => {
-    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
-    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+  it("merges top-level Source campaign channel and recipient rows into campaigns", async () => {
+    vi.stubEnv("SOURCE_MARKETING_API_URL", "https://source.example.test/marketing-export");
+    vi.stubEnv("SOURCE_MARKETING_API_KEY", "secret");
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
       new Response(JSON.stringify({
         saved_email_templates: [{
@@ -2405,7 +2405,7 @@ describe("admin marketing router", () => {
     ));
 
     await request(buildApp("karim.assad@mokadigital.net"))
-      .post("/api/admin/marketing/sync/lovable/run")
+      .post("/api/admin/marketing/sync/source/run")
       .expect(200);
 
     const campaign = table("marketing_campaigns").find((row) => row.name === "Separate-row campaign");

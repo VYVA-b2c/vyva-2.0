@@ -285,6 +285,14 @@ function conciergeResumeFromState(state: unknown): unknown {
   return (state as Record<string, unknown>).conciergeResume ?? null;
 }
 
+function returnStateFromState(state: unknown): Record<string, unknown> {
+  if (!state || typeof state !== "object") return {};
+  const returnState = (state as Record<string, unknown>).returnState;
+  return returnState && typeof returnState === "object" && !Array.isArray(returnState)
+    ? returnState as Record<string, unknown>
+    : {};
+}
+
 interface ProviderEntry {
   id: string;
   category: string;
@@ -399,6 +407,7 @@ const ProvidersSection = () => {
   const setupReturnTo = returnToFromState(location.state);
   const setupNotice = noticeFromState(location.state);
   const conciergeResume = conciergeResumeFromState(location.state);
+  const setupReturnState = returnStateFromState(location.state);
   const initialCategory = providerPrefill?.category ?? setupFocusFromState(location.state) ?? PROVIDER_CATEGORIES[0].id;
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
@@ -480,6 +489,7 @@ const ProvidersSection = () => {
     });
     navigate(setupReturnTo, {
       state: {
+        ...setupReturnState,
         trustedProviderSaved: {
           name: entry.name,
           category: entry.category,

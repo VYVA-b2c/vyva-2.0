@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, PackageCheck, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, PackageCheck, History, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -26,20 +26,22 @@ import {
 } from "@/lib/contextualHomeFastHelp";
 import {
   HOME_FAST_HELP_JOURNEY_EVENT,
+  HOME_FAST_HELP_RECOVERY_REFERENCE_ID,
   abandonOpenedHomeFastHelpJourneys,
   homeFastHelpActivityFromJourneys,
   homeFastHelpContextForJourney,
   homeFastHelpJourneyStorageKey,
   latestBlockedHomeFastHelpJourney,
-  latestResumableHomeFastHelpJourney,
   markHomeFastHelpJourney,
   readHomeFastHelpJourneys,
   reconcileHomeFastHelpJourneys,
   resumeHomeFastHelpJourney,
+  selectHomeFastHelpRecoveryNudge,
   startHomeFastHelpJourney,
   withHomeFastHelpContextState,
   type HomeFastHelpJourney,
 } from "@/lib/homeFastHelpOutcome";
+import { selectHomeResumeCandidate } from "@/lib/homeResumeOrchestrator";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import {
   isShowVyvaPreparedTask,
@@ -123,6 +125,8 @@ type ConciergePendingHomeItem = {
   status?: "pending" | "calling" | "completed" | "failed" | "cancelled" | string | null;
   action_payload?: Record<string, unknown> | null;
   confirmed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type ConciergeCompletedHomeItem = {
@@ -564,29 +568,6 @@ function conciergeHomeTitlePrefix(item: ConciergePendingHomeItem, t: HomeTransla
   return t("home.conciergeResume.titlePrefix", "VYVA is working on your");
 }
 
-function conciergeHomeFastStatusLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
-  switch (conciergeHomeTaskKind(item)) {
-    case "ride":
-      return t("home.conciergeResume.fastStatus.ride", "Check ride status");
-    case "appointment":
-      return t("home.conciergeResume.fastStatus.appointment", "Check appointment");
-    case "pharmacy":
-      return t("home.conciergeResume.fastStatus.pharmacy", "Check pharmacy request");
-    case "homeService":
-      return t("home.conciergeResume.fastStatus.homeService", "Check home service");
-    case "provider":
-      return t("home.conciergeResume.fastStatus.provider", "Check provider search");
-    case "providerShortlist":
-      return t("home.conciergeResume.fastStatus.providerShortlist", "Review shortlist");
-    case "admin":
-      return t("home.conciergeResume.fastStatus.admin", "Check admin task");
-    case "safety":
-      return t("home.conciergeResume.fastStatus.safety", "Check safety review");
-    default:
-      return t("home.conciergeResume.fastStatus.default", "Check request");
-  }
-}
-
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
   iconBg: string;
   iconColor: string;
@@ -866,14 +847,63 @@ const HomeScreen = () => {
     setHomeFastHelpJourneys(readHomeFastHelpJourneys(context.storageKey));
   };
 
+  const resumedHomeFastHelpState = (actionId: ContextualHomeFastHelpActionId) => {
+    if (actionId === "book-ride") return {
+      conciergePrefill: {
+        kind: "ride",
+        message: t("home.fastHelp.ridePrefill", "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation."),
+        flowReference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+        source: "home_quick_action",
+      },
+    };
+    if (actionId === "find-care") {
+      const message = t("home.master.fastHelp.findCarePrefill", "Help me find care or support options. Ask what kind of care I need and do not contact anyone without my confirmation.");
+      return {
+        conciergePrefill: {
+          kind: "task",
+          message,
+          flowReference: CONCIERGE_FLOW_REFERENCES.careNavigation,
+          requestedTool: "operator_review",
+          actionLabel: t("home.master.fastHelp.findCareAction", "Prepare care search"),
+          summary: t("home.master.fastHelp.findCareSummary", "VYVA prepares options first, then asks before contacting anyone."),
+          useCase: "find_provider",
+          providerSearchMode: "care",
+          providerSearchCriteria: ["nearby", "reputation", "accessible"],
+          providerSearchQuery: message,
+          source: "home_quick_action",
+        },
+      };
+    }
+    if (actionId === "paperwork-help") return {
+      conciergePrefill: {
+        kind: "task",
+        message: t("home.master.fastHelp.paperworkHelpPrefill", "Help me with paperwork or a form. Prepare answers and stop before submitting so I can confirm."),
+        flowReference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+        requestedTool: "operator_review",
+        actionLabel: t("home.master.fastHelp.paperworkHelpAction", "Prepare paperwork"),
+        summary: t("home.master.fastHelp.paperworkHelpSummary", "VYVA organizes the form, missing details, and safest next step."),
+        useCase: "admin_task",
+        source: "home_quick_action",
+      },
+    };
+    return null;
+  };
+
   const continueHomeFastHelp = (
     journey: HomeFastHelpJourney,
     stateOverride?: Record<string, unknown>,
+    fromRecoveryNudge = false,
   ) => {
-    const resumed = resumeHomeFastHelpJourney(journey, homeFastHelpJourneyKey);
+    const resumed = resumeHomeFastHelpJourney(
+      journey,
+      homeFastHelpJourneyKey,
+      fromRecoveryNudge
+        ? { reason: "recovery_nudge", referenceId: HOME_FAST_HELP_RECOVERY_REFERENCE_ID }
+        : undefined,
+    );
     const context = homeFastHelpContextForJourney(resumed, homeFastHelpJourneyKey);
     const destinationState = {
-      ...(resumed.destinationState ?? {}),
+      ...(resumed.destinationState ?? resumedHomeFastHelpState(resumed.actionId) ?? {}),
       ...(stateOverride ?? {}),
     };
     const allowed = handleNavigate(resumed.destinationPath, {
@@ -1143,8 +1173,37 @@ const HomeScreen = () => {
     },
   ];
 
-  const activeConciergeHomeTask = conciergeHomeItems(conciergePendingHomeSignal)[0] ?? null;
+  const conciergeResumeItems = conciergeHomeItems(conciergePendingHomeSignal);
   const reusableConciergeHomeTask = conciergeCompletedHomeItems(conciergeCompletedHomeSignal)[0] ?? null;
+  const remoteFastHelpActivityFingerprint = JSON.stringify(
+    contextualFastHelpRemoteActivity(conciergeCompletedHomeSignal),
+  );
+  const remoteFastHelpActivity = useMemo<HomeFastHelpActivity[]>(
+    () => JSON.parse(remoteFastHelpActivityFingerprint) as HomeFastHelpActivity[],
+    [remoteFastHelpActivityFingerprint],
+  );
+  useEffect(() => {
+    setHomeFastHelpJourneys(reconcileHomeFastHelpJourneys(
+      homeFastHelpJourneyKey,
+      remoteFastHelpActivity,
+    ));
+  }, [homeFastHelpJourneyKey, remoteFastHelpActivity]);
+  const journeyFastHelpActivity = homeFastHelpActivityFromJourneys(homeFastHelpJourneys);
+  const latestBlockedJourney = latestBlockedHomeFastHelpJourney(homeFastHelpJourneys, conciergeClockMs);
+  const rawRecoveryNudge = selectHomeFastHelpRecoveryNudge(homeFastHelpJourneys, {
+    nowMs: conciergeClockMs,
+    hasSavedTransportProvider: profile?.serviceReadiness?.hasSavedTransportProvider,
+  });
+  const homeResumeCandidate = selectHomeResumeCandidate({
+    conciergeItems: conciergeResumeItems,
+    fastHelpRecovery: rawRecoveryNudge,
+  });
+  const activeConciergeHomeTask = homeResumeCandidate?.source === "concierge"
+    ? homeResumeCandidate.item
+    : null;
+  const recoveryNudge = homeResumeCandidate?.source === "fast_help"
+    ? homeResumeCandidate.nudge
+    : null;
   const activeConciergeShowVyvaTask = activeConciergeHomeTask ? isShowVyvaPreparedTask(activeConciergeHomeTask.action_payload) : false;
   const activeConciergeTaskText = activeConciergeHomeTask
     ? activeConciergeShowVyvaTask
@@ -1188,50 +1247,13 @@ const HomeScreen = () => {
   };
   const activeContextualFastHelpActionId = activeConciergeHomeTask
     ? contextualFastHelpActionForConciergeKind(conciergeHomeTaskKind(activeConciergeHomeTask))
-    : null;
-  const remoteFastHelpActivityFingerprint = JSON.stringify(
-    contextualFastHelpRemoteActivity(conciergeCompletedHomeSignal),
-  );
-  const remoteFastHelpActivity = useMemo<HomeFastHelpActivity[]>(
-    () => JSON.parse(remoteFastHelpActivityFingerprint) as HomeFastHelpActivity[],
-    [remoteFastHelpActivityFingerprint],
-  );
-  useEffect(() => {
-    setHomeFastHelpJourneys(reconcileHomeFastHelpJourneys(
-      homeFastHelpJourneyKey,
-      remoteFastHelpActivity,
-    ));
-  }, [homeFastHelpJourneyKey, remoteFastHelpActivity]);
-  const journeyFastHelpActivity = homeFastHelpActivityFromJourneys(homeFastHelpJourneys);
-  const latestResumeJourney = latestResumableHomeFastHelpJourney(homeFastHelpJourneys);
-  const latestBlockedJourney = latestBlockedHomeFastHelpJourney(homeFastHelpJourneys, conciergeClockMs);
-  const activeConciergeResumeJourney = latestResumeJourney?.actionId === activeContextualFastHelpActionId
-    ? latestResumeJourney
-    : null;
-  const activeConciergeFastHelpAction: MasterFastHelpAction | null = activeConciergeHomeTask ? {
-    id: "concierge-status",
-    icon: ConciergeBell,
-    label: activeConciergeResumeJourney
-      ? t("home.contextualFastHelp.outcome.continue", "Continue")
-      : conciergeHomeFastStatusLabel(activeConciergeHomeTask, t),
-    detail: activeConciergeWaitingText,
-    tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-    pinned: true,
-    onClick: () => activeConciergeResumeJourney
-      ? continueHomeFastHelp(activeConciergeResumeJourney, {
-          focusRightNow: true,
-          conciergePendingId: activeConciergeHomeTask.id,
-        })
-      : handleNavigate("/concierge", { state: { focusRightNow: true, conciergePendingId: activeConciergeHomeTask.id } }),
-    testId: "button-home-fast-concierge-status",
-  } : null;
+    : recoveryNudge?.journey.actionId ?? null;
   const contextualFastHelpRanking = rankContextualHomeFastHelp({
     activeTaskActionId: activeContextualFastHelpActionId,
     activity: [...homeFastHelpHistory, ...remoteFastHelpActivity, ...journeyFastHelpActivity],
     hour: new Date(conciergeClockMs).getHours(),
     nowMs: conciergeClockMs,
     profile: profile?.serviceReadiness,
-    resumeActionId: latestResumeJourney?.actionId,
     signals: {
       alertSeverity: latestVitalsHomeSignal?.latest_alert?.severity,
       checkinStatus: checkinHomeSignal?.status,
@@ -1239,7 +1261,7 @@ const HomeScreen = () => {
       recommendedAction: latestVitalsHomeSignal?.analysis?.recommended_action,
       safetyStatus: latestVitalsHomeSignal?.analysis?.safety_status,
     },
-    visibleCount: activeConciergeFastHelpAction ? 2 : 3,
+    visibleCount: 3,
   });
   const homeMasterFastHelpActionById = new Map(
     homeMasterFastHelpActions.map((action) => [action.id as ContextualHomeFastHelpActionId, action]),
@@ -1247,34 +1269,25 @@ const HomeScreen = () => {
   const contextualHomeMasterFastHelpActions = contextualFastHelpRanking.flatMap((ranked) => {
     const action = homeMasterFastHelpActionById.get(ranked.id);
     if (!action) return [];
-    const resumeJourney = latestResumeJourney?.actionId === ranked.id ? latestResumeJourney : null;
     return [{
       ...action,
-      label: resumeJourney
-        ? t("home.contextualFastHelp.outcome.continue", "Continue")
-        : action.label,
-      detail: resumeJourney
-        ? t("home.contextualFastHelp.outcome.continueDetail", "Continue {{action}}", { action: action.label })
-        : latestBlockedJourney && ranked.id !== latestBlockedJourney.actionId
-          ? t("home.contextualFastHelp.outcome.blockedAlternative", "Try this useful next step instead")
-          : t(
-              `home.contextualFastHelp.reasons.${ranked.reason}`,
-              HOME_FAST_HELP_REASON_FALLBACKS[ranked.reason],
-            ),
-      onClick: resumeJourney
-        ? () => continueHomeFastHelp(resumeJourney)
-        : () => {
-            rememberHomeFastHelpUse(ranked.id);
-            action.onClick();
-          },
+      detail: latestBlockedJourney && ranked.id !== latestBlockedJourney.actionId
+        ? t("home.contextualFastHelp.outcome.blockedAlternative", "Try this useful next step instead")
+        : t(
+            `home.contextualFastHelp.reasons.${ranked.reason}`,
+            HOME_FAST_HELP_REASON_FALLBACKS[ranked.reason],
+          ),
+      onClick: () => {
+        rememberHomeFastHelpUse(ranked.id);
+        action.onClick();
+      },
     }];
   });
-  const homeMasterFastHelpActionsWithStatus = activeConciergeFastHelpAction
-    ? [activeConciergeFastHelpAction, ...contextualHomeMasterFastHelpActions]
-    : contextualHomeMasterFastHelpActions;
+  const homeMasterFastHelpActionsWithStatus = contextualHomeMasterFastHelpActions;
   const conciergeRightNowNudge = activeConciergeHomeTask ? (
     <div
       data-testid="card-home-concierge-resume"
+      data-resume-kind={homeResumeCandidate?.kind}
       className="w-full min-w-0 rounded-[22px] border border-[#BBF7D0] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_52%,#F4FDF8_100%)] p-3 text-left shadow-[0_12px_28px_rgba(4,120,87,0.08)] min-[390px]:p-4"
       aria-label={`${conciergeHomeKickerText}: ${activeConciergeTitleText}. ${activeConciergeShowVyvaTask ? activeConciergeTaskText : activeConciergeWaitingText}`}
     >
@@ -1367,12 +1380,125 @@ const HomeScreen = () => {
       <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
     </button>
   ) : null;
-  const conciergeHomeNudges = conciergeRightNowNudge || conciergeReuseNudge ? (
-    <div className="space-y-3">
-      {conciergeRightNowNudge}
-      {conciergeReuseNudge}
+  const recoveryAction = recoveryNudge
+    ? homeMasterFastHelpActionById.get(recoveryNudge.journey.actionId)
+    : null;
+  const continueRecoveryNudge = () => {
+    if (!recoveryNudge) return;
+    if (recoveryNudge.kind !== "transport_provider") {
+      continueHomeFastHelp(recoveryNudge.journey, undefined, true);
+      return;
+    }
+
+    const resumed = resumeHomeFastHelpJourney(recoveryNudge.journey, homeFastHelpJourneyKey, {
+      reason: "recovery_nudge",
+      referenceId: HOME_FAST_HELP_RECOVERY_REFERENCE_ID,
+    });
+    const context = homeFastHelpContextForJourney(resumed, homeFastHelpJourneyKey);
+    const destinationState = resumed.destinationState ?? resumedHomeFastHelpState(resumed.actionId) ?? {};
+    const conciergePrefill = destinationState.conciergePrefill && typeof destinationState.conciergePrefill === "object"
+      ? destinationState.conciergePrefill as Record<string, unknown>
+      : {};
+    const message = typeof conciergePrefill.message === "string"
+      ? conciergePrefill.message
+      : t("home.fastHelp.ridePrefill", "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.");
+    handleNavigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        returnState: withHomeFastHelpContextState(context, destinationState),
+        setupFocus: "transport",
+        setupFlow: CONCIERGE_FLOW_REFERENCES.transportBooking,
+        setupReason: "Add a saved transport provider",
+        conciergeResume: {
+          kind: "transport",
+          message,
+          pickup: "",
+          destination: "",
+          time: "now",
+          mobilityNeeds: [],
+        },
+        notice: t(
+          "home.recoveryNudge.transportSetupNotice",
+          "Save a trusted taxi or transport provider, then continue your ride.",
+        ),
+      },
+    });
+    setHomeFastHelpJourneys(readHomeFastHelpJourneys(homeFastHelpJourneyKey));
+  };
+  const deferRecoveryNudge = () => {
+    if (!recoveryNudge) return;
+    markHomeFastHelpJourney(
+      homeFastHelpContextForJourney(recoveryNudge.journey, homeFastHelpJourneyKey),
+      "abandoned",
+      { reason: "recovery_later" },
+    );
+    setHomeFastHelpJourneys(readHomeFastHelpJourneys(homeFastHelpJourneyKey));
+  };
+  const dismissRecoveryNudge = () => {
+    if (!recoveryNudge) return;
+    markHomeFastHelpJourney(
+      homeFastHelpContextForJourney(recoveryNudge.journey, homeFastHelpJourneyKey),
+      "dismissed",
+      { reason: "recovery_dismissed" },
+    );
+    setHomeFastHelpJourneys(readHomeFastHelpJourneys(homeFastHelpJourneyKey));
+  };
+  const fastHelpRecoveryNudge = recoveryNudge && recoveryAction ? (
+    <div
+      data-testid="card-home-fast-help-recovery"
+      data-resume-kind={homeResumeCandidate?.kind}
+      className="w-full min-w-0 rounded-[22px] border border-[#DDD6FE] bg-white p-3 shadow-[0_12px_28px_rgba(107,33,168,0.07)] min-[390px]:p-4"
+    >
+      <div className="flex min-w-0 items-center gap-3 min-[390px]:gap-4">
+        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF] text-vyva-purple min-[390px]:h-[54px] min-[390px]:w-[54px]">
+          <History size={25} strokeWidth={2.45} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+            {recoveryNudge.kind === "transport_provider"
+              ? t("home.recoveryNudge.transportSetupTitle", "One quick setup first")
+              : recoveryNudge.kind === "blocked"
+                ? t("home.recoveryNudge.blockedTitle", "One quick step first")
+                : t("home.recoveryNudge.title", "Continue where you left off")}
+          </span>
+          <span className="mt-1 block font-body text-[13px] font-bold leading-snug text-vyva-text-2 min-[390px]:text-[14px]">
+            {recoveryNudge.kind === "transport_provider"
+              ? t("home.recoveryNudge.transportSetupDetail", "Add a trusted transport provider to continue your ride.")
+              : recoveryNudge.kind === "blocked"
+                ? t("home.recoveryNudge.blockedDetail", "Open {{action}} to see what is needed.", { action: recoveryAction.label })
+                : t("home.recoveryNudge.detail", "Continue {{action}} when you are ready.", { action: recoveryAction.label })}
+          </span>
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          data-testid="button-home-fast-help-recovery-continue"
+          onClick={continueRecoveryNudge}
+          className="vyva-tap min-h-[44px] rounded-full bg-vyva-purple px-2 font-body text-[12px] font-black text-white shadow-[0_8px_18px_rgba(107,33,168,0.14)] min-[390px]:text-[13px]"
+        >
+          {t("home.recoveryNudge.continue", "Continue")}
+        </button>
+        <button
+          type="button"
+          data-testid="button-home-fast-help-recovery-later"
+          onClick={deferRecoveryNudge}
+          className="vyva-tap min-h-[44px] rounded-full border border-[#DDD6FE] bg-[#F8F6FF] px-2 font-body text-[12px] font-black text-vyva-purple min-[390px]:text-[13px]"
+        >
+          {t("home.recoveryNudge.later", "Later")}
+        </button>
+        <button
+          type="button"
+          data-testid="button-home-fast-help-recovery-dismiss"
+          onClick={dismissRecoveryNudge}
+          className="vyva-tap min-h-[44px] rounded-full border border-[#E9E3DE] bg-white px-2 font-body text-[12px] font-black text-vyva-text-2 min-[390px]:text-[13px]"
+        >
+          {t("home.recoveryNudge.dismiss", "Dismiss")}
+        </button>
+      </div>
     </div>
   ) : null;
+  const homeNudge = conciergeRightNowNudge ?? fastHelpRecoveryNudge ?? conciergeReuseNudge;
 
   return (
     <MasterDashboardLayout
@@ -1404,7 +1530,7 @@ const HomeScreen = () => {
       }}
       cards={homeMasterCards}
       fastHelpActions={homeMasterFastHelpActionsWithStatus}
-      beforeFastHelp={conciergeHomeNudges}
+      beforeFastHelp={homeNudge}
     />
   );
 };

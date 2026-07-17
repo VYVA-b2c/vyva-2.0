@@ -1465,6 +1465,18 @@ const fr = {
         blockedAlternative: "Essayez plutot cette prochaine etape utile",
       },
     },
+    recoveryNudge: {
+      title: "Reprendre la ou vous en etiez",
+      detail: "Reprenez {{action}} quand vous etes pret.",
+      blockedTitle: "Une petite etape d'abord",
+      blockedDetail: "Ouvrez {{action}} pour voir ce qu'il manque.",
+      transportSetupTitle: "Une configuration rapide d'abord",
+      transportSetupDetail: "Ajoutez un transport de confiance pour reprendre votre trajet.",
+      transportSetupNotice: "Enregistrez un taxi ou transport de confiance, puis reprenez votre trajet.",
+      continue: "Continuer",
+      later: "Plus tard",
+      dismiss: "Masquer",
+    },
   },
   concierge: {
     fastHelp: {

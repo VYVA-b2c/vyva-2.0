@@ -72,14 +72,14 @@ describe("Resend email dispatch", () => {
       body: "Plain marketing copy",
       metadata: {
         subject: "July update",
-        htmlBody: "<p>Rich Lovable template</p>",
+        htmlBody: "<p>Rich Source template</p>",
       },
     } as CommunicationLog);
 
     expect(email).toEqual({
       subject: "July update",
       text: "Plain marketing copy",
-      html: "<p>Rich Lovable template</p>",
+      html: "<p>Rich Source template</p>",
     });
 
     expect(buildResendEmailRequest(
@@ -91,7 +91,7 @@ describe("Resend email dispatch", () => {
     )).toMatchObject({
       subject: "July update",
       text: "Plain marketing copy",
-      html: "<p>Rich Lovable template</p>",
+      html: "<p>Rich Source template</p>",
     });
   });
 });

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, CircleDashed, Filter, Route, Search } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -15,6 +16,7 @@ import {
   workflowActionsForTarget,
   workflowCoverageState,
 } from "../../../shared/workflowRegistry";
+import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../../shared/homeFastHelpSync";
 
 type DomainFilter = "all" | WorkflowDomain;
 type CoverageFilter = "all" | "incomplete" | WorkflowCoverageState;
@@ -36,6 +38,15 @@ const COVERAGE_LABELS: Record<WorkflowCoverageState, string> = {
   complete: "Complete",
   partial: "Partial",
   missing: "Missing",
+};
+
+const FAST_HELP_LABELS: Record<HomeFastHelpActionId, string> = {
+  "feel-better": "Symptoms check",
+  "stay-well": "Age well",
+  "find-care": "Find care",
+  "book-ride": "Book ride",
+  "paperwork-help": "Paperwork",
+  "safe-home": "Safe home",
 };
 
 const COVERAGE_CLASS: Record<WorkflowCoverageState, string> = {
@@ -185,6 +196,11 @@ export default function WorkflowCoverageAdminPage() {
   const [query, setQuery] = useState("");
   const summary = useMemo(() => getWorkflowCoverageSummary(), []);
   const nextCandidates = useMemo(() => nextWorkflowImplementationCandidates(6), []);
+  const { data: fastHelpOutcomes, isLoading: fastHelpLoading } = useQuery<HomeFastHelpOutcomeAggregate>({
+    queryKey: ["/api/admin/home/fast-help-outcomes?days=30"],
+    retry: false,
+    staleTime: 60_000,
+  });
 
   const workflows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -238,6 +254,57 @@ export default function WorkflowCoverageAdminPage() {
           <SummaryCard label="Complete" value={summary.workflows.complete} tone="complete" />
           <SummaryCard label="Partial" value={summary.workflows.partial} tone="partial" />
           <SummaryCard label="Missing" value={summary.workflows.missing} tone="missing" />
+        </section>
+
+        <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" aria-label="Fast Help outcomes">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Fast Help outcomes</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Last 30 days</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">Anonymous totals only</p>
+          </div>
+          {fastHelpLoading ? (
+            <p className="mt-4 text-sm font-semibold text-[#7d6b65]">Loading outcome totals...</p>
+          ) : !fastHelpOutcomes ? (
+            <p className="mt-4 text-sm font-semibold text-[#7d6b65]">Outcome totals are not available yet.</p>
+          ) : (
+            <>
+              <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <SummaryCard label="Opened" value={fastHelpOutcomes.totals.opened} />
+                <SummaryCard label="Completed" value={fastHelpOutcomes.totals.completed} tone="complete" />
+                <SummaryCard label="Blocked" value={fastHelpOutcomes.totals.blocked} tone="partial" />
+                <SummaryCard label="Resumed" value={fastHelpOutcomes.totals.resumed} />
+                <SummaryCard label="Recovered" value={fastHelpOutcomes.totals.recovered} tone="complete" />
+              </div>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[620px] text-left text-sm">
+                  <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                    <tr>
+                      <th className="px-2 py-2">Action</th>
+                      <th className="px-2 py-2">Opened</th>
+                      <th className="px-2 py-2">Completed</th>
+                      <th className="px-2 py-2">Blocked</th>
+                      <th className="px-2 py-2">Resumed</th>
+                      <th className="px-2 py-2">Recovered</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fastHelpOutcomes.actions.map((row) => (
+                      <tr key={row.actionId} className="border-t border-[#f0e7df] font-bold text-[#4d3d45]">
+                        <td className="px-2 py-2.5">{FAST_HELP_LABELS[row.actionId]}</td>
+                        <td className="px-2 py-2.5">{row.opened}</td>
+                        <td className="px-2 py-2.5">{row.completed}</td>
+                        <td className="px-2 py-2.5">{row.blocked}</td>
+                        <td className="px-2 py-2.5">{row.resumed}</td>
+                        <td className="px-2 py-2.5">{row.recovered}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </section>
 
         <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm">
