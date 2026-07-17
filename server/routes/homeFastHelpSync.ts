@@ -47,7 +47,7 @@ router.post("/sync", async (req: Request, res: Response) => {
     return res.json({
       syncAvailable: true,
       syncedAt: new Date().toISOString(),
-      journeys: await syncHomeFastHelpJourneys(userId, parsed.data.journeys),
+      journeys: await syncHomeFastHelpJourneys(userId, parsed.data.journeys, parsed.data.impressions),
     });
   } catch (error) {
     console.error("[home-fast-help-sync] POST /sync failed:", error);

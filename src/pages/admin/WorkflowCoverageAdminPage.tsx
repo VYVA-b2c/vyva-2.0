@@ -112,6 +112,20 @@ function SummaryCard({
   );
 }
 
+function insightRate(numerator: number, denominator: number) {
+  if (denominator <= 0) return "--";
+  return `${Math.round((numerator / denominator) * 100)}%`;
+}
+
+function InsightCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm">
+      <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">{label}</p>
+      <p className="mt-2 text-3xl font-black text-[#2f2135]">{value}</p>
+    </div>
+  );
+}
+
 function EntryPointList({ actions }: { actions: WorkflowActionLookup[] }) {
   if (actions.length === 0) {
     return <p className="text-sm font-semibold text-[#8b7a73]">No entry points mapped yet.</p>;
@@ -256,13 +270,13 @@ export default function WorkflowCoverageAdminPage() {
           <SummaryCard label="Missing" value={summary.workflows.missing} tone="missing" />
         </section>
 
-        <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" aria-label="Fast Help outcomes">
+        <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" aria-label="Fast Help ranking insights">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Fast Help outcomes</p>
-              <h2 className="mt-1 font-serif text-3xl leading-tight">Last 30 days</h2>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Fast Help ranking insights</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Shown to outcome, last 30 days</h2>
             </div>
-            <p className="text-xs font-bold text-[#8b7a73]">Anonymous totals only</p>
+            <p className="text-xs font-bold text-[#8b7a73]">Aggregate action IDs only; no health or profile content</p>
           </div>
           {fastHelpLoading ? (
             <p className="mt-4 text-sm font-semibold text-[#7d6b65]">Loading outcome totals...</p>
@@ -271,37 +285,109 @@ export default function WorkflowCoverageAdminPage() {
           ) : (
             <>
               <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                <SummaryCard label="Opened" value={fastHelpOutcomes.totals.opened} />
-                <SummaryCard label="Completed" value={fastHelpOutcomes.totals.completed} tone="complete" />
-                <SummaryCard label="Blocked" value={fastHelpOutcomes.totals.blocked} tone="partial" />
-                <SummaryCard label="Resumed" value={fastHelpOutcomes.totals.resumed} />
-                <SummaryCard label="Recovered" value={fastHelpOutcomes.totals.recovered} tone="complete" />
+                <InsightCard label="Options shown" value={fastHelpOutcomes.totals.shown} />
+                <InsightCard
+                  label="Opened from shown"
+                  value={fastHelpOutcomes.totals.attributedOpened}
+                />
+                <InsightCard
+                  label="Open rate"
+                  value={insightRate(fastHelpOutcomes.totals.attributedOpened, fastHelpOutcomes.totals.shown)}
+                />
+                <InsightCard
+                  label="Completed"
+                  value={fastHelpOutcomes.totals.attributedCompleted}
+                />
+                <InsightCard
+                  label="Blocked"
+                  value={fastHelpOutcomes.totals.attributedBlocked}
+                />
               </div>
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[620px] text-left text-sm">
+                <table className="w-full min-w-[780px] text-left text-sm">
                   <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
                     <tr>
                       <th className="px-2 py-2">Action</th>
+                      <th className="px-2 py-2">Shown</th>
                       <th className="px-2 py-2">Opened</th>
                       <th className="px-2 py-2">Completed</th>
                       <th className="px-2 py-2">Blocked</th>
-                      <th className="px-2 py-2">Resumed</th>
-                      <th className="px-2 py-2">Recovered</th>
+                      <th className="px-2 py-2">Open rate</th>
+                      <th className="px-2 py-2">Finish rate</th>
+                      <th className="px-2 py-2">Evidence</th>
                     </tr>
                   </thead>
                   <tbody>
                     {fastHelpOutcomes.actions.map((row) => (
                       <tr key={row.actionId} className="border-t border-[#f0e7df] font-bold text-[#4d3d45]">
                         <td className="px-2 py-2.5">{FAST_HELP_LABELS[row.actionId]}</td>
-                        <td className="px-2 py-2.5">{row.opened}</td>
-                        <td className="px-2 py-2.5">{row.completed}</td>
-                        <td className="px-2 py-2.5">{row.blocked}</td>
-                        <td className="px-2 py-2.5">{row.resumed}</td>
-                        <td className="px-2 py-2.5">{row.recovered}</td>
+                        <td className="px-2 py-2.5">{row.shown}</td>
+                        <td className="px-2 py-2.5">{row.attributedOpened}</td>
+                        <td className="px-2 py-2.5">{row.attributedCompleted}</td>
+                        <td className="px-2 py-2.5">{row.attributedBlocked}</td>
+                        <td className="px-2 py-2.5">{insightRate(row.attributedOpened, row.shown)}</td>
+                        <td className="px-2 py-2.5">{insightRate(row.attributedCompleted, row.attributedOpened)}</td>
+                        <td className="px-2 py-2.5">
+                          <span className={`rounded-full px-2 py-1 text-xs font-black ${
+                            row.shown >= 30
+                              ? "bg-emerald-50 text-emerald-800"
+                              : "bg-amber-50 text-amber-800"
+                          }`}>
+                            {row.shown >= 30 ? "Ready to compare" : "Collecting data"}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="mt-5 border-t border-[#f0e7df] pt-4">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">Ranking versions</p>
+                    <h3 className="mt-1 font-serif text-2xl text-[#2f2135]">Compare changes with evidence</h3>
+                  </div>
+                  <p className="text-xs font-bold text-[#8b7a73]">Rates use only journeys linked to a shown set.</p>
+                </div>
+                {fastHelpOutcomes.rankingVersions.length === 0 ? (
+                  <p className="mt-3 text-sm font-semibold text-[#7d6b65]">No ranking impressions have synced yet.</p>
+                ) : (
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full min-w-[680px] text-left text-sm">
+                      <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                        <tr>
+                          <th className="px-2 py-2">Version</th>
+                          <th className="px-2 py-2">Action</th>
+                          <th className="px-2 py-2">Shown sets</th>
+                          <th className="px-2 py-2">Options shown</th>
+                          <th className="px-2 py-2">Opened</th>
+                          <th className="px-2 py-2">Completed</th>
+                          <th className="px-2 py-2">Blocked</th>
+                          <th className="px-2 py-2">Open rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fastHelpOutcomes.rankingVersions.flatMap((version) => (
+                          version.actions.map((action) => (
+                            <tr
+                              key={`${version.rankingVersion}:${action.actionId}`}
+                              className="border-t border-[#f0e7df] font-bold text-[#4d3d45]"
+                            >
+                              <td className="px-2 py-2.5"><code>{version.rankingVersion}</code></td>
+                              <td className="px-2 py-2.5">{FAST_HELP_LABELS[action.actionId]}</td>
+                              <td className="px-2 py-2.5">{version.impressions}</td>
+                              <td className="px-2 py-2.5">{action.shown}</td>
+                              <td className="px-2 py-2.5">{action.opened}</td>
+                              <td className="px-2 py-2.5">{action.completed}</td>
+                              <td className="px-2 py-2.5">{action.blocked}</td>
+                              <td className="px-2 py-2.5">{insightRate(action.opened, action.shown)}</td>
+                            </tr>
+                          ))
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </>
           )}

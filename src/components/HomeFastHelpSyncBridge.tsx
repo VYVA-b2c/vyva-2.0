@@ -5,6 +5,10 @@ import {
   HOME_FAST_HELP_JOURNEY_EVENT,
   homeFastHelpJourneyStorageKey,
 } from "@/lib/homeFastHelpOutcome";
+import {
+  HOME_FAST_HELP_IMPRESSION_EVENT,
+  homeFastHelpImpressionStorageKey,
+} from "@/lib/homeFastHelpInsights";
 import { syncHomeFastHelpOutcomes } from "@/lib/homeFastHelpSyncClient";
 
 export default function HomeFastHelpSyncBridge() {
@@ -15,6 +19,7 @@ export default function HomeFastHelpSyncBridge() {
   const timerRef = useRef<number | null>(null);
   const enabled = Boolean(token && user?.id && user.activeProfileRole === "elder");
   const storageKey = homeFastHelpJourneyStorageKey(profile?.profileId ?? user?.activeProfileId);
+  const impressionStorageKey = homeFastHelpImpressionStorageKey(profile?.profileId ?? user?.activeProfileId);
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
@@ -28,7 +33,7 @@ export default function HomeFastHelpSyncBridge() {
       }
       inFlightRef.current = true;
       try {
-        await syncHomeFastHelpOutcomes(storageKey);
+        await syncHomeFastHelpOutcomes(storageKey, impressionStorageKey);
       } catch {
         // Local outcomes remain authoritative until the next online retry.
       } finally {
@@ -46,16 +51,17 @@ export default function HomeFastHelpSyncBridge() {
     };
     const onJourneyChange = (event: Event) => {
       const detail = (event as CustomEvent<{ storageKey?: string }>).detail;
-      if (!detail?.storageKey || detail.storageKey === storageKey) schedule();
+      if (!detail?.storageKey || detail.storageKey === storageKey || detail.storageKey === impressionStorageKey) schedule();
     };
     const onStorage = (event: StorageEvent) => {
-      if (event.key === storageKey) schedule();
+      if (event.key === storageKey || event.key === impressionStorageKey) schedule();
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") schedule();
     };
 
     window.addEventListener(HOME_FAST_HELP_JOURNEY_EVENT, onJourneyChange);
+    window.addEventListener(HOME_FAST_HELP_IMPRESSION_EVENT, onJourneyChange);
     window.addEventListener("storage", onStorage);
     window.addEventListener("online", schedule);
     window.addEventListener("focus", schedule);
@@ -66,12 +72,13 @@ export default function HomeFastHelpSyncBridge() {
       active = false;
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       window.removeEventListener(HOME_FAST_HELP_JOURNEY_EVENT, onJourneyChange);
+      window.removeEventListener(HOME_FAST_HELP_IMPRESSION_EVENT, onJourneyChange);
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("online", schedule);
       window.removeEventListener("focus", schedule);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [enabled, storageKey]);
+  }, [enabled, impressionStorageKey, storageKey]);
 
   return null;
 }

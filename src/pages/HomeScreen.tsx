@@ -41,8 +41,10 @@ import {
   withHomeFastHelpContextState,
   type HomeFastHelpJourney,
 } from "@/lib/homeFastHelpOutcome";
+import { recordHomeFastHelpImpression } from "@/lib/homeFastHelpInsights";
 import { selectHomeResumeCandidate } from "@/lib/homeResumeOrchestrator";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import { HOME_FAST_HELP_RANKING_VERSION } from "../../shared/homeFastHelpSync";
 import {
   isShowVyvaPreparedTask,
   showVyvaResumeActionLabel,
@@ -638,6 +640,8 @@ const HomeScreen = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { firstName: profileFirstName, profile } = useProfile();
+  const activeFastHelpImpressionIdRef = useRef<string | null>(null);
+  const fastHelpImpressionIdsByFingerprintRef = useRef(new Map<string, string>());
   const [fastHelpStartIndex, setFastHelpStartIndex] = useState(0);
   const [conciergeClockMs, setConciergeClockMs] = useState(() => Date.now());
   const homeFastHelpHistoryKey = homeFastHelpHistoryStorageKey(profile?.profileId);
@@ -657,6 +661,11 @@ const HomeScreen = () => {
   useEffect(() => {
     setHomeFastHelpHistory(readHomeFastHelpHistory(homeFastHelpHistoryKey));
   }, [homeFastHelpHistoryKey]);
+
+  useEffect(() => {
+    activeFastHelpImpressionIdRef.current = null;
+    fastHelpImpressionIdsByFingerprintRef.current.clear();
+  }, [profile?.profileId]);
 
   useEffect(() => {
     const syncJourneys = () => setHomeFastHelpJourneys(readHomeFastHelpJourneys(homeFastHelpJourneyKey));
@@ -836,6 +845,7 @@ const HomeScreen = () => {
       destinationPath: path,
       destinationState: options?.state,
       profileId: profile?.profileId,
+      impressionId: activeFastHelpImpressionIdRef.current,
     });
     const allowed = handleNavigate(path, {
       ...options,
@@ -1290,6 +1300,28 @@ const HomeScreen = () => {
       },
     }];
   });
+  const contextualFastHelpImpressionFingerprint = [
+    profile?.profileId ?? "browser",
+    HOME_FAST_HELP_RANKING_VERSION,
+    ...contextualFastHelpRanking.map((ranked) => ranked.id),
+  ].join(":");
+
+  useEffect(() => {
+    const existingId = fastHelpImpressionIdsByFingerprintRef.current.get(contextualFastHelpImpressionFingerprint);
+    if (existingId) {
+      activeFastHelpImpressionIdRef.current = existingId;
+      return;
+    }
+    const impression = recordHomeFastHelpImpression({
+      actionIds: contextualFastHelpRanking.map((ranked) => ranked.id),
+      rankingVersion: HOME_FAST_HELP_RANKING_VERSION,
+      profileId: profile?.profileId,
+    });
+    activeFastHelpImpressionIdRef.current = impression?.id ?? null;
+    if (impression) {
+      fastHelpImpressionIdsByFingerprintRef.current.set(contextualFastHelpImpressionFingerprint, impression.id);
+    }
+  }, [contextualFastHelpImpressionFingerprint, profile?.profileId]);
   const homeMasterFastHelpActionsWithStatus = contextualHomeMasterFastHelpActions;
   const conciergeRightNowNudge = activeConciergeHomeTask ? (
     <div

@@ -17,8 +17,15 @@ export const HOME_FAST_HELP_OUTCOME_STATUSES = [
   "blocked",
 ] as const;
 
+export const HOME_FAST_HELP_RANKING_VERSION = "personalized-v1";
+
 export type HomeFastHelpActionId = typeof HOME_FAST_HELP_ACTION_IDS[number];
 export type HomeFastHelpSyncedStatus = typeof HOME_FAST_HELP_OUTCOME_STATUSES[number];
+
+const rankingVersionSchema = z.string()
+  .min(1)
+  .max(40)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/);
 
 const safeReferenceIdSchema = z.string()
   .min(1)
@@ -37,6 +44,7 @@ export const homeFastHelpSyncedEventSchema = z.object({
 export const homeFastHelpSyncedJourneySchema = z.object({
   id: z.string().uuid(),
   actionId: z.enum(HOME_FAST_HELP_ACTION_IDS),
+  impressionId: z.string().uuid().nullable().optional(),
   status: z.enum(HOME_FAST_HELP_OUTCOME_STATUSES),
   startedAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
@@ -46,12 +54,23 @@ export const homeFastHelpSyncedJourneySchema = z.object({
   Date.parse(journey.updatedAt) >= Date.parse(journey.startedAt)
 ), { message: "updatedAt must not be earlier than startedAt" });
 
+export const homeFastHelpSyncedImpressionSchema = z.object({
+  id: z.string().uuid(),
+  actionIds: z.array(z.enum(HOME_FAST_HELP_ACTION_IDS)).length(3),
+  rankingVersion: rankingVersionSchema,
+  shownAt: z.string().datetime({ offset: true }),
+}).strict().refine((impression) => (
+  new Set(impression.actionIds).size === impression.actionIds.length
+), { message: "Fast Help impression actions must be unique" });
+
 export const homeFastHelpSyncRequestSchema = z.object({
   journeys: z.array(homeFastHelpSyncedJourneySchema).max(30),
+  impressions: z.array(homeFastHelpSyncedImpressionSchema).max(50).optional().default([]),
 }).strict();
 
 export type HomeFastHelpSyncedEvent = z.infer<typeof homeFastHelpSyncedEventSchema>;
 export type HomeFastHelpSyncedJourney = z.infer<typeof homeFastHelpSyncedJourneySchema>;
+export type HomeFastHelpSyncedImpression = z.infer<typeof homeFastHelpSyncedImpressionSchema>;
 
 export type HomeFastHelpSyncResponse = {
   syncAvailable: boolean;
@@ -61,6 +80,10 @@ export type HomeFastHelpSyncResponse = {
 
 export type HomeFastHelpOutcomeAggregateRow = {
   actionId: HomeFastHelpActionId;
+  shown: number;
+  attributedOpened: number;
+  attributedCompleted: number;
+  attributedBlocked: number;
   opened: number;
   completed: number;
   dismissed: number;
@@ -70,11 +93,28 @@ export type HomeFastHelpOutcomeAggregateRow = {
   recovered: number;
 };
 
+export type HomeFastHelpRankingVersionAggregate = {
+  rankingVersion: string;
+  impressions: number;
+  shown: number;
+  opened: number;
+  completed: number;
+  blocked: number;
+  actions: Array<{
+    actionId: HomeFastHelpActionId;
+    shown: number;
+    opened: number;
+    completed: number;
+    blocked: number;
+  }>;
+};
+
 export type HomeFastHelpOutcomeAggregate = {
   generatedAt: string;
   windowDays: number;
   totals: Omit<HomeFastHelpOutcomeAggregateRow, "actionId">;
   actions: HomeFastHelpOutcomeAggregateRow[];
+  rankingVersions: HomeFastHelpRankingVersionAggregate[];
 };
 
 const STATUS_TIE_PRIORITY: Record<HomeFastHelpSyncedStatus, number> = {
@@ -121,6 +161,7 @@ export function mergeHomeFastHelpSyncedJourneys(
   return {
     id: local.id,
     actionId: local.actionId,
+    impressionId: local.impressionId ?? remote.impressionId ?? null,
     status: winner?.status ?? fallback.status,
     startedAt,
     updatedAt: winner?.occurredAt ?? fallback.updatedAt,
