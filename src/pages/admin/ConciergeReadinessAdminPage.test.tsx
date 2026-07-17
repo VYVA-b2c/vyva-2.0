@@ -35,13 +35,16 @@ function channelRow(input: {
   configured?: boolean;
   verified?: boolean;
   notes?: string | null;
+  probeStatus?: "not_run" | "pass" | "fail";
+  probeBlocker?: string | null;
 }) {
   const tool = conciergeToolForProductionChannel(input.channel);
+  const probeStatus = input.probeStatus ?? (input.verified ? "pass" : "not_run");
   const flags = {
     [input.channel]: {
       adminEnabled: input.adminEnabled === true,
       configured: input.configured === true,
-      verified: input.verified === true,
+      verified: probeStatus === "pass",
       notes: input.notes ?? null,
     },
   };
@@ -64,8 +67,14 @@ function channelRow(input: {
     ready_blocker: !live.configured
       ? "Required setup has not been configured on the server."
       : !live.verified
-        ? "Required setup has not been verified by an admin."
+        ? input.probeBlocker ?? "Run and pass a safe QA verification probe before enabling live actions."
         : null,
+    probe: {
+      status: probeStatus,
+      checked_at: probeStatus === "not_run" ? null : "2026-07-16T09:55:00.000Z",
+      blocker: probeStatus === "pass" ? null : input.probeBlocker ?? "Run a safe QA verification probe before enabling live actions.",
+      checked_by: probeStatus === "not_run" ? null : "admin-1",
+    },
     notes: input.notes ?? null,
     updated_by: "admin-1",
     updated_at: "2026-07-16T10:00:00.000Z",
@@ -126,7 +135,9 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(within(channelSection).getByRole("heading", { name: /live action readiness gates/i })).toBeInTheDocument();
     expect(screen.getAllByTestId(/row-concierge-channel-/)).toHaveLength(5);
     expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Not configured");
+    expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Probe not run");
     expect(screen.getByTestId("row-concierge-channel-phone-call")).toHaveTextContent("Test mode blocks live contact");
+    expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Probe passed");
     expect(screen.getByTestId("row-concierge-channel-email")).toHaveTextContent("Live-capable after confirmation");
     expect(screen.getByTestId("row-concierge-channel-whatsapp")).toHaveTextContent("Cannot contact providers");
     expect(JSON.stringify(channelSection.textContent)).not.toContain("secret");
@@ -155,15 +166,16 @@ describe("ConciergeReadinessAdminPage", () => {
     renderPage();
 
     const phoneRow = screen.getByTestId("row-concierge-channel-phone-call");
-    expect(within(phoneRow).getByLabelText("Verified")).toBeDisabled();
+    expect(within(phoneRow).getByRole("button", { name: /run verification/i })).toBeDisabled();
     expect(within(phoneRow).getByLabelText("Live-ready")).toBeDisabled();
 
     const formRow = screen.getByTestId("row-concierge-channel-form-application");
-    expect(within(formRow).getByLabelText("Verified")).not.toBeDisabled();
+    expect(within(formRow).getByRole("button", { name: /run verification/i })).not.toBeDisabled();
     expect(within(formRow).getByLabelText("Live-ready")).toBeDisabled();
+    expect(within(formRow).getByText("Probe not run")).toBeInTheDocument();
 
     const emailRow = screen.getByTestId("row-concierge-channel-email");
-    expect(within(emailRow).getByLabelText("Verified")).toBeChecked();
+    expect(within(emailRow).getByText("Verified by probe")).toBeInTheDocument();
     expect(within(emailRow).getByLabelText("Live-ready")).toBeChecked();
     expect(within(emailRow).getByLabelText("Live-ready")).not.toBeDisabled();
   });
@@ -191,6 +203,39 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(body).toEqual({ admin_enabled: true });
     expect(await screen.findByText("Email readiness updated.")).toBeInTheDocument();
     expect(within(screen.getByTestId("row-concierge-channel-email")).getByText("Live-capable after confirmation")).toBeInTheDocument();
+  });
+
+  it("runs a channel verification probe and surfaces failed blockers", async () => {
+    const blocker = "Add a QA form/application URL before running a live-readiness probe.";
+    const initialForm = channelRow({ channel: "form_application", configured: true, verified: false, adminEnabled: false });
+    const failedForm = channelRow({
+      channel: "form_application",
+      configured: true,
+      verified: false,
+      adminEnabled: false,
+      probeStatus: "fail",
+      probeBlocker: blocker,
+    });
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({ channel: failedForm }));
+
+    renderPage(undefined, [
+      channelRow({ channel: "email", configured: true, verified: true, adminEnabled: true }),
+      initialForm,
+      channelRow({ channel: "phone_call", configured: false, verified: false, adminEnabled: false }),
+      channelRow({ channel: "whatsapp", configured: false, verified: false, adminEnabled: false }),
+      channelRow({ channel: "document_upload", configured: true, verified: true, adminEnabled: false }),
+    ]);
+
+    fireEvent.click(within(screen.getByTestId("row-concierge-channel-form-application")).getByRole("button", { name: /run verification/i }));
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/admin/concierge/channel-readiness/form_application/probe",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(await screen.findByText(`Forms / applications verification failed: ${blocker}`)).toBeInTheDocument();
+    expect(screen.getByTestId("row-concierge-channel-form-application")).toHaveTextContent("Probe failed");
+    expect(screen.getByTestId("row-concierge-channel-form-application")).toHaveTextContent(blocker);
+    expect(within(screen.getByTestId("row-concierge-channel-form-application")).getByLabelText("Live-ready")).toBeDisabled();
   });
 
   it("surfaces the high-risk manual QA pass before the remaining Concierge scripts", () => {

@@ -4,6 +4,7 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import type {
+  ConciergeChannelProbeState,
   ConciergeChannelReadinessResult,
   ConciergeProductionChannel,
 } from "../../../shared/conciergeChannelReadiness";
@@ -53,6 +54,7 @@ type AdminChannelReadinessRow = {
   blockers: string[];
   can_mark_ready: boolean;
   ready_blocker: string | null;
+  probe: ConciergeChannelProbeState;
   notes: string | null;
   updated_by: string | null;
   updated_at: string | null;
@@ -769,6 +771,18 @@ function channelStatusLabel(row: AdminChannelReadinessRow): string {
   return "Blocked";
 }
 
+function channelProbeTone(row: AdminChannelReadinessRow): "good" | "warn" | "bad" {
+  if (row.probe.status === "pass") return "good";
+  if (row.probe.status === "fail") return "bad";
+  return "warn";
+}
+
+function channelProbeLabel(row: AdminChannelReadinessRow): string {
+  if (row.probe.status === "pass") return "Probe passed";
+  if (row.probe.status === "fail") return "Probe failed";
+  return "Probe not run";
+}
+
 function formatChannelTimestamp(value: string | null): string {
   if (!value) return "Not updated";
   const parsed = new Date(value);
@@ -781,16 +795,20 @@ function ProductionChannelReadinessSection({
   error,
   message,
   savingChannel,
+  verifyingChannel,
   onRefresh,
   onUpdate,
+  onProbe,
 }: {
   channels: AdminChannelReadinessRow[];
   loading: boolean;
   error: string | null;
   message: string | null;
   savingChannel: ConciergeProductionChannel | null;
+  verifyingChannel: ConciergeProductionChannel | null;
   onRefresh: () => void;
   onUpdate: (channel: ConciergeProductionChannel, patch: { admin_enabled?: boolean; verified?: boolean; notes?: string | null }) => void;
+  onProbe: (channel: ConciergeProductionChannel) => void;
 }) {
   const liveReadyCount = channels.filter((channel) => channel.ready).length;
   const blockedCount = channels.length - liveReadyCount;
@@ -851,6 +869,8 @@ function ProductionChannelReadinessSection({
           <tbody>
             {channels.map((row) => {
               const saving = savingChannel === row.channel;
+              const verifying = verifyingChannel === row.channel;
+              const busy = saving || verifying;
               const canToggleLive = row.can_mark_ready || row.admin_enabled;
               return (
                 <tr key={row.channel} className="align-top" data-testid={`row-concierge-channel-${row.channel.replace(/_/g, "-")}`}>
@@ -875,7 +895,14 @@ function ProductionChannelReadinessSection({
                   <td className="min-w-[220px] border-t border-[#f0e7df] px-4 py-4">
                     <div className="flex flex-col gap-2">
                       <Pill tone={row.configured ? "good" : "warn"}>{row.configured ? "Configured" : "Not configured"}</Pill>
-                      <Pill tone={row.verified ? "good" : "warn"}>{row.verified ? "Verified" : "Not verified"}</Pill>
+                      <Pill tone={row.verified ? "good" : "warn"}>{row.verified ? "Verified by probe" : "Not verified"}</Pill>
+                      <Pill tone={channelProbeTone(row)}>{channelProbeLabel(row)}</Pill>
+                      <p className="text-xs font-semibold leading-relaxed text-[#8b7a73]">
+                        Last check: {formatChannelTimestamp(row.probe.checked_at)}
+                      </p>
+                      {row.probe.blocker ? (
+                        <p className="text-xs font-semibold leading-relaxed text-amber-800">{row.probe.blocker}</p>
+                      ) : null}
                       {row.ready_blocker ? (
                         <p className="text-xs font-semibold leading-relaxed text-amber-800">{row.ready_blocker}</p>
                       ) : null}
@@ -900,28 +927,26 @@ function ProductionChannelReadinessSection({
                   </td>
                   <td className="min-w-[260px] border-t border-[#f0e7df] px-4 py-4">
                     <div className="flex flex-col gap-3">
-                      <label className="flex items-center justify-between gap-3 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-black text-[#2f2135]">
-                        Verified
-                        <input
-                          type="checkbox"
-                          className="h-5 w-5 accent-purple-700"
-                          checked={row.verified}
-                          disabled={saving || !row.configured}
-                          onChange={(event) => onUpdate(row.channel, { verified: event.target.checked })}
-                        />
-                      </label>
+                      <button
+                        type="button"
+                        className="inline-flex min-h-[40px] items-center justify-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={busy || !row.configured}
+                        onClick={() => onProbe(row.channel)}
+                      >
+                        {verifying ? "Checking..." : "Run verification"}
+                      </button>
                       <label className="flex items-center justify-between gap-3 rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-black text-[#2f2135]">
                         Live-ready
                         <input
                           type="checkbox"
                           className="h-5 w-5 accent-purple-700"
                           checked={row.admin_enabled}
-                          disabled={saving || !canToggleLive}
+                          disabled={busy || !canToggleLive}
                           onChange={(event) => onUpdate(row.channel, { admin_enabled: event.target.checked })}
                         />
                       </label>
                       <p className="text-xs font-semibold leading-relaxed text-[#8b7a73]">
-                        {saving ? "Saving..." : formatChannelTimestamp(row.updated_at)}
+                        {busy ? (verifying ? "Checking..." : "Saving...") : formatChannelTimestamp(row.updated_at)}
                       </p>
                     </div>
                   </td>
@@ -932,7 +957,7 @@ function ProductionChannelReadinessSection({
                         key={`${row.channel}-${row.updated_at ?? "new"}`}
                         className="min-h-[86px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
                         defaultValue={row.notes ?? ""}
-                        disabled={saving}
+                        disabled={busy}
                         onBlur={(event) => onUpdate(row.channel, { notes: event.target.value.trim() || null })}
                       />
                     </label>
@@ -970,6 +995,7 @@ export default function ConciergeReadinessAdminPage({
   const [channelError, setChannelError] = useState<string | null>(null);
   const [channelMessage, setChannelMessage] = useState<string | null>(null);
   const [savingChannel, setSavingChannel] = useState<ConciergeProductionChannel | null>(null);
+  const [verifyingChannel, setVerifyingChannel] = useState<ConciergeProductionChannel | null>(null);
   const [manualQaState, setManualQaState] = useState<ConciergeManualQaRunnerState>(() => (
     normalizeConciergeManualQaRunnerState(scripts, readStoredManualQaState())
   ));
@@ -1042,6 +1068,35 @@ export default function ConciergeReadinessAdminPage({
       await loadChannelReadiness();
     } finally {
       setSavingChannel(null);
+    }
+  }
+
+  async function handleChannelProbe(channel: ConciergeProductionChannel) {
+    setVerifyingChannel(channel);
+    setChannelError(null);
+    setChannelMessage(null);
+    try {
+      const response = await apiFetch(`/api/admin/concierge/channel-readiness/${channel}/probe`, {
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => null) as { channel?: AdminChannelReadinessRow; error?: string } | null;
+      if (!response.ok || !payload?.channel) {
+        throw new Error(payload?.error ?? "Could not run channel verification.");
+      }
+
+      setChannelRows((current) => current.map((row) => (
+        row.channel === payload.channel!.channel ? payload.channel! : row
+      )));
+      if (payload.channel.probe.status === "pass") {
+        setChannelMessage(`${payload.channel.label} verification passed.`);
+      } else {
+        setChannelMessage(`${payload.channel.label} verification failed: ${payload.channel.probe.blocker ?? "Review channel setup."}`);
+      }
+    } catch (error) {
+      setChannelError(error instanceof Error ? error.message : "Could not run channel verification.");
+      await loadChannelReadiness();
+    } finally {
+      setVerifyingChannel(null);
     }
   }
 
@@ -1136,8 +1191,10 @@ export default function ConciergeReadinessAdminPage({
           error={channelError}
           message={channelMessage}
           savingChannel={savingChannel}
+          verifyingChannel={verifyingChannel}
           onRefresh={() => void loadChannelReadiness()}
           onUpdate={(channel, patch) => void handleChannelReadinessUpdate(channel, patch)}
+          onProbe={(channel) => void handleChannelProbe(channel)}
         />
 
         <section className="mt-5 overflow-hidden rounded-[14px] border border-[#eadfd5] bg-white shadow-sm">

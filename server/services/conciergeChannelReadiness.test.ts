@@ -10,6 +10,7 @@ vi.mock("../db.js", () => dbMock);
 
 import {
   buildAdminConciergeChannelReadinessSnapshot,
+  runAdminConciergeChannelVerificationProbe,
   updateAdminConciergeChannelReadiness,
 } from "./conciergeChannelReadiness.js";
 
@@ -39,6 +40,16 @@ function resetChannelEnv() {
     "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_READY",
     "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_CONFIGURED",
     "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_VERIFIED",
+    "CONCIERGE_PHONE_CALL_QA_ENDPOINT",
+    "CONCIERGE_PHONE_CALL_QA_PHONE_NUMBER",
+    "CONCIERGE_EMAIL_QA_ENDPOINT",
+    "CONCIERGE_EMAIL_QA_RECIPIENT",
+    "CONCIERGE_WHATSAPP_QA_ENDPOINT",
+    "CONCIERGE_WHATSAPP_QA_PHONE_NUMBER",
+    "CONCIERGE_FORM_APPLICATION_QA_ENDPOINT",
+    "CONCIERGE_FORM_APPLICATION_QA_URL",
+    "CONCIERGE_DOCUMENT_UPLOAD_QA_ENDPOINT",
+    "CONCIERGE_DOCUMENT_UPLOAD_QA_URL",
   ].forEach((key) => {
     delete process.env[key];
   });
@@ -70,6 +81,9 @@ describe("admin Concierge channel readiness", () => {
       verified: false,
       ready: false,
       external_action_allowed: false,
+      probe: {
+        status: "not_run",
+      },
     });
     expect(JSON.stringify(snapshot)).not.toContain("super-secret-elevenlabs-key");
     expect(JSON.stringify(snapshot)).not.toContain("agent-secret");
@@ -81,33 +95,212 @@ describe("admin Concierge channel readiness", () => {
 
     await expect(updateAdminConciergeChannelReadiness({
       channel: "whatsapp",
-      verified: true,
       adminEnabled: true,
       updatedBy: "admin-1",
-    })).rejects.toThrow(/required setup is configured/i);
+    })).rejects.toThrow(/required setup has not been configured/i);
 
     expect(dbMock.pool.query).toHaveBeenCalledTimes(1);
   });
 
-  it("marks a configured and verified channel as live-capable", async () => {
+  it("records a failed probe and keeps live-ready blocked for unsafe QA targets", async () => {
     process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    process.env.CONCIERGE_EMAIL_QA_RECIPIENT = "clinic@gmail.com";
     let selectCount = 0;
     dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
-      if (sql.includes("select channel")) {
+      if (/select\s+channel/i.test(sql)) {
         selectCount += 1;
         return {
           rows: selectCount === 1 ? [] : [{
             channel: "email",
-            admin_enabled: true,
-            verified: true,
-            notes: "QA inbox verified.",
+            admin_enabled: false,
+            verified: false,
+            notes: null,
+            last_probe_status: "fail",
+            last_probe_at: new Date("2026-07-16T09:55:00.000Z"),
+            last_probe_blocker: "The configured reserved QA email inbox is not a reserved test endpoint, so no probe was run.",
+            last_probe_by: "admin-1",
             updated_by: "admin-1",
             updated_at: new Date("2026-07-16T10:00:00.000Z"),
           }],
         };
       }
       if (sql.includes("insert into concierge_channel_readiness_settings")) {
-        expect(params).toEqual(["email", true, true, "QA inbox verified.", "admin-1"]);
+        expect(params).toEqual([
+          "email",
+          false,
+          false,
+          null,
+          "fail",
+          expect.any(String),
+          "The configured reserved QA email inbox is not a reserved test endpoint, so no probe was run.",
+          "admin-1",
+          "admin-1",
+        ]);
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [] };
+    });
+
+    const row = await runAdminConciergeChannelVerificationProbe({
+      channel: "email",
+      updatedBy: "admin-1",
+    });
+
+    expect(row).toMatchObject({
+      channel: "email",
+      configured: true,
+      verified: false,
+      admin_enabled: false,
+      ready: false,
+      external_action_allowed: false,
+      can_mark_ready: false,
+      probe: {
+        status: "fail",
+        blocker: expect.stringContaining("not a reserved test endpoint"),
+      },
+    });
+  });
+
+  it("runs safe QA probes for every production channel without enabling live contact", async () => {
+    const channels = [
+      {
+        channel: "phone_call" as const,
+        configuredEnv: "CONCIERGE_PHONE_CALL_CHANNEL_CONFIGURED",
+        qaEnv: "CONCIERGE_PHONE_CALL_QA_PHONE_NUMBER",
+        qaTarget: "+12025550100",
+      },
+      {
+        channel: "email" as const,
+        configuredEnv: "CONCIERGE_EMAIL_CHANNEL_CONFIGURED",
+        qaEnv: "CONCIERGE_EMAIL_QA_RECIPIENT",
+        qaTarget: "concierge@example.test",
+      },
+      {
+        channel: "whatsapp" as const,
+        configuredEnv: "CONCIERGE_WHATSAPP_CHANNEL_CONFIGURED",
+        qaEnv: "CONCIERGE_WHATSAPP_QA_PHONE_NUMBER",
+        qaTarget: "+12025550101",
+      },
+      {
+        channel: "form_application" as const,
+        configuredEnv: "CONCIERGE_FORM_APPLICATION_CHANNEL_CONFIGURED",
+        qaEnv: "CONCIERGE_FORM_APPLICATION_QA_URL",
+        qaTarget: "https://concierge-form.test/booking",
+      },
+      {
+        channel: "document_upload" as const,
+        configuredEnv: "CONCIERGE_DOCUMENT_UPLOAD_CHANNEL_CONFIGURED",
+        qaEnv: "CONCIERGE_DOCUMENT_UPLOAD_QA_URL",
+        qaTarget: "qa://document-upload",
+      },
+    ];
+
+    for (const item of channels) {
+      resetChannelEnv();
+      process.env[item.configuredEnv] = "true";
+      process.env[item.qaEnv] = item.qaTarget;
+      dbMock.pool.query.mockReset();
+      let selectCount = 0;
+      dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+        if (/select\s+channel/i.test(sql)) {
+          selectCount += 1;
+          return {
+            rows: selectCount === 1 ? [] : [{
+              channel: item.channel,
+              admin_enabled: false,
+              verified: true,
+              notes: null,
+              last_probe_status: "pass",
+              last_probe_at: new Date("2026-07-16T09:55:00.000Z"),
+              last_probe_blocker: null,
+              last_probe_by: "admin-1",
+              updated_by: "admin-1",
+              updated_at: new Date("2026-07-16T10:00:00.000Z"),
+            }],
+          };
+        }
+        if (sql.includes("insert into concierge_channel_readiness_settings")) {
+          expect(params).toEqual([
+            item.channel,
+            false,
+            true,
+            null,
+            "pass",
+            expect.any(String),
+            null,
+            "admin-1",
+            "admin-1",
+          ]);
+          return { rows: [], rowCount: 1 };
+        }
+        return { rows: [] };
+      });
+
+      const row = await runAdminConciergeChannelVerificationProbe({
+        channel: item.channel,
+        updatedBy: "admin-1",
+      });
+
+      expect(row, item.channel).toMatchObject({
+        channel: item.channel,
+        configured: true,
+        verified: true,
+        admin_enabled: false,
+        ready: false,
+        external_action_allowed: false,
+        can_mark_ready: true,
+        probe: {
+          status: "pass",
+          blocker: null,
+        },
+      });
+    }
+  });
+
+  it("marks a configured channel live-capable after its latest probe passed", async () => {
+    process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
+    let selectCount = 0;
+    dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (/select\s+channel/i.test(sql)) {
+        selectCount += 1;
+        return {
+          rows: selectCount === 1 ? [{
+            channel: "email",
+            admin_enabled: false,
+            verified: true,
+            notes: "QA inbox verified.",
+            last_probe_status: "pass",
+            last_probe_at: new Date("2026-07-16T09:55:00.000Z"),
+            last_probe_blocker: null,
+            last_probe_by: "admin-1",
+            updated_by: "admin-1",
+            updated_at: new Date("2026-07-16T10:00:00.000Z"),
+          }] : [{
+            channel: "email",
+            admin_enabled: true,
+            verified: true,
+            notes: "QA inbox verified.",
+            last_probe_status: "pass",
+            last_probe_at: new Date("2026-07-16T09:55:00.000Z"),
+            last_probe_blocker: null,
+            last_probe_by: "admin-1",
+            updated_by: "admin-1",
+            updated_at: new Date("2026-07-16T10:00:00.000Z"),
+          }],
+        };
+      }
+      if (sql.includes("insert into concierge_channel_readiness_settings")) {
+        expect(params).toEqual([
+          "email",
+          true,
+          true,
+          "QA inbox verified.",
+          "pass",
+          "2026-07-16T09:55:00.000Z",
+          null,
+          "admin-1",
+          "admin-1",
+        ]);
         return { rows: [], rowCount: 1 };
       }
       return { rows: [] };
@@ -115,9 +308,7 @@ describe("admin Concierge channel readiness", () => {
 
     const row = await updateAdminConciergeChannelReadiness({
       channel: "email",
-      verified: true,
       adminEnabled: true,
-      notes: "QA inbox verified.",
       updatedBy: "admin-1",
     });
 
@@ -128,6 +319,12 @@ describe("admin Concierge channel readiness", () => {
       admin_enabled: true,
       ready: true,
       external_action_allowed: true,
+      can_mark_ready: true,
+      probe: {
+        status: "pass",
+        checked_at: "2026-07-16T09:55:00.000Z",
+        blocker: null,
+      },
       live: {
         status: "ready",
         external_action_allowed: true,
@@ -143,28 +340,46 @@ describe("admin Concierge channel readiness", () => {
     process.env.CONCIERGE_EMAIL_CHANNEL_CONFIGURED = "true";
     let selectCount = 0;
     dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
-      if (sql.includes("select channel")) {
+      if (/select\s+channel/i.test(sql)) {
         selectCount += 1;
         return {
           rows: selectCount === 1 ? [{
-            channel: "email",
-            admin_enabled: true,
-            verified: true,
-            notes: "Previously ready.",
-            updated_by: "admin-1",
-            updated_at: new Date("2026-07-16T10:00:00.000Z"),
-          }] : [{
-            channel: "email",
-            admin_enabled: false,
-            verified: false,
-            notes: "Previously ready.",
-            updated_by: "admin-1",
-            updated_at: new Date("2026-07-16T10:05:00.000Z"),
-          }],
+          channel: "email",
+          admin_enabled: true,
+          verified: true,
+          notes: "Previously ready.",
+          last_probe_status: "pass",
+          last_probe_at: new Date("2026-07-16T10:00:00.000Z"),
+          last_probe_blocker: null,
+          last_probe_by: "admin-1",
+          updated_by: "admin-1",
+          updated_at: new Date("2026-07-16T10:00:00.000Z"),
+        }] : [{
+          channel: "email",
+          admin_enabled: false,
+          verified: false,
+          notes: "Previously ready.",
+          last_probe_status: null,
+          last_probe_at: null,
+          last_probe_blocker: "Verification reset by admin.",
+          last_probe_by: "admin-1",
+          updated_by: "admin-1",
+          updated_at: new Date("2026-07-16T10:05:00.000Z"),
+        }],
         };
       }
       if (sql.includes("insert into concierge_channel_readiness_settings")) {
-        expect(params).toEqual(["email", false, false, "Previously ready.", "admin-1"]);
+        expect(params).toEqual([
+          "email",
+          false,
+          false,
+          "Previously ready.",
+          null,
+          null,
+          "Verification reset by admin.",
+          "admin-1",
+          "admin-1",
+        ]);
         return { rows: [], rowCount: 1 };
       }
       return { rows: [] };
