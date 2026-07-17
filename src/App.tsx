@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams,
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import HomeFastHelpSyncBridge from "@/components/HomeFastHelpSyncBridge";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { LanguageControllerProvider, LanguageFrameBoundary, useLanguage } from "@/i18n";
@@ -595,6 +596,7 @@ const App = () => (
     <LanguageControllerProvider>
       <AuthProvider>
         <ProfileProvider>
+          <HomeFastHelpSyncBridge />
           <TooltipProvider>
             <Toaster />
             <Sonner />

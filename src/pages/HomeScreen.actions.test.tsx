@@ -3,7 +3,9 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomeScreen from "./HomeScreen";
 import {
+  homeFastHelpJourneyStorageKey,
   markHomeFastHelpJourney,
+  mergeSyncedHomeFastHelpJourneys,
   startHomeFastHelpJourney,
 } from "@/lib/homeFastHelpOutcome";
 
@@ -800,6 +802,43 @@ describe("Home fast service actions", () => {
         homeFastHelpContext: expect.objectContaining({
           journeyId: started.journey.id,
           actionId: "find-care",
+        }),
+      }),
+    });
+  });
+
+  it("resumes a journey opened on another device with locally derived safe instructions", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    const storageKey = homeFastHelpJourneyStorageKey(profileMock.profileId);
+    mergeSyncedHomeFastHelpJourneys(storageKey, [{
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      actionId: "book-ride",
+      status: "opened",
+      startedAt: "2026-07-17T13:59:00.000Z",
+      updatedAt: "2026-07-17T13:59:00.000Z",
+      referenceId: null,
+      events: [{
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        status: "opened",
+        occurredAt: "2026-07-17T13:59:00.000Z",
+        referenceId: null,
+      }],
+    }]);
+
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-fast-book-ride"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: expect.objectContaining({
+        conciergePrefill: expect.objectContaining({
+          kind: "ride",
+          flowReference: "FLOW_TRANSPORT_BOOKING",
+          source: "home_quick_action",
+        }),
+        homeFastHelpContext: expect.objectContaining({
+          journeyId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          actionId: "book-ride",
         }),
       }),
     });

@@ -6,10 +6,12 @@ import {
   latestBlockedHomeFastHelpJourney,
   latestResumableHomeFastHelpJourney,
   markHomeFastHelpJourney,
+  mergeSyncedHomeFastHelpJourneys,
   readHomeFastHelpJourneys,
   reconcileHomeFastHelpJourneys,
   resumeHomeFastHelpJourney,
   startHomeFastHelpJourney,
+  syncedHomeFastHelpJourneys,
   withHomeFastHelpContextState,
 } from "./homeFastHelpOutcome";
 
@@ -116,5 +118,49 @@ describe("Home Fast Help outcome journeys", () => {
 
     expect(latestBlockedHomeFastHelpJourney(journeys, now)?.actionId).toBe("safe-home");
     expect(latestBlockedHomeFastHelpJourney(journeys, now + 25 * 60 * 60 * 1000)).toBeNull();
+  });
+
+  it("syncs only opaque outcome data and never sends route state or reasons", () => {
+    const started = startHomeFastHelpJourney({
+      actionId: "feel-better",
+      destinationPath: "/health/symptom-check",
+      destinationState: { symptom: "private symptom text" },
+      occurredAtMs: Date.parse("2026-07-17T10:00:00.000Z"),
+    });
+    markHomeFastHelpJourney(started.context, "blocked", {
+      reason: "private explanation",
+      referenceId: "unsafe reference with spaces",
+    });
+
+    const serialized = JSON.stringify(syncedHomeFastHelpJourneys(started.storageKey));
+    expect(serialized).not.toContain("private symptom text");
+    expect(serialized).not.toContain("private explanation");
+    expect(serialized).not.toContain("unsafe reference");
+    expect(serialized).not.toContain("destinationPath");
+  });
+
+  it("merges a remote completion and derives a safe local resume destination", () => {
+    const storageKey = "vyva:home-fast-help-journeys:v1:profile-remote";
+    const merged = mergeSyncedHomeFastHelpJourneys(storageKey, [{
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      actionId: "book-ride",
+      status: "completed",
+      startedAt: "2026-07-17T10:00:00.000Z",
+      updatedAt: "2026-07-17T10:05:00.000Z",
+      referenceId: "ride-42",
+      events: [{
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        status: "completed",
+        occurredAt: "2026-07-17T10:05:00.000Z",
+        referenceId: "ride-42",
+      }],
+    }]);
+
+    expect(merged[0]).toMatchObject({
+      status: "completed",
+      destinationPath: "/concierge",
+      destinationState: null,
+    });
+    expect(homeFastHelpActivityFromJourneys(merged)[0]?.status).toBe("completed");
   });
 });
