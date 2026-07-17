@@ -10,6 +10,7 @@ import {
 } from "../../shared/conciergeChannelReadiness.js";
 import type { ConciergeToolRequirement } from "../../shared/conciergeFlowRegistry.js";
 import { pool } from "../db.js";
+import { runConciergeActionAdapterProbe } from "./conciergeActionAdapters.js";
 
 const OUTBOUND_AGENT_ENV_KEYS = [
   "ELEVENLABS_CONCIERGE_CALLER_AGENT_ID",
@@ -21,39 +22,6 @@ const OUTBOUND_PHONE_ENV_KEYS = [
   "ELEVENLABS_CONCIERGE_PHONE_NUMBER_ID",
   "ELEVENLABS_AGENT_PHONE_NUMBER_ID",
 ];
-
-const QA_ENDPOINT_ENV_KEYS: Record<ConciergeProductionChannel, string[]> = {
-  phone_call: [
-    "CONCIERGE_PHONE_CALL_QA_ENDPOINT",
-    "CONCIERGE_PHONE_CALL_QA_PHONE_NUMBER",
-    "CONCIERGE_CHANNEL_PHONE_CALL_QA_ENDPOINT",
-    "CONCIERGE_CHANNEL_PHONE_CALL_QA_PHONE_NUMBER",
-  ],
-  email: [
-    "CONCIERGE_EMAIL_QA_ENDPOINT",
-    "CONCIERGE_EMAIL_QA_RECIPIENT",
-    "CONCIERGE_CHANNEL_EMAIL_QA_ENDPOINT",
-    "CONCIERGE_CHANNEL_EMAIL_QA_RECIPIENT",
-  ],
-  whatsapp: [
-    "CONCIERGE_WHATSAPP_QA_ENDPOINT",
-    "CONCIERGE_WHATSAPP_QA_PHONE_NUMBER",
-    "CONCIERGE_CHANNEL_WHATSAPP_QA_ENDPOINT",
-    "CONCIERGE_CHANNEL_WHATSAPP_QA_PHONE_NUMBER",
-  ],
-  form_application: [
-    "CONCIERGE_FORM_APPLICATION_QA_ENDPOINT",
-    "CONCIERGE_FORM_APPLICATION_QA_URL",
-    "CONCIERGE_CHANNEL_FORM_APPLICATION_QA_ENDPOINT",
-    "CONCIERGE_CHANNEL_FORM_APPLICATION_QA_URL",
-  ],
-  document_upload: [
-    "CONCIERGE_DOCUMENT_UPLOAD_QA_ENDPOINT",
-    "CONCIERGE_DOCUMENT_UPLOAD_QA_URL",
-    "CONCIERGE_CHANNEL_DOCUMENT_UPLOAD_QA_ENDPOINT",
-    "CONCIERGE_CHANNEL_DOCUMENT_UPLOAD_QA_URL",
-  ],
-};
 
 type StoredProbeStatus = Exclude<ConciergeChannelProbeStatus, "not_run">;
 
@@ -115,14 +83,6 @@ function anyEnv(keys: string[]): boolean {
   return keys.some((key) => Boolean(envValue(key)));
 }
 
-function firstEnv(keys: string[]): string {
-  for (const key of keys) {
-    const value = envValue(key);
-    if (value) return value;
-  }
-  return "";
-}
-
 function envFlag(keys: string[]): boolean {
   return keys.some((key) => {
     const value = envValue(key).toLowerCase();
@@ -177,113 +137,6 @@ function isMissingReadinessColumnError(error: unknown): boolean {
     ? String((error as { code?: unknown }).code)
     : "";
   return code === "42703";
-}
-
-function hasQaSchemeTarget(value: string): boolean {
-  return /^(qa|test|dry-run):/i.test(value.trim());
-}
-
-function isSafeReservedPhoneTarget(value: string): boolean {
-  const digits = value.replace(/\D/g, "");
-  return /^1?20255501\d{2}$/.test(digits) || /^1?55501\d{2}$/.test(digits);
-}
-
-function isSafeReservedEmailTarget(value: string): boolean {
-  const email = value.trim().toLowerCase().replace(/^mailto:/, "");
-  const domain = email.includes("@") ? email.split("@").pop() ?? "" : "";
-  return Boolean(domain)
-    && (
-      domain.endsWith(".test")
-      || domain.endsWith(".invalid")
-      || domain.endsWith(".localhost")
-      || domain === "example.com"
-      || domain === "example.org"
-      || domain === "example.net"
-    );
-}
-
-function isSafeReservedUrlTarget(value: string): boolean {
-  if (hasQaSchemeTarget(value)) return true;
-  try {
-    const url = new URL(value);
-    const host = url.hostname.toLowerCase();
-    return host === "localhost"
-      || host === "127.0.0.1"
-      || host === "::1"
-      || host.endsWith(".test")
-      || host.endsWith(".invalid")
-      || host.endsWith(".localhost")
-      || host === "example.com"
-      || host === "example.org"
-      || host === "example.net";
-  } catch {
-    return false;
-  }
-}
-
-function isSafeQaTarget(channel: ConciergeProductionChannel, value: string): boolean {
-  switch (channel) {
-    case "phone_call":
-      return isSafeReservedPhoneTarget(value);
-    case "email":
-      return isSafeReservedEmailTarget(value);
-    case "whatsapp":
-      return isSafeReservedPhoneTarget(value);
-    case "form_application":
-    case "document_upload":
-      return isSafeReservedUrlTarget(value);
-    default:
-      return false;
-  }
-}
-
-function qaTargetLabel(channel: ConciergeProductionChannel): string {
-  switch (channel) {
-    case "phone_call":
-      return "reserved QA phone number";
-    case "email":
-      return "reserved QA email inbox";
-    case "whatsapp":
-      return "reserved QA WhatsApp number";
-    case "form_application":
-      return "QA form/application URL";
-    case "document_upload":
-      return "QA document-upload URL";
-    default:
-      return "QA endpoint";
-  }
-}
-
-function runSafeConciergeChannelProbe(input: {
-  channel: ConciergeProductionChannel;
-  configured: boolean;
-}): { status: StoredProbeStatus; blocker: string | null } {
-  if (!input.configured) {
-    return {
-      status: "fail",
-      blocker: "Required setup has not been configured on the server.",
-    };
-  }
-
-  const qaTarget = firstEnv(QA_ENDPOINT_ENV_KEYS[input.channel]);
-  if (!qaTarget) {
-    return {
-      status: "fail",
-      blocker: `Add a ${qaTargetLabel(input.channel)} before running a live-readiness probe.`,
-    };
-  }
-
-  if (!isSafeQaTarget(input.channel, qaTarget)) {
-    return {
-      status: "fail",
-      blocker: `The configured ${qaTargetLabel(input.channel)} is not a reserved test endpoint, so no probe was run.`,
-    };
-  }
-
-  return {
-    status: "pass",
-    blocker: null,
-  };
 }
 
 export function loadConciergeChannelReadinessFlags(): ConciergeChannelReadinessFlags {
@@ -588,7 +441,7 @@ export async function runAdminConciergeChannelVerificationProbe(input: {
   const currentFlags = mergeAdminSettingsIntoFlags(envFlags, settings);
   const currentFlag = currentFlags[input.channel] ?? {};
   const checkedAt = new Date().toISOString();
-  const probe = runSafeConciergeChannelProbe({
+  const probe = runConciergeActionAdapterProbe({
     channel: input.channel,
     configured: currentFlag.configured === true,
   });
