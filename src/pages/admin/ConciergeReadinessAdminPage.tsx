@@ -951,14 +951,23 @@ function ProductionChannelReadinessSection({
                     <div className="flex flex-col gap-2">
                       <Pill tone={row.verified ? "good" : "warn"}>{channelVerificationLabel(row)}</Pill>
                       <Pill tone={channelProbeTone(row)}>{channelProbeLabel(row)}</Pill>
-                      <button
-                        type="button"
-                        className="inline-flex min-h-[38px] items-center justify-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={busy || !row.configured}
-                        onClick={() => onProbe(row.channel)}
+                      <form
+                        method="post"
+                        action={`/api/admin/concierge/channel-readiness/${row.channel}/probe`}
+                        data-testid={`form-concierge-channel-probe-${row.channel.replace(/_/g, "-")}`}
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          onProbe(row.channel);
+                        }}
                       >
-                        {verifying ? "Checking..." : "Run verification"}
-                      </button>
+                        <button
+                          type="submit"
+                          className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={busy || !row.configured}
+                        >
+                          {verifying ? "Checking..." : "Run verification"}
+                        </button>
+                      </form>
                     </div>
                   </td>
                   <td className="min-w-[180px] border-t border-[#f0e7df] px-4 py-4">
@@ -974,6 +983,23 @@ function ProductionChannelReadinessSection({
                           onChange={(event) => onUpdate(row.channel, { admin_enabled: event.target.checked })}
                         />
                       </label>
+                      <form
+                        method="post"
+                        action={`/api/admin/concierge/channel-readiness/${row.channel}/live-ready/${row.admin_enabled ? "off" : "on"}`}
+                        data-testid={`form-concierge-channel-live-ready-${row.channel.replace(/_/g, "-")}`}
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          onUpdate(row.channel, { admin_enabled: !row.admin_enabled });
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          className="inline-flex min-h-[34px] w-full items-center justify-center rounded-[10px] border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={busy || !canToggleLive}
+                        >
+                          {row.admin_enabled ? "Turn off" : "Turn on"}
+                        </button>
+                      </form>
                     </div>
                   </td>
                   <td className="min-w-[190px] border-t border-[#f0e7df] px-4 py-4">
