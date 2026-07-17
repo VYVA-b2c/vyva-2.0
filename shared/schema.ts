@@ -20,7 +20,7 @@
 // ============================================================
 
 import {
-  pgTable, pgEnum, unique, uniqueIndex, primaryKey, index,
+  pgTable, pgEnum, unique, uniqueIndex, primaryKey, index, foreignKey,
   text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric, customType
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -2878,9 +2878,23 @@ export const insertHomePlanCardSchema = createInsertSchema(homePlanCards).omit({
 export type InsertHomePlanCard = z.infer<typeof insertHomePlanCardSchema>;
 export type HomePlanCardRow = typeof homePlanCards.$inferSelect;
 
+export const homeFastHelpImpressions = pgTable("home_fast_help_impressions", {
+  id:              uuid("id").primaryKey(),
+  user_id:         uuid("user_id").notNull(),
+  action_ids:      text("action_ids").array().notNull(),
+  ranking_version: text("ranking_version").notNull(),
+  shown_at:        timestamp("shown_at", { withTimezone: true }).notNull(),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("home_fast_help_impressions_id_user_unique").on(t.id, t.user_id),
+  index("home_fast_help_impressions_user_shown_idx").on(t.user_id, t.shown_at),
+  index("home_fast_help_impressions_version_shown_idx").on(t.ranking_version, t.shown_at),
+]);
+
 export const homeFastHelpJourneys = pgTable("home_fast_help_journeys", {
   id:           uuid("id").primaryKey(),
   user_id:      uuid("user_id").notNull(),
+  impression_id: uuid("impression_id"),
   action_id:    text("action_id").notNull(),
   status:       text("status").notNull(),
   started_at:   timestamp("started_at", { withTimezone: true }).notNull(),
@@ -2891,6 +2905,12 @@ export const homeFastHelpJourneys = pgTable("home_fast_help_journeys", {
 }, (t) => [
   index("home_fast_help_journeys_user_updated_idx").on(t.user_id, t.updated_at),
   index("home_fast_help_journeys_user_action_updated_idx").on(t.user_id, t.action_id, t.updated_at),
+  index("home_fast_help_journeys_impression_idx").on(t.impression_id),
+  foreignKey({
+    columns: [t.impression_id, t.user_id],
+    foreignColumns: [homeFastHelpImpressions.id, homeFastHelpImpressions.user_id],
+    name: "home_fast_help_journeys_impression_id_fkey",
+  }),
 ]);
 
 export const homeFastHelpJourneyEvents = pgTable("home_fast_help_journey_events", {
@@ -2908,6 +2928,8 @@ export const homeFastHelpJourneyEvents = pgTable("home_fast_help_journey_events"
 
 export const insertHomeFastHelpJourneySchema = createInsertSchema(homeFastHelpJourneys).omit({ created_at: true, synced_at: true });
 export const insertHomeFastHelpJourneyEventSchema = createInsertSchema(homeFastHelpJourneyEvents).omit({ created_at: true });
+export const insertHomeFastHelpImpressionSchema = createInsertSchema(homeFastHelpImpressions).omit({ created_at: true });
+export type HomeFastHelpImpressionRow = typeof homeFastHelpImpressions.$inferSelect;
 export type HomeFastHelpJourneyRow = typeof homeFastHelpJourneys.$inferSelect;
 export type HomeFastHelpJourneyEventRow = typeof homeFastHelpJourneyEvents.$inferSelect;
 

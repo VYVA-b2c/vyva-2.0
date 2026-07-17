@@ -47,7 +47,10 @@ describe("HomeFastHelpSyncBridge", () => {
     setOnline(true);
     window.dispatchEvent(new Event("online"));
     await act(async () => vi.advanceTimersByTime(400));
-    expect(mocks.sync).toHaveBeenCalledWith("vyva:home-fast-help-journeys:v1:profile-1");
+    expect(mocks.sync).toHaveBeenCalledWith(
+      "vyva:home-fast-help-journeys:v1:profile-1",
+      "vyva:home-fast-help-impressions:v1:profile-1",
+    );
   });
 
   it("does not expose journey sync through a caregiver profile", async () => {
@@ -55,5 +58,21 @@ describe("HomeFastHelpSyncBridge", () => {
     render(<HomeFastHelpSyncBridge />);
     await act(async () => vi.advanceTimersByTime(500));
     expect(mocks.sync).not.toHaveBeenCalled();
+  });
+
+  it("syncs a shown set even when the user has not opened an action", async () => {
+    render(<HomeFastHelpSyncBridge />);
+    await act(async () => vi.advanceTimersByTime(400));
+    mocks.sync.mockClear();
+
+    window.dispatchEvent(new CustomEvent("vyva:home-fast-help-impression-changed", {
+      detail: { storageKey: "vyva:home-fast-help-impressions:v1:profile-1" },
+    }));
+    await act(async () => vi.advanceTimersByTime(400));
+
+    expect(mocks.sync).toHaveBeenCalledWith(
+      "vyva:home-fast-help-journeys:v1:profile-1",
+      "vyva:home-fast-help-impressions:v1:profile-1",
+    );
   });
 });

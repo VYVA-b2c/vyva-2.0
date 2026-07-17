@@ -840,6 +840,15 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
     expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
     expect(screen.getByTestId("button-home-fast-find-care")).toHaveTextContent("Find Care");
+    const initialImpressions = JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-impressions:v1:profile-home") ?? "[]",
+    );
+    expect(initialImpressions).toHaveLength(1);
+    expect(initialImpressions[0]).toMatchObject({
+      actionIds: initialActions.map((testId) => testId?.replace("button-home-fast-", "")),
+      rankingVersion: "personalized-v1",
+    });
+    expect(Object.keys(initialImpressions[0]).sort()).toEqual(["actionIds", "id", "rankingVersion", "shownAt"]);
 
     act(() => {
       vi.setSystemTime(new Date("2026-07-17T20:00:00.000Z"));
@@ -847,6 +856,9 @@ describe("Home fast service actions", () => {
     });
 
     expect(within(fastHelp).getAllByRole("button").map((button) => button.dataset.testid)).toEqual(initialActions);
+    expect(JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-impressions:v1:profile-home") ?? "[]",
+    )).toHaveLength(1);
   });
 
   it("opens Find Care as a structured Concierge provider search", () => {
@@ -877,6 +889,18 @@ describe("Home fast service actions", () => {
     )).toEqual(expect.arrayContaining([
       expect.objectContaining({ actionId: "find-care", status: "used" }),
     ]));
+    const impressions = JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-impressions:v1:profile-home") ?? "[]",
+    );
+    const journeys = JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-journeys:v1:profile-home") ?? "[]",
+    );
+    expect(journeys[0]).toMatchObject({ actionId: "find-care" });
+    const attributedImpression = impressions.find((impression: { id: string }) => (
+      impression.id === journeys[0].impressionId
+    ));
+    expect(attributedImpression).toBeDefined();
+    expect(attributedImpression.actionIds).toContain("find-care");
   });
 
   it("shows one calm recovery nudge after the cooldown and resumes the exact journey", () => {

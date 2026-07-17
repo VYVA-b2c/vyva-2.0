@@ -18,10 +18,50 @@ vi.mock("@/contexts/AuthContext", () => ({
 const fastHelpOutcomes = {
   generatedAt: "2026-07-17T12:00:00.000Z",
   windowDays: 30,
-  totals: { opened: 8, completed: 4, dismissed: 1, abandoned: 1, blocked: 1, resumed: 2, recovered: 1 },
+  totals: {
+    shown: 42,
+    attributedOpened: 8,
+    attributedCompleted: 4,
+    attributedBlocked: 1,
+    opened: 8,
+    completed: 4,
+    dismissed: 1,
+    abandoned: 1,
+    blocked: 1,
+    resumed: 2,
+    recovered: 1,
+  },
   actions: [
-    { actionId: "feel-better", opened: 8, completed: 4, dismissed: 1, abandoned: 1, blocked: 1, resumed: 2, recovered: 1 },
+    {
+      actionId: "feel-better",
+      shown: 42,
+      attributedOpened: 8,
+      attributedCompleted: 4,
+      attributedBlocked: 1,
+      opened: 8,
+      completed: 4,
+      dismissed: 1,
+      abandoned: 1,
+      blocked: 1,
+      resumed: 2,
+      recovered: 1,
+    },
   ],
+  rankingVersions: [{
+    rankingVersion: "personalized-v1",
+    impressions: 14,
+    shown: 42,
+    opened: 8,
+    completed: 4,
+    blocked: 1,
+    actions: [{
+      actionId: "feel-better",
+      shown: 42,
+      opened: 8,
+      completed: 4,
+      blocked: 1,
+    }],
+  }],
 };
 
 function renderPage() {
@@ -53,7 +93,10 @@ describe("WorkflowCoverageAdminPage", () => {
     const workflowMetricLabel = screen.getAllByText("Workflows").find((element) => element.tagName === "P");
     expect(within(workflowMetricLabel!.parentElement!).getByText(String(WORKFLOW_DEFINITIONS.length))).toBeInTheDocument();
     expect(screen.getByText("Incomplete workflows first")).toBeInTheDocument();
-    expect(screen.getAllByText("Recovered")).toHaveLength(2);
+    expect(screen.getByRole("heading", { name: "Shown to outcome, last 30 days" })).toBeInTheDocument();
+    expect(screen.getByText("Aggregate action IDs only; no health or profile content")).toBeInTheDocument();
+    expect(screen.getByText("personalized-v1")).toBeInTheDocument();
+    expect(screen.getByText("Ready to compare")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Filter by coverage"), { target: { value: "all" } });
     const visualScan = screen.getByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.visualScan}`);

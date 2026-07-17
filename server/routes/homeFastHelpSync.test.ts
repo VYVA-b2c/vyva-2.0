@@ -26,6 +26,7 @@ function appFor(userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") {
 const journey = {
   id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   actionId: "safe-home",
+  impressionId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   status: "opened",
   startedAt: "2026-07-17T10:00:00.000Z",
   updatedAt: "2026-07-17T10:00:00.000Z",
@@ -38,6 +39,13 @@ const journey = {
   }],
 };
 
+const impression = {
+  id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  actionIds: ["safe-home", "book-ride", "stay-well"],
+  rankingVersion: "personalized-v1",
+  shownAt: "2026-07-17T09:59:00.000Z",
+};
+
 describe("Home Fast Help sync route", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -47,12 +55,13 @@ describe("Home Fast Help sync route", () => {
 
     const response = await request(appFor())
       .post("/api/home/fast-help/sync")
-      .send({ journeys: [journey] })
+      .send({ journeys: [journey], impressions: [impression] })
       .expect(200);
 
     expect(service.syncHomeFastHelpJourneys).toHaveBeenCalledWith(
       "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       [journey],
+      [impression],
     );
     expect(response.body.syncAvailable).toBe(true);
   });
@@ -61,6 +70,12 @@ describe("Home Fast Help sync route", () => {
     await request(appFor())
       .post("/api/home/fast-help/sync")
       .send({ journeys: [{ ...journey, symptomText: "private" }] })
+      .expect(400);
+    expect(service.syncHomeFastHelpJourneys).not.toHaveBeenCalled();
+
+    await request(appFor())
+      .post("/api/home/fast-help/sync")
+      .send({ journeys: [journey], impressions: [{ ...impression, diagnosis: "private" }] })
       .expect(400);
     expect(service.syncHomeFastHelpJourneys).not.toHaveBeenCalled();
   });

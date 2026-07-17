@@ -4,11 +4,15 @@ import {
   mergeSyncedHomeFastHelpJourneys,
   syncedHomeFastHelpJourneys,
 } from "@/lib/homeFastHelpOutcome";
+import { readHomeFastHelpImpressions } from "@/lib/homeFastHelpInsights";
 
-export async function syncHomeFastHelpOutcomes(storageKey: string) {
+export async function syncHomeFastHelpOutcomes(journeyStorageKey: string, impressionStorageKey: string) {
   const response = await apiFetch("/api/home/fast-help/sync", {
     method: "POST",
-    body: JSON.stringify({ journeys: syncedHomeFastHelpJourneys(storageKey) }),
+    body: JSON.stringify({
+      journeys: syncedHomeFastHelpJourneys(journeyStorageKey),
+      impressions: readHomeFastHelpImpressions(impressionStorageKey),
+    }),
   });
   if (!response.ok) throw new Error(`Fast Help sync failed (${response.status})`);
 
@@ -17,6 +21,6 @@ export async function syncHomeFastHelpOutcomes(storageKey: string) {
   const journeys = homeFastHelpSyncedJourneySchema.array().parse(body.journeys);
   return {
     syncAvailable: true,
-    journeys: mergeSyncedHomeFastHelpJourneys(storageKey, journeys),
+    journeys: mergeSyncedHomeFastHelpJourneys(journeyStorageKey, journeys),
   };
 }

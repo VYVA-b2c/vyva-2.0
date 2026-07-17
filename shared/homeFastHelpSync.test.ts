@@ -9,6 +9,7 @@ import {
 const baseJourney: HomeFastHelpSyncedJourney = {
   id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   actionId: "book-ride",
+  impressionId: "99999999-9999-4999-8999-999999999999",
   status: "opened",
   startedAt: "2026-07-17T10:00:00.000Z",
   updatedAt: "2026-07-17T10:00:00.000Z",
@@ -47,6 +48,7 @@ describe("Home Fast Help sync contract", () => {
     const merged = mergeHomeFastHelpSyncedJourneys(staleReopen, completed);
 
     expect(merged.status).toBe("completed");
+    expect(merged.impressionId).toBe(baseJourney.impressionId);
     expect(merged.referenceId).toBe("ride-42");
     expect(merged.events).toHaveLength(2);
   });
@@ -85,6 +87,27 @@ describe("Home Fast Help sync contract", () => {
     }).success).toBe(false);
     expect(homeFastHelpSyncRequestSchema.safeParse({
       journeys: [{ ...baseJourney, referenceId: "free text is not allowed" }],
+    }).success).toBe(false);
+  });
+
+  it("accepts only three unique ranked actions and rejects sensitive impression fields", () => {
+    const impression = {
+      id: baseJourney.impressionId,
+      actionIds: ["safe-home", "book-ride", "stay-well"],
+      rankingVersion: "personalized-v1",
+      shownAt: "2026-07-17T09:59:00.000Z",
+    };
+    expect(homeFastHelpSyncRequestSchema.safeParse({
+      journeys: [baseJourney],
+      impressions: [impression],
+    }).success).toBe(true);
+    expect(homeFastHelpSyncRequestSchema.safeParse({
+      journeys: [baseJourney],
+      impressions: [{ ...impression, actionIds: ["safe-home", "safe-home", "stay-well"] }],
+    }).success).toBe(false);
+    expect(homeFastHelpSyncRequestSchema.safeParse({
+      journeys: [baseJourney],
+      impressions: [{ ...impression, diagnosis: "private" }],
     }).success).toBe(false);
   });
 });
