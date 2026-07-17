@@ -19,6 +19,7 @@ The strongest areas are:
 - Home main cards and rotating Fast help.
 - Health symptom, medication, vitals, reports, and doctor next-step flows.
 - Mind and Memory games and cognitive assessment.
+- Learning plans with resumable read-aloud in the selected app language.
 - Community rooms, curated activities, Together Room plans, and social-room actions.
 - Concierge transport, OTC pharmacy, medical appointment, home service, shopping, care navigation, Safe Home, and completed-history coverage.
 - Trusted provider setup categories.
@@ -28,7 +29,6 @@ The shared Show VYVA result contract, provider setup return loop, external-actio
 The biggest remaining gaps are:
 
 - Source-backed medication research summaries with clinician discussion points and no dosing advice.
-- Voice-readiness and language alignment for lesson read-aloud.
 - A connected admin content index for home nudges, curated activities, lessons, and room prompts.
 
 ## Reusable Flows
@@ -44,5 +44,4 @@ The biggest remaining gaps are:
 ## Next Implementation Order
 
 1. Add source-backed medication research updates.
-2. Align lesson read-aloud with voice readiness.
-3. Connect admin content operations.
+2. Connect admin content operations.

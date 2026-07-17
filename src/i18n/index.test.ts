@@ -649,6 +649,24 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps lesson read-aloud controls localized for every supported app language", () => {
+    const keys = [
+      "learn.readAloud.play",
+      "learn.readAloud.pause",
+      "learn.readAloud.resume",
+      "learn.readAloud.replay",
+      "learn.readAloud.stop",
+      "learn.readAloud.unavailableDetail",
+      "learn.readAloud.reflectionIntro",
+    ];
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const key of keys) {
+        expect(translate(language, key), `${language} should translate ${key}`).not.toBe(key);
+      }
+    }
+  });
+
   it("keeps vitals and symptom-check health flows localized for supported account languages", () => {
     const namespaces = [
       "statusVitals",
