@@ -184,10 +184,11 @@ type AggregateRow = {
   abandoned: string | number;
   blocked: string | number;
   resumed: string | number;
+  recovered: string | number;
 };
 
 function emptyAggregateRow(actionId: HomeFastHelpActionId): HomeFastHelpOutcomeAggregateRow {
-  return { actionId, opened: 0, completed: 0, dismissed: 0, abandoned: 0, blocked: 0, resumed: 0 };
+  return { actionId, opened: 0, completed: 0, dismissed: 0, abandoned: 0, blocked: 0, resumed: 0, recovered: 0 };
 }
 
 export async function homeFastHelpOutcomeAggregate(windowDays = 30): Promise<HomeFastHelpOutcomeAggregate> {
@@ -198,7 +199,10 @@ export async function homeFastHelpOutcomeAggregate(windowDays = 30): Promise<Hom
       from public.home_fast_help_journeys
       where started_at >= now() - ($1::int * interval '1 day')
     ), resumed as (
-      select e.journey_id, greatest(count(*) filter (where e.status = 'opened') - 1, 0)::int as resumed
+      select
+        e.journey_id,
+        greatest(count(*) filter (where e.status = 'opened') - 1, 0)::int as resumed,
+        bool_or(e.status = 'opened' and e.reference_id = 'recovery_nudge') as recovery_nudged
       from public.home_fast_help_journey_events e
       inner join scoped s on s.id = e.journey_id
       group by e.journey_id
@@ -210,7 +214,8 @@ export async function homeFastHelpOutcomeAggregate(windowDays = 30): Promise<Hom
       count(*) filter (where s.status = 'dismissed')::int as dismissed,
       count(*) filter (where s.status = 'abandoned')::int as abandoned,
       count(*) filter (where s.status = 'blocked')::int as blocked,
-      coalesce(sum(r.resumed), 0)::int as resumed
+      coalesce(sum(r.resumed), 0)::int as resumed,
+      count(*) filter (where s.status = 'completed' and r.recovery_nudged)::int as recovered
     from scoped s
     left join resumed r on r.journey_id = s.id
     group by s.action_id
@@ -227,6 +232,7 @@ export async function homeFastHelpOutcomeAggregate(windowDays = 30): Promise<Hom
       abandoned: Number(row.abandoned),
       blocked: Number(row.blocked),
       resumed: Number(row.resumed),
+      recovered: Number(row.recovered),
     };
   });
   const totals = actions.reduce<HomeFastHelpOutcomeAggregate["totals"]>((sum, row) => ({
@@ -236,7 +242,8 @@ export async function homeFastHelpOutcomeAggregate(windowDays = 30): Promise<Hom
     abandoned: sum.abandoned + row.abandoned,
     blocked: sum.blocked + row.blocked,
     resumed: sum.resumed + row.resumed,
-  }), { opened: 0, completed: 0, dismissed: 0, abandoned: 0, blocked: 0, resumed: 0 });
+    recovered: sum.recovered + row.recovered,
+  }), { opened: 0, completed: 0, dismissed: 0, abandoned: 0, blocked: 0, resumed: 0, recovered: 0 });
 
   return { generatedAt: new Date().toISOString(), windowDays: days, totals, actions };
 }

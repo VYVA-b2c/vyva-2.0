@@ -186,7 +186,8 @@ router.get("/pending", async (req: Request, res: Response) => {
           status,
           language,
           confirmed_at,
-          expires_at
+          expires_at,
+          updated_at
         from concierge_pending
         where user_id = $1
           and status in ('pending', 'calling')
