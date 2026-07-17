@@ -9,8 +9,6 @@
 .vc-progress-track { grid-column:1/-1; height:7px; overflow:hidden; border-radius:999px; background:#eee9f2; }
 .vc-progress-track span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#8e70bc,#bd94c9); transition:width .25s ease; }
 .vc-orb-wrap { position:relative; display:grid; place-items:center; width:92px; height:92px; margin-bottom:4px; }
-.vc-orb { position:relative; z-index:1; display:grid; place-items:center; width:62px; height:62px; border-radius:50%; color:white; background:radial-gradient(circle at 35% 28%,#dec8f6 0,#a477c0 42%,#655095 100%); box-shadow:0 12px 30px rgba(103,69,139,.28); animation:vc-breathe 2.8s ease-in-out infinite; }
-.vc-orb-ring { position:absolute; inset:5px; border:1px solid rgba(126,91,162,.28); border-radius:50%; animation:vc-ring 2.8s ease-out infinite; }
 .vc-status-icon { display:grid; place-items:center; width:64px; height:64px; border-radius:22px; color:var(--vc-purple-dark); background:var(--vc-lilac); }
 .vc-status-icon[data-icon="completed"] { color:#35705a; background:#e5f4ec; }
 .vc-status-icon[data-icon="blocked"] { color:#9a5b31; background:#fff0df; }
@@ -36,9 +34,8 @@
 .vc-primary { border:1px solid var(--vc-purple-dark); background:var(--vc-purple-dark); color:white; box-shadow:0 9px 20px rgba(89,59,140,.18); }
 .vc-secondary { border:1.5px solid var(--vc-border); background:white; color:var(--vc-purple-dark); }
 .voice-canvas button:focus-visible,.voice-canvas input:focus-visible,.voice-canvas textarea:focus-visible { outline:4px solid #f0b85b; outline-offset:3px; }
+.voice-canvas h2:focus-visible { outline:3px solid #f0b85b; outline-offset:6px; border-radius:8px; }
 .voice-canvas button:disabled,.voice-canvas input:disabled,.voice-canvas textarea:disabled { cursor:not-allowed; opacity:.52; }
-@keyframes vc-breathe { 50% { transform:scale(1.045); } }
-@keyframes vc-ring { 0% { transform:scale(.8); opacity:.7; } 75%,100% { transform:scale(1.08); opacity:0; } }
 @keyframes vc-spin { to { transform:rotate(360deg); } }
 @media (max-width:560px) { .voice-canvas { border-radius:26px; } .vc-choices { grid-template-columns:1fr; } .vc-actions { flex-direction:column; } .vc-actions button { width:100%; } .vc-summary div { grid-template-columns:1fr; gap:4px; } }
 @media (prefers-reduced-motion:reduce) { .voice-canvas * { scroll-behavior:auto!important; transition:none!important; animation-duration:.01ms!important; animation-iteration-count:1!important; } }

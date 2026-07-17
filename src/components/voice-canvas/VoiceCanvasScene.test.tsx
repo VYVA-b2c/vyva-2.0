@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { VoiceCanvasScene } from "./VoiceCanvasScene";
 import type { VoiceCanvasSceneKind, VoiceCanvasViewModel } from "./types";
 
+vi.mock("@/components/ZamoraVoiceOrb", () => ({ default: () => <div data-testid="mock-vyva-orb" /> }));
+
 const base = (kind: VoiceCanvasSceneKind, extra: Partial<VoiceCanvasViewModel> = {}): VoiceCanvasViewModel => ({ sceneId:kind,kind,title:`${kind} title`,helperText:`${kind} helper`,...extra });
 
 describe.each([

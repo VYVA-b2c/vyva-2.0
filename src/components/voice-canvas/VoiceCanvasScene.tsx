@@ -1,5 +1,6 @@
-import { Check, CircleAlert, LoaderCircle, MapPin, Mic, type LucideIcon } from "lucide-react";
+import { Check, CircleAlert, LoaderCircle, MapPin, type LucideIcon } from "lucide-react";
 import type { ChangeEvent, KeyboardEvent } from "react";
+import ZamoraVoiceOrb from "@/components/ZamoraVoiceOrb";
 import type { VoiceCanvasChoice, VoiceCanvasViewModel } from "./types";
 import "./voice-canvas.css";
 
@@ -77,16 +78,13 @@ export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, 
 
       <div className="vc-content">
         {kind === "listening" && (
-          <div className="vc-orb-wrap" aria-hidden="true">
-            <span className="vc-orb"><Mic size={25} strokeWidth={1.8} /></span>
-            <span className="vc-orb-ring" />
-          </div>
+          <div className="vc-orb-wrap" aria-hidden="true"><ZamoraVoiceOrb state="listening" size={92} isDark={false} testId={`voice-canvas-orb-${viewModel.sceneId}`} /></div>
         )}
         {StatusIcon && (
           <span className="vc-status-icon" data-icon={kind} aria-hidden="true"><StatusIcon size={32} strokeWidth={1.8} /></span>
         )}
         {statusLabel && <p className="vc-eyebrow" role={isWaiting ? "status" : undefined}>{statusLabel}</p>}
-        <h2 id={titleId}>{title}</h2>
+        <h2 id={titleId} tabIndex={-1}>{title}</h2>
         {helperText && <p id={helperId} className="vc-helper">{helperText}</p>}
 
         {choices.length > 0 && <div className="vc-choices" role="group" aria-label={title} onKeyDown={handleChoiceKeyDown}>{choices.map((choice) => <ChoiceButton key={choice.id} choice={choice} onChoice={onChoice} />)}</div>}

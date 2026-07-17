@@ -237,6 +237,7 @@ afterEach(() => {
   voiceActionMock.action = null;
   vi.restoreAllMocks();
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 describe("ConciergeScreen action hub", () => {
@@ -3286,8 +3287,29 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
   }, 60000);
 
-  it("opens voice ride handoffs on the transport card with known details", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+  it("runs voice ride handoffs through the Canvas and prepares nothing before explicit confirmation", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/transport/options")) {
+        expect(init?.method).toBe("POST");
+        return jsonResponse({
+          options: [{
+            id: "voice-taxi",
+            kind: "local_taxi",
+            label: "Trusted Taxi",
+            description: "Prepared transport option",
+            providerName: "Trusted Taxi",
+            phone: "+34 600 100 200",
+            actions: ["start_concierge_action"],
+          }],
+          disclaimers: [],
+        });
+      }
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        expect(init?.method).toBe("POST");
+        return jsonResponse({ pendingId: "voice-ride-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
 
     renderScreen([{
       pathname: "/concierge",
@@ -3305,12 +3327,24 @@ describe("ConciergeScreen action hub", () => {
       },
     }]);
 
-    const panel = await screen.findByTestId("panel-concierge-route-prefill");
-    expect(panel).toHaveTextContent("Transport options");
-    expect(screen.getByTestId("panel-concierge-transport")).toHaveTextContent("Transport options");
-    expect(screen.getByDisplayValue("Doctor")).toBeVisible();
-    expect(panel).toHaveTextContent("tomorrow morning");
-    expect(panel).toHaveTextContent("Walker or cane");
+    const panel = await screen.findByTestId("panel-concierge-ride-voice-canvas");
+    expect(panel).toHaveTextContent("When should the ride arrive?");
+    expect(screen.queryByTestId("panel-concierge-transport")).not.toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/transport/options", expect.anything());
+
+    fireEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
+    fireEvent.change(screen.getByLabelText("Pickup time"), { target: { value: "09:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review the ride" }));
+    expect(screen.getByRole("heading", { name: "Does everything look right?" })).toBeVisible();
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/transport/options", expect.anything());
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and prepare ride" }));
+    expect(await screen.findByRole("heading", { name: "Your ride request is ready" })).toBeVisible();
+    expect(screen.getByText("voice-ride-1")).toBeVisible();
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/transport/options", expect.objectContaining({ method: "POST" }));
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({ method: "POST" }));
+    });
     expect(screen.getByTestId("route-state")).toHaveTextContent("null");
   });
 
