@@ -1407,6 +1407,18 @@ const it = {
         blockedAlternative: "Prova invece questo prossimo passo utile",
       },
     },
+    recoveryNudge: {
+      title: "Continua da dove eri rimasto",
+      detail: "Continua con {{action}} quando vuoi.",
+      blockedTitle: "Prima manca un piccolo passo",
+      blockedDetail: "Apri {{action}} per vedere cosa serve.",
+      transportSetupTitle: "Prima una configurazione rapida",
+      transportSetupDetail: "Aggiungi un trasporto fidato per continuare il viaggio.",
+      transportSetupNotice: "Salva un taxi o trasporto fidato, poi continua il viaggio.",
+      continue: "Continua",
+      later: "Piu tardi",
+      dismiss: "Nascondi",
+    },
   },
   concierge: {
     fastHelp: {

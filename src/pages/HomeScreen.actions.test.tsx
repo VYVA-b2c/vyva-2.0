@@ -145,6 +145,16 @@ const labels: Record<string, string> = {
   "home.nudge.text": "Not sure where to start?",
   "home.nudge.action": "Ask VYVA",
   "home.nudge.aria": "Ask VYVA where to start",
+  "home.recoveryNudge.title": "Continue where you left off",
+  "home.recoveryNudge.detail": "Continue {{action}} when you are ready.",
+  "home.recoveryNudge.blockedTitle": "One quick step first",
+  "home.recoveryNudge.blockedDetail": "Open {{action}} to see what is needed.",
+  "home.recoveryNudge.transportSetupTitle": "One quick setup first",
+  "home.recoveryNudge.transportSetupDetail": "Add a trusted transport provider to continue your ride.",
+  "home.recoveryNudge.transportSetupNotice": "Save a trusted taxi or transport provider, then continue your ride.",
+  "home.recoveryNudge.continue": "Continue",
+  "home.recoveryNudge.later": "Later",
+  "home.recoveryNudge.dismiss": "Dismiss",
   "home.conciergeResume.kicker": "Right now",
   "home.conciergeResume.kickerConfirm": "Needs your OK",
   "home.conciergeResume.kickerReview": "Needs review",
@@ -778,7 +788,7 @@ describe("Home fast service actions", () => {
     ]));
   });
 
-  it("replaces an unfinished choice with Continue and resumes the same journey", () => {
+  it("shows one calm recovery nudge after the cooldown and resumes the exact journey", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     const started = startHomeFastHelpJourney({
@@ -786,15 +796,19 @@ describe("Home fast service actions", () => {
       destinationPath: "/concierge",
       destinationState: { conciergePrefill: { useCase: "find_provider" } },
       profileId: profileMock.profileId,
-      occurredAtMs: Date.now() - 60_000,
+      occurredAtMs: Date.now() - 13 * 60 * 60 * 1000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: Date.now() - 13 * 60 * 60 * 1000 + 30_000,
+      reason: "returned_home",
     });
 
     render(<HomeScreen />);
 
-    const continueButton = screen.getByTestId("button-home-fast-find-care");
-    expect(continueButton).toHaveTextContent("Continue");
-    expect(continueButton).toHaveTextContent("Continue Find Care");
-    fireEvent.click(continueButton);
+    const recovery = screen.getByTestId("card-home-fast-help-recovery");
+    expect(recovery).toHaveTextContent("Continue where you left off");
+    expect(recovery).toHaveTextContent("Continue Find Care when you are ready.");
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
       state: expect.objectContaining({
@@ -814,20 +828,25 @@ describe("Home fast service actions", () => {
     mergeSyncedHomeFastHelpJourneys(storageKey, [{
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       actionId: "book-ride",
-      status: "opened",
-      startedAt: "2026-07-17T13:59:00.000Z",
-      updatedAt: "2026-07-17T13:59:00.000Z",
+      status: "abandoned",
+      startedAt: "2026-07-16T23:00:00.000Z",
+      updatedAt: "2026-07-16T23:01:00.000Z",
       referenceId: null,
       events: [{
         id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         status: "opened",
-        occurredAt: "2026-07-17T13:59:00.000Z",
+        occurredAt: "2026-07-16T23:00:00.000Z",
+        referenceId: null,
+      }, {
+        id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        status: "abandoned",
+        occurredAt: "2026-07-16T23:01:00.000Z",
         referenceId: null,
       }],
     }]);
 
     render(<HomeScreen />);
-    fireEvent.click(screen.getByTestId("button-home-fast-book-ride"));
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
       state: expect.objectContaining({
@@ -861,7 +880,96 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     expect(screen.queryByTestId("button-home-fast-find-care")).not.toBeInTheDocument();
+    expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("One quick step first");
     expect(screen.getByTestId("home-fast-help")).toHaveTextContent("Try this useful next step instead");
+  });
+
+  it("defers a recovery nudge and respects the cooldown", () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-07-17T14:00:00.000Z");
+    vi.setSystemTime(now);
+    const started = startHomeFastHelpJourney({
+      actionId: "paperwork-help",
+      destinationPath: "/concierge",
+      profileId: profileMock.profileId,
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000 + 30_000,
+    });
+
+    const first = render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-later"));
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+    first.unmount();
+
+    vi.setSystemTime(new Date(now.getTime() + 11 * 60 * 60 * 1000));
+    const beforeCooldown = render(<HomeScreen />);
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+    beforeCooldown.unmount();
+
+    vi.setSystemTime(new Date(now.getTime() + 13 * 60 * 60 * 1000));
+    render(<HomeScreen />);
+    expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("Continue where you left off");
+  });
+
+  it("dismisses a recovery nudge permanently", () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-07-17T14:00:00.000Z");
+    vi.setSystemTime(now);
+    const started = startHomeFastHelpJourney({
+      actionId: "stay-well",
+      destinationPath: "/health/prevention",
+      profileId: profileMock.profileId,
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000 + 30_000,
+    });
+
+    const first = render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-dismiss"));
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+    first.unmount();
+
+    vi.setSystemTime(new Date("2026-07-25T14:00:00.000Z"));
+    render(<HomeScreen />);
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+  });
+
+  it("routes a blocked ride to focused transport setup and preserves its return context", () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-07-17T14:00:00.000Z");
+    vi.setSystemTime(now);
+    profileMock.serviceReadiness.hasSavedTransportProvider = false;
+    const started = startHomeFastHelpJourney({
+      actionId: "book-ride",
+      destinationPath: "/concierge",
+      profileId: profileMock.profileId,
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000 + 30_000,
+    });
+
+    render(<HomeScreen />);
+    expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("Add a trusted transport provider");
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/onboarding/profile/providers", {
+      state: expect.objectContaining({
+        returnTo: "/concierge",
+        setupFocus: "transport",
+        setupFlow: "FLOW_TRANSPORT_BOOKING",
+        conciergeResume: expect.objectContaining({ kind: "transport" }),
+        returnState: expect.objectContaining({
+          homeFastHelpContext: expect.objectContaining({
+            journeyId: started.journey.id,
+            actionId: "book-ride",
+          }),
+        }),
+      }),
+    });
   });
 
   it("puts an urgent health signal first with a reassuring reason", () => {

@@ -67,6 +67,7 @@ export type HomeFastHelpOutcomeAggregateRow = {
   abandoned: number;
   blocked: number;
   resumed: number;
+  recovered: number;
 };
 
 export type HomeFastHelpOutcomeAggregate = {

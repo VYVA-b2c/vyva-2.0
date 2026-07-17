@@ -146,6 +146,9 @@ describe("ProvidersSection trusted provider setup", () => {
         query: "nearby care",
         criteria: ["nearby", "reputation"],
       },
+      returnState: {
+        homeFastHelpContext: { journeyId: "journey-1", actionId: "find-care" },
+      },
     });
 
     expect(screen.getByTestId("filter-personal_care")).toHaveClass("bg-vyva-purple");
@@ -178,6 +181,7 @@ describe("ProvidersSection trusted provider setup", () => {
     await waitFor(() => {
       expect(mocks.navigate).toHaveBeenCalledWith("/concierge", expect.objectContaining({
         state: expect.objectContaining({
+          homeFastHelpContext: { journeyId: "journey-1", actionId: "find-care" },
           trustedProviderSaved: expect.objectContaining({
             name: "Marbella Care Clinic",
             category: "personal_care",

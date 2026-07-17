@@ -270,11 +270,12 @@ export default function WorkflowCoverageAdminPage() {
             <p className="mt-4 text-sm font-semibold text-[#7d6b65]">Outcome totals are not available yet.</p>
           ) : (
             <>
-              <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
                 <SummaryCard label="Opened" value={fastHelpOutcomes.totals.opened} />
                 <SummaryCard label="Completed" value={fastHelpOutcomes.totals.completed} tone="complete" />
                 <SummaryCard label="Blocked" value={fastHelpOutcomes.totals.blocked} tone="partial" />
                 <SummaryCard label="Resumed" value={fastHelpOutcomes.totals.resumed} />
+                <SummaryCard label="Recovered" value={fastHelpOutcomes.totals.recovered} tone="complete" />
               </div>
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[620px] text-left text-sm">
@@ -285,6 +286,7 @@ export default function WorkflowCoverageAdminPage() {
                       <th className="px-2 py-2">Completed</th>
                       <th className="px-2 py-2">Blocked</th>
                       <th className="px-2 py-2">Resumed</th>
+                      <th className="px-2 py-2">Recovered</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -295,6 +297,7 @@ export default function WorkflowCoverageAdminPage() {
                         <td className="px-2 py-2.5">{row.completed}</td>
                         <td className="px-2 py-2.5">{row.blocked}</td>
                         <td className="px-2 py-2.5">{row.resumed}</td>
+                        <td className="px-2 py-2.5">{row.recovered}</td>
                       </tr>
                     ))}
                   </tbody>

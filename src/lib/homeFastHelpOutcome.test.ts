@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  HOME_FAST_HELP_RECOVERY_COOLDOWN_MS,
+  HOME_FAST_HELP_RECOVERY_REFERENCE_ID,
   abandonOpenedHomeFastHelpJourneys,
   homeFastHelpActivityFromJourneys,
   homeFastHelpContextFromState,
@@ -10,6 +12,7 @@ import {
   readHomeFastHelpJourneys,
   reconcileHomeFastHelpJourneys,
   resumeHomeFastHelpJourney,
+  selectHomeFastHelpRecoveryNudge,
   startHomeFastHelpJourney,
   syncedHomeFastHelpJourneys,
   withHomeFastHelpContextState,
@@ -80,6 +83,117 @@ describe("Home Fast Help outcome journeys", () => {
     expect(resumed.id).toBe(started.journey.id);
     expect(resumed.status).toBe("opened");
     expect(resumed.events.at(-1)).toMatchObject({ status: "opened", reason: "resumed" });
+  });
+
+  it("waits through the recovery cooldown before offering one unfinished journey", () => {
+    const now = Date.parse("2026-07-17T14:00:00.000Z");
+    const started = startHomeFastHelpJourney({
+      actionId: "find-care",
+      destinationPath: "/concierge",
+      occurredAtMs: now - HOME_FAST_HELP_RECOVERY_COOLDOWN_MS - 60_000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: now - HOME_FAST_HELP_RECOVERY_COOLDOWN_MS - 30_000,
+      reason: "returned_home",
+    });
+    const journeys = readHomeFastHelpJourneys(started.storageKey);
+
+    expect(selectHomeFastHelpRecoveryNudge(journeys, { nowMs: now })).toMatchObject({
+      journey: { id: started.journey.id, actionId: "find-care" },
+      kind: "resume",
+    });
+    expect(selectHomeFastHelpRecoveryNudge(journeys, {
+      nowMs: now - HOME_FAST_HELP_RECOVERY_COOLDOWN_MS,
+    })).toBeNull();
+  });
+
+  it("never recovers completed, dismissed, urgent, or sensitive journeys", () => {
+    const now = Date.parse("2026-07-17T14:00:00.000Z");
+    const occurredAtMs = now - HOME_FAST_HELP_RECOVERY_COOLDOWN_MS - 60_000;
+    for (const actionId of ["feel-better", "safe-home"] as const) {
+      const started = startHomeFastHelpJourney({
+        actionId,
+        destinationPath: actionId === "feel-better" ? "/health/symptom-check" : "/safe-home",
+        occurredAtMs,
+      });
+      markHomeFastHelpJourney(started.context, "abandoned", { occurredAtMs });
+      expect(selectHomeFastHelpRecoveryNudge(
+        readHomeFastHelpJourneys(started.storageKey),
+        { nowMs: now },
+      )).toBeNull();
+    }
+
+    const completed = startHomeFastHelpJourney({
+      actionId: "stay-well",
+      destinationPath: "/health/prevention",
+      occurredAtMs,
+      profileId: "completed",
+    });
+    markHomeFastHelpJourney(completed.context, "completed", { occurredAtMs });
+    expect(selectHomeFastHelpRecoveryNudge(
+      readHomeFastHelpJourneys(completed.storageKey),
+      { nowMs: now },
+    )).toBeNull();
+
+    const dismissed = startHomeFastHelpJourney({
+      actionId: "paperwork-help",
+      destinationPath: "/concierge",
+      occurredAtMs,
+      profileId: "dismissed",
+    });
+    markHomeFastHelpJourney(dismissed.context, "dismissed", { occurredAtMs });
+    expect(selectHomeFastHelpRecoveryNudge(
+      readHomeFastHelpJourneys(dismissed.storageKey),
+      { nowMs: now },
+    )).toBeNull();
+  });
+
+  it("explains transport setup and tags recovery resumes for completion tracking", () => {
+    const now = Date.parse("2026-07-17T14:00:00.000Z");
+    const started = startHomeFastHelpJourney({
+      actionId: "book-ride",
+      destinationPath: "/concierge",
+      occurredAtMs: now - HOME_FAST_HELP_RECOVERY_COOLDOWN_MS - 60_000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: now - HOME_FAST_HELP_RECOVERY_COOLDOWN_MS - 30_000,
+    });
+    const recovery = selectHomeFastHelpRecoveryNudge(
+      readHomeFastHelpJourneys(started.storageKey),
+      { nowMs: now, hasSavedTransportProvider: false },
+    );
+
+    expect(recovery?.kind).toBe("transport_provider");
+    const resumed = resumeHomeFastHelpJourney(recovery!.journey, started.storageKey, {
+      occurredAtMs: now,
+      reason: "recovery_nudge",
+      referenceId: HOME_FAST_HELP_RECOVERY_REFERENCE_ID,
+    });
+    expect(resumed.events.at(-1)).toMatchObject({
+      status: "opened",
+      reason: "recovery_nudge",
+      referenceId: "recovery_nudge",
+    });
+    expect(syncedHomeFastHelpJourneys(started.storageKey)[0]?.events.at(-1)?.referenceId)
+      .toBe("recovery_nudge");
+  });
+
+  it("offers a recent unresolved blocker immediately", () => {
+    const now = Date.parse("2026-07-17T14:00:00.000Z");
+    const started = startHomeFastHelpJourney({
+      actionId: "paperwork-help",
+      destinationPath: "/concierge",
+      occurredAtMs: now - 60_000,
+    });
+    markHomeFastHelpJourney(started.context, "blocked", {
+      occurredAtMs: now - 30_000,
+      reason: "service_not_ready",
+    });
+
+    expect(selectHomeFastHelpRecoveryNudge(
+      readHomeFastHelpJourneys(started.storageKey),
+      { nowMs: now },
+    )?.kind).toBe("blocked");
   });
 
   it("reconciles an existing Concierge outcome after the user returns", () => {

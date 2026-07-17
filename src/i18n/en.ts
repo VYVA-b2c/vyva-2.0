@@ -1927,6 +1927,18 @@
         blockedAlternative: "Try this useful next step instead",
       },
     },
+    recoveryNudge: {
+      title: "Continue where you left off",
+      detail: "Continue {{action}} when you are ready.",
+      blockedTitle: "One quick step first",
+      blockedDetail: "Open {{action}} to see what is needed.",
+      transportSetupTitle: "One quick setup first",
+      transportSetupDetail: "Add a trusted transport provider to continue your ride.",
+      transportSetupNotice: "Save a trusted taxi or transport provider, then continue your ride.",
+      continue: "Continue",
+      later: "Later",
+      dismiss: "Dismiss",
+    },
     nudge: {
       text: "Not sure where to start?",
       action: "Ask VYVA",

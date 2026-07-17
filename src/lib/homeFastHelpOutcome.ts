@@ -49,11 +49,25 @@ export type HomeFastHelpOutcomeUpdate = {
   referenceId?: string | null;
 };
 
+export type HomeFastHelpRecoveryKind = "resume" | "blocked" | "transport_provider";
+
+export type HomeFastHelpRecoveryNudge = {
+  journey: HomeFastHelpJourney;
+  kind: HomeFastHelpRecoveryKind;
+};
+
 export const HOME_FAST_HELP_CONTEXT_STATE_KEY = "homeFastHelpContext";
 export const HOME_FAST_HELP_JOURNEY_STORAGE_PREFIX = "vyva:home-fast-help-journeys:v1";
 export const HOME_FAST_HELP_JOURNEY_EVENT = "vyva:home-fast-help-journey-changed";
+export const HOME_FAST_HELP_RECOVERY_REFERENCE_ID = "recovery_nudge";
+export const HOME_FAST_HELP_RECOVERY_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 
 const MAX_STORED_JOURNEYS = 20;
+const HOME_FAST_HELP_RECOVERY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const HOME_FAST_HELP_RECOVERY_EXCLUDED_ACTIONS = new Set<ContextualHomeFastHelpActionId>([
+  "feel-better",
+  "safe-home",
+]);
 const ACTION_IDS: ContextualHomeFastHelpActionId[] = [
   "feel-better",
   "stay-well",
@@ -328,9 +342,16 @@ export function markHomeFastHelpJourney(
   return next;
 }
 
-export function resumeHomeFastHelpJourney(journey: HomeFastHelpJourney, storageKey: string) {
+export function resumeHomeFastHelpJourney(
+  journey: HomeFastHelpJourney,
+  storageKey: string,
+  update: HomeFastHelpOutcomeUpdate = {},
+) {
   const context = homeFastHelpContextForJourney(journey, storageKey);
-  return markHomeFastHelpJourney(context, "opened", { reason: "resumed" }) ?? journey;
+  return markHomeFastHelpJourney(context, "opened", {
+    ...update,
+    reason: update.reason ?? "resumed",
+  }) ?? journey;
 }
 
 export function abandonOpenedHomeFastHelpJourneys(storageKey: string, occurredAtMs = Date.now()) {
@@ -364,6 +385,54 @@ export function latestBlockedHomeFastHelpJourney(
     journey.status === "blocked"
     && new Date(journey.updatedAt).getTime() >= oneDayAgo
   )) ?? null;
+}
+
+export function selectHomeFastHelpRecoveryNudge(
+  journeys: HomeFastHelpJourney[],
+  {
+    nowMs = Date.now(),
+    hasSavedTransportProvider,
+  }: {
+    nowMs?: number;
+    hasSavedTransportProvider?: boolean;
+  } = {},
+): HomeFastHelpRecoveryNudge | null {
+  const ordered = [...journeys].sort((left, right) => (
+    Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
+  ));
+
+  for (const journey of ordered) {
+    if (journey.status === "completed" || journey.status === "dismissed") continue;
+    if (HOME_FAST_HELP_RECOVERY_EXCLUDED_ACTIONS.has(journey.actionId)) continue;
+
+    const updatedAtMs = Date.parse(journey.updatedAt);
+    if (!Number.isFinite(updatedAtMs)) continue;
+    const ageMs = nowMs - updatedAtMs;
+    if (ageMs < 0 || ageMs > HOME_FAST_HELP_RECOVERY_MAX_AGE_MS) continue;
+
+    const isBlocked = journey.status === "blocked";
+    if (!isBlocked && ageMs < HOME_FAST_HELP_RECOVERY_COOLDOWN_MS) continue;
+    if (journey.status !== "opened" && journey.status !== "abandoned" && !isBlocked) continue;
+
+    const lastBlockedAt = journey.events.reduce((latest, event) => (
+      event.status === "blocked" ? Math.max(latest, Date.parse(event.occurredAt)) : latest
+    ), Number.NEGATIVE_INFINITY);
+    const lastOpenedAt = journey.events.reduce((latest, event) => (
+      event.status === "opened" ? Math.max(latest, Date.parse(event.occurredAt)) : latest
+    ), Number.NEGATIVE_INFINITY);
+    const hasUnresolvedBlocker = isBlocked || lastBlockedAt > lastOpenedAt;
+
+    return {
+      journey,
+      kind: journey.actionId === "book-ride" && hasSavedTransportProvider === false
+        ? "transport_provider"
+        : hasUnresolvedBlocker
+          ? "blocked"
+          : "resume",
+    };
+  }
+
+  return null;
 }
 
 export function homeFastHelpActivityFromJourneys(journeys: HomeFastHelpJourney[]): HomeFastHelpActivity[] {
