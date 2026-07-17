@@ -10010,6 +10010,16 @@ export default function MarketingAdminPage() {
       },
     ];
   }, [contacts]);
+  const contactRelationshipPriorityQueue = useMemo(() => {
+    const activeQueues = contactRelationshipWorkQueues.filter((queue) => queue.count > 0);
+    const sourceQueues = activeQueues.length ? activeQueues : contactRelationshipWorkQueues;
+    return sourceQueues
+      .slice()
+      .sort((a, b) => {
+        const rank = (queue: ContactRelationshipWorkQueue) => (queue.state === "ready" ? 3 : queue.state === "needs_action" ? 2 : queue.state === "planning" ? 1 : 0);
+        return rank(b) - rank(a) || b.count - a.count || a.title.localeCompare(b.title);
+      })[0] ?? null;
+  }, [contactRelationshipWorkQueues]);
   const contactRelationshipCommandBriefText = useMemo(() => {
     const activeQueues = contactRelationshipWorkQueues.filter((queue) => queue.count > 0);
     const sourceQueues = activeQueues.length ? activeQueues : contactRelationshipWorkQueues;
@@ -10024,12 +10034,7 @@ export default function MarketingAdminPage() {
         queue.sampleContact ? `  Sample contact: ${queue.sampleContact.fullName || queue.sampleContact.email || queue.sampleContact.phoneNumber}` : "",
         `  Note: ${queue.detail}`,
       ].filter(Boolean).join("\n"));
-    const priorityQueue = activeQueues
-      .slice()
-      .sort((a, b) => {
-        const rank = (queue: ContactRelationshipWorkQueue) => (queue.state === "ready" ? 3 : queue.state === "needs_action" ? 2 : queue.state === "planning" ? 1 : 0);
-        return rank(b) - rank(a) || b.count - a.count;
-      })[0] ?? contactRelationshipWorkQueues[0] ?? null;
+    const priorityQueue = contactRelationshipPriorityQueue;
     const promptChannels = priorityQueue?.channels.map((channel) => channelLabel[channel]).join(", ") ?? "Email and WhatsApp";
 
     return [
@@ -10069,6 +10074,7 @@ export default function MarketingAdminPage() {
     contactHealthUnknown,
     contactHealthWhatsappReachable,
     contactRelationshipScore,
+    contactRelationshipPriorityQueue,
     contactRelationshipWorkQueues,
   ]);
   const campaignStudioRelationshipQueues = useMemo(() => {
@@ -23808,6 +23814,60 @@ export default function MarketingAdminPage() {
                   </div>
                   <Pill className="bg-purple-50 text-purple-800">{contactRelationshipWorkQueues.filter((queue) => queue.count > 0).length} active queues</Pill>
                 </div>
+                {contactRelationshipPriorityQueue ? (() => {
+                  const queue = contactRelationshipPriorityQueue;
+                  const Icon = queue.icon;
+                  return (
+                    <div className={`mt-3 rounded-xl border p-4 ${readinessClass(queue.state)}`} data-testid="marketing-contact-priority-move">
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-center">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="grid h-9 w-9 place-items-center rounded-xl bg-white shadow-sm">
+                              <Icon size={16} aria-hidden="true" />
+                            </span>
+                            <Pill className="bg-white text-purple-800">Recommended relationship move</Pill>
+                            <Pill className={readinessPillClass(queue.state)}>{readinessLabel(queue.state)}</Pill>
+                          </div>
+                          <h4 className="mt-3 text-xl font-black text-[#241133]">{queue.title}</h4>
+                          <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">{queue.detail}</p>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            <Pill className="bg-white text-[#241133]">{queue.countLabel}</Pill>
+                            {queue.channels.map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                            {queue.sampleContact ? <Pill className="bg-white text-[#5b4a46]">Sample: {queue.sampleContact.fullName || queue.sampleContact.email || queue.sampleContact.phoneNumber}</Pill> : null}
+                          </div>
+                        </div>
+                        <div className="grid gap-2">
+                          <button
+                            type="button"
+                            onClick={() => showContactWorkQueue(queue)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                            data-testid="button-marketing-contact-priority-show"
+                          >
+                            <Eye size={14} aria-hidden="true" /> {queue.showLabel}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => buildAudienceFromContactWorkQueue(queue)}
+                            disabled={queue.count === 0}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-100 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
+                            data-testid="button-marketing-contact-priority-list"
+                          >
+                            <UsersRound size={14} aria-hidden="true" /> Build list
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => loadContactWorkQueueInStudio(queue)}
+                            disabled={queue.count === 0}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid="button-marketing-contact-priority-studio"
+                          >
+                            <Sparkles size={14} aria-hidden="true" /> {queue.studioLabel}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })() : null}
                 <div className="mt-3 grid gap-3 rounded-xl border border-purple-100 bg-white p-3 shadow-sm xl:grid-cols-[1fr_minmax(320px,0.8fr)]" data-testid="marketing-contact-command-brief">
                   <div>
                     <div className="flex flex-wrap items-start justify-between gap-2">

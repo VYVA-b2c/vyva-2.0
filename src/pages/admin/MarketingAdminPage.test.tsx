@@ -974,6 +974,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-work-queue-family-onboarding")).toHaveTextContent("1 contact");
     expect(screen.getByTestId("marketing-contact-work-queue-local-market")).toHaveTextContent("1 localised");
     expect(screen.getByTestId("marketing-contact-work-queue-segmentation-gaps")).toHaveTextContent("1 gap");
+    expect(screen.getByTestId("marketing-contact-priority-move")).toHaveTextContent("Recommended relationship move");
+    expect(screen.getByTestId("marketing-contact-priority-move")).toHaveTextContent("B2B partner nurture");
+    expect(screen.getByTestId("marketing-contact-priority-move")).toHaveTextContent("1 partner");
+    expect(screen.getByTestId("marketing-contact-priority-move")).toHaveTextContent("Sample: Hassan Partner");
+    expect(screen.getByTestId("button-marketing-contact-priority-studio")).toHaveTextContent("Open partner play");
     expect(screen.getByTestId("marketing-contact-command-brief")).toHaveTextContent("Relationship command brief");
     expect(screen.getByTestId("marketing-contact-command-brief")).toHaveTextContent("One weekly operating plan");
     const commandBrief = screen.getByTestId("textarea-marketing-contact-command-brief") as HTMLTextAreaElement;
