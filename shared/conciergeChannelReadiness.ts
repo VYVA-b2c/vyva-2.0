@@ -21,6 +21,18 @@ export type ConciergeExecutionMode =
   | "manual_review"
   | "blocked";
 
+export type ConciergeChannelProbeStatus =
+  | "not_run"
+  | "pass"
+  | "fail";
+
+export interface ConciergeChannelProbeState {
+  status: ConciergeChannelProbeStatus;
+  checked_at: string | null;
+  blocker: string | null;
+  checked_by?: string | null;
+}
+
 export interface ConciergeChannelReadinessFlag {
   adminEnabled?: boolean;
   configured?: boolean;

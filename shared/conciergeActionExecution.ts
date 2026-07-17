@@ -14,6 +14,10 @@ import {
   type ConciergeChannelReadinessResult,
   type ConciergeExecutionMode,
 } from "./conciergeChannelReadiness";
+import {
+  buildConciergeAdapterApprovalFingerprint,
+  type ConciergeAdapterApprovalFingerprint,
+} from "./conciergeAdapterPayloadContract";
 
 export type ConciergeExecutionActionType =
   | "phone_call"
@@ -55,6 +59,7 @@ export type ConciergeExecutionTask = {
   execution_mode: ConciergeExecutionMode;
   channel_readiness: ConciergeChannelReadinessResult;
   dry_run?: boolean;
+  approval_fingerprint?: ConciergeAdapterApprovalFingerprint;
   confirmation_source?: string;
   confirmed_at?: string;
   created_at: string;
@@ -87,6 +92,14 @@ export type ConciergeConfirmedExecutionPlan = {
 
 export type ConciergeExecutionAuditEvent =
   | "created"
+  | "adapter_execution_blocked"
+  | "adapter_execution_failed"
+  | "adapter_execution_simulated"
+  | "adapter_execution_succeeded"
+  | "adapter_retry_requested"
+  | "adapter_manual_follow_up_queued"
+  | "user_reconfirmation_requested"
+  | "user_reconfirmed"
   | "blocked_missing_info"
   | "blocked_channel_not_ready"
   | "user_confirmed"
@@ -111,6 +124,7 @@ export type ConciergeExecutionAuditEntry = {
   external_action_allowed?: boolean;
   execution_mode?: ConciergeExecutionMode;
   channel_readiness?: ConciergeChannelReadinessResult;
+  adapter_result?: Record<string, unknown>;
   dry_run?: boolean;
   reason?: string;
   missing_requirements?: ConciergeExecutionMissingRequirement[];
@@ -130,6 +144,7 @@ export type ConciergeExecutionBuildInput = {
   channelReadiness?: ConciergeChannelReadinessResult;
   externalActionAllowed?: boolean;
   executionMode?: ConciergeExecutionMode;
+  adapterResult?: Record<string, unknown>;
   now?: string;
   failureReason?: string;
   outcome?: string;
@@ -146,8 +161,19 @@ function executionTaskFromPayload(payload: Record<string, unknown> | null | unde
     : null;
 }
 
-function toolFromPayload(payload: Record<string, unknown>, providerPhone?: string | null): ConciergeToolRequirement {
-  const channel = clean(payload.execution_channel || payload.active_tool || payload.requested_tool || payload.preferred_channel).toLowerCase();
+function toolFromPayload(
+  payload: Record<string, unknown>,
+  providerPhone?: string | null,
+  existing?: Partial<ConciergeExecutionTask> | null,
+): ConciergeToolRequirement {
+  const channel = clean(
+    payload.execution_channel
+      || payload.active_tool
+      || payload.requested_tool
+      || payload.preferred_channel
+      || existing?.active_tool
+      || existing?.requested_tool,
+  ).toLowerCase();
   if (channel === "phone" || channel === "phone_call" || channel === "call") return "phone_call";
   if (channel === "email") return "email";
   if (channel === "whatsapp") return "whatsapp";
@@ -205,6 +231,16 @@ function providerPhoneReady(payload: Record<string, unknown>, providerPhone?: st
   return Boolean(clean(providerPhone) || payloadHasCleanString(payload, ["provider_phone", "phone", "contact_phone"]));
 }
 
+function shouldCaptureApprovalFingerprint(confirmationSource: string | undefined): boolean {
+  return Boolean(confirmationSource && [
+    "agent_confirmed",
+    "auto_start",
+    "confirm_endpoint",
+    "user_controlled_execution",
+    "user_confirmed",
+  ].includes(confirmationSource));
+}
+
 function toolSpecificMissingRequirement(
   tool: ConciergeToolRequirement,
   payload: Record<string, unknown>,
@@ -255,7 +291,7 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
   }));
   if (requirements.needsProvider && !providerReady) missingRequirements.unshift(missingProviderRequirement());
 
-  const requestedTool = toolFromPayload(payload, input.providerPhone);
+  const requestedTool = toolFromPayload(payload, input.providerPhone, existing);
   const actionType = actionTypeFromPayload(input.useCase, requirements.flowReference, payload, requestedTool);
   const channelReadiness = input.channelReadiness
     ?? existing?.channel_readiness
@@ -289,6 +325,16 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
   const confirmedAt = userConfirmed
     ? input.confirmedAt ?? existing?.confirmed_at ?? now
     : existing?.confirmed_at;
+  const approvalFingerprint = userConfirmed && shouldCaptureApprovalFingerprint(input.confirmationSource)
+    ? buildConciergeAdapterApprovalFingerprint({
+        tool: requestedTool,
+        payload,
+        providerName: input.providerName,
+        providerPhone: input.providerPhone,
+        summary: input.summary,
+        approvedAt: confirmedAt ?? now,
+      })
+    : existing?.approval_fingerprint;
 
   return {
     version: 1,
@@ -305,6 +351,7 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
     execution_mode: executionMode,
     channel_readiness: channelReadiness,
     ...(dryRun ? { dry_run: true } : {}),
+    ...(approvalFingerprint ? { approval_fingerprint: approvalFingerprint } : {}),
     ...(input.confirmationSource || existing?.confirmation_source
       ? { confirmation_source: input.confirmationSource ?? existing?.confirmation_source }
       : {}),
@@ -320,6 +367,7 @@ export function withConciergeExecutionTask(input: ConciergeExecutionBuildInput):
   const payload = input.payload ?? {};
   return {
     ...payload,
+    ...(input.adapterResult ? { execution_adapter: input.adapterResult } : {}),
     execution_task: buildConciergeExecutionTask(input),
   };
 }

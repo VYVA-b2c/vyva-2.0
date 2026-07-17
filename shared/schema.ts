@@ -2593,12 +2593,21 @@ export type InsertConciergePending = z.infer<typeof insertConciergePendingSchema
 export type ConciergePending = typeof conciergePending.$inferSelect;
 
 export const conciergeChannelReadinessSettings = pgTable("concierge_channel_readiness_settings", {
-  channel:       text("channel").primaryKey(),
-  admin_enabled: boolean("admin_enabled").notNull().default(false),
-  verified:      boolean("verified").notNull().default(false),
-  notes:         text("notes"),
-  updated_by:    text("updated_by"),
-  updated_at:    timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  channel:            text("channel").primaryKey(),
+  admin_enabled:      boolean("admin_enabled").notNull().default(false),
+  verified:           boolean("verified").notNull().default(false),
+  notes:              text("notes"),
+  last_probe_status:  text("last_probe_status"),
+  last_probe_at:      timestamp("last_probe_at", { withTimezone: true }),
+  last_probe_blocker: text("last_probe_blocker"),
+  last_probe_by:      text("last_probe_by"),
+  adapter_live_endpoint_url: text("adapter_live_endpoint_url"),
+  adapter_credential_reference: text("adapter_credential_reference"),
+  adapter_qa_target: text("adapter_qa_target"),
+  adapter_configured_by: text("adapter_configured_by"),
+  adapter_configured_at: timestamp("adapter_configured_at", { withTimezone: true }),
+  updated_by:         text("updated_by"),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 export const insertConciergeChannelReadinessSettingsSchema = createInsertSchema(conciergeChannelReadinessSettings).omit({ updated_at: true });
