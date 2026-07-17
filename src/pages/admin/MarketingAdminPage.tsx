@@ -13127,16 +13127,23 @@ export default function MarketingAdminPage() {
       ? "This can be saved as a draft, but review the highlighted items before launch."
       : "This draft has the core pieces needed to create a campaign record.";
 
+  const campaignRecipientSnapshotChannels = useMemo(() => campaignChannelsWithPrimary(campaignEditDraft), [campaignEditDraft]);
   const campaignRecipientPreview = useMemo(() => {
     if (!editingCampaignId || !campaignEditDraft.snapshotRecipients) return [];
     const filter = campaignEditDraft.recipientFilter.trim().toLowerCase();
     return contacts.filter((contact) => {
       if (!campaignAllowsContact(campaignEditDraft.audienceType, contact.audienceType)) return false;
       if (!contactMatchesAudienceList(contact, selectedCampaignTargetAudience)) return false;
-      if (!recipientForChannel(contact, campaignEditDraft.channel)) return false;
+      if (!campaignRecipientSnapshotChannels.some((channel) => recipientForChannel(contact, channel.channel))) return false;
       return !filter || contactSearchText(contact).includes(filter);
     });
-  }, [campaignEditDraft, contacts, editingCampaignId, selectedCampaignTargetAudience]);
+  }, [campaignEditDraft, campaignRecipientSnapshotChannels, contacts, editingCampaignId, selectedCampaignTargetAudience]);
+  const campaignRecipientPreviewSnapshotCount = useMemo(() => {
+    if (!editingCampaignId || !campaignEditDraft.snapshotRecipients) return 0;
+    return campaignRecipientPreview.reduce((total, contact) => (
+      total + campaignRecipientSnapshotChannels.filter((channel) => recipientForChannel(contact, channel.channel)).length
+    ), 0);
+  }, [campaignEditDraft.snapshotRecipients, campaignRecipientPreview, campaignRecipientSnapshotChannels, editingCampaignId]);
 
   function updateCampaignStudio(patch: Partial<CampaignStudioState>) {
     setCampaignStudio((current) => ({ ...current, ...patch }));
@@ -13945,16 +13952,21 @@ export default function MarketingAdminPage() {
     const existingMetadata = parseJsonText(campaignEditDraft.metadataText, "Campaign metadata");
     const targetAudienceSnapshot = audienceSnapshot(selectedCampaignTargetAudience);
     const recipients = campaignEditDraft.snapshotRecipients
-      ? campaignRecipientPreview.map((contact) => ({
-        contactId: contact.id,
-        channel: campaignEditDraft.channel,
-        recipient: recipientForChannel(contact, campaignEditDraft.channel) ?? contact.id,
-        status: "planned",
-        scheduledAt,
-        snapshot: {
-          ...recipientSnapshot(contact),
-          ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
-        },
+      ? campaignRecipientPreview.flatMap((contact) => campaignRecipientSnapshotChannels.flatMap((channel) => {
+        const recipient = recipientForChannel(contact, channel.channel);
+        if (!recipient) return [];
+        return [{
+          contactId: contact.id,
+          channel: channel.channel,
+          recipient,
+          status: "planned",
+          scheduledAt: fromDateTimeLocal(channel.scheduledAt) || scheduledAt,
+          snapshot: {
+            ...recipientSnapshot(contact),
+            ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
+            editorChannel: channel.channel,
+          },
+        }];
       }))
       : undefined;
     setCampaignSaving(true);
@@ -17205,7 +17217,7 @@ export default function MarketingAdminPage() {
   const missingCampaignContentChannels = campaignReadinessChannels.filter((channel) => !channel.contentAssetId);
   const planningOnlyCampaignChannels = campaignReadinessChannels.filter((channel) => channel.channel !== "email");
   const savedCampaignRecipientCount = editingCampaign?.recipientCount ?? 0;
-  const pendingCampaignSnapshotCount = campaignEditDraft.snapshotRecipients ? campaignRecipientPreview.length : 0;
+  const pendingCampaignSnapshotCount = campaignEditDraft.snapshotRecipients ? campaignRecipientPreviewSnapshotCount : 0;
   const campaignReadinessItems: CampaignReadinessItem[] = editingCampaign ? [
     {
       key: "content",
@@ -22752,7 +22764,9 @@ export default function MarketingAdminPage() {
                             <div className="rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-recipient-preview">
                               <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Preview</p>
                               <p className="mt-1 text-2xl font-black text-[#241133]">{campaignRecipientPreview.length}</p>
-                              <p className="text-xs font-bold text-[#8b7a73]">eligible planned recipients</p>
+                              <p className="text-xs font-bold text-[#8b7a73]">
+                                eligible contact{campaignRecipientPreview.length === 1 ? "" : "s"} / {campaignRecipientPreviewSnapshotCount} channel snapshot{campaignRecipientPreviewSnapshotCount === 1 ? "" : "s"}
+                              </p>
                             </div>
                             {campaignRecipientPreview.length === 0 ? (
                               <EmptyState text="No eligible contacts match this audience, channel, and filter." />

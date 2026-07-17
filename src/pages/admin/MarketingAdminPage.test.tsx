@@ -5123,6 +5123,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-recipient-filter"), { target: { value: "Hassan" } });
 
     expect(screen.getByTestId("marketing-campaign-recipient-preview")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-recipient-preview")).toHaveTextContent("2 channel snapshots");
     expect(screen.getByTestId("button-marketing-readiness-save-campaign")).toHaveTextContent("Save + snapshot recipients");
     expect(screen.getByTestId("marketing-campaign-readiness-email")).toHaveTextContent("Save campaign changes before test/live email send.");
     expect(screen.getByTestId("marketing-campaign-launch-step-test")).toHaveTextContent("Save before test");
@@ -5158,21 +5159,39 @@ describe("MarketingAdminPage", () => {
         { channel: "linkedin", contentAssetId: "content-2", status: "published" },
       ],
     });
-    expect(patchBody.recipients).toHaveLength(1);
-    expect(patchBody.recipients[0]).toMatchObject({
-      contactId: "contact-2",
-      channel: "email",
-      recipient: "hassan@example.com",
-      status: "planned",
-      snapshot: {
-        fullName: "Hassan Partner",
-        audienceList: {
-          name: "Partners",
-          source: "lovable",
-          lovableExternalId: "lovable-audience-1",
-        },
-      },
-    });
+    expect(patchBody.recipients).toHaveLength(2);
+    expect(patchBody.recipients).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        contactId: "contact-2",
+        channel: "email",
+        recipient: "hassan@example.com",
+        status: "planned",
+        snapshot: expect.objectContaining({
+          fullName: "Hassan Partner",
+          editorChannel: "email",
+          audienceList: expect.objectContaining({
+            name: "Partners",
+            source: "lovable",
+            lovableExternalId: "lovable-audience-1",
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        contactId: "contact-2",
+        channel: "linkedin",
+        recipient: "hassan@example.com",
+        status: "planned",
+        snapshot: expect.objectContaining({
+          fullName: "Hassan Partner",
+          editorChannel: "linkedin",
+          audienceList: expect.objectContaining({
+            name: "Partners",
+            source: "lovable",
+            lovableExternalId: "lovable-audience-1",
+          }),
+        }),
+      }),
+    ]));
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
 
     fireEvent.click(screen.getByTestId("button-marketing-edit-campaign-campaign-1"));
