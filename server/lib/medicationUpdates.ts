@@ -544,7 +544,7 @@ function fdaSearchTerm(value: string): string {
 
 function buildFdaLabelUrl(field: "generic_name" | "brand_name", term: string): URL {
   const url = new URL("https://api.fda.gov/drug/label.json");
-  url.searchParams.set("search", `openfda.${field}:\"${term}\"`);
+  url.searchParams.set("search", `openfda.${field}:"${term}"`);
   url.searchParams.set("sort", "effective_time:desc");
   url.searchParams.set("limit", "1");
   return url;
@@ -561,14 +561,15 @@ async function fetchFdaUpdates(
     const term = fdaSearchTerm(request.activeIngredient || normalizeMedicationMatchName(request.medicationName));
     let labelUrl = buildFdaLabelUrl("generic_name", term);
     const recallUrl = new URL("https://api.fda.gov/drug/enforcement.json");
-    recallUrl.searchParams.set("search", `product_description:\"${term}\"`);
+    recallUrl.searchParams.set("search", `product_description:"${term}"`);
     recallUrl.searchParams.set("sort", "report_date:desc");
     recallUrl.searchParams.set("limit", "1");
 
-    let [labelResponse, recallResponse] = await Promise.all([
+    const [initialLabelResponse, recallResponse] = await Promise.all([
       fetchJson<OpenFdaLabelResponse>(fetcher, labelUrl.toString()),
       fetchJson<OpenFdaRecallResponse>(fetcher, recallUrl.toString()),
     ]);
+    let labelResponse = initialLabelResponse;
     if (!labelResponse.data?.results?.length) {
       const brandTerm = fdaSearchTerm(normalizeMedicationMatchName(request.medicationName));
       if (brandTerm) {
@@ -687,7 +688,7 @@ async function fetchPubMedUpdates(
     const searchName = request.activeIngredient?.trim() || normalizeMedicationMatchName(request.medicationName);
     const searchUrl = new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi");
     searchUrl.searchParams.set("db", "pubmed");
-    searchUrl.searchParams.set("term", `\"${searchName}\"[Title/Abstract] AND (systematic review[Publication Type] OR meta-analysis[Publication Type] OR practice guideline[Publication Type])`);
+    searchUrl.searchParams.set("term", `"${searchName}"[Title/Abstract] AND (systematic review[Publication Type] OR meta-analysis[Publication Type] OR practice guideline[Publication Type])`);
     searchUrl.searchParams.set("sort", "pub date");
     searchUrl.searchParams.set("retmax", "2");
     searchUrl.searchParams.set("retmode", "json");

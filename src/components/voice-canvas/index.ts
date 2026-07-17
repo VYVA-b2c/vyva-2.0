@@ -7,3 +7,7 @@ export { rideCanvasReducer, initialRideCanvasState, emptyRideDraft } from "./rid
 export type * from "./rideCanvasMachine";
 export { rideCanvasViewModel } from "./rideCanvasViewModel";
 export type * from "./rideCanvasViewModel";
+export { trackRideCanvasEvent, VYVA_RIDE_CANVAS_TELEMETRY_EVENT } from "./rideCanvasTelemetry";
+export type * from "./rideCanvasTelemetry";
+export { isRideCanvasEnabled, parseRideCanvasRolloutConfig } from "./rideCanvasRollout";
+export type * from "./rideCanvasRollout";

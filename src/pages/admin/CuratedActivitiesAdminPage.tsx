@@ -1959,7 +1959,7 @@ export default function CuratedActivitiesAdminPage() {
     window.setTimeout(() => {
       document.getElementById(`curated-activity-${focusedEventKey}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 0);
-  }, [events.length, focusedEventKey]);
+  }, [events, focusedEventKey]);
 
   const cityOptions = useMemo(() => (
     Array.from(new Set(events.map((event) => cleanText(event.city)).filter(Boolean))).sort()

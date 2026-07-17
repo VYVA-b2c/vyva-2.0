@@ -3289,6 +3289,9 @@ describe("ConciergeScreen action hub", () => {
 
   it("runs voice ride handoffs through the Canvas and prepares nothing before explicit confirmation", async () => {
     apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/config/features/ride-voice-canvas")) {
+        return jsonResponse({ enabled: true, rolloutPercent: 100 });
+      }
       if (String(url).includes("/api/transport/options")) {
         expect(init?.method).toBe("POST");
         return jsonResponse({
@@ -3346,6 +3349,32 @@ describe("ConciergeScreen action hub", () => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({ method: "POST" }));
     });
     expect(screen.getByTestId("route-state")).toHaveTextContent("null");
+  });
+
+  it("falls back to the existing ride panel when the runtime Canvas flag is disabled", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).includes("/api/config/features/ride-voice-canvas")) {
+        return jsonResponse({ enabled: false, rolloutPercent: 100 });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        voiceActionPayload: { destination: "Doctor" },
+        conciergePrefill: {
+          kind: "ride",
+          message: "Prepare a ride safely.",
+          source: "voice_action",
+        },
+      },
+    }]);
+
+    expect(await screen.findByTestId("panel-concierge-route-prefill")).toBeVisible();
+    expect(screen.getByTestId("panel-concierge-transport")).toBeVisible();
+    expect(screen.queryByTestId("panel-concierge-ride-voice-canvas")).not.toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/transport/options", expect.anything());
   });
 
   it("ignores malformed voice ride route state without blanking Concierge", async () => {
