@@ -515,6 +515,17 @@ type CampaignIntentQuickStart = {
   channels: Channel[];
 };
 
+type CampaignLaunchMode = {
+  id: string;
+  title: string;
+  detail: string;
+  bestFor: string;
+  creates: string;
+  nextStep: string;
+  quickStartId: string;
+  channels: Channel[];
+};
+
 type CampaignGoalPreset = {
   id: string;
   title: string;
@@ -1971,6 +1982,49 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     detail: "Gentle reactivation for quiet families or dormant contacts.",
     brief: "Reactivate quiet family contacts with a gentle email and WhatsApp campaign. Give one simple reason to return and one low-friction next step.",
     channels: ["email", "whatsapp"],
+  },
+];
+
+const campaignLaunchModes: CampaignLaunchMode[] = [
+  {
+    id: "sendable-email",
+    title: "Sendable email campaign",
+    detail: "Start with a campaign that can be reviewed, tested, and sent from VYVA.",
+    bestFor: "Known B2C or caregiver list with a clear CTA.",
+    creates: "Email content, VYVA campaign route, and recipient snapshots.",
+    nextStep: "Review the email draft, send a test, then publish from campaign detail.",
+    quickStartId: "caregiver-onboarding",
+    channels: ["email", "whatsapp"],
+  },
+  {
+    id: "social-proof-pack",
+    title: "Social proof pack",
+    detail: "Create a multi-channel story for awareness, trust, and manual social publishing.",
+    bestFor: "Warm audiences that need repeated proof across public channels.",
+    creates: "Social copy, visual prompt, channel handoff, and optional email follow-up.",
+    nextStep: "Polish with AI, copy the visual kit, then publish or track manually.",
+    quickStartId: "monthly-care-digest",
+    channels: ["instagram", "facebook", "linkedin", "tiktok", "email"],
+  },
+  {
+    id: "local-offline",
+    title: "Local / offline event",
+    detail: "Plan a neighbourhood event or direct outreach run sheet with handoffs.",
+    bestFor: "Local activities, partner events, print, phone, SMS, and host tasks.",
+    creates: "Event route, print/phone handoff, RSVP prompt, and follow-up task.",
+    nextStep: "Confirm venue details, copy the offline kit, then track attendance and replies.",
+    quickStartId: "local-event-operations",
+    channels: ["event", "print", "sms", "whatsapp", "facebook"],
+  },
+  {
+    id: "relationship-follow-up",
+    title: "Relationship follow-up",
+    detail: "Turn a contact segment into a calm, practical relationship-building sequence.",
+    bestFor: "Partners, providers, families, or people who need a human follow-up.",
+    creates: "Email/LinkedIn route, follow-up angle, contact sample, and reply path.",
+    nextStep: "Review the best contact sample, improve with AI, then create the plan.",
+    quickStartId: "partner-webinar",
+    channels: ["email", "linkedin", "whatsapp"],
   },
 ];
 
@@ -12722,6 +12776,22 @@ export default function MarketingAdminPage() {
     applyCampaignIntentBriefText(quickStart.brief, "quick_start");
   }
 
+  function applyCampaignLaunchMode(mode: CampaignLaunchMode) {
+    const quickStart = campaignIntentQuickStarts.find((item) => item.id === mode.quickStartId);
+    if (!quickStart) {
+      setCampaignStudioFeedback(`Launch mode unavailable: ${mode.title}.`);
+      setMessage(`Launch mode unavailable: ${mode.title}.`);
+      return;
+    }
+    const primaryChannel = mode.channels[0] ?? quickStart.channels[0] ?? "email";
+    applyCampaignIntentBriefText(quickStart.brief, "quick_start", {
+      channel: primaryChannel,
+      selectedChannels: mode.channels.length ? mode.channels : quickStart.channels,
+    });
+    setCampaignStudioFeedback(`Launch mode loaded: ${mode.title}. ${mode.nextStep}`);
+    setMessage(`${mode.title} mode is ready. ${mode.creates}`);
+  }
+
   function applyCampaignGoalPreset(preset: CampaignGoalPreset) {
     const packMatch = contentTemplatePacksWithStats.find(({ pack }) => pack.id === preset.templatePackId) ?? null;
     const packChannels = packMatch?.channels ?? [];
@@ -18284,6 +18354,40 @@ export default function MarketingAdminPage() {
                               </button>
                             );
                           })}
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-launch-mode-chooser">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Choose launch mode</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick the kind of campaign you want to publish or track first. VYVA fills the route, channels, draft brief, and next step.</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignLaunchModes.length} guided paths</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 lg:grid-cols-2 xl:grid-cols-4">
+                          {campaignLaunchModes.map((mode) => (
+                            <button
+                              key={mode.id}
+                              type="button"
+                              onClick={() => applyCampaignLaunchMode(mode)}
+                              className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                              data-testid={`button-marketing-campaign-launch-mode-${mode.id}`}
+                            >
+                              <span className="block font-black text-[#241133]">{mode.title}</span>
+                              <span className="mt-1 block text-xs font-bold leading-relaxed text-[#7d6b65]">{mode.detail}</span>
+                              <span className="mt-3 grid gap-1 rounded-lg bg-white/75 px-2 py-2 text-[11px] font-black leading-relaxed text-[#6b5b54]">
+                                <span>Best for: {mode.bestFor}</span>
+                                <span>Creates: {mode.creates}</span>
+                                <span>Next: {mode.nextStep}</span>
+                              </span>
+                              <span className="mt-2 flex flex-wrap gap-1">
+                                {mode.channels.slice(0, 4).map((channel) => (
+                                  <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                ))}
+                                {mode.channels.length > 4 ? <Pill className="bg-white text-[#5b4a46]">+{mode.channels.length - 4}</Pill> : null}
+                              </span>
+                            </button>
+                          ))}
                         </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-intent-quick-starts">
