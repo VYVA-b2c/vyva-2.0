@@ -847,18 +847,18 @@ function channelLiveReadyLabel(row: AdminChannelReadinessRow): string {
   return "Off";
 }
 
-function channelStatus(row: AdminChannelReadinessRow): { label: string; detail: string; tone: "neutral" | "good" | "warn" | "bad" } {
+function channelStatus(row: AdminChannelReadinessRow): { label: string; detail: string | null; tone: "neutral" | "good" | "warn" | "bad" } {
   if (row.ready) {
     return {
-      label: "Ready for live use",
-      detail: `${row.label} can run after the user confirms.`,
+      label: "Ready",
+      detail: null,
       tone: "good",
     };
   }
   if (!row.configured) {
     return {
       label: "Needs setup",
-      detail: "Add setup details before this channel can contact providers.",
+      detail: null,
       tone: "warn",
     };
   }
@@ -871,31 +871,23 @@ function channelStatus(row: AdminChannelReadinessRow): { label: string; detail: 
   }
   if (!row.verified) {
     return {
-      label: "Needs verification",
-      detail: "Run verification before turning this on.",
+      label: "Needs check",
+      detail: null,
       tone: "warn",
     };
   }
   if (!row.admin_enabled) {
     return {
-      label: "Checked, off",
-      detail: "Turn on only when you want this channel available for live actions.",
+      label: "Ready, off",
+      detail: null,
       tone: "neutral",
     };
   }
   return {
-    label: "Review needed",
+    label: "Needs review",
     detail: row.ready_blocker ?? "Review this channel before live use.",
     tone: "warn",
   };
-}
-
-function channelNextAction(row: AdminChannelReadinessRow): string {
-  if (!row.configured) return "Add setup in Advanced.";
-  if (!row.verified) return "Run verification.";
-  if (!row.admin_enabled) return "Turn on when ready.";
-  if (row.ready) return "No action needed.";
-  return "Review Advanced.";
 }
 
 function ProductionChannelReadinessSection({
@@ -932,8 +924,8 @@ function ProductionChannelReadinessSection({
           <h2 className="mt-2 font-serif text-2xl text-[#2f2135]">Channel readiness</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Pill tone={liveReadyCount === channels.length && channels.length > 0 ? "good" : "warn"}>{liveReadyCount} live-ready</Pill>
-          <Pill tone={notReadyCount > 0 ? "warn" : "good"}>{notReadyCount} off / not ready</Pill>
+          <Pill tone={liveReadyCount === channels.length && channels.length > 0 ? "good" : "warn"}>{liveReadyCount} on</Pill>
+          <Pill tone={notReadyCount > 0 ? "warn" : "good"}>{notReadyCount} off</Pill>
           <button
             type="button"
             className="inline-flex min-h-[38px] items-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-xs font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
@@ -961,9 +953,9 @@ function ProductionChannelReadinessSection({
           <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
             <tr>
               <th className="px-4 py-3">Channel</th>
+              <th className="px-4 py-3">Live use</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Action</th>
-              <th className="min-w-[300px] px-4 py-3">Advanced</th>
+              <th className="min-w-[260px] px-4 py-3">Manage</th>
             </tr>
           </thead>
           <tbody>
@@ -977,39 +969,21 @@ function ProductionChannelReadinessSection({
                   <td className="min-w-[190px] border-t border-[#f0e7df] px-4 py-4">
                     <div className="flex flex-col gap-2">
                       <span className="text-base font-black text-[#2f2135]">{row.label}</span>
-                      <span className="text-sm font-semibold leading-relaxed text-[#7d6b65]">
-                        {row.ready ? "Live use is on." : channelNextAction(row)}
-                      </span>
                     </div>
                   </td>
-                  <td className="min-w-[240px] border-t border-[#f0e7df] px-4 py-4">
+                  <td className="min-w-[120px] border-t border-[#f0e7df] px-4 py-4">
+                    <Pill tone={row.ready ? "good" : "neutral"}>{row.ready ? "On" : "Off"}</Pill>
+                  </td>
+                  <td className="min-w-[170px] border-t border-[#f0e7df] px-4 py-4">
                     <div className="flex flex-col gap-2">
                       <Pill tone={status.tone}>{status.label}</Pill>
-                      <span className="text-sm font-semibold leading-relaxed text-[#5b4a46]">{status.detail}</span>
+                      {status.detail ? (
+                        <span className="text-xs font-semibold leading-relaxed text-[#8b4a28]">{status.detail}</span>
+                      ) : null}
                     </div>
                   </td>
-                  <td className="min-w-[220px] border-t border-[#f0e7df] px-4 py-4">
+                  <td className="border-t border-[#f0e7df] px-4 py-4">
                     <div className="flex flex-col gap-2">
-                      <span className="text-sm font-black text-[#2f2135]">{channelNextAction(row)}</span>
-                      {row.configured ? (
-                        <form
-                          method="post"
-                          action={`/api/admin/concierge/channel-readiness/${row.channel}/probe`}
-                          data-testid={`form-concierge-channel-probe-${row.channel.replace(/_/g, "-")}`}
-                        >
-                          <input type="hidden" name="channel" value={row.channel} />
-                          <input type="hidden" name="action" value="probe" />
-                          <button
-                            type="submit"
-                            className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={busy}
-                          >
-                            {row.verified ? "Recheck" : "Run verification"}
-                          </button>
-                        </form>
-                      ) : (
-                        <span className="text-xs font-semibold leading-relaxed text-[#8b7a73]">Finish setup first.</span>
-                      )}
                       {canToggleLive ? (
                         <form
                           method="post"
@@ -1023,102 +997,122 @@ function ProductionChannelReadinessSection({
                             className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[10px] border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={busy}
                           >
-                            {row.admin_enabled ? "Turn off live use" : "Turn on live use"}
+                            {row.admin_enabled ? "Turn off" : "Turn on"}
                           </button>
                         </form>
                       ) : (
-                        <span className="text-xs font-semibold leading-relaxed text-[#8b7a73]">Live use unlocks after setup and verification.</span>
+                        <span className="text-xs font-semibold leading-relaxed text-[#8b7a73]">Turn on unlocks after setup and check.</span>
                       )}
-                    </div>
-                  </td>
-                  <td className="border-t border-[#f0e7df] px-4 py-4">
-                    <details className="group rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2" data-testid={`details-concierge-channel-${row.channel.replace(/_/g, "-")}`}>
-                      <summary className="cursor-pointer text-sm font-black text-[#2f2135]">Advanced</summary>
-                      <div className="mt-3 flex flex-col gap-3">
-                        <div className="flex flex-wrap gap-1.5">
-                          <Pill tone="neutral">{row.channel}</Pill>
-                          <Pill tone={row.test_mode.external_action_allowed ? "bad" : "good"}>Test mode simulated</Pill>
-                          <Pill tone={row.configured ? "good" : "warn"}>{channelSetupLabel(row)}</Pill>
-                          <Pill tone={row.adapter_setup.configured ? "good" : "warn"}>{adapterSetupSourceLabel(row)}</Pill>
-                          <Pill tone={row.adapter_setup.qa_target_configured ? "good" : "warn"}>
-                            {row.adapter_setup.qa_target_configured ? "QA target set" : "QA target missing"}
-                          </Pill>
-                          <Pill tone={row.verified ? "good" : "warn"}>{channelVerificationLabel(row)}</Pill>
-                          <Pill tone={channelProbeTone(row)}>{channelProbeLabel(row)}</Pill>
-                          <Pill tone={row.ready ? "good" : row.admin_enabled ? "warn" : "neutral"}>Live-ready {channelLiveReadyLabel(row)}</Pill>
-                        </div>
-                        <span className="text-xs font-semibold leading-relaxed text-[#8b7a73]">
-                          {busy ? "Saving..." : `Last updated: ${formatChannelTimestamp(row.updated_at)}`}
-                        </span>
-                        {row.adapter_setup.blockers.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {row.adapter_setup.blockers.map((blocker) => <Pill key={blocker} tone="warn">{blocker}</Pill>)}
-                          </div>
-                        ) : null}
-                      <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
-                        Live endpoint
-                        <input
-                          key={`${row.channel}-endpoint-${row.updated_at ?? "new"}`}
-                          type="url"
-                          className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135] disabled:opacity-60"
-                          defaultValue={row.adapter_setup.live_endpoint_url ?? ""}
-                          placeholder={row.channel === "phone_call" ? "Managed by phone credentials" : row.adapter_setup.live_endpoint_reference ?? "https://adapter.example.test/..."}
-                          disabled={busy || row.channel === "phone_call"}
-                          aria-label={`${row.label} live endpoint`}
-                          onBlur={(event) => {
-                            const nextValue = event.target.value.trim() || null;
-                            if (nextValue !== row.adapter_setup.live_endpoint_url) {
-                              onUpdate(row.channel, { adapter_live_endpoint_url: nextValue });
-                            }
-                          }}
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
-                        Credential reference
-                        <input
-                          key={`${row.channel}-credential-${row.updated_at ?? "new"}`}
-                          className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
-                          defaultValue={row.adapter_setup.credential_reference ?? ""}
-                          placeholder="vault/reference"
-                          disabled={busy}
-                          aria-label={`${row.label} credential reference`}
-                          onBlur={(event) => {
-                            const nextValue = event.target.value.trim() || null;
-                            if (nextValue !== row.adapter_setup.credential_reference) {
-                              onUpdate(row.channel, { adapter_credential_reference: nextValue });
-                            }
-                          }}
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
-                        QA target
-                        <input
-                          key={`${row.channel}-qa-${row.updated_at ?? "new"}`}
-                          className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
-                          defaultValue={row.adapter_setup.qa_target ?? ""}
-                          placeholder={row.adapter_setup.qa_target_reference ?? "Reserved test target"}
-                          disabled={busy}
-                          aria-label={`${row.label} QA target`}
-                          onBlur={(event) => {
-                            const nextValue = event.target.value.trim() || null;
-                            if (nextValue !== row.adapter_setup.qa_target) {
-                              onUpdate(row.channel, { adapter_qa_target: nextValue });
-                            }
-                          }}
-                        />
-                      </label>
-                        <label className="flex flex-col gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
-                          Admin note
-                          <textarea
-                            key={`${row.channel}-${row.updated_at ?? "new"}`}
-                            className="min-h-[72px] rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
-                            defaultValue={row.notes ?? ""}
+                      {row.configured ? (
+                        <form
+                          method="post"
+                          action={`/api/admin/concierge/channel-readiness/${row.channel}/probe`}
+                          data-testid={`form-concierge-channel-probe-${row.channel.replace(/_/g, "-")}`}
+                        >
+                          <input type="hidden" name="channel" value={row.channel} />
+                          <input type="hidden" name="action" value="probe" />
+                          <button
+                            type="submit"
+                            className="inline-flex min-h-[38px] w-full items-center justify-center rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 text-sm font-black text-[#2f2135] transition hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={busy}
-                            onBlur={(event) => onUpdate(row.channel, { notes: event.target.value.trim() || null })}
-                          />
-                        </label>
-                      </div>
-                    </details>
+                          >
+                            {row.verified ? "Recheck" : "Run check"}
+                          </button>
+                        </form>
+                      ) : (
+                        <span className="text-xs font-semibold leading-relaxed text-[#8b7a73]">Configure before checking.</span>
+                      )}
+                      <details className="group rounded-[10px] border border-[#eadfd5] bg-[#fffaf4] px-3 py-2" data-testid={`details-concierge-channel-${row.channel.replace(/_/g, "-")}`}>
+                        <summary className="cursor-pointer text-sm font-black text-[#2f2135]">Configure</summary>
+                        <div className="mt-3 flex flex-col gap-3">
+                          {row.adapter_setup.blockers.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {row.adapter_setup.blockers.map((blocker) => <Pill key={blocker} tone="warn">{blocker}</Pill>)}
+                            </div>
+                          ) : null}
+                          <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                            Live endpoint
+                            <input
+                              key={`${row.channel}-endpoint-${row.updated_at ?? "new"}`}
+                              type="url"
+                              className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-white px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135] disabled:opacity-60"
+                              defaultValue={row.adapter_setup.live_endpoint_url ?? ""}
+                              placeholder={row.channel === "phone_call" ? "Managed by phone credentials" : row.adapter_setup.live_endpoint_reference ?? "https://adapter.example.test/..."}
+                              disabled={busy || row.channel === "phone_call"}
+                              aria-label={`${row.label} live endpoint`}
+                              onBlur={(event) => {
+                                const nextValue = event.target.value.trim() || null;
+                                if (nextValue !== row.adapter_setup.live_endpoint_url) {
+                                  onUpdate(row.channel, { adapter_live_endpoint_url: nextValue });
+                                }
+                              }}
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                            Credential reference
+                            <input
+                              key={`${row.channel}-credential-${row.updated_at ?? "new"}`}
+                              className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-white px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
+                              defaultValue={row.adapter_setup.credential_reference ?? ""}
+                              placeholder="vault/reference"
+                              disabled={busy}
+                              aria-label={`${row.label} credential reference`}
+                              onBlur={(event) => {
+                                const nextValue = event.target.value.trim() || null;
+                                if (nextValue !== row.adapter_setup.credential_reference) {
+                                  onUpdate(row.channel, { adapter_credential_reference: nextValue });
+                                }
+                              }}
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                            QA target
+                            <input
+                              key={`${row.channel}-qa-${row.updated_at ?? "new"}`}
+                              className="min-h-[38px] rounded-[10px] border border-[#eadfd5] bg-white px-3 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
+                              defaultValue={row.adapter_setup.qa_target ?? ""}
+                              placeholder={row.adapter_setup.qa_target_reference ?? "Reserved test target"}
+                              disabled={busy}
+                              aria-label={`${row.label} QA target`}
+                              onBlur={(event) => {
+                                const nextValue = event.target.value.trim() || null;
+                                if (nextValue !== row.adapter_setup.qa_target) {
+                                  onUpdate(row.channel, { adapter_qa_target: nextValue });
+                                }
+                              }}
+                            />
+                          </label>
+                          <label className="flex flex-col gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                            Admin note
+                            <textarea
+                              key={`${row.channel}-${row.updated_at ?? "new"}`}
+                              className="min-h-[72px] rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-[#2f2135]"
+                              defaultValue={row.notes ?? ""}
+                              disabled={busy}
+                              onBlur={(event) => onUpdate(row.channel, { notes: event.target.value.trim() || null })}
+                            />
+                          </label>
+                          <details className="rounded-[10px] border border-[#eadfd5] bg-white px-3 py-2">
+                            <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Technical status</summary>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <Pill tone="neutral">{row.channel}</Pill>
+                              <Pill tone={row.test_mode.external_action_allowed ? "bad" : "good"}>Test mode simulated</Pill>
+                              <Pill tone={row.configured ? "good" : "warn"}>{channelSetupLabel(row)}</Pill>
+                              <Pill tone={row.adapter_setup.configured ? "good" : "warn"}>{adapterSetupSourceLabel(row)}</Pill>
+                              <Pill tone={row.adapter_setup.qa_target_configured ? "good" : "warn"}>
+                                {row.adapter_setup.qa_target_configured ? "QA target set" : "QA target missing"}
+                              </Pill>
+                              <Pill tone={row.verified ? "good" : "warn"}>{channelVerificationLabel(row)}</Pill>
+                              <Pill tone={channelProbeTone(row)}>{channelProbeLabel(row)}</Pill>
+                              <Pill tone={row.ready ? "good" : row.admin_enabled ? "warn" : "neutral"}>Live-ready {channelLiveReadyLabel(row)}</Pill>
+                            </div>
+                            <span className="mt-2 block text-xs font-semibold leading-relaxed text-[#8b7a73]">
+                              {busy ? "Saving..." : `Last updated: ${formatChannelTimestamp(row.updated_at)}`}
+                            </span>
+                          </details>
+                        </div>
+                      </details>
+                    </div>
                   </td>
                 </tr>
               );
