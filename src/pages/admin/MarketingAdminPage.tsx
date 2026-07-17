@@ -697,6 +697,15 @@ type MarketingLaunchLaneItem = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type MarketingOpportunityRadarItem = CampaignReadinessItem & {
+  signal: string;
+  scoreLabel: string;
+  channels: Channel[];
+  actionLabel: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+};
+
 type CampaignAudienceInsightItem = {
   key: string;
   title: string;
@@ -17324,6 +17333,90 @@ export default function MarketingAdminPage() {
       },
     },
   ];
+  const marketingOpportunityRadarItems: MarketingOpportunityRadarItem[] = [
+    ...(!syncState.configured ? [{
+      key: "sync",
+      title: "Unlock imported source data",
+      detail: "Campaign, contact, list, and content signals will be stronger once the Lovable import is configured and refreshed.",
+      signal: "Import signal",
+      scoreLabel: "Blocked",
+      state: "blocked" as CampaignReadinessState,
+      channels: [] as Channel[],
+      actionLabel: "Open sync settings",
+      icon: RefreshCw,
+      onSelect: () => {
+        setActiveTab("settings");
+        setMessage("Open Settings to finish Lovable sync configuration.");
+      },
+    }] : []),
+    ...dashboardCampaignRecommendations.map(({ recommendation, packMatch }, index) => ({
+      key: `play-${recommendation.play.id}`,
+      title: recommendation.play.label,
+      detail: [
+        recommendation.targetAudience ? `Best list: ${recommendation.targetAudience.name}` : "No list match yet",
+        packMatch ? `Template pack: ${packMatch.pack.title}` : `${recommendation.templateMatches} matching templates`,
+      ].join(" • "),
+      signal: `${recommendation.reachableContacts} reachable contact${recommendation.reachableContacts === 1 ? "" : "s"} across ${recommendation.channels.map((channel) => channelLabel[channel]).join(" + ")}`,
+      scoreLabel: index === 0 ? `${recommendation.score}% best fit` : `${recommendation.score}% fit`,
+      state: recommendation.state,
+      channels: recommendation.channels,
+      actionLabel: "Load in studio",
+      icon: Sparkles,
+      onSelect: () => applyCampaignStudioPlayRecommendation(recommendation),
+    })),
+    ...(firstReadyEmailCampaign ? [{
+      key: "ready-email-send",
+      title: "Send-ready email campaign",
+      detail: `"${firstReadyEmailCampaign.name}" has linked email content and saved recipients. Open the final review before sending.`,
+      signal: `${readyEmailCampaigns.length} email campaign${readyEmailCampaigns.length === 1 ? "" : "s"} ready`,
+      scoreLabel: "Live send",
+      state: "ready" as CampaignReadinessState,
+      channels: ["email"] as Channel[],
+      actionLabel: "Open send review",
+      icon: Send,
+      onSelect: () => {
+        startCampaignEdit(firstReadyEmailCampaign);
+        setActiveTab("dashboard");
+        setMessage(`Opened "${firstReadyEmailCampaign.name}" for final email review.`);
+      },
+    }] : []),
+    ...(missingLovableReferenceCount > 0 ? [{
+      key: "content-placeholders",
+      title: "Replace imported placeholders",
+      detail: "Some imported campaign or journey references still need real copy, HTML, design, or media before they can become polished campaigns.",
+      signal: `${missingLovableReferenceCount} placeholder${missingLovableReferenceCount === 1 ? "" : "s"} remaining`,
+      scoreLabel: "Creative gap",
+      state: "blocked" as CampaignReadinessState,
+      channels: [] as Channel[],
+      actionLabel: "Show content gaps",
+      icon: FileText,
+      onSelect: () => {
+        setActiveTab("content");
+        setSearch("");
+        setChannelFilter("all");
+        setContentSourceFilter("missing_lovable_reference");
+        setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
+      },
+    }] : []),
+    ...(unmappedAudienceMemberCount > 0 || unmappedCampaignRecipientCount > 0 ? [{
+      key: "audience-mapping",
+      title: "Map audience records",
+      detail: "Imported lists and campaign recipients need contact matches so targeting, previews, and recipient snapshots stay reliable.",
+      signal: `${unmappedAudienceMemberCount + unmappedCampaignRecipientCount} unmapped record${unmappedAudienceMemberCount + unmappedCampaignRecipientCount === 1 ? "" : "s"}`,
+      scoreLabel: "Audience gap",
+      state: "needs_action" as CampaignReadinessState,
+      channels: [] as Channel[],
+      actionLabel: "Open lists",
+      icon: UsersRound,
+      onSelect: () => {
+        setActiveTab("contacts");
+        setContactView("lists");
+        setSearch("");
+        setContactListFilter("all");
+        setAudienceFeedback("Review imported lists with unmapped Lovable members.");
+      },
+    }] : []),
+  ].slice(0, 6);
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
@@ -17462,6 +17555,56 @@ export default function MarketingAdminPage() {
                       )}
                       <p className="text-xs font-bold leading-relaxed text-[#7d6b65]">One click takes you to the work area that unblocks the most marketing progress.</p>
                     </div>
+                  </div>
+                </div>
+                <div className="mb-4 rounded-2xl border border-purple-100 bg-[#fffaf4] p-4 shadow-sm" data-testid="marketing-opportunity-radar">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">AI opportunity radar</p>
+                      <h3 className="mt-1 text-lg font-black text-[#241133]">Ranked moves from audience, content, and campaign signals</h3>
+                      <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">Each card opens the exact work area or campaign playbook that makes the next publishable step easier.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Pill className="bg-purple-50 text-purple-800">AI ranked</Pill>
+                      <Pill className="bg-white text-[#5b4a46]">{marketingOpportunityRadarItems.length} moves</Pill>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                    {marketingOpportunityRadarItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={item.onSelect}
+                          className={`min-h-[178px] rounded-2xl border p-4 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                          data-testid={`button-marketing-opportunity-${item.key}`}
+                        >
+                          <span className="flex items-start justify-between gap-3">
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                              <Icon size={17} aria-hidden="true" />
+                            </span>
+                            <span className="flex flex-wrap justify-end gap-1.5">
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              <Pill className="bg-white text-[#5b4a46]">{item.scoreLabel}</Pill>
+                            </span>
+                          </span>
+                          <span className="mt-3 block text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.signal}</span>
+                          <span className="mt-1 block text-base font-black text-[#241133]">{item.title}</span>
+                          <span className="mt-2 line-clamp-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                          {item.channels.length ? (
+                            <span className="mt-3 flex flex-wrap gap-1.5">
+                              {item.channels.slice(0, 5).map((channel) => (
+                                <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                              ))}
+                            </span>
+                          ) : null}
+                          <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                            {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="mb-4 rounded-2xl border border-purple-100 bg-gradient-to-r from-purple-50 via-white to-[#fffaf4] p-4" data-testid="marketing-launch-lane">

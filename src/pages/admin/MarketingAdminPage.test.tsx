@@ -1282,6 +1282,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Lovable sync");
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("AI opportunity radar");
+    expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("AI ranked");
+    expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("Event reminder");
+    expect(screen.getByTestId("button-marketing-opportunity-play-event-reminder")).toHaveTextContent("Load in studio");
+    fireEvent.click(screen.getByTestId("button-marketing-opportunity-play-event-reminder"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Playbook loaded: Event reminder");
+
     expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Shortest path to a publishable campaign");
     expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Import");
     expect(screen.getByTestId("marketing-launch-lane")).toHaveTextContent("Audience");
