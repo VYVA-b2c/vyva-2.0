@@ -3810,6 +3810,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-channels")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-reach")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-ai")).toHaveTextContent("0/1");
+    expect(screen.getByTestId("marketing-campaign-studio-ai-command-brief")).toHaveTextContent("AI launch brief");
+    const studioAiBrief = screen.getByTestId("textarea-marketing-campaign-studio-ai-command-brief") as HTMLTextAreaElement;
+    expect(studioAiBrief.value).toContain("VYVA campaign studio AI command brief");
+    expect(studioAiBrief.value).toContain("Recommended next step: Improve with AI if you want a more tailored draft, or create the campaign now.");
+    expect(studioAiBrief.value).toContain("Channel execution:");
+    expect(studioAiBrief.value).toContain("AI task:");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-ai-command-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign studio AI command brief"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI launch brief copied.");
     expect(screen.getByTestId("marketing-campaign-studio-execution-map")).toHaveTextContent("Channel execution map");
     expect(screen.getByTestId("marketing-campaign-studio-execution-map")).toHaveTextContent("1 route");
     expect(screen.getByTestId("marketing-campaign-studio-execution-map-linkedin")).toHaveTextContent("LinkedIn");

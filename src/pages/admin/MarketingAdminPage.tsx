@@ -11748,6 +11748,44 @@ export default function MarketingAdminPage() {
       state: campaignStudioHasFullAiPack ? "ready" as const : "planning" as const,
     },
   ];
+  const campaignStudioAiCommandBriefText = [
+    "VYVA campaign studio AI command brief",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Objective: ${campaignStudioGenerated.objective || selectedCampaignStudioPlay.objective}`,
+    `Audience: ${campaignStudioOfflineAudienceName} (${selectedCampaignStudioPlay.audienceType.toUpperCase()})`,
+    `Primary route: ${channelLabel[campaignStudio.channel]}`,
+    `Channel pack: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
+    `Schedule: ${campaignStudioOfflineScheduleLabel}`,
+    `Readiness: ${campaignStudioReadinessSummary}`,
+    `Recommended next step: ${campaignStudioNextStep}`,
+    "",
+    "Current copy:",
+    `Hook: ${campaignStudioPersonalizedSubject}`,
+    `CTA: ${campaignStudioOfflineCta}`,
+    campaignStudioOfflineMessageLine || campaignStudioGenerated.body || "No body copy yet.",
+    "",
+    "Audience and consent signals:",
+    `Reach: ${campaignStudioSelectedChannels.length === 1
+      ? `${campaignStudioRecipientPreview.length} eligible recipient${campaignStudioRecipientPreview.length === 1 ? "" : "s"}`
+      : `${campaignStudioPackRecipientCount} recipient snapshots across ${campaignStudioSelectedChannels.length} channels`}`,
+    `Consent: ${campaignStudioConsentCounts.optedIn} opted in, ${campaignStudioConsentCounts.review} pending/unknown, ${campaignStudioConsentCounts.optedOut} opted out.`,
+    `Localization: ${campaignStudioLanguageLabels.join(" / ") || "Unknown"}; ${campaignStudioMarketLabels.join(" / ") || "Unknown"}.`,
+    "",
+    "Channel execution:",
+    ...campaignStudioExecutionPlan.map((item) => `- ${channelLabel[item.channel]}: ${item.sendMode}; ${item.nextAction}; ${item.recipients} planned recipient${item.recipients === 1 ? "" : "s"}.`),
+    "",
+    "AI task:",
+    "- Improve the campaign so it is clearer, more specific, and easier for an admin to publish.",
+    "- Keep the existing audience, consent guardrails, channel routes, and schedule intact.",
+    "- Produce channel-specific copy for every selected route, including subject/hook, body/caption, CTA, visual direction, and manual publishing note.",
+    "- Add one relationship follow-up recommendation for warm replies, clicks without replies, and silent contacts.",
+    "- Return the result as a concise launch brief plus copy blocks grouped by channel.",
+    "",
+    "Important constraints:",
+    "- Do not invent live provider sending for social, WhatsApp, print, phone, or offline routes.",
+    "- Email can be prepared for VYVA review/send, but still requires explicit admin approval.",
+    "- Keep claims practical and care-sensitive.",
+  ].join("\n");
   const campaignStudioApprovalBriefText = [
     "Campaign approval brief",
     `Campaign: ${campaignStudioGenerated.campaignName}`,
@@ -18341,6 +18379,30 @@ export default function MarketingAdminPage() {
                             <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-violet-200 bg-white p-3" data-testid="marketing-campaign-studio-ai-command-brief">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-700">AI launch brief</p>
+                            <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                              A compact prompt for improving the whole campaign without losing channel, consent, schedule, or follow-up context.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("AI launch brief", campaignStudioAiCommandBriefText)}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-800 transition hover:border-violet-300 hover:bg-violet-50 focus:outline-none focus:ring-4 focus:ring-violet-100"
+                            data-testid="button-marketing-campaign-studio-copy-ai-command-brief"
+                          >
+                            <Sparkles size={14} aria-hidden="true" /> Copy AI brief
+                          </button>
+                        </div>
+                        <textarea
+                          className="mt-3 min-h-[150px] w-full rounded-xl border border-violet-100 bg-violet-50/40 px-3 py-2 text-xs font-semibold leading-relaxed text-[#4f4564]"
+                          value={campaignStudioAiCommandBriefText}
+                          readOnly
+                          data-testid="textarea-marketing-campaign-studio-ai-command-brief"
+                        />
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-execution-map">
                         <div className="flex flex-wrap items-start justify-between gap-2">
