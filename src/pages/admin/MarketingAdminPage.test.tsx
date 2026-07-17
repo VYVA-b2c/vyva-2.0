@@ -4686,7 +4686,20 @@ describe("MarketingAdminPage", () => {
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Segment responders"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Manual follow-ups needed: 0"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Recipient follow-up queue:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Hassan Partner via Email"));
     expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign relationship follow-up brief copied.");
+    expect(screen.getByTestId("marketing-campaign-recipient-follow-up-queue")).toHaveTextContent("Who should be followed up?");
+    expect(screen.getByTestId("marketing-campaign-recipient-follow-up-recipient-1")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-recipient-follow-up-recipient-1")).toHaveTextContent("Review consent (pending)");
+    expect(screen.getByTestId("button-marketing-open-recipient-follow-up-contact-recipient-1")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-copy-recipient-follow-up-recipient-1"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA personal relationship follow-up"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Recipient: Hassan Partner"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Consent: pending"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Hassan Partner follow-up prompt copied.");
     expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
     expect(screen.getByTestId("marketing-campaign-manual-publish-tracker")).toHaveTextContent("Record what happened outside VYVA");

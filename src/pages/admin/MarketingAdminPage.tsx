@@ -691,6 +691,14 @@ type CampaignRelationshipFollowUpItem = CampaignReadinessItem & {
   icon: LucideIcon;
 };
 
+type CampaignRecipientFollowUpItem = CampaignReadinessItem & {
+  recipient: CampaignRecipient;
+  contact: MarketingContact | null;
+  label: string;
+  channel: Channel;
+  promptText: string;
+};
+
 type MarketingLaunchLaneItem = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -16594,6 +16602,61 @@ export default function MarketingAdminPage() {
       icon: Sparkles,
     },
   ] : [];
+  const campaignRecipientFollowUpQueue = editingCampaign ? savedCampaignRecipients
+    .map<CampaignRecipientFollowUpItem>((recipient) => {
+      const contact = contactByCampaignRecipientId.get(recipient.id) ?? null;
+      const label = contact?.fullName || recipientSnapshotLabel(recipient);
+      const relationshipContext = [
+        contact?.roleLabel,
+        contact?.companyName,
+        contact?.market,
+        contact?.vertical,
+        contact?.category,
+      ].filter(Boolean).join(" / ");
+      const consentStatus = contact?.consentStatus ?? String(recordValue(recipient.snapshot).consentStatus ?? "unknown");
+      const hasEngagement = campaignRelationshipSignalCount > 0 || manualPublishFollowUpCount > 0;
+      const state: CampaignReadinessState = consentStatus !== "opted_in"
+        ? "needs_action"
+        : hasEngagement
+          ? "ready"
+          : "planning";
+      const detail = consentStatus !== "opted_in"
+        ? `Review consent (${consentStatus}) before starting a personal follow-up.`
+        : hasEngagement
+          ? "Use the campaign engagement and manual outcome signals to make this a relationship-led follow-up."
+          : "Keep this person ready for the next touch once campaign results are clearer.";
+      const promptText = [
+        "VYVA personal relationship follow-up",
+        `Campaign: ${campaignEditDraft.name || editingCampaign.name}`,
+        `Recipient: ${label}`,
+        `Route: ${channelLabel[recipient.channel]} (${recipient.recipient})`,
+        contact ? `Contact profile: ${[contact.email, contact.phoneNumber, contact.whatsappNumber].filter(Boolean).join(" / ") || "No direct contact fields"}` : "Contact profile: not mapped yet",
+        relationshipContext ? `Relationship context: ${relationshipContext}` : "",
+        contact?.lists.length ? `Lists: ${contact.lists.join(", ")}` : "",
+        contact?.tags.length ? `Tags: ${contact.tags.join(", ")}` : "",
+        `Consent: ${consentStatus}`,
+        `Campaign signals: ${campaignRelationshipSignalCount} engagement signal${campaignRelationshipSignalCount === 1 ? "" : "s"}, ${manualPublishFollowUpCount} manual follow-up${manualPublishFollowUpCount === 1 ? "" : "s"} needed.`,
+        "",
+        "AI task: write one concise, consent-safe follow-up for this person. Use one CTA, reference the campaign context lightly, and avoid sounding automated.",
+      ].filter(Boolean).join("\n");
+
+      return {
+        key: recipient.id,
+        recipient,
+        contact,
+        label,
+        channel: recipient.channel,
+        title: label,
+        detail,
+        state,
+        promptText,
+      };
+    })
+    .sort((a, b) => {
+      const rank = (item: CampaignRecipientFollowUpItem) => item.state === "ready" ? 0 : item.state === "needs_action" ? 1 : item.state === "planning" ? 2 : 3;
+      return rank(a) - rank(b) || a.label.localeCompare(b.label);
+    })
+    .slice(0, 8) : [];
   const campaignRelationshipFollowUpBrief = editingCampaign ? [
     "VYVA relationship follow-up brief",
     `Campaign: ${campaignEditDraft.name || editingCampaign.name}`,
@@ -16617,6 +16680,11 @@ export default function MarketingAdminPage() {
     "",
     "Recommended relationship actions:",
     ...campaignRelationshipFollowUpItems.map((item) => `- ${item.title}: ${item.value} (${readinessLabel(item.state)}) - ${item.detail}`),
+    ...(campaignRecipientFollowUpQueue.length ? [
+      "",
+      "Recipient follow-up queue:",
+      ...campaignRecipientFollowUpQueue.map((item, index) => `${index + 1}. ${item.label} via ${channelLabel[item.channel]} (${readinessLabel(item.state)}) - ${item.detail}`),
+    ] : []),
     "",
     "AI task:",
     "1. Turn these results into the next relationship campaign.",
@@ -20861,6 +20929,66 @@ export default function MarketingAdminPage() {
                               </article>
                             );
                           })}
+                        </div>
+                        <div className="mt-4 rounded-xl border border-emerald-100 bg-white p-3" data-testid="marketing-campaign-recipient-follow-up-queue">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Recipient queue</p>
+                              <h4 className="mt-1 font-black text-[#241133]">Who should be followed up?</h4>
+                              <p className="mt-1 text-xs font-bold leading-relaxed text-[#5f6f62]">Uses saved recipients, mapped contacts, consent, and campaign signals to make follow-up personal.</p>
+                            </div>
+                            <Pill className={campaignRecipientFollowUpQueue.length ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                              {campaignRecipientFollowUpQueue.length ? `${campaignRecipientFollowUpQueue.length} suggested` : "No recipients"}
+                            </Pill>
+                          </div>
+                          {campaignRecipientFollowUpQueue.length ? (
+                            <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                              {campaignRecipientFollowUpQueue.map((item) => (
+                                <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-recipient-follow-up-${item.key}`}>
+                                  <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="truncate font-black text-[#241133]">{item.label}</p>
+                                      <p className="mt-0.5 truncate text-xs font-bold text-[#6f5f59]">{item.recipient.recipient}</p>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                                      <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                      <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                    </div>
+                                  </div>
+                                  <p className="mt-2 text-xs font-bold leading-relaxed text-[#5f6f62]">{item.detail}</p>
+                                  {item.contact ? (
+                                    <p className="mt-2 text-xs font-bold text-[#7d6b65]">
+                                      {[item.contact.companyName, item.contact.roleLabel, item.contact.market, item.contact.language].filter(Boolean).join(" / ") || "Mapped contact"}
+                                    </p>
+                                  ) : (
+                                    <p className="mt-2 text-xs font-bold text-amber-800">Not mapped to a contact yet.</p>
+                                  )}
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyCampaignHandoffText(`${item.label} follow-up prompt`, item.promptText)}
+                                      className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 hover:bg-purple-100"
+                                      data-testid={`button-marketing-copy-recipient-follow-up-${item.key}`}
+                                    >
+                                      <Sparkles size={13} /> Copy prompt
+                                    </button>
+                                    {item.contact ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => startContactEdit(item.contact)}
+                                        className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:bg-emerald-50"
+                                        data-testid={`button-marketing-open-recipient-follow-up-contact-${item.key}`}
+                                      >
+                                        <Pencil size={13} /> Open contact
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-3 rounded-lg bg-[#fffaf4] p-3 text-sm font-bold text-[#8b7a73]">Save a recipient snapshot to create personal follow-up suggestions.</p>
+                          )}
                         </div>
                       </div>
 
