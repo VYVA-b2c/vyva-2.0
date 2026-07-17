@@ -225,6 +225,10 @@ describe("ConciergeReadinessAdminPage", () => {
       channelRow({ channel: "document_upload", configured: true, verified: true, adminEnabled: false }),
     ]);
 
+    const liveForm = screen.getByTestId("form-concierge-channel-live-ready-email");
+    expect(liveForm).toHaveAttribute("method", "post");
+    expect(liveForm).toHaveAttribute("action", "/api/admin/concierge/channel-readiness/email/live-ready/on");
+
     fireEvent.click(within(screen.getByTestId("row-concierge-channel-email")).getByLabelText("Live-ready"));
 
     expect(apiFetchMock).toHaveBeenCalledWith(
@@ -295,6 +299,10 @@ describe("ConciergeReadinessAdminPage", () => {
       channelRow({ channel: "whatsapp", configured: false, verified: false, adminEnabled: false }),
       channelRow({ channel: "document_upload", configured: true, verified: true, adminEnabled: false }),
     ]);
+
+    const probeForm = screen.getByTestId("form-concierge-channel-probe-form-application");
+    expect(probeForm).toHaveAttribute("method", "post");
+    expect(probeForm).toHaveAttribute("action", "/api/admin/concierge/channel-readiness/form_application/probe");
 
     fireEvent.click(within(screen.getByTestId("row-concierge-channel-form-application")).getByRole("button", { name: /run verification/i }));
 
