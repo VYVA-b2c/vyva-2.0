@@ -62,6 +62,12 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
+import {
+  RideVoiceCanvas,
+  type RideCanvasCopy,
+  type RideCanvasDraft,
+  type RideCanvasState,
+} from "@/components/voice-canvas";
 import ProviderComparisonPanel from "@/components/ProviderComparisonPanel";
 import ProviderShortlistFollowUpPanel from "@/components/ProviderShortlistFollowUpPanel";
 import MasterDashboardLayout, {
@@ -13725,6 +13731,163 @@ const ConciergeScreen = () => {
     : (isSpanish
         ? "Nada se reserva ni solicita sin tu confirmacion."
         : "Nothing is booked or requested without your confirmation.");
+  const usesRideVoiceCanvas = routePrefill?.kind === "ride" && routePrefill.source === "voice_action";
+  const rideCanvasCopy = useMemo<RideCanvasCopy>(() => ({
+    listening: {
+      status: isSpanish ? "Escuchando" : "Listening",
+      title: isSpanish ? "¿Adonde te ayudo a ir?" : "Where can I help you go?",
+      helper: isSpanish ? "Habla o usa el boton para continuar." : "Use your voice or choose the button below.",
+      start: isSpanish ? "Preparar un viaje" : "Arrange a ride",
+      cancel: isSpanish ? "Ahora no" : "Not now",
+    },
+    place: {
+      title: isSpanish ? "¿Adonde quieres ir?" : "Where would you like to go?",
+      helper: isSpanish ? "Elige un lugar guardado o escribe uno nuevo." : "Choose a saved place or enter somewhere new.",
+      newAddress: isSpanish ? "Una direccion nueva" : "A new address",
+      newAddressHelper: isSpanish ? "Dile a VYVA adonde vas" : "Tell VYVA where you are going",
+      continue: isSpanish ? "Continuar" : "Continue",
+      back: isSpanish ? "Volver" : "Go back",
+    },
+    address: {
+      title: isSpanish ? "¿Que direccion usamos?" : "What address should we use?",
+      helper: isSpanish ? "Escribe la direccion completa o el codigo postal." : "Type the full address or just the postcode.",
+      label: isSpanish ? "Direccion de destino" : "Destination address",
+      placeholder: isSpanish ? "Empieza a escribir una direccion" : "Start typing an address",
+      continue: isSpanish ? "Continuar" : "Continue",
+      back: isSpanish ? "Volver" : "Go back",
+    },
+    dateTime: {
+      title: isSpanish ? "¿Cuando debe llegar?" : "When should the ride arrive?",
+      helper: isSpanish ? "Elige primero el dia y luego la hora." : "Choose the day first, then the time.",
+      timeLabel: isSpanish ? "Hora de recogida" : "Pickup time",
+      continue: isSpanish ? "Revisar el viaje" : "Review the ride",
+      back: isSpanish ? "Volver" : "Go back",
+    },
+    review: {
+      title: isSpanish ? "¿Esta todo correcto?" : "Does everything look right?",
+      helper: isSpanish ? "No se solicita nada hasta que confirmes." : "Nothing will be requested until you confirm.",
+      destination: isSpanish ? "Destino" : "Destination",
+      date: isSpanish ? "Dia" : "Date",
+      time: isSpanish ? "Hora" : "Time",
+      confirm: isSpanish ? "Confirmar y preparar viaje" : "Confirm and prepare ride",
+      change: isSpanish ? "Cambiar un dato" : "Make a change",
+    },
+    waiting: {
+      status: isSpanish ? "Espera un momento" : "Please wait",
+      title: isSpanish ? "Preparando tu solicitud" : "Preparing your ride request",
+      helper: isSpanish ? "Puede tardar un momento." : "This may take a moment. Please stay on this screen.",
+      action: isSpanish ? "Preparando…" : "Preparing…",
+    },
+    completed: {
+      status: isSpanish ? "Completado" : "Completed",
+      title: isSpanish ? "La solicitud esta preparada" : "Your ride request is ready",
+      helper: isSpanish ? "Revisa el siguiente paso en Ahora mismo." : "Review the next step in Right now.",
+      reference: isSpanish ? "Referencia" : "Reference",
+      done: isSpanish ? "Terminar" : "Done",
+    },
+    blocked: {
+      status: isSpanish ? "Necesita atencion" : "Needs attention",
+      title: isSpanish ? "No pudimos preparar el viaje" : "We could not prepare the ride",
+      helper: isSpanish ? "Revisa los datos e intentalo otra vez." : "Review the details and try again.",
+      retry: isSpanish ? "Revisar e intentar otra vez" : "Review and retry",
+      cancel: isSpanish ? "Cancelar" : "Cancel",
+    },
+    cancelled: {
+      status: isSpanish ? "Cancelado" : "Cancelled",
+      title: isSpanish ? "No se solicito ningun viaje" : "No ride was requested",
+      helper: isSpanish ? "Tus datos no se enviaron a nadie." : "Your details have not been sent anywhere.",
+      restart: isSpanish ? "Empezar otra vez" : "Start again",
+    },
+    progress: (current, total) => isSpanish ? `Paso ${current} de ${total}` : `Step ${current} of ${total}`,
+  }), [isSpanish]);
+  const rideCanvasPlaces = useMemo(() => savedHomeAddress
+    ? [{ id: "home", label: isSpanish ? "Casa" : "Home", address: savedHomeAddress }]
+    : [], [isSpanish, savedHomeAddress]);
+  const rideCanvasDates = useMemo(() => [
+    { id: "today", label: isSpanish ? "Hoy" : "Today", value: "today" },
+    { id: "tomorrow", label: isSpanish ? "Mañana" : "Tomorrow", value: "tomorrow" },
+  ], [isSpanish]);
+  const rideCanvasCommands = useMemo(() => ({
+    start: isSpanish ? ["preparar un viaje", "empezar"] : ["arrange a ride", "start"],
+    back: isSpanish ? ["volver", "atras"] : ["go back", "back"],
+    cancel: isSpanish ? ["cancelar", "ahora no"] : ["cancel", "not now"],
+    confirm: isSpanish ? ["confirmar", "si, confirmar"] : ["confirm", "yes, confirm"],
+    retry: isSpanish ? ["intentar otra vez"] : ["retry", "try again"],
+  }), [isSpanish]);
+  const rideCanvasInitialState = useMemo<RideCanvasState>(() => ({
+    step: transportDestination.trim() ? "dateTime" : "listening",
+    requestId: 0,
+    draft: {
+      placeId: "",
+      destination: transportDestination.trim(),
+      dateChoice: "",
+      time: "",
+    },
+  }), [transportDestination]);
+  const confirmRideCanvas = useCallback(async (
+    draft: Readonly<RideCanvasDraft>,
+    { signal }: { requestId: number; signal: AbortSignal },
+  ) => {
+    const requestedTime = `${draft.dateChoice} ${draft.time}`.trim();
+    setTransportDestination(draft.destination);
+    setTransportTime(requestedTime);
+    setTransportError(null);
+    setTransportNotice(null);
+    resetTransportFinalReview();
+    const options = await fetchTransportOptions({
+      pickupAddress: transportPickup.trim() || savedTransportPickupLabel,
+      destinationAddress: draft.destination,
+      requestedTime,
+      mobilityNeeds: transportMobilityNeeds,
+      hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
+      hasSavedTransportProvider,
+      savedTransportProviderName: savedTransportProvider,
+      locale,
+    });
+    if (signal.aborted) throw new DOMException("Ride request cancelled", "AbortError");
+    setTransportResult(options);
+    const option = options.options.find((candidate) => candidate.kind === "saved_provider" && candidate.actions.includes("start_concierge_action"))
+      ?? options.options.find((candidate) => candidate.actions.includes("start_concierge_action"));
+    if (!option) throw new Error(isSpanish ? "No hay una opcion de transporte disponible." : "No ride option is available right now.");
+    const prepared = await prepareTransportConciergeAction({
+      option,
+      pickupAddress: transportPickup.trim() || savedTransportPickupLabel,
+      destinationAddress: draft.destination,
+      requestedTime,
+      mobilityNeeds: transportMobilityNeeds,
+      hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
+      hasSavedTransportProvider,
+      savedTransportProviderName: savedTransportProvider,
+      locale,
+    });
+    if (signal.aborted) throw new DOMException("Ride request cancelled", "AbortError");
+    setTransportPreparedOption(option);
+    setTransportPreparedResult(prepared);
+    setTransportFinalForm({
+      scheduledFor: "",
+      pickup: transportPickup.trim() || savedTransportPickupLabel,
+      destination: draft.destination,
+      providerReply: "",
+      priceEstimate: "",
+      bookingReference: "",
+      notes: "",
+    });
+    setTransportNotice(isSpanish
+      ? "Solicitud preparada. Revisa el siguiente paso en Ahora mismo."
+      : "Ride request prepared. Review the next step in Right now.");
+    await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    return { reference: prepared.pendingId || prepared.status };
+  }, [
+    hasSavedTransportMobilityInfo,
+    hasSavedTransportProvider,
+    isSpanish,
+    locale,
+    queryClient,
+    savedTransportPickupLabel,
+    savedTransportProvider,
+    transportMobilityNeeds,
+    transportPickup,
+  ]);
 
   function showNextQueuedAction() {
     const nextAction = queuedActions[0] ?? pendingActions[0];
@@ -14686,7 +14849,26 @@ const ConciergeScreen = () => {
         </section>
       )}
 
-      {routePrefill?.kind === "ride" && routePrefillMeta && (
+      {usesRideVoiceCanvas && (
+        <section
+          className="order-[15] mt-4 flex justify-center rounded-[28px] bg-[#F8F4FA] p-2 sm:p-4"
+          data-testid="panel-concierge-ride-voice-canvas"
+        >
+          <RideVoiceCanvas
+            copy={rideCanvasCopy}
+            places={rideCanvasPlaces}
+            dateChoices={rideCanvasDates}
+            voiceCommands={rideCanvasCommands}
+            initialState={rideCanvasInitialState}
+            storageKey={`vyva.rideCanvas.concierge.${conciergeVoiceAction?.id ?? "active"}`}
+            onConfirmRide={confirmRideCanvas}
+            onDone={() => setRoutePrefill(null)}
+            onCancel={() => setRoutePrefill(null)}
+          />
+        </section>
+      )}
+
+      {routePrefill?.kind === "ride" && routePrefill.source !== "voice_action" && routePrefillMeta && (
         <section
           className="relative z-20 order-[15] mt-4 scroll-mt-[88px] overflow-hidden rounded-[28px] border border-[#BBF7D0] bg-white"
           style={{ boxShadow: "0 18px 42px rgba(4,120,87,0.14)" }}

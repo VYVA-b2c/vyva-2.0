@@ -5,6 +5,8 @@ import RideVoiceCanvas, { type RideVoiceCanvasProps } from "./RideVoiceCanvas";
 import { initialRideCanvasState, rideCanvasReducer } from "./rideCanvasMachine";
 import type { RideCanvasCopy } from "./rideCanvasViewModel";
 
+vi.mock("@/components/ZamoraVoiceOrb", () => ({ default: () => <div data-testid="mock-vyva-orb" /> }));
+
 const copy:RideCanvasCopy={
   listening:{status:"Listening",title:"How can I help?",helper:"Take your time.",start:"Arrange a ride",cancel:"Cancel"},
   place:{title:"Where are you going?",helper:"Choose one place.",newAddress:"A new address",newAddressHelper:"Enter another place",continue:"Continue",back:"Back"},
