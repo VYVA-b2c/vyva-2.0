@@ -65,11 +65,14 @@ CONCIERGE_EMAIL_PILOT_SEND_CONFIRMATION=SEND_CONTROLLED_EMAIL_PILOT npm run conc
 
 Only use `--send` after the selected recipient is the team-owned pilot inbox and the user has confirmed the exact provider, inbox, subject, body, and shared details.
 
+The command-line self-check is standalone. It proves adapter delivery with the evidence JSON, Resend result ID, and team inbox receipt, but it does not create a Concierge completed-history row. Use an app-triggered Concierge task when the acceptance item requires completed history to show `Live action`.
+
 ## Pass Evidence
 
 - Email readiness is configured, verified by probe, and Live-ready only during the pilot window.
 - Dry-run still records simulated/no-contact history.
 - The live send uses `concierge_email_adapter` and a Resend message ID.
+- Command-line pilot evidence is standalone-script-only unless the send was triggered from the app queue.
 - The recipient matches the team-owned pilot inbox.
 - Non-allowlisted recipients are blocked before provider contact.
 - Rollback is done by turning Email Live-ready off in the admin console.

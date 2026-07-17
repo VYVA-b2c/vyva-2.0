@@ -124,8 +124,10 @@ async function main() {
       blockers: preview.blockers,
     },
     history_verification: {
-      required_after_live_send: true,
+      created_by_self_check: false,
+      required_for_app_triggered_pilot: true,
       expected_completed_receipt_mode: "Live action",
+      note: "This standalone self-check proves adapter delivery with evidence JSON and inbox receipt. It does not create a Concierge completed-history row unless the pilot is triggered through the app queue.",
     },
     rollback: {
       required_after_live_send: true,
@@ -238,6 +240,9 @@ async function main() {
 
   line("send result", result.status);
   line("provider result id", result.result_id ?? "none");
+  if (result.status === "sent") {
+    console.log("history note: standalone self-check only; verify Live action history when sending from the app queue.");
+  }
   evidence.email_sent = result.status === "sent";
   evidence.send_result = {
     status: result.status,

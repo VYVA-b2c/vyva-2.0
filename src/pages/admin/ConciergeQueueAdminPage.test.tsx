@@ -260,6 +260,127 @@ const staleApprovalTask: OperatorConciergeQueueItem = {
   },
 };
 
+const simulatedDryRunTask: OperatorConciergeQueueItem = {
+  ...doneTask,
+  id: "session-simulated",
+  action_summary: "Dry-run appointment email",
+  active_tool: "email",
+  adapter_incident: {
+    status: "simulated",
+    adapter: "concierge_email_adapter",
+    mode: "dry_run",
+    channel: "email",
+    tool: "email",
+    attempted_at: "2026-07-01T11:00:00.000Z",
+    provider_name: "VYVA Test Clinic",
+    provider_contact: "concierge@example.test",
+    external_action_allowed: false,
+    result: "simulated",
+    simulated: true,
+    live: false,
+    retry_allowed: false,
+    retry_blocker: null,
+    manual_follow_up_allowed: false,
+    manual_follow_up_queued_at: null,
+    attempts: [
+      {
+        event: "adapter_execution_simulated",
+        at: "2026-07-01T11:00:00.000Z",
+        source: "confirm_endpoint",
+        status: "simulated",
+        adapter: "concierge_email_adapter",
+        mode: "dry_run",
+        channel: "email",
+        provider_name: "VYVA Test Clinic",
+        provider_contact: "concierge@example.test",
+        result: "simulated",
+      },
+    ],
+  },
+};
+
+const liveSentTask: OperatorConciergeQueueItem = {
+  ...doneTask,
+  id: "session-live",
+  action_summary: "Live pilot email sent",
+  active_tool: "email",
+  adapter_incident: {
+    status: "sent",
+    adapter: "concierge_email_adapter",
+    mode: "live",
+    channel: "email",
+    tool: "email",
+    attempted_at: "2026-07-01T11:10:00.000Z",
+    provider_name: "Controlled Email Pilot Inbox",
+    provider_contact: "concierge@vyva.life",
+    external_action_allowed: true,
+    result: "sent",
+    result_id: "resend-message-1",
+    simulated: false,
+    live: true,
+    retry_allowed: false,
+    retry_blocker: null,
+    manual_follow_up_allowed: false,
+    manual_follow_up_queued_at: null,
+    attempts: [
+      {
+        event: "adapter_execution_succeeded",
+        at: "2026-07-01T11:10:00.000Z",
+        source: "confirm_endpoint",
+        status: "sent",
+        adapter: "concierge_email_adapter",
+        mode: "live",
+        channel: "email",
+        provider_name: "Controlled Email Pilot Inbox",
+        provider_contact: "concierge@vyva.life",
+        result: "sent",
+        result_id: "resend-message-1",
+      },
+    ],
+  },
+};
+
+const blockedAdapterTask: OperatorConciergeQueueItem = {
+  ...confirmedTask,
+  id: "pending-blocked",
+  action_summary: "Blocked live email",
+  active_tool: "email",
+  adapter_incident: {
+    status: "blocked",
+    adapter: "concierge_email_adapter",
+    mode: "live",
+    channel: "email",
+    tool: "email",
+    attempted_at: "2026-07-01T11:20:00.000Z",
+    provider_name: "City Clinic",
+    provider_contact: "frontdesk@example.com",
+    external_action_allowed: false,
+    result: "blocked",
+    blocker: "user_confirmation_required",
+    simulated: false,
+    live: true,
+    retry_allowed: false,
+    retry_blocker: "user_confirmation_required",
+    manual_follow_up_allowed: true,
+    manual_follow_up_queued_at: null,
+    attempts: [
+      {
+        event: "adapter_execution_blocked",
+        at: "2026-07-01T11:20:00.000Z",
+        source: "confirm_endpoint",
+        status: "blocked",
+        adapter: "concierge_email_adapter",
+        mode: "live",
+        channel: "email",
+        provider_name: "City Clinic",
+        provider_contact: "frontdesk@example.com",
+        result: "blocked",
+        blocker: "user_confirmation_required",
+      },
+    ],
+  },
+};
+
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -347,6 +468,30 @@ describe("ConciergeQueueAdminPage", () => {
     expect(within(list).queryByText("Book a ride to the clinic")).not.toBeInTheDocument();
     expect(within(list).queryByText("OTC items confirmed")).not.toBeInTheDocument();
     expect(screen.getByTestId("admin-concierge-queue-summary")).toHaveTextContent("Showing 1 of 3 Concierge tasks.");
+  });
+
+  it("makes simulated, live, and blocked channel history obvious", async () => {
+    renderPage([simulatedDryRunTask, liveSentTask, blockedAdapterTask]);
+
+    expect(await screen.findByText("Dry-run appointment email")).toBeInTheDocument();
+
+    const list = screen.getByTestId("admin-concierge-queue-list");
+    expect(within(list).getAllByText("Simulated").length).toBeGreaterThan(0);
+    expect(within(list).getAllByText("Live action").length).toBeGreaterThan(0);
+    expect(within(list).getByText("user_confirmation_required")).toBeInTheDocument();
+
+    fireEvent.click(within(list).getAllByRole("button", { name: "Open task" })[1]);
+    let dialog = screen.getByRole("dialog", { name: "Live pilot email sent" });
+    expect(dialog).toHaveTextContent("Live action");
+    expect(dialog).toHaveTextContent("Sent - Live action");
+    expect(dialog).toHaveTextContent("Controlled Email Pilot Inbox");
+    expect(dialog).toHaveTextContent("concierge@vyva.life");
+    fireEvent.click(within(dialog).getByLabelText("Close task detail"));
+
+    fireEvent.click(within(list).getAllByRole("button", { name: "Open task" })[2]);
+    dialog = screen.getByRole("dialog", { name: "Blocked live email" });
+    expect(dialog).toHaveTextContent("Blocked - Live action");
+    expect(dialog).toHaveTextContent("user_confirmation_required");
   });
 
   it("filters by owner and lets the operator take an unassigned task", async () => {

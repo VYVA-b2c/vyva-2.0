@@ -98,8 +98,15 @@ function incidentModeLabel(item: OperatorConciergeQueueItem) {
   const incident = item.adapter_incident;
   if (!incident) return "No channel action";
   if (incident.simulated) return "Simulated";
-  if (incident.live) return "Live";
+  if (incident.live) return "Live action";
   return cleanLabel(incident.mode) || "Adapter";
+}
+
+function historyModeLabel(item: OperatorConciergeQueueItem) {
+  if (item.adapter_incident) return incidentModeLabel(item);
+  if (item.status === "done") return item.user_confirmed ? "Completed manually" : "Completed";
+  if (item.status === "failed") return "Failed";
+  return item.user_confirmed ? "Awaiting action" : "Awaiting confirmation";
 }
 
 function formatPayload(value: unknown) {
@@ -509,12 +516,13 @@ export default function ConciergeQueueAdminPage() {
                     <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Channel result</p>
                     {item.adapter_incident ? (
                       <>
-                        <p className="mt-1 font-bold text-[#2f2135]">{cleanLabel(item.adapter_incident.channel) || cleanLabel(item.adapter_incident.tool) || "adapter"}</p>
+                        <p className="mt-1 font-bold text-[#2f2135]">{historyModeLabel(item)}</p>
+                        <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{cleanLabel(item.adapter_incident.channel) || cleanLabel(item.adapter_incident.tool) || "adapter"}</p>
                         <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{incidentSummary(item)}</p>
                         <p className="mt-1 text-xs font-bold text-[#8b7a73]">{formatDate(item.adapter_incident.attempted_at)}</p>
                       </>
                     ) : (
-                      <p className="mt-1 font-bold text-[#2f2135]">No adapter attempt</p>
+                      <p className="mt-1 font-bold text-[#2f2135]">{historyModeLabel(item)}</p>
                     )}
                   </div>
                 </div>
@@ -585,8 +593,8 @@ export default function ConciergeQueueAdminPage() {
               </div>
               <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
                 <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Work mode</p>
-                <p className="mt-1 font-bold text-[#2f2135]">{cleanLabel(selectedItem.action_type) || "manual review"}</p>
-                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{cleanLabel(selectedItem.active_tool) || "operator review"}</p>
+                <p className="mt-1 font-bold text-[#2f2135]">{historyModeLabel(selectedItem)}</p>
+                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{cleanLabel(selectedItem.active_tool) || cleanLabel(selectedItem.action_type) || "operator review"}</p>
               </div>
               <div className="rounded-2xl bg-[#fbf8f5] px-4 py-3">
                 <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Missing info</p>
