@@ -2903,6 +2903,49 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created and linked missing route content for Facebook.");
   });
 
+  it("generates editable AI copy from the campaign planner", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Partner webinar follow-up" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-audience"), { target: { value: "b2b" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-channel"), { target: { value: "linkedin" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-target-audience"), { target: { value: "audience-1" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-campaign-objective"), {
+      target: { value: "Invite care providers to a practical webinar about family support." },
+    });
+
+    expect(screen.getByTestId("marketing-campaign-planner-ai-copywriter")).toHaveTextContent("AI copywriter");
+    expect(screen.getByTestId("marketing-campaign-planner-ai-context")).toHaveTextContent("Partner webinar");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-planner-ai-copy"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
+    });
+    const aiCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiCall?.[1]?.body))).toMatchObject({
+      playLabel: "Partner webinar",
+      audienceType: "b2b",
+      channel: "linkedin",
+      tone: "expert",
+      targetAudienceName: "Partners",
+      campaignName: "Partner webinar follow-up",
+      contentTitle: "Partner webinar follow-up LinkedIn content",
+      campaignBrief: "Invite care providers to a practical webinar about family support.",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Partner webinar AI content");
+    });
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("input-marketing-content-subject")).toHaveValue("AI subject line");
+    expect(screen.getByTestId("textarea-marketing-content-body")).toHaveTextContent("AI body copy with stronger channel direction.");
+    expect(screen.getByTestId("textarea-marketing-content-design-json")).toHaveTextContent("\"generator\": \"marketing_campaign_planner_ai\"");
+    expect(screen.getByTestId("textarea-marketing-content-design-json")).toHaveTextContent("\"playId\": \"partner-webinar\"");
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("AI copy drafted for LinkedIn.");
+    expect(screen.getByText("AI content draft is ready. Save it in Content, then attach the saved asset to the campaign.")).toBeInTheDocument();
+  });
+
   it("creates rich marketing content drafts", async () => {
     renderPage();
 

@@ -9169,6 +9169,7 @@ export default function MarketingAdminPage() {
   const [campaignStudioCategory, setCampaignStudioCategory] = useState<CampaignStudioCategoryId>("all");
   const [campaignStudioAiDrafts, setCampaignStudioAiDrafts] = useState<Partial<Record<Channel, CampaignStudioGeneratedDraft>>>({});
   const [campaignStudioAiRunning, setCampaignStudioAiRunning] = useState(false);
+  const [campaignPlannerAiRunning, setCampaignPlannerAiRunning] = useState(false);
   const [campaignStudioSaving, setCampaignStudioSaving] = useState(false);
   const [campaignStudioFeedback, setCampaignStudioFeedback] = useState("");
   const [campaignIntentBrief, setCampaignIntentBrief] = useState("");
@@ -13584,6 +13585,32 @@ export default function MarketingAdminPage() {
     campaignDraftSelectedChannels,
     campaignPlannerRecipes,
   ]);
+  const campaignPlannerAiBrief = useMemo(() => [
+    campaignDraft.name,
+    campaignDraft.objective,
+    channelLabel[campaignDraft.channel],
+    campaignDraft.audienceType,
+    selectedCampaignDraftTargetAudience?.name ?? "",
+  ].filter(Boolean).join(" "), [
+    campaignDraft.audienceType,
+    campaignDraft.channel,
+    campaignDraft.name,
+    campaignDraft.objective,
+    selectedCampaignDraftTargetAudience?.name,
+  ]);
+  const campaignPlannerAiPlay = useMemo(
+    () => campaignIntentPlay(campaignPlannerAiBrief || campaignDraft.name || campaignDraft.objective || channelLabel[campaignDraft.channel]),
+    [campaignDraft.channel, campaignDraft.name, campaignDraft.objective, campaignPlannerAiBrief],
+  );
+  const campaignPlannerAiTone = useMemo(
+    () => campaignIntentTone(campaignPlannerAiBrief, campaignPlannerAiPlay),
+    [campaignPlannerAiBrief, campaignPlannerAiPlay],
+  );
+  const campaignPlannerAiAngle = useMemo(
+    () => campaignIntentAngle(campaignPlannerAiBrief),
+    [campaignPlannerAiBrief],
+  );
+  const campaignPlannerAiRecipientCount = campaignDraftEligibleRecipientPreview.length;
 
   const campaignRecipientSnapshotChannels = useMemo(() => campaignChannelsWithPrimary(campaignEditDraft), [campaignEditDraft]);
   const campaignRecipientPreview = useMemo(() => {
@@ -13944,6 +13971,90 @@ export default function MarketingAdminPage() {
     if (kind === "snapshot_recipients") {
       setCampaignDraft((draft) => ({ ...draft, snapshotRecipients: true }));
       setMessage("Recipient snapshot enabled for this campaign draft.");
+    }
+  }
+
+  async function generateCampaignPlannerAiContentDraft() {
+    const seed = contentDraftFromCampaignDraft(campaignDraft, selectedCampaignDraftTargetAudience);
+    const campaignNameSeed = campaignDraft.name.trim() || seed.subject || seed.title.replace(/\s+content$/i, "");
+    const objectiveSeed = campaignDraft.objective.trim() || seed.body;
+
+    setCampaignPlannerAiRunning(true);
+    setCampaignStudioFeedback(`Generating AI copy for ${channelLabel[campaignDraft.channel]}...`);
+    try {
+      const result = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
+        method: "POST",
+        body: JSON.stringify({
+          playLabel: campaignPlannerAiPlay.label,
+          playCategory: campaignPlannerAiPlay.categoryId,
+          audienceType: campaignDraft.audienceType,
+          channel: campaignDraft.channel,
+          tone: campaignPlannerAiTone,
+          angle: campaignPlannerAiAngle,
+          angleGuidance: campaignStudioAngleGuidance[campaignPlannerAiAngle],
+          targetAudienceName: selectedCampaignDraftTargetAudience?.name ?? "",
+          targetAudienceSize: campaignPlannerAiRecipientCount,
+          campaignBrief: campaignDraft.objective.trim(),
+          campaignName: campaignNameSeed,
+          contentTitle: seed.title,
+          objective: objectiveSeed,
+          subjectSeed: seed.subject,
+          bodySeed: seed.body,
+          ctaLabel: seed.ctaLabel,
+          ctaUrl: seed.ctaUrl,
+          language: seed.language,
+        }),
+      });
+      const generated = result.draft;
+      const nextName = generated.campaignName?.trim() || campaignNameSeed;
+      const nextObjective = generated.objective?.trim() || campaignDraft.objective;
+
+      setCampaignDraft((draft) => ({
+        ...draft,
+        name: draft.name.trim() ? draft.name : nextName,
+        objective: nextObjective,
+      }));
+      setContentDraft({
+        title: generated.contentTitle || seed.title,
+        channel: campaignDraft.channel,
+        language: generated.language || seed.language || "en",
+        status: "draft",
+        subject: generated.subject || seed.subject,
+        body: generated.body || seed.body,
+        htmlBody: campaignDraft.channel === "email" ? seed.htmlBody : "",
+        ctaLabel: generated.ctaLabel || seed.ctaLabel,
+        ctaUrl: generated.ctaUrl || seed.ctaUrl,
+        designJsonText: jsonText({
+          ...(generated.designJson ?? {}),
+          generator: "marketing_campaign_planner_ai",
+          playId: campaignPlannerAiPlay.id,
+          playCategory: campaignPlannerAiPlay.categoryId,
+          tone: campaignPlannerAiTone,
+          angle: campaignPlannerAiAngle,
+          channel: campaignDraft.channel,
+          selectedChannels: campaignDraftSelectedChannels,
+          source: result.source,
+          note: result.note ?? generated.note ?? null,
+          audience: selectedCampaignDraftTargetAudience ? audienceSnapshot(selectedCampaignDraftTargetAudience) : null,
+        }),
+        mediaAssetsText: "[]",
+      });
+      setSelectedContentId(null);
+      setEditingContentId(null);
+      setContentEditDraft(null);
+      setContentDrawerMode(null);
+      setActiveTab("content");
+      const sourceLabel = result.source === "openai" ? "AI" : "fallback";
+      setContentFeedback(`${sourceLabel} copy drafted for ${channelLabel[campaignDraft.channel]}. Review and save it, then link it to the campaign.`);
+      setCampaignStudioFeedback(`${sourceLabel} copy drafted for ${channelLabel[campaignDraft.channel]} using ${campaignPlannerAiPlay.label}.`);
+      setMessage(`${sourceLabel} content draft is ready. Save it in Content, then attach the saved asset to the campaign.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "AI copy could not be generated.";
+      setContentFeedback(errorMessage);
+      setCampaignStudioFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setCampaignPlannerAiRunning(false);
     }
   }
 
@@ -21876,6 +21987,32 @@ export default function MarketingAdminPage() {
                           <p className="mt-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-purple-100 bg-white p-4 shadow-sm" data-testid="marketing-campaign-planner-ai-copywriter">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">AI copywriter</p>
+                        <h3 className="mt-1 text-base font-black text-[#241133]">Draft editable copy for the primary channel</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                          Uses the current campaign name, objective, audience, and channel to create a content draft. It will not save, schedule, or send anything.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2" data-testid="marketing-campaign-planner-ai-context">
+                          <Pill className="bg-purple-50 text-purple-800">{campaignPlannerAiPlay.label}</Pill>
+                          <Pill className="bg-blue-50 text-blue-800">{campaignStudioToneLabel[campaignPlannerAiTone]}</Pill>
+                          <Pill className="bg-emerald-50 text-emerald-800">{campaignStudioAngleOptions.find((item) => item.id === campaignPlannerAiAngle)?.label ?? campaignPlannerAiAngle}</Pill>
+                          <Pill className={channelClass(campaignDraft.channel)}>{channelLabel[campaignDraft.channel]}</Pill>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => generateCampaignPlannerAiContentDraft().catch((error) => setMessage(error.message))}
+                        disabled={campaignPlannerAiRunning || contentSaving}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800 hover:bg-purple-100 disabled:cursor-not-allowed disabled:bg-[#f3edf3] disabled:text-[#9d8b9d]"
+                        data-testid="button-marketing-campaign-planner-ai-copy"
+                      >
+                        <Sparkles size={15} /> {campaignPlannerAiRunning ? "Drafting..." : "Generate AI copy"}
+                      </button>
                     </div>
                   </div>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
