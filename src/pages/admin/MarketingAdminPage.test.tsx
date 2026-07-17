@@ -4502,6 +4502,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-operator-brief-reach")).toHaveTextContent("1 saved");
     expect(screen.getByTestId("marketing-campaign-operator-brief-creative")).toHaveTextContent("2/2 linked");
     expect(screen.getByTestId("marketing-campaign-operator-brief-channels")).toHaveTextContent("Email can send in VYVA; LinkedIn stay as manual handoff.");
+    expect(screen.getByTestId("marketing-campaign-launch-control")).toHaveTextContent("Launch control");
+    expect(screen.getByTestId("marketing-campaign-launch-control-send")).toHaveTextContent("VYVA send");
+    expect(screen.getByTestId("marketing-campaign-launch-control-send")).toHaveTextContent("1 ready");
+    expect(screen.getByTestId("marketing-campaign-launch-control-manual")).toHaveTextContent("Manual channels");
+    expect(screen.getByTestId("marketing-campaign-launch-control-manual")).toHaveTextContent("1 route");
+    expect(screen.getByTestId("button-marketing-campaign-launch-control-manual")).toHaveTextContent("Track first result");
+    expect(screen.getByTestId("marketing-campaign-launch-control-audience")).toHaveTextContent("1 saved");
+    expect(screen.getByTestId("marketing-campaign-launch-control-relationship")).toHaveTextContent("8 signals");
     expect(screen.getByTestId("marketing-campaign-ai-command-brief")).toHaveTextContent("AI command brief");
     const aiCommandBrief = screen.getByTestId("textarea-marketing-campaign-ai-command-brief") as HTMLTextAreaElement;
     expect(aiCommandBrief.value).toContain("VYVA campaign AI command brief");

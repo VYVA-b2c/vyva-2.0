@@ -913,6 +913,16 @@ type CampaignDetailActionItem = CampaignReadinessItem & {
   onSelect?: () => void;
 };
 
+type CampaignLaunchControlItem = CampaignReadinessItem & {
+  label: string;
+  value: string;
+  actionLabel?: string;
+  icon: LucideIcon;
+  buttonType?: "button" | "submit";
+  disabled?: boolean;
+  onSelect?: () => void;
+};
+
 type AudienceHealthAction = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -16693,17 +16703,128 @@ export default function MarketingAdminPage() {
         void copyCampaignHandoffText("Saved launch packet", campaignSavedLaunchPacketText);
       },
     }] : []),
-    ...(campaignRelationshipSignalCount > 0 ? [{
-      key: "relationship-follow-up",
-      label: "Aftercare",
-      title: "Start responder follow-up",
-      detail: `${campaignRelationshipSignalCount} engagement signal${campaignRelationshipSignalCount === 1 ? "" : "s"} can become a smaller, relationship-led follow-up campaign.`,
+  ...(campaignRelationshipSignalCount > 0 ? [{
+    key: "relationship-follow-up",
+    label: "Aftercare",
+    title: "Start responder follow-up",
+    detail: `${campaignRelationshipSignalCount} engagement signal${campaignRelationshipSignalCount === 1 ? "" : "s"} can become a smaller, relationship-led follow-up campaign.`,
       state: "ready" as CampaignReadinessState,
       actionLabel: "Start follow-up",
       icon: Waypoints,
-      onSelect: startFollowUpCampaignFromCurrentCampaign,
-    }] : []),
-  ].filter((item, index, items) => items.findIndex((candidate) => candidate.key === item.key) === index).slice(0, 4) : [];
+    onSelect: startFollowUpCampaignFromCurrentCampaign,
+  }] : []),
+].filter((item, index, items) => items.findIndex((candidate) => candidate.key === item.key) === index).slice(0, 4) : [];
+  const campaignLaunchControlItems: CampaignLaunchControlItem[] = editingCampaign ? [
+    {
+      key: "send",
+      label: "Send path",
+      title: "VYVA send",
+      value: draftEmailChannel
+        ? campaignEmailDisabled
+          ? "Needs setup"
+          : `${savedCampaignRecipientCount} ready`
+        : "No email route",
+      state: draftEmailChannel
+        ? campaignEmailDisabled
+          ? campaignEmailBlockedReason ? "needs_action" : "blocked"
+          : "ready"
+        : "planning",
+      detail: draftEmailChannel
+        ? campaignEmailDisabled
+          ? campaignEmailBlockedReason || "Finish setup before sending from VYVA."
+          : "Email content and saved recipients are ready for explicit confirmation."
+        : "Add an email route if this campaign should send directly from VYVA.",
+      actionLabel: draftEmailChannel ? confirmingCampaignSendId === editingCampaign.id ? "Confirm send" : "Send email" : undefined,
+      icon: Send,
+      disabled: draftEmailChannel ? campaignEmailDisabled : true,
+      onSelect: draftEmailChannel ? () => {
+        void sendCampaignEmails(editingCampaign);
+      } : undefined,
+    },
+    {
+      key: "manual",
+      label: "Channel work",
+      title: "Manual channels",
+      value: planningOnlyCampaignChannels.length
+        ? `${planningOnlyCampaignChannels.length} route${planningOnlyCampaignChannels.length === 1 ? "" : "s"}`
+        : "None",
+      state: planningOnlyCampaignChannels.length
+        ? manualPublishBlockedCount > 0
+          ? "needs_action"
+          : manualPublishResults.length > 0
+            ? "ready"
+            : "needs_action"
+        : "planning",
+      detail: planningOnlyCampaignChannels.length
+        ? manualPublishResults.length
+          ? `${manualPublishResults.length} result${manualPublishResults.length === 1 ? "" : "s"} recorded; ${manualPublishFollowUpCount} need follow-up.`
+          : `Track ${planningOnlyCampaignChannels.map((channel) => channelLabel[channel.channel]).join(", ")} after publishing so the campaign has usable outcomes.`
+        : "No social, phone, print, event, or WhatsApp handoff is waiting.",
+      actionLabel: firstManualPublishKitItem ? "Track first result" : undefined,
+      icon: ExternalLink,
+      disabled: !firstManualPublishKitItem || hasUnsavedCampaignSendChanges,
+      onSelect: firstManualPublishKitItem ? () => prepareManualCampaignChannelTracking(firstManualPublishKitItem.key, firstManualPublishKitItem.channel, firstManualPublishKitItem.scheduledAt) : undefined,
+    },
+    {
+      key: "audience",
+      label: "Audience",
+      title: "Audience lock",
+      value: savedCampaignRecipientCount > 0
+        ? `${savedCampaignRecipientCount} saved`
+        : pendingCampaignSnapshotCount > 0
+          ? `${pendingCampaignSnapshotCount} preview`
+          : selectedCampaignTargetAudience
+            ? `${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount}`
+            : "All eligible",
+      state: savedCampaignRecipientCount > 0
+        ? "ready"
+        : pendingCampaignSnapshotCount > 0
+          ? "needs_action"
+          : selectedCampaignTargetAudience && selectedCampaignTargetAudience.mappedMemberCount === 0
+            ? "blocked"
+            : "planning",
+      detail: savedCampaignRecipientCount > 0
+        ? "Recipient snapshot is locked, auditable, and ready for send or handoff."
+        : pendingCampaignSnapshotCount > 0
+          ? "Save the campaign now to lock this audience snapshot before launch."
+          : selectedCampaignTargetAudience
+            ? "Open the list if member mapping or consent needs cleanup before launch."
+            : "No saved list selected; this uses all eligible contacts for the audience type.",
+      actionLabel: pendingCampaignSnapshotCount > 0 ? "Save snapshot" : selectedCampaignTargetAudience ? "Open list" : undefined,
+      icon: UsersRound,
+      buttonType: pendingCampaignSnapshotCount > 0 ? "submit" : "button",
+      disabled: pendingCampaignSnapshotCount > 0 ? campaignSaving : !selectedCampaignTargetAudience,
+      onSelect: pendingCampaignSnapshotCount > 0 ? undefined : selectedCampaignTargetAudience ? () => startAudienceEdit(selectedCampaignTargetAudience) : undefined,
+    },
+    {
+      key: "relationship",
+      label: "After launch",
+      title: "Relationship loop",
+      value: campaignRelationshipSignalCount > 0
+        ? `${campaignRelationshipSignalCount} signals`
+        : manualPublishResults.length > 0
+          ? `${manualPublishResults.length} outcomes`
+          : "Not tracked",
+      state: campaignRelationshipSignalCount > 0
+        ? "ready"
+        : manualPublishResults.length > 0 || selectedCampaignMetrics.length > 0
+          ? "planning"
+          : "needs_action",
+      detail: campaignRelationshipSignalCount > 0
+        ? "Use replies, clicks, and manual/social engagement to start the next relationship campaign."
+        : manualPublishResults.length > 0 || selectedCampaignMetrics.length > 0
+          ? "There are outcomes to review, but no strong responder segment yet."
+          : "Track at least one result so this campaign can create relationship follow-up.",
+      actionLabel: campaignRelationshipSignalCount > 0 ? "Start follow-up" : firstManualPublishKitItem ? "Track outcome" : undefined,
+      icon: Waypoints,
+      disabled: campaignRelationshipSignalCount > 0 ? false : !firstManualPublishKitItem || hasUnsavedCampaignSendChanges,
+      onSelect: campaignRelationshipSignalCount > 0
+        ? startFollowUpCampaignFromCurrentCampaign
+        : firstManualPublishKitItem
+          ? () => prepareManualCampaignChannelTracking(firstManualPublishKitItem.key, firstManualPublishKitItem.channel, firstManualPublishKitItem.scheduledAt)
+          : undefined,
+    },
+  ] : [];
   const linkedCampaignContentCount = campaignReadinessChannels.filter((channelDraft) => Boolean(channelDraft.contentAssetId)).length;
   const campaignOperatorBriefItems = editingCampaign ? [
     {
@@ -19449,6 +19570,54 @@ export default function MarketingAdminPage() {
                                 <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
                               </div>
                             ))}
+                          </div>
+                        ) : null}
+                        {campaignLaunchControlItems.length ? (
+                          <div className="mt-3 rounded-xl border border-[#241133]/10 bg-[#241133] p-3 text-white" data-testid="marketing-campaign-launch-control">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-100">Launch control</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-purple-100/90">One glance for send readiness, manual publishing, audience lock, and relationship follow-up.</p>
+                              </div>
+                              <Pill className={campaignBlockedCount > 0 ? "bg-red-50 text-red-800" : campaignNeedsActionCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                                {campaignReadinessSummary}
+                              </Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 xl:grid-cols-4">
+                              {campaignLaunchControlItems.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                  <article key={item.key} className="rounded-lg border border-white/10 bg-white/95 p-3 text-[#241133]" data-testid={`marketing-campaign-launch-control-${item.key}`}>
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">{item.label}</p>
+                                        <h4 className="mt-1 text-sm font-black">{item.title}</h4>
+                                      </div>
+                                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-purple-50 text-purple-800">
+                                        <Icon size={15} aria-hidden="true" />
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                      <span className="text-lg font-black">{item.value}</span>
+                                      <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                    </div>
+                                    <p className="mt-2 min-h-[44px] text-xs font-bold leading-relaxed text-[#6f5f59]">{item.detail}</p>
+                                    {item.actionLabel ? (
+                                      <button
+                                        type={item.buttonType ?? "button"}
+                                        disabled={item.disabled}
+                                        onClick={item.buttonType === "submit" ? undefined : item.onSelect}
+                                        className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:text-[#b8abb8]"
+                                        data-testid={`button-marketing-campaign-launch-control-${item.key}`}
+                                      >
+                                        <Icon size={14} aria-hidden="true" />
+                                        {item.actionLabel}
+                                      </button>
+                                    ) : null}
+                                  </article>
+                                );
+                              })}
+                            </div>
                           </div>
                         ) : null}
                         {campaignDetailActionItems.length ? (
