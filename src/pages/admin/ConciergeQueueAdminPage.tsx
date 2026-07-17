@@ -106,6 +106,18 @@ function formatPayload(value: unknown) {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
+function approvalChangedLabels(fields: string[]) {
+  const labels: Record<string, string> = {
+    approval: "approval fingerprint",
+    channel: "channel",
+    provider_name: "provider",
+    provider_contact: "provider contact",
+    summary: "summary",
+    payload: "payload",
+  };
+  return fields.map((field) => labels[field] ?? cleanLabel(field)).join(", ");
+}
+
 function mergeTotals(items: OperatorConciergeQueueItem[], responseTotals?: Partial<OperatorConciergeQueueTotals>): OperatorConciergeQueueTotals {
   return {
     ...buildOperatorConciergeQueueTotals(items),
@@ -642,6 +654,27 @@ export default function ConciergeQueueAdminPage() {
                     </ul>
                   </div>
                 )}
+                {selectedItem.adapter_approval && (
+                  <div className={`mt-3 rounded-2xl px-4 py-3 ${
+                    selectedItem.adapter_approval.requires_reconfirmation
+                      ? "bg-red-50 text-red-800"
+                      : "bg-emerald-50 text-emerald-800"
+                  }`}>
+                    <p className="text-sm font-black">
+                      {selectedItem.adapter_approval.requires_reconfirmation
+                        ? "User reconfirmation required"
+                        : "Approval still matches"}
+                    </p>
+                    <p className="mt-1 text-sm font-bold">
+                      {selectedItem.adapter_approval.requires_reconfirmation
+                        ? `Changed since approval: ${approvalChangedLabels(selectedItem.adapter_approval.changed_fields)}.`
+                        : "Provider, channel, summary, and payload match the saved approval."}
+                    </p>
+                    {selectedItem.adapter_approval.approved_at && (
+                      <p className="mt-1 text-xs font-bold">Approved {formatDate(selectedItem.adapter_approval.approved_at)}</p>
+                    )}
+                  </div>
+                )}
                 <div className="mt-4">
                   <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Outbound payload</p>
                   <pre className="mt-2 max-h-72 overflow-auto rounded-2xl bg-[#1f1724] p-4 text-xs font-semibold leading-relaxed text-[#fffaf4]">
@@ -682,7 +715,9 @@ export default function ConciergeQueueAdminPage() {
                 </div>
                 {selectedItem.adapter_incident.retry_blocker && !selectedItem.adapter_incident.retry_allowed && (
                   <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-                    Retry blocked: {selectedItem.adapter_incident.retry_blocker}
+                    Retry blocked: {selectedItem.adapter_incident.retry_blocker === "user_reconfirmation_required"
+                      ? "user reconfirmation required"
+                      : selectedItem.adapter_incident.retry_blocker}
                   </div>
                 )}
                 {selectedItem.adapter_incident.manual_follow_up_queued_at && (

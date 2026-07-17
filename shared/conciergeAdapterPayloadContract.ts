@@ -37,6 +37,27 @@ export type ConciergeAdapterPayloadPreview = {
   outbound_payload: ConciergeAdapterOutboundPayload | null;
 };
 
+export type ConciergeAdapterApprovalFingerprint = {
+  version: 1;
+  fingerprint: string;
+  approved_at: string | null;
+  channel: ConciergeProductionChannel | null;
+  provider_name: string | null;
+  provider_contact: string | null;
+  summary: string | null;
+  material_payload: Record<string, unknown>;
+};
+
+export type ConciergeAdapterApprovalComparison = {
+  version: 1;
+  requires_reconfirmation: boolean;
+  reason: string | null;
+  changed_fields: string[];
+  approved_at: string | null;
+  approved_fingerprint: string | null;
+  current_fingerprint: string | null;
+};
+
 export type ConciergeAdapterPayloadContractInput = {
   tool: ConciergeToolRequirement;
   payload?: Record<string, unknown> | null;
@@ -45,6 +66,10 @@ export type ConciergeAdapterPayloadContractInput = {
   pendingId?: string | null;
   userId?: string | null;
   summary?: string | null;
+};
+
+export type ConciergeAdapterApprovalFingerprintInput = ConciergeAdapterPayloadContractInput & {
+  approvedAt?: string | null;
 };
 
 const CHANNEL_TARGET_LABELS: Record<ConciergeProductionChannel, string> = {
@@ -76,6 +101,122 @@ function objectPayload(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+const INTERNAL_ACTION_PAYLOAD_KEYS = new Set([
+  "execution_task",
+  "execution_audit",
+  "execution_adapter",
+  "operator_assigned_to",
+  "operator_assigned_email",
+  "operator_assigned_at",
+  "operator_note",
+  "operator_updated_at",
+  "operator_actor",
+  "operator_completed_at",
+  "manual_follow_up_queued_at",
+  "manual_follow_up_note",
+]);
+
+function materialValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(materialValue);
+  if (!value || typeof value !== "object") return value;
+
+  const data = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(data)
+      .filter((key) => !INTERNAL_ACTION_PAYLOAD_KEYS.has(key))
+      .sort()
+      .map((key) => [key, materialValue(data[key])]),
+  );
+}
+
+export function materialConciergeAdapterActionPayload(payload: unknown): Record<string, unknown> {
+  return objectPayload(materialValue(objectPayload(payload)));
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (!value || typeof value !== "object") return JSON.stringify(value);
+  const data = value as Record<string, unknown>;
+  return `{${Object.keys(data)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(data[key])}`)
+    .join(",")}}`;
+}
+
+function approvalPartsFromInput(input: ConciergeAdapterPayloadContractInput) {
+  const channel = conciergeProductionChannelForTool(input.tool);
+  return {
+    channel,
+    provider_name: clean(input.providerName),
+    provider_contact: channel ? conciergeProviderContactForChannel(channel, input) : null,
+    summary: clean(input.summary),
+    material_payload: materialConciergeAdapterActionPayload(input.payload),
+  };
+}
+
+export function buildConciergeAdapterApprovalFingerprint(
+  input: ConciergeAdapterApprovalFingerprintInput,
+): ConciergeAdapterApprovalFingerprint {
+  const parts = approvalPartsFromInput(input);
+  return {
+    version: 1,
+    fingerprint: stableStringify(parts),
+    approved_at: clean(input.approvedAt),
+    ...parts,
+  };
+}
+
+function approvalFingerprintFromUnknown(value: unknown): ConciergeAdapterApprovalFingerprint | null {
+  const data = objectPayload(value);
+  return data.version === 1 && typeof data.fingerprint === "string"
+    ? data as ConciergeAdapterApprovalFingerprint
+    : null;
+}
+
+function changedFields(
+  approved: ConciergeAdapterApprovalFingerprint,
+  current: ConciergeAdapterApprovalFingerprint,
+): string[] {
+  const changed: string[] = [];
+  if (approved.channel !== current.channel) changed.push("channel");
+  if (approved.provider_name !== current.provider_name) changed.push("provider_name");
+  if (approved.provider_contact !== current.provider_contact) changed.push("provider_contact");
+  if (approved.summary !== current.summary) changed.push("summary");
+  if (stableStringify(approved.material_payload) !== stableStringify(current.material_payload)) changed.push("payload");
+  return changed;
+}
+
+export function compareConciergeAdapterApprovalFingerprint(
+  current: ConciergeAdapterPayloadContractInput,
+  approvedFingerprint: unknown,
+): ConciergeAdapterApprovalComparison {
+  const approved = approvalFingerprintFromUnknown(approvedFingerprint);
+  const currentFingerprint = buildConciergeAdapterApprovalFingerprint(current);
+
+  if (!approved) {
+    return {
+      version: 1,
+      requires_reconfirmation: true,
+      reason: "approval_fingerprint_missing",
+      changed_fields: ["approval"],
+      approved_at: null,
+      approved_fingerprint: null,
+      current_fingerprint: currentFingerprint.fingerprint,
+    };
+  }
+
+  const fields = changedFields(approved, currentFingerprint);
+  return {
+    version: 1,
+    requires_reconfirmation: fields.length > 0,
+    reason: fields.length > 0 ? "approved_payload_changed" : null,
+    changed_fields: fields,
+    approved_at: approved.approved_at,
+    approved_fingerprint: approved.fingerprint,
+    current_fingerprint: currentFingerprint.fingerprint,
+  };
 }
 
 export function conciergeAdapterId(channel: ConciergeProductionChannel): string {

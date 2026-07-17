@@ -189,6 +189,15 @@ const failedAdapterTask: OperatorConciergeQueueItem = {
       },
     },
   },
+  adapter_approval: {
+    version: 1,
+    requires_reconfirmation: false,
+    reason: null,
+    changed_fields: [],
+    approved_at: "2026-07-01T10:00:00.000Z",
+    approved_fingerprint: "approved",
+    current_fingerprint: "approved",
+  },
 };
 
 const missingPayloadTask: OperatorConciergeQueueItem = {
@@ -216,6 +225,38 @@ const missingPayloadTask: OperatorConciergeQueueItem = {
       ...failedAdapterTask.adapter_payload_preview!.outbound_payload!,
       provider_contact: null,
     },
+  },
+};
+
+const staleApprovalTask: OperatorConciergeQueueItem = {
+  ...failedAdapterTask,
+  id: "pending-stale-approval",
+  action_summary: "Email updated clinic paperwork",
+  adapter_incident: {
+    ...failedAdapterTask.adapter_incident!,
+    retry_allowed: false,
+    retry_blocker: "user_reconfirmation_required",
+  },
+  adapter_payload_preview: {
+    ...failedAdapterTask.adapter_payload_preview!,
+    summary: "Email updated clinic paperwork",
+    outbound_payload: {
+      ...failedAdapterTask.adapter_payload_preview!.outbound_payload!,
+      summary: "Email updated clinic paperwork",
+      action_payload: {
+        provider_email: "frontdesk@example.com",
+        document_type: "appointment form",
+      },
+    },
+  },
+  adapter_approval: {
+    version: 1,
+    requires_reconfirmation: true,
+    reason: "approved_payload_changed",
+    changed_fields: ["summary", "payload"],
+    approved_at: "2026-07-01T10:00:00.000Z",
+    approved_fingerprint: "approved",
+    current_fingerprint: "changed",
   },
 };
 
@@ -363,6 +404,7 @@ describe("ConciergeQueueAdminPage", () => {
     const dialog = screen.getByRole("dialog", { name: "Email clinic paperwork" });
     expect(dialog).toHaveTextContent("Payload preview");
     expect(dialog).toHaveTextContent("Contract ready");
+    expect(dialog).toHaveTextContent("Approval still matches");
     expect(dialog).toHaveTextContent("frontdesk@example.com");
     expect(dialog).toHaveTextContent('"provider_email": "frontdesk@example.com"');
     expect(dialog).toHaveTextContent("Channel incident");
@@ -395,6 +437,19 @@ describe("ConciergeQueueAdminPage", () => {
     expect(dialog).toHaveTextContent("Provider email address");
     expect(dialog).toHaveTextContent("Add the provider email address before sending this action.");
     expect(dialog).toHaveTextContent("Retry blocked: adapter_payload_missing_provider_contact");
+    expect(within(dialog).getByRole("button", { name: "Retry live action" })).toBeDisabled();
+  });
+
+  it("shows stale approval reconfirmation before retry", async () => {
+    renderPage([staleApprovalTask]);
+
+    expect(await screen.findByText("Email updated clinic paperwork")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open task" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Email updated clinic paperwork" });
+    expect(dialog).toHaveTextContent("User reconfirmation required");
+    expect(dialog).toHaveTextContent("Changed since approval: summary, payload.");
+    expect(dialog).toHaveTextContent("Retry blocked: user reconfirmation required");
     expect(within(dialog).getByRole("button", { name: "Retry live action" })).toBeDisabled();
   });
 

@@ -14,6 +14,10 @@ import {
   type ConciergeChannelReadinessResult,
   type ConciergeExecutionMode,
 } from "./conciergeChannelReadiness";
+import {
+  buildConciergeAdapterApprovalFingerprint,
+  type ConciergeAdapterApprovalFingerprint,
+} from "./conciergeAdapterPayloadContract";
 
 export type ConciergeExecutionActionType =
   | "phone_call"
@@ -55,6 +59,7 @@ export type ConciergeExecutionTask = {
   execution_mode: ConciergeExecutionMode;
   channel_readiness: ConciergeChannelReadinessResult;
   dry_run?: boolean;
+  approval_fingerprint?: ConciergeAdapterApprovalFingerprint;
   confirmation_source?: string;
   confirmed_at?: string;
   created_at: string;
@@ -224,6 +229,16 @@ function providerPhoneReady(payload: Record<string, unknown>, providerPhone?: st
   return Boolean(clean(providerPhone) || payloadHasCleanString(payload, ["provider_phone", "phone", "contact_phone"]));
 }
 
+function shouldCaptureApprovalFingerprint(confirmationSource: string | undefined): boolean {
+  return Boolean(confirmationSource && [
+    "agent_confirmed",
+    "auto_start",
+    "confirm_endpoint",
+    "user_controlled_execution",
+    "user_confirmed",
+  ].includes(confirmationSource));
+}
+
 function toolSpecificMissingRequirement(
   tool: ConciergeToolRequirement,
   payload: Record<string, unknown>,
@@ -308,6 +323,16 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
   const confirmedAt = userConfirmed
     ? input.confirmedAt ?? existing?.confirmed_at ?? now
     : existing?.confirmed_at;
+  const approvalFingerprint = userConfirmed && shouldCaptureApprovalFingerprint(input.confirmationSource)
+    ? buildConciergeAdapterApprovalFingerprint({
+        tool: requestedTool,
+        payload,
+        providerName: input.providerName,
+        providerPhone: input.providerPhone,
+        summary: input.summary,
+        approvedAt: confirmedAt ?? now,
+      })
+    : existing?.approval_fingerprint;
 
   return {
     version: 1,
@@ -324,6 +349,7 @@ export function buildConciergeExecutionTask(input: ConciergeExecutionBuildInput)
     execution_mode: executionMode,
     channel_readiness: channelReadiness,
     ...(dryRun ? { dry_run: true } : {}),
+    ...(approvalFingerprint ? { approval_fingerprint: approvalFingerprint } : {}),
     ...(input.confirmationSource || existing?.confirmation_source
       ? { confirmation_source: input.confirmationSource ?? existing?.confirmation_source }
       : {}),

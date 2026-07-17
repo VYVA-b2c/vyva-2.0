@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildConciergeAdapterApprovalFingerprint,
   buildConciergeAdapterPayloadPreview,
   conciergeAdapterId,
+  compareConciergeAdapterApprovalFingerprint,
 } from "../shared/conciergeAdapterPayloadContract";
 import type { ConciergeProductionChannel } from "../shared/conciergeChannelReadiness";
 import { conciergeToolForProductionChannel } from "../shared/conciergeChannelReadiness";
@@ -104,5 +106,69 @@ describe("Concierge adapter payload contract", () => {
     expect(unmapped.valid).toBe(false);
     expect(unmapped.missing_fields.map((field) => field.key)).toContain("channel");
     expect(unmapped.outbound_payload).toBeNull();
+  });
+
+  it("matches unchanged approvals and ignores runtime-only payload history", () => {
+    const approved = buildConciergeAdapterApprovalFingerprint({
+      tool: "email",
+      payload: {
+        provider_email: "frontdesk@example.com",
+        document_type: "insurance form",
+      },
+      providerName: "City Clinic",
+      pendingId: "pending-1",
+      userId: "user-1",
+      summary: "Email clinic paperwork",
+      approvedAt: "2026-07-01T10:00:00.000Z",
+    });
+
+    const comparison = compareConciergeAdapterApprovalFingerprint({
+      tool: "email",
+      payload: {
+        provider_email: "frontdesk@example.com",
+        document_type: "insurance form",
+        execution_audit: [{ event: "adapter_retry_requested" }],
+        execution_adapter: { status: "failed" },
+        operator_note: "Retrying",
+      },
+      providerName: "City Clinic",
+      pendingId: "pending-1",
+      userId: "user-1",
+      summary: "Email clinic paperwork",
+    }, approved);
+
+    expect(comparison).toMatchObject({
+      requires_reconfirmation: false,
+      changed_fields: [],
+      approved_at: "2026-07-01T10:00:00.000Z",
+    });
+  });
+
+  it("requires reconfirmation when provider, contact, summary, or material payload changes", () => {
+    const approved = buildConciergeAdapterApprovalFingerprint({
+      tool: "email",
+      payload: {
+        provider_email: "frontdesk@example.com",
+        document_type: "insurance form",
+      },
+      providerName: "City Clinic",
+      summary: "Email clinic paperwork",
+    });
+
+    const comparison = compareConciergeAdapterApprovalFingerprint({
+      tool: "email",
+      payload: {
+        provider_email: "newdesk@example.com",
+        document_type: "appointment form",
+      },
+      providerName: "New Clinic",
+      summary: "Email new paperwork",
+    }, approved);
+
+    expect(comparison).toMatchObject({
+      requires_reconfirmation: true,
+      reason: "approved_payload_changed",
+      changed_fields: ["provider_name", "provider_contact", "summary", "payload"],
+    });
   });
 });
