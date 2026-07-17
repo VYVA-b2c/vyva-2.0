@@ -9160,6 +9160,45 @@ export default function MarketingAdminPage() {
       state: templates.length >= 6 ? "ready" as CampaignReadinessState : templates.length >= 4 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
     };
   }), []);
+  const templatePackRecommendationsForPlay = useCallback((play: CampaignStudioPlay, primaryChannel: Channel, selectedChannels: Channel[]) => {
+    const selectedChannelSet = new Set(selectedChannels);
+    return contentTemplatePacksWithStats.map(({ pack, templates, heroTemplate, channels, audiences: packAudiences, categories, state }) => {
+      const packPlay = campaignStudioPlayById(pack.studioPlayId);
+      const playMatch = pack.studioPlayId === play.id;
+      const categoryMatch = packPlay.categoryId === play.categoryId;
+      const channelOverlap = channels.filter((channel) => selectedChannelSet.has(channel)).length;
+      const audienceMatch = packAudiences.some((audience) => (
+        audience === play.audienceType
+        || audience === "both"
+        || play.audienceType === "both"
+      ));
+      const heroMatchesPrimary = heroTemplate?.channel === primaryChannel;
+      const score = Math.min(99,
+        (playMatch ? 42 : 0)
+        + (categoryMatch ? 12 : 0)
+        + (audienceMatch ? 18 : 0)
+        + channelOverlap * 10
+        + (heroMatchesPrimary ? 8 : 0)
+        + Math.min(templates.length, 6) * 3
+      );
+      const recommendationState: CampaignReadinessState = score >= 72 ? "ready" : score >= 42 ? "planning" : state;
+      const reasons = [
+        playMatch ? `Built for ${play.label}` : categoryMatch ? `${campaignStudioCategories.find((category) => category.id === packPlay.categoryId)?.label ?? packPlay.categoryId} fit` : `${packPlay.label} source play`,
+        `${templates.length} template${templates.length === 1 ? "" : "s"}`,
+        channels.length ? `${channels.map((channel) => channelLabel[channel]).join(" + ")} pack` : "No channel pack",
+        audienceMatch ? `${play.audienceType.toUpperCase()} audience fit` : `${packAudiences.map((audience) => audience.toUpperCase()).join(" / ")} audience`,
+      ];
+      return { pack, templates, heroTemplate, channels, categories, score, state: recommendationState, reasons, playMatch, categoryMatch, channelOverlap };
+    })
+      .sort((a, b) => {
+        if (b.playMatch !== a.playMatch) return Number(b.playMatch) - Number(a.playMatch);
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.categoryMatch !== a.categoryMatch) return Number(b.categoryMatch) - Number(a.categoryMatch);
+        if (b.channelOverlap !== a.channelOverlap) return b.channelOverlap - a.channelOverlap;
+        return a.pack.title.localeCompare(b.pack.title);
+      })
+      .slice(0, 3);
+  }, [contentTemplatePacksWithStats]);
   const campaignGoalPresetInsights = useMemo<CampaignGoalPresetInsight[]>(() => campaignGoalPresets.map((preset) => {
     const play = campaignIntentPlay(preset.brief);
     const linkedPack = contentTemplatePacksWithStats.find(({ pack }) => pack.id === preset.templatePackId) ?? null;
@@ -10834,45 +10873,9 @@ export default function MarketingAdminPage() {
         return a.play.label.localeCompare(b.play.label);
       })
   ), [audiences, contacts]);
-  const campaignStudioTemplatePackRecommendations = useMemo(() => {
-    const selectedChannelSet = new Set(campaignStudioSelectedChannels);
-    return contentTemplatePacksWithStats.map(({ pack, templates, heroTemplate, channels, audiences: packAudiences, categories, state }) => {
-      const packPlay = campaignStudioPlayById(pack.studioPlayId);
-      const playMatch = pack.studioPlayId === selectedCampaignStudioPlay.id;
-      const categoryMatch = packPlay.categoryId === selectedCampaignStudioPlay.categoryId;
-      const channelOverlap = channels.filter((channel) => selectedChannelSet.has(channel)).length;
-      const audienceMatch = packAudiences.some((audience) => (
-        audience === selectedCampaignStudioPlay.audienceType
-        || audience === "both"
-        || selectedCampaignStudioPlay.audienceType === "both"
-      ));
-      const heroMatchesPrimary = heroTemplate?.channel === campaignStudio.channel;
-      const score = Math.min(99,
-        (playMatch ? 42 : 0)
-        + (categoryMatch ? 12 : 0)
-        + (audienceMatch ? 18 : 0)
-        + channelOverlap * 10
-        + (heroMatchesPrimary ? 8 : 0)
-        + Math.min(templates.length, 6) * 3
-      );
-      const recommendationState: CampaignReadinessState = score >= 72 ? "ready" : score >= 42 ? "planning" : state;
-      const reasons = [
-        playMatch ? `Built for ${selectedCampaignStudioPlay.label}` : categoryMatch ? `${campaignStudioCategories.find((category) => category.id === packPlay.categoryId)?.label ?? packPlay.categoryId} fit` : `${packPlay.label} source play`,
-        `${templates.length} template${templates.length === 1 ? "" : "s"}`,
-        channels.length ? `${channels.map((channel) => channelLabel[channel]).join(" + ")} pack` : "No channel pack",
-        audienceMatch ? `${selectedCampaignStudioPlay.audienceType.toUpperCase()} audience fit` : `${packAudiences.map((audience) => audience.toUpperCase()).join(" / ")} audience`,
-      ];
-      return { pack, templates, heroTemplate, channels, categories, score, state: recommendationState, reasons, playMatch, categoryMatch, channelOverlap };
-    })
-      .sort((a, b) => {
-        if (b.playMatch !== a.playMatch) return Number(b.playMatch) - Number(a.playMatch);
-        if (b.score !== a.score) return b.score - a.score;
-        if (b.categoryMatch !== a.categoryMatch) return Number(b.categoryMatch) - Number(a.categoryMatch);
-        if (b.channelOverlap !== a.channelOverlap) return b.channelOverlap - a.channelOverlap;
-        return a.pack.title.localeCompare(b.pack.title);
-      })
-      .slice(0, 3);
-  }, [campaignStudio.channel, campaignStudioSelectedChannels, contentTemplatePacksWithStats, selectedCampaignStudioPlay]);
+  const campaignStudioTemplatePackRecommendations = useMemo(() => (
+    templatePackRecommendationsForPlay(selectedCampaignStudioPlay, campaignStudio.channel, campaignStudioSelectedChannels)
+  ), [campaignStudio.channel, campaignStudioSelectedChannels, selectedCampaignStudioPlay, templatePackRecommendationsForPlay]);
   const campaignPlannerRecipes = useMemo<CampaignPlannerRecipe[]>(() => (
     campaignStudioPlayRecommendations.map((recommendation) => {
       const play = recommendation.play;
@@ -10901,9 +10904,9 @@ export default function MarketingAdminPage() {
   const dashboardCampaignRecommendations = useMemo(() => (
     campaignStudioPlayRecommendations.slice(0, 3).map((recommendation) => ({
       recommendation,
-      packMatch: contentTemplatePacksWithStats.find(({ pack }) => pack.studioPlayId === recommendation.play.id) ?? null,
+      packMatch: templatePackRecommendationsForPlay(recommendation.play, recommendation.play.defaultChannel, recommendation.channels)[0] ?? null,
     }))
-  ), [campaignStudioPlayRecommendations, contentTemplatePacksWithStats]);
+  ), [campaignStudioPlayRecommendations, templatePackRecommendationsForPlay]);
   const campaignStudioPrimaryAiDraft = campaignStudioAiDrafts[campaignStudio.channel] ?? null;
   const campaignStudioGenerated = campaignStudioPrimaryAiDraft ?? campaignStudioTemplateDraft;
   const campaignStudioCreativeVariants = useMemo(

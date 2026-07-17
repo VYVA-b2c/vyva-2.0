@@ -1346,6 +1346,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("reachable contact");
     expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("matching starter template");
     expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("Best list: Partners");
+    expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("Pack: Local event relationship");
+    expect(screen.getByTestId("button-marketing-cockpit-create-event-reminder")).not.toBeDisabled();
 
     fireEvent.click(screen.getByTestId("button-marketing-cockpit-load-event-reminder"));
 
@@ -1353,6 +1355,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-cockpit-create-event-reminder"));
+
+    await waitFor(() => {
+      const packCampaignPost = apiFetchMock.mock.calls.find(([path, init]) => {
+        if (path !== "/api/admin/marketing/campaigns" || init?.method !== "POST") return false;
+        const payload = JSON.parse(String(init.body ?? "{}"));
+        return payload.metadata?.templatePackPlan?.packId === "local-event-relationship";
+      });
+      expect(packCampaignPost).toBeTruthy();
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created Local event relationship campaign plan");
   });
 
   it("shows all imported Lovable details instead of hiding rows behind preview caps", async () => {
