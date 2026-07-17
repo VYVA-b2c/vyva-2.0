@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
   ChevronLeft,
@@ -17,6 +17,7 @@ import {
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
@@ -296,6 +297,8 @@ const SafeHomeScreen = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { markCompleted, markAbandoned, markBlocked } = useHomeFastHelpOutcome(location.state);
   const { toast } = useToast();
   const { profile } = useProfile();
 
@@ -417,14 +420,17 @@ const SafeHomeScreen = () => {
         };
         if (data.isFallback) {
           setResult(errorFallback);
+          markBlocked({ reason: "home_scan_unavailable" });
         } else {
           setResult(data);
+          markCompleted({ reason: "home_scan_completed" });
           queryClient.invalidateQueries({ queryKey: ["/api/home-scan/history"] });
         }
       })
       .catch((err) => {
         console.error("[home-scan] error:", err);
         setResult(errorFallback);
+        markBlocked({ reason: "home_scan_failed" });
       })
       .finally(() => {
         setAnalyzing(false);
@@ -448,6 +454,7 @@ const SafeHomeScreen = () => {
   const openPastedHomeReview = (payload: ShowVyvaPastePayload) => {
     setResult(null);
     setShowVyvaPasteReview(payload);
+    markCompleted({ reason: "home_review_completed" });
   };
 
   const caregiverName = profile?.caregiverName?.trim() || t("safeHome.actions.caregiverFallback", "care team");
@@ -483,7 +490,10 @@ const SafeHomeScreen = () => {
         toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
         setResult(null);
         setShowVyvaPasteReview(null);
-        if (action.id === "mark_safe_now") return;
+        if (action.id === "mark_safe_now") {
+          markCompleted({ reason: "home_marked_safe" });
+          return;
+        }
         navigate(plan.targetRoute, {
           state: action.id === "buy_safety_aid"
             ? safeHomeShoppingState(stateScan, language)
@@ -582,7 +592,10 @@ const SafeHomeScreen = () => {
         <div className="flex items-center gap-3 pt-2 mb-[18px]">
           <button
             data-testid="button-back-safe-home"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              markAbandoned({ reason: "left_safe_home" });
+              navigate(-1);
+            }}
             className="w-[40px] h-[40px] rounded-full flex items-center justify-center transition-colors active:scale-95"
             style={{ background: "#F5EFE4", border: "1px solid #EDE5DB" }}
           >
@@ -679,13 +692,16 @@ const SafeHomeScreen = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => completeActiveAction({
-                    metadata: {
-                      source: "safe_home_escalation_safe_now",
-                      risk_type: safetyRiskType,
-                      location: safetyLocation,
-                    },
-                  })}
+                  onClick={() => {
+                    markCompleted({ reason: "safe_home_voice_action_completed" });
+                    completeActiveAction({
+                      metadata: {
+                        source: "safe_home_escalation_safe_now",
+                        risk_type: safetyRiskType,
+                        location: safetyLocation,
+                      },
+                    });
+                  }}
                   className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white px-4 font-body text-[14px] font-bold text-emerald-700 transition active:scale-[0.98]"
                 >
                   <CheckCircle size={17} />

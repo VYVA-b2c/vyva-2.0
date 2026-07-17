@@ -1459,6 +1459,11 @@ const fr = {
         organizePaperwork: "Tout preparer avant tout envoi",
         safetyFallback: "La des que quelque chose semble dangereux",
       },
+      outcome: {
+        continue: "Continuer",
+        continueDetail: "Continuer : {{action}}",
+        blockedAlternative: "Essayez plutot cette prochaine etape utile",
+      },
     },
   },
   concierge: {

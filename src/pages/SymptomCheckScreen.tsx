@@ -12,6 +12,7 @@ import {
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
 import { useToast } from "@/hooks/use-toast";
+import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
 import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { compactReportRecommendations, uniqueReportLines } from "@/lib/reportRecommendations";
@@ -3391,6 +3392,7 @@ export default function SymptomCheckScreen() {
   const { isLoading: profileLoading } = useProfile();
   const navigate = useNavigate();
   const location = useLocation();
+  const { markCompleted, markAbandoned, markBlocked } = useHomeFastHelpOutcome(location.state);
   const incomingState = location.state as SymptomCheckLocationState;
   const incomingInitialClue = typeof incomingState?.initialClue === "string" ? incomingState.initialClue.trim() : "";
   const [restoredDraft] = useState(() => readSymptomCheckDraft());
@@ -3487,6 +3489,10 @@ export default function SymptomCheckScreen() {
       );
       void queryClient.invalidateQueries({ queryKey: ["/api/voice-triage/session", voiceTriageSessionId] });
       if (latest.status === "complete") {
+        markCompleted({
+          reason: "voice_triage_completed",
+          referenceId: latest.report?.triage_report_id ?? voiceTriageSessionId,
+        });
         void queryClient.invalidateQueries({ queryKey: ["/api/reports/triage"] });
         void queryClient.invalidateQueries({ queryKey: ["/api/symptoms"] });
       }
@@ -3554,6 +3560,7 @@ export default function SymptomCheckScreen() {
   }, [bpm, chatDraft, chatStartTime, durationSeconds, initialClue, refinementStatus, reportId, reportSaveState, respiratoryRate, step, summary]);
 
   const handleBack = () => {
+    markAbandoned({ reason: "left_symptom_check" });
     if (step === "intro") {
       clearSymptomCheckDraft();
       navigate("/health");
@@ -3663,6 +3670,7 @@ export default function SymptomCheckScreen() {
   }, []);
 
   const handleDone = () => {
+    markCompleted({ reason: "symptom_check_finished", referenceId: reportId });
     clearSymptomCheckDraft();
     navigate("/health");
   };
@@ -3754,10 +3762,12 @@ export default function SymptomCheckScreen() {
       .then((saved) => {
         applySavedReport(saved);
         logSymptomResult(triageSummary, saved);
+        markCompleted({ reason: "symptom_report_saved", referenceId: saved?.id });
       })
       .catch((err) => {
         console.error("[reports/triage] save failed:", err);
         setReportSaveState("error");
+        markBlocked({ reason: "symptom_report_save_failed" });
       });
   };
 

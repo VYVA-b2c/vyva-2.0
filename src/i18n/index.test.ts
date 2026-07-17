@@ -628,6 +628,20 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps Home Fast Help outcome copy localized in every supported language", () => {
+    const outcomeKeys = ["continue", "continueDetail", "blockedAlternative"];
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const outcomeKey of outcomeKeys) {
+        const key = `home.contextualFastHelp.outcome.${outcomeKey}`;
+        const value = translate(language, key);
+        expect(value).not.toBe(key);
+        expect(value.trim().length).toBeGreaterThan(0);
+        if (language !== "en") expect(value).not.toBe(translate("en", key));
+      }
+    }
+  });
+
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
       en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "My Health Plan", "My Health Plan"],
