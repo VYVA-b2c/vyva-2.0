@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   Megaphone,
   Pencil,
+  Phone,
   Plus,
   RefreshCw,
   Save,
@@ -876,6 +877,9 @@ type CampaignStudioPublishingRunSheetItem = {
   format: string;
   detail: string;
   actionLabel: string;
+  owner: string;
+  destination: string;
+  tracking: string;
   state: CampaignReadinessState;
   text: string;
   icon: LucideIcon;
@@ -12079,6 +12083,9 @@ export default function MarketingAdminPage() {
           format: "VYVA send",
           actionLabel: "Create, review recipients, then send from campaign details.",
           detail: "Email is the live-send route. Keep final approval separate from campaign creation.",
+          owner: "Marketing owner",
+          destination: "VYVA campaign details",
+          tracking: "communications_log, delivery status, replies, clicks, and follow-up notes",
           icon: Send,
         }
       : item.channel === "whatsapp"
@@ -12087,15 +12094,65 @@ export default function MarketingAdminPage() {
             format: "Manual send",
             actionLabel: "Copy the approved WhatsApp copy and send through the approved external workflow.",
             detail: "WhatsApp remains a tracked handoff until provider dispatch controls are enabled.",
+            owner: selectedCampaignStudioPlay.audienceType === "b2b" ? "Partner relationship owner" : "Care-team owner",
+            destination: "Approved WhatsApp workflow",
+            tracking: "message batch, replies, opt-outs, and relationship notes",
             icon: UsersRound,
           }
-        : {
-            title: `${channelLabel[item.channel]} publish and track`,
-            format: "Social publish",
-            actionLabel: "Copy the caption, publish in the platform, then record the post URL and outcomes.",
-            detail: `${channelLabel[item.channel]} is a planning/tracking channel for now, with copy and assets ready for manual publishing.`,
-            icon: Megaphone,
-          };
+        : item.channel === "sms"
+          ? {
+              title: "SMS reminder handoff",
+              format: "Manual SMS",
+              actionLabel: "Copy the short reminder into the approved SMS workflow, then record batch and replies.",
+              detail: "SMS is a planning/tracking route until SMS provider dispatch is enabled for marketing.",
+              owner: "Campaign operations owner",
+              destination: "Approved SMS workflow or message batch",
+              tracking: "batch name, sent time, replies, opt-outs, and failed numbers",
+              icon: Send,
+            }
+          : item.channel === "phone"
+            ? {
+                title: "Phone follow-up queue",
+                format: "Call list",
+                actionLabel: "Create a call queue from eligible contacts, call manually, then log outcomes.",
+                detail: "Phone is a human relationship route; use it for warm contacts, partners, and sensitive follow-up.",
+                owner: selectedCampaignStudioPlay.audienceType === "b2b" ? "Partner/sales caller" : "Care-team caller",
+                destination: "Call queue or concierge handoff",
+                tracking: "call outcome, next owner, next date, and relationship notes",
+                icon: Phone,
+              }
+            : item.channel === "print"
+              ? {
+                  title: "Print / QR production",
+                  format: "Print handoff",
+                  actionLabel: "Use the print brief to produce the flyer, QR card, or venue handout, then record placement.",
+                  detail: "Print is tracked as an offline handoff with QR/link attribution when possible.",
+                  owner: "Design or local operations owner",
+                  destination: "Print vendor, venue, clinic, pharmacy, or local partner",
+                  tracking: "print run, placement, QR/link, pickup interest, and partner feedback",
+                  icon: FileText,
+                }
+              : item.channel === "event"
+                ? {
+                    title: "Local event run sheet",
+                    format: "Event / local ops",
+                    actionLabel: "Use the event run sheet with host, venue, invite list, attendance, and follow-up owner.",
+                    detail: "Events are planned as relationship-generating moments, not generic social posts.",
+                    owner: "Local event owner",
+                    destination: "Venue, host, partner team, or community calendar",
+                    tracking: "attendance, questions, warm contacts, promised resources, and follow-up owner",
+                    icon: CalendarDays,
+                  }
+                : {
+                    title: `${channelLabel[item.channel]} publish and track`,
+                    format: "Social publish",
+                    actionLabel: "Copy the caption, publish in the platform, then record the post URL and outcomes.",
+                    detail: `${channelLabel[item.channel]} is a planning/tracking channel for now, with copy and assets ready for manual publishing.`,
+                    owner: "Social/media owner",
+                    destination: `${channelLabel[item.channel]} post, page, campaign manager, or creator workflow`,
+                    tracking: "platform URL, publish time, engagement, replies, and warm follow-up leads",
+                    icon: Megaphone,
+                  };
     const text = [
       `${channelLabel[item.channel]} publishing run sheet`,
       `Campaign: ${draft.campaignName}`,
@@ -12105,6 +12162,9 @@ export default function MarketingAdminPage() {
       `Current VYVA status: ${item.sendMode}`,
       `Recipient snapshot: ${item.recipients} planned recipient${item.recipients === 1 ? "" : "s"}`,
       `Sample contact: ${sampleLabel}`,
+      `Owner: ${route.owner}`,
+      `Destination: ${route.destination}`,
+      `Tracking: ${route.tracking}`,
       "",
       "Next action:",
       route.actionLabel,
@@ -12139,6 +12199,9 @@ export default function MarketingAdminPage() {
       format: route.format,
       detail: route.detail,
       actionLabel: route.actionLabel,
+      owner: route.owner,
+      destination: route.destination,
+      tracking: route.tracking,
       state: item.state,
       text,
       icon: route.icon,
@@ -19915,6 +19978,30 @@ export default function MarketingAdminPage() {
                         </button>
                       </div>
                       <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-publishing-routes">
+                        <div className="xl:col-span-3 rounded-xl border border-sky-100 bg-white p-3" data-testid="marketing-campaign-studio-publish-queue">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-[0.12em] text-sky-800">Publish queue</p>
+                              <p className="mt-1 text-xs font-bold text-[#5f6f7a]">Owner, destination, and tracking for every selected route.</p>
+                            </div>
+                            <Pill className="bg-sky-50 text-sky-800">{campaignStudioPublishingRunSheets.length} route{campaignStudioPublishingRunSheets.length === 1 ? "" : "s"}</Pill>
+                          </div>
+                          <div className="mt-3 grid gap-2">
+                            {campaignStudioPublishingRunSheets.map((item) => (
+                              <div key={item.channel} className={`rounded-xl border px-3 py-2 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-publish-queue-${item.channel}`}>
+                                <div className="grid gap-2 xl:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] xl:items-start">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                    <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                  </div>
+                                  <p className="text-xs font-bold leading-relaxed text-[#365064]"><span className="font-black text-[#241133]">Owner:</span> {item.owner}</p>
+                                  <p className="text-xs font-bold leading-relaxed text-[#365064]"><span className="font-black text-[#241133]">Destination:</span> {item.destination}</p>
+                                  <p className="text-xs font-bold leading-relaxed text-[#365064]"><span className="font-black text-[#241133]">Track:</span> {item.tracking}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                         {campaignStudioPublishingRunSheets.map((item) => {
                           const Icon = item.icon;
                           return (

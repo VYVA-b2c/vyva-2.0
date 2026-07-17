@@ -2069,6 +2069,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Phone call");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("SMS");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-queue-phone")).toHaveTextContent("Call queue or concierge handoff");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-queue-print")).toHaveTextContent("Print vendor, venue, clinic, pharmacy, or local partner");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-queue-event")).toHaveTextContent("Venue, host, partner team, or community calendar");
+    expect(screen.getByTestId("marketing-campaign-studio-publishing-route-event")).toHaveTextContent("Local event run sheet");
+    expect(screen.getByTestId("marketing-campaign-studio-publishing-route-event")).toHaveTextContent("Event / local ops");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Offline and direct outreach pack into the campaign studio");
@@ -3919,10 +3924,16 @@ describe("MarketingAdminPage", () => {
     });
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("One-page launch packet copied.");
     expect(screen.getByTestId("marketing-campaign-studio-publishing-assistant")).toHaveTextContent("Channel publishing assistant");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-queue")).toHaveTextContent("Publish queue");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-queue-linkedin")).toHaveTextContent("Social/media owner");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-queue-linkedin")).toHaveTextContent("LinkedIn post, page, campaign manager, or creator workflow");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-queue-linkedin")).toHaveTextContent("platform URL");
     expect(screen.getByTestId("marketing-campaign-studio-publishing-route-linkedin")).toHaveTextContent("LinkedIn publish and track");
     expect(screen.getByTestId("marketing-campaign-studio-publishing-route-linkedin")).toHaveTextContent("Social publish");
     const linkedinRunSheet = screen.getByTestId("textarea-marketing-campaign-studio-publishing-linkedin") as HTMLTextAreaElement;
     expect(linkedinRunSheet.value).toContain("LinkedIn publishing run sheet");
+    expect(linkedinRunSheet.value).toContain("Owner: Social/media owner");
+    expect(linkedinRunSheet.value).toContain("Destination: LinkedIn post, page, campaign manager, or creator workflow");
     expect(linkedinRunSheet.value).toContain("Platform URL or message batch");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-publishing-linkedin"));
     await waitFor(() => {
