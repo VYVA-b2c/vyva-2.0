@@ -1167,6 +1167,13 @@ type JourneyCommandStat = CampaignReadinessItem & {
   value: string;
 };
 
+type JourneyCopilotActionKind = "focus_name" | "focus_trigger" | "focus_goal" | "add_step" | "draft_content" | "save";
+
+type JourneyCopilotAction = CampaignReadinessItem & {
+  actionLabel: string;
+  kind: JourneyCopilotActionKind;
+};
+
 type ContentDraft = {
   title: string;
   channel: Channel;
@@ -13230,9 +13237,157 @@ export default function MarketingAdminPage() {
     [audiences, journeyEditDraft.targetAudienceId],
   );
   const missingJourneyStepContentCount = useMemo(
-    () => journeyEditDraft.steps.filter((step) => !step.contentAssetId).length,
-    [journeyEditDraft.steps],
+    () => journeyEditDraft.steps.filter((step) => (
+      !contentAssetByReference(content, step.contentAssetId) && !contentAssetByReference(content, step.templateRef)
+    )).length,
+    [content, journeyEditDraft.steps],
   );
+  const journeyCopilotChecklist = useMemo<CampaignReadinessItem[]>(() => {
+    const stepCount = journeyEditDraft.steps.length;
+    const linkedStepCount = stepCount - missingJourneyStepContentCount;
+    const delayHours = journeyEditDraft.steps.map((step) => nonNegativeInt(step.delayHours));
+    const delayBacktracks = delayHours.some((delay, index) => index > 0 && delay < delayHours[index - 1]);
+    const channels = uniqueChannels(journeyEditDraft.steps.map((step) => step.channel));
+    const manualChannels = channels.filter((channel) => channel !== "email" && channel !== "whatsapp");
+    const triggerSet = Boolean(journeyEditDraft.triggerType.trim() || journeyEditDraft.triggerConfigText.trim());
+    const goalSet = Boolean(journeyEditDraft.goalType.trim() || journeyEditDraft.goalConfigText.trim());
+    return [
+      {
+        key: "name",
+        title: "Name",
+        state: journeyEditDraft.name.trim() ? "ready" : "blocked",
+        detail: journeyEditDraft.name.trim() ? `Saved as "${journeyEditDraft.name.trim()}".` : "Name the journey before saving or reviewing it.",
+      },
+      {
+        key: "audience",
+        title: "Audience",
+        state: selectedJourneyTargetAudience
+          ? selectedJourneyTargetAudience.mappedMemberCount > 0 ? "ready" : "needs_action"
+          : "planning",
+        detail: selectedJourneyTargetAudience
+          ? `${selectedJourneyTargetAudience.name}: ${selectedJourneyTargetAudience.mappedMemberCount}/${selectedJourneyTargetAudience.memberCount} contacts mapped.`
+          : "No target list selected yet; trigger JSON can still control enrollment.",
+      },
+      {
+        key: "trigger",
+        title: "Trigger",
+        state: triggerSet ? "ready" : journeyEditDraft.status === "active" ? "needs_action" : "planning",
+        detail: triggerSet
+          ? `Starts from ${journeyEditDraft.triggerType.trim() || "trigger config"}.`
+          : "Add the event, list join, date, or admin rule that enrolls contacts.",
+      },
+      {
+        key: "goal",
+        title: "Goal",
+        state: goalSet ? "ready" : journeyEditDraft.status === "active" ? "needs_action" : "planning",
+        detail: goalSet
+          ? `Goal is ${journeyEditDraft.goalType.trim() || "defined in config"}${journeyEditDraft.exitOnGoal ? " with exit-on-goal enabled." : "."}`
+          : "Define the behavior that should stop or complete this journey.",
+      },
+      {
+        key: "steps",
+        title: "Steps",
+        state: stepCount > 0 ? delayBacktracks ? "needs_action" : "ready" : "blocked",
+        detail: stepCount > 0
+          ? delayBacktracks
+            ? "One step delay is earlier than the step before it; reorder or adjust timing."
+            : `${stepCount} step${stepCount === 1 ? "" : "s"} in sequence across ${formatChannelList(channels)}.`
+          : "Add at least one visible step before this journey is useful.",
+      },
+      {
+        key: "content",
+        title: "Content",
+        state: stepCount === 0 ? "blocked" : missingJourneyStepContentCount === 0 ? "ready" : "needs_action",
+        detail: stepCount === 0
+          ? "No step content is needed until a step exists."
+          : missingJourneyStepContentCount === 0
+            ? `${linkedStepCount}/${stepCount} steps have linked content.`
+            : `${missingJourneyStepContentCount} step${missingJourneyStepContentCount === 1 ? "" : "s"} still need linked or AI-drafted content.`,
+      },
+      {
+        key: "channels",
+        title: "Channels",
+        state: channels.length === 0 ? "planning" : manualChannels.length ? "planning" : "ready",
+        detail: channels.length === 0
+          ? "Pick channels on each journey step."
+          : manualChannels.length
+            ? `${formatChannelList(manualChannels)} remain planning or handoff channels.`
+            : `${formatChannelList(channels)} can use VYVA contact routes once the journey is approved.`,
+      },
+    ];
+  }, [journeyEditDraft, missingJourneyStepContentCount, selectedJourneyTargetAudience]);
+  const journeyCopilotScore = useMemo(() => {
+    const stateWeight: Record<CampaignReadinessState, number> = {
+      ready: 1,
+      planning: 0.55,
+      needs_action: 0.3,
+      blocked: 0,
+    };
+    const total = journeyCopilotChecklist.reduce((sum, item) => sum + stateWeight[item.state], 0);
+    return journeyCopilotChecklist.length ? Math.round((total / journeyCopilotChecklist.length) * 100) : 0;
+  }, [journeyCopilotChecklist]);
+  const journeyCopilotAction = useMemo<JourneyCopilotAction>(() => {
+    if (!journeyEditDraft.name.trim()) {
+      return {
+        key: "name",
+        title: "Name journey first",
+        state: "blocked",
+        detail: "Add a clear journey name so everyone understands the relationship program.",
+        actionLabel: "Name journey",
+        kind: "focus_name",
+      };
+    }
+    if (!journeyEditDraft.triggerType.trim() && !journeyEditDraft.triggerConfigText.trim()) {
+      return {
+        key: "trigger",
+        title: "Define the trigger",
+        state: "planning",
+        detail: "Tell VYVA who enters this journey and why: list joined, signup, event date, or manual rule.",
+        actionLabel: "Set trigger",
+        kind: "focus_trigger",
+      };
+    }
+    if (!journeyEditDraft.goalType.trim() && !journeyEditDraft.goalConfigText.trim()) {
+      return {
+        key: "goal",
+        title: "Define the goal",
+        state: "planning",
+        detail: "Set the outcome that proves this relationship journey worked, such as reply, activation, profile completion, or referral.",
+        actionLabel: "Set goal",
+        kind: "focus_goal",
+      };
+    }
+    if (journeyEditDraft.steps.length === 0) {
+      return {
+        key: "steps",
+        title: "Add the first step",
+        state: "blocked",
+        detail: "Create one visible step with its own channel, delay, and notes before saving the sequence.",
+        actionLabel: "Add step",
+        kind: "add_step",
+      };
+    }
+    if (missingJourneyStepContentCount > 0) {
+      return {
+        key: "content",
+        title: "Draft missing content",
+        state: "needs_action",
+        detail: "Use AI to create draft content for steps that do not yet have linked copy.",
+        actionLabel: `Draft ${missingJourneyStepContentCount} content item${missingJourneyStepContentCount === 1 ? "" : "s"}`,
+        kind: "draft_content",
+      };
+    }
+    return {
+      key: "save",
+      title: "Ready to save",
+      state: "ready",
+      detail: journeyEditDraft.status === "active"
+        ? "This active journey has a trigger, goal, sequence, and content. Save changes when reviewed."
+        : "This journey is ready as a reviewed planning record. Save it, then decide when to activate.",
+      actionLabel: editingJourneyId === "new" ? "Create journey" : "Save journey",
+      kind: "save",
+    };
+  }, [editingJourneyId, journeyEditDraft, missingJourneyStepContentCount]);
 
   const campaignDraftRecipientPreview = useMemo(() => {
     if (!campaignDraft.snapshotRecipients) return [];
@@ -14963,6 +15118,38 @@ export default function MarketingAdminPage() {
       return { ...draft, steps: [...draft.steps, newJourneyStepDraft(previousChannel)] };
     });
     setJourneyFeedback("");
+  }
+
+  function focusJourneyEditorField(testId: string) {
+    const element = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    element?.focus();
+  }
+
+  function runJourneyCopilotAction(kind: JourneyCopilotActionKind) {
+    if (kind === "focus_name") {
+      focusJourneyEditorField("input-marketing-edit-journey-name");
+      setJourneyFeedback("Add a journey name, then keep building the trigger, goal, and steps.");
+      return;
+    }
+    if (kind === "focus_trigger") {
+      focusJourneyEditorField("input-marketing-edit-journey-trigger");
+      setJourneyFeedback("Set the trigger that decides who enters this journey.");
+      return;
+    }
+    if (kind === "focus_goal") {
+      focusJourneyEditorField("input-marketing-edit-journey-goal");
+      setJourneyFeedback("Set the goal that decides when this relationship journey has worked.");
+      return;
+    }
+    if (kind === "add_step") {
+      addJourneyStep();
+      setJourneyFeedback("Added a step. Pick its channel, delay, and content.");
+      return;
+    }
+    if (kind === "draft_content") {
+      void draftMissingJourneyStepContent();
+    }
   }
 
   function removeJourneyStep(stepId: string) {
@@ -23470,6 +23657,47 @@ export default function MarketingAdminPage() {
                         ) : (
                           <span>No target list selected. This journey can still use event trigger JSON.</span>
                         )}
+                      </div>
+
+                      <div className="grid gap-3 rounded-xl border border-purple-100 bg-purple-50 p-4" data-testid="marketing-journey-copilot">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Journey copilot</p>
+                            <h4 className="mt-1 text-lg font-black text-[#241133]" data-testid="marketing-journey-copilot-score">{journeyCopilotScore}% planning ready</h4>
+                            <p className="mt-1 text-sm font-bold text-[#6b5b54]" data-testid="marketing-journey-copilot-next-action">{journeyCopilotAction.title}: {journeyCopilotAction.detail}</p>
+                          </div>
+                          {journeyCopilotAction.kind === "save" ? (
+                            <button
+                              type="submit"
+                              disabled={journeySaving || journeyStepContentRunning}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-journey-copilot-action"
+                            >
+                              <Save size={15} /> {journeyCopilotAction.actionLabel}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => runJourneyCopilotAction(journeyCopilotAction.kind)}
+                              disabled={journeySaving || journeyStepContentRunning}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-journey-copilot-action"
+                            >
+                              <Sparkles size={15} /> {journeyCopilotAction.actionLabel}
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="marketing-journey-copilot-checklist">
+                          {journeyCopilotChecklist.map((item) => (
+                            <div key={item.key} className={`rounded-xl border px-3 py-2 ${readinessClass(item.state)}`} data-testid={`marketing-journey-copilot-${item.key}`}>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-black">{item.title}</p>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                              <p className="mt-1 text-xs font-bold leading-relaxed">{item.detail}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
                       <Field label="Objective / notes">

@@ -3911,6 +3911,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.queryByText("First channel")).not.toBeInTheDocument();
     expect(screen.getByTestId("select-marketing-edit-journey-target-audience")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-journey-target-audience-summary")).toHaveTextContent("No target list selected");
+    expect(screen.getByTestId("marketing-journey-copilot")).toHaveTextContent("Journey copilot");
+    expect(screen.getByTestId("marketing-journey-copilot-next-action")).toHaveTextContent("Name journey first");
+    expect(screen.getByTestId("button-marketing-journey-copilot-action")).toHaveTextContent("Name journey");
     expect(screen.getByTestId("button-marketing-add-first-journey-step")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
@@ -3918,6 +3921,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "New onboarding" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Create a useful draft first" } });
+    expect(screen.getByTestId("marketing-journey-copilot-next-action")).toHaveTextContent("Define the trigger");
     fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
 
     await waitFor(() => {
@@ -3951,6 +3955,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-journey-source")).toHaveValue("lovable");
     expect(screen.getByTestId("input-marketing-edit-journey-lovable-id")).toHaveValue("lovable-journey-1");
     expect(screen.getByTestId("textarea-marketing-edit-journey-metadata")).toHaveValue(JSON.stringify({ lovable: { triggerWindow: "morning" } }, null, 2));
+    expect(screen.getByTestId("marketing-journey-copilot")).toHaveTextContent("Journey copilot");
+    expect(screen.getByTestId("marketing-journey-copilot-score")).toHaveTextContent("planning ready");
+    expect(screen.getByTestId("marketing-journey-copilot-content")).toHaveTextContent("1/1 steps have linked content");
+    expect(screen.getByTestId("button-marketing-journey-copilot-action")).toHaveTextContent("Save journey");
     const journeyStepPreview = screen.getByTestId("marketing-journey-step-content-preview-0");
     expect(journeyStepPreview).toHaveTextContent("Linked content");
     expect(journeyStepPreview).toHaveTextContent("Welcome email");
