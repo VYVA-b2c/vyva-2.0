@@ -447,12 +447,12 @@ export const CROSS_APP_WORKFLOW_COMPLETION_AUDIT: CrossAppWorkflowAuditEntry[] =
     area: "admin",
     surface: "admin",
     references: [APP_WORKFLOW_REFERENCES.communityActivities, APP_WORKFLOW_REFERENCES.learningPlan],
-    status: "partial",
+    status: "complete",
     reusableFlow: "RFL_ADMIN_CONTENT_MANAGEMENT",
-    routes: ["/admin/activities", "/admin/learning-library", "/admin/home-cards"],
-    evidence: ["Admin surfaces exist for learning, home cards, and curated activities, but they are still split by content type."],
-    blockers: ["No single content operations view connects home nudges, curated activities, lessons, and room prompts."],
-    nextImplementation: "Add a lightweight admin content index that shows each content type, owner, route, and publication status.",
+    routes: ["/admin/content-index", "/admin/home-cards", "/admin/curated-activities", "/admin/learning-library", "/admin/room-prompts"],
+    evidence: ["One searchable content index now combines home cards, curated activities, lesson families, and room prompts with publication, language, missing-content, route-readiness, and source-editor links."],
+    blockers: [],
+    nextImplementation: "Use the shared readiness signals to prioritize content cleanup without moving ownership out of the source editors.",
     priority: "later",
   },
 ];
@@ -524,14 +524,7 @@ export const CROSS_APP_REUSABLE_WORKFLOWS: CrossAppReusableWorkflow[] = [
   },
 ];
 
-export const CROSS_APP_WORKFLOW_NEXT_IMPLEMENTATION_ORDER: CrossAppWorkflowNextPriority[] = [
-  {
-    id: "next.admin-content-index",
-    title: "Connect admin content operations",
-    reason: "Home nudges, curated activities, lessons, and room prompts still need a shared owner and publication-status view.",
-    auditEntryIds: ["admin.content-management"],
-  },
-];
+export const CROSS_APP_WORKFLOW_NEXT_IMPLEMENTATION_ORDER: CrossAppWorkflowNextPriority[] = [];
 
 export interface CrossAppWorkflowAuditValidationResult {
   duplicateEntryIds: string[];

@@ -141,6 +141,8 @@ const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsRevi
 const CognitiveAssessmentAdminPage = lazy(() => import("./pages/admin/CognitiveAssessmentAdminPage"));
 const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
 const CuratedActivitiesAdminPage = lazy(() => import("./pages/admin/CuratedActivitiesAdminPage"));
+const AdminContentIndexPage = lazy(() => import("./pages/admin/AdminContentIndexPage"));
+const RoomPromptsAdminPage = lazy(() => import("./pages/admin/RoomPromptsAdminPage"));
 
 const routerFutureFlags = {
   v7_relativeSplatPath: true,
@@ -654,6 +656,8 @@ const App = () => (
                 <Route path="/admin/cognitive-assessment" element={<AdminRoute><CognitiveAssessmentAdminPage /></AdminRoute>} />
                 <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
                 <Route path="/admin/curated-activities" element={<AdminRoute><CuratedActivitiesAdminPage /></AdminRoute>} />
+                <Route path="/admin/content-index" element={<AdminRoute><AdminContentIndexPage /></AdminRoute>} />
+                <Route path="/admin/room-prompts" element={<AdminRoute><RoomPromptsAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<CaregiverRouteGuard />}>
                   <Route path="/profiles/select" element={<ProfileSelectPage />} />
