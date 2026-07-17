@@ -1343,6 +1343,19 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Fix the creative gap");
     expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Creative accelerator opened");
     expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("LinkedIn content");
+    expect(screen.getByTestId("marketing-campaign-creative-rescue-brief")).toHaveTextContent("AI creative rescue brief");
+    expect(screen.getByTestId("marketing-campaign-creative-rescue-brief")).toHaveTextContent("1 route to rescue");
+    const creativeRescueBrief = screen.getByTestId("textarea-marketing-campaign-creative-rescue-brief") as HTMLTextAreaElement;
+    expect(creativeRescueBrief.value).toContain("VYVA creative rescue brief");
+    expect(creativeRescueBrief.value).toContain("Campaign: Partner outreach");
+    expect(creativeRescueBrief.value).toContain("Missing routes: LinkedIn");
+    expect(creativeRescueBrief.value).toContain("Asset title: Partner outreach LinkedIn content");
+    expect(creativeRescueBrief.value).toContain("Template hints:");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-copy-creative-rescue-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA creative rescue brief"));
+    });
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Creative rescue brief copied.");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Content");
     expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Add content for LinkedIn");
 

@@ -17652,6 +17652,56 @@ export default function MarketingAdminPage() {
     "4. Suggest the next relationship follow-up after send or manual publish.",
     "5. Return channel-specific copy, subject lines where relevant, CTA text, visual guidance, and launch notes.",
   ].filter(Boolean).join("\n") : "";
+  const campaignCreativeRescueTemplateMatches = editingCampaign && missingCampaignContentChannels.length
+    ? contentTemplateGallery
+      .filter((template) => missingCampaignContentChannels.some((channelDraft) => channelDraft.channel === template.channel))
+      .filter((template) => template.audienceType === campaignEditDraft.audienceType || template.audienceType === "both")
+      .slice(0, 5)
+    : [];
+  const campaignCreativeRescueBrief = editingCampaign && missingCampaignContentChannels.length ? [
+    "VYVA creative rescue brief",
+    `Campaign: ${campaignEditDraft.name || editingCampaign.name}`,
+    `Objective: ${campaignEditDraft.objective || editingCampaign.objective || "No objective yet."}`,
+    `Audience: ${campaignEditDraft.audienceType.toUpperCase()}`,
+    selectedCampaignTargetAudience
+      ? `Target list: ${selectedCampaignTargetAudience.name} - ${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} mapped contacts.`
+      : "Target list: all eligible contacts for this audience.",
+    `Schedule: ${campaignEditDraft.scheduleStartsAt ? formatDate(fromDateTimeLocal(campaignEditDraft.scheduleStartsAt)) : "Not scheduled"}`,
+    `Missing routes: ${missingCampaignContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")}`,
+    "",
+    "Create or improve these missing channel assets:",
+    ...missingCampaignContentChannels.map((channelDraft, index) => {
+      const draft = contentDraftFromCampaignEditChannel(campaignEditDraft, channelDraft, selectedCampaignTargetAudience);
+      return [
+        `${index + 1}. ${channelLabel[channelDraft.channel]} route`,
+        `Asset title: ${draft.title}`,
+        draft.subject ? `Subject or hook: ${draft.subject}` : `Hook: ${campaignEditDraft.name || editingCampaign.name}`,
+        `Copy starter: ${draft.body}`,
+        draft.ctaLabel || draft.ctaUrl ? `CTA: ${draft.ctaLabel || "CTA"} ${draft.ctaUrl || ""}`.trim() : "",
+        `Design metadata: ${draft.designJsonText}`,
+        `Schedule: ${channelDraft.scheduledAt ? formatDate(fromDateTimeLocal(channelDraft.scheduledAt)) : "Use campaign schedule or choose manually."}`,
+      ].filter(Boolean).join("\n");
+    }),
+    "",
+    "Existing campaign context:",
+    ...campaignReadinessChannels.map((channelDraft) => {
+      const contentAsset = channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null;
+      return contentAsset
+        ? `- ${channelLabel[channelDraft.channel]} already linked to "${contentAsset.title}" with CTA "${contentAsset.ctaLabel || "none"}".`
+        : `- ${channelLabel[channelDraft.channel]} needs content.`;
+    }),
+    "",
+    "Template hints:",
+    ...(campaignCreativeRescueTemplateMatches.length
+      ? campaignCreativeRescueTemplateMatches.map((template) => `- ${template.title} (${channelLabel[template.channel]}, ${template.category}) - ${template.description}`)
+      : ["- No exact template match. Use the starter copy above and keep VYVA warm, practical, consent-aware, and non-clinical."]),
+    "",
+    "AI task:",
+    "1. Produce polished, launch-ready copy for every missing route.",
+    "2. Keep each channel distinct instead of repeating the same message everywhere.",
+    "3. Include a CTA, visual direction, approval note, and manual handoff note for non-email channels.",
+    "4. Preserve consent safety and avoid medical claims.",
+  ].filter(Boolean).join("\n") : "";
   const campaignCreativeAcceleratorState: CampaignReadinessState = !editingCampaign
     ? "planning"
     : firstMissingCampaignContentChannel
@@ -21112,7 +21162,37 @@ export default function MarketingAdminPage() {
                                 <Copy size={15} aria-hidden="true" />
                                 Copy AI brief
                               </button>
+                              {campaignCreativeRescueBrief ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void copyCampaignHandoffText("Creative rescue brief", campaignCreativeRescueBrief)}
+                                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-900 hover:bg-amber-100"
+                                  data-testid="button-marketing-campaign-copy-creative-rescue-brief"
+                                >
+                                  <Sparkles size={15} aria-hidden="true" />
+                                  Copy rescue brief
+                                </button>
+                              ) : null}
                             </div>
+                            {campaignCreativeRescueBrief ? (
+                              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3" data-testid="marketing-campaign-creative-rescue-brief">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-900">AI creative rescue brief</p>
+                                    <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">
+                                      Copy this when a campaign route has no content yet. It includes the missing channel, starter copy, target list, and template hints.
+                                    </p>
+                                  </div>
+                                  <Pill className="bg-white text-amber-900">{missingCampaignContentChannels.length} route{missingCampaignContentChannels.length === 1 ? "" : "s"} to rescue</Pill>
+                                </div>
+                                <textarea
+                                  readOnly
+                                  className={`${textareaClass} mt-3 min-h-[180px] bg-white text-xs`}
+                                  value={campaignCreativeRescueBrief}
+                                  data-testid="textarea-marketing-campaign-creative-rescue-brief"
+                                />
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
                         {campaignDetailActionItems.length ? (
