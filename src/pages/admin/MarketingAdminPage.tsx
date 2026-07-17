@@ -17686,6 +17686,30 @@ export default function MarketingAdminPage() {
                   <div className="mt-4 grid gap-3 xl:grid-cols-3">
                     {dashboardCampaignRecommendations.map(({ recommendation, packMatch }, index) => {
                       const packReady = Boolean(packMatch?.templates.length);
+                      const previewRouteChannels = packMatch
+                        ? uniqueChannels([
+                          packMatch.heroTemplate?.channel ?? recommendation.play.defaultChannel,
+                          ...packMatch.pack.sequence.map((step) => step.channel),
+                          ...packMatch.templates.map((template) => template.channel),
+                        ])
+                        : recommendation.channels;
+                      const previewEligibleContacts = contacts.filter((contact) => (
+                        campaignAllowsContact(recommendation.play.audienceType, contact.audienceType)
+                        && contactMatchesAudienceList(contact, recommendation.targetAudience)
+                      ));
+                      const previewRecipientSnapshots = previewRouteChannels.reduce((total, channel) => (
+                        total + previewEligibleContacts.filter((contact) => Boolean(recipientForChannel(contact, channel))).length
+                      ), 0);
+                      const previewNewContentAssets = packMatch
+                        ? packMatch.templates.filter((template) => !content.some((item) => contentAssetMatchesTemplatePack(item, packMatch.pack, template))).length
+                        : 0;
+                      const previewHasEmail = previewRouteChannels.includes("email");
+                      const previewManualRoutes = previewRouteChannels.filter((channel) => channel !== "email").length;
+                      const previewLaunchMode = previewHasEmail && previewManualRoutes > 0
+                        ? "Email review plus manual handoffs"
+                        : previewHasEmail
+                          ? "Email review before send"
+                          : "Manual channel handoff";
                       return (
                         <article
                           key={recommendation.play.id}
@@ -17713,6 +17737,18 @@ export default function MarketingAdminPage() {
                             <span>{recommendation.templateMatches} matching starter template{recommendation.templateMatches === 1 ? "" : "s"}</span>
                             <span>{recommendation.targetAudience ? `Best list: ${recommendation.targetAudience.name}` : "Best list: none yet"}</span>
                             <span>{packMatch ? `Pack: ${packMatch.pack.title}` : "Pack: template matches only"}</span>
+                          </div>
+                          <div
+                            className="mt-3 rounded-xl border border-purple-100 bg-white p-3 text-xs font-bold text-[#5b4a46]"
+                            data-testid={`marketing-campaign-cockpit-output-${recommendation.play.id}`}
+                          >
+                            <p className="font-black uppercase tracking-[0.1em] text-purple-800">Creation preview</p>
+                            <div className="mt-2 grid gap-1">
+                              <span>{packMatch ? `${packMatch.templates.length} content asset${packMatch.templates.length === 1 ? "" : "s"}` : `${recommendation.templateMatches} starter template${recommendation.templateMatches === 1 ? "" : "s"}`}{packMatch ? ` (${previewNewContentAssets} new)` : ""}</span>
+                              <span>{previewRouteChannels.length} channel route{previewRouteChannels.length === 1 ? "" : "s"}: {previewRouteChannels.map((channel) => channelLabel[channel]).join(" + ")}</span>
+                              <span>{previewRecipientSnapshots} recipient snapshot{previewRecipientSnapshots === 1 ? "" : "s"} planned from {previewEligibleContacts.length} eligible contact{previewEligibleContacts.length === 1 ? "" : "s"}</span>
+                              <span>{previewLaunchMode}</span>
+                            </div>
                           </div>
                           <div className="mt-3 grid gap-2 sm:grid-cols-2">
                             <button

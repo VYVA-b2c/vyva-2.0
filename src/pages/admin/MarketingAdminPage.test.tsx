@@ -1355,6 +1355,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("matching starter template");
     expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("Best list: Partners");
     expect(screen.getByTestId("marketing-campaign-cockpit-card-event-reminder")).toHaveTextContent("Pack: Local event relationship");
+    expect(screen.getByTestId("marketing-campaign-cockpit-output-event-reminder")).toHaveTextContent("Creation preview");
+    expect(screen.getByTestId("marketing-campaign-cockpit-output-event-reminder")).toHaveTextContent("6 content assets");
+    expect(screen.getByTestId("marketing-campaign-cockpit-output-event-reminder")).toHaveTextContent("channel routes");
+    expect(screen.getByTestId("marketing-campaign-cockpit-output-event-reminder")).toHaveTextContent("recipient snapshot");
+    expect(screen.getByTestId("marketing-campaign-cockpit-output-event-reminder")).toHaveTextContent("Email review plus manual handoffs");
     expect(screen.getByTestId("button-marketing-cockpit-create-event-reminder")).not.toBeDisabled();
 
     fireEvent.click(screen.getByTestId("button-marketing-cockpit-load-event-reminder"));
