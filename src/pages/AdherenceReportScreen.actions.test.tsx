@@ -5,6 +5,9 @@ import AdherenceReportScreen from "./AdherenceReportScreen";
 
 const profileMock = vi.fn();
 const queryResultMock = vi.fn();
+const apiFetchMock = vi.fn();
+
+vi.mock("@/lib/queryClient",async(importOriginal)=>{const actual=await importOriginal<typeof import("@/lib/queryClient")>();return{...actual,apiFetch:(...args:unknown[])=>apiFetchMock(...args)}});
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -134,6 +137,7 @@ function renderAdherenceReport() {
 describe("Adherence report service actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiFetchMock.mockResolvedValue({ok:true,json:async()=>({pendingId:"PREP-1"})});
     profileMock.mockReturnValue({
       profile: {
         gpName: "Dr Garcia",
@@ -212,6 +216,8 @@ describe("Adherence report service actions", () => {
 
     await waitFor(() => expect(screen.queryByTestId("panel-medication-refill-voice-canvas")).not.toBeInTheDocument());
   });
+
+  it("hands a confirmed refill preparation into independently flagged follow-up",async()=>{queryResultMock.mockImplementation((options:{queryKey?:string[]})=>({data:options?.queryKey?.[0]?.includes("voice-canvas")?{enabled:true,rolloutPercent:100}:report,isLoading:false,isError:false,refetch:vi.fn(),error:null}));renderAdherenceReport();fireEvent.click(screen.getByTestId("button-adherence-service-refill"));fireEvent.click(await screen.findByRole("button",{name:"Start"}));fireEvent.click(screen.getByRole("button",{name:"Metformin"}));fireEvent.click(screen.getByRole("button",{name:"Yes, routine refill"}));fireEvent.click(screen.getByRole("button",{name:"Dr Garcia"}));fireEvent.change(screen.getByLabelText("Quantity or supply"),{target:{value:"30 days"}});fireEvent.click(screen.getByRole("button",{name:"Continue"}));fireEvent.click(screen.getByRole("button",{name:"Continue"}));fireEvent.click(screen.getByRole("button",{name:"Review in VYVA"}));expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/trigger",expect.anything());fireEvent.click(screen.getByRole("button",{name:"Confirm and prepare"}));await screen.findByText("PREP-1");fireEvent.click(screen.getByRole("button",{name:"Done"}));expect(await screen.findByTestId("panel-prescription-follow-up-voice-canvas")).toBeInTheDocument();expect(screen.getByText("The preparation is saved; it has not been submitted, approved, or marked ready for collection.")).toBeInTheDocument()});
 
   it("prefills appointment and doctor voice help from the medication report", async () => {
     renderAdherenceReport();
