@@ -2728,6 +2728,14 @@ function contentOriginLabel(item: ContentAsset) {
   return item.source;
 }
 
+function contentAssetHasCopy(item: ContentAsset) {
+  return Boolean(
+    (item.subject ?? "").trim()
+    || (item.body ?? "").trim()
+    || (item.htmlBody ?? "").trim(),
+  );
+}
+
 const lovableContentSourceDetailKeys = [
   "id",
   "title",
@@ -9673,6 +9681,15 @@ export default function MarketingAdminPage() {
     const matchesSource = contentSourceFilter === "all" || contentOriginKey(item) === contentSourceFilter;
     return contentMatchesSearch && matchesChannel && matchesSource;
   }), [content, search, channelFilter, contentSourceFilter]);
+  const visibleContentMissingCopy = useMemo(
+    () => visibleContent.filter((item) => !contentAssetHasCopy(item)),
+    [visibleContent],
+  );
+  const importedContentMissingCopy = useMemo(
+    () => content.filter((item) => contentOriginKey(item) !== "vyva" && !contentAssetHasCopy(item)),
+    [content],
+  );
+  const contentCopyRescueTarget = visibleContentMissingCopy[0] ?? importedContentMissingCopy[0] ?? null;
 
   const selectedContentTemplatePack = useMemo(
     () => contentTemplatePacks.find((pack) => pack.id === contentTemplatePackFilter) ?? null,
@@ -16535,6 +16552,21 @@ export default function MarketingAdminPage() {
     scrollToContentActionRow(contentAsset.id);
   }
 
+  function startContentStarterCopy(contentAsset: ContentAsset) {
+    const draft = contentEditDraftFromContent(contentAsset);
+    setActiveTab("content");
+    setSelectedContentId(contentAsset.id);
+    setEditingContentId(contentAsset.id);
+    setContentEditDraft(draft);
+    setContentVariantChannel(nextContentVariantChannel(contentAsset.channel));
+    setContentDrawerMode("edit");
+    setConfirmingContentDeleteId(null);
+    setContentFeedback("");
+    setContentActionFeedback(`Opening AI copy rescue for "${contentAsset.title}".`);
+    scrollToContentActionRow(contentAsset.id);
+    void generateContentStarterCopy(draft);
+  }
+
   function startMissingLovableContentRepair(contentAsset: ContentAsset) {
     const repairDraft = missingLovableReferenceRepairDraft(contentAsset);
     setActiveTab("content");
@@ -16747,9 +16779,9 @@ export default function MarketingAdminPage() {
     setActiveTab("journeys");
   }
 
-  async function generateContentStarterCopy() {
-    if (!contentEditDraft) return;
-    const currentDraft = contentEditDraft;
+  async function generateContentStarterCopy(draftOverride?: ContentEditDraft) {
+    const currentDraft = draftOverride ?? contentEditDraft;
+    if (!currentDraft) return;
     const titleSeed = currentDraft.title.trim() || "Untitled Source content";
     const existingDesign = optionalJsonRecordText(currentDraft.designJsonText);
     const existingMetadata = optionalJsonRecordText(currentDraft.metadataText);
@@ -16814,28 +16846,31 @@ export default function MarketingAdminPage() {
       };
       const previousHistory = Array.isArray(existingMetadata.aiStarterHistory) ? existingMetadata.aiStarterHistory.slice(-4) : [];
 
-      setContentEditDraft((draft) => draft ? ({
-        ...draft,
-        subject: generatedSubject,
-        body: generatedBody,
-        htmlBody: draft.channel === "email" && generatedBody ? emailHtmlFromPlainCopy(generatedBody) : draft.htmlBody,
-        ctaLabel: generatedCtaLabel,
-        ctaUrl: generatedCtaUrl,
-        designJsonText: jsonText({
-          ...existingDesign,
-          aiStarterCopy: {
-            generator: "marketing_content_ai_starter",
-            source: result.source,
-            tone: contentPolishTone,
-            generatedAt,
-            modelHints: starter.designJson ?? null,
-          },
-        }),
-        metadataText: jsonText({
-          ...existingMetadata,
-          aiStarterHistory: [...previousHistory, starterEntry],
-        }),
-      }) : draft);
+      setContentEditDraft((draft) => {
+        const baseDraft = draft ?? currentDraft;
+        return {
+          ...baseDraft,
+          subject: generatedSubject,
+          body: generatedBody,
+          htmlBody: baseDraft.channel === "email" && generatedBody ? emailHtmlFromPlainCopy(generatedBody) : baseDraft.htmlBody,
+          ctaLabel: generatedCtaLabel,
+          ctaUrl: generatedCtaUrl,
+          designJsonText: jsonText({
+            ...existingDesign,
+            aiStarterCopy: {
+              generator: "marketing_content_ai_starter",
+              source: result.source,
+              tone: contentPolishTone,
+              generatedAt,
+              modelHints: starter.designJson ?? null,
+            },
+          }),
+          metadataText: jsonText({
+            ...existingMetadata,
+            aiStarterHistory: [...previousHistory, starterEntry],
+          }),
+        };
+      });
       const note = result.note ? ` ${result.note}` : "";
       setContentFeedback(`AI starter copy generated. Review the draft, then save content.${note}`);
       setContentActionFeedback(`AI starter copy generated for "${titleSeed}". Review and save it.`);
@@ -25549,6 +25584,34 @@ export default function MarketingAdminPage() {
                       {contentActionFeedback}
                     </p>
                   ) : null}
+                  {visibleContentMissingCopy.length ? (
+                    <div className="rounded-2xl border border-purple-100 bg-purple-50 p-4 shadow-sm" data-testid="marketing-content-copy-rescue">
+                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-center">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill className="bg-white text-purple-800">AI copy rescue</Pill>
+                            <Pill className="bg-amber-50 text-amber-800">{visibleContentMissingCopy.length} visible need copy</Pill>
+                            {importedContentMissingCopy.length !== visibleContentMissingCopy.length ? (
+                              <Pill className="bg-violet-50 text-violet-800">{importedContentMissingCopy.length} imported total</Pill>
+                            ) : null}
+                          </div>
+                          <h3 className="mt-2 text-base font-black text-[#241133]">Turn empty Source assets into editable campaign copy.</h3>
+                          <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                            AI opens the next empty asset, drafts subject, body, HTML, and CTA from the Source title/metadata, then waits for review before anything is saved.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => contentCopyRescueTarget ? startContentStarterCopy(contentCopyRescueTarget) : undefined}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          disabled={contentEditorBusy || !contentCopyRescueTarget}
+                          data-testid="button-marketing-content-copy-rescue-next"
+                        >
+                          <Sparkles size={16} /> {contentStarterRunning ? "Generating..." : "Generate next missing copy"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                   {visibleContent.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4" data-testid="marketing-content-empty-diagnostic">
                       <p className="text-center text-sm font-black text-[#241133]">{contentEmptyDiagnostic?.title ?? "No content matches the filters."}</p>
@@ -25609,6 +25672,7 @@ export default function MarketingAdminPage() {
                             const timelineParts = recordTimelineParts(item);
                             const usageItems = contentUsageById.get(item.id) ?? [];
                             const isMissingLovableReference = contentOriginKey(item) === "missing_lovable_reference";
+                            const itemHasCopy = contentAssetHasCopy(item);
                             return (
                             <Fragment key={item.id}>
                             <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
@@ -25632,7 +25696,9 @@ export default function MarketingAdminPage() {
                                   {item.hasHtml ? <Pill className="bg-blue-50 text-blue-800">HTML</Pill> : null}
                                   {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Design</Pill> : null}
                                   {item.mediaAssetCount ? <Pill className="bg-emerald-50 text-emerald-800">{item.mediaAssetCount} media</Pill> : null}
-                                  {!item.hasHtml && !item.hasDesign && !item.mediaAssetCount ? <span className="text-xs font-bold text-[#8b7a73]">Plain copy</span> : null}
+                                  {!item.hasHtml && !item.hasDesign && !item.mediaAssetCount ? (
+                                    itemHasCopy ? <span className="text-xs font-bold text-[#8b7a73]">Plain copy</span> : <Pill className="bg-amber-50 text-amber-800">Needs copy</Pill>
+                                  ) : null}
                                 </div>
                               </td>
                               <td className="max-w-[220px] px-4 py-3 text-xs font-bold text-[#5b4a46]">
@@ -25668,6 +25734,11 @@ export default function MarketingAdminPage() {
                                   <button type="button" onClick={() => startContentEdit(item)} aria-expanded={isEditingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isEditingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
                                     <Pencil size={13} /> {isEditingContent ? "Editing" : "Edit"}
                                   </button>
+                                  {!itemHasCopy ? (
+                                    <button type="button" onClick={() => startContentStarterCopy(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentEditorBusy} data-testid={`button-marketing-generate-copy-content-${item.id}`}>
+                                      <Sparkles size={13} /> Generate copy
+                                    </button>
+                                  ) : null}
                                   {isMissingLovableReference ? (
                                     <>
                                       <button type="button" onClick={() => startMissingLovableContentRepair(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]" disabled={contentSaving} data-testid={`button-marketing-repair-content-${item.id}`}>

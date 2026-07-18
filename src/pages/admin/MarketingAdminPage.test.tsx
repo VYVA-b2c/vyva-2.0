@@ -3460,6 +3460,36 @@ describe("MarketingAdminPage", () => {
     expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-missing-lovable" && init?.method === "PATCH")).toBe(false);
   });
 
+  it("surfaces AI copy rescue for empty imported content from the library", async () => {
+    renderPage({}, { content: [missingLovableContent, ...content] });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    const rescuePanel = screen.getByTestId("marketing-content-copy-rescue");
+    expect(rescuePanel).toHaveTextContent("AI copy rescue");
+    expect(rescuePanel).toHaveTextContent("1 visible need copy");
+    expect(rescuePanel).toHaveTextContent("Turn empty Source assets into editable campaign copy.");
+    expect(screen.getByTestId("button-marketing-generate-copy-content-content-missing-lovable")).toHaveTextContent("Generate copy");
+
+    fireEvent.click(screen.getByTestId("button-marketing-content-copy-rescue-next"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("AI starter copy generated.");
+    });
+
+    expect(screen.getByTestId("marketing-content-editor-open-content-missing-lovable")).toHaveTextContent("Editor panel opened.");
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Birthday wishes Source template");
+    expect(screen.getByTestId("input-marketing-edit-content-subject")).toHaveValue("AI email subject line");
+    expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("AI email body copy with stronger channel direction.");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Review and save it.");
+    expect(screen.getByTestId("button-marketing-content-copy-rescue-next")).toHaveTextContent("Generate next missing copy");
+    expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-missing-lovable" && init?.method === "PATCH")).toBe(false);
+  });
+
   it("creates a localized content variant with AI without changing the imported original", async () => {
     renderPage();
 
