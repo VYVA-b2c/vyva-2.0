@@ -89,6 +89,27 @@ afterEach(() => {
 });
 
 describe("ConciergeShoppingScreen", () => {
+  it("fails closed to the existing Shopping experience when the independent flag is disabled", async () => {
+    mockShoppingApi();
+    renderScreen();
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/config/features/shopping-delivery-voice-canvas"));
+    expect(screen.queryByTestId("shopping-delivery-canvas-entry")).not.toBeInTheDocument();
+    expect(screen.getByTestId("shopping-voice-guide")).toBeInTheDocument();
+  });
+
+  it("opens the delivery Canvas when the independent flag is enabled", async () => {
+    apiFetchMock.mockImplementation((path) => {
+      if (path === "/api/config/features/shopping-delivery-voice-canvas") return Promise.resolve(jsonResponse({ enabled: true, rolloutPercent: 100 }));
+      if (path === "/api/profile") return Promise.resolve(jsonResponse({ id: "user-1", address: "1 Main Street", savedProviders: [{ id: "market", name: "Local Market", category: "grocery" }] }));
+      if (path === "/api/concierge/shopping/support-packages") return Promise.resolve(jsonResponse({ packages: getStaticShoppingSupportPackages() }));
+      return Promise.resolve(errorResponse(500, { error: "Unexpected API call" }));
+    });
+    renderScreen();
+    const open = await screen.findByTestId("button-open-shopping-delivery-canvas");
+    fireEvent.click(open);
+    expect(screen.getByTestId("shopping-voice-canvas")).toHaveAttribute("data-step", "listening");
+  });
+
   it("submits a need, renders recommendations, and saves a shortlist item", async () => {
     mockShoppingApi(jsonResponse(buildShoppingRecommendations({
       needText: "Safer bathroom at night",

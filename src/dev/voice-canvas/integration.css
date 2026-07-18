@@ -1,5 +1,7 @@
 .vc-integration-gallery .vc-gallery-stage { min-height:680px; }
 .vc-integration-gallery [data-testid="ride-voice-canvas"] { width:min(100%,760px); }
+.vc-integration-gallery [data-testid="shopping-voice-canvas"] { width:min(100%,760px); }
+.vc-integration-gallery.vc-mobile-preview{padding:18px 12px}.vc-integration-gallery.vc-mobile-preview .vc-gallery-stage{min-height:570px;padding:8px;border-radius:30px}.vc-integration-gallery.vc-mobile-preview header{padding:6px}.vc-integration-gallery.vc-mobile-preview h1{font-size:2.4rem}.vc-integration-gallery.vc-mobile-preview .vc-demo-toolbar{padding:0 6px;flex-wrap:wrap}.vc-integration-gallery.vc-mobile-preview .vc-demo-toolbar button{flex:1 1 44%;min-width:0}
 .vc-demo-toolbar { display:flex; max-width:1080px; margin:0 auto 18px; gap:8px; }
 .vc-demo-toolbar button { min-height:44px; padding:9px 15px; border:1px solid #ded4e7; border-radius:999px; background:white; color:#554e60; font:inherit; font-weight:750; cursor:pointer; }
 .vc-demo-toolbar button[aria-pressed="true"] { border-color:#7255a5; background:#7255a5; color:white; }
