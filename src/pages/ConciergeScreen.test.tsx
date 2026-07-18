@@ -7,6 +7,12 @@ import ConciergeScreen from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { CONCIERGE_DRY_RUN_FIXTURES } from "../../shared/conciergeDryRun";
+import {
+  emitVoiceCanvasResponse,
+  VYVA_VOICE_CANVAS_CLEAR_EVENT,
+  VYVA_VOICE_CANVAS_PRESENT_EVENT,
+  type VoiceCanvasSceneEnvelope,
+} from "@/lib/voiceCanvasBridge";
 
 const voiceHeroMock = vi.hoisted(() => vi.fn());
 const voiceActionMock = vi.hoisted(() => ({
@@ -80,7 +86,9 @@ vi.mock("react-i18next", () => ({
   initReactI18next: { type: "3rdParty", init: vi.fn() },
   useTranslation: () => ({
     i18n: { language: "en" },
-    t: (_key: string, fallback?: string) => fallback ?? _key,
+    t: (_key: string, fallback?: string | { defaultValue?: string }) => (
+      typeof fallback === "string" ? fallback : fallback?.defaultValue ?? _key
+    ),
   }),
 }));
 
@@ -172,14 +180,16 @@ function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initi
     },
   });
 
-  return render(
+  const renderTree = () => (
     <QueryClientProvider client={queryClient}>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={initialEntries}>
         <LocationProbe />
         <ConciergeScreen />
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const result = render(renderTree());
+  return Object.assign(result, { rerenderScreen: () => result.rerender(renderTree()) });
 }
 
 function showBookRideFastHelp() {
@@ -241,6 +251,264 @@ afterEach(() => {
 });
 
 describe("ConciergeScreen action hub", () => {
+  it("opens the ride Canvas from voice and ignores a late answer from the previous scene", async () => {
+    voiceActionMock.action = {
+      id: "voice-ride-canvas-1",
+      actionType: "concierge.ride_booking",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Book a ride",
+      summary: "Opening a ride",
+      cue: "Ask for ride details",
+      sourceText: "I need a ride",
+      priority: "high",
+      feedbackReason: "User requested transport",
+      payload: {},
+    };
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{ name: "Radio Taxi", role: "taxi", phone: "+34 600 111 222" }],
+          serviceReadiness: { hasSavedTransportProvider: true, hasMobilityInfo: true },
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+
+    renderScreen();
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "ride-destination")).toBe(true));
+    const destinationScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "ride-destination")!;
+
+    act(() => emitVoiceCanvasResponse({
+      sceneId: destinationScene.viewModel.sceneId,
+      revision: destinationScene.revision,
+      kind: "text",
+      utterance: "City Clinic",
+      value: "City Clinic",
+      at: "2026-07-18T10:00:00.000Z",
+    }));
+
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "ride-pickup")).toBe(true));
+    expect(await screen.findByTestId("input-transport-destination")).toHaveValue("City Clinic");
+    const sceneCount = scenes.length;
+
+    act(() => emitVoiceCanvasResponse({
+      sceneId: destinationScene.viewModel.sceneId,
+      revision: destinationScene.revision,
+      kind: "text",
+      utterance: "Wrong late destination",
+      value: "Wrong late destination",
+      at: "2026-07-18T10:00:02.000Z",
+    }));
+
+    expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
+    expect(scenes.slice(sceneCount).every((scene) => scene.viewModel.sceneId !== "ride-time")).toBe(true);
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
+  it("clears the ride Canvas when voice moves to another Concierge request", async () => {
+    voiceActionMock.action = {
+      id: "voice-ride-before-interruption",
+      actionType: "concierge.ride_booking",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Book a ride",
+      summary: "Opening a ride",
+      cue: "Ask for ride details",
+      sourceText: "I need a ride",
+      priority: "high",
+      feedbackReason: "User requested transport",
+      payload: {},
+    };
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const clears: Array<{ owner?: string }> = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    const handleClear = (event: Event) => {
+      if (event instanceof CustomEvent) clears.push(event.detail as { owner?: string });
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+    window.addEventListener(VYVA_VOICE_CANVAS_CLEAR_EVENT, handleClear);
+    const view = renderScreen();
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "ride-destination")).toBe(true));
+
+    voiceActionMock.action = {
+      ...voiceActionMock.action,
+      id: "voice-reminder-interruption",
+      actionType: "concierge.reminder",
+      title: "Set a reminder",
+      sourceText: "Remind me to call Maria",
+      feedbackReason: "User requested a reminder",
+    } as NonNullable<typeof voiceActionMock.action>;
+    view.rerenderScreen();
+
+    await waitFor(() => expect(clears.some((detail) => detail.owner === "concierge_ride")).toBe(true));
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+    window.removeEventListener(VYVA_VOICE_CANVAS_CLEAR_EVENT, handleClear);
+  });
+
+  it("prepares a Canvas ride before requiring the separate final confirmation", async () => {
+    voiceActionMock.action = {
+      id: "voice-ride-canvas-confirm",
+      actionType: "concierge.ride_booking",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Book a ride",
+      summary: "Opening a ride",
+      cue: "Ask for ride details",
+      sourceText: "Book a ride to City Clinic",
+      priority: "high",
+      feedbackReason: "User requested transport",
+      payload: { destination: "City Clinic" },
+    };
+    let prepared = false;
+    let confirmed = false;
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{ name: "Radio Taxi", role: "taxi", phone: "+34 600 111 222" }],
+          serviceReadiness: { hasSavedTransportProvider: true, hasMobilityInfo: true },
+        });
+      }
+      if (target === "/api/transport/options") {
+        return jsonResponse({
+          market: { countryCode: "ES", city: "Madrid" },
+          options: [{
+            id: "radio-taxi",
+            kind: "saved_provider",
+            label: "Radio Taxi",
+            description: "Saved trusted provider",
+            providerName: "Radio Taxi",
+            phone: "+34 600 111 222",
+            actions: ["call_phone", "start_concierge_action"],
+          }],
+          disclaimers: [],
+        });
+      }
+      if (target === "/api/concierge/actions/trigger") {
+        prepared = true;
+        return jsonResponse({ pendingId: "canvas-ride-1", status: "pending" });
+      }
+      if (target === "/api/concierge/actions/canvas-ride-1/confirm") {
+        confirmed = true;
+        return jsonResponse({ ok: true });
+      }
+      if (target === "/api/concierge/actions/pending") {
+        return jsonResponse({
+          items: prepared ? [{
+            id: "canvas-ride-1",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 600 111 222",
+            action_summary: "Ride prepared",
+            action_payload: {
+              pickup_address: "Saved home",
+              destination_address: "City Clinic",
+              requested_time: "now",
+              mobility_needs: "saved in profile",
+            },
+            status: confirmed ? "calling" : "pending",
+            confirmed_at: confirmed ? "2026-07-18T10:05:00.000Z" : null,
+            language: "en",
+          }] : [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    const latestScene = (sceneId: string) => [...scenes].reverse().find((scene) => scene.viewModel.sceneId === sceneId);
+    const answerScene = (scene: VoiceCanvasSceneEnvelope, detail: Partial<Parameters<typeof emitVoiceCanvasResponse>[0]>) => {
+      act(() => emitVoiceCanvasResponse({
+        sceneId: scene.viewModel.sceneId,
+        revision: scene.revision,
+        kind: "primary",
+        utterance: scene.viewModel.primaryAction?.label || "Continue",
+        at: "2026-07-18T10:00:00.000Z",
+        ...detail,
+      }));
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+
+    renderScreen();
+    await waitFor(() => expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("Radio Taxi"));
+    await waitFor(() => expect(latestScene("ride-pickup")).toBeTruthy());
+    answerScene(latestScene("ride-pickup")!, { kind: "choice", choiceId: "saved_home", value: "Saved home", utterance: "Saved home" });
+    await waitFor(() => expect(latestScene("ride-time")).toBeTruthy());
+    answerScene(latestScene("ride-time")!, { kind: "choice", choiceId: "now", value: "Now", utterance: "Now" });
+    await waitFor(() => expect(latestScene("ride-review")).toBeTruthy());
+
+    answerScene(latestScene("ride-review")!, {});
+    await waitFor(() => expect(latestScene("ride-options")).toBeTruthy());
+    answerScene(latestScene("ride-options")!, { kind: "choice", choiceId: "radio-taxi", value: "Radio Taxi", utterance: "Radio Taxi" });
+    await waitFor(() => expect(latestScene("ride-option-review")).toBeTruthy());
+    answerScene(latestScene("ride-option-review")!, {});
+
+    await waitFor(() => expect(prepared).toBe(true));
+    expect(confirmed).toBe(false);
+    await waitFor(() => expect(latestScene("ride-pending-confirm")).toBeTruthy());
+    answerScene(latestScene("ride-pending-confirm")!, {});
+    await waitFor(() => expect(confirmed).toBe(true));
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/canvas-ride-1/confirm", { method: "POST" });
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
+  it("preserves the ride Canvas when a missing provider opens focused setup", async () => {
+    voiceActionMock.action = {
+      id: "voice-ride-provider-setup",
+      actionType: "concierge.ride_booking",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Book a ride",
+      summary: "Opening a ride",
+      cue: "Ask for ride details",
+      sourceText: "Book a ride to City Clinic",
+      priority: "high",
+      feedbackReason: "User requested transport",
+      payload: { destination: "City Clinic" },
+    };
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({ serviceReadiness: { hasSavedTransportProvider: false, hasMobilityInfo: true } });
+      }
+      return jsonResponse({ items: [] });
+    });
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    const latestScene = (sceneId: string) => [...scenes].reverse().find((scene) => scene.viewModel.sceneId === sceneId);
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+
+    renderScreen();
+    await waitFor(() => expect(latestScene("ride-pickup")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("note-transport-mobility-readiness")).toHaveTextContent("Mobility preferences saved"));
+    const pickup = latestScene("ride-pickup")!;
+    act(() => emitVoiceCanvasResponse({ sceneId: pickup.viewModel.sceneId, revision: pickup.revision, kind: "choice", choiceId: "saved_home", utterance: "Saved home", value: "Saved home", at: "2026-07-18T10:00:00.000Z" }));
+    await waitFor(() => expect(latestScene("ride-time")).toBeTruthy());
+    const time = latestScene("ride-time")!;
+    act(() => emitVoiceCanvasResponse({ sceneId: time.viewModel.sceneId, revision: time.revision, kind: "choice", choiceId: "now", utterance: "Now", value: "Now", at: "2026-07-18T10:00:01.000Z" }));
+    await waitFor(() => expect(latestScene("ride-provider")).toBeTruthy());
+    const provider = latestScene("ride-provider")!;
+    act(() => emitVoiceCanvasResponse({ sceneId: provider.viewModel.sceneId, revision: provider.revision, kind: "primary", utterance: "Add provider", at: "2026-07-18T10:00:02.000Z" }));
+
+    await waitFor(() => expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers"));
+    const routeState = JSON.parse(screen.getByTestId("route-state").textContent || "{}");
+    expect(routeState).toMatchObject({ setupFocus: "transport", setupFlow: CONCIERGE_FLOW_REFERENCES.transportBooking });
+    expect(routeState.conciergeResume).toMatchObject({ kind: "transport", voiceCanvas: true, destination: "City Clinic" });
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
   it("renders the requested primary cards and fast help actions", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
@@ -3287,96 +3555,6 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
   }, 60000);
 
-  it("runs voice ride handoffs through the Canvas and prepares nothing before explicit confirmation", async () => {
-    apiFetchMock.mockImplementation(async (url, init) => {
-      if (String(url).includes("/api/config/features/ride-voice-canvas")) {
-        return jsonResponse({ enabled: true, rolloutPercent: 100 });
-      }
-      if (String(url).includes("/api/transport/options")) {
-        expect(init?.method).toBe("POST");
-        return jsonResponse({
-          options: [{
-            id: "voice-taxi",
-            kind: "local_taxi",
-            label: "Trusted Taxi",
-            description: "Prepared transport option",
-            providerName: "Trusted Taxi",
-            phone: "+34 600 100 200",
-            actions: ["start_concierge_action"],
-          }],
-          disclaimers: [],
-        });
-      }
-      if (String(url).includes("/api/concierge/actions/trigger")) {
-        expect(init?.method).toBe("POST");
-        return jsonResponse({ pendingId: "voice-ride-1", status: "pending" });
-      }
-      return jsonResponse({ items: [] });
-    });
-
-    renderScreen([{
-      pathname: "/concierge",
-      state: {
-        voiceActionPayload: {
-          destination: "Doctor",
-          time: "tomorrow morning",
-          mobility_needs: "walker",
-        },
-        conciergePrefill: {
-          kind: "ride",
-          message: "Book me a ride to the doctor tomorrow morning. Prepare the next step and ask me to confirm before acting.",
-          source: "voice_action",
-        },
-      },
-    }]);
-
-    const panel = await screen.findByTestId("panel-concierge-ride-voice-canvas");
-    expect(panel).toHaveTextContent("When should the ride arrive?");
-    expect(screen.queryByTestId("panel-concierge-transport")).not.toBeInTheDocument();
-    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/transport/options", expect.anything());
-
-    fireEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
-    fireEvent.change(screen.getByLabelText("Pickup time"), { target: { value: "09:30" } });
-    fireEvent.click(screen.getByRole("button", { name: "Review the ride" }));
-    expect(screen.getByRole("heading", { name: "Does everything look right?" })).toBeVisible();
-    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/transport/options", expect.anything());
-
-    fireEvent.click(screen.getByRole("button", { name: "Confirm and prepare ride" }));
-    expect(await screen.findByRole("heading", { name: "Your ride request is ready" })).toBeVisible();
-    expect(screen.getByText("voice-ride-1")).toBeVisible();
-    await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith("/api/transport/options", expect.objectContaining({ method: "POST" }));
-      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({ method: "POST" }));
-    });
-    expect(screen.getByTestId("route-state")).toHaveTextContent("null");
-  });
-
-  it("falls back to the existing ride panel when the runtime Canvas flag is disabled", async () => {
-    apiFetchMock.mockImplementation(async (url) => {
-      if (String(url).includes("/api/config/features/ride-voice-canvas")) {
-        return jsonResponse({ enabled: false, rolloutPercent: 100 });
-      }
-      return jsonResponse({ items: [] });
-    });
-
-    renderScreen([{
-      pathname: "/concierge",
-      state: {
-        voiceActionPayload: { destination: "Doctor" },
-        conciergePrefill: {
-          kind: "ride",
-          message: "Prepare a ride safely.",
-          source: "voice_action",
-        },
-      },
-    }]);
-
-    expect(await screen.findByTestId("panel-concierge-route-prefill")).toBeVisible();
-    expect(screen.getByTestId("panel-concierge-transport")).toBeVisible();
-    expect(screen.queryByTestId("panel-concierge-ride-voice-canvas")).not.toBeInTheDocument();
-    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/transport/options", expect.anything());
-  });
-
   it("ignores malformed voice ride route state without blanking Concierge", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
@@ -3826,6 +4004,11 @@ describe("ConciergeScreen route prefill", () => {
       return jsonResponse({ items: [] });
     });
 
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
     renderScreen([{
       pathname: "/concierge",
       state: {
@@ -3839,6 +4022,7 @@ describe("ConciergeScreen route prefill", () => {
             destination: "City Clinic",
             time: "tomorrow morning",
             mobilityNeeds: ["Help to the door"],
+            voiceCanvas: true,
           },
         },
       },
@@ -3862,6 +4046,8 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
     expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow morning");
     expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "ride-review")).toBe(true));
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
   });
 
   it("returns from trusted provider setup to the original active shortlist", async () => {

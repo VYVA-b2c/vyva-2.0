@@ -723,6 +723,25 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps the Concierge ride Canvas localized for every supported app language", () => {
+    const keys = [
+      "voiceCanvas.ride.destinationTitle",
+      "voiceCanvas.ride.pickupTitle",
+      "voiceCanvas.ride.timeTitle",
+      "voiceCanvas.ride.mobilityTitle",
+      "voiceCanvas.ride.providerTitle",
+      "voiceCanvas.ride.confirmTitle",
+      "voiceCanvas.ride.confirmContact",
+      "voiceCanvas.ride.completedTitle",
+    ];
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const key of keys) {
+        expect(translate(language, key), `${language} should translate ${key}`).not.toBe(key);
+      }
+    }
+  });
+
   it("keeps vitals and symptom-check health flows localized for supported account languages", () => {
     const namespaces = [
       "statusVitals",

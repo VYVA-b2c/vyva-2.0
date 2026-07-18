@@ -12,6 +12,7 @@ import { LanguageControllerProvider, LanguageFrameBoundary, useLanguage } from "
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
+import { VoiceCanvasProvider } from "@/contexts/VoiceCanvasContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import {
@@ -604,9 +605,10 @@ const App = () => (
               <LanguageFrameBoundary>
                 <VyvaVoiceProvider>
                   <VoiceActionProvider>
-                    <AgentAppContextTracker />
-                    <Suspense fallback={<RouteLoadingScreen />}>
-                    <Routes>
+                    <VoiceCanvasProvider>
+                      <AgentAppContextTracker />
+                      <Suspense fallback={<RouteLoadingScreen />}>
+                      <Routes>
                 <Route path="/" element={<RootRoute />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/caregiver/login" element={<LoginPage />} />
@@ -747,9 +749,10 @@ const App = () => (
                   </Route>
                 </Route>
                 <Route path="*" element={<NotFound />} />
-                    </Routes>
-                    </Suspense>
-                    <PwaInstallPromptGate />
+                      </Routes>
+                      </Suspense>
+                      <PwaInstallPromptGate />
+                    </VoiceCanvasProvider>
                   </VoiceActionProvider>
                 </VyvaVoiceProvider>
               </LanguageFrameBoundary>

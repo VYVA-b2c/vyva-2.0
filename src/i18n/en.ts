@@ -2209,6 +2209,19 @@
     reviewPasted: "Review safely",
     closeReview: "Close review",
   },
+  voiceCanvas: {
+    ride: {
+      destinationTitle: "Where are you going?", destinationHelper: "Say the place or type the address.", destinationLabel: "Destination", destinationPlaceholder: "Place or address", continue: "Continue",
+      pickupTitle: "Where should we pick you up?", pickupHelper: "Choose your saved home or another place.", savedHome: "Saved home", savedHomeDescription: "Use the address in your profile", anotherPickup: "Another place", anotherPickupDescription: "Say or type a different pickup", pickupLabel: "Pickup place", pickupPlaceholder: "Pickup address",
+      timeTitle: "When do you need the ride?", timeHelper: "Choose a time or tell VYVA.", now: "Now", today: "Later today", tomorrowMorning: "Tomorrow morning", appointmentTime: "For an appointment", anotherTime: "Another time", timeLabel: "Pickup time", timePlaceholder: "For example, Friday at 10",
+      mobilityTitle: "Any help for the journey?", mobilityHelper: "We only ask when this is not saved in your profile.", noMobilityNeeds: "No extra help", wheelchair: "Wheelchair space", doorHelp: "Help at the door", walkerOrCane: "Walker or cane", caregiverComing: "Someone is coming with me",
+      providerTitle: "Add a trusted transport provider", providerHelper: "Save a taxi or transport contact before VYVA prepares the ride.", addProvider: "Add provider",
+      reviewTitle: "Check the ride details", reviewHelper: "Nothing is booked or contacted yet.", pickup: "Pickup", destination: "Destination", when: "When", mobility: "Journey help", provider: "Provider", none: "None", compareRides: "Show ride options", change: "Change details",
+      optionsTitle: "Choose a ride option", optionsHelper: "Review one option before VYVA prepares contact.", optionReviewTitle: "Prepare this ride?", optionReviewHelper: "This prepares the request. It does not contact anyone.", prepareRide: "Prepare ride", back: "Back",
+      detailTitle: "One more detail", detailHelper: "Add this before reviewing the final confirmation.", confirmTitle: "Ready for your confirmation", confirmHelper: "Only this final confirmation can start contact or booking.", confirmContact: "Confirm and continue",
+      waitingTitle: "VYVA is preparing the next step", waitingHelper: "You can minimize this and keep using the app.", completedTitle: "Ride arranged", completedHelper: "The confirmed result is saved in Concierge.", errorTitle: "The ride could not continue", tryAgain: "Try again",
+    },
+  },
   statusVitals: {
     actions: {
       ride: "Find transport",

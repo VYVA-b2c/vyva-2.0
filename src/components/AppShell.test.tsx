@@ -34,6 +34,11 @@ const voiceActionState = vi.hoisted(() => ({
   dismissActiveAction: vi.fn(),
 }));
 
+const voiceCanvasState = vi.hoisted(() => ({
+  activeScene: null as import("@/lib/voiceCanvasBridge").VoiceCanvasSceneEnvelope | null,
+  submitResponse: vi.fn(),
+}));
+
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
@@ -70,6 +75,13 @@ vi.mock("@/contexts/VoiceActionContext", () => ({
   }),
 }));
 
+vi.mock("@/contexts/VoiceCanvasContext", () => ({
+  useVoiceCanvasContext: () => ({
+    activeScene: voiceCanvasState.activeScene,
+    submitResponse: voiceCanvasState.submitResponse,
+  }),
+}));
+
 vi.mock("./StatusBar", () => ({
   default: () => <div data-testid="status-bar" />,
 }));
@@ -87,8 +99,13 @@ vi.mock("./MotivationMilestoneProvider", () => ({
 }));
 
 vi.mock("./VoiceCallOverlay", () => ({
-  default: ({ onEnd, onMinimize }: { onEnd: () => void; onMinimize?: () => void }) => (
+  default: ({ onEnd, onMinimize, canvasViewModel }: {
+    onEnd: () => void;
+    onMinimize?: () => void;
+    canvasViewModel?: { title: string } | null;
+  }) => (
     <div data-testid="voice-call-overlay">
+      {canvasViewModel ? <div data-testid="voice-canvas-surface">{canvasViewModel.title}</div> : null}
       {onMinimize && (
         <button type="button" data-testid="button-minimize-call" onClick={onMinimize}>
           Minimize
@@ -236,6 +253,8 @@ describe("app shell voice dock", () => {
     voiceActionState.activeAction = null;
     voiceActionState.completeActiveAction.mockClear();
     voiceActionState.dismissActiveAction.mockClear();
+    voiceCanvasState.activeScene = null;
+    voiceCanvasState.submitResponse.mockClear();
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
@@ -257,6 +276,29 @@ describe("app shell voice dock", () => {
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(voiceState.stopVoice).not.toHaveBeenCalled();
+  });
+
+  it("opens a new Canvas scene and keeps the underlying page available after minimize", async () => {
+    voiceCanvasState.activeScene = {
+      owner: "concierge_ride",
+      revision: 1,
+      viewModel: {
+        sceneId: "ride-destination",
+        kind: "place",
+        title: "Where are you going?",
+      },
+    };
+
+    renderShell("/concierge");
+
+    await waitFor(() => expect(screen.getByTestId("voice-canvas-surface")).toHaveTextContent("Where are you going?"));
+    expect(screen.getByText("Page content")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-minimize-call"));
+
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+    expect(screen.getByText("Page content")).toBeVisible();
+    expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
   });
 
   it("uses compact copy when VYVA is speaking from the dock", () => {
