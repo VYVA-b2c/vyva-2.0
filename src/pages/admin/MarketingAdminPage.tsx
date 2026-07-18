@@ -991,6 +991,28 @@ type CampaignPublishKitItem = CampaignReadinessItem & {
   onSecondaryAction?: () => void;
 };
 
+type CampaignChannelWorkflowStep = {
+  key: string;
+  label: string;
+  state: CampaignReadinessState;
+  detail: string;
+};
+
+type CampaignChannelWorkflowItem = {
+  key: string;
+  channel: Channel;
+  title: string;
+  detail: string;
+  state: CampaignReadinessState;
+  steps: CampaignChannelWorkflowStep[];
+  actionLabel: string;
+  actionDisabled?: boolean;
+  onAction: () => void;
+  secondaryLabel?: string;
+  secondaryDisabled?: boolean;
+  onSecondary?: () => void;
+};
+
 type CampaignChannelActionQueueItem = {
   key: string;
   channel: Channel;
@@ -19090,6 +19112,99 @@ export default function MarketingAdminPage() {
   const manualPublishFollowUpCount = manualPublishResults.filter((result) => result.result === "needs_follow_up").length;
   const manualPublishBlockedCount = manualPublishResults.filter((result) => result.result === "blocked").length;
   const manualPublishEngagementCount = manualPublishResults.reduce((total, result) => total + (result.engagements ?? 0), 0);
+  const campaignChannelWorkflowItems: CampaignChannelWorkflowItem[] = editingCampaign ? campaignPublishKitItems.map((item) => {
+    const channelManualResults = manualPublishResults.filter((result) => result.channel === item.channel);
+    const channelMetrics = selectedCampaignMetrics.filter((metric) => lower(metric.channel) === item.channel);
+    const hasChannelTracking = item.channel === "email"
+      ? channelMetrics.length > 0
+      : channelManualResults.length > 0;
+    const contentState: CampaignReadinessState = item.contentAsset ? "ready" : "blocked";
+    const audienceState: CampaignReadinessState = item.recipients > 0
+      ? "ready"
+      : pendingCampaignSnapshotCount > 0
+        ? "needs_action"
+        : "blocked";
+    const publishState: CampaignReadinessState = !item.contentAsset
+      ? "blocked"
+      : item.channel === "email"
+        ? campaignEmailDisabled ? "needs_action" : "ready"
+        : channelManualResults.some((result) => result.result === "published" || result.result === "scheduled")
+          ? "ready"
+          : item.state;
+    const trackingState: CampaignReadinessState = hasChannelTracking
+      ? "ready"
+      : item.channel === "email"
+        ? selectedCampaignMetrics.length > 0 ? "planning" : "needs_action"
+        : item.contentAsset ? "needs_action" : "blocked";
+    const state: CampaignReadinessState = contentState === "blocked" || audienceState === "blocked" || publishState === "blocked" || trackingState === "blocked"
+      ? "blocked"
+      : publishState === "needs_action" || audienceState === "needs_action" || trackingState === "needs_action"
+        ? "needs_action"
+        : publishState === "planning" || trackingState === "planning"
+          ? "planning"
+          : "ready";
+    const useManualTrackAction = item.channel !== "email" && Boolean(item.contentAsset) && !hasChannelTracking && item.onSecondaryAction;
+    const latestManualResult = channelManualResults[0] ?? null;
+    const steps: CampaignChannelWorkflowStep[] = [
+      {
+        key: "content",
+        label: "Content",
+        state: contentState,
+        detail: item.contentAsset ? item.contentAsset.title : "Missing content asset",
+      },
+      {
+        key: "audience",
+        label: "Audience",
+        state: audienceState,
+        detail: item.recipients > 0
+          ? `${item.recipients} saved recipient${item.recipients === 1 ? "" : "s"}`
+          : pendingCampaignSnapshotCount > 0
+            ? `${pendingCampaignSnapshotCount} preview recipient${pendingCampaignSnapshotCount === 1 ? "" : "s"}; save to lock`
+            : "No saved recipient snapshot",
+      },
+      {
+        key: "publish",
+        label: item.channel === "email" ? "Send" : "Publish",
+        state: publishState,
+        detail: item.channel === "email"
+          ? campaignEmailDisabled
+            ? campaignEmailBlockedReason || "Email send needs setup"
+            : "Ready for explicit VYVA email send"
+          : latestManualResult
+            ? manualPublishResultLabel[latestManualResult.result]
+            : item.title,
+      },
+      {
+        key: "track",
+        label: "Track",
+        state: trackingState,
+        detail: item.channel === "email"
+          ? channelMetrics.length
+            ? `${channelMetrics.length} imported metric row${channelMetrics.length === 1 ? "" : "s"}`
+            : "Awaiting email performance"
+          : channelManualResults.length
+            ? `${channelManualResults.length} manual result${channelManualResults.length === 1 ? "" : "s"} saved`
+            : "Track outcome after handoff",
+      },
+    ];
+
+    return {
+      key: item.key,
+      channel: item.channel,
+      title: item.channel === "email" ? "Email send workflow" : `${channelLabel[item.channel]} handoff workflow`,
+      detail: item.channel === "email"
+        ? "Prepare content and recipients, send explicitly from VYVA, then use imported metrics for follow-up."
+        : "Prepare content and audience, publish manually in the channel, then record what happened back here.",
+      state,
+      steps,
+      actionLabel: useManualTrackAction ? "Track result" : item.actionLabel,
+      actionDisabled: useManualTrackAction ? item.secondaryDisabled : item.disabled,
+      onAction: useManualTrackAction && item.onSecondaryAction ? item.onSecondaryAction : item.onSelect,
+      secondaryLabel: useManualTrackAction ? "Preview content" : item.secondaryActionLabel,
+      secondaryDisabled: useManualTrackAction ? item.disabled : item.secondaryDisabled,
+      onSecondary: useManualTrackAction ? item.onSelect : item.onSecondaryAction,
+    };
+  }) : [];
   const campaignRelationshipSignalCount = selectedCampaignMetricTotals.clicked + selectedCampaignMetricTotals.replied + selectedCampaignMetricTotals.socialEngagement + manualPublishEngagementCount;
   const campaignRelationshipFollowUpItems: CampaignRelationshipFollowUpItem[] = editingCampaign ? [
     {
@@ -24816,6 +24931,68 @@ export default function MarketingAdminPage() {
                           })}
                         </div>
                       </div>
+
+                      {campaignChannelWorkflowItems.length ? (
+                        <div className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-campaign-channel-workflow">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Channel workflow</p>
+                              <h3 className="mt-1 font-serif text-2xl text-[#241133]">From draft to tracked result</h3>
+                              <p className="mt-1 text-sm font-bold text-[#7d6b65]">Each channel shows the same four gates: content, audience, publish/send, then tracking.</p>
+                            </div>
+                            <Pill className="bg-purple-50 text-purple-800">{campaignChannelWorkflowItems.length} route{campaignChannelWorkflowItems.length === 1 ? "" : "s"}</Pill>
+                          </div>
+                          <div className="mt-4 grid gap-3">
+                            {campaignChannelWorkflowItems.map((item) => (
+                              <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-channel-workflow-${item.channel}`}>
+                                <div className="grid gap-3 xl:grid-cols-[minmax(180px,0.8fr)_minmax(0,2fr)_auto] xl:items-center">
+                                  <div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                      <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                    </div>
+                                    <h4 className="mt-2 text-sm font-black text-[#241133]">{item.title}</h4>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.detail}</p>
+                                  </div>
+                                  <div className="grid gap-2 md:grid-cols-4" data-testid={`marketing-campaign-channel-workflow-steps-${item.channel}`}>
+                                    {item.steps.map((step) => (
+                                      <div key={step.key} className="rounded-lg border border-[#eadfd5] bg-white px-3 py-2" data-testid={`marketing-campaign-channel-workflow-${item.channel}-${step.key}`}>
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">{step.label}</span>
+                                          <Pill className={readinessPillClass(step.state)}>{readinessLabel(step.state)}</Pill>
+                                        </div>
+                                        <p className="mt-2 line-clamp-2 text-xs font-bold leading-relaxed text-[#5f4a44]">{step.detail}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2 xl:min-w-[210px] xl:justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={item.onAction}
+                                      disabled={item.actionDisabled}
+                                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                      data-testid={`button-marketing-campaign-channel-workflow-primary-${item.channel}`}
+                                    >
+                                      {item.actionLabel}
+                                    </button>
+                                    {item.onSecondary ? (
+                                      <button
+                                        type="button"
+                                        onClick={item.onSecondary}
+                                        disabled={item.secondaryDisabled}
+                                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:bg-[#f7f1ea] disabled:text-[#9f918a]"
+                                        data-testid={`button-marketing-campaign-channel-workflow-secondary-${item.channel}`}
+                                      >
+                                        {item.secondaryLabel}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </article>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
 
                       <div className="rounded-2xl border border-purple-200 bg-white p-4 shadow-sm" data-testid="marketing-campaign-readiness-panel">
                         <div className="flex flex-wrap items-start justify-between gap-3">

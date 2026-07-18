@@ -5819,6 +5819,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-launch-step-recipients")).toHaveTextContent("1 saved recipient");
     expect(screen.getByTestId("marketing-campaign-launch-step-test")).toHaveTextContent("Send test email");
     expect(screen.getByTestId("marketing-campaign-launch-step-launch")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending.");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow")).toHaveTextContent("From draft to tracked result");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow-email")).toHaveTextContent("Email send workflow");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow-email-content")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow-email-audience")).toHaveTextContent("1 saved recipient");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow-email-publish")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow-email-track")).toHaveTextContent("10 imported metric rows");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow-linkedin")).toHaveTextContent("LinkedIn handoff workflow");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow-linkedin-content")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow-linkedin-publish")).toHaveTextContent("Manual publishing");
+    expect(screen.getByTestId("marketing-campaign-channel-workflow-linkedin-track")).toHaveTextContent("Track outcome after handoff");
+    expect(screen.getByTestId("button-marketing-campaign-channel-workflow-primary-linkedin")).toHaveTextContent("Track result");
+    expect(screen.getByTestId("button-marketing-campaign-channel-workflow-secondary-linkedin")).toHaveTextContent("Preview content");
     expect(screen.getByTestId("marketing-campaign-publish-kit")).toHaveTextContent("Channel handoff plan");
     expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("VYVA email send");
     expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");
