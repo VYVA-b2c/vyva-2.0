@@ -4600,6 +4600,33 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-consent-triage-row-contact-2")).toHaveTextContent("pending");
   });
 
+  it("bulk marks visible unknown consent contacts as pending review", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    expect(screen.getByTestId("button-marketing-consent-triage-bulk-pending")).toHaveTextContent("Mark 1 unknown pending");
+
+    fireEvent.click(screen.getByTestId("button-marketing-consent-triage-bulk-pending"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("1 visible unknown contact marked pending review");
+    });
+
+    const contactOnePatch = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/contacts/contact-1" && init?.method === "PATCH");
+    expect(contactOnePatch).toBeTruthy();
+    const contactOnePayload = JSON.parse(String(contactOnePatch?.[1]?.body));
+    expect(contactOnePayload.consentStatus).toBe("pending");
+    expect(contactOnePayload.metadata.consentReview).toMatchObject({
+      action: "bulk_mark_pending",
+      status: "pending",
+      source: "marketing_admin",
+    });
+    expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/contacts/contact-2" && init?.method === "PATCH")).toBe(false);
+    expect(screen.getByTestId("marketing-contact-consent-triage-row-contact-1")).toHaveTextContent("pending");
+  });
+
   it("builds consent cleanup review lists without opted-out contacts", async () => {
     renderPage({}, {
       contacts: [

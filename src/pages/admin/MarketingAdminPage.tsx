@@ -8972,6 +8972,24 @@ function contactPayloadFromDraft(draft: ContactEditDraft) {
   };
 }
 
+function contactConsentReviewMetadata(contact: MarketingContact, consentStatus: ConsentStatus, action: string) {
+  const existingMetadata = recordValue(contact.metadata);
+  const reviewEvent = {
+    action,
+    status: consentStatus,
+    reviewedAt: new Date().toISOString(),
+    source: "marketing_admin",
+  };
+  const existingHistory = Array.isArray(existingMetadata.consentReviewHistory)
+    ? existingMetadata.consentReviewHistory
+    : [];
+  return {
+    ...existingMetadata,
+    consentReview: reviewEvent,
+    consentReviewHistory: [reviewEvent, ...existingHistory].slice(0, 20),
+  };
+}
+
 function audienceEditDraftFromAudience(audience: MarketingAudience): AudienceEditDraft {
   return {
     name: audience.name,
@@ -20566,6 +20584,7 @@ export default function MarketingAdminPage() {
       const draft = {
         ...contactEditDraftFromContact(contact),
         consentStatus,
+        metadataText: jsonText(contactConsentReviewMetadata(contact, consentStatus, "quick_triage")),
       };
       const result = await api<{ contact: MarketingContact }>(`/api/admin/marketing/contacts/${contact.id}`, {
         method: "PATCH",
@@ -20584,6 +20603,51 @@ export default function MarketingAdminPage() {
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Consent could not be updated.";
+      setContactFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContactSaving(false);
+    }
+  }
+
+  async function bulkMarkVisibleUnknownConsentPending() {
+    const contactsToUpdate = consentTriageContacts.filter((contact) => contact.consentStatus === "unknown");
+    if (!contactsToUpdate.length) {
+      const feedback = "No visible unknown contacts to mark pending. Use row actions for confirmed opt-in or opt-out decisions.";
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    setActiveTab("contacts");
+    setContactView("contacts");
+    setContactSaving(true);
+    setConfirmingContactDeleteId(null);
+    setContactFeedback(`Marking ${contactsToUpdate.length} visible unknown contact${contactsToUpdate.length === 1 ? "" : "s"} as pending review...`);
+    try {
+      const updates = await Promise.all(contactsToUpdate.map(async (contact) => {
+        const draft = {
+          ...contactEditDraftFromContact(contact),
+          consentStatus: "pending" as ConsentStatus,
+          metadataText: jsonText(contactConsentReviewMetadata(contact, "pending", "bulk_mark_pending")),
+        };
+        const result = await api<{ contact: MarketingContact }>(`/api/admin/marketing/contacts/${contact.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(contactPayloadFromDraft(draft)),
+        });
+        return result.contact;
+      }));
+      const updateMap = new Map(updates.map((contact) => [contact.id, contact]));
+      setContacts((current) => current.map((contact) => updateMap.get(contact.id) ?? contact));
+      if (editingContactId && updateMap.has(editingContactId)) {
+        setContactEditDraft(contactEditDraftFromContact(updateMap.get(editingContactId)!));
+      }
+      const feedback = `${updates.length} visible unknown contact${updates.length === 1 ? "" : "s"} marked pending review. Confirm opt-in only after consent is verified.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Bulk consent review update failed.";
       setContactFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -23295,6 +23359,7 @@ export default function MarketingAdminPage() {
   )).length;
   const consentCleanupWorkQueue = contactRelationshipWorkQueues.find((queue) => queue.key === "consent-cleanup") ?? null;
   const consentTriageContacts = consentCleanupWorkQueue?.contacts.slice(0, 5) ?? [];
+  const consentTriageUnknownContacts = consentTriageContacts.filter((contact) => contact.consentStatus === "unknown");
   const launchLaneItems: MarketingLaunchLaneItem[] = [
     {
       key: "import",
@@ -32181,9 +32246,29 @@ export default function MarketingAdminPage() {
                           Mark opted in only when consent is confirmed. Mark opted out when the contact should stay excluded from campaign snapshots.
                         </p>
                       </div>
-                      <Pill className="bg-white text-amber-900">
-                        {consentCleanupWorkQueue?.countLabel ?? `${consentTriageContacts.length} contacts`}
-                      </Pill>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Pill className="bg-white text-amber-900">
+                          {consentCleanupWorkQueue?.countLabel ?? `${consentTriageContacts.length} contacts`}
+                        </Pill>
+                        <button
+                          type="button"
+                          onClick={() => void bulkMarkVisibleUnknownConsentPending()}
+                          disabled={contactSaving || consentTriageUnknownContacts.length === 0}
+                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-900 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                          data-testid="button-marketing-consent-triage-bulk-pending"
+                        >
+                          <CheckCircle2 size={13} /> Mark {consentTriageUnknownContacts.length || "0"} unknown pending
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => consentCleanupWorkQueue ? buildAudienceFromContactWorkQueue(consentCleanupWorkQueue) : undefined}
+                          disabled={contactSaving || !consentCleanupWorkQueue?.count}
+                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-amber-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          data-testid="button-marketing-consent-triage-build-list"
+                        >
+                          <UsersRound size={13} /> Build review list
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-3 grid gap-2">
                       {consentTriageContacts.map((contact) => {
