@@ -2413,11 +2413,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Professional webinar invitation email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Professional webinar call script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Professional webinar run sheet");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Full-channel launch email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Full-channel launch phone script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Full-channel launch TikTok script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro call script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence intro email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence director call script");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("137 templates");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("147 templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -2925,6 +2928,38 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Post-webinar relationship follow-up pack into the campaign studio");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
 
+    expect(screen.getByTestId("marketing-template-pack-full-channel-launch-announcement")).toHaveTextContent("Full-channel launch announcement");
+    expect(screen.getByTestId("marketing-template-pack-full-channel-launch-announcement")).toHaveTextContent("10 templates");
+    expect(screen.getByTestId("marketing-template-pack-full-channel-launch-announcement")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-full-channel-launch-announcement"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Full-channel launch announcement template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Full-channel launch email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Full-channel launch phone script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Full-channel launch TikTok script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-full-channel-launch-announcement")).toHaveTextContent("Primary email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-full-channel-launch-announcement")).toHaveTextContent("Team briefing");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-ai-full-channel-launch-announcement"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Full-channel launch announcement"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Full-channel launch email"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Full-channel launch announcement AI command copied.");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-full-channel-launch-announcement"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("uplifting");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Full-channel launch announcement");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Full-channel launch announcement pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("Partner growth");
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-partner-growth"));
@@ -2956,18 +2991,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("21");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("22");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Local event");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("8");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("9");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Target: 3 per pack");
-    expect(screen.getByTestId("button-marketing-template-matrix-event-b2c")).toHaveTextContent("3");
+    expect(screen.getByTestId("button-marketing-template-matrix-event-b2c")).toHaveTextContent("4");
     expect(screen.getByTestId("button-marketing-template-matrix-event-b2c")).toHaveTextContent("Strong");
-    expect(screen.getByTestId("button-marketing-template-matrix-sms-b2b")).toHaveTextContent("5");
+    expect(screen.getByTestId("button-marketing-template-matrix-sms-b2b")).toHaveTextContent("6");
     expect(screen.getByTestId("button-marketing-template-matrix-sms-b2b")).toHaveTextContent("Strong");
-    expect(screen.getByTestId("button-marketing-template-matrix-linkedin-b2c")).toHaveTextContent("3");
+    expect(screen.getByTestId("button-marketing-template-matrix-linkedin-b2c")).toHaveTextContent("4");
     expect(screen.getByTestId("button-marketing-template-matrix-linkedin-b2c")).toHaveTextContent("Strong");
     fireEvent.click(screen.getByTestId("button-marketing-template-matrix-whatsapp-b2b"));
     expect(screen.getByTestId("select-marketing-template-channel")).toHaveValue("whatsapp");
@@ -2979,7 +3014,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Coverage is balanced. Expand the library.");
     expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Next batch: 4 AI drafts");
     expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("Local event");
-    expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("3/3+");
+    expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("4/3+");
     expect(screen.getByTestId("button-marketing-template-gap-autopilot-generate")).toHaveTextContent("Generate next pack");
     expect(screen.getByTestId("button-marketing-template-gap-autopilot-generate")).not.toBeDisabled();
     expect(screen.getByTestId("button-marketing-template-gap-autopilot-studio")).toHaveTextContent("Open next expansion in studio");
@@ -5135,6 +5170,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Choose launch mode");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Sendable email campaign");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Local / offline event");
+    expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Full-channel launch packet");
+    expect(screen.getByTestId("marketing-campaign-launch-mode-pack-full-channel-launch")).toHaveTextContent("Template pack: Full-channel launch announcement");
+    expect(screen.getByTestId("marketing-campaign-launch-mode-pack-full-channel-launch")).toHaveTextContent("10 starter templates");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-mode-full-channel-launch"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Full-channel launch packet with Full-channel launch announcement template pack.");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
     expect(screen.getByTestId("marketing-campaign-launch-mode-pack-local-offline")).toHaveTextContent("Template pack: Local event operations");
     expect(screen.getByTestId("marketing-campaign-launch-mode-pack-local-offline")).toHaveTextContent("9 starter templates");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-mode-local-offline"));
