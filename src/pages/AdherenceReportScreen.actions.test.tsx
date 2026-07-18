@@ -10,7 +10,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
-    useQuery: () => queryResultMock(),
+    useQuery: (options: unknown) => queryResultMock(options),
   };
 });
 
@@ -137,13 +137,15 @@ describe("Adherence report service actions", () => {
         gpEmail: "gp@example.com",
       },
     });
-    queryResultMock.mockReturnValue({
-      data: report,
+    queryResultMock.mockImplementation((options: { queryKey?: string[] }) => ({
+      data: options?.queryKey?.[0] === "/api/config/features/medication-refill-voice-canvas"
+        ? { enabled: false, rolloutPercent: 0 }
+        : report,
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
       error: null,
-    });
+    }));
   });
 
   it("renders direct refill, GP contact, doctor help, and appointment actions", () => {
@@ -165,6 +167,25 @@ describe("Adherence report service actions", () => {
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge/shopping"));
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"pharmacy_basics\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent("Metformin, Atorvastatin");
+  });
+
+  it("opens the refill Canvas when its independent flag is enabled", async () => {
+    queryResultMock.mockImplementation((options: { queryKey?: string[] }) => ({
+      data: options?.queryKey?.[0] === "/api/config/features/medication-refill-voice-canvas"
+        ? { enabled: true, rolloutPercent: 100 }
+        : report,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+      error: null,
+    }));
+    renderAdherenceReport();
+
+    fireEvent.click(screen.getByTestId("button-adherence-service-refill"));
+
+    expect(await screen.findByTestId("panel-medication-refill-voice-canvas")).toBeInTheDocument();
+    expect(screen.getByTestId("refill-voice-canvas")).toHaveAttribute("data-step", "listening");
+    expect(screen.queryByTestId("current-route")).not.toBeInTheDocument();
   });
 
   it("prefills appointment and doctor voice help from the medication report", async () => {
