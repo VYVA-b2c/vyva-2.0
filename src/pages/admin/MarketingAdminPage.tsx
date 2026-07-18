@@ -9269,6 +9269,7 @@ export default function MarketingAdminPage() {
   const [campaignIntentBrief, setCampaignIntentBrief] = useState("");
   const [marketingDashboardAiCommand, setMarketingDashboardAiCommand] = useState("");
   const [marketingDashboardAiCommandFeedback, setMarketingDashboardAiCommandFeedback] = useState("");
+  const [marketingDashboardAiCreatingKit, setMarketingDashboardAiCreatingKit] = useState(false);
   const [marketingDashboardAiCreatedKitSummary, setMarketingDashboardAiCreatedKitSummary] = useState<MarketingDashboardAiCreatedKitSummary | null>(null);
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
@@ -16636,7 +16637,7 @@ export default function MarketingAdminPage() {
     pack: ContentTemplatePack,
     templates: ContentTemplate[],
     heroTemplate: ContentTemplate | null,
-    options: { routeChannels?: Channel[] } = {},
+    options: { routeChannels?: Channel[]; onError?: (message: string) => void } = {},
   ): Promise<MarketingDashboardAiCreatedKitSummary | null> {
     if (!templates.length) {
       const feedback = `${pack.title} has no templates to turn into a campaign.`;
@@ -16847,6 +16848,7 @@ export default function MarketingAdminPage() {
       setContentActionFeedback(errorMessage);
       setCampaignStudioFeedback(errorMessage);
       setMessage(errorMessage);
+      options.onError?.(errorMessage);
       return null;
     } finally {
       setCampaignSaving(false);
@@ -20394,23 +20396,39 @@ export default function MarketingAdminPage() {
   async function createMarketingDashboardAiLaunchKit() {
     const plan = marketingDashboardAiCommandPlan;
     const packMatch = plan?.packMatch ?? null;
+    if (marketingDashboardAiCreatingKit) return;
     if (!plan || !packMatch) {
       setMessage("Type a campaign goal first so VYVA can create the right launch kit.");
       return;
     }
 
+    setMarketingDashboardAiCreatingKit(true);
+    setMarketingDashboardAiCreatedKitSummary(null);
     setCampaignIntentBrief(marketingDashboardAiCommand.trim());
     setCampaignStudioFeedback(`Creating AI-matched launch kit from ${packMatch.pack.title}...`);
     setMarketingDashboardAiCommandFeedback(`Creating ${packMatch.pack.title} launch kit...`);
-    const summary = await createCampaignPlanFromTemplatePack(
-      packMatch.pack,
-      packMatch.templates,
-      packMatch.heroTemplate,
-      { routeChannels: plan.selectedChannels },
-    );
-    if (summary) {
-      setMarketingDashboardAiCreatedKitSummary(summary);
-      setMarketingDashboardAiCommandFeedback(`Created "${summary.campaignName}". Review the campaign detail panel for send, handoff, and follow-up.`);
+    let failureFeedback = "";
+    try {
+      const summary = await createCampaignPlanFromTemplatePack(
+        packMatch.pack,
+        packMatch.templates,
+        packMatch.heroTemplate,
+        {
+          routeChannels: plan.selectedChannels,
+          onError: (message) => {
+            failureFeedback = message;
+            setMarketingDashboardAiCommandFeedback(`Create failed: ${message}`);
+          },
+        },
+      );
+      if (summary) {
+        setMarketingDashboardAiCreatedKitSummary(summary);
+        setMarketingDashboardAiCommandFeedback(`Created "${summary.campaignName}". Review the campaign detail panel for send, handoff, and follow-up.`);
+      } else if (!failureFeedback) {
+        setMarketingDashboardAiCommandFeedback("Create failed. Check the campaign studio message and try again.");
+      }
+    } finally {
+      setMarketingDashboardAiCreatingKit(false);
     }
   }
 
@@ -21019,22 +21037,49 @@ export default function MarketingAdminPage() {
                                   </span>
                                 </div>
                               </div>
+                              <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffbf7] p-3" data-testid="marketing-ai-command-created-kit-next-actions">
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">Next moves</p>
+                                <div className="mt-2 grid gap-2 text-xs font-bold text-[#5b4a46] md:grid-cols-3">
+                                  <div className="rounded-lg bg-white px-2.5 py-2 ring-1 ring-[#eadfd5]">
+                                    <span className="block text-[#241133]">Review in details</span>
+                                    <span className="mt-1 block">Check copy, recipients, and schedule before publishing.</span>
+                                  </div>
+                                  <div className="rounded-lg bg-white px-2.5 py-2 ring-1 ring-[#eadfd5]">
+                                    <span className="block text-[#241133]">
+                                      {marketingDashboardAiCreatedKitSummary.routeChannels.includes("email") ? "Send email safely" : "Prepare handoff"}
+                                    </span>
+                                    <span className="mt-1 block">
+                                      {marketingDashboardAiCreatedKitSummary.routeChannels.includes("email")
+                                        ? "Send a test, then use explicit campaign email send."
+                                        : "Copy the route brief and publish manually."}
+                                    </span>
+                                  </div>
+                                  <div className="rounded-lg bg-white px-2.5 py-2 ring-1 ring-[#eadfd5]">
+                                    <span className="block text-[#241133]">Track relationships</span>
+                                    <span className="mt-1 block">
+                                      {marketingDashboardAiCreatedKitSummary.routeChannels.filter((channel) => channel !== "email").length
+                                        ? `Log ${formatChannelList(marketingDashboardAiCreatedKitSummary.routeChannels.filter((channel) => channel !== "email"))} handoffs and replies.`
+                                        : "Log replies and follow-up tasks after send."}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           ) : null}
                           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                             <button
                               type="button"
                               onClick={() => void createMarketingDashboardAiLaunchKit()}
-                              disabled={!marketingDashboardAiCommandPlan.packMatch || contentSaving || campaignSaving}
+                              disabled={!marketingDashboardAiCommandPlan.packMatch || contentSaving || campaignSaving || marketingDashboardAiCreatingKit}
                               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white transition hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                               data-testid="button-marketing-ai-command-create-kit"
                             >
-                              <Zap size={13} /> Create kit
+                              <Zap size={13} /> {marketingDashboardAiCreatingKit ? "Creating kit..." : "Create kit"}
                             </button>
                             <button
                               type="button"
                               onClick={() => openMarketingDashboardAiTemplatePack("content")}
-                              disabled={!marketingDashboardAiCommandPlan.packMatch || contentSaving || campaignSaving}
+                              disabled={!marketingDashboardAiCommandPlan.packMatch || contentSaving || campaignSaving || marketingDashboardAiCreatingKit}
                               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 transition hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
                               data-testid="button-marketing-ai-command-open-pack"
                             >
@@ -21043,7 +21088,7 @@ export default function MarketingAdminPage() {
                             <button
                               type="button"
                               onClick={() => openMarketingDashboardAiTemplatePack("studio")}
-                              disabled={!marketingDashboardAiCommandPlan.packMatch || contentSaving || campaignSaving}
+                              disabled={!marketingDashboardAiCommandPlan.packMatch || contentSaving || campaignSaving || marketingDashboardAiCreatingKit}
                               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-[#241133] px-3 text-xs font-black text-white transition hover:bg-[#3a1c4f] disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                               data-testid="button-marketing-ai-command-customize-pack"
                             >
@@ -21052,7 +21097,7 @@ export default function MarketingAdminPage() {
                             <button
                               type="button"
                               onClick={() => void copyMarketingDashboardAiCommandBrief()}
-                              disabled={contentSaving || campaignSaving}
+                              disabled={contentSaving || campaignSaving || marketingDashboardAiCreatingKit}
                               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-[#fffbf7] px-3 text-xs font-black text-[#5b3324] transition hover:bg-white disabled:cursor-not-allowed disabled:text-[#b8abb8]"
                               data-testid="button-marketing-ai-command-copy-brief"
                             >

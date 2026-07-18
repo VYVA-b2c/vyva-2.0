@@ -1338,6 +1338,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-created-kit-routes")).toHaveTextContent("Email and LinkedIn");
     expect(screen.getByTestId("marketing-ai-command-created-kit-recipients")).toHaveTextContent("2");
     expect(screen.getByTestId("marketing-ai-command-created-kit-assets")).toHaveTextContent("new");
+    expect(screen.getByTestId("marketing-ai-command-created-kit-next-actions")).toHaveTextContent("Next moves");
+    expect(screen.getByTestId("marketing-ai-command-created-kit-next-actions")).toHaveTextContent("Send email safely");
+    expect(screen.getByTestId("marketing-ai-command-created-kit-next-actions")).toHaveTextContent("Log LinkedIn handoffs and replies.");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Clinic and pharmacy referral campaign plan");
 
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-customize-pack"));
@@ -1348,6 +1351,30 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Template pathfinder");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing AI-matched template pack");
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("Viewing");
+  });
+
+  it("shows local AI command create errors instead of feeling dead", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
+
+    const baseImplementation = apiFetchMock.getMockImplementation();
+    apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === "/api/admin/marketing/campaigns" && method === "POST") {
+        return jsonResponse({ error: "Campaign save refused" }, { status: 500 });
+      }
+      return baseImplementation?.(input, init) ?? jsonResponse({});
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-create-kit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent("Create failed: Campaign save refused");
+    });
+    expect(screen.queryByTestId("marketing-ai-command-created-kit")).not.toBeInTheDocument();
   });
 
   it("prepares an editable replacement draft for missing Source content references", async () => {
