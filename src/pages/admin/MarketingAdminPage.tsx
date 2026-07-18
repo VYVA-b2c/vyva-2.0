@@ -8963,6 +8963,17 @@ function syncFieldCoverageItems(summary: Record<string, unknown>) {
   }).filter((item) => item.exported > 0);
 }
 
+function syncFieldCoverageSummary(item: ReturnType<typeof syncFieldCoverageItems>[number]) {
+  if (item.metadataOnly > 0) {
+    return `${item.entity}: ${item.firstClass} editable, ${item.metadataOnly} preserved of ${item.exported} exported fields`;
+  }
+  return `${item.entity}: ${item.firstClass} editable of ${item.exported} exported fields`;
+}
+
+function syncFieldCoveragePreservedPreview(item: ReturnType<typeof syncFieldCoverageItems>[number], limit: number) {
+  return `${item.metadataOnlyFields.slice(0, limit).join(", ")}${item.metadataOnlyFields.length > limit ? ` +${item.metadataOnlyFields.length - limit}` : ""}`;
+}
+
 function syncCompletionMessage(summary?: Record<string, unknown>) {
   if (!summary) return "Source sync completed.";
   const nestedImported = syncCountItems(summary, "imported");
@@ -9407,18 +9418,18 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
           <div className="mt-1 grid gap-1.5">
             {fieldCoverage.map((item) => (
               <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
-                <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
+                <p className="font-black text-[#241133]">{syncFieldCoverageSummary(item)}</p>
                 {item.metadataOnly ? (
-                  <p className="mt-1 font-semibold">Metadata-only: {item.metadataOnlyFields.slice(0, 6).join(", ")}{item.metadataOnlyFields.length > 6 ? ` +${item.metadataOnlyFields.length - 6}` : ""}</p>
+                  <p className="mt-1 font-semibold">Preserved in Source metadata: {syncFieldCoveragePreservedPreview(item, 6)}</p>
                 ) : (
-                  <p className="mt-1 font-semibold text-emerald-700">No extra metadata-only fields.</p>
+                  <p className="mt-1 font-semibold text-emerald-700">All exported fields are editable first-class fields.</p>
                 )}
                 {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
                   <details className="mt-2 rounded-lg border border-[#eadfd5] bg-white p-2" data-testid={`marketing-sync-field-coverage-${run.id}-${item.entity}`}>
                     <summary className="cursor-pointer font-black text-[#241133]">View field map</summary>
                     <div className="mt-2 grid gap-2">
                       {item.metadataOnlyFields.length ? (
-                        <p><span className="text-amber-800">Metadata-only:</span> {item.metadataOnlyFields.join(", ")}</p>
+                        <p><span className="text-amber-800">Preserved in Source metadata:</span> {item.metadataOnlyFields.join(", ")}</p>
                       ) : null}
                       {item.firstClassFields.length ? (
                         <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
@@ -9536,11 +9547,11 @@ function SourceImportCoveragePanel({
         ) : null}
         {fieldCoverage.length ? (
           <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-field-coverage">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped Source fields</p>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped and preserved Source fields</p>
             <div className="mt-2 grid gap-2">
               {fieldCoverage.map((item) => (
                 <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
-                  <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
+                  <p className="font-black text-[#241133]">{syncFieldCoverageSummary(item)}</p>
                   {item.firstClassFields.length ? (
                     <p className="mt-1 text-xs font-semibold text-emerald-800">
                       Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
@@ -9548,7 +9559,7 @@ function SourceImportCoveragePanel({
                   ) : null}
                   {item.metadataOnlyFields.length ? (
                     <p className="mt-1 text-xs font-semibold text-amber-800">
-                      Metadata-only: {item.metadataOnlyFields.slice(0, 8).join(", ")}{item.metadataOnlyFields.length > 8 ? ` +${item.metadataOnlyFields.length - 8}` : ""}
+                      Preserved in Source metadata: {syncFieldCoveragePreservedPreview(item, 8)}
                     </p>
                   ) : null}
                   {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
@@ -9556,7 +9567,7 @@ function SourceImportCoveragePanel({
                       <summary className="cursor-pointer font-black text-[#241133]">View full field map</summary>
                       <div className="mt-2 grid gap-2">
                         {item.metadataOnlyFields.length ? (
-                          <p><span className="text-amber-800">Metadata-only:</span> {item.metadataOnlyFields.join(", ")}</p>
+                          <p><span className="text-amber-800">Preserved in Source metadata:</span> {item.metadataOnlyFields.join(", ")}</p>
                         ) : null}
                         {item.firstClassFields.length ? (
                           <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
@@ -31611,21 +31622,21 @@ function SourceExportPreviewDiagnostics({ preview }: { preview: SourceExportPrev
           <div className="mt-1 grid gap-1.5">
             {fieldCoverage.map((item) => (
               <div key={item.entity} className="rounded-lg bg-white px-3 py-2">
-                <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
+                <p className="font-black text-[#241133]">{syncFieldCoverageSummary(item)}</p>
                 {item.firstClassFields.length ? (
                   <p className="mt-1 font-semibold text-emerald-800">
                     Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
                   </p>
                 ) : null}
                 {item.metadataOnly ? (
-                  <p className="mt-1 font-semibold">Metadata-only: {item.metadataOnlyFields.slice(0, 6).join(", ")}{item.metadataOnlyFields.length > 6 ? ` +${item.metadataOnlyFields.length - 6}` : ""}</p>
-                ) : <p className="mt-1 font-semibold text-emerald-800">All exported fields are mapped first-class.</p>}
+                  <p className="mt-1 font-semibold">Preserved in Source metadata: {syncFieldCoveragePreservedPreview(item, 6)}</p>
+                ) : <p className="mt-1 font-semibold text-emerald-800">All exported fields are editable first-class fields.</p>}
                 {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
                   <details className="mt-2 rounded-lg border border-[#eadfd5] bg-blue-50 p-2" data-testid={`marketing-export-field-coverage-${item.entity}`}>
                     <summary className="cursor-pointer font-black text-[#241133]">View full field map</summary>
                     <div className="mt-2 grid gap-2">
                       {item.metadataOnlyFields.length ? (
-                        <p><span className="text-amber-800">Metadata-only:</span> {item.metadataOnlyFields.join(", ")}</p>
+                        <p><span className="text-amber-800">Preserved in Source metadata:</span> {item.metadataOnlyFields.join(", ")}</p>
                       ) : null}
                       {item.firstClassFields.length ? (
                         <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
