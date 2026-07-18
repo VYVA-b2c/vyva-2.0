@@ -4990,6 +4990,68 @@ describe("ConciergeScreen route prefill", () => {
     );
   });
 
+  it("asks for a missing email recipient before a prepared task can be confirmed", async () => {
+    let detailsBody: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "email-missing-recipient",
+            use_case: "scam_check",
+            provider_name: "VYVA review",
+            provider_phone: null,
+            action_summary: "Forward a suspicious message for review.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+              show_vyva_action_id: "forward_email",
+              execution_channel: "email",
+              email_subject: "Please review this message",
+              email_body: "Can you check whether this message is safe?",
+              execution_task: liveReadyExecutionTask("email", {
+                flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+                lifecycle_status: "ready",
+                user_confirmed: false,
+                external_action_allowed: false,
+                execution_mode: "manual_review",
+              }),
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/email-missing-recipient/details")) {
+        detailsBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        return jsonResponse({ ok: true, item: {} });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-concierge-guided-details");
+    expect(panel).toHaveTextContent("Who should receive the draft");
+    expect(screen.queryByTestId("button-concierge-confirm-email-missing-recipient")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("input-concierge-guided-detail-recipient_email"), {
+      target: { value: "concierge@vyva.life" },
+    });
+    fireEvent.click(screen.getByTestId("button-concierge-guided-detail-save"));
+
+    await waitFor(() => {
+      expect(detailsBody).toMatchObject({
+        action_payload: { recipient_email: "concierge@vyva.life" },
+        answer_key: "recipient_email",
+        answer_value: "concierge@vyva.life",
+      });
+    });
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/concierge/actions/email-missing-recipient/review-confirm",
+      { method: "POST" },
+    );
+  });
+
   it("expands ride details and focuses pickup when pickup is missing", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
@@ -6401,6 +6463,133 @@ describe("ConciergeScreen route prefill", () => {
     );
     expect(screen.getByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
     expect(screen.getByTestId("button-email-draft-sent-email-1")).toHaveTextContent("I sent it");
+  });
+
+  it("shows an owned live email send in completed history while provider follow-up stays open", async () => {
+    let confirmed = false;
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/live-email-history/review-confirm")) {
+        confirmed = true;
+        return jsonResponse({
+          pendingId: "live-email-history",
+          status: "pending",
+          message: "sent",
+          historySessionId: "session-live-email-history",
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "live-email-history",
+            use_case: "send_message",
+            provider_name: "Controlled Email Pilot Inbox",
+            provider_phone: null,
+            action_summary: "Send the controlled email pilot receipt.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+              execution_channel: "email",
+              provider_email: "concierge@vyva.life",
+              email_subject: "VYVA Concierge app-triggered smoke",
+              email_body: "Controlled app-triggered live email smoke.",
+              ...(confirmed ? {
+                execution_adapter: {
+                  version: 1,
+                  adapter: "concierge_email_adapter",
+                  mode: "live",
+                  channel: "email",
+                  tool: "email",
+                  status: "sent",
+                  attempted_at: "2026-07-18T10:00:00.000Z",
+                  provider_name: "Controlled Email Pilot Inbox",
+                  provider_contact: "concierge@vyva.life",
+                  external_action_allowed: true,
+                  result: "sent",
+                  result_id: "resend-live-email-1",
+                },
+                execution_task: liveReadyExecutionTask("email", {
+                  flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+                  lifecycle_status: "confirmed",
+                  user_confirmed: true,
+                  external_action_allowed: true,
+                  execution_mode: "live",
+                  confirmation_source: "user_controlled_execution",
+                }),
+                waiting_for_provider: true,
+                mission_status: "awaiting_provider_reply",
+              } : {
+                execution_task: liveReadyExecutionTask("email", {
+                  flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+                  user_confirmed: false,
+                  external_action_allowed: false,
+                  execution_mode: "manual_review",
+                }),
+              }),
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({
+          items: confirmed ? [{
+            id: "session-live-email-history",
+            pending_id: "live-email-history",
+            use_case: "send_message",
+            provider_name: "Controlled Email Pilot Inbox",
+            outcome: "completed",
+            outcome_summary: "Email sent to Controlled Email Pilot Inbox (concierge@vyva.life). Waiting for provider reply.",
+            completed_at: "2026-07-18T10:00:00.000Z",
+            outcome_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+              receipt_kind: "provider_contact_sent",
+              email_outcome: "sent",
+              execution_channel: "email",
+              execution_mode: "live",
+              live_action: true,
+              external_action_allowed: true,
+              user_confirmed: true,
+              provider_name: "Controlled Email Pilot Inbox",
+              provider_email: "concierge@vyva.life",
+              recipient_email: "concierge@vyva.life",
+              provider_message_id: "resend-live-email-1",
+              waiting_for_provider: true,
+              execution_task: {
+                user_confirmed: true,
+                lifecycle_status: "confirmed",
+              },
+            },
+          }] : [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-concierge-confirm-live-email-history"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/concierge/actions/live-email-history/review-confirm",
+        { method: "POST" },
+      );
+    });
+    const history = await screen.findByTestId("section-concierge-completed-history");
+    expect(history).toHaveTextContent("Done recently");
+    expect(screen.getByTestId("section-concierge-active-task")).toHaveTextContent("Controlled Email Pilot Inbox");
+    expect(screen.queryByTestId("panel-concierge-email-draft")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("card-concierge-completed-session-live-email-history"));
+    const receipt = await screen.findByTestId("panel-concierge-completed-receipt");
+    const receiptDetails = within(receipt).getByTestId("list-concierge-completed-receipt-details");
+    expect(receiptDetails).toHaveTextContent("Sent");
+    expect(receiptDetails).toHaveTextContent("Live action");
+    expect(receiptDetails).toHaveTextContent("Confirmed");
+    expect(receiptDetails).toHaveTextContent("Yes");
+    expect(receiptDetails).toHaveTextContent("concierge@vyva.life");
+    expect(receiptDetails).toHaveTextContent("resend-live-email-1");
   });
 
   it("blocks live email handoff when the admin channel gate is not ready", async () => {
