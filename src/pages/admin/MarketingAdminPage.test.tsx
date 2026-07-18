@@ -2660,12 +2660,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("WhatsApp partner proof nudge");
     expect(screen.getByTestId("marketing-template-gap-suggestions")).toHaveTextContent("Template coverage is balanced");
     expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("AI coverage autopilot");
-    expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Template coverage is balanced");
-    expect(screen.queryByTestId("marketing-template-gap-autopilot-batch")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Coverage is balanced. Expand the library.");
+    expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Next batch: 4 AI drafts");
+    expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("Local event");
+    expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("3/3+");
     expect(screen.getByTestId("button-marketing-template-gap-autopilot-generate")).toHaveTextContent("Generate next pack");
-    expect(screen.getByTestId("button-marketing-template-gap-autopilot-generate")).toBeDisabled();
-    expect(screen.getByTestId("button-marketing-template-gap-autopilot-studio")).toHaveTextContent("Open top gap in studio");
-    expect(screen.getByTestId("button-marketing-template-gap-autopilot-studio")).toBeDisabled();
+    expect(screen.getByTestId("button-marketing-template-gap-autopilot-generate")).not.toBeDisabled();
+    expect(screen.getByTestId("button-marketing-template-gap-autopilot-studio")).toHaveTextContent("Open next expansion in studio");
+    expect(screen.getByTestId("button-marketing-template-gap-autopilot-studio")).not.toBeDisabled();
     expect(screen.queryByTestId("marketing-template-gap-pack")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-template-filter-channel-tiktok"));

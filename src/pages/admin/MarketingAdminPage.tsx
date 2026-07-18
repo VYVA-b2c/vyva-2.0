@@ -6389,6 +6389,26 @@ function templateGapSuggestionsFor(templates: ContentTemplate[]) {
     .slice(0, 4);
 }
 
+function templateExpansionSuggestionsFor(templates: ContentTemplate[]) {
+  return CHANNELS.flatMap((channel) => {
+    const channelCount = templates.filter((template) => template.channel === channel).length;
+    return (["b2c", "b2b"] as Audience[]).map((audienceType) => {
+      const existingCount = templates.filter((template) => (
+        template.channel === channel
+        && (template.audienceType === audienceType || template.audienceType === "both")
+      )).length;
+      return templateGapSuggestionFor(channel, audienceType, existingCount, channelCount);
+    });
+  })
+    .sort((a, b) => {
+      if (a.existingCount !== b.existingCount) return a.existingCount - b.existingCount;
+      if (a.channelCount !== b.channelCount) return a.channelCount - b.channelCount;
+      if (a.audienceType !== b.audienceType) return a.audienceType === "b2c" ? -1 : 1;
+      return channelLabel[a.channel].localeCompare(channelLabel[b.channel]);
+    })
+    .slice(0, TEMPLATE_GAP_BATCH_LIMIT);
+}
+
 function campaignDraftFromContentTemplate(template: ContentTemplate, targetAudience: MarketingAudience | null = null): CampaignDraft {
   return {
     name: `${template.title} campaign`,
@@ -10059,8 +10079,11 @@ export default function MarketingAdminPage() {
     }),
   })), []);
   const contentTemplateGapSuggestions = useMemo(() => templateGapSuggestionsFor(contentTemplateGallery), []);
+  const contentTemplateExpansionSuggestions = useMemo(() => templateExpansionSuggestionsFor(contentTemplateGallery), []);
   const contentTemplateGapAutopilot = useMemo(() => {
-    const batch = contentTemplateGapSuggestions.slice(0, TEMPLATE_GAP_BATCH_LIMIT);
+    const mode = contentTemplateGapSuggestions.length ? "gap" as const : "expansion" as const;
+    const suggestions = mode === "gap" ? contentTemplateGapSuggestions : contentTemplateExpansionSuggestions;
+    const batch = suggestions.slice(0, TEMPLATE_GAP_BATCH_LIMIT);
     const totalMissing = contentTemplateGapSuggestions.reduce((sum, suggestion) => (
       sum + Math.max(suggestion.coverageTarget - suggestion.existingCount, 0)
     ), 0);
@@ -10070,9 +10093,9 @@ export default function MarketingAdminPage() {
     const batchChannels = uniqueChannels(batch.map((suggestion) => suggestion.channel));
     const batchAudiences = Array.from(new Set(batch.map((suggestion) => suggestion.audienceType)));
     const topSuggestion = batch[0] ?? null;
-    const state: CampaignReadinessState = topSuggestion ? "needs_action" : "ready";
-    return { batch, totalMissing, batchMissing, batchChannels, batchAudiences, topSuggestion, state };
-  }, [contentTemplateGapSuggestions]);
+    const state: CampaignReadinessState = mode === "gap" ? "needs_action" : topSuggestion ? "planning" : "ready";
+    return { batch, totalMissing, batchMissing, batchChannels, batchAudiences, topSuggestion, state, mode };
+  }, [contentTemplateExpansionSuggestions, contentTemplateGapSuggestions]);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
   const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
@@ -16574,16 +16597,17 @@ export default function MarketingAdminPage() {
   }
 
   async function generateTemplateGapPack() {
-    const suggestions = contentTemplateGapSuggestions.slice(0, TEMPLATE_GAP_BATCH_LIMIT);
+    const suggestions = contentTemplateGapAutopilot.batch;
+    const isExpansionPack = contentTemplateGapAutopilot.mode === "expansion";
     if (!suggestions.length) {
-      setContentActionFeedback("Template coverage is balanced. No gap pack needed right now.");
+      setContentActionFeedback("No template pack suggestions are available right now.");
       return;
     }
 
     setTemplateGapPackRunning(true);
-    setTemplateGapPackProgress(`Preparing 0/${suggestions.length} gap templates`);
+    setTemplateGapPackProgress(`Preparing 0/${suggestions.length} ${isExpansionPack ? "expansion" : "gap"} templates`);
     setContentFeedback("");
-    setContentActionFeedback(`Creating ${suggestions.length} AI template gap draft${suggestions.length === 1 ? "" : "s"}...`);
+    setContentActionFeedback(`Creating ${suggestions.length} AI template ${isExpansionPack ? "expansion" : "gap"} draft${suggestions.length === 1 ? "" : "s"}...`);
     try {
       const created: ContentAsset[] = [];
       for (let index = 0; index < suggestions.length; index += 1) {
@@ -16605,14 +16629,14 @@ export default function MarketingAdminPage() {
       setContentTemplateAudienceFilter("all");
       setContentTemplateCategoryFilter("all");
       setContentTemplatePackFilter("all");
-      const feedback = `AI gap pack created: ${created.length} template draft${created.length === 1 ? "" : "s"}. ${firstCreated ? "First draft opened for review." : ""}`;
+      const feedback = `AI ${isExpansionPack ? "expansion" : "gap"} pack created: ${created.length} template draft${created.length === 1 ? "" : "s"}. ${firstCreated ? "First draft opened for review." : ""}`;
       setContentFeedback(feedback);
       setContentActionFeedback(feedback);
       setMessage(feedback);
       await refreshAll();
       scrollToContentPanel(contentEditorPanelRef);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "AI template gap pack could not be created.";
+      const errorMessage = error instanceof Error ? error.message : `AI template ${isExpansionPack ? "expansion" : "gap"} pack could not be created.`;
       setContentFeedback(errorMessage);
       setContentActionFeedback(errorMessage);
       setMessage(errorMessage);
@@ -27438,8 +27462,12 @@ export default function MarketingAdminPage() {
 
               <SectionCard
                 title="Template gaps to fill"
-                subtitle="Suggested starter drafts for weak channel or audience coverage."
-                action={<Pill className="bg-amber-50 text-amber-800">{contentTemplateGapSuggestions.length} suggestions</Pill>}
+                subtitle="Suggested AI drafts for weak coverage, plus expansion packs when the base library is balanced."
+                action={(
+                  <Pill className={contentTemplateGapAutopilot.mode === "gap" ? "bg-amber-50 text-amber-800" : "bg-purple-50 text-purple-800"}>
+                    {contentTemplateGapAutopilot.mode === "gap" ? `${contentTemplateGapSuggestions.length} suggestions` : "Expansion ready"}
+                  </Pill>
+                )}
               >
                 <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${readinessClass(contentTemplateGapAutopilot.state)}`} data-testid="marketing-template-gap-autopilot">
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-center">
@@ -27452,20 +27480,20 @@ export default function MarketingAdminPage() {
                         ) : null}
                       </div>
                       <h3 className="mt-2 font-serif text-xl text-[#241133]">
-                        {contentTemplateGapAutopilot.topSuggestion
+                        {contentTemplateGapAutopilot.mode === "gap"
                           ? `Fill ${contentTemplateGapAutopilot.batchMissing} missing template slots next`
-                          : "Template coverage is balanced"}
+                          : "Coverage is balanced. Expand the library."}
                       </h3>
                       <p className="mt-1 max-w-4xl text-sm font-bold leading-relaxed text-[#6f5f59]">
-                        {contentTemplateGapAutopilot.topSuggestion
+                        {contentTemplateGapAutopilot.mode === "gap" && contentTemplateGapAutopilot.topSuggestion
                           ? `Start with ${contentTemplateGapAutopilot.topSuggestion.title}, then generate a practical pack for ${formatChannelList(contentTemplateGapAutopilot.batchChannels)} across ${contentTemplateGapAutopilot.batchAudiences.map((audience) => audience.toUpperCase()).join(" and ")} audiences. ${contentTemplateGapAutopilot.totalMissing} high-priority reusable template slot${contentTemplateGapAutopilot.totalMissing === 1 ? "" : "s"} remain in the top coverage scan.`
-                          : "The reusable gallery has enough channel and audience coverage for the current target. Use the matchmaker or campaign studio to adapt the best starter."}
+                          : `The reusable gallery meets the base target. Generate fresh ${formatChannelList(contentTemplateGapAutopilot.batchChannels)} ideas for ${contentTemplateGapAutopilot.batchAudiences.map((audience) => audience.toUpperCase()).join(" and ")} audiences so the library keeps growing beyond minimum coverage.`}
                       </p>
-                      {contentTemplateGapAutopilot.topSuggestion ? (
+                      {contentTemplateGapAutopilot.batch.length ? (
                         <div className="mt-3 flex flex-wrap gap-2" data-testid="marketing-template-gap-autopilot-batch">
                           {contentTemplateGapAutopilot.batch.map((suggestion) => (
                             <Pill key={suggestion.id} className={channelClass(suggestion.channel)}>
-                              {channelLabel[suggestion.channel]} {suggestion.audienceType.toUpperCase()} {suggestion.existingCount}/{suggestion.coverageTarget}
+                              {channelLabel[suggestion.channel]} {suggestion.audienceType.toUpperCase()} {suggestion.existingCount}/{suggestion.coverageTarget}{contentTemplateGapAutopilot.mode === "expansion" ? "+" : ""}
                             </Pill>
                           ))}
                         </div>
@@ -27490,7 +27518,7 @@ export default function MarketingAdminPage() {
                         disabled={!contentTemplateGapAutopilot.topSuggestion || contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
                         data-testid="button-marketing-template-gap-autopilot-studio"
                       >
-                        <Zap size={14} /> Open top gap in studio
+                        <Zap size={14} /> {contentTemplateGapAutopilot.mode === "gap" ? "Open top gap in studio" : "Open next expansion in studio"}
                       </button>
                     </div>
                   </div>
