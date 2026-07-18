@@ -14740,7 +14740,7 @@ const ConciergeScreen = () => {
   const isVoiceAppointmentHandoff=routePrefill?.kind==="appointment"&&routePrefill.source==="voice_action";
   const appointmentCanvasRolloutQuery=useQuery({queryKey:["/api/config/features/appointment-voice-canvas"],queryFn:async()=>{const response=await apiFetch("/api/config/features/appointment-voice-canvas");return response.ok?parseAppointmentCanvasRolloutConfig(await response.json()):{enabled:false,rolloutPercent:0}},enabled:isVoiceAppointmentHandoff,staleTime:0,refetchInterval:10_000,refetchOnWindowFocus:"always",retry:false});
   const usesAppointmentVoiceCanvas=isVoiceAppointmentHandoff&&isAppointmentCanvasEnabled(appointmentCanvasRolloutQuery.data,conciergeVoiceAction?.id??"anonymous");
-  const appointmentCanvasCopy=useMemo<AppointmentCanvasCopy>(()=>({
+  const appointmentVoiceCanvasCopy=useMemo<AppointmentCanvasCopy>(()=>({
     listening:{status:isSpanish?"Escuchando":"Listening",title:isSpanish?"Preparemos tu cita":"Let’s prepare your appointment",helper:isSpanish?"Puedes hablar o usar los botones.":"Use your voice or the buttons below.",start:isSpanish?"Empezar":"Start",cancel:isSpanish?"Ahora no":"Not now"},
     provider:{title:isSpanish?"¿Con qué profesional o clínica?":"Which clinician or clinic?",helper:isSpanish?"Elige uno guardado o añade otro.":"Choose a saved provider or add another.",newProvider:isSpanish?"Otro profesional o clínica":"A different provider",newProviderHelper:isSpanish?"Escribe el nombre":"Enter the provider name",back:isSpanish?"Volver":"Go back"},
     providerEntry:{title:isSpanish?"¿Qué nombre usamos?":"What provider should we use?",helper:isSpanish?"Escribe el profesional o la clínica.":"Enter the clinician or clinic.",label:isSpanish?"Profesional o clínica":"Clinician or clinic",placeholder:isSpanish?"Nombre del profesional o clínica":"Provider or clinic name",continue:isSpanish?"Continuar":"Continue",back:isSpanish?"Volver":"Go back"},
@@ -16238,7 +16238,7 @@ const ConciergeScreen = () => {
 
       {usesAppointmentVoiceCanvas && (
         <section className="order-[15] mt-4 flex justify-center rounded-[28px] bg-[#F8F4FA] p-2 sm:p-4" data-testid="panel-concierge-appointment-voice-canvas">
-          <AppointmentVoiceCanvas copy={appointmentCanvasCopy} providers={appointmentCanvasProviders} dateChoices={appointmentCanvasDates} voiceCommands={appointmentCanvasCommands} initialState={appointmentCanvasInitialState} storageKey={`vyva.appointmentCanvas.concierge.${conciergeVoiceAction?.id??"active"}`} onConfirmPrepare={confirmAppointmentCanvas} onDone={()=>setRoutePrefill(null)} onCancel={()=>setRoutePrefill(null)} onTelemetry={trackAppointmentCanvasEvent}/>
+          <AppointmentVoiceCanvas copy={appointmentVoiceCanvasCopy} providers={appointmentCanvasProviders} dateChoices={appointmentCanvasDates} voiceCommands={appointmentCanvasCommands} initialState={appointmentCanvasInitialState} storageKey={`vyva.appointmentCanvas.concierge.${conciergeVoiceAction?.id??"active"}`} onConfirmPrepare={confirmAppointmentCanvas} onDone={()=>setRoutePrefill(null)} onCancel={()=>setRoutePrefill(null)} onTelemetry={trackAppointmentCanvasEvent}/>
         </section>
       )}
       {routePrefill && routePrefill.kind !== "ride" && !usesAppointmentVoiceCanvas && routePrefillMeta && (
