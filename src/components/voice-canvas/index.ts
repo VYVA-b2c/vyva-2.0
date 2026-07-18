@@ -11,3 +11,9 @@ export { trackRideCanvasEvent, VYVA_RIDE_CANVAS_TELEMETRY_EVENT } from "./rideCa
 export type * from "./rideCanvasTelemetry";
 export { isRideCanvasEnabled, parseRideCanvasRolloutConfig } from "./rideCanvasRollout";
 export type * from "./rideCanvasRollout";
+export {default as AppointmentVoiceCanvas}from"./AppointmentVoiceCanvas";
+export type{AppointmentVoiceCanvasProps,AppointmentVoiceCommands,AppointmentPreparationResult}from"./AppointmentVoiceCanvas";
+export{appointmentCanvasReducer,initialAppointmentCanvasState,emptyAppointmentDraft}from"./appointmentCanvasMachine";export type*from"./appointmentCanvasMachine";
+export{appointmentCanvasViewModel}from"./appointmentCanvasViewModel";export type*from"./appointmentCanvasViewModel";
+export{trackAppointmentCanvasEvent,VYVA_APPOINTMENT_CANVAS_TELEMETRY_EVENT}from"./appointmentCanvasTelemetry";export type*from"./appointmentCanvasTelemetry";
+export{isAppointmentCanvasEnabled,parseAppointmentCanvasRolloutConfig}from"./appointmentCanvasRollout";export type*from"./appointmentCanvasRollout";
