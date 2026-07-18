@@ -741,7 +741,8 @@ const App = () => (
                   <Route path="/memory-games/curious-minds" element={<AppShell><CuriousMindsRoute /></AppShell>} />
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
-                  <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="home" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/task/:taskId" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="task" /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/shopping" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeShoppingScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />
