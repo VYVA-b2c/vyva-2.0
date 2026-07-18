@@ -1351,6 +1351,29 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Source export endpoint is already built in");
   }, 45_000);
 
+  it("turns global search matches into direct open actions", async () => {
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Marketing" });
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner" } });
+
+    expect(screen.getByTestId("marketing-smart-search-results")).toHaveTextContent('Best matches for "partner"');
+    expect(screen.getByTestId("marketing-smart-search-results")).toHaveTextContent("Campaign");
+    expect(screen.getByTestId("marketing-smart-search-results")).toHaveTextContent("Journey");
+    expect(screen.getByTestId("marketing-smart-search-results")).toHaveTextContent("Content");
+    expect(screen.getByTestId("marketing-smart-search-results")).toHaveTextContent("Contact");
+    expect(screen.getByTestId("marketing-smart-search-results")).toHaveTextContent("Audience");
+    expect(screen.getByTestId("marketing-smart-search-results")).toHaveTextContent("Media");
+
+    fireEvent.click(screen.getByTestId("button-marketing-smart-search-open-content-content-2"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "hassan" } });
+    fireEvent.click(screen.getByTestId("button-marketing-smart-search-open-contact-contact-2"));
+    expect(screen.getByTestId("marketing-contact-relationship-panel")).toHaveTextContent("Hassan Partner");
+  });
+
   it("turns a standalone contact into a reusable campaign audience before opening the studio", async () => {
     renderPage({}, { audiences: [] });
 

@@ -94,6 +94,16 @@ type ContentStatus = typeof CONTENT_STATUSES[number];
 type ConsentStatus = typeof CONSENT_STATUSES[number];
 type ContentLocalizationLanguage = typeof CONTENT_LOCALIZATION_LANGUAGES[number]["value"];
 type CountOption = { value: string; label: string; count: number };
+type MarketingSmartSearchResult = {
+  key: string;
+  type: string;
+  title: string;
+  detail: string;
+  meta: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+};
 
 const CAMPAIGN_STUDIO_ROUTE_FAMILIES: Array<{ key: string; title: string; detail: string; channels: Channel[] }> = [
   { key: "email", title: "Email", detail: "Send-ready campaign route through VYVA when content and recipients are ready.", channels: ["email"] },
@@ -13504,6 +13514,76 @@ export default function MarketingAdminPage() {
     return enrollmentMatchesSearch && matchesAudience && matchesChannel;
   }), [journeyEnrollments, search, audienceFilter, channelFilter, journeyById, contactByJourneyEnrollmentId]);
 
+  const smartSearchQuery = search.trim();
+  const smartSearchTotalMatches = smartSearchQuery
+    ? visibleCampaigns.length + visibleJourneys.length + visibleContent.length + visibleContacts.length + visibleAudiences.length + visibleMediaAssets.length
+    : 0;
+  const smartSearchResults: MarketingSmartSearchResult[] = smartSearchQuery ? [
+    ...visibleCampaigns.slice(0, 2).map((campaign) => ({
+      key: `campaign-${campaign.id}`,
+      type: "Campaign",
+      title: campaign.name,
+      detail: campaign.objective || `${campaign.status} campaign`,
+      meta: `${campaign.audienceType.toUpperCase()} / ${campaign.channels.map((item) => channelLabel[item.channel]).join(", ") || "No channels"} / ${campaign.recipientCount} recipients`,
+      actionLabel: "Open campaign",
+      icon: Megaphone,
+      onSelect: () => openCampaignForNextAction(campaign),
+    })),
+    ...visibleJourneys.slice(0, 2).map((journey) => ({
+      key: `journey-${journey.id}`,
+      type: "Journey",
+      title: journey.name,
+      detail: journey.objective || `${journey.steps.length} step${journey.steps.length === 1 ? "" : "s"} planned`,
+      meta: `${journey.audienceType.toUpperCase()} / ${journey.status} / ${journey.steps.length} step${journey.steps.length === 1 ? "" : "s"}`,
+      actionLabel: "Edit journey",
+      icon: Waypoints,
+      onSelect: () => {
+        startJourneyEdit(journey);
+        setMessage(`Opened journey "${journey.name}".`);
+      },
+    })),
+    ...visibleContent.slice(0, 3).map((asset) => ({
+      key: `content-${asset.id}`,
+      type: "Content",
+      title: asset.title,
+      detail: asset.subject || firstMeaningfulPreviewLine(asset.body || asset.htmlBody || "") || contentOriginLabel(asset),
+      meta: `${channelLabel[asset.channel]} / ${asset.status} / ${asset.language || "no language"}`,
+      actionLabel: "Preview",
+      icon: FileText,
+      onSelect: () => previewContent(asset),
+    })),
+    ...visibleContacts.slice(0, 3).map((contact) => ({
+      key: `contact-${contact.id}`,
+      type: "Contact",
+      title: contact.fullName || contact.email || contact.phoneNumber || contact.whatsappNumber || "Unnamed contact",
+      detail: [contact.companyName, contact.roleLabel].filter(Boolean).join(" / ") || contact.email || contact.phoneNumber || "No contact route",
+      meta: `${contact.audienceType.toUpperCase()} / ${contact.consentStatus} / ${[contact.market, contact.vertical, contact.category].filter(Boolean).join(", ") || "unsegmented"}`,
+      actionLabel: "Open contact",
+      icon: UsersRound,
+      onSelect: () => selectRelationshipContact(contact),
+    })),
+    ...visibleAudiences.slice(0, 2).map((audience) => ({
+      key: `audience-${audience.id}`,
+      type: "Audience",
+      title: audience.name,
+      detail: audience.description || `${audience.memberCount} imported member${audience.memberCount === 1 ? "" : "s"}`,
+      meta: `${audience.listType} / ${audience.mappedMemberCount}/${audience.memberCount} mapped`,
+      actionLabel: "Edit list",
+      icon: UsersRound,
+      onSelect: () => startAudienceEdit(audience),
+    })),
+    ...visibleMediaAssets.slice(0, 2).map((asset) => ({
+      key: `media-${asset.id}`,
+      type: "Media",
+      title: asset.contentTitle || mediaPreviewLabel(asset.originalUrl),
+      detail: asset.originalUrl,
+      meta: `${asset.assetType} / ${asset.status}`,
+      actionLabel: "Edit media",
+      icon: ImageIcon,
+      onSelect: () => startMediaEdit(asset),
+    })),
+  ].slice(0, 8) : [];
+
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
@@ -24347,6 +24427,62 @@ export default function MarketingAdminPage() {
               {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
             </select>
           </div>
+
+          {smartSearchQuery ? (
+            <section className="rounded-[14px] border border-purple-100 bg-purple-50/60 p-4 shadow-sm" data-testid="marketing-smart-search-results">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Smart search</p>
+                  <h3 className="mt-1 text-lg font-black text-[#241133]">Best matches for "{smartSearchQuery}"</h3>
+                  <p className="mt-1 text-sm font-bold text-[#6b5b54]">
+                    {smartSearchTotalMatches} match{smartSearchTotalMatches === 1 ? "" : "es"} across campaigns, journeys, content, contacts, lists, and media.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700"
+                  data-testid="button-marketing-clear-smart-search"
+                >
+                  <X size={14} /> Clear search
+                </button>
+              </div>
+              {smartSearchResults.length ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-testid="marketing-smart-search-result-list">
+                  {smartSearchResults.map((result) => {
+                    const ResultIcon = result.icon;
+                    return (
+                      <article key={result.key} className="flex min-h-[170px] flex-col rounded-xl border border-[#eadfd5] bg-white p-3 shadow-sm" data-testid={`marketing-smart-search-result-${result.key}`}>
+                        <div className="flex items-start gap-3">
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-purple-50 text-purple-700">
+                            <ResultIcon size={17} aria-hidden="true" />
+                          </span>
+                          <div className="min-w-0">
+                            <Pill className="bg-[#fffaf4] text-[#7d6b65]">{result.type}</Pill>
+                            <h4 className="mt-2 line-clamp-2 text-sm font-black text-[#241133]">{result.title}</h4>
+                            <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{result.detail}</p>
+                          </div>
+                        </div>
+                        <p className="mt-3 line-clamp-2 text-xs font-black text-[#8b7a73]">{result.meta}</p>
+                        <button
+                          type="button"
+                          onClick={result.onSelect}
+                          className="mt-auto inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white"
+                          data-testid={`button-marketing-smart-search-open-${result.key}`}
+                        >
+                          <ExternalLink size={13} /> {result.actionLabel}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl border border-dashed border-[#eadfd5] bg-white px-4 py-5 text-sm font-bold text-[#7d6b65]" data-testid="marketing-smart-search-empty">
+                  No matching records yet. Clear the search or run Source sync if you expected imported marketing data.
+                </div>
+              )}
+            </section>
+          ) : null}
 
           {activeTab === "dashboard" && (
             <div className="grid gap-4" data-testid="marketing-dashboard-tab">
