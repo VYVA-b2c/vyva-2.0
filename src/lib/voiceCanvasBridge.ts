@@ -4,7 +4,7 @@ export const VYVA_VOICE_CANVAS_PRESENT_EVENT = "vyva:voice-canvas-present";
 export const VYVA_VOICE_CANVAS_CLEAR_EVENT = "vyva:voice-canvas-clear";
 export const VYVA_VOICE_CANVAS_RESPONSE_EVENT = "vyva:voice-canvas-response";
 
-export type VoiceCanvasSceneOwner = "voice_action" | "concierge_ride" | "concierge_appointment";
+export type VoiceCanvasSceneOwner = "voice_action" | "concierge_ride" | "concierge_appointment" | "concierge_home_service";
 
 export type VoiceCanvasSceneEnvelope = {
   viewModel: VoiceCanvasViewModel;
@@ -15,7 +15,7 @@ export type VoiceCanvasSceneEnvelope = {
   pendingId?: string;
 };
 
-export type VoiceCanvasResponseKind = "choice" | "primary" | "secondary" | "text";
+export type VoiceCanvasResponseKind = "choice" | "primary" | "secondary" | "text" | "file";
 
 export type VoiceCanvasResponseDetail = {
   sceneId: string;
@@ -24,6 +24,7 @@ export type VoiceCanvasResponseDetail = {
   utterance: string;
   value?: string;
   choiceId?: string;
+  file?: File | null;
   at: string;
 };
 

@@ -48,6 +48,17 @@ export interface VoiceCanvasTextEntry {
   accessibleLabel?: string;
 }
 
+export interface VoiceCanvasFileEntry {
+  label: string;
+  accept?: string;
+  capture?: "user" | "environment";
+  fileName?: string;
+  statusLabel?: string;
+  removeLabel?: string;
+  disabled?: boolean;
+  accessibleLabel?: string;
+}
+
 export interface VoiceCanvasProgress {
   current: number;
   total: number;
@@ -63,6 +74,7 @@ export interface VoiceCanvasViewModel {
   choices?: VoiceCanvasChoice[];
   summaryRows?: VoiceCanvasSummaryRow[];
   textEntry?: VoiceCanvasTextEntry;
+  fileEntry?: VoiceCanvasFileEntry;
   status?: VoiceCanvasStatus;
   statusLabel?: string;
   primaryAction?: VoiceCanvasAction;

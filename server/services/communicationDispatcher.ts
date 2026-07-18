@@ -139,6 +139,25 @@ function metadataString(metadata: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function metadataEmailAttachments(metadata: Record<string, unknown>): EmailAttachment[] {
+  if (!Array.isArray(metadata.attachments)) return [];
+  return metadata.attachments.flatMap((value, index) => {
+    const item = metadataRecord(value);
+    const content = metadataString(item, "content");
+    const filename = metadataString(item, "filename");
+    const type = metadataString(item, "type");
+    if (!content || !filename || !type || !/^image\/(jpeg|png|webp)$/.test(type)) return [];
+    if (!/^[A-Za-z0-9+/=]+$/.test(content) || content.length > 2_500_000) return [];
+    return [{
+      content,
+      filename,
+      type,
+      disposition: "attachment" as const,
+      content_id: metadataString(item, "content_id") ?? `attachment-${index + 1}`,
+    }];
+  });
+}
+
 export function buildEmailPayload(item: Communication): EmailPayload {
   const metadata = metadataRecord(item.metadata);
   const subject = metadataString(metadata, "subject") ?? "Join VYVA";
@@ -159,6 +178,10 @@ export function buildEmailPayload(item: Communication): EmailPayload {
         ?? metadataString(metadata, "htmlBody")
         ?? metadataString(metadata, "html_body");
       return html ? { html } : {};
+    })(),
+    ...(() => {
+      const attachments = metadataEmailAttachments(metadata);
+      return attachments.length ? { attachments } : {};
     })(),
   };
 }

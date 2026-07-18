@@ -290,8 +290,11 @@ export function detectHomeServiceSafetyFlags(input: {
   const urgency = normalizeHomeServiceUrgency(input.urgency);
   const answers = compactRecord(input.answers);
   if (urgency === "now") flags.add("urgent");
+  if (answers.immediate_danger === "yes") flags.add("immediate_danger");
   if (type === "plumber" && answers.active_flooding === "yes") flags.add("active_water_damage");
   if (type === "electrician" && answers.problem_type === "sparks_smell") flags.add("electrical_hazard");
+  if (type === "locksmith" && answers.lockout_hazard === "yes") flags.add("lockout_hazard");
+  if (answers.environment_hazard === "yes") flags.add("environment_hazard");
   if (type === "electrician" && (answers.safety_risk === "hazard" || answers.safety_risk === "danger_now")) {
     flags.add("electrical_hazard");
     flags.add("immediate_danger");

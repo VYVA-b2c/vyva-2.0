@@ -28,6 +28,20 @@ it("reports choice, action, and text intents without side effects", () => {
   expect(onChoice).toHaveBeenCalledWith("one"); expect(onTextChange).toHaveBeenCalledWith("Madrid"); expect(onPrimary).toHaveBeenCalledOnce(); expect(onSecondary).toHaveBeenCalledOnce();
 });
 
+it("accepts and removes an optional camera photo", () => {
+  const onFileChange = vi.fn();
+  render(<VoiceCanvasScene
+    viewModel={base("text-entry", {
+      textEntry: { label: "Problem", value: "Leaking sink" },
+      fileEntry: { label: "Add a photo", accept: "image/*", capture: "environment", removeLabel: "Remove photo" },
+    })}
+    onFileChange={onFileChange}
+  />);
+  const file = new File(["photo"], "sink.jpg", { type: "image/jpeg" });
+  fireEvent.change(screen.getByLabelText("Add a photo"), { target: { files: [file] } });
+  expect(onFileChange).toHaveBeenCalledWith(file);
+});
+
 it("supports arrow-key navigation between choices", () => {
   render(<VoiceCanvasScene viewModel={base("choice",{choices:[{id:"a",label:"First"},{id:"b",label:"Second"},{id:"c",label:"Disabled",disabled:true}]})} />);
   const first=screen.getByRole("button",{name:"First"}),second=screen.getByRole("button",{name:"Second"}); first.focus(); fireEvent.keyDown(first,{key:"ArrowRight"}); expect(second).toHaveFocus(); fireEvent.keyDown(second,{key:"ArrowDown"}); expect(first).toHaveFocus();

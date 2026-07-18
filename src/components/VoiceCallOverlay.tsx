@@ -28,6 +28,7 @@ interface VoiceCallOverlayProps {
   onCanvasChoice?: (choiceId: string) => void;
   onCanvasPrimary?: (value?: string) => void;
   onCanvasSecondary?: () => void;
+  onCanvasFile?: (file: File | null) => void;
 }
 
 function orbState(isSpeaking: boolean, isConnecting: boolean): ZamoraOrbState {
@@ -225,6 +226,7 @@ const VoiceCallOverlay = ({
   onCanvasChoice,
   onCanvasPrimary,
   onCanvasSecondary,
+  onCanvasFile,
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
   const latestEntry = transcript.length > 0 ? transcript[transcript.length - 1] : null;
@@ -551,6 +553,7 @@ const VoiceCallOverlay = ({
               onPrimary={() => onCanvasPrimary?.(canvasTextValue)}
               onSecondary={onCanvasSecondary}
               onTextChange={setCanvasTextValue}
+              onFileChange={onCanvasFile}
             />
           </div>
         ) : (
