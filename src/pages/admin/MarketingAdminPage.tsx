@@ -20224,6 +20224,32 @@ export default function MarketingAdminPage() {
       angleLabel: campaignStudioAngleOptions.find((item) => item.id === match.angleId)?.label ?? match.angleId,
     };
   }, [audiences, contacts, marketingDashboardAiCommand, templatePackRecommendationsForPlay]);
+
+  function openMarketingDashboardAiTemplatePack(mode: "content" | "studio") {
+    const plan = marketingDashboardAiCommandPlan;
+    const packMatch = plan?.packMatch ?? null;
+    if (!plan || !packMatch) {
+      setMessage("Type a campaign goal first so VYVA can match the right template pack.");
+      return;
+    }
+
+    if (mode === "studio") {
+      loadContentTemplatePackInStudio(packMatch.pack, packMatch.heroTemplate, packMatch.channels);
+      setCampaignIntentBrief(marketingDashboardAiCommand.trim());
+      setCampaignStudioFeedback(`AI command matched ${packMatch.pack.title}. Review ${formatChannelList(plan.selectedChannels)} and improve the sequence with AI.`);
+      setMessage(`AI command matched ${packMatch.pack.title}. The pack is ready in Smart campaign studio.`);
+      return;
+    }
+
+    setActiveTab("content");
+    setContentTemplatePackFilter(packMatch.pack.id);
+    setContentTemplateSearch("");
+    setContentTemplateChannelFilter("all");
+    setContentTemplateAudienceFilter("all");
+    setContentTemplateCategoryFilter("all");
+    setContentActionFeedback(`Showing AI-matched template pack: ${packMatch.pack.title}.`);
+    setMessage(`Opened ${packMatch.pack.title} templates from the AI campaign command.`);
+  }
   const marketingOperatorBriefItems: MarketingOperatorBriefItem[] = [
     {
       key: "priority",
@@ -20700,6 +20726,26 @@ export default function MarketingAdminPage() {
                           <p className="mt-3 rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-bold leading-relaxed text-emerald-900">
                             Next: build the plan, review channel copy, then create campaign records with recipient snapshots.
                           </p>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              onClick={() => openMarketingDashboardAiTemplatePack("content")}
+                              disabled={!marketingDashboardAiCommandPlan.packMatch}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 transition hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                              data-testid="button-marketing-ai-command-open-pack"
+                            >
+                              <Search size={13} /> Open templates
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openMarketingDashboardAiTemplatePack("studio")}
+                              disabled={!marketingDashboardAiCommandPlan.packMatch}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-[#241133] px-3 text-xs font-black text-white transition hover:bg-[#3a1c4f] disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-ai-command-customize-pack"
+                            >
+                              <Sparkles size={13} /> Customize pack
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="rounded-xl border border-dashed border-violet-200 bg-white/70 p-3 text-xs font-bold leading-relaxed text-[#7d6b65]" data-testid="marketing-ai-command-empty-plan">

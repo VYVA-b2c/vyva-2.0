@@ -1297,6 +1297,25 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Source export endpoint is already built in");
   }, 30_000);
 
+  it("turns the AI command interpretation into matched template actions", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
+    expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("AI understood");
+    expect(screen.getByTestId("button-marketing-ai-command-open-pack")).toHaveTextContent("Open templates");
+    expect(screen.getByTestId("button-marketing-ai-command-customize-pack")).toHaveTextContent("Customize pack");
+
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-customize-pack"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI command matched");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("improve the sequence with AI");
+
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-open-pack"));
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Template pathfinder");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing AI-matched template pack");
+    expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("Viewing");
+  });
+
   it("prepares an editable replacement draft for missing Source content references", async () => {
     renderPage({}, { content: [...content, missingLovableContent] });
 
