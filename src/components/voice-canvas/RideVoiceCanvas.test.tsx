@@ -89,3 +89,13 @@ it("announces waiting, completed, and blocked status changes",async()=>{
 });
 
 describe.each([[390,"mobile"],[768,"tablet"],[1440,"desktop"]])("%s px",(width,label)=>it(`renders the ${label} flow without dropping controls`,()=>{Object.defineProperty(window,"innerWidth",{value:width,configurable:true});render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("button",{name:"Arrange a ride"})).toBeVisible();expect(screen.getByRole("button",{name:"Cancel"})).toBeVisible();}));
+
+it("emits only closed, privacy-safe analytics fields",async()=>{
+  const events:unknown[]=[];render(<RideVoiceCanvas {...props({onTelemetry:event=>events.push(event)})}/>);click("Arrange a ride");click("Home");click("Today");fireEvent.change(screen.getByLabelText("Time"),{target:{value:"10:30"}});click("Continue");click("Confirm ride");await screen.findByText("RIDE-42");
+  expect(events).toContainEqual(expect.objectContaining({name:"confirmation_submitted",step:"review",input:"touch_or_keyboard",attempt:1}));
+  expect(events).toContainEqual(expect.objectContaining({name:"completed",step:"completed",input:"system",attempt:1}));
+  const serialized=JSON.stringify(events);
+  expect(serialized).not.toContain("12 Garden Lane");
+  expect(serialized).not.toContain("10:30");
+  expect(serialized).not.toContain("RIDE-42");
+});

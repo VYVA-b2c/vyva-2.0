@@ -67,6 +67,9 @@ import {
   type RideCanvasCopy,
   type RideCanvasDraft,
   type RideCanvasState,
+  isRideCanvasEnabled,
+  parseRideCanvasRolloutConfig,
+  trackRideCanvasEvent,
 } from "@/components/voice-canvas";
 import ProviderComparisonPanel from "@/components/ProviderComparisonPanel";
 import ProviderShortlistFollowUpPanel from "@/components/ProviderShortlistFollowUpPanel";
@@ -13707,7 +13710,24 @@ const ConciergeScreen = () => {
     : (isSpanish
         ? "Nada se reserva ni solicita sin tu confirmacion."
         : "Nothing is booked or requested without your confirmation.");
-  const usesRideVoiceCanvas = routePrefill?.kind === "ride" && routePrefill.source === "voice_action";
+  const isVoiceRideHandoff = routePrefill?.kind === "ride" && routePrefill.source === "voice_action";
+  const rideCanvasRolloutQuery = useQuery({
+    queryKey: ["/api/config/features/ride-voice-canvas"],
+    queryFn: async () => {
+      const response = await apiFetch("/api/config/features/ride-voice-canvas");
+      if (!response.ok) return { enabled: false, rolloutPercent: 0 };
+      return parseRideCanvasRolloutConfig(await response.json());
+    },
+    enabled: isVoiceRideHandoff,
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: "always",
+    retry: false,
+  });
+  const usesRideVoiceCanvas = isVoiceRideHandoff && isRideCanvasEnabled(
+    rideCanvasRolloutQuery.data,
+    conciergeVoiceAction?.id ?? "anonymous",
+  );
   const rideCanvasCopy = useMemo<RideCanvasCopy>(() => ({
     listening: {
       status: isSpanish ? "Escuchando" : "Listening",
@@ -14840,11 +14860,12 @@ const ConciergeScreen = () => {
             onConfirmRide={confirmRideCanvas}
             onDone={() => setRoutePrefill(null)}
             onCancel={() => setRoutePrefill(null)}
+            onTelemetry={trackRideCanvasEvent}
           />
         </section>
       )}
 
-      {routePrefill?.kind === "ride" && routePrefill.source !== "voice_action" && routePrefillMeta && (
+      {routePrefill?.kind === "ride" && (!isVoiceRideHandoff || !usesRideVoiceCanvas) && routePrefillMeta && (
         <section
           className="relative z-20 order-[15] mt-4 scroll-mt-[88px] overflow-hidden rounded-[28px] border border-[#BBF7D0] bg-white"
           style={{ boxShadow: "0 18px 42px rgba(4,120,87,0.14)" }}

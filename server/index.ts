@@ -289,6 +289,16 @@ app.get("/api/config/places-key", (_req, res) => {
   return res.json({ configured: true, source: getGooglePlacesApiKeySource() });
 });
 
+app.get("/api/config/features/ride-voice-canvas", (_req, res) => {
+  const enabled = process.env.VYVA_ENABLE_RIDE_VOICE_CANVAS === "true";
+  const configuredRollout = Number(process.env.VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT ?? "0");
+  const rolloutPercent = Number.isFinite(configuredRollout)
+    ? Math.min(100, Math.max(0, Math.round(configuredRollout)))
+    : 0;
+  res.setHeader("cache-control", "no-store");
+  return res.json({ enabled, rolloutPercent });
+});
+
 app.post("/api/places/autocomplete", async (req, res) => {
   const key = getGooglePlacesApiKey();
   if (!key) return res.status(503).json({ error: "Places API key not configured" });

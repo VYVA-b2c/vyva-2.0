@@ -1321,7 +1321,7 @@ const HomeScreen = () => {
     if (impression) {
       fastHelpImpressionIdsByFingerprintRef.current.set(contextualFastHelpImpressionFingerprint, impression.id);
     }
-  }, [contextualFastHelpImpressionFingerprint, profile?.profileId]);
+  }, [contextualFastHelpImpressionFingerprint, contextualFastHelpRanking, profile?.profileId]);
   const homeMasterFastHelpActionsWithStatus = contextualHomeMasterFastHelpActions;
   const conciergeRightNowNudge = activeConciergeHomeTask ? (
     <div
