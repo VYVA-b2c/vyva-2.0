@@ -5573,7 +5573,7 @@ describe("ConciergeScreen route prefill", () => {
 
   it("reveals prepared provider phone actions only after user confirmation and final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "ride-1",
         use_case: "book_ride",
@@ -5661,7 +5661,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("shows an operator-preparing update after the user has already confirmed", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "assigned-ride",
         use_case: "book_ride",
@@ -5802,7 +5802,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("shows the exact missing ride detail before allowing checklist confirmation", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "ride-missing-destination",
         use_case: "book_ride",
@@ -5954,7 +5954,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("expands ride details and focuses pickup when pickup is missing", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "ride-missing-pickup",
         use_case: "book_ride",
@@ -6040,7 +6040,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("routes a missing provider checklist item to focused trusted-provider setup", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "ride-provider-missing",
         use_case: "book_ride",
@@ -6081,7 +6081,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("labels home-service appointment tasks by their service flow", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "service-save-1",
         use_case: "book_appointment",
@@ -6414,7 +6414,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("shows requested as the active follow-through step for started actions", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "ride-calling-1",
         use_case: "book_ride",
@@ -7388,7 +7388,7 @@ describe("ConciergeScreen route prefill", () => {
 
   it("reveals prepared email draft actions only after user confirmation and final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "email-1",
         use_case: "send_message",
@@ -7565,7 +7565,7 @@ describe("ConciergeScreen route prefill", () => {
 
   it("blocks live email handoff when the admin channel gate is not ready", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "email-blocked-1",
         use_case: "send_message",
@@ -7897,7 +7897,7 @@ describe("ConciergeScreen route prefill", () => {
 
   it("shows Show VYVA prepared tasks and blocks handoff until final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "show-vyva-email-1",
         use_case: "send_message",
@@ -8134,7 +8134,7 @@ describe("ConciergeScreen route prefill", () => {
 
   it("reveals prepared WhatsApp draft actions only after user confirmation and final confirmation", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "whatsapp-1",
         use_case: "send_message",
@@ -8259,7 +8259,7 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("shows compact form plan details for VYVA-handled booking tasks", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "form-task-1",
         use_case: "book_appointment",
@@ -8300,7 +8300,7 @@ describe("ConciergeScreen route prefill", () => {
 
   it("shows booking forms as ready to open when no details are missing", async () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => null);
-    apiFetchMock.mockResolvedValue(jsonResponse({
+    apiFetchMock.mockImplementation(async () => jsonResponse({
       items: [{
         id: "form-ready-1",
         use_case: "book_appointment",
