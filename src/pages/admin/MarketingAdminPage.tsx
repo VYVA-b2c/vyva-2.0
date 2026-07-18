@@ -20199,6 +20199,31 @@ export default function MarketingAdminPage() {
       command: "Reactivate quiet family contacts with a warm email and WhatsApp follow-up around one useful VYVA routine.",
     },
   ].slice(0, 4);
+  const marketingDashboardAiCommandPlan = useMemo(() => {
+    const brief = marketingDashboardAiCommand.trim();
+    if (!brief) return null;
+
+    const match = campaignIntentMatch(brief, audiences);
+    const primaryChannel = match.channels[0] ?? match.play.defaultChannel;
+    const selectedChannels = normalizeCampaignStudioChannels(primaryChannel, match.channels);
+    const matchingContacts = contacts.filter((contact) => (
+      campaignAllowsContact(match.play.audienceType, contact.audienceType)
+      && contactMatchesAudienceList(contact, match.targetAudience)
+    ));
+    const reachableContacts = matchingContacts.filter((contact) => (
+      selectedChannels.some((channel) => contactReachableForChannel(contact, channel))
+    )).length;
+    const packMatch = templatePackRecommendationsForPlay(match.play, primaryChannel, selectedChannels)[0] ?? null;
+    return {
+      match,
+      primaryChannel,
+      selectedChannels,
+      matchingContacts,
+      reachableContacts,
+      packMatch,
+      angleLabel: campaignStudioAngleOptions.find((item) => item.id === match.angleId)?.label ?? match.angleId,
+    };
+  }, [audiences, contacts, marketingDashboardAiCommand, templatePackRecommendationsForPlay]);
   const marketingOperatorBriefItems: MarketingOperatorBriefItem[] = [
     {
       key: "priority",
@@ -20639,6 +20664,48 @@ export default function MarketingAdminPage() {
                       </div>
                     </div>
                     <div className="grid gap-2" data-testid="marketing-ai-command-suggestions">
+                      {marketingDashboardAiCommandPlan ? (
+                        <div className="rounded-xl border border-violet-200 bg-white p-3 shadow-sm" data-testid="marketing-ai-command-plan">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-800">AI understood</p>
+                              <h4 className="mt-1 text-sm font-black text-[#241133]">{marketingDashboardAiCommandPlan.match.play.label}</h4>
+                            </div>
+                            <Pill className={readinessPillClass(marketingDashboardAiCommandPlan.reachableContacts > 0 ? "ready" : "needs_action")}>
+                              {marketingDashboardAiCommandPlan.reachableContacts} reachable
+                            </Pill>
+                          </div>
+                          <div className="mt-3 grid gap-2 text-xs font-bold text-[#5b4a46]">
+                            <div className="flex items-center justify-between gap-3 rounded-lg bg-violet-50 px-2.5 py-2">
+                              <span>Audience</span>
+                              <span className="text-right text-[#241133]">{marketingDashboardAiCommandPlan.match.targetAudience?.name ?? `${marketingDashboardAiCommandPlan.match.play.audienceType.toUpperCase()} contacts`}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 rounded-lg bg-amber-50 px-2.5 py-2">
+                              <span>Channels</span>
+                              <span className="text-right text-[#241133]">{formatChannelList(marketingDashboardAiCommandPlan.selectedChannels)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-2.5 py-2 ring-1 ring-[#eadfd5]">
+                              <span>Tone</span>
+                              <span className="text-right text-[#241133]">{campaignStudioToneLabel[marketingDashboardAiCommandPlan.match.toneId]} / {marketingDashboardAiCommandPlan.angleLabel}</span>
+                            </div>
+                            <div className="rounded-lg bg-white px-2.5 py-2 ring-1 ring-[#eadfd5]">
+                              <span className="block text-[#7d6b65]">Template pack</span>
+                              <span className="mt-1 block text-[#241133]">
+                                {marketingDashboardAiCommandPlan.packMatch
+                                  ? `${marketingDashboardAiCommandPlan.packMatch.pack.title} (${marketingDashboardAiCommandPlan.packMatch.templates.length} templates)`
+                                  : "Best available saved templates"}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="mt-3 rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-bold leading-relaxed text-emerald-900">
+                            Next: build the plan, review channel copy, then create campaign records with recipient snapshots.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-violet-200 bg-white/70 p-3 text-xs font-bold leading-relaxed text-[#7d6b65]" data-testid="marketing-ai-command-empty-plan">
+                          Pick a shortcut or type one campaign goal. VYVA will show the matched audience, channel pack, tone, and template path before creation.
+                        </div>
+                      )}
                       {marketingDashboardAiCommandSuggestions.map((suggestion) => (
                         <button
                           key={suggestion.key}

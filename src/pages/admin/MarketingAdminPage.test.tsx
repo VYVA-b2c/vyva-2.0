@@ -898,6 +898,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Brief matched to Partner webinar");
     expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("AI understood");
+    expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("Partner webinar");
+    expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("Email and LinkedIn");
+    expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("Expert / Local relevance");
+    expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("Next: build the plan");
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("Email");
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("VYVA send");
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("LinkedIn");
