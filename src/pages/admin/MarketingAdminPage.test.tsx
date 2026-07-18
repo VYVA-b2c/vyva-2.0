@@ -946,6 +946,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("Manual social");
     expect(screen.getByTestId("button-marketing-channel-publishing-linkedin")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-audience-summary-actions")).toHaveTextContent("View contacts");
+    expect(screen.getByTestId("marketing-audience-summary-actions")).toHaveTextContent("Start campaign");
     fireEvent.click(screen.getByTestId("button-marketing-channel-publishing-linkedin"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
     expect(screen.getByText('Opened "Partner outreach" to fix the creative gap: LinkedIn.')).toBeInTheDocument();
@@ -1350,6 +1352,20 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Source export endpoint is already built in");
   }, 45_000);
+
+  it("turns dashboard audience summaries into contact and campaign actions", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-audience-summary-actions");
+    fireEvent.click(screen.getByTestId("button-marketing-audience-summary-campaign-b2b"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Audience starter loaded: B2B / Partner outreach.");
+    expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain(
+      "Introduce VYVA to a partner, venue, or professional contact",
+    );
+
+    fireEvent.click(screen.getByTestId("button-marketing-audience-summary-contacts-b2b"));
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Showing B2B contacts from the audience summary.");
+  });
 
   it("turns global search matches into direct open actions", async () => {
     renderPage();

@@ -16771,6 +16771,53 @@ export default function MarketingAdminPage() {
     setCampaignStudioFeedback("");
   }
 
+  function openAudienceContactsFromDashboard(audienceType: Audience) {
+    setAudienceFilter(audienceType);
+    setContactView("contacts");
+    setContactWorkQueueContactIds(null);
+    setContactSourceFilter("all");
+    setContactConsentFilter("all");
+    setContactLanguageFilter("all");
+    setContactCategoryFilter("all");
+    setContactVerticalFilter("all");
+    setContactMarketFilter("all");
+    setContactListFilter("all");
+    setActiveTab("contacts");
+    setContactFeedback(`Showing ${audienceType.toUpperCase()} contacts from the audience summary.`);
+  }
+
+  function startAudienceCampaignFromDashboard(audienceType: Audience) {
+    const play = campaignStudioPlayById(audienceType === "b2b" ? "b2b-partner-outreach" : audienceType === "b2c" ? "caregiver-onboarding" : "full-channel-launch");
+    const channels = recommendedCampaignStudioChannels(play);
+    const toneId: CampaignStudioToneId = audienceType === "b2b" ? "expert" : "warm";
+    const angleId: CampaignStudioAngleId = audienceType === "b2b" ? "proof" : audienceType === "b2c" ? "action" : "balanced";
+    setAudienceFilter(audienceType);
+    setCampaignStudio({
+      playId: play.id,
+      toneId,
+      angleId,
+      channel: play.defaultChannel,
+      selectedChannels: channels,
+      scheduleStartsAt: "",
+      targetAudienceId: "",
+    });
+    setCampaignIntentBrief(play.brief);
+    setCampaignDraft((draft) => ({
+      ...draft,
+      name: play.campaignName,
+      objective: play.objective,
+      audienceType,
+      channel: play.defaultChannel,
+      channels,
+      contentAssetId: "",
+      channelContentAssetIds: Object.fromEntries(channels.map((channel) => [channel, ""])) as Partial<Record<Channel, string>>,
+    }));
+    setCampaignStudioAiDrafts({});
+    setCampaignStudioFeedback(`Audience starter loaded: ${audienceType.toUpperCase()} / ${play.label}.`);
+    setActiveTab("dashboard");
+    setMessage(`Loaded ${audienceType.toUpperCase()} campaign starter from audience summary.`);
+  }
+
   function toggleCampaignStudioChannel(channel: Channel) {
     setCampaignStudio((current) => {
       const selectedChannels = normalizeCampaignStudioChannels(current.channel, current.selectedChannels);
@@ -25661,14 +25708,31 @@ export default function MarketingAdminPage() {
                 </SectionCard>
 
                 <SectionCard title="By audience" subtitle="B2C, B2B, and combined campaigns.">
-                  <div className="grid gap-3">
+                  <div className="grid gap-3" data-testid="marketing-audience-summary-actions">
                     {summary.byAudience.map((item) => (
-                      <div key={item.audienceType} className="flex items-center justify-between rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                      <div key={item.audienceType} className="grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center" data-testid={`marketing-audience-summary-${item.audienceType}`}>
                         <div>
                           <p className="font-black">{item.audienceType.toUpperCase()}</p>
                           <p className="text-xs font-bold text-[#8b7a73]">{item.campaigns} campaigns / {item.contacts} contacts</p>
                         </div>
-                        <span className="text-sm font-black text-[#8b7a73]">Audience</span>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openAudienceContactsFromDashboard(item.audienceType)}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 hover:bg-purple-50"
+                            data-testid={`button-marketing-audience-summary-contacts-${item.audienceType}`}
+                          >
+                            <UsersRound size={13} aria-hidden="true" /> View contacts
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startAudienceCampaignFromDashboard(item.audienceType)}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800"
+                            data-testid={`button-marketing-audience-summary-campaign-${item.audienceType}`}
+                          >
+                            <Sparkles size={13} aria-hidden="true" /> Start campaign
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
