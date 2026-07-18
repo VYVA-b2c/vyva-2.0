@@ -1177,6 +1177,21 @@ type ContactRelationshipFollowUpStep = {
   output: string;
 };
 
+type ContactRelationshipCadenceLane = {
+  key: "today" | "this-week" | "before-publish";
+  label: string;
+  title: string;
+  detail: string;
+  state: CampaignReadinessState;
+  queue: ContactRelationshipWorkQueue | null;
+  contact: MarketingContact | null;
+  channels: Channel[];
+  primaryLabel: string;
+  secondaryLabel: string;
+  secondaryAction: "list" | "studio";
+  aiPrompt: string;
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -10728,6 +10743,77 @@ export default function MarketingAdminPage() {
         return rank(b) - rank(a) || b.count - a.count || a.title.localeCompare(b.title);
       })[0] ?? null;
   }, [contactRelationshipWorkQueues]);
+  const contactRelationshipCadenceLanes = useMemo<ContactRelationshipCadenceLane[]>(() => {
+    const queueByKey = new Map(contactRelationshipWorkQueues.map((queue) => [queue.key, queue]));
+    const consentQueue = queueByKey.get("consent-cleanup") ?? null;
+    const segmentationQueue = queueByKey.get("segmentation-gaps") ?? null;
+    const relationshipQueue = [
+      queueByKey.get("partner-nurture") ?? null,
+      queueByKey.get("family-onboarding") ?? null,
+      queueByKey.get("local-market") ?? null,
+    ].find((queue) => Boolean(queue?.count)) ?? contactRelationshipPriorityQueue;
+    const queueContact = (queue: ContactRelationshipWorkQueue | null) => queue?.sampleContact ?? queue?.contacts[0] ?? null;
+    const contactLabel = (contact: MarketingContact | null) => contact?.fullName || contact?.email || contact?.phoneNumber || "No contact selected";
+    const selectedConsentQueue = consentQueue?.count ? consentQueue : contactRelationshipPriorityQueue;
+    const selectedSegmentationQueue = segmentationQueue?.count ? segmentationQueue : contactRelationshipPriorityQueue;
+
+    return [
+      {
+        key: "today",
+        label: "Today",
+        title: selectedConsentQueue?.title ?? "Pick the first relationship move",
+        detail: selectedConsentQueue?.count
+          ? `Start with ${selectedConsentQueue.countLabel}. First contact: ${contactLabel(queueContact(selectedConsentQueue))}.`
+          : "No urgent consent or relationship cleanup is blocking the current audience view.",
+        state: selectedConsentQueue?.count ? selectedConsentQueue.state : "ready",
+        queue: selectedConsentQueue ?? null,
+        contact: queueContact(selectedConsentQueue ?? null),
+        channels: selectedConsentQueue?.channels ?? ["email"],
+        primaryLabel: selectedConsentQueue?.showLabel ?? "Review",
+        secondaryLabel: selectedConsentQueue?.key === "consent-cleanup" ? "Prepare consent check" : "Build list",
+        secondaryAction: selectedConsentQueue?.key === "consent-cleanup" ? "studio" : "list",
+        aiPrompt: selectedConsentQueue
+          ? `Create today's relationship task list for ${selectedConsentQueue.countLabel} in ${selectedConsentQueue.title}. Keep consent rules explicit and assign one human follow-up owner.`
+          : "Create today's relationship task list from imported contacts, consent status, and channel readiness.",
+      },
+      {
+        key: "this-week",
+        label: "This week",
+        title: relationshipQueue?.title ?? "Choose a relationship play",
+        detail: relationshipQueue?.count
+          ? `Turn ${relationshipQueue.countLabel} into a focused sequence. First contact: ${contactLabel(queueContact(relationshipQueue))}.`
+          : "No relationship queue is ready yet. Enrich contacts and confirm reachable channels first.",
+        state: relationshipQueue?.count ? relationshipQueue.state : "planning",
+        queue: relationshipQueue ?? null,
+        contact: queueContact(relationshipQueue ?? null),
+        channels: relationshipQueue?.channels ?? ["email", "whatsapp"],
+        primaryLabel: relationshipQueue?.showLabel ?? "Review queue",
+        secondaryLabel: relationshipQueue?.studioLabel ?? "Open campaign play",
+        secondaryAction: "studio",
+        aiPrompt: relationshipQueue
+          ? `Draft a one-week ${relationshipQueue.title} play using ${formatChannelList(relationshipQueue.channels)}. Include first touch, second touch, owner, and success signal.`
+          : "Draft a one-week relationship play once a queue has contacts and channels.",
+      },
+      {
+        key: "before-publish",
+        label: "Before publish",
+        title: selectedSegmentationQueue?.title ?? "Protect targeting quality",
+        detail: selectedSegmentationQueue?.count
+          ? `Resolve ${selectedSegmentationQueue.countLabel} before broad sends. First contact: ${contactLabel(queueContact(selectedSegmentationQueue))}.`
+          : "Segmentation is strong enough for planning. Keep lists and campaign snapshots fresh before publishing.",
+        state: selectedSegmentationQueue?.count ? selectedSegmentationQueue.state : "ready",
+        queue: selectedSegmentationQueue ?? null,
+        contact: queueContact(selectedSegmentationQueue ?? null),
+        channels: selectedSegmentationQueue?.channels ?? ["email"],
+        primaryLabel: selectedSegmentationQueue?.showLabel ?? "Review",
+        secondaryLabel: "Build quality list",
+        secondaryAction: "list",
+        aiPrompt: selectedSegmentationQueue
+          ? `Create a pre-publish data quality checklist for ${selectedSegmentationQueue.countLabel} in ${selectedSegmentationQueue.title}. Prioritize market, language, list, role, and consent gaps.`
+          : "Create a pre-publish data quality checklist for this audience before scheduling campaigns.",
+      },
+    ];
+  }, [contactRelationshipPriorityQueue, contactRelationshipWorkQueues]);
   const contactRelationshipCommandBriefText = useMemo(() => {
     const activeQueues = contactRelationshipWorkQueues.filter((queue) => queue.count > 0);
     const sourceQueues = activeQueues.length ? activeQueues : contactRelationshipWorkQueues;
@@ -10758,6 +10844,15 @@ export default function MarketingAdminPage() {
       "Relationship queues:",
       ...(queueLines.length ? queueLines : ["- No queue data yet. Import or create contacts before planning outreach."]),
       "",
+      "Cadence board:",
+      ...contactRelationshipCadenceLanes.map((lane) => [
+        `- ${lane.label}: ${lane.title}`,
+        `  State: ${readinessLabel(lane.state)}`,
+        `  Contact: ${lane.contact?.fullName || lane.contact?.email || lane.contact?.phoneNumber || "No contact selected"}`,
+        `  Route: ${formatChannelList(lane.channels)}`,
+        `  Action: ${lane.secondaryLabel}`,
+      ].join("\n")),
+      "",
       "Recommended first move:",
       priorityQueue
         ? `${priorityQueue.title} - ${priorityQueue.studioLabel} for ${priorityQueue.countLabel}.`
@@ -10781,6 +10876,7 @@ export default function MarketingAdminPage() {
     contactHealthTotal,
     contactHealthUnknown,
     contactHealthWhatsappReachable,
+    contactRelationshipCadenceLanes,
     contactRelationshipScore,
     contactRelationshipPriorityQueue,
     contactRelationshipWorkQueues,
@@ -28737,6 +28833,70 @@ export default function MarketingAdminPage() {
                           >
                             <ExternalLink size={13} /> {lane.actionLabel}
                           </button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 shadow-sm" data-testid="marketing-contact-cadence-board">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-indigo-800">Relationship cadence</p>
+                      <p className="mt-1 text-sm font-black text-[#241133]">Who needs attention now, this week, and before anything gets published.</p>
+                    </div>
+                    <Pill className="bg-white text-indigo-800">{contactRelationshipCadenceLanes.filter((lane) => lane.queue?.count).length} active lanes</Pill>
+                  </div>
+                  <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                    {contactRelationshipCadenceLanes.map((lane) => {
+                      const showLaneQueue = () => {
+                        if (!lane.queue) return;
+                        if (lane.contact) selectRelationshipContact(lane.contact);
+                        showContactWorkQueue(lane.queue);
+                      };
+                      const runLaneSecondary = () => {
+                        if (!lane.queue) return;
+                        if (lane.secondaryAction === "list") {
+                          buildAudienceFromContactWorkQueue(lane.queue);
+                        } else {
+                          loadContactWorkQueueInStudio(lane.queue);
+                        }
+                      };
+                      return (
+                        <article key={lane.key} className={`flex min-h-[230px] flex-col rounded-xl border p-3 ${readinessClass(lane.state)}`} data-testid={`marketing-contact-cadence-${lane.key}`}>
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">{lane.label}</p>
+                              <h4 className="mt-1 text-lg font-black text-[#241133]">{lane.title}</h4>
+                            </div>
+                            <Pill className={readinessPillClass(lane.state)}>{readinessLabel(lane.state)}</Pill>
+                          </div>
+                          <p className="mt-2 flex-1 text-xs font-bold leading-relaxed text-[#5b4a46]">{lane.detail}</p>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {lane.channels.map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                          </div>
+                          <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-bold leading-relaxed text-indigo-900" data-testid={`marketing-contact-cadence-prompt-${lane.key}`}>
+                            {lane.aiPrompt}
+                          </p>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              onClick={showLaneQueue}
+                              disabled={!lane.queue || lane.queue.count === 0}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 text-xs font-black text-indigo-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                              data-testid={`button-marketing-contact-cadence-show-${lane.key}`}
+                            >
+                              <Eye size={13} /> {lane.primaryLabel}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={runLaneSecondary}
+                              disabled={!lane.queue || lane.queue.count === 0}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-indigo-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid={`button-marketing-contact-cadence-${lane.secondaryAction}-${lane.key}`}
+                            >
+                              <Sparkles size={13} /> {lane.secondaryLabel}
+                            </button>
+                          </div>
                         </article>
                       );
                     })}

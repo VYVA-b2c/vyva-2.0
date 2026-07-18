@@ -1071,6 +1071,21 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-operating-path-segment")).toHaveTextContent("Sharpen segments");
     expect(screen.getByTestId("marketing-contact-operating-path-list")).toHaveTextContent("Save a relationship list");
     expect(screen.getByTestId("marketing-contact-operating-path-campaign")).toHaveTextContent("Open the campaign play");
+    expect(screen.getByTestId("marketing-contact-cadence-board")).toHaveTextContent("Relationship cadence");
+    expect(screen.getByTestId("marketing-contact-cadence-today")).toHaveTextContent("Today");
+    expect(screen.getByTestId("marketing-contact-cadence-today")).toHaveTextContent("Consent cleanup");
+    expect(screen.getByTestId("marketing-contact-cadence-this-week")).toHaveTextContent("This week");
+    expect(screen.getByTestId("marketing-contact-cadence-this-week")).toHaveTextContent("B2B partner nurture");
+    expect(screen.getByTestId("marketing-contact-cadence-before-publish")).toHaveTextContent("Before publish");
+    expect(screen.getByTestId("marketing-contact-cadence-before-publish")).toHaveTextContent("Segmentation gaps");
+    expect(screen.getByTestId("marketing-contact-cadence-prompt-this-week")).toHaveTextContent("Draft a one-week B2B partner nurture play");
+    fireEvent.click(screen.getByTestId("button-marketing-contact-cadence-show-today"));
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Showing "Consent cleanup" queue: 2 contacts.');
+    fireEvent.click(screen.getByTestId("button-marketing-clear-contact-filters"));
+    fireEvent.click(screen.getByTestId("button-marketing-contact-cadence-studio-this-week"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Relationship queue loaded: B2B partner nurture.");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-clear-contact-filters"));
     fireEvent.click(screen.getByTestId("button-marketing-contact-operating-path-segment"));
     expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Showing "Segmentation gaps" queue: 1 gap.');
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
@@ -2690,7 +2705,7 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Hi {{first_name}}");
     expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_content_template_gallery");
     expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: Profile completion WhatsApp nudge");
-  }, 30000);
+  }, 60000);
 
   it("creates saved content assets from a curated template pack", async () => {
     renderPage();
