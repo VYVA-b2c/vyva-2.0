@@ -2047,6 +2047,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("Recommended launch kit");
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("starter templates");
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("AI command ready");
+    expect(screen.getByTestId("marketing-template-pathfinder")).toHaveTextContent("Activate families");
+    expect(screen.getByTestId("marketing-template-pathfinder")).toHaveTextContent("Build provider referrals");
+    expect(screen.getByTestId("marketing-template-path-family-activation")).toHaveTextContent("Family onboarding");
+    expect(screen.getByTestId("marketing-template-path-provider-growth")).toHaveTextContent("Clinic and pharmacy referral");
+    fireEvent.click(screen.getByTestId("button-marketing-template-path-open-family-activation"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing pathfinder route: Activate families");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Clinic referral intro email");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-packs")).toHaveTextContent("Family onboarding");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("5 templates");

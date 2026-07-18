@@ -13328,6 +13328,74 @@ export default function MarketingAdminPage() {
           recommendedContentLaunchKit.categories.slice(0, 2).join(" + ") || "Reusable campaign starter",
         ]
     : [];
+  const templatePathfinderRoutes = useMemo(() => {
+    const routeDefinitions = [
+      {
+        key: "family-activation",
+        eyebrow: "Do first",
+        title: "Activate families",
+        packId: "family-onboarding",
+        detail: "Welcome new users and caregivers with a clear first-week path.",
+        actionLabel: "Open family route",
+      },
+      {
+        key: "provider-growth",
+        eyebrow: "Growth",
+        title: "Build provider referrals",
+        packId: "clinic-pharmacy-referral",
+        detail: "Give clinics and pharmacies a concise referral story and follow-up sequence.",
+        actionLabel: "Open provider route",
+      },
+      {
+        key: "local-offline",
+        eyebrow: "Local",
+        title: "Run local/offline outreach",
+        packId: "local-event-operations",
+        detail: "Prepare event invites, SMS reminders, printed handoffs, and partner follow-up.",
+        actionLabel: "Open local route",
+      },
+      {
+        key: "retention",
+        eyebrow: "Retention",
+        title: "Re-activate quiet contacts",
+        packId: "care-confidence-reactivation",
+        detail: "Restart dormant family or partner conversations with soft confidence-building copy.",
+        actionLabel: "Open reactivation route",
+      },
+      {
+        key: "social-proof",
+        eyebrow: "Awareness",
+        title: "Publish social proof",
+        packId: "social-launch",
+        detail: "Turn VYVA benefits into ready-to-adapt social and community posts.",
+        actionLabel: "Open social route",
+      },
+    ] as const;
+
+    return routeDefinitions.map((route) => {
+      const packStats = contentTemplatePacksWithStats.find(({ pack }) => pack.id === route.packId) ?? null;
+      if (!packStats) return null;
+      const audienceReach = contacts.filter((contact) => (
+        packStats.audiences.some((audience) => campaignAllowsContact(audience, contact.audienceType))
+        && packStats.channels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+      )).length;
+      const state: CampaignReadinessState = audienceReach > 0 && packStats.templates.length >= 4
+        ? "ready"
+        : packStats.templates.length >= 4 ? "planning" : "needs_action";
+      const reasons = [
+        `${packStats.templates.length} template${packStats.templates.length === 1 ? "" : "s"}`,
+        packStats.channels.length ? formatChannelList(packStats.channels) : "No channels yet",
+        audienceReach > 0 ? `${audienceReach} reachable contact${audienceReach === 1 ? "" : "s"}` : "Needs reachable contacts",
+      ];
+      return {
+        ...route,
+        ...packStats,
+        audienceReach,
+        state,
+        reasons,
+      };
+    }).filter((route): route is NonNullable<typeof route> => Boolean(route));
+  }, [contacts, contentTemplatePacksWithStats]);
   const campaignStudioLaunchPathItems: CampaignStudioLaunchPathItem[] = [
     {
       key: "goal",
@@ -25227,6 +25295,76 @@ export default function MarketingAdminPage() {
                   </div>
                 </div>
               ) : null}
+
+              <SectionCard
+                title="Template pathfinder"
+                subtitle="Choose the job first. VYVA filters the long library to the strongest route and can load the pack into studio."
+                action={<Pill className="bg-purple-50 text-purple-800">{templatePathfinderRoutes.length} routes</Pill>}
+              >
+                <div className="grid gap-3 xl:grid-cols-5" data-testid="marketing-template-pathfinder">
+                  {templatePathfinderRoutes.map((route) => (
+                    <article
+                      key={route.key}
+                      className={`flex min-h-[260px] flex-col justify-between rounded-2xl border p-4 shadow-sm ${readinessClass(route.state)}`}
+                      data-testid={`marketing-template-path-${route.key}`}
+                    >
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className={readinessPillClass(route.state)}>{route.eyebrow}</Pill>
+                          <Pill className="bg-white text-[#5b4a46]">{route.audienceReach} reachable</Pill>
+                        </div>
+                        <h3 className="mt-3 font-serif text-xl text-[#241133]">{route.title}</h3>
+                        <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">{route.detail}</p>
+                        <div className="mt-3 rounded-xl border border-white/80 bg-white px-3 py-2">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Recommended pack</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">{route.pack.title}</p>
+                          <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{route.pack.focus}</p>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {route.reasons.map((reason) => (
+                            <Pill key={reason} className="bg-white text-[#5b4a46]">{reason}</Pill>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContentTemplatePackFilter(route.pack.id);
+                            setContentTemplateSearch("");
+                            setContentTemplateChannelFilter("all");
+                            setContentTemplateAudienceFilter("all");
+                            setContentTemplateCategoryFilter("all");
+                            setContentActionFeedback(`Showing pathfinder route: ${route.title} with ${route.pack.title}.`);
+                          }}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 hover:bg-purple-50"
+                          data-testid={`button-marketing-template-path-open-${route.key}`}
+                        >
+                          <Search size={14} /> {route.actionLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => loadContentTemplatePackInStudio(route.pack, route.heroTemplate, route.channels)}
+                          disabled={contentSaving}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          data-testid={`button-marketing-template-path-studio-${route.key}`}
+                        >
+                          <Sparkles size={14} /> Customize
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void createCampaignPlanFromTemplatePack(route.pack, route.templates, route.heroTemplate)}
+                          disabled={contentSaving || campaignSaving || route.templates.length === 0}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          data-testid={`button-marketing-template-path-launch-${route.key}`}
+                        >
+                          <Zap size={14} /> Create kit
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </SectionCard>
 
               <SectionCard
                 title="Curated template packs"
