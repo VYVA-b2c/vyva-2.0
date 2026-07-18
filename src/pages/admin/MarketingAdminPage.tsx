@@ -1095,6 +1095,10 @@ type CampaignLaunchControlItem = CampaignReadinessItem & {
   onSelect?: () => void;
 };
 
+type CampaignWorkspaceMapItem = CampaignLaunchControlItem & {
+  eyebrow: string;
+};
+
 type CampaignApprovalItem = CampaignReadinessItem & {
   label: string;
   value: string;
@@ -22763,6 +22767,159 @@ export default function MarketingAdminPage() {
     },
   ] : [];
   const linkedCampaignContentCount = campaignReadinessChannels.filter((channelDraft) => Boolean(channelDraft.contentAssetId && contentById.has(channelDraft.contentAssetId))).length;
+  const campaignWorkspaceMapItems: CampaignWorkspaceMapItem[] = editingCampaign ? [
+    {
+      key: "setup",
+      eyebrow: "1. Setup",
+      label: "Basics",
+      title: hasUnsavedCampaignSendChanges ? "Save the campaign setup" : "Campaign setup",
+      value: hasUnsavedCampaignSendChanges ? "Unsaved" : campaignEditDraft.status,
+      state: hasUnsavedCampaignSendChanges
+        ? "needs_action"
+        : campaignEditDraft.name.trim() && campaignEditDraft.objective.trim()
+          ? "ready"
+          : "planning",
+      detail: hasUnsavedCampaignSendChanges
+        ? "Save name, status, schedule, channels, and recipients before sending or handing off."
+        : campaignEditDraft.objective.trim()
+          ? "Basics are clear enough for the team to understand this campaign."
+          : "Add a sharper objective so AI briefs and operator handoffs stay useful.",
+      actionLabel: hasUnsavedCampaignSendChanges ? "Save campaign" : "Edit basics",
+      icon: Save,
+      buttonType: hasUnsavedCampaignSendChanges ? "submit" : "button",
+      disabled: campaignSaving,
+      onSelect: hasUnsavedCampaignSendChanges ? undefined : () => {
+        document.querySelector<HTMLInputElement>('[data-testid="input-marketing-edit-campaign-name"]')?.focus();
+        setCampaignEmailFeedback("Editing campaign basics.");
+      },
+    },
+    {
+      key: "creative",
+      eyebrow: "2. Creative",
+      label: "Assets",
+      title: missingCampaignContentChannels.length ? "Close creative gaps" : "Creative ready",
+      value: missingCampaignContentChannels.length
+        ? `${missingCampaignContentChannels.length} missing`
+        : `${linkedCampaignContentCount}/${campaignReadinessChannels.length} linked`,
+      state: missingCampaignContentChannels.length ? "blocked" : "ready",
+      detail: missingCampaignContentChannels.length
+        ? `Create or attach ${missingCampaignContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")} content before launch.`
+        : "Every planned channel has linked content. Preview or improve it before publishing.",
+      actionLabel: missingCampaignContentChannels.length ? "Create missing assets" : "Preview content",
+      icon: FileText,
+      disabled: missingCampaignContentChannels.length ? contentSaving || campaignSaving : !firstCampaignContentAsset,
+      onSelect: () => {
+        if (missingCampaignContentChannels.length) {
+          void createAndLinkAllMissingCampaignContent();
+          return;
+        }
+        if (firstCampaignContentAsset) previewContent(firstCampaignContentAsset);
+      },
+    },
+    {
+      key: "audience",
+      eyebrow: "3. Audience",
+      label: "Recipients",
+      title: savedCampaignRecipientCount > 0 ? "Audience locked" : "Lock recipients",
+      value: savedCampaignRecipientCount > 0
+        ? `${savedCampaignRecipientCount} saved`
+        : pendingCampaignSnapshotCount > 0
+          ? `${pendingCampaignSnapshotCount} preview`
+          : selectedCampaignTargetAudience
+            ? `${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount}`
+            : "All eligible",
+      state: savedCampaignRecipientCount > 0
+        ? "ready"
+        : pendingCampaignSnapshotCount > 0
+          ? "needs_action"
+          : "planning",
+      detail: savedCampaignRecipientCount > 0
+        ? "Recipient snapshot is saved, auditable, and ready for send or manual handoff."
+        : pendingCampaignSnapshotCount > 0
+          ? "Save now to snapshot eligible contacts for this campaign."
+          : "Turn on recipient snapshot when this campaign needs a locked audience.",
+      actionLabel: savedCampaignRecipientCount > 0
+        ? selectedCampaignTargetAudience ? "Open list" : "Review filters"
+        : pendingCampaignSnapshotCount > 0
+          ? "Save snapshot"
+          : "Enable snapshot",
+      icon: UsersRound,
+      buttonType: pendingCampaignSnapshotCount > 0 ? "submit" : "button",
+      disabled: pendingCampaignSnapshotCount > 0 ? campaignSaving : false,
+      onSelect: pendingCampaignSnapshotCount > 0 ? undefined : () => {
+        if (savedCampaignRecipientCount > 0 && selectedCampaignTargetAudience) {
+          startAudienceEdit(selectedCampaignTargetAudience);
+          return;
+        }
+        setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: true }));
+        setCampaignEmailFeedback("Recipient snapshot enabled. Review the preview, then save the campaign.");
+      },
+    },
+    {
+      key: "publish",
+      eyebrow: "4. Publish",
+      label: "Send / handoff",
+      title: draftEmailChannel ? "Email send path" : "Manual publishing",
+      value: draftEmailChannel
+        ? campaignEmailDisabled ? "Needs setup" : "Ready"
+        : firstManualPublishKitItem ? channelLabel[firstManualPublishKitItem.channel] : "No route",
+      state: draftEmailChannel
+        ? campaignEmailDisabled
+          ? "needs_action"
+          : "ready"
+        : firstManualPublishKitItem
+          ? "planning"
+          : "blocked",
+      detail: draftEmailChannel
+        ? campaignEmailDisabled
+          ? campaignEmailBlockedReason || "Finish setup before sending through VYVA."
+          : "Email is ready for explicit confirmation through VYVA."
+        : firstManualPublishKitItem
+          ? `Copy or track the ${channelLabel[firstManualPublishKitItem.channel]} handoff.`
+          : "Add at least one channel with content before publishing.",
+      actionLabel: draftEmailChannel
+        ? confirmingCampaignSendId === editingCampaign.id ? "Confirm send" : "Send email"
+        : firstManualPublishKitItem ? "Track handoff" : "Add route",
+      icon: draftEmailChannel ? Send : ExternalLink,
+      disabled: draftEmailChannel ? campaignEmailDisabled : !firstManualPublishKitItem || hasUnsavedCampaignSendChanges,
+      onSelect: () => {
+        if (draftEmailChannel) {
+          void sendCampaignEmails(editingCampaign);
+          return;
+        }
+        if (firstManualPublishKitItem) {
+          prepareManualCampaignChannelTracking(firstManualPublishKitItem.key, firstManualPublishKitItem.channel, firstManualPublishKitItem.scheduledAt);
+        }
+      },
+    },
+    {
+      key: "follow-up",
+      eyebrow: "5. Follow-up",
+      label: "Relationships",
+      title: campaignRelationshipSignalCount > 0 ? "Follow up responders" : "Track outcomes",
+      value: campaignRelationshipSignalCount > 0
+        ? `${campaignRelationshipSignalCount} signals`
+        : manualPublishResults.length > 0
+          ? `${manualPublishResults.length} outcomes`
+          : "Not tracked",
+      state: campaignRelationshipSignalCount > 0
+        ? "ready"
+        : manualPublishResults.length > 0 || selectedCampaignMetrics.length > 0
+          ? "planning"
+          : "needs_action",
+      detail: campaignRelationshipSignalCount > 0
+        ? "Turn engagement into a smaller, warmer relationship campaign."
+        : "Record manual/social outcomes so the next campaign is based on real signals.",
+      actionLabel: campaignRelationshipSignalCount > 0 ? "Start follow-up" : "Track outcome",
+      icon: Waypoints,
+      disabled: campaignRelationshipSignalCount > 0 ? false : !firstManualPublishKitItem || hasUnsavedCampaignSendChanges,
+      onSelect: campaignRelationshipSignalCount > 0
+        ? startFollowUpCampaignFromCurrentCampaign
+        : firstManualPublishKitItem
+          ? () => prepareManualCampaignChannelTracking(firstManualPublishKitItem.key, firstManualPublishKitItem.channel, firstManualPublishKitItem.scheduledAt)
+          : undefined,
+    },
+  ] : [];
   const firstMissingCampaignContentChannel = missingCampaignContentChannels[0] ?? null;
   const campaignOperatorBriefItems = editingCampaign ? [
     {
@@ -28198,6 +28355,55 @@ export default function MarketingAdminPage() {
                                   <p className="mt-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
                                 </article>
                               ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        {campaignWorkspaceMapItems.length ? (
+                          <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-workspace-map">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Campaign workspace</p>
+                                <h4 className="mt-1 text-base font-black text-[#241133]">Build, approve, publish, and follow up from one map</h4>
+                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">Each lane points to the next useful action for this campaign.</p>
+                              </div>
+                              <Pill className={campaignBlockedCount > 0 ? "bg-red-50 text-red-800" : campaignNeedsActionCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                                {campaignReadinessSummary}
+                              </Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 xl:grid-cols-5">
+                              {campaignWorkspaceMapItems.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                  <article key={item.key} className={`flex min-h-[190px] flex-col rounded-lg border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-workspace-map-${item.key}`}>
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-70">{item.eyebrow}</p>
+                                        <h5 className="mt-1 text-sm font-black">{item.title}</h5>
+                                      </div>
+                                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/80">
+                                        <Icon size={15} aria-hidden="true" />
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                      <span className="text-lg font-black">{item.value}</span>
+                                      <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                    </div>
+                                    <p className="mt-2 flex-1 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                                    {item.actionLabel ? (
+                                      <button
+                                        type={item.buttonType ?? "button"}
+                                        disabled={item.disabled}
+                                        onClick={item.buttonType === "submit" ? undefined : item.onSelect}
+                                        className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-[#241133] px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                        data-testid={`button-marketing-campaign-workspace-map-${item.key}`}
+                                      >
+                                        <Icon size={14} aria-hidden="true" />
+                                        {item.actionLabel}
+                                      </button>
+                                    ) : null}
+                                  </article>
+                                );
+                              })}
                             </div>
                           </div>
                         ) : null}
