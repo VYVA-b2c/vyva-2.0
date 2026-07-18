@@ -17359,11 +17359,15 @@ export default function MarketingAdminPage() {
       targetAudienceId: targetAudience?.id ?? "",
     });
     setSelectedContentId(contentAsset.id);
+    setEditingContentId(null);
+    setContentEditDraft(null);
+    setContentDrawerMode(null);
+    setConfirmingContentDeleteId(null);
     setEditingCampaignId(null);
     setConfirmingCampaignDeleteId(null);
     setConfirmingCampaignSendId(null);
     setCampaignStudioFeedback(`Campaign starter loaded from "${contentAsset.title}".`);
-    setContentActionFeedback(`Campaign starter loaded from saved content: ${contentAsset.title}.`);
+    setContentActionFeedback(`Campaign starter loaded from saved content: ${contentAsset.title}. Open the Smart campaign studio to finish audience, routes, and schedule.`);
     setContentFeedback(`Campaign starter loaded from ${contentAsset.title}.`);
     setMessage(`Campaign starter loaded from ${contentAsset.title}. Review the planner, then add the campaign.`);
     setActiveTab("dashboard");
@@ -23363,6 +23367,74 @@ export default function MarketingAdminPage() {
                 subtitle="Start from a proven play, tune the voice and channel, then apply a ready-to-edit brief to the campaign planner and content draft."
                 action={<Pill className="bg-purple-50 text-purple-800">{campaignStudioPlays.length} plays</Pill>}
               >
+                {selectedCampaignDraftContent ? (
+                  <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${readinessClass(contentAssetHasCopy(selectedCampaignDraftContent) ? "ready" : "needs_action")}`} data-testid="marketing-campaign-content-handoff">
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className="bg-white text-purple-800">Loaded from Content</Pill>
+                          <Pill className={channelClass(selectedCampaignDraftContent.channel)}>{channelLabel[selectedCampaignDraftContent.channel]}</Pill>
+                          <Pill className={statusClass(selectedCampaignDraftContent.status)}>{selectedCampaignDraftContent.status}</Pill>
+                          <Pill className={readinessPillClass(contentAssetHasCopy(selectedCampaignDraftContent) ? "ready" : "needs_action")}>
+                            {contentAssetHasCopy(selectedCampaignDraftContent) ? "Copy ready" : "Needs copy"}
+                          </Pill>
+                        </div>
+                        <h3 className="mt-2 text-lg font-black text-[#241133]">{selectedCampaignDraftContent.title} is loaded into the campaign studio.</h3>
+                        <p className="mt-1 max-w-4xl text-sm font-bold leading-relaxed text-[#6b5b54]">
+                          This asset is the primary campaign route. Review the content, confirm audience and channel routes, then add the campaign when the readiness checks are clean.
+                        </p>
+                        <div className="mt-3 grid gap-2 md:grid-cols-4" data-testid="marketing-campaign-content-handoff-summary">
+                          <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Target list</p>
+                            <p className="mt-1 text-sm font-black text-[#241133]">{selectedCampaignDraftTargetAudience?.name ?? "All eligible contacts"}</p>
+                          </div>
+                          <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Routes</p>
+                            <p className="mt-1 text-sm font-black text-[#241133]">{formatChannelList(campaignDraftSelectedChannels)}</p>
+                          </div>
+                          <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Missing content</p>
+                            <p className="mt-1 text-sm font-black text-[#241133]">{campaignDraftMissingContentChannels.length ? formatChannelList(campaignDraftMissingContentChannels) : "None"}</p>
+                          </div>
+                          <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">CTA</p>
+                            <p className="mt-1 line-clamp-2 text-sm font-black text-[#241133]">{selectedCampaignDraftContent.ctaLabel || selectedCampaignDraftContent.ctaUrl || "Add one before launch"}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex min-w-[240px] flex-wrap justify-start gap-2 xl:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => previewContent(selectedCampaignDraftContent)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-sm font-black text-purple-700 hover:bg-purple-50"
+                          data-testid="button-marketing-campaign-handoff-preview-content"
+                        >
+                          <Eye size={15} /> Preview content
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startContentEdit(selectedCampaignDraftContent)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-sm font-black text-white hover:bg-purple-800"
+                          data-testid="button-marketing-campaign-handoff-edit-content"
+                        >
+                          <Pencil size={15} /> Edit content
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab("content");
+                            setContentActionFeedback(`Showing source content "${selectedCampaignDraftContent.title}" in the Content workbench.`);
+                            scrollToContentActionRow(selectedCampaignDraftContent.id);
+                          }}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#241133] hover:border-purple-200"
+                          data-testid="button-marketing-campaign-handoff-open-content"
+                        >
+                          <ExternalLink size={15} /> Content workbench
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]" data-testid="marketing-campaign-studio">
                   <div>
                     <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-4" data-testid="marketing-campaign-intent-brief">
