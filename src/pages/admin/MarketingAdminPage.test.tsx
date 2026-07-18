@@ -1303,8 +1303,15 @@ describe("MarketingAdminPage", () => {
     expect(await screen.findByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
     expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("AI understood");
+    expect(screen.getByTestId("button-marketing-ai-command-create-kit")).toHaveTextContent("Create kit");
     expect(screen.getByTestId("button-marketing-ai-command-open-pack")).toHaveTextContent("Open templates");
     expect(screen.getByTestId("button-marketing-ai-command-customize-pack")).toHaveTextContent("Customize pack");
+
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-create-kit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created Clinic and pharmacy referral campaign plan");
+    });
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Clinic and pharmacy referral campaign plan");
 
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-customize-pack"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI command matched");

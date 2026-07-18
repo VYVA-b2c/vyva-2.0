@@ -20250,6 +20250,19 @@ export default function MarketingAdminPage() {
     setContentActionFeedback(`Showing AI-matched template pack: ${packMatch.pack.title}.`);
     setMessage(`Opened ${packMatch.pack.title} templates from the AI campaign command.`);
   }
+
+  async function createMarketingDashboardAiLaunchKit() {
+    const plan = marketingDashboardAiCommandPlan;
+    const packMatch = plan?.packMatch ?? null;
+    if (!plan || !packMatch) {
+      setMessage("Type a campaign goal first so VYVA can create the right launch kit.");
+      return;
+    }
+
+    setCampaignIntentBrief(marketingDashboardAiCommand.trim());
+    setCampaignStudioFeedback(`Creating AI-matched launch kit from ${packMatch.pack.title}...`);
+    await createCampaignPlanFromTemplatePack(packMatch.pack, packMatch.templates, packMatch.heroTemplate);
+  }
   const marketingOperatorBriefItems: MarketingOperatorBriefItem[] = [
     {
       key: "priority",
@@ -20726,11 +20739,20 @@ export default function MarketingAdminPage() {
                           <p className="mt-3 rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-bold leading-relaxed text-emerald-900">
                             Next: build the plan, review channel copy, then create campaign records with recipient snapshots.
                           </p>
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                            <button
+                              type="button"
+                              onClick={() => void createMarketingDashboardAiLaunchKit()}
+                              disabled={!marketingDashboardAiCommandPlan.packMatch || contentSaving || campaignSaving}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white transition hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-ai-command-create-kit"
+                            >
+                              <Zap size={13} /> Create kit
+                            </button>
                             <button
                               type="button"
                               onClick={() => openMarketingDashboardAiTemplatePack("content")}
-                              disabled={!marketingDashboardAiCommandPlan.packMatch}
+                              disabled={!marketingDashboardAiCommandPlan.packMatch || contentSaving || campaignSaving}
                               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 transition hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
                               data-testid="button-marketing-ai-command-open-pack"
                             >
@@ -20739,7 +20761,7 @@ export default function MarketingAdminPage() {
                             <button
                               type="button"
                               onClick={() => openMarketingDashboardAiTemplatePack("studio")}
-                              disabled={!marketingDashboardAiCommandPlan.packMatch}
+                              disabled={!marketingDashboardAiCommandPlan.packMatch || contentSaving || campaignSaving}
                               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-[#241133] px-3 text-xs font-black text-white transition hover:bg-[#3a1c4f] disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                               data-testid="button-marketing-ai-command-customize-pack"
                             >
