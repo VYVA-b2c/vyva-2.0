@@ -225,6 +225,7 @@ import {
 } from "../../shared/conciergeProviderReplies";
 import {
   buildConciergeProviderReplyDecisionPatch,
+  parseConciergeProviderReplyDecisionHistory,
   parseConciergeProviderReplyResolution,
   type ConciergeProviderReplyResolution,
 } from "../../shared/conciergeProviderReplyResolution";
@@ -4576,11 +4577,14 @@ function completedSessionOutcomeLabel(session: ConciergeCompletedSession, isSpan
 function completedSessionDetails(session: ConciergeCompletedSession, isSpanish: boolean): Array<{ label: string; value: string }> {
   const payload = session.outcome_payload;
   const providerResolution = parseConciergeProviderReplyResolution(payload?.provider_reply_resolution);
-  const providerDecision = providerResolution?.decision?.action === "confirm"
+  const providerDecisionHistory = parseConciergeProviderReplyDecisionHistory(payload?.provider_reply_decisions);
+  const providerDecisionAction = providerResolution?.decision?.action
+    ?? providerDecisionHistory[providerDecisionHistory.length - 1]?.action;
+  const providerDecision = providerDecisionAction === "confirm"
     ? (isSpanish ? "Confirmado" : "Confirmed")
-    : providerResolution?.decision?.action === "answer_provider"
+    : providerDecisionAction === "answer_provider"
       ? (isSpanish ? "Respuesta enviada" : "Provider answered")
-      : providerResolution?.decision?.action === "mark_complete"
+      : providerDecisionAction === "mark_complete"
         ? (isSpanish ? "Marcado como hecho" : "Marked complete")
         : "";
   const entries = [
@@ -11044,6 +11048,20 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     mutationFn: ({ item }: { item: ConciergePendingItem }) => {
       const completedAt = new Date().toISOString();
       const resolution = conciergeProviderReplySnapshot(item.action_payload)?.resolution ?? null;
+      const providerReplyDecisions = [
+        ...parseConciergeProviderReplyDecisionHistory(item.action_payload?.provider_reply_decisions),
+        {
+          action: "mark_complete" as const,
+          status: "completed" as const,
+          recordedAt: completedAt,
+          channel: resolution?.channel ?? "unknown",
+          summary: resolution?.summary ?? conciergeProviderCompletionSummary(
+            item.action_payload,
+            isSpanish ? "Tarea marcada como completada." : "Task marked complete.",
+          ),
+          requiresFreshConfirmation: true as const,
+        },
+      ].slice(-20);
       return completePendingConciergeAction({
         pendingId: item.id,
         outcomeSummary: conciergeProviderCompletionSummary(
@@ -11062,6 +11080,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
               },
             },
           } : {}),
+          provider_reply_decisions: providerReplyDecisions,
           provider_task_status: "done",
           live_handoff_status: "completed",
           live_handoff_outcome: "user_marked_complete",

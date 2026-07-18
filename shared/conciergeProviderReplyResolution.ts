@@ -32,6 +32,12 @@ export type ConciergeProviderReplyDecision = {
   recordedAt: string;
 };
 
+export type ConciergeProviderReplyDecisionHistoryEntry = ConciergeProviderReplyDecision & {
+  channel: string;
+  summary: string;
+  requiresFreshConfirmation: true;
+};
+
 export type ConciergeProviderReplyResolution = {
   version: 1;
   channel: string;
@@ -142,6 +148,69 @@ function cleanText(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return "";
+}
+
+export function resetConciergeProviderReplyExternalExecution(
+  payloadValue: Record<string, unknown> | null | undefined,
+  updatedAt = new Date().toISOString(),
+): Record<string, unknown> {
+  const payload = record(payloadValue);
+  const executionTask = record(payload.execution_task);
+  const executionTaskWithoutPriorSend = { ...executionTask };
+  delete executionTaskWithoutPriorSend.approval_fingerprint;
+  delete executionTaskWithoutPriorSend.confirmed_at;
+  delete executionTaskWithoutPriorSend.failure_reason;
+  delete executionTaskWithoutPriorSend.outcome;
+  delete executionTaskWithoutPriorSend.adapter_result;
+
+  return {
+    ...payload,
+    execution_adapter: null,
+    adapter_result: null,
+    email_outcome: null,
+    whatsapp_outcome: null,
+    provider_message_id: null,
+    external_action_allowed: false,
+    user_confirmed: false,
+    provider_follow_up_confirmed: false,
+    no_external_action_without_confirmation: true,
+    ...(executionTask.version === 1 ? {
+      execution_task: {
+        ...executionTaskWithoutPriorSend,
+        lifecycle_status: "ready",
+        user_confirmed: false,
+        external_action_allowed: false,
+        execution_mode: "blocked",
+        confirmation_source: "provider_reply_received",
+        updated_at: updatedAt,
+      },
+    } : {}),
+  };
+}
+
+export function parseConciergeProviderReplyDecisionHistory(
+  value: unknown,
+): ConciergeProviderReplyDecisionHistoryEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entryValue) => {
+    const entry = record(entryValue);
+    const action = cleanText(entry.action) as ConciergeProviderReplyPrimaryAction;
+    const status = cleanText(entry.status) as ConciergeProviderReplyDecision["status"];
+    if (
+      !CONCIERGE_PROVIDER_REPLY_PRIMARY_ACTIONS.includes(action)
+      || !["needs_information", "draft_ready", "completed"].includes(status)
+    ) {
+      return [];
+    }
+    return [{
+      action,
+      status,
+      recordedAt: cleanText(entry.recordedAt),
+      channel: cleanText(entry.channel) || "unknown",
+      summary: cleanText(entry.summary),
+      requiresFreshConfirmation: true as const,
+    }];
+  }).slice(-20);
 }
 
 function firstKnownFact(knownFacts: Record<string, unknown>, keys: string[]): string | null {
@@ -427,7 +496,7 @@ export function buildConciergeProviderReplyDecisionPatch(input: {
   answers?: Record<string, string>;
   recordedAt?: string;
 }): Record<string, unknown> {
-  const payload = record(input.payload);
+  const originalPayload = record(input.payload);
   const answers = input.answers ?? {};
   const requestedInformation = input.resolution.requestedInformation.map((item) => {
     const answer = answers[item.key]?.trim() || item.value;
@@ -453,6 +522,16 @@ export function buildConciergeProviderReplyDecisionPatch(input: {
       recordedAt,
     },
   };
+  const payload = resetConciergeProviderReplyExternalExecution(originalPayload, recordedAt);
+  const providerReplyDecisions = [
+    ...parseConciergeProviderReplyDecisionHistory(originalPayload.provider_reply_decisions),
+    {
+      ...resolution.decision!,
+      channel: resolution.channel,
+      summary: resolution.summary,
+      requiresFreshConfirmation: true as const,
+    },
+  ].slice(-20);
   const channel = resolution.channel;
   const providerEmail = cleanText(payload.provider_email) || cleanText(payload.provider_inbound_sender);
   const providerWhatsApp = cleanText(payload.provider_whatsapp) || cleanText(payload.provider_inbound_sender);
@@ -461,6 +540,7 @@ export function buildConciergeProviderReplyDecisionPatch(input: {
     provider_reply_resolution: resolution,
     provider_reply_resolution_action: resolution.primaryAction,
     provider_reply_resolution_at: recordedAt,
+    provider_reply_decisions: providerReplyDecisions,
     provider_follow_up_status: draftFollowUp ? "draft_ready" : "needs_info",
     provider_follow_up_requires_confirmation: true,
     provider_follow_up_confirmed: false,

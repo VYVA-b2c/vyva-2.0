@@ -1,6 +1,7 @@
 import {
   buildConciergeProviderReplyResolution,
   parseConciergeProviderReplyResolution,
+  resetConciergeProviderReplyExternalExecution,
   type ConciergeProviderReplyResolution,
 } from "./conciergeProviderReplyResolution";
 
@@ -126,8 +127,9 @@ export function buildConciergeProviderReplyPatch(input: {
     channel: text(payload.provider_inbound_channel) || text(payload.execution_channel),
     knownFacts: payload,
   });
+  const safePayload = resetConciergeProviderReplyExternalExecution(payload, receivedAt);
   return {
-    ...payload,
+    ...safePayload,
     provider_task_status: "reply_received",
     provider_reply_status: "confirmed",
     provider_reply: reply,
@@ -170,8 +172,9 @@ export function buildConciergeProviderActionNeededPatch(input: {
     channel: text(payload.provider_inbound_channel) || text(payload.execution_channel),
     knownFacts: payload,
   });
+  const safePayload = resetConciergeProviderReplyExternalExecution(payload, receivedAt);
   return {
-    ...payload,
+    ...safePayload,
     provider_task_status: "action_needed",
     provider_reply_status: "needs_more_info",
     provider_reply: question,

@@ -34,6 +34,10 @@ import {
   type ConciergeActionAdapterMode,
   type ConciergeActionAdapterResult,
 } from "./conciergeActionAdapters.js";
+import {
+  parseConciergeProviderReplyDecisionHistory,
+  parseConciergeProviderReplyResolution,
+} from "../../shared/conciergeProviderReplyResolution.js";
 
 export const CONCIERGE_USE_CASES = [
   "book_ride",
@@ -559,6 +563,12 @@ async function recordSuccessfulLiveEmailReceipt(
 ): Promise<string | null> {
   const actionPayload = pending.action_payload ?? {};
   const executionTask = executionTaskFromPayload(actionPayload);
+  const providerReplyResolution = parseConciergeProviderReplyResolution(
+    actionPayload.provider_reply_resolution,
+  );
+  const providerReplyDecisions = parseConciergeProviderReplyDecisionHistory(
+    actionPayload.provider_reply_decisions,
+  );
   const providerName = pending.provider_name?.trim()
     || adapterResult.provider_name?.trim()
     || adapterResult.provider_contact?.trim()
@@ -600,6 +610,20 @@ async function recordSuccessfulLiveEmailReceipt(
     waiting_for_provider: true,
     mission_status: "awaiting_provider_reply",
     sent_at: adapterResult.attempted_at,
+    ...(providerReplyResolution ? {
+      provider_reply_resolution: providerReplyResolution,
+      provider_reply_resolution_action: providerReplyResolution.primaryAction,
+      provider_reply_resolution_at: providerReplyResolution.decision?.recordedAt ?? null,
+      provider_response_summary: asString(actionPayload.provider_response_summary)
+        ?? providerReplyResolution.summary,
+      provider_reply: asString(actionPayload.provider_reply),
+      provider_follow_up_requires_confirmation: true,
+      provider_follow_up_confirmed: executionTask?.user_confirmed === true,
+      no_external_action_without_confirmation: true,
+    } : {}),
+    ...(providerReplyDecisions.length > 0 ? {
+      provider_reply_decisions: providerReplyDecisions,
+    } : {}),
   };
 
   const result = await pool.query<{ id: string }>(
@@ -613,6 +637,15 @@ async function recordSuccessfulLiveEmailReceipt(
           and outcome_payload->>'adapter_channel' = 'email'
         order by completed_at desc nulls last
         limit 1
+      ), updated as (
+        update concierge_sessions
+        set
+          action_payload = $9::jsonb,
+          outcome_payload = coalesce(outcome_payload, '{}'::jsonb) || $10::jsonb,
+          outcome_summary = $11,
+          completed_at = $12::timestamptz
+        where id in (select id from existing)
+        returning id
       ), inserted as (
         insert into concierge_sessions (
           user_id,
@@ -646,9 +679,9 @@ async function recordSuccessfulLiveEmailReceipt(
         where not exists (select 1 from existing)
         returning id
       )
-      select id from inserted
+      select id from updated
       union all
-      select id from existing
+      select id from inserted
       limit 1
     `,
     [

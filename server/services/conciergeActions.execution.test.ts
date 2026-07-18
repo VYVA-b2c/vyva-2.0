@@ -1070,6 +1070,39 @@ describe("confirmed Concierge action execution", () => {
         provider_email: "concierge@vyva.life",
         email_subject: "VYVA Concierge app-triggered smoke",
         email_body: "Controlled app-triggered live email smoke.",
+        provider_reply: "Please confirm Thursday at 11:00.",
+        provider_response_summary: "Thursday at 11:00 is available.",
+        provider_reply_resolution: {
+          version: 1,
+          channel: "email",
+          replySubject: "Appointment request",
+          availability: "available",
+          dateTime: "Thursday at 11:00",
+          price: null,
+          referenceNumber: null,
+          requestedInformation: [],
+          missingInformation: [],
+          summary: "Thursday at 11:00 is available.",
+          primaryAction: "confirm",
+          draftFollowUp: {
+            subject: "Re: Appointment request",
+            body: "Thursday at 11:00 works for me. Please confirm the booking.",
+          },
+          requiresFreshConfirmation: true,
+          decision: {
+            action: "confirm",
+            status: "draft_ready",
+            recordedAt: "2026-07-18T09:59:00.000Z",
+          },
+        },
+        provider_reply_decisions: [{
+          action: "confirm",
+          status: "draft_ready",
+          recordedAt: "2026-07-18T09:59:00.000Z",
+          channel: "email",
+          summary: "Thursday at 11:00 is available.",
+          requiresFreshConfirmation: true,
+        }],
       },
       language: "en",
       status: "pending",
@@ -1130,6 +1163,16 @@ describe("confirmed Concierge action execution", () => {
         lifecycle_status: "confirmed",
         user_confirmed: true,
       }),
+      provider_reply_resolution: expect.objectContaining({
+        primaryAction: "confirm",
+        decision: expect.objectContaining({ action: "confirm" }),
+      }),
+      provider_reply_decisions: [expect.objectContaining({
+        action: "confirm",
+        status: "draft_ready",
+      })],
+      provider_follow_up_confirmed: true,
+      no_external_action_without_confirmation: true,
     });
 
     const repeated = await confirmPendingConciergeActionReview(pendingId, "user-1");

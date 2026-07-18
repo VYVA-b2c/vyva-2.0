@@ -11,7 +11,10 @@ import {
   buildConciergeProviderActionNeededPatch,
   buildConciergeProviderReplyPatch,
 } from "../../shared/conciergeProviderReplies.js";
-import { buildConciergeProviderReplyResolution } from "../../shared/conciergeProviderReplyResolution.js";
+import {
+  buildConciergeProviderReplyResolution,
+  resetConciergeProviderReplyExternalExecution,
+} from "../../shared/conciergeProviderReplyResolution.js";
 import { pendingIdFromConciergeReplyRecipient } from "./conciergeInboundEmailRouting.js";
 
 export type ConciergeInboundProviderEmail = {
@@ -126,10 +129,11 @@ function withInboundReplySafetyReset(
   classification: ConciergeInboundReplyClassification,
   message: Pick<ConciergeInboundProviderEmail, "providerEventId" | "senderEmail" | "subject" | "receivedAt">,
 ): Record<string, unknown> {
-  const executionTask = record(patch.execution_task);
-  const audit = Array.isArray(patch.execution_audit) ? patch.execution_audit : [];
+  const safePatch = resetConciergeProviderReplyExternalExecution(patch, message.receivedAt);
+  const executionTask = record(safePatch.execution_task);
+  const audit = Array.isArray(safePatch.execution_audit) ? safePatch.execution_audit : [];
   return {
-    ...patch,
+    ...safePatch,
     provider_inbound_message_id: message.providerEventId,
     provider_inbound_channel: "email",
     provider_inbound_sender: message.senderEmail,
@@ -402,6 +406,9 @@ async function attachWithClient(client: PoolClient, input: Parameters<ConciergeI
       provider_reply: input.classification.reply,
       provider_response_summary: input.patch.provider_response_summary ?? input.classification.summary,
       provider_reply_resolution: input.patch.provider_reply_resolution ?? input.classification.resolution,
+      ...(Array.isArray(input.patch.provider_reply_decisions) ? {
+        provider_reply_decisions: input.patch.provider_reply_decisions,
+      } : {}),
       provider_reply_source: "live",
       provider_follow_up_requires_confirmation: true,
       provider_follow_up_confirmed: false,

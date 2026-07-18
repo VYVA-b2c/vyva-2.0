@@ -55,6 +55,23 @@ describe("Concierge provider reply resolution", () => {
       payload: {
         provider_inbound_sender: "clinic@example.com",
         provider_follow_up_confirmed: true,
+        execution_adapter: {
+          version: 1,
+          channel: "email",
+          mode: "live",
+          status: "sent",
+        },
+        email_outcome: "sent",
+        execution_task: {
+          version: 1,
+          lifecycle_status: "confirmed",
+          user_confirmed: true,
+          external_action_allowed: true,
+          execution_mode: "live",
+          confirmed_at: "2026-07-18T11:00:00.000Z",
+          approval_fingerprint: { version: 1, fingerprint: "old-approval" },
+          adapter_result: { status: "sent" },
+        },
       },
       resolution,
       answers: { insurance_plan: "Sanitas" },
@@ -69,6 +86,15 @@ describe("Concierge provider reply resolution", () => {
       provider_follow_up_status: "draft_ready",
       provider_follow_up_confirmed: false,
       no_external_action_without_confirmation: true,
+      execution_adapter: null,
+      email_outcome: null,
+      execution_task: expect.objectContaining({
+        lifecycle_status: "ready",
+        user_confirmed: false,
+        external_action_allowed: false,
+        execution_mode: "blocked",
+        confirmation_source: "provider_reply_received",
+      }),
       provider_reply_resolution: expect.objectContaining({
         missingInformation: [],
         decision: {
@@ -77,7 +103,16 @@ describe("Concierge provider reply resolution", () => {
           recordedAt: "2026-07-18T12:00:00.000Z",
         },
       }),
+      provider_reply_decisions: [expect.objectContaining({
+        action: "answer_provider",
+        status: "draft_ready",
+        channel: "email",
+        requiresFreshConfirmation: true,
+      })],
     });
+    expect(patch.execution_task).not.toHaveProperty("confirmed_at");
+    expect(patch.execution_task).not.toHaveProperty("approval_fingerprint");
+    expect(patch.execution_task).not.toHaveProperty("adapter_result");
     expect(String(patch.email_body)).toContain("Insurance plan: Sanitas");
   });
 

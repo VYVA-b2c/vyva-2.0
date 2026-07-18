@@ -6892,6 +6892,22 @@ describe("ConciergeScreen route prefill", () => {
       phone: "+34 600 111 222",
       provider_follow_up_confirmed: false,
       no_external_action_without_confirmation: true,
+      execution_adapter: {
+        version: 1,
+        channel: "email",
+        mode: "live",
+        status: "sent",
+      },
+      email_outcome: "sent",
+      execution_task: {
+        version: 1,
+        lifecycle_status: "confirmed",
+        user_confirmed: true,
+        external_action_allowed: true,
+        execution_mode: "live",
+        confirmed_at: "2026-07-18T10:00:00.000Z",
+        approval_fingerprint: { version: 1, fingerprint: "old-approval" },
+      },
     };
     pendingPayload.provider_reply_resolution = buildConciergeProviderReplyResolution({
       reply: String(pendingPayload.provider_reply),
@@ -6956,10 +6972,22 @@ describe("ConciergeScreen route prefill", () => {
       provider_follow_up_status: "draft_ready",
       provider_follow_up_confirmed: false,
       no_external_action_without_confirmation: true,
+      execution_adapter: null,
+      email_outcome: null,
+      execution_task: expect.objectContaining({
+        lifecycle_status: "ready",
+        user_confirmed: false,
+        external_action_allowed: false,
+        execution_mode: "blocked",
+      }),
       provider_reply_resolution: expect.objectContaining({
         missingInformation: [],
         decision: expect.objectContaining({ status: "draft_ready" }),
       }),
+      provider_reply_decisions: [expect.objectContaining({
+        action: "answer_provider",
+        status: "draft_ready",
+      })],
     }));
     expect(reviewConfirmCalls).toBe(0);
     expect(await screen.findByTestId("panel-provider-reply-draft")).toHaveTextContent("Policy or member number: POL-4455");
@@ -7111,6 +7139,10 @@ describe("ConciergeScreen route prefill", () => {
           live_handoff_outcome: "user_marked_complete",
           completed_from: "provider_follow_up_panel",
           no_external_action_without_confirmation: true,
+          provider_reply_decisions: [expect.objectContaining({
+            action: "mark_complete",
+            status: "completed",
+          })],
         }),
       });
     });
