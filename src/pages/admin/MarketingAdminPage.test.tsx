@@ -1420,17 +1420,17 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-create-kit"));
     await waitFor(() => {
-      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created Partner growth campaign plan");
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created Professional referral webinar campaign plan");
     });
     expect(screen.getByTestId("marketing-ai-command-created-kit")).toHaveTextContent("Launch kit created");
-    expect(screen.getByTestId("marketing-ai-command-created-kit")).toHaveTextContent("Partner growth campaign plan");
+    expect(screen.getByTestId("marketing-ai-command-created-kit")).toHaveTextContent("Professional referral webinar campaign plan");
     expect(screen.getByTestId("marketing-ai-command-created-kit-routes")).toHaveTextContent("Email and LinkedIn");
     expect(screen.getByTestId("marketing-ai-command-created-kit-recipients")).toHaveTextContent("2");
     expect(screen.getByTestId("marketing-ai-command-created-kit-assets")).toHaveTextContent("new");
     expect(screen.getByTestId("marketing-ai-command-created-kit-next-actions")).toHaveTextContent("Next moves");
     expect(screen.getByTestId("marketing-ai-command-created-kit-next-actions")).toHaveTextContent("Send email safely");
     expect(screen.getByTestId("marketing-ai-command-created-kit-next-actions")).toHaveTextContent("Log LinkedIn handoffs and replies.");
-    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner growth campaign plan");
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Professional referral webinar campaign plan");
 
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-customize-pack"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI command matched");
@@ -1439,7 +1439,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-open-pack"));
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Template pathfinder");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing AI-matched template pack");
-    expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("Viewing");
+    expect(screen.getByTestId("marketing-template-pack-professional-referral-webinar")).toHaveTextContent("Viewing");
   });
 
   it("shows local AI command create errors instead of feeling dead", async () => {
@@ -2410,11 +2410,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver invite acceptance email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver invite WhatsApp reminder");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable caregiver invite one-pager");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Professional webinar invitation email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Professional webinar call script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Professional webinar run sheet");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro call script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence intro email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence director call script");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("123 templates");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("130 templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -2874,6 +2877,30 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Clinic and pharmacy referral pack into the campaign studio");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
 
+    expect(screen.getByTestId("marketing-template-pack-professional-referral-webinar")).toHaveTextContent("Professional referral webinar");
+    expect(screen.getByTestId("marketing-template-pack-professional-referral-webinar")).toHaveTextContent("7 templates");
+    expect(screen.getByTestId("marketing-template-pack-professional-referral-webinar")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-professional-referral-webinar"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Professional referral webinar template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Professional webinar invitation email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Professional webinar LinkedIn post");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Professional webinar run sheet");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-professional-referral-webinar")).toHaveTextContent("Professional invite");
+    expect(screen.getByTestId("marketing-template-pack-sequence-professional-referral-webinar")).toHaveTextContent("Host run sheet");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-professional-referral-webinar"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Professional referral webinar");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Professional referral webinar pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("Partner growth");
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-partner-growth"));
@@ -2905,16 +2932,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("19");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("20");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Local event");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("5");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("6");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("8");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Target: 3 per pack");
     expect(screen.getByTestId("button-marketing-template-matrix-event-b2c")).toHaveTextContent("3");
     expect(screen.getByTestId("button-marketing-template-matrix-event-b2c")).toHaveTextContent("Strong");
-    expect(screen.getByTestId("button-marketing-template-matrix-sms-b2b")).toHaveTextContent("3");
+    expect(screen.getByTestId("button-marketing-template-matrix-sms-b2b")).toHaveTextContent("4");
     expect(screen.getByTestId("button-marketing-template-matrix-sms-b2b")).toHaveTextContent("Strong");
     expect(screen.getByTestId("button-marketing-template-matrix-linkedin-b2c")).toHaveTextContent("3");
     expect(screen.getByTestId("button-marketing-template-matrix-linkedin-b2c")).toHaveTextContent("Strong");
