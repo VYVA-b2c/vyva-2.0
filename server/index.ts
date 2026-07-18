@@ -64,6 +64,7 @@ import {
   conciergeRecommendationsHandler,
 } from "./routes/concierge.js";
 import conciergeActionsRouter from "./routes/conciergeActions.js";
+import conciergeTasksRouter from "./routes/conciergeTasks.js";
 import appointmentsRouter from "./routes/appointments.js";
 import conciergeShoppingRouter from "./routes/conciergeShopping.js";
 import transportRouter from "./routes/transport.js";
@@ -198,6 +199,7 @@ app.post("/api/concierge/recommendations/plan", authMiddleware, requireUser, req
 app.post("/api/concierge/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationFeedbackHandler);
 app.use("/api/concierge/shopping", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeShoppingRouter);
 app.use("/api/concierge/actions", conciergeActionsRouter);
+app.use("/api/concierge/tasks", conciergeTasksRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/transport", transportRouter);
 app.post("/api/allergies-voice-parse", allergiesVoiceParseHandler);

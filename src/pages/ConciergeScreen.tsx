@@ -101,6 +101,18 @@ import {
   type ConciergeTaskEntry,
   type ConciergeTaskStage,
 } from "@/lib/conciergeTaskNavigation";
+import {
+  ConciergeTaskNoLongerActiveError,
+  createConciergeTaskDraft,
+  deleteConciergeTaskDraft,
+  fetchConciergeTaskDraft,
+  isPersistedConciergeTaskId,
+  listConciergeTaskDrafts,
+  updateConciergeTaskDraft,
+  type ConciergeTaskDraft,
+  type ConciergeTaskProgressPayload,
+  type PersistedConciergeTaskStage,
+} from "@/lib/conciergeTaskDrafts";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import {
   buildConciergeAppointmentCanvasViewModel,
@@ -2054,6 +2066,13 @@ async function fetchActiveHomeServiceDraft(): Promise<AppointmentRequestResponse
   if (!res.ok) return null;
   const data = await res.json() as AppointmentRequestResponse & { request: AppointmentRequestItem | null };
   return data.request ? data as AppointmentRequestResponse : null;
+}
+
+async function fetchAppointmentRequest(requestId: string): Promise<AppointmentRequestResponse | null> {
+  const res = await apiFetch(`/api/appointments/requests/${encodeURIComponent(requestId)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return await res.json() as AppointmentRequestResponse;
 }
 
 async function updateHomeServiceDraft(params: {
@@ -9003,6 +9022,17 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const isSpanish = locale === "es";
   const autoStartVoice = useRouteVoiceAutoStart();
   const queryClient = useQueryClient();
+  const persistedTaskQuery = useQuery({
+    queryKey: ["/api/concierge/tasks", taskId],
+    queryFn: () => fetchConciergeTaskDraft(taskId!),
+    enabled: mode === "task" && isPersistedConciergeTaskId(taskId),
+    retry: false,
+  });
+  const persistedTask = persistedTaskQuery.data ?? null;
+  const effectiveTaskEntry = useMemo(
+    () => taskEntry ?? coerceConciergeTaskEntry(persistedTask?.entry_payload),
+    [persistedTask?.entry_payload, taskEntry],
+  );
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasRestoredHistory, setHasRestoredHistory] = useState(false);
@@ -9051,9 +9081,39 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const billInputRef = useRef<HTMLInputElement>(null);
   const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
   const lastAppliedConciergeTaskEntryRef = useRef<string | null>(null);
+  const taskCreationStartedRef = useRef(false);
+  const hydratedConciergeTaskIdRef = useRef<string | null>(null);
+  const lastSavedConciergeTaskHashRef = useRef<string | null>(null);
   const lastRoutePrefillKeyRef = useRef<string | null>(null);
   const lastCompletedTemplateKeyRef = useRef<string | null>(null);
   const lastProviderRouteActionKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (mode !== "task" || taskId !== "new" || !taskEntry || taskCreationStartedRef.current) return;
+    taskCreationStartedRef.current = true;
+    void createConciergeTaskDraft({ entry: taskEntry, language: locale })
+      .then((createdTask) => {
+        queryClient.setQueryData(["/api/concierge/tasks", createdTask.id], createdTask);
+        void queryClient.invalidateQueries({ queryKey: ["/api/concierge/tasks"] });
+        navigate(conciergeTaskPath(createdTask.id), { replace: true, state: null });
+      })
+      .catch(() => {
+        taskCreationStartedRef.current = false;
+        setChatError(isSpanish ? "No he podido guardar esta tarea." : "I could not save this task.");
+      });
+  }, [isSpanish, locale, mode, navigate, queryClient, taskEntry, taskId]);
+
+  useEffect(() => {
+    if (!(persistedTaskQuery.error instanceof ConciergeTaskNoLongerActiveError)) return;
+    navigate("/concierge", {
+      replace: true,
+      state: {
+        notice: isSpanish
+          ? "Esta tarea ya esta cerrada."
+          : "This task is already closed.",
+      },
+    });
+  }, [isSpanish, navigate, persistedTaskQuery.error]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setProviderWaitingClockMs(Date.now()), 60_000);
@@ -9270,28 +9330,28 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const [activeProviderShortlistError, setActiveProviderShortlistError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mode !== "task" || !taskEntry) return;
-    const entryKey = JSON.stringify(taskEntry);
+    if (mode !== "task" || !effectiveTaskEntry) return;
+    const entryKey = JSON.stringify(effectiveTaskEntry);
     if (lastAppliedConciergeTaskEntryRef.current === entryKey) return;
     lastAppliedConciergeTaskEntryRef.current = entryKey;
 
-    setInsuranceAdminOpen(taskEntry.kind === "document");
-    setScamCheckOpen(taskEntry.kind === "scam_review");
-    setOtcPharmacyOpen(taskEntry.kind === "otc_pharmacy");
-    setAppointmentOpen(taskEntry.kind === "appointment" || taskEntry.kind === "home_service");
-    setOffersOpen(taskEntry.kind === "provider_contact");
+    setInsuranceAdminOpen(effectiveTaskEntry.kind === "document");
+    setScamCheckOpen(effectiveTaskEntry.kind === "scam_review");
+    setOtcPharmacyOpen(effectiveTaskEntry.kind === "otc_pharmacy");
+    setAppointmentOpen(effectiveTaskEntry.kind === "appointment" || effectiveTaskEntry.kind === "home_service");
+    setOffersOpen(effectiveTaskEntry.kind === "provider_contact");
 
-    if (taskEntry.kind === "document") {
-      setSelectedInsuranceAdminKind(taskEntry.documentKind ?? null);
-    } else if (taskEntry.kind === "appointment" || taskEntry.kind === "home_service") {
-      const chipKey = taskEntry.kind === "home_service" ? "home-service" : taskEntry.appointmentKind;
+    if (effectiveTaskEntry.kind === "document") {
+      setSelectedInsuranceAdminKind(effectiveTaskEntry.documentKind ?? null);
+    } else if (effectiveTaskEntry.kind === "appointment" || effectiveTaskEntry.kind === "home_service") {
+      const chipKey = effectiveTaskEntry.kind === "home_service" ? "home-service" : effectiveTaskEntry.appointmentKind;
       setSelectedAppointmentChip(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === chipKey) ?? null);
-    } else if (taskEntry.kind === "provider_contact") {
-      setProviderSearchMode(taskEntry.providerSearchMode ?? "specialist");
-      setOffersQuery(taskEntry.query ?? "");
+    } else if (effectiveTaskEntry.kind === "provider_contact") {
+      setProviderSearchMode(effectiveTaskEntry.providerSearchMode ?? "specialist");
+      setOffersQuery(effectiveTaskEntry.query ?? "");
       setOffersError(null);
       setOffersResult(null);
-    } else if (taskEntry.kind === "transport") {
+    } else if (effectiveTaskEntry.kind === "transport") {
       const message = t(
         "concierge.fastHelp.ridePrefill",
         "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
@@ -9300,7 +9360,162 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       setTransportDetailsOpen(true);
       setTransportPickup((current) => current.trim() ? current : (isSpanish ? "Casa guardada" : "Saved home"));
     }
-  }, [isSpanish, mode, t, taskEntry]);
+  }, [effectiveTaskEntry, isSpanish, mode, t]);
+
+  useEffect(() => {
+    if (!persistedTask || hydratedConciergeTaskIdRef.current === persistedTask.id) return;
+    hydratedConciergeTaskIdRef.current = persistedTask.id;
+    lastSavedConciergeTaskHashRef.current = JSON.stringify({
+      progress: persistedTask.progress_payload,
+      stage: persistedTask.stage,
+    });
+    const progress = persistedTask.progress_payload;
+
+    if (persistedTask.kind === "document") {
+      setInsuranceAdminOpen(true);
+      setSelectedInsuranceAdminKind(progress.documentKind ?? effectiveTaskEntry?.documentKind ?? null);
+      if (progress.documentDetails) setInsuranceAdminDetails(progress.documentDetails);
+      return;
+    }
+
+    if (persistedTask.kind === "appointment") {
+      setAppointmentOpen(true);
+      const chipKey = progress.appointmentType ?? effectiveTaskEntry?.appointmentKind ?? "medical";
+      setSelectedAppointmentChip(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === chipKey) ?? APPOINTMENT_TYPE_CHIPS[0]);
+      setAppointmentNote(progress.note ?? "");
+      setAppointmentCanvasRequestedTime(progress.requestedTime ?? "");
+      setAppointmentCanvasCoverageLabel(progress.coverageLabel ?? "");
+      if (progress.canvasStep) {
+        setAppointmentCanvasMode(true);
+        setAppointmentCanvasStep(progress.canvasStep as ConciergeAppointmentCanvasStep);
+      }
+      setSelectedAppointmentOptionId(progress.selectedProviderOptionId ?? null);
+      return;
+    }
+
+    if (persistedTask.kind === "home_service") {
+      setAppointmentOpen(true);
+      setSelectedAppointmentChip(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "home-service") ?? APPOINTMENT_TYPE_CHIPS[0]);
+      setAppointmentNote(progress.note ?? "");
+      setHomeServiceType(progress.serviceType ? normalizeHomeServiceType(progress.serviceType) : null);
+      setHomeServiceIntakeOrigin(progress.origin ?? "app");
+      setHomeServiceIntakeAnswers(progress.answers ?? {});
+      setHomeServiceTextDrafts(progress.textDrafts ?? {});
+      setHomeServiceCanvasPhotoName(progress.photoName ?? "");
+      if (progress.canvasStep) {
+        setHomeServiceCanvasMode(true);
+        setHomeServiceCanvasStep(progress.canvasStep as ConciergeHomeServiceCanvasStep);
+      }
+      setSelectedAppointmentOptionId(progress.selectedProviderOptionId ?? null);
+      return;
+    }
+
+    if (persistedTask.kind === "provider_contact") {
+      setOffersOpen(true);
+      setProviderSearchMode(isProviderSearchMode(progress.providerSearchMode)
+        ? progress.providerSearchMode
+        : effectiveTaskEntry?.providerSearchMode ?? "specialist");
+      setOffersQuery(progress.query ?? effectiveTaskEntry?.query ?? "");
+      setProviderSearchCriteria((progress.criteria ?? DEFAULT_PROVIDER_SEARCH_CRITERIA).filter(isProviderSearchCriterion));
+      setOffersResult((progress.providerResult ?? null) as OffersSearchResponse | null);
+      setProviderShortlistIds(progress.shortlistIds ?? []);
+    }
+  }, [effectiveTaskEntry, persistedTask]);
+
+  const savedConciergeTaskProgress = useMemo<ConciergeTaskProgressPayload>(() => {
+    switch (effectiveTaskEntry?.kind) {
+      case "document":
+        return {
+          documentKind: selectedInsuranceAdminKind,
+          documentDetails: insuranceAdminDetails,
+        };
+      case "appointment":
+        return {
+          appointmentType: selectedAppointmentChip?.key ?? null,
+          note: appointmentNote,
+          requestedTime: appointmentCanvasRequestedTime,
+          coverageLabel: appointmentCanvasCoverageLabel,
+          canvasStep: appointmentCanvasStep,
+          requestId: appointmentRequest?.id ?? null,
+          selectedProviderOptionId: selectedAppointmentOptionId,
+        };
+      case "home_service":
+        return {
+          appointmentType: "home-service",
+          note: appointmentNote,
+          serviceType: homeServiceType,
+          origin: homeServiceIntakeOrigin,
+          answers: homeServiceIntakeAnswers,
+          textDrafts: homeServiceTextDrafts,
+          canvasStep: homeServiceCanvasStep,
+          photoName: homeServiceCanvasPhotoName,
+          requestId: appointmentRequest?.id ?? null,
+          selectedProviderOptionId: selectedAppointmentOptionId,
+        };
+      case "provider_contact":
+        return {
+          providerSearchMode,
+          query: offersQuery,
+          criteria: providerSearchCriteria,
+          providerResult: offersResult as unknown as Record<string, unknown> | null,
+          shortlistIds: providerShortlistIds,
+        };
+      default:
+        return {};
+    }
+  }, [
+    appointmentCanvasCoverageLabel,
+    appointmentCanvasRequestedTime,
+    appointmentCanvasStep,
+    appointmentNote,
+    appointmentRequest?.id,
+    effectiveTaskEntry?.kind,
+    homeServiceCanvasPhotoName,
+    homeServiceCanvasStep,
+    homeServiceIntakeAnswers,
+    homeServiceIntakeOrigin,
+    homeServiceTextDrafts,
+    homeServiceType,
+    insuranceAdminDetails,
+    offersQuery,
+    offersResult,
+    providerSearchCriteria,
+    providerSearchMode,
+    providerShortlistIds,
+    selectedAppointmentChip?.key,
+    selectedAppointmentOptionId,
+    selectedInsuranceAdminKind,
+  ]);
+
+  const savedConciergeTaskStage: PersistedConciergeTaskStage = persistedTask?.stage === "review"
+    || persistedTask?.linked_pending_id
+    || appointmentOptions.length > 0
+    || offersResult
+    || (effectiveTaskEntry?.kind === "document" && routePrefill)
+    ? "review"
+    : "details";
+
+  useEffect(() => {
+    if (!persistedTask || hydratedConciergeTaskIdRef.current !== persistedTask.id) return;
+    const nextHash = JSON.stringify({ progress: savedConciergeTaskProgress, stage: savedConciergeTaskStage });
+    if (nextHash === lastSavedConciergeTaskHashRef.current) return;
+    const timer = window.setTimeout(() => {
+      lastSavedConciergeTaskHashRef.current = nextHash;
+      void updateConciergeTaskDraft({
+        id: persistedTask.id,
+        progress: savedConciergeTaskProgress,
+        stage: savedConciergeTaskStage,
+      }).then((updatedTask) => {
+        queryClient.setQueryData(["/api/concierge/tasks", updatedTask.id], updatedTask);
+        queryClient.setQueryData<ConciergeTaskDraft[]>(["/api/concierge/tasks"], (current) => (
+          current?.map((task) => task.id === updatedTask.id ? updatedTask : task) ?? current
+        ));
+      }).catch(() => {
+        lastSavedConciergeTaskHashRef.current = null;
+      });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [persistedTask, queryClient, savedConciergeTaskProgress, savedConciergeTaskStage]);
 
   const providerComparisonOptions = useMemo(
     () => buildProviderComparisonOptions(offersResult?.options ?? []),
@@ -9517,6 +9732,25 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     refetchInterval: 8000,
   });
 
+  const { data: savedTaskDrafts = [], isLoading: savedTaskDraftsLoading } = useQuery({
+    queryKey: ["/api/concierge/tasks"],
+    queryFn: listConciergeTaskDrafts,
+    enabled: mode === "home",
+    staleTime: 10 * 1000,
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: deleteConciergeTaskDraft,
+    onSuccess: async (deletedTask) => {
+      queryClient.removeQueries({ queryKey: ["/api/concierge/tasks", deletedTask.id] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/tasks"] });
+      navigate("/concierge", { replace: true });
+    },
+    onError: () => {
+      setChatError(isSpanish ? "No he podido eliminar esta tarea." : "I could not remove this task.");
+    },
+  });
+
   const { data: completedSessions = [], isLoading: completedSessionsLoading } = useQuery({
     queryKey: ["/api/concierge/actions/sessions"],
     queryFn: fetchCompletedConciergeSessions,
@@ -9538,7 +9772,30 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     queryFn: fetchActiveHomeServiceDraft,
     staleTime: 15 * 1000,
     retry: false,
+    enabled: mode !== "task",
   });
+
+  const persistedAppointmentRequestId = persistedTask?.progress_payload.requestId ?? null;
+  const persistedAppointmentRequestQuery = useQuery({
+    queryKey: ["/api/appointments/requests", persistedAppointmentRequestId],
+    queryFn: () => fetchAppointmentRequest(persistedAppointmentRequestId!),
+    enabled: mode === "task" && isPersistedConciergeTaskId(persistedAppointmentRequestId),
+    retry: false,
+  });
+
+  useEffect(() => {
+    const restored = persistedAppointmentRequestQuery.data;
+    if (!restored?.request) return;
+    setAppointmentRequest(restored.request);
+    setAppointmentOptions(restored.options);
+    setAppointmentDiscovery(restored.discovery ?? null);
+    setSelectedAppointmentOptionId((current) => {
+      if (current && restored.options.some((option) => option.id === current)) return current;
+      const savedOptionId = persistedTask?.progress_payload.selectedProviderOptionId;
+      if (savedOptionId && restored.options.some((option) => option.id === savedOptionId)) return savedOptionId;
+      return restored.options[0]?.id ?? null;
+    });
+  }, [persistedAppointmentRequestQuery.data, persistedTask?.progress_payload.selectedProviderOptionId]);
 
   const selectedAppointmentOption = useMemo(() => {
     if (selectedAppointmentOptionId) {
@@ -9909,7 +10166,12 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   });
 
   const createAppointmentMutation = useMutation({
-    mutationFn: createAppointmentRequest,
+    mutationFn: (params: Parameters<typeof createAppointmentRequest>[0]) => createAppointmentRequest({
+      ...params,
+      preferences: persistedTask
+        ? { ...(params.preferences ?? {}), concierge_task_id: persistedTask.id }
+        : params.preferences,
+    }),
     onMutate: () => {
       setAppointmentError(null);
       setAppointmentNotice(null);
@@ -9973,7 +10235,11 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         return updateHomeServiceDraft({
           requestId: appointmentRequest.id,
           detail: intake.research_brief,
-          preferences: { ...preferences, flow_reference: CONCIERGE_FLOW_REFERENCES.homeService },
+          preferences: {
+            ...preferences,
+            flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+            ...(persistedTask ? { concierge_task_id: persistedTask.id } : {}),
+          },
           locale,
           finalize,
         });
@@ -9981,7 +10247,11 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       return createAppointmentRequest({
         appointmentType: "home-service",
         detail: intake.research_brief,
-        preferences: { ...preferences, flow_reference: CONCIERGE_FLOW_REFERENCES.homeService },
+        preferences: {
+          ...preferences,
+          flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+          ...(persistedTask ? { concierge_task_id: persistedTask.id } : {}),
+        },
         flowReference: CONCIERGE_FLOW_REFERENCES.homeService,
         routePrefillSource: routePrefill?.source,
         locale,
@@ -11442,11 +11712,12 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
 
   useEffect(() => {
     if (mode !== "task" || !taskId || taskId === "new") return;
-    if (pendingActions.some((item) => item.id === taskId)) {
-      setVisibleActionId(taskId);
+    const routedPendingId = persistedTask?.linked_pending_id ?? taskId;
+    if (pendingActions.some((item) => item.id === routedPendingId)) {
+      setVisibleActionId(routedPendingId);
       setIsRightNowHidden(false);
     }
-  }, [mode, pendingActions, taskId]);
+  }, [mode, pendingActions, persistedTask?.linked_pending_id, taskId]);
 
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -12626,7 +12897,10 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   }
 
   function prepareConciergeRequest(message: string, options: Omit<Partial<ConciergeRoutePrefill>, "kind" | "message"> = {}) {
-    setRoutePrefill({ kind: "task", message, ...options });
+    const payload = persistedTask
+      ? { ...(options.payload ?? {}), concierge_task_id: persistedTask.id }
+      : options.payload;
+    setRoutePrefill({ kind: "task", message, ...options, payload });
     setRoutePrefillError(null);
     setInput(message);
     setInsuranceAdminOpen(false);
@@ -15430,7 +15704,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const appointmentCanvasDates=useMemo(()=>[{id:"today",label:isSpanish?"Hoy":"Today",value:"today"},{id:"tomorrow",label:isSpanish?"Mañana":"Tomorrow",value:"tomorrow"},{id:"next-week",label:isSpanish?"La próxima semana":"Next week",value:"next-week"}],[isSpanish]);
   const appointmentCanvasCommands=useMemo(()=>({start:isSpanish?["empezar","preparar cita"]:["start","prepare appointment"],back:isSpanish?["volver","atrás"]:["back","go back"],cancel:isSpanish?["cancelar","ahora no"]:["cancel","not now"],confirm:isSpanish?["confirmar","sí, confirmar"]:["confirm","yes, confirm"],retry:isSpanish?["intentar otra vez"]:["retry","try again"]}),[isSpanish]);
   const appointmentCanvasInitialState=useMemo<AppointmentCanvasState>(()=>({step:"listening",requestId:0,draft:{providerId:"",providerName:conciergeVoiceProvider.trim(),reason:conciergeVoiceReason.trim(),dateChoice:conciergeVoiceDate.trim(),time:conciergeVoiceTime.trim()}}),[conciergeVoiceDate,conciergeVoiceProvider,conciergeVoiceReason,conciergeVoiceTime]);
-  const confirmAppointmentCanvas=useCallback(async(draft:Readonly<AppointmentCanvasDraft>,{signal}:{requestId:number;signal:AbortSignal})=>{const result=await createAppointmentRequest({appointmentType:"medical",detail:draft.reason,locale,routePrefillSource:routePrefill?.source,preferences:{provider_id:draft.providerId||undefined,provider_name:draft.providerName,date_preference:draft.dateChoice,preferred_time:draft.time,preparation_only:true,no_external_action_without_confirmation:true}});if(signal.aborted)throw new DOMException("Appointment preparation cancelled","AbortError");setAppointmentRequest(result.request);setAppointmentOptions(result.options);setAppointmentDiscovery(result.discovery??null);setSelectedAppointmentOptionId(result.options[0]?.id??null);setAppointmentOpen(true);setAppointmentNotice(isSpanish?"Solicitud preparada. Revisa el siguiente paso antes de actuar.":"Request prepared. Review the next step before any action.");return{reference:result.request.id}},[isSpanish,locale,routePrefill?.source]);
+  const confirmAppointmentCanvas=useCallback(async(draft:Readonly<AppointmentCanvasDraft>,{signal}:{requestId:number;signal:AbortSignal})=>{const result=await createAppointmentRequest({appointmentType:"medical",detail:draft.reason,locale,routePrefillSource:routePrefill?.source,preferences:{provider_id:draft.providerId||undefined,provider_name:draft.providerName,date_preference:draft.dateChoice,preferred_time:draft.time,preparation_only:true,no_external_action_without_confirmation:true,...(persistedTask?{concierge_task_id:persistedTask.id}:{})}});if(signal.aborted)throw new DOMException("Appointment preparation cancelled","AbortError");setAppointmentRequest(result.request);setAppointmentOptions(result.options);setAppointmentDiscovery(result.discovery??null);setSelectedAppointmentOptionId(result.options[0]?.id??null);setAppointmentOpen(true);setAppointmentNotice(isSpanish?"Solicitud preparada. Revisa el siguiente paso antes de actuar.":"Request prepared. Review the next step before any action.");return{reference:result.request.id}},[isSpanish,locale,persistedTask,routePrefill?.source]);
 
   function showNextQueuedAction() {
     const nextAction = queuedActions[0] ?? pendingActions[0];
@@ -15751,24 +16025,35 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     ? "confirmation"
     : activeAction || routePrefill
       ? "review"
-      : "details";
-  const taskWorkspaceTitle = taskEntry
-    ? conciergeTaskEntryTitle(taskEntry, isSpanish)
+      : persistedTask?.stage ?? "details";
+  const taskWorkspaceTitle = effectiveTaskEntry
+    ? conciergeTaskEntryTitle(effectiveTaskEntry, isSpanish)
     : activeAction
       ? getPendingActionUseCaseLabel(activeAction, locale)
       : conciergeTaskEntryTitle(null, isSpanish);
   const taskWorkspaceSummary = activeAction?.action_summary
     || routePrefill?.summary
-    || (taskEntry ? conciergeTaskEntrySummary(taskEntry, isSpanish) : (isSpanish
+    || (effectiveTaskEntry ? conciergeTaskEntrySummary(effectiveTaskEntry, isSpanish) : (isSpanish
       ? "Completa solo los datos que faltan y revisa cada paso antes de confirmar."
       : "Complete only the missing details and review each step before confirming."));
-  const homeActiveTask = activeAction
+  const activeSavedTask = savedTaskDrafts[0] ?? null;
+  const activeSavedTaskEntry = coerceConciergeTaskEntry(activeSavedTask?.entry_payload);
+  const homeActiveTask = activeSavedTask
+    ? {
+        id: activeSavedTask.id,
+        title: conciergeTaskEntryTitle(activeSavedTaskEntry, isSpanish),
+        summary: conciergeTaskEntrySummary(activeSavedTaskEntry, isSpanish),
+      }
+    : activeAction
     ? {
         id: activeAction.id,
         title: getPendingActionUseCaseLabel(activeAction, locale),
         summary: activeAction.action_summary || activeTaskProviderLabel(activeAction, isSpanish),
       }
     : null;
+  const savedTaskPendingIds = new Set(savedTaskDrafts.map((task) => task.linked_pending_id).filter(Boolean));
+  const homeQueuedTaskCount = Math.max(0, savedTaskDrafts.length - (activeSavedTask ? 1 : 0))
+    + pendingActions.filter((action) => !savedTaskPendingIds.has(action.id) && action.id !== homeActiveTask?.id).length;
   const homeCompletedTasks = recentCompletedSessions.map((session) => ({
     id: session.id,
     title: completedSessionFlowLabel(session, locale),
@@ -15810,9 +16095,9 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       {mode === "home" ? (
         <ConciergeHomeTaskOverview
           activeTask={homeActiveTask}
-          queuedCount={queuedActionCount}
+          queuedCount={homeQueuedTaskCount}
           completedTasks={homeCompletedTasks}
-          isLoading={pendingLoading || completedSessionsLoading}
+          isLoading={pendingLoading || savedTaskDraftsLoading || completedSessionsLoading}
           isSpanish={isSpanish}
           onContinue={(task) => navigate(conciergeTaskPath(task.id))}
           onReviewHistory={() => navigate("/history")}
@@ -15826,6 +16111,13 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           stage={taskWorkspaceStage}
           isSpanish={isSpanish}
           onBack={() => navigate("/concierge")}
+          onDelete={persistedTask ? () => {
+            const approved = window.confirm(isSpanish
+              ? "Eliminar esta tarea guardada?"
+              : "Remove this saved task?");
+            if (approved) deleteTaskMutation.mutate(persistedTask.id);
+          } : undefined}
+          isDeleting={deleteTaskMutation.isPending}
         />
       ) : null}
       {trustedProviderResume && trustedProviderResumeMeta && (

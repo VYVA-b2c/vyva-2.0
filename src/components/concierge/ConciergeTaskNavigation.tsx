@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, ChevronRight, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, ClipboardCheck, Trash2 } from "lucide-react";
 import type { ConciergeTaskStage } from "@/lib/conciergeTaskNavigation";
 
 type HomeTask = {
@@ -109,12 +109,16 @@ export function ConciergeTaskWorkspaceHeader({
   stage,
   isSpanish,
   onBack,
+  onDelete,
+  isDeleting = false,
 }: {
   title: string;
   summary: string;
   stage: ConciergeTaskStage;
   isSpanish: boolean;
   onBack: () => void;
+  onDelete?: () => void;
+  isDeleting?: boolean;
 }) {
   const stages: Array<{ id: ConciergeTaskStage; label: string }> = [
     { id: "details", label: isSpanish ? "Detalles" : "Details" },
@@ -125,15 +129,29 @@ export function ConciergeTaskWorkspaceHeader({
 
   return (
     <section className="mt-4 border-b border-vyva-border pb-5" data-testid="concierge-task-workspace" data-task-stage={stage}>
-      <button
-        type="button"
-        onClick={onBack}
-        className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-lg px-2 font-body text-[14px] font-black text-vyva-text-2"
-        data-testid="button-concierge-task-back"
-      >
-        <ArrowLeft size={19} aria-hidden="true" />
-        {isSpanish ? "Volver a Concierge" : "Back to Concierge"}
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-lg px-2 font-body text-[14px] font-black text-vyva-text-2"
+          data-testid="button-concierge-task-back"
+        >
+          <ArrowLeft size={19} aria-hidden="true" />
+          {isSpanish ? "Volver a Concierge" : "Back to Concierge"}
+        </button>
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={isDeleting}
+            className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-lg px-2 font-body text-[13px] font-black text-vyva-text-2 disabled:opacity-50"
+            data-testid="button-concierge-task-delete"
+          >
+            <Trash2 size={17} aria-hidden="true" />
+            {isSpanish ? "Eliminar" : "Remove"}
+          </button>
+        ) : null}
+      </div>
       <h1 className="mt-3 font-body text-[28px] font-black leading-tight text-vyva-text-1">{title}</h1>
       <p className="mt-2 max-w-2xl font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">{summary}</p>
       <ol className="mt-4 grid grid-cols-3 gap-2" aria-label={isSpanish ? "Progreso de la tarea" : "Task progress"}>

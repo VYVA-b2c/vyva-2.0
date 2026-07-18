@@ -2593,6 +2593,32 @@ export const insertConciergePendingSchema = createInsertSchema(conciergePending)
 export type InsertConciergePending = z.infer<typeof insertConciergePendingSchema>;
 export type ConciergePending = typeof conciergePending.$inferSelect;
 
+export const conciergeTaskDrafts = pgTable("concierge_task_drafts", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  kind:              text("kind").notNull(),
+  entry_payload:     jsonb("entry_payload").notNull().default({}),
+  progress_payload:  jsonb("progress_payload").notNull().default({}),
+  stage:             text("stage").notNull().default("details"),
+  status:            text("status").notNull().default("active"),
+  linked_pending_id: uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  language:          text("language").notNull().default("es"),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  completed_at:      timestamp("completed_at", { withTimezone: true }),
+  deleted_at:        timestamp("deleted_at", { withTimezone: true }),
+});
+
+export const insertConciergeTaskDraftSchema = createInsertSchema(conciergeTaskDrafts).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+  completed_at: true,
+  deleted_at: true,
+});
+export type InsertConciergeTaskDraft = z.infer<typeof insertConciergeTaskDraftSchema>;
+export type ConciergeTaskDraftRow = typeof conciergeTaskDrafts.$inferSelect;
+
 export const conciergeChannelReadinessSettings = pgTable("concierge_channel_readiness_settings", {
   channel:            text("channel").primaryKey(),
   admin_enabled:      boolean("admin_enabled").notNull().default(false),
