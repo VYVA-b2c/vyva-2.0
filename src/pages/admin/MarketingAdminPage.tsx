@@ -8604,6 +8604,16 @@ type SourceReviewShortcut = SourceReviewAction & {
   onSelect: () => void;
 };
 
+type SourceReviewQueueItem = {
+  key: SourceReviewAction["key"];
+  title: string;
+  detail: string;
+  countLabel: string;
+  state: CampaignReadinessState;
+  actionLabel: string;
+  onSelect: () => void;
+};
+
 const sourceReviewActionsConfig: SourceReviewAction[] = [
   {
     key: "campaigns",
@@ -8652,6 +8662,99 @@ function sourceReviewActionCount(summary: Record<string, unknown>, action: Sourc
   return action.countKeys.reduce((total, key) => total + numberValue(summary[key]), 0);
 }
 
+function sourceReviewQueueItems(summary: Record<string, unknown>, actions: SourceReviewShortcut[]) {
+  const byKey = new Map(actions.map((action) => [action.key, action]));
+  const configByKey = new Map(sourceReviewActionsConfig.map((action) => [action.key, action]));
+  const countFor = (key: SourceReviewAction["key"]) => {
+    const action = configByKey.get(key);
+    return action ? sourceReviewActionCount(summary, action) : 0;
+  };
+  const missingContentReferences = Math.max(
+    syncCountValue(summary, "imported", "missingContentReferences"),
+    syncCountValue(summary, "exported", "missingContentReferences"),
+    numberValue(summary.missingContentReferences),
+    syncContentSourceCount(summary, ["missing_lovable_reference", "missing_source_reference"]),
+  );
+  const unmappedAudienceMembers = syncUnmappedCount(summary);
+  const unmappedCampaignRecipients = syncUnmappedCampaignRecipientCount(summary);
+  const importedAudienceMembers = syncCountValue(summary, "imported", "audienceMembers");
+  const mappedAudienceMembers = syncCountValue(summary, "imported", "mappedAudienceMembers");
+  const metadataOnlyFieldCount = syncFieldCoverageItems(summary).reduce((total, item) => total + item.metadataOnly, 0);
+  const campaignCount = countFor("campaigns");
+  const contentCount = countFor("content");
+  const contactCount = countFor("contacts");
+  const listCount = countFor("lists");
+  const journeyCount = countFor("journeys");
+  const campaignMetrics = syncCountValue(summary, "imported", "campaignMetrics") || syncCountValue(summary, "exported", "campaignMetrics");
+  const journeyEvents = syncCountValue(summary, "imported", "journeyStepEvents") || syncCountValue(summary, "exported", "journeyStepEvents");
+  const items: SourceReviewQueueItem[] = [];
+
+  const addItem = (item: Omit<SourceReviewQueueItem, "onSelect">) => {
+    const action = byKey.get(item.key);
+    if (!action || action.count <= 0) return;
+    items.push({ ...item, onSelect: action.onSelect });
+  };
+
+  addItem({
+    key: "campaigns",
+    title: "Campaign routes",
+    detail: campaignMetrics
+      ? `${campaignMetrics} imported performance row${campaignMetrics === 1 ? "" : "s"} can guide follow-up or experiments.`
+      : "Review imported campaigns, schedules, channels, and recipient snapshots before launch.",
+    countLabel: `${campaignCount} campaign item${campaignCount === 1 ? "" : "s"}`,
+    state: campaignCount ? "ready" : "planning",
+    actionLabel: "Open campaigns",
+  });
+
+  addItem({
+    key: "content",
+    title: "Creative library",
+    detail: missingContentReferences
+      ? `${missingContentReferences} Source reference${missingContentReferences === 1 ? "" : "s"} still need replacement copy, HTML, design, or media.`
+      : metadataOnlyFieldCount
+        ? `${metadataOnlyFieldCount} exported field${metadataOnlyFieldCount === 1 ? "" : "s"} are preserved in metadata for review.`
+        : "Review imported templates, briefs, social posts, media, and journey copy.",
+    countLabel: `${contentCount} creative item${contentCount === 1 ? "" : "s"}`,
+    state: missingContentReferences ? "blocked" : metadataOnlyFieldCount ? "needs_action" : "ready",
+    actionLabel: missingContentReferences ? "Fix creative gaps" : "Open content",
+  });
+
+  addItem({
+    key: "contacts",
+    title: "Contact records",
+    detail: "Review consent, reachable channels, company, role, language, market, tags, and segmentation fields.",
+    countLabel: `${contactCount} contact${contactCount === 1 ? "" : "s"}`,
+    state: contactCount ? "ready" : "planning",
+    actionLabel: "Open contacts",
+  });
+
+  addItem({
+    key: "lists",
+    title: "Audience mapping",
+    detail: unmappedAudienceMembers || unmappedCampaignRecipients
+      ? `${unmappedAudienceMembers} unmapped list member${unmappedAudienceMembers === 1 ? "" : "s"} and ${unmappedCampaignRecipients} unmapped campaign recipient${unmappedCampaignRecipients === 1 ? "" : "s"} need matching.`
+      : importedAudienceMembers
+        ? `${mappedAudienceMembers}/${importedAudienceMembers} imported list member${importedAudienceMembers === 1 ? "" : "s"} are mapped to contacts.`
+        : "Review imported audiences, list rules, and member previews before using them for snapshots.",
+    countLabel: `${listCount} audience item${listCount === 1 ? "" : "s"}`,
+    state: unmappedAudienceMembers || unmappedCampaignRecipients ? "needs_action" : "ready",
+    actionLabel: unmappedAudienceMembers || unmappedCampaignRecipients ? "Review mapping" : "Open lists",
+  });
+
+  addItem({
+    key: "journeys",
+    title: "Journey automation",
+    detail: journeyEvents
+      ? `${journeyEvents} imported journey event${journeyEvents === 1 ? "" : "s"} available for sequence review.`
+      : "Review journey triggers, goals, steps, and linked content before enabling automation.",
+    countLabel: `${journeyCount} journey item${journeyCount === 1 ? "" : "s"}`,
+    state: journeyCount ? "planning" : "blocked",
+    actionLabel: "Open journeys",
+  });
+
+  return items;
+}
+
 function SourceReviewShortcuts({
   title,
   subtitle,
@@ -8692,6 +8795,51 @@ function SourceReviewShortcuts({
               {action.count}
               <ExternalLink size={14} />
             </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SourceReviewQueue({ summary, actions }: { summary: Record<string, unknown>; actions: SourceReviewShortcut[] }) {
+  const items = sourceReviewQueueItems(summary, actions);
+  if (!items.length) return null;
+  const needsActionCount = items.filter((item) => item.state === "blocked" || item.state === "needs_action").length;
+  return (
+    <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 shadow-sm" data-testid="marketing-source-review-queue">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-black text-[#241133]">Post-sync review queue</p>
+          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Work through imported Source data by operational priority.</p>
+        </div>
+        <Pill className={needsActionCount ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+          {needsActionCount ? `${needsActionCount} need action` : "ready to review"}
+        </Pill>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {items.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={item.onSelect}
+            className={`rounded-xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 ${readinessClass(item.state)}`}
+            data-testid={`button-marketing-source-review-queue-${item.key}`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-black">{item.title}</p>
+                <p className="mt-1 text-xs font-bold opacity-85">{item.detail}</p>
+              </div>
+              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-black">
+              <span>{item.countLabel}</span>
+              <span className="inline-flex items-center gap-1">
+                {item.actionLabel}
+                <ExternalLink size={13} />
+              </span>
+            </div>
           </button>
         ))}
       </div>
@@ -9333,6 +9481,7 @@ function SourceImportCoveragePanel({
           testId="marketing-source-coverage-review-panel"
           buttonTestIdPrefix="button-marketing-source-coverage-review"
         />
+        {run ? <SourceReviewQueue summary={run.summary} actions={reviewActions} /> : null}
         {unmappedCount || unmappedCampaignRecipientCount ? (
           <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-lovable-unmapped-summary">
             {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}

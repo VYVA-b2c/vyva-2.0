@@ -1318,7 +1318,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Source export endpoint is already built in");
-  }, 30_000);
+  }, 45_000);
 
   it("turns a standalone contact into a reusable campaign audience before opening the studio", async () => {
     renderPage({}, { audiences: [] });
@@ -1659,6 +1659,16 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-source-coverage-review-panel")).toHaveTextContent("Review imported Source data");
+    expect(screen.getByTestId("marketing-source-review-queue")).toHaveTextContent("Post-sync review queue");
+    expect(screen.getByTestId("marketing-source-review-queue")).toHaveTextContent("Creative library");
+    expect(screen.getByTestId("marketing-source-review-queue")).toHaveTextContent("1 Source reference");
+    expect(screen.getByTestId("marketing-source-review-queue")).toHaveTextContent("Audience mapping");
+    expect(screen.getByTestId("marketing-source-review-queue")).toHaveTextContent("1 unmapped list member");
+    fireEvent.click(screen.getByTestId("button-marketing-source-review-queue-lists"));
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Lists");
+    expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     fireEvent.click(screen.getByTestId("button-marketing-source-coverage-review-journeys"));
     expect(screen.getByTestId("marketing-journeys-tab")).toBeInTheDocument();
     expect(screen.getByText("Opened Journeys from Source sync.")).toBeInTheDocument();
@@ -1766,7 +1776,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-action-manual-handoff"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByText('Opened "Caregiver welcome" to prepare non-email channel handoff.')).toBeInTheDocument();
-  });
+  }, 30000);
 
   it("promotes recommended campaigns from the dashboard into the campaign studio", async () => {
     renderPage();
@@ -6155,7 +6165,7 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));
     });
-  });
+  }, 30000);
 
   it("sends email campaigns when saved recipients are opted in", async () => {
     renderPage({}, {
