@@ -1429,6 +1429,26 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("opens the missing creative repair draft from dashboard blockers", async () => {
+    renderPage({}, { content: [...content, missingLovableContent] });
+
+    expect(await screen.findByTestId("marketing-dashboard-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("button-marketing-action-missing-content")).toHaveTextContent("Draft replacement");
+    expect(screen.getByTestId("button-marketing-launch-lane-creative")).toHaveTextContent("Draft replacement");
+    expect(screen.getByTestId("button-marketing-workflow-coach-creative")).toHaveTextContent("Draft replacement");
+
+    fireEvent.click(screen.getByTestId("button-marketing-action-missing-content"));
+
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Source content coverage");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI replacement draft prepared");
+    expect(screen.getByTestId(`marketing-content-editor-open-${missingLovableContent.id}`)).toHaveTextContent("Editor panel opened");
+    expect(screen.getByTestId("input-marketing-edit-content-subject")).toHaveValue("Birthday wishes Source template: ready for review");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-launch-lane-creative"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI replacement draft prepared");
+  });
+
   it("shows tracked manual outcomes in campaign performance scans", async () => {
     const manuallyTrackedCampaign = {
       ...campaigns[1],

@@ -17022,6 +17022,23 @@ export default function MarketingAdminPage() {
     scrollToContentActionRow(contentAsset.id);
   }
 
+  function showMissingLovableContentPlaceholders() {
+    setActiveTab("content");
+    setSearch("");
+    setChannelFilter("all");
+    setContentSourceFilter("missing_lovable_reference");
+    setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
+  }
+
+  function openMissingLovableContentRepair() {
+    const firstMissingContent = missingSourceReferenceContent[0] ?? null;
+    if (firstMissingContent) {
+      startMissingLovableContentRepair(firstMissingContent);
+      return;
+    }
+    showMissingLovableContentPlaceholders();
+  }
+
   async function saveMissingLovableContentRepair(contentAsset: ContentAsset) {
     const repairDraft = missingLovableReferenceRepairDraft(contentAsset);
     setActiveTab("content");
@@ -19908,15 +19925,9 @@ export default function MarketingAdminPage() {
       title: "Replace missing Source content",
       detail: `${missingSourceReferenceCount} campaign or journey reference still needs real copy, HTML, design, or media.`,
       state: "blocked" as CampaignReadinessState,
-      actionLabel: "Show placeholders",
+      actionLabel: missingSourceReferenceContent.length ? "Draft replacement" : "Show placeholders",
       icon: FileText,
-      onSelect: () => {
-        setActiveTab("content");
-        setSearch("");
-        setChannelFilter("all");
-        setContentSourceFilter("missing_lovable_reference");
-        setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
-      },
+      onSelect: openMissingLovableContentRepair,
     }] : []),
     ...(unmappedAudienceMemberCount > 0 || unmappedCampaignRecipientCount > 0 ? [{
       key: "audience-mapping",
@@ -20071,19 +20082,20 @@ export default function MarketingAdminPage() {
         : launchLaneContentReadyCount > 0
           ? "Content assets are ready to attach, adapt with AI, or turn into campaigns."
           : "Create a content draft or use the AI template gaps before campaign launch.",
-      actionLabel: missingSourceReferenceCount > 0 ? "Show gaps" : "Open content",
+      actionLabel: missingSourceReferenceCount > 0
+        ? missingSourceReferenceContent.length ? "Draft replacement" : "Show gaps"
+        : "Open content",
       icon: FileText,
       onSelect: () => {
+        if (missingSourceReferenceCount > 0) {
+          openMissingLovableContentRepair();
+          return;
+        }
         setActiveTab("content");
         setSearch("");
         setChannelFilter("all");
-        if (missingSourceReferenceCount > 0) {
-          setContentSourceFilter("missing_lovable_reference");
-          setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
-        } else {
-          setContentSourceFilter("all");
-          setContentActionFeedback("Open content assets, AI variants, and template packs.");
-        }
+        setContentSourceFilter("all");
+        setContentActionFeedback("Open content assets, AI variants, and template packs.");
       },
     },
     {
@@ -20178,15 +20190,9 @@ export default function MarketingAdminPage() {
       scoreLabel: "Creative gap",
       state: "blocked" as CampaignReadinessState,
       channels: [] as Channel[],
-      actionLabel: "Show content gaps",
+      actionLabel: missingSourceReferenceContent.length ? "Draft replacement" : "Show content gaps",
       icon: FileText,
-      onSelect: () => {
-        setActiveTab("content");
-        setSearch("");
-        setChannelFilter("all");
-        setContentSourceFilter("missing_lovable_reference");
-        setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
-      },
+      onSelect: openMissingLovableContentRepair,
     }] : []),
     ...(unmappedAudienceMemberCount > 0 || unmappedCampaignRecipientCount > 0 ? [{
       key: "audience-mapping",
@@ -20507,11 +20513,19 @@ export default function MarketingAdminPage() {
           ? `${missingSourceReferenceCount} Source reference${missingSourceReferenceCount === 1 ? "" : "s"} still need real copy/design.`
           : "Reusable content assets are ready for campaign planning.",
       state: campaignMissingChannelContent || missingSourceReferenceCount > 0 ? "needs_action" : launchLaneContentReadyCount > 0 ? "ready" : "planning",
-      actionLabel: campaignMissingChannelContent ? "Fix creative" : "Open content",
+      actionLabel: campaignMissingChannelContent
+        ? "Fix creative"
+        : missingSourceReferenceContent.length
+          ? "Draft replacement"
+          : "Open content",
       icon: FileText,
       onSelect: () => {
         if (campaignMissingChannelContent) {
           openCampaignForNextAction(campaignMissingChannelContent);
+          return;
+        }
+        if (missingSourceReferenceCount > 0) {
+          openMissingLovableContentRepair();
           return;
         }
         setActiveTab("content");
