@@ -3740,6 +3740,59 @@ describe("MarketingAdminPage", () => {
     expect(intentBrief.value).toContain("pending/unknown");
   });
 
+  it("builds consent cleanup review lists without opted-out contacts", async () => {
+    renderPage({}, {
+      contacts: [
+        ...contacts,
+        {
+          ...contacts[1],
+          id: "contact-3",
+          profileId: null,
+          organizationId: null,
+          fullName: "Opted Out Lead",
+          email: "optedout@example.com",
+          phoneNumber: null,
+          whatsappNumber: null,
+          roleLabel: null,
+          companyName: null,
+          consentStatus: "opted_out",
+          tags: [],
+          language: "en",
+          category: "lead",
+          vertical: "healthcare",
+          market: "Spain",
+          lists: [],
+          lovableExternalId: "lovable-contact-3",
+          channelAvailability: { email: true },
+        },
+      ],
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    expect(screen.getByTestId("marketing-contact-work-queue-consent-cleanup")).toHaveTextContent("3 contacts");
+    fireEvent.click(screen.getByTestId("button-marketing-contact-work-queue-list-consent-cleanup"));
+
+    expect(screen.getByTestId("button-marketing-lists-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("input-marketing-audience-name")).toHaveValue("Consent review list");
+    expect(screen.getByTestId("input-marketing-audience-description")).toHaveValue("Prepare a consent-safe re-permission plan. Opted-out contacts stay in review and are excluded from campaign snapshots. Built from 2 pending/unknown contacts. Excluded 1 opted-out contact.");
+    const consentMemberIds = screen.getByTestId("input-marketing-audience-contact-ids") as HTMLTextAreaElement;
+    expect(consentMemberIds.value).toBe("contact-1\nlovable-contact-2");
+    expect(consentMemberIds.value).not.toContain("lovable-contact-3");
+    const consentRules = JSON.parse((screen.getByTestId("input-marketing-audience-rules") as HTMLTextAreaElement).value);
+    expect(consentRules).toMatchObject({
+      source: "relationship_work_queue",
+      queue: "consent-cleanup",
+      contactCount: 3,
+      listContactCount: 2,
+      excludedOptedOutCount: 1,
+      requiresReview: true,
+      consentStatuses: ["unknown", "pending"],
+    });
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent("Consent cleanup queue loaded as a review list with 2 contacts. Excluded 1 opted-out contact.");
+  });
+
   it("saves the current contact filters as a reusable audience", async () => {
     renderPage();
 

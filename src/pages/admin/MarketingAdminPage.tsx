@@ -17474,27 +17474,48 @@ export default function MarketingAdminPage() {
       setMessage(feedback);
       return;
     }
+    const isConsentCleanup = queue.key === "consent-cleanup";
+    const listContacts = isConsentCleanup
+      ? queue.contacts.filter((contact) => contact.consentStatus !== "opted_out")
+      : queue.contacts;
+    const excludedOptedOutCount = isConsentCleanup ? queue.contacts.length - listContacts.length : 0;
+    if (!listContacts.length) {
+      const feedback = isConsentCleanup
+        ? "Only opted-out contacts are in consent cleanup. Keep them out of campaign lists unless they explicitly opt back in."
+        : `"${queue.title}" has no contacts to turn into a list yet.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
     const uniqueTextValues = (values: Array<string | null | undefined>, limit = 8) => Array.from(new Set(
       values
         .map((value) => value?.trim())
         .filter((value): value is string => Boolean(value)),
     )).slice(0, limit);
-    const contactExternalIds = Array.from(new Set(queue.contacts.map(contactAudienceMemberId)));
+    const contactExternalIds = Array.from(new Set(listContacts.map(contactAudienceMemberId)));
     const rules = {
       source: "relationship_work_queue",
       queue: queue.key,
       title: queue.title,
       channels: queue.channels,
       contactCount: queue.count,
-      audienceTypes: uniqueTextValues(queue.contacts.map((contact) => contact.audienceType)),
-      consentStatuses: uniqueTextValues(queue.contacts.map((contact) => contact.consentStatus)),
-      languages: uniqueTextValues(queue.contacts.map((contact) => contact.language)),
-      categories: uniqueTextValues(queue.contacts.map((contact) => contact.category)),
-      verticals: uniqueTextValues(queue.contacts.map((contact) => contact.vertical)),
-      markets: uniqueTextValues(queue.contacts.map((contact) => contact.market)),
-      lists: uniqueTextValues(queue.contacts.flatMap((contact) => contact.lists), 12),
-      tags: uniqueTextValues(queue.contacts.flatMap((contact) => contact.tags), 12),
+      listContactCount: listContacts.length,
+      excludedOptedOutCount,
+      requiresReview: isConsentCleanup,
+      audienceTypes: uniqueTextValues(listContacts.map((contact) => contact.audienceType)),
+      consentStatuses: uniqueTextValues(listContacts.map((contact) => contact.consentStatus)),
+      languages: uniqueTextValues(listContacts.map((contact) => contact.language)),
+      categories: uniqueTextValues(listContacts.map((contact) => contact.category)),
+      verticals: uniqueTextValues(listContacts.map((contact) => contact.vertical)),
+      markets: uniqueTextValues(listContacts.map((contact) => contact.market)),
+      lists: uniqueTextValues(listContacts.flatMap((contact) => contact.lists), 12),
+      tags: uniqueTextValues(listContacts.flatMap((contact) => contact.tags), 12),
     };
+    const listCountLabel = `${listContacts.length} contact${listContacts.length === 1 ? "" : "s"}`;
+    const pendingUnknownLabel = `${listContacts.length} pending/unknown contact${listContacts.length === 1 ? "" : "s"}`;
+    const consentExclusionNote = excludedOptedOutCount
+      ? ` Excluded ${excludedOptedOutCount} opted-out contact${excludedOptedOutCount === 1 ? "" : "s"}.`
+      : "";
 
     setActiveTab("contacts");
     setContactView("lists");
@@ -17502,14 +17523,20 @@ export default function MarketingAdminPage() {
     setAudienceEditDraft(null);
     setConfirmingAudienceDeleteId(null);
     setAudienceDraft({
-      name: `${queue.title} list`,
+      name: isConsentCleanup ? "Consent review list" : `${queue.title} list`,
       listType: "static",
-      description: `${queue.detail} Built from ${queue.countLabel}.`,
+      description: isConsentCleanup
+        ? `${queue.detail} Built from ${pendingUnknownLabel}.${consentExclusionNote}`
+        : `${queue.detail} Built from ${queue.countLabel}.`,
       rulesText: jsonText(rules),
       contactExternalIds: contactExternalIds.join("\n"),
     });
-    setAudienceFeedback(`${queue.title} queue loaded as a list with ${queue.countLabel}. Review and save the audience.`);
-    setMessage(`${queue.title} queue loaded into the audience builder.`);
+    setAudienceFeedback(isConsentCleanup
+      ? `Consent cleanup queue loaded as a review list with ${listCountLabel}.${consentExclusionNote}`
+      : `${queue.title} queue loaded as a list with ${queue.countLabel}. Review and save the audience.`);
+    setMessage(isConsentCleanup
+      ? "Consent review list loaded into the audience builder."
+      : `${queue.title} queue loaded into the audience builder.`);
   }
 
   function loadFilteredAudienceIntoBuilder() {
