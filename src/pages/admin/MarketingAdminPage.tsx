@@ -991,6 +991,22 @@ type CampaignPublishKitItem = CampaignReadinessItem & {
   onSecondaryAction?: () => void;
 };
 
+type CampaignChannelActionQueueItem = {
+  key: string;
+  channel: Channel;
+  title: string;
+  detail: string;
+  state: CampaignReadinessState;
+  primaryLabel: string;
+  primaryIcon: LucideIcon;
+  primaryDisabled?: boolean;
+  onPrimary: () => void;
+  secondaryLabel?: string;
+  secondaryIcon?: LucideIcon;
+  secondaryDisabled?: boolean;
+  onSecondary?: () => void;
+};
+
 type CampaignLaunchSequenceStep = CampaignReadinessItem & {
   step: number;
   actionLabel: string;
@@ -19372,6 +19388,74 @@ export default function MarketingAdminPage() {
       ].join("\n\n");
     }),
   ].filter(Boolean).join("\n\n") : "";
+  const campaignChannelActionQueueItems: CampaignChannelActionQueueItem[] = campaignForLaunchPacket ? campaignPublishKitItems.map((item) => {
+    const latestManualResult = manualPublishResults.find((result) => result.channel === item.channel);
+    const linkedMediaAssets = item.contentAsset ? mediaAssets.filter((asset) => asset.contentAssetId === item.contentAsset?.id) : [];
+    const handoffBrief = item.contentAsset
+      ? campaignChannelHandoffBrief(campaignForLaunchPacket, item.channel, item.contentAsset, linkedMediaAssets, item.recipients, item.scheduledAt)
+      : "";
+
+    if (!item.contentAsset) {
+      return {
+        key: item.key,
+        channel: item.channel,
+        title: "Create missing content",
+        detail: item.detail,
+        state: item.state,
+        primaryLabel: item.actionLabel,
+        primaryIcon: item.icon,
+        primaryDisabled: item.disabled,
+        onPrimary: item.onSelect,
+      };
+    }
+
+    if (item.channel === "email") {
+      return {
+        key: item.key,
+        channel: item.channel,
+        title: item.disabled ? "Fix email send blocker" : "Review and send email",
+        detail: item.detail,
+        state: item.state,
+        primaryLabel: item.actionLabel,
+        primaryIcon: item.icon,
+        primaryDisabled: item.disabled,
+        onPrimary: item.onSelect,
+      };
+    }
+
+    const latestManualSummary = latestManualResult
+      ? `Latest result: ${manualPublishResultLabel[latestManualResult.result].toLowerCase()}${latestManualResult.url ? ` (${latestManualResult.url})` : ""}.`
+      : "No manual result saved yet.";
+    const state: CampaignReadinessState = latestManualResult?.result === "blocked"
+      ? "needs_action"
+      : latestManualResult?.result === "needs_follow_up"
+        ? "ready"
+        : latestManualResult
+          ? "planning"
+          : item.state;
+
+    return {
+      key: item.key,
+      channel: item.channel,
+      title: latestManualResult?.result === "needs_follow_up"
+        ? "Follow up on engagement"
+        : latestManualResult
+          ? "Update manual outcome"
+          : "Publish manually",
+      detail: `${item.detail} ${latestManualSummary}`,
+      state,
+      primaryLabel: "Copy handoff",
+      primaryIcon: Copy,
+      primaryDisabled: !handoffBrief.trim(),
+      onPrimary: () => {
+        void copyCampaignHandoffBrief(item.channel, handoffBrief);
+      },
+      secondaryLabel: latestManualResult ? "Track another" : "Track result",
+      secondaryIcon: CheckCircle2,
+      secondaryDisabled: item.secondaryDisabled,
+      onSecondary: item.onSecondaryAction,
+    };
+  }) : [];
   const campaignTestNeedsSave = Boolean(draftEmailChannel?.contentAssetId && hasUnsavedCampaignSendChanges);
   const campaignLaunchSequenceSteps: CampaignLaunchSequenceStep[] = editingCampaign ? [
     {
@@ -24795,6 +24879,57 @@ export default function MarketingAdminPage() {
                           <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800" data-testid="marketing-campaign-handoff-copy-feedback">
                             {campaignHandoffCopyFeedback}
                           </p>
+                        ) : null}
+                        {campaignChannelActionQueueItems.length ? (
+                          <div className="mt-4 rounded-2xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-channel-action-queue">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Next channel actions</p>
+                                <p className="mt-1 text-sm font-bold text-[#7d6b65]">Work left to right: fix blockers, send email, copy handoffs, then record outcomes.</p>
+                              </div>
+                              <Pill className="bg-purple-50 text-purple-800">{campaignChannelActionQueueItems.length} route{campaignChannelActionQueueItems.length === 1 ? "" : "s"}</Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2">
+                              {campaignChannelActionQueueItems.map((item) => {
+                                const PrimaryIcon = item.primaryIcon;
+                                const SecondaryIcon = item.secondaryIcon;
+                                return (
+                                  <article key={item.key} className={`grid gap-3 rounded-xl border p-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center ${readinessClass(item.state)}`} data-testid={`marketing-campaign-channel-action-${item.channel}`}>
+                                    <div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                        <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                      </div>
+                                      <p className="mt-2 text-sm font-black text-[#241133]">{item.title}</p>
+                                      <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.detail}</p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 xl:justify-end">
+                                      <button
+                                        type="button"
+                                        onClick={item.onPrimary}
+                                        disabled={item.primaryDisabled}
+                                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                        data-testid={`button-marketing-campaign-channel-action-primary-${item.channel}`}
+                                      >
+                                        <PrimaryIcon size={15} /> {item.primaryLabel}
+                                      </button>
+                                      {item.onSecondary && SecondaryIcon ? (
+                                        <button
+                                          type="button"
+                                          onClick={item.onSecondary}
+                                          disabled={item.secondaryDisabled}
+                                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:bg-[#f7f1ea] disabled:text-[#9f918a]"
+                                          data-testid={`button-marketing-campaign-channel-action-secondary-${item.channel}`}
+                                        >
+                                          <SecondaryIcon size={15} /> {item.secondaryLabel}
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          </div>
                         ) : null}
                         <div className="mt-4 grid gap-3 xl:grid-cols-3">
                           {campaignPublishKitItems.map((item) => {

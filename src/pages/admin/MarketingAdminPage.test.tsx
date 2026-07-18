@@ -5817,6 +5817,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Manual publishing");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview the content, then publish or track it in the channel tool.");
     expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toHaveTextContent("Track result");
+    expect(screen.getByTestId("marketing-campaign-channel-action-queue")).toHaveTextContent("Next channel actions");
+    expect(screen.getByTestId("marketing-campaign-channel-action-email")).toHaveTextContent("Fix email send blocker");
+    expect(screen.getByTestId("marketing-campaign-channel-action-linkedin")).toHaveTextContent("Publish manually");
+    expect(screen.getByTestId("marketing-campaign-channel-action-linkedin")).toHaveTextContent("No manual result saved yet.");
+    expect(screen.getByTestId("button-marketing-campaign-channel-action-primary-linkedin")).toHaveTextContent("Copy handoff");
+    expect(screen.getByTestId("button-marketing-campaign-channel-action-secondary-linkedin")).toHaveTextContent("Track result");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-channel-action-primary-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Channel: LinkedIn"));
+    });
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("LinkedIn handoff brief copied.");
     fireEvent.click(screen.getByTestId("button-marketing-copy-publish-copy-packet"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign publish copy packet"));
