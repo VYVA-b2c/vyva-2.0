@@ -20214,6 +20214,34 @@ export default function MarketingAdminPage() {
       selectedChannels.some((channel) => contactReachableForChannel(contact, channel))
     )).length;
     const packMatch = templatePackRecommendationsForPlay(match.play, primaryChannel, selectedChannels)[0] ?? null;
+    const channelRoutes = selectedChannels.map((channel) => {
+      const capability = sendCapabilityByChannel.get(channel);
+      const sendCapability = capability?.sendCapability ?? (channel === "email" ? "enabled" : "planning_only");
+      const emailEnabled = channel === "email" && sendCapability === "enabled" && capability?.locked !== true;
+      const futureSendCapable = sendCapability === "future_send_capable";
+      const routeReachableContacts = matchingContacts.filter((contact) => contactReachableForChannel(contact, channel)).length;
+      const templateCount = packMatch
+        ? packMatch.templates.filter((template) => template.channel === channel).length
+        : contentTemplateGallery.filter((template) => template.channel === channel).length;
+      const state: CampaignReadinessState = routeReachableContacts > 0
+        ? emailEnabled
+          ? "ready"
+          : futureSendCapable
+            ? "needs_action"
+            : "planning"
+        : "blocked";
+      return {
+        channel,
+        reachableContacts: routeReachableContacts,
+        templateCount,
+        mode: emailEnabled
+          ? "VYVA send"
+          : futureSendCapable
+            ? "Provider-ready later"
+            : "Manual handoff",
+        state,
+      };
+    });
     return {
       match,
       primaryChannel,
@@ -20221,9 +20249,10 @@ export default function MarketingAdminPage() {
       matchingContacts,
       reachableContacts,
       packMatch,
+      channelRoutes,
       angleLabel: campaignStudioAngleOptions.find((item) => item.id === match.angleId)?.label ?? match.angleId,
     };
-  }, [audiences, contacts, marketingDashboardAiCommand, templatePackRecommendationsForPlay]);
+  }, [audiences, contacts, marketingDashboardAiCommand, sendCapabilityByChannel, templatePackRecommendationsForPlay]);
 
   function openMarketingDashboardAiTemplatePack(mode: "content" | "studio") {
     const plan = marketingDashboardAiCommandPlan;
@@ -20734,6 +20763,36 @@ export default function MarketingAdminPage() {
                                   ? `${marketingDashboardAiCommandPlan.packMatch.pack.title} (${marketingDashboardAiCommandPlan.packMatch.templates.length} templates)`
                                   : "Best available saved templates"}
                               </span>
+                            </div>
+                          </div>
+                          <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffbf7] p-3" data-testid="marketing-ai-command-route-preview">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">Launch route preview</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#5b4a46]">
+                                  Check what VYVA can send directly and what becomes a handoff before creating records.
+                                </p>
+                              </div>
+                              <Pill className="bg-purple-50 text-purple-800">
+                                {marketingDashboardAiCommandPlan.channelRoutes.length} routes
+                              </Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2">
+                              {marketingDashboardAiCommandPlan.channelRoutes.map((route) => (
+                                <div
+                                  key={route.channel}
+                                  className="grid gap-2 rounded-lg bg-white px-2.5 py-2 text-xs font-bold text-[#5b4a46] ring-1 ring-[#eadfd5] sm:grid-cols-[auto_minmax(0,1fr)_auto]"
+                                  data-testid={`marketing-ai-command-route-${route.channel}`}
+                                >
+                                  <Pill className={channelClass(route.channel)}>{channelLabel[route.channel]}</Pill>
+                                  <span className="self-center text-[#241133]">{route.mode}</span>
+                                  <span className="flex flex-wrap items-center gap-1.5 self-center text-right text-[#7d6b65]">
+                                    <Pill className={readinessPillClass(route.state)}>{readinessLabel(route.state)}</Pill>
+                                    <span>{route.reachableContacts} reachable</span>
+                                    <span>{route.templateCount} templates</span>
+                                  </span>
+                                </div>
+                              ))}
                             </div>
                           </div>
                           <p className="mt-3 rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-bold leading-relaxed text-emerald-900">

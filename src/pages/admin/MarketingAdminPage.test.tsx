@@ -1303,6 +1303,9 @@ describe("MarketingAdminPage", () => {
     expect(await screen.findByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
     expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("AI understood");
+    expect(screen.getByTestId("marketing-ai-command-route-preview")).toHaveTextContent("Launch route preview");
+    expect(screen.getByTestId("marketing-ai-command-route-email")).toHaveTextContent("VYVA send");
+    expect(screen.getByTestId("marketing-ai-command-route-linkedin")).toHaveTextContent("Manual handoff");
     expect(screen.getByTestId("button-marketing-ai-command-create-kit")).toHaveTextContent("Create kit");
     expect(screen.getByTestId("button-marketing-ai-command-open-pack")).toHaveTextContent("Open templates");
     expect(screen.getByTestId("button-marketing-ai-command-customize-pack")).toHaveTextContent("Customize pack");
