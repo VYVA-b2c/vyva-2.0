@@ -139,6 +139,7 @@ const WorkflowCoverageAdminPage = lazy(() => import("./pages/admin/WorkflowCover
 const ConciergeReadinessAdminPage = lazy(() => import("./pages/admin/ConciergeReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const ConciergeQueueAdminPage = lazy(() => import("./pages/admin/ConciergeQueueAdminPage"));
+const ConciergeInboundRepliesAdminPage = lazy(() => import("./pages/admin/ConciergeInboundRepliesAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
 const CognitiveAssessmentAdminPage = lazy(() => import("./pages/admin/CognitiveAssessmentAdminPage"));
 const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
@@ -655,6 +656,7 @@ const App = () => (
                 <Route path="/admin/concierge-readiness" element={<AdminRoute><ConciergeReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-queue" element={<AdminRoute><ConciergeQueueAdminPage /></AdminRoute>} />
+                <Route path="/admin/concierge-email-replies" element={<AdminRoute><ConciergeInboundRepliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/content-review" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/cognitive-assessment" element={<AdminRoute><CognitiveAssessmentAdminPage /></AdminRoute>} />

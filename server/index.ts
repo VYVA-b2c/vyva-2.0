@@ -38,6 +38,7 @@ import adminSocialRoomsRouter from "./routes/adminSocialRooms.js";
 import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminConciergeQueueRouter from "./routes/adminConciergeQueue.js";
 import adminConciergeChannelReadinessRouter from "./routes/adminConciergeChannelReadiness.js";
+import adminConciergeInboundRepliesRouter from "./routes/adminConciergeInboundReplies.js";
 import adminCuriousMindsRouter from "./routes/adminCuriousMinds.js";
 import adminCognitiveAssessmentRouter from "./routes/adminCognitiveAssessment.js";
 import adminLearningRouter from "./routes/adminLearning.js";
@@ -47,6 +48,7 @@ import { adminMarketingRouter } from "./routes/adminMarketing.js";
 import intakeRouter from "./routes/intake.js";
 import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
 import sendgridWebhooksRouter from "./routes/sendgridWebhooks.js";
+import resendWebhooksRouter from "./routes/resendWebhooks.js";
 import { authRouter } from "./routes/auth.js";
 import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
 import { requireEntitlement } from "./middleware/entitlements.js";
@@ -170,6 +172,12 @@ app.use(
   sendgridWebhooksRouter,
 );
 
+app.use(
+  "/api/webhooks/resend",
+  express.raw({ type: "application/json", limit: "2mb" }),
+  resendWebhooksRouter,
+);
+
 app.use(express.json({ limit: "20mb" }));
 
 app.post("/api/router", routerHandler);
@@ -215,6 +223,7 @@ app.use("/api/admin/social", authMiddleware, requireAdminUser, adminSocialRoomsR
 app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, adminConciergeShoppingRouter);
 app.use("/api/admin/concierge/queue", authMiddleware, requireAdminUser, adminConciergeQueueRouter);
 app.use("/api/admin/concierge/channel-readiness", authMiddleware, requireAdminUser, adminConciergeChannelReadinessRouter);
+app.use("/api/admin/concierge/inbound-replies", authMiddleware, requireAdminUser, adminConciergeInboundRepliesRouter);
 app.use("/api/admin/curious-minds", authMiddleware, requireAdminUser, adminCuriousMindsRouter);
 app.use("/api/admin/cognitive-assessment", authMiddleware, requireAdminUser, adminCognitiveAssessmentRouter);
 app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRouter);

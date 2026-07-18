@@ -18,6 +18,7 @@ type EmailMessage = {
   html?: string;
   debugLabel: string;
   debugLink: string;
+  replyTo?: string;
   allowDevelopmentLog?: boolean;
 };
 
@@ -32,6 +33,7 @@ export interface SendOperationalEmailOptions {
   subject: string;
   text: string;
   html?: string;
+  replyTo?: string;
   debugLabel?: string;
   allowDevelopmentLog?: boolean;
 }
@@ -163,6 +165,7 @@ async function sendEmailMessage({
   html,
   debugLabel,
   debugLink,
+  replyTo: explicitReplyTo,
   allowDevelopmentLog = isDev,
 }: EmailMessage): Promise<SentEmailResult> {
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
@@ -179,7 +182,7 @@ async function sendEmailMessage({
   }
 
   const from = requireEmailFromAddress({ allowDevelopmentFallback: true });
-  const replyTo = process.env.NOTIFY_REPLY_TO_EMAIL?.trim() || from;
+  const replyTo = explicitReplyTo?.trim() || process.env.NOTIFY_REPLY_TO_EMAIL?.trim() || from;
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -213,6 +216,7 @@ export async function sendOperationalEmail({
   subject,
   text,
   html,
+  replyTo,
   debugLabel = "Operational",
   allowDevelopmentLog,
 }: SendOperationalEmailOptions): Promise<SentEmailResult> {
@@ -223,6 +227,7 @@ export async function sendOperationalEmail({
     html,
     debugLabel,
     debugLink: "",
+    replyTo,
     allowDevelopmentLog,
   });
 }
