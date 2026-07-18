@@ -17456,14 +17456,31 @@ export default function MarketingAdminPage() {
 
     const nextPlay = categoryPlays[0] ?? campaignStudioPlays[0];
     const suggestedAudience = bestCampaignStudioAudience(nextPlay, audiences);
+    const channels = recommendedCampaignStudioChannels(nextPlay);
     updateCampaignStudio({
       playId: nextPlay.id,
       angleId: "balanced",
       channel: nextPlay.defaultChannel,
-      selectedChannels: [nextPlay.defaultChannel],
+      selectedChannels: channels,
       scheduleStartsAt: campaignStudioDefaultSchedule(nextPlay),
       targetAudienceId: suggestedAudience?.id ?? "",
     });
+  }
+
+  function selectCampaignStudioPlay(play: CampaignStudioPlay) {
+    const suggestedAudience = bestCampaignStudioAudience(play, audiences);
+    const channels = recommendedCampaignStudioChannels(play);
+    updateCampaignStudio({
+      playId: play.id,
+      angleId: play.audienceType === "b2b" ? "proof" : "balanced",
+      channel: play.defaultChannel,
+      selectedChannels: channels,
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+      targetAudienceId: suggestedAudience?.id ?? "",
+    });
+    setCampaignStudioAiDrafts({});
+    setCampaignStudioFeedback(`Campaign play loaded: ${play.label} with ${formatChannelList(channels)}.`);
+    setMessage(`Campaign play loaded: ${play.label}. Review the recommended channel pack, then improve with AI or create the campaign.`);
   }
 
   async function generateCampaignStudioAiDraft() {
@@ -26526,17 +26543,7 @@ export default function MarketingAdminPage() {
                           <button
                             key={play.id}
                             type="button"
-                            onClick={() => {
-                              const suggestedAudience = bestCampaignStudioAudience(play, audiences);
-                              updateCampaignStudio({
-                                playId: play.id,
-                                angleId: "balanced",
-                                channel: play.defaultChannel,
-                                selectedChannels: [play.defaultChannel],
-                                scheduleStartsAt: campaignStudioDefaultSchedule(play),
-                                targetAudienceId: suggestedAudience?.id ?? "",
-                              });
-                            }}
+                            onClick={() => selectCampaignStudioPlay(play)}
                             className={`min-h-[92px] rounded-xl border px-4 py-3 text-left transition ${selected ? "border-purple-400 bg-purple-50 shadow-[0_10px_28px_rgba(126,34,206,0.14)]" : "border-[#eadfd5] bg-white hover:border-purple-200"}`}
                             data-testid={`button-marketing-campaign-studio-play-${play.id}`}
                           >
