@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { evaluateShowVyvaCaptureMetrics, type ShowVyvaCaptureMetrics } from "./showVyvaEvidence";
+import {
+  assessShowVyvaLiveFrame,
+  evaluateShowVyvaCaptureMetrics,
+  type ShowVyvaCaptureMetrics,
+} from "./showVyvaEvidence";
 
 const clearMetrics: ShowVyvaCaptureMetrics = {
   width: 1200,
@@ -29,5 +33,43 @@ describe("evaluateShowVyvaCaptureMetrics", () => {
     );
     expect(issues).not.toContain("glare");
     expect(issues).not.toContain("blur");
+  });
+});
+
+describe("assessShowVyvaLiveFrame", () => {
+  it("shows the most useful quality correction before starting a countdown", () => {
+    expect(assessShowVyvaLiveFrame({
+      qualityIssues: ["blur", "dark"],
+      motionScore: 0,
+      stableSampleCount: 8,
+    })).toEqual({ status: "dark", canStartCountdown: false });
+
+    expect(assessShowVyvaLiveFrame({
+      qualityIssues: ["blur", "framing"],
+      motionScore: 0,
+      stableSampleCount: 8,
+    })).toEqual({ status: "framing", canStartCountdown: false });
+  });
+
+  it("waits for enough steady samples before allowing automatic capture", () => {
+    expect(assessShowVyvaLiveFrame({
+      qualityIssues: [],
+      motionScore: 1.2,
+      stableSampleCount: 4,
+    })).toEqual({ status: "hold_steady", canStartCountdown: false });
+
+    expect(assessShowVyvaLiveFrame({
+      qualityIssues: [],
+      motionScore: 1.2,
+      stableSampleCount: 5,
+    })).toEqual({ status: "ready", canStartCountdown: true });
+  });
+
+  it("cancels readiness when the device moves again", () => {
+    expect(assessShowVyvaLiveFrame({
+      qualityIssues: [],
+      motionScore: 8,
+      stableSampleCount: 5,
+    })).toEqual({ status: "hold_steady", canStartCountdown: false });
   });
 });

@@ -47,6 +47,7 @@ import MasterDashboardLayout, {
 } from "@/components/MasterDashboardLayout";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
+import ShowVyvaLiveCamera, { supportsShowVyvaLiveCamera } from "@/components/ShowVyvaLiveCamera";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
 import type { ShowVyvaFollowUpAction } from "@/components/ShowVyvaFollowUpPanel";
@@ -1620,6 +1621,7 @@ const HealthScreen = () => {
   const [visualScanCaptureSource, setVisualScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
   const [visualCaptureDraft, setVisualCaptureDraft] = useState<ShowVyvaPreparedEvidence | null>(null);
   const [visualCapturePreparing, setVisualCapturePreparing] = useState(false);
+  const [visualLiveCameraOpen, setVisualLiveCameraOpen] = useState(false);
   const [visualScanReviewInput, setVisualScanReviewInput] = useState<ShowVyvaFileReviewInput>({
     useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
     source: "camera",
@@ -2230,10 +2232,7 @@ const HealthScreen = () => {
     }
   };
 
-  const handleWoundSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
+  const prepareVisualCaptureFile = (file: File) => {
     const reviewInput = {
       ...visualScanReviewInput,
       fileName: file.name,
@@ -2249,6 +2248,29 @@ const HealthScreen = () => {
         toast({ description: t("showVyva.capture.error", "I could not prepare that item. Please try another photo or file.") });
       })
       .finally(() => setVisualCapturePreparing(false));
+  };
+
+  const handleWoundSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    prepareVisualCaptureFile(file);
+  };
+
+  const openVisualNativePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+    setVisualLiveCameraOpen(false);
+    setVisualScanCaptureSource(source);
+    setVisualScanReviewInput((current) => ({ ...current, source }));
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const retakeVisualCapture = () => {
+    setVisualCaptureDraft(null);
+    if (visualScanReviewInput.source === "camera" && supportsShowVyvaLiveCamera()) {
+      setVisualLiveCameraOpen(true);
+      return;
+    }
+    openVisualNativePicker(visualScanReviewInput.source);
   };
 
   const submitWoundEvidence = async (evidence: ShowVyvaPreparedEvidence) => {
@@ -2322,6 +2344,10 @@ const HealthScreen = () => {
       mimeType: null,
       question,
     });
+    if (source === "camera" && supportsShowVyvaLiveCamera()) {
+      setVisualLiveCameraOpen(true);
+      return;
+    }
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
@@ -4419,16 +4445,26 @@ const HealthScreen = () => {
         data-testid="input-wound-photo"
       />
 
+      {visualLiveCameraOpen ? (
+        <ShowVyvaLiveCamera
+          useCaseId={visualScanReviewInput.useCaseId}
+          onCapture={(file) => {
+            setVisualLiveCameraOpen(false);
+            prepareVisualCaptureFile(file);
+          }}
+          onUseDeviceCamera={() => openVisualNativePicker("camera")}
+          onUpload={() => openVisualNativePicker("upload")}
+          onCancel={() => setVisualLiveCameraOpen(false)}
+        />
+      ) : null}
+
       {visualCaptureDraft ? (
         <ShowVyvaCaptureCoach
           evidence={visualCaptureDraft}
           useCaseId={visualScanReviewInput.useCaseId}
           busy={woundAnalyzing}
           onUse={submitWoundEvidence}
-          onRetake={() => {
-            setVisualCaptureDraft(null);
-            window.setTimeout(() => fileInputRef.current?.click(), 0);
-          }}
+          onRetake={retakeVisualCapture}
           onClose={() => setVisualCaptureDraft(null)}
         />
       ) : null}

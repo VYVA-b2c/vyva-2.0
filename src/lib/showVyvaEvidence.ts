@@ -38,6 +38,40 @@ export type ShowVyvaPreparedEvidence = {
   metrics: ShowVyvaCaptureMetrics | null;
 };
 
+export const SHOW_VYVA_LIVE_CAMERA_STATUSES = [
+  "dark",
+  "glare",
+  "blur",
+  "framing",
+  "hold_steady",
+  "ready",
+] as const;
+export type ShowVyvaLiveCameraStatus = typeof SHOW_VYVA_LIVE_CAMERA_STATUSES[number];
+
+export type ShowVyvaLiveFrameAssessment = {
+  status: ShowVyvaLiveCameraStatus;
+  canStartCountdown: boolean;
+};
+
+export function assessShowVyvaLiveFrame(input: {
+  qualityIssues: ShowVyvaCaptureQualityIssue[];
+  motionScore: number | null;
+  stableSampleCount: number;
+  stableSamplesRequired?: number;
+}): ShowVyvaLiveFrameAssessment {
+  const issueOrder: ShowVyvaCaptureQualityIssue[] = ["dark", "glare", "framing", "blur"];
+  const primaryIssue = issueOrder.find((issue) => input.qualityIssues.includes(issue));
+  if (primaryIssue) return { status: primaryIssue, canStartCountdown: false };
+
+  const stableSamplesRequired = input.stableSamplesRequired ?? 5;
+  const isSteady = input.motionScore !== null && input.motionScore <= 4.5;
+  if (!isSteady || input.stableSampleCount < stableSamplesRequired) {
+    return { status: "hold_steady", canStartCountdown: false };
+  }
+
+  return { status: "ready", canStartCountdown: true };
+}
+
 export function evaluateShowVyvaCaptureMetrics(
   metrics: ShowVyvaCaptureMetrics,
   options: { documentLike?: boolean } = {},
@@ -172,6 +206,36 @@ async function measureCaptureQuality(dataUrl: string): Promise<ShowVyvaCaptureMe
     brightPixelRatio: brightPixels / samplePixels,
     edgeScore: edgeSamples ? edgeTotal / edgeSamples : 0,
   };
+}
+
+export async function rotateShowVyvaPreparedEvidence(
+  evidence: ShowVyvaPreparedEvidence,
+): Promise<ShowVyvaPreparedEvidence> {
+  if (evidence.kind !== "image") return evidence;
+
+  const image = await loadDataUrlImage(evidence.dataUrl);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = sourceHeight;
+  canvas.height = sourceWidth;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("image_processing_unavailable");
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate(Math.PI / 2);
+  context.drawImage(image, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.86);
+
+  let metrics: ShowVyvaCaptureMetrics | null = null;
+  let qualityIssues = evidence.qualityIssues;
+  try {
+    metrics = await measureCaptureQuality(dataUrl);
+    qualityIssues = evaluateShowVyvaCaptureMetrics(metrics);
+  } catch {
+    // Rotation is still useful when optional local quality measurement is unavailable.
+  }
+
+  return { ...evidence, dataUrl, metrics, qualityIssues };
 }
 
 export async function prepareShowVyvaEvidenceFile(file: File): Promise<ShowVyvaPreparedEvidence> {

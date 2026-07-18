@@ -5,6 +5,7 @@ import es from "./i18n/es";
 import fr from "./i18n/fr";
 import itCopy from "./i18n/it";
 import pt from "./i18n/pt";
+import { SHOW_VYVA_LIVE_CAMERA_STATUSES } from "./lib/showVyvaEvidence";
 import { SHOW_VYVA_USE_CASES } from "../shared/showVyvaFlow";
 
 describe("Show VYVA capture translations", () => {
@@ -14,6 +15,7 @@ describe("Show VYVA capture translations", () => {
     expect(capture.privacyBody).toBeTruthy();
     expect(capture.imageNotRetained).toBeTruthy();
     expect(capture.retake).toBeTruthy();
+    expect(capture.rotate).toBeTruthy();
     expect(capture.useThis).toBeTruthy();
     expect(capture.quality.dark).toBeTruthy();
     expect(capture.quality.glare).toBeTruthy();
@@ -21,6 +23,17 @@ describe("Show VYVA capture translations", () => {
     expect(capture.quality.framing).toBeTruthy();
     for (const useCase of SHOW_VYVA_USE_CASES) {
       expect(capture.instruction[useCase.id]).toBeTruthy();
+    }
+
+    const liveCamera = copy.showVyva.liveCamera;
+    expect(liveCamera.title).toBeTruthy();
+    expect(liveCamera.taskOpen).toBeTruthy();
+    expect(liveCamera.autoCapture).toBeTruthy();
+    expect(liveCamera.takePhoto).toBeTruthy();
+    expect(liveCamera.unavailableTitle).toBeTruthy();
+    expect(liveCamera.useDeviceCamera).toBeTruthy();
+    for (const status of SHOW_VYVA_LIVE_CAMERA_STATUSES) {
+      expect(liveCamera.status[status]).toBeTruthy();
     }
   });
 });

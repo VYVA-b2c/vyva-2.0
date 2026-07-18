@@ -28,6 +28,7 @@ import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
+import ShowVyvaLiveCamera, { supportsShowVyvaLiveCamera } from "@/components/ShowVyvaLiveCamera";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
@@ -437,6 +438,7 @@ const ScamGuardScreen = () => {
   const [scamCaptureSource, setScamCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
   const [scamCaptureDraft, setScamCaptureDraft] = useState<ShowVyvaPreparedEvidence | null>(null);
   const [scamCapturePreparing, setScamCapturePreparing] = useState(false);
+  const [scamLiveCameraOpen, setScamLiveCameraOpen] = useState(false);
   const [scamReviewInput, setScamReviewInput] = useState<ShowVyvaFileReviewInput>({
     useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
     source: "camera",
@@ -490,10 +492,7 @@ const ScamGuardScreen = () => {
     },
   });
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
+  const prepareScamCaptureFile = (file: File) => {
     stopTts();
     const reviewInput = {
       ...scamReviewInput,
@@ -510,6 +509,29 @@ const ScamGuardScreen = () => {
         toast({ description: t("showVyva.capture.error", "I could not prepare that item. Please try another photo or file.") });
       })
       .finally(() => setScamCapturePreparing(false));
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    prepareScamCaptureFile(file);
+  };
+
+  const openScamNativePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+    setScamLiveCameraOpen(false);
+    setScamCaptureSource(source);
+    setScamReviewInput((current) => ({ ...current, source }));
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const retakeScamCapture = () => {
+    setScamCaptureDraft(null);
+    if (scamReviewInput.source === "camera" && supportsShowVyvaLiveCamera()) {
+      setScamLiveCameraOpen(true);
+      return;
+    }
+    openScamNativePicker(scamReviewInput.source);
   };
 
   const submitScamEvidence = async (evidence: ShowVyvaPreparedEvidence) => {
@@ -582,6 +604,10 @@ const ScamGuardScreen = () => {
       mimeType: null,
       question,
     });
+    if (source === "camera" && supportsShowVyvaLiveCamera()) {
+      setScamLiveCameraOpen(true);
+      return;
+    }
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
@@ -1004,16 +1030,26 @@ const ScamGuardScreen = () => {
               data-testid="input-scam-check-file"
             />
 
+            {scamLiveCameraOpen ? (
+              <ShowVyvaLiveCamera
+                useCaseId={scamReviewInput.useCaseId}
+                onCapture={(file) => {
+                  setScamLiveCameraOpen(false);
+                  prepareScamCaptureFile(file);
+                }}
+                onUseDeviceCamera={() => openScamNativePicker("camera")}
+                onUpload={() => openScamNativePicker("upload")}
+                onCancel={() => setScamLiveCameraOpen(false)}
+              />
+            ) : null}
+
             {scamCaptureDraft ? (
               <ShowVyvaCaptureCoach
                 evidence={scamCaptureDraft}
                 useCaseId={scamReviewInput.useCaseId}
                 busy={analyzing}
                 onUse={submitScamEvidence}
-                onRetake={() => {
-                  setScamCaptureDraft(null);
-                  window.setTimeout(() => fileInputRef.current?.click(), 0);
-                }}
+                onRetake={retakeScamCapture}
                 onClose={() => setScamCaptureDraft(null)}
               />
             ) : null}

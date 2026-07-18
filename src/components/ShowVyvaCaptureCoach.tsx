@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Camera, Check, FileText, RotateCcw, ShieldCheck, X } from "lucide-react";
-import type { ShowVyvaPreparedEvidence } from "@/lib/showVyvaEvidence";
+import { AlertTriangle, Camera, Check, FileText, RotateCcw, RotateCw, ShieldCheck, X } from "lucide-react";
+import { rotateShowVyvaPreparedEvidence, type ShowVyvaPreparedEvidence } from "@/lib/showVyvaEvidence";
 import { getShowVyvaUseCase, type ShowVyvaUseCaseId } from "../../shared/showVyvaFlow";
 
 type ShowVyvaCaptureCoachProps = {
@@ -22,9 +22,13 @@ export default function ShowVyvaCaptureCoach({
   onClose,
 }: ShowVyvaCaptureCoachProps) {
   const { t } = useTranslation();
-  const needsCheck = evidence.qualityIssues.length > 0;
+  const [previewEvidence, setPreviewEvidence] = useState(evidence);
+  const [rotating, setRotating] = useState(false);
+  const needsCheck = previewEvidence.qualityIssues.length > 0;
   const useCase = getShowVyvaUseCase(useCaseId);
   const instruction = t(`showVyva.capture.instruction.${useCaseId}`, useCase.captureInstruction);
+
+  useEffect(() => setPreviewEvidence(evidence), [evidence]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -33,6 +37,16 @@ export default function ShowVyvaCaptureCoach({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [busy, onClose]);
+
+  const rotatePreview = async () => {
+    if (previewEvidence.kind !== "image" || rotating || busy) return;
+    setRotating(true);
+    try {
+      setPreviewEvidence(await rotateShowVyvaPreparedEvidence(previewEvidence));
+    } finally {
+      setRotating(false);
+    }
+  };
 
   return (
     <div
@@ -45,7 +59,7 @@ export default function ShowVyvaCaptureCoach({
       <section className="max-h-[94vh] w-full overflow-y-auto rounded-t-[24px] bg-[#FFFCF8] shadow-[0_24px_70px_rgba(36,27,46,0.24)] sm:max-w-[560px] sm:rounded-[24px]">
         <header className="sticky top-0 z-10 flex items-start gap-3 border-b border-[#EDE5DB] bg-[#FFFCF8] px-5 py-4">
           <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
-            {evidence.kind === "pdf" ? <FileText size={22} aria-hidden="true" /> : <Camera size={22} aria-hidden="true" />}
+            {previewEvidence.kind === "pdf" ? <FileText size={22} aria-hidden="true" /> : <Camera size={22} aria-hidden="true" />}
           </span>
           <div className="min-w-0 flex-1">
             <h2 id="show-vyva-capture-title" className="font-body text-[21px] font-black leading-tight text-vyva-text-1">
@@ -70,14 +84,14 @@ export default function ShowVyvaCaptureCoach({
         <div className="space-y-4 p-5">
           <div className="overflow-hidden rounded-[18px] border border-[#EDE5DB] bg-[#F5EFE4]">
             <img
-              src={evidence.dataUrl}
+              src={previewEvidence.dataUrl}
               alt={t("showVyva.capture.previewAlt", "Preview of the item for VYVA to review")}
               className="max-h-[42vh] min-h-[220px] w-full object-contain"
               data-testid="image-show-vyva-capture-preview"
             />
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#EDE5DB] bg-white px-3 py-2">
-              <p className="min-w-0 truncate font-body text-[12px] font-bold text-vyva-text-2">{evidence.fileName}</p>
-              {evidence.kind === "pdf" ? (
+              <p className="min-w-0 truncate font-body text-[12px] font-bold text-vyva-text-2">{previewEvidence.fileName}</p>
+              {previewEvidence.kind === "pdf" ? (
                 <span className="rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[11px] font-black text-vyva-purple">
                   {t("showVyva.capture.pdfFirstPage", "PDF - first page")}
                 </span>
@@ -117,7 +131,7 @@ export default function ShowVyvaCaptureCoach({
             </div>
             {needsCheck ? (
               <ul className="mt-2 space-y-1 pl-7 font-body text-[13px] font-semibold leading-snug text-[#713F12]">
-                {evidence.qualityIssues.map((issue) => (
+                {previewEvidence.qualityIssues.map((issue) => (
                   <li key={issue} data-testid={`text-show-vyva-quality-${issue}`}>
                     {t(`showVyva.capture.quality.${issue}`, {
                       dark: "The image may be too dark.",
@@ -145,7 +159,7 @@ export default function ShowVyvaCaptureCoach({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid gap-3 ${previewEvidence.kind === "image" ? "grid-cols-3" : "grid-cols-2"}`}>
             <button
               type="button"
               onClick={onRetake}
@@ -156,10 +170,22 @@ export default function ShowVyvaCaptureCoach({
               <RotateCcw size={19} aria-hidden="true" />
               {t("showVyva.capture.retake", "Retake")}
             </button>
+            {previewEvidence.kind === "image" ? (
+              <button
+                type="button"
+                onClick={rotatePreview}
+                disabled={busy || rotating}
+                className="vyva-tap flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] border border-[#CDEAE5] bg-white px-2 font-body text-[14px] font-black text-[#0F766E] disabled:opacity-50"
+                data-testid="button-show-vyva-capture-rotate"
+              >
+                <RotateCw size={19} aria-hidden="true" />
+                {t("showVyva.capture.rotate", "Rotate")}
+              </button>
+            ) : null}
             <button
               type="button"
-              onClick={() => onUse(evidence)}
-              disabled={busy}
+              onClick={() => onUse(previewEvidence)}
+              disabled={busy || rotating}
               className="vyva-tap flex min-h-[54px] items-center justify-center gap-2 rounded-[16px] bg-vyva-purple px-3 font-body text-[15px] font-black text-white shadow-[0_8px_20px_rgba(107,33,168,0.2)] disabled:opacity-50"
               data-testid="button-show-vyva-capture-use"
             >
