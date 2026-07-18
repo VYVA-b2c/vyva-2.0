@@ -9204,6 +9204,7 @@ export default function MarketingAdminPage() {
   const [contentFeedback, setContentFeedback] = useState("");
   const [contentActionFeedback, setContentActionFeedback] = useState("");
   const [contentPolishTone, setContentPolishTone] = useState<CampaignStudioToneId>("warm");
+  const [contentStarterRunning, setContentStarterRunning] = useState(false);
   const [contentPolishRunning, setContentPolishRunning] = useState(false);
   const [contentLocalizationLanguage, setContentLocalizationLanguage] = useState<ContentLocalizationLanguage>("es");
   const [contentLocalizationRunning, setContentLocalizationRunning] = useState(false);
@@ -11058,14 +11059,16 @@ export default function MarketingAdminPage() {
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
   const selectedContent = useMemo(() => selectedContentId ? content.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, content]);
-  const contentEditorBusy = contentSaving || contentPolishRunning || contentLocalizationRunning || contentVariantRunning || contentChannelPackRunning;
+  const contentEditorBusy = contentSaving || contentStarterRunning || contentPolishRunning || contentLocalizationRunning || contentVariantRunning || contentChannelPackRunning;
   const contentEditorDraftMetadata = contentEditDraft ? optionalJsonRecordText(contentEditDraft.metadataText) : {};
   const contentEditorDraftDesign = contentEditDraft ? optionalJsonRecordText(contentEditDraft.designJsonText) : {};
   const contentEditorHasCopy = Boolean(contentEditDraft && (contentEditDraft.subject.trim() || contentEditDraft.body.trim() || contentEditDraft.htmlBody.trim()));
   const contentEditorHasCta = Boolean(contentEditDraft && (contentEditDraft.ctaLabel.trim() || contentEditDraft.ctaUrl.trim()));
   const contentEditorHasAiPolish = Boolean(
     Array.isArray(contentEditorDraftMetadata.aiPolishHistory) && contentEditorDraftMetadata.aiPolishHistory.length > 0
-    || recordValue(contentEditorDraftDesign.aiPolish).generator,
+    || Array.isArray(contentEditorDraftMetadata.aiStarterHistory) && contentEditorDraftMetadata.aiStarterHistory.length > 0
+    || recordValue(contentEditorDraftDesign.aiPolish).generator
+    || recordValue(contentEditorDraftDesign.aiStarterCopy).generator,
   );
   const contentEditorVariantCount = editingContentId ? content.filter((item) => {
     if (item.id === editingContentId) return false;
@@ -11078,12 +11081,12 @@ export default function MarketingAdminPage() {
       return {
         key: "copy",
         label: "Needs copy",
-        title: "Add copy before AI",
-        detail: "Add a subject, plain body, or HTML body so this asset can be polished, localized, or adapted safely.",
-        actionLabel: "Add copy first",
-        action: "none" as const,
-        state: "blocked" as CampaignReadinessState,
-        icon: FileText,
+        title: "Generate starter copy",
+        detail: "Use AI to turn the imported title and source metadata into a reviewable first draft, then save it when ready.",
+        actionLabel: contentStarterRunning ? "Generating..." : "Generate copy",
+        action: "starter_copy" as const,
+        state: "needs_action" as CampaignReadinessState,
+        icon: Sparkles,
       };
     }
     if (!contentEditorHasCta) {
@@ -11138,8 +11141,8 @@ export default function MarketingAdminPage() {
       key: "copy",
       title: "Copy",
       value: contentEditorHasCopy ? "Ready" : "Missing",
-      state: contentEditorHasCopy ? "ready" as CampaignReadinessState : "blocked" as CampaignReadinessState,
-      detail: contentEditorHasCopy ? "Subject, body, or HTML is present." : "Add text before using AI tools.",
+      state: contentEditorHasCopy ? "ready" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      detail: contentEditorHasCopy ? "Subject, body, or HTML is present." : "Generate starter copy or type copy manually.",
     },
     {
       key: "cta",
@@ -16742,6 +16745,109 @@ export default function MarketingAdminPage() {
     closeContentDrawer();
     startJourneyEdit(journey);
     setActiveTab("journeys");
+  }
+
+  async function generateContentStarterCopy() {
+    if (!contentEditDraft) return;
+    const currentDraft = contentEditDraft;
+    const titleSeed = currentDraft.title.trim() || "Untitled Source content";
+    const existingDesign = optionalJsonRecordText(currentDraft.designJsonText);
+    const existingMetadata = optionalJsonRecordText(currentDraft.metadataText);
+    const sourceMetadata = recordValue(existingMetadata.lovable);
+    const sourceType = String(existingMetadata.lovable_source_type ?? sourceMetadata.sourceType ?? sourceMetadata.type ?? "imported content");
+    const sourceId = currentDraft.lovableExternalId.trim() || String(sourceMetadata.id ?? "");
+    const toneLabel = campaignStudioToneLabel[contentPolishTone];
+
+    setContentStarterRunning(true);
+    setContentFeedback(`Generating starter copy in a ${toneLabel.toLowerCase()} tone...`);
+    setContentActionFeedback(`AI is drafting starter copy for "${titleSeed}".`);
+    try {
+      const objective = [
+        "Create starter VYVA marketing copy from an imported Source content record that has little or no body copy.",
+        `Content title: ${titleSeed}.`,
+        `Source type: ${sourceType}.`,
+        sourceId ? `Source ID: ${sourceId}.` : "",
+        `Channel: ${channelLabel[currentDraft.channel]}.`,
+        `Tone: ${toneLabel}. ${campaignStudioToneGuidance[contentPolishTone]}`,
+        "Use the title, source metadata, and channel to produce practical first-draft copy for admin review.",
+        "Do not claim clinical outcomes. Keep it warm, specific, and ready to edit before publishing.",
+        currentDraft.ctaLabel ? `Existing CTA label: ${currentDraft.ctaLabel}` : "",
+        currentDraft.ctaUrl ? `Existing CTA URL: ${currentDraft.ctaUrl}` : "",
+        Object.keys(existingMetadata).length ? `Source metadata JSON:\n${JSON.stringify(existingMetadata, null, 2).slice(0, 1800)}` : "",
+      ].filter(Boolean).join("\n\n");
+      const result = await api<CampaignStudioAiDraftResponse>("/api/admin/marketing/ai/campaign-draft", {
+        method: "POST",
+        body: JSON.stringify({
+          playLabel: "Content starter copy",
+          playCategory: "content_starter",
+          audienceType: "both",
+          channel: currentDraft.channel,
+          tone: contentPolishTone,
+          targetAudienceName: "Current marketing audience",
+          campaignName: titleSeed,
+          contentTitle: titleSeed,
+          objective,
+          subjectSeed: currentDraft.subject.trim() || titleSeed,
+          bodySeed: currentDraft.body.trim() || currentDraft.htmlBody.trim() || titleSeed,
+          ctaLabel: currentDraft.ctaLabel || "Learn more",
+          ctaUrl: currentDraft.ctaUrl || "https://v2.vyva.life",
+          language: currentDraft.language || "en",
+        }),
+      });
+
+      const starter = result.draft;
+      const generatedBody = starter.body.trim() || `Draft copy for ${titleSeed}. Review and tailor this before publishing.`;
+      const generatedSubject = starter.subject.trim() || currentDraft.subject || titleSeed;
+      const generatedCtaLabel = starter.ctaLabel.trim() || currentDraft.ctaLabel || "Learn more";
+      const generatedCtaUrl = starter.ctaUrl.trim() || currentDraft.ctaUrl || "https://v2.vyva.life";
+      const generatedAt = new Date().toISOString();
+      const starterEntry = {
+        source: result.source,
+        tone: contentPolishTone,
+        toneLabel,
+        generatedAt,
+        previousSubject: currentDraft.subject || null,
+        previousBodyPreview: (currentDraft.body || currentDraft.htmlBody).slice(0, 240) || null,
+        sourceType,
+        sourceId: sourceId || null,
+        note: result.note ?? null,
+      };
+      const previousHistory = Array.isArray(existingMetadata.aiStarterHistory) ? existingMetadata.aiStarterHistory.slice(-4) : [];
+
+      setContentEditDraft((draft) => draft ? ({
+        ...draft,
+        subject: generatedSubject,
+        body: generatedBody,
+        htmlBody: draft.channel === "email" && generatedBody ? emailHtmlFromPlainCopy(generatedBody) : draft.htmlBody,
+        ctaLabel: generatedCtaLabel,
+        ctaUrl: generatedCtaUrl,
+        designJsonText: jsonText({
+          ...existingDesign,
+          aiStarterCopy: {
+            generator: "marketing_content_ai_starter",
+            source: result.source,
+            tone: contentPolishTone,
+            generatedAt,
+            modelHints: starter.designJson ?? null,
+          },
+        }),
+        metadataText: jsonText({
+          ...existingMetadata,
+          aiStarterHistory: [...previousHistory, starterEntry],
+        }),
+      }) : draft);
+      const note = result.note ? ` ${result.note}` : "";
+      setContentFeedback(`AI starter copy generated. Review the draft, then save content.${note}`);
+      setContentActionFeedback(`AI starter copy generated for "${titleSeed}". Review and save it.`);
+      setMessage("AI starter copy generated.");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "AI starter copy could not be generated.";
+      setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContentStarterRunning(false);
+    }
   }
 
   async function polishContentEditDraft() {
@@ -25909,11 +26015,15 @@ export default function MarketingAdminPage() {
                             </div>
                             <button
                               type={contentEditorNextAction.action === "save" ? "submit" : "button"}
-                              onClick={contentEditorNextAction.action === "polish"
-                                ? () => void polishContentEditDraft()
-                                : contentEditorNextAction.action === "channel_pack"
-                                  ? () => void createFullChannelContentPack()
-                                  : undefined}
+                              onClick={
+                                contentEditorNextAction.action === "starter_copy"
+                                  ? () => void generateContentStarterCopy()
+                                  : contentEditorNextAction.action === "polish"
+                                    ? () => void polishContentEditDraft()
+                                    : contentEditorNextAction.action === "channel_pack"
+                                      ? () => void createFullChannelContentPack()
+                                      : undefined
+                              }
                               disabled={
                                 contentEditorBusy
                                 || contentEditorNextAction.action === "none"

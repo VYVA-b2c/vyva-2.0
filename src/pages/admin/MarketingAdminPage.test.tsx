@@ -3387,6 +3387,79 @@ describe("MarketingAdminPage", () => {
     expect(patchPayload.designJson.aiPolish).toMatchObject({ generator: "marketing_content_ai_polish", tone: "direct" });
   });
 
+  it("generates starter copy for imported content that has no body yet", async () => {
+    renderPage({}, { content: [missingLovableContent, ...content] });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-missing-lovable"));
+
+    expect(screen.getByTestId("marketing-content-ai-polish-panel")).toHaveTextContent("AI polish");
+    expect(screen.getByTestId("marketing-content-next-action")).toHaveTextContent("Content copilot");
+    expect(screen.getByTestId("marketing-content-next-action-title")).toHaveTextContent("Generate starter copy");
+    expect(screen.getByTestId("marketing-content-next-action-copy")).toHaveTextContent("Missing");
+    expect(screen.getByTestId("marketing-content-next-action-copy")).toHaveTextContent("Generate starter copy");
+    expect(screen.getByTestId("button-marketing-content-next-action")).toHaveTextContent("Generate copy");
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Birthday wishes Source template");
+    expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("");
+
+    fireEvent.click(screen.getByTestId("button-marketing-content-next-action"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/ai/campaign-draft", expect.objectContaining({ method: "POST" }));
+    });
+    const aiCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/ai/campaign-draft" && init?.method === "POST");
+    expect(JSON.parse(String(aiCall?.[1]?.body))).toMatchObject({
+      playLabel: "Content starter copy",
+      playCategory: "content_starter",
+      audienceType: "both",
+      channel: "email",
+      tone: "warm",
+      campaignName: "Birthday wishes Source template",
+      contentTitle: "Birthday wishes Source template",
+      subjectSeed: "Birthday wishes Source template",
+      bodySeed: "Birthday wishes Source template",
+      ctaLabel: "Learn more",
+      ctaUrl: "https://v2.vyva.life",
+      language: "en",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("AI starter copy generated.");
+    });
+    expect(screen.getByTestId("input-marketing-edit-content-subject")).toHaveValue("AI email subject line");
+    expect(screen.getByTestId("textarea-marketing-edit-content-body")).toHaveValue("AI email body copy with stronger channel direction.");
+    expect(screen.getByTestId("textarea-marketing-edit-content-html")).toHaveValue("<p>AI email body copy with stronger channel direction.</p>");
+    expect(screen.getByTestId("input-marketing-edit-content-cta-label")).toHaveValue("AI CTA");
+    expect(screen.getByTestId("input-marketing-edit-content-cta-url")).toHaveValue("https://v2.vyva.life/ai");
+    expect(screen.getByTestId("marketing-content-next-action-title")).toHaveTextContent("Create a channel pack");
+    expect(screen.getByTestId("marketing-content-next-action-copy")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("marketing-content-next-action-polish")).toHaveTextContent("Applied");
+
+    const starterDesign = JSON.parse((screen.getByTestId("textarea-marketing-edit-content-design-json") as HTMLTextAreaElement).value);
+    expect(starterDesign).toMatchObject({
+      aiStarterCopy: {
+        generator: "marketing_content_ai_starter",
+        source: "openai",
+        tone: "warm",
+        modelHints: { generator: "test-ai" },
+      },
+    });
+    const starterMetadata = JSON.parse((screen.getByTestId("textarea-marketing-edit-content-metadata") as HTMLTextAreaElement).value);
+    expect(starterMetadata).toMatchObject({
+      lovable_source_type: "missing_lovable_reference",
+      aiStarterHistory: [{
+        source: "openai",
+        tone: "warm",
+        previousSubject: null,
+        previousBodyPreview: null,
+        sourceType: "missing_lovable_reference",
+        sourceId: "email_template:6199c1eb-75ca-4347-a619-f7f5a7af989d",
+      }],
+    });
+    expect(apiFetchMock.mock.calls.some(([path, init]) => path === "/api/admin/marketing/content/content-missing-lovable" && init?.method === "PATCH")).toBe(false);
+  });
+
   it("creates a localized content variant with AI without changing the imported original", async () => {
     renderPage();
 
