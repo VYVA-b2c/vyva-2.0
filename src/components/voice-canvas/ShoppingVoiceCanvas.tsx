@@ -1,8 +1,5 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import {
-  VYVA_VOICE_USER_MESSAGE_EVENT,
-  type VoiceUserMessageDetail,
-} from "@/lib/voiceNavigation";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { type VoiceUserMessageDetail } from "@/lib/voiceNavigation";
 import {
   emitVoiceTriageTouchAnswer,
   ensureVoiceSessionId,
@@ -26,6 +23,13 @@ import {
   trackShoppingCanvasEvent,
   type ShoppingCanvasTelemetryEvent,
 } from "./shoppingCanvasTelemetry";
+import {
+  CanvasLiveStatus,
+  useCanvasAccessibility,
+  useCanvasExternalActionGate,
+  useCanvasSessionReducer,
+  useCanvasVoiceSynchronization,
+} from "./useVoiceCanvasPlatform";
 export interface ShoppingVoiceCommands {
   start: string[];
   back: string[];
@@ -80,41 +84,21 @@ export function ShoppingVoiceCanvas({
   initialState,
   onTelemetry = trackShoppingCanvasEvent,
 }: ShoppingVoiceCanvasProps) {
-  const restoredRef = useRef(false),
-    restoreTrackedRef = useRef(false),
+  const restoreTrackedRef = useRef(false),
     inputRef = useRef<ShoppingCanvasTelemetryEvent["input"]>("system");
-  const restore = () => {
-    if (initialState) return initialState;
-    try {
-      const raw = sessionStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (isRestorableShoppingCanvasState(parsed)) {
-          restoredRef.current = true;
-          return parsed;
-        }
-      }
-    } catch {}
-    return initialShoppingCanvasState;
-  };
-  const [state, dispatch] = useReducer(
-      shoppingCanvasReducer,
-      undefined,
-      restore,
-    ),
-    rootRef = useRef<HTMLDivElement>(null),
-    activeRequest = useRef<{ id: number; controller: AbortController } | null>(
-      null,
-    ),
-    viewModel = useMemo(
-      () => shoppingCanvasViewModel(state, copy, retailers, addresses),
-      [state, copy, retailers, addresses],
-    );
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(state));
-    } catch {}
-  }, [state, storageKey]);
+  const { state, dispatch, restoredRef } = useCanvasSessionReducer({
+    reducer: shoppingCanvasReducer,
+    initialState: initialShoppingCanvasState,
+    suppliedState: initialState,
+    storageKey,
+    isRestorable: isRestorableShoppingCanvasState,
+  });
+  const rootRef = useCanvasAccessibility(state.step);
+  const actionGate = useCanvasExternalActionGate();
+  const viewModel = useMemo(
+    () => shoppingCanvasViewModel(state, copy, retailers, addresses),
+    [state, copy, retailers, addresses],
+  );
   useEffect(() => {
     if (restoredRef.current && !restoreTrackedRef.current) {
       restoreTrackedRef.current = true;
@@ -127,7 +111,7 @@ export function ShoppingVoiceCanvas({
         restored: true,
       });
     }
-  }, [state.step, state.requestId, state.revision, onTelemetry]);
+  }, [state.step, state.requestId, state.revision, onTelemetry, restoredRef]);
   useEffect(() => {
     onTelemetry({
       name: "scene_viewed",
@@ -138,11 +122,7 @@ export function ShoppingVoiceCanvas({
       restored: restoredRef.current,
     });
     inputRef.current = "system";
-  }, [state.step, state.requestId, state.revision, onTelemetry]);
-  useEffect(() => {
-    rootRef.current?.querySelector<HTMLElement>("h2")?.focus();
-  }, [state.step]);
-  useEffect(() => () => activeRequest.current?.controller.abort(), []);
+  }, [state.step, state.requestId, state.revision, onTelemetry, restoredRef]);
   const choose = useCallback(
     (id: string) => {
       inputRef.current = "touch_or_keyboard";
@@ -184,7 +164,7 @@ export function ShoppingVoiceCanvas({
           value: id.endsWith("provided") ? "provided" : "unverified",
         });
     },
-    [retailers, addresses],
+    [retailers, addresses, dispatch],
   );
   const primary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
@@ -211,7 +191,8 @@ export function ShoppingVoiceCanvas({
                           ? { type: "RETRY" }
                           : undefined;
     if (event) {
-      if (event.type === "CONFIRM")
+      if (event.type === "CONFIRM") {
+        actionGate.authorize(state.requestId + 1, state.revision);
         onTelemetry({
           name: "confirmation_submitted",
           step: "review",
@@ -220,6 +201,7 @@ export function ShoppingVoiceCanvas({
           revision: state.revision,
           restored: restoredRef.current,
         });
+      }
       if (event.type === "RETRY")
         onTelemetry({
           name: "retried",
@@ -232,7 +214,7 @@ export function ShoppingVoiceCanvas({
       dispatch(event);
     } else if (state.step === "completed" || state.step === "pending")
       onDone?.();
-  }, [state, onDone, onTelemetry]);
+  }, [state, onDone, onTelemetry, actionGate, dispatch, restoredRef]);
   const secondary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked") {
@@ -247,7 +229,7 @@ export function ShoppingVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state, onCancel, onTelemetry]);
+  }, [state, onCancel, onTelemetry, dispatch, restoredRef]);
   const change = useCallback(
     (value: string) => {
       inputRef.current = "touch_or_keyboard";
@@ -265,18 +247,13 @@ export function ShoppingVoiceCanvas({
       const type = types[state.step];
       if (type) dispatch({ type, value } as ShoppingCanvasEvent);
     },
-    [state.step],
+    [state, dispatch],
   );
   useEffect(() => {
-    if (
-      state.step !== "waiting" ||
-      activeRequest.current?.id === state.requestId
-    )
-      return;
-    activeRequest.current?.controller.abort();
-    const controller = new AbortController(),
-      id = state.requestId;
-    activeRequest.current = { id, controller };
+    if (state.step !== "waiting") return;
+    const controller = actionGate.begin(state.requestId, state.revision);
+    if (!controller) return;
+    const id = state.requestId;
     onConfirm(
       Object.freeze({
         ...state.draft,
@@ -285,7 +262,7 @@ export function ShoppingVoiceCanvas({
       { requestId: id, revision: state.revision, signal: controller.signal },
     )
       .then((result) => {
-        if (controller.signal.aborted) return;
+        if (!actionGate.isCurrent(id, controller)) return;
         if (result.outcome === "changed") {
           onTelemetry({
             name: "reconfirmation_required",
@@ -309,7 +286,7 @@ export function ShoppingVoiceCanvas({
         }
       })
       .catch((error) => {
-        if (!controller.signal.aborted) {
+        if (actionGate.isCurrent(id, controller)) {
           onTelemetry({
             name: "failed",
             step: "blocked",
@@ -332,9 +309,11 @@ export function ShoppingVoiceCanvas({
     state.draft,
     onConfirm,
     onTelemetry,
+    actionGate,
+    dispatch,
+    restoredRef,
   ]);
-  useEffect(() => {
-    const handler = (event: Event) => {
+  useCanvasVoiceSynchronization((event: Event) => {
       const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;
       if (!detail?.text) return;
       inputRef.current = "voice";
@@ -363,8 +342,7 @@ export function ShoppingVoiceCanvas({
         if (address) item = { type: "CHOOSE_LOCATION", address };
         else if (matches(text, voiceCommands.other))
           item = { type: "CHOOSE_LOCATION", manual: true };
-      }
-      else if (
+      } else if (
         state.step === "fulfillment" &&
         matches(text, voiceCommands.delivery)
       )
@@ -446,7 +424,8 @@ export function ShoppingVoiceCanvas({
         }
       }
       if (item) {
-        if (item.type === "CONFIRM")
+        if (item.type === "CONFIRM") {
+          actionGate.authorize(state.requestId + 1, state.revision);
           onTelemetry({
             name: "confirmation_submitted",
             step: "review",
@@ -455,13 +434,10 @@ export function ShoppingVoiceCanvas({
             revision: state.revision,
             restored: restoredRef.current,
           });
+        }
         dispatch(item);
       }
-    };
-    window.addEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handler);
-    return () =>
-      window.removeEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handler);
-  }, [state, voiceCommands, copy, retailers, addresses, onTelemetry]);
+  });
   return (
     <div
       ref={rootRef}
@@ -475,13 +451,10 @@ export function ShoppingVoiceCanvas({
         onSecondary={secondary}
         onTextChange={change}
       />
-      <span
-        className="sr-only"
-        aria-live={state.step === "blocked" ? "assertive" : "polite"}
-        aria-atomic="true"
-      >
-        {viewModel.statusLabel || viewModel.title}
-      </span>
+      <CanvasLiveStatus
+        label={viewModel.statusLabel || viewModel.title}
+        assertive={state.step === "blocked"}
+      />
     </div>
   );
 }

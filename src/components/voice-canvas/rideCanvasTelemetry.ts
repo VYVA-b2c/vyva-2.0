@@ -1,4 +1,5 @@
 import type { RideCanvasStep } from "./rideCanvasMachine";
+import { dispatchCanvasTelemetryEvent } from "./canvasPlatform";
 
 export type RideCanvasTelemetryName =
   | "scene_viewed"
@@ -20,5 +21,5 @@ export const VYVA_RIDE_CANVAS_TELEMETRY_EVENT = "vyva:ride-canvas-telemetry";
 
 /** Dispatches an intentionally closed, PII-free event shape for the app analytics bridge. */
 export function trackRideCanvasEvent(event: RideCanvasTelemetryEvent) {
-  window.dispatchEvent(new CustomEvent(VYVA_RIDE_CANVAS_TELEMETRY_EVENT, { detail: event }));
+  dispatchCanvasTelemetryEvent(VYVA_RIDE_CANVAS_TELEMETRY_EVENT, event);
 }

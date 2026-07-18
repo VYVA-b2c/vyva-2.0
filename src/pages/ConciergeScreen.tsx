@@ -76,11 +76,15 @@ import {
   type RideCanvasDraft,
   type RideCanvasState,
   isAppointmentCanvasEnabled,
+  isHomeServiceCanvasEnabled,
+  isRestorableHomeServiceRequestStatus,
   isRideCanvasEnabled,
   parseAppointmentCanvasRolloutConfig,
+  parseHomeServiceCanvasRolloutConfig,
   parseRideCanvasRolloutConfig,
   trackAppointmentCanvasEvent,
   trackRideCanvasEvent,
+  useCanvasExternalActionGate,
 } from "@/components/voice-canvas";
 import ProviderComparisonPanel from "@/components/ProviderComparisonPanel";
 import ProviderShortlistFollowUpPanel from "@/components/ProviderShortlistFollowUpPanel";
@@ -9135,6 +9139,26 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const [homeServiceCanvasPhoto, setHomeServiceCanvasPhoto] = useState<HomeServiceCanvasPhoto | null>(null);
   const [homeServiceCanvasPhotoName, setHomeServiceCanvasPhotoName] = useState("");
   const [homeServiceCanvasError, setHomeServiceCanvasError] = useState<string | null>(null);
+  const homeServiceActionGate = useCanvasExternalActionGate();
+  const homeServiceCanvasRolloutQuery = useQuery({
+    queryKey: ["/api/config/features/home-service-voice-canvas"],
+    queryFn: async () => {
+      const response = await apiFetch("/api/config/features/home-service-voice-canvas");
+      return response.ok ? parseHomeServiceCanvasRolloutConfig(await response.json()) : { enabled: false, rolloutPercent: 0 };
+    },
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: "always",
+    retry: false,
+  });
+  const homeServiceCanvasEnabled = isHomeServiceCanvasEnabled(homeServiceCanvasRolloutQuery.data, location.key || "anonymous");
+  useEffect(() => {
+    if (homeServiceCanvasEnabled || !homeServiceCanvasMode) return;
+    homeServiceActionGate.invalidate();
+    setHomeServiceCanvasMode(false);
+    setHomeServiceCanvasStep(null);
+    clearVoiceCanvasScene({ owner: "concierge_home_service" });
+  }, [homeServiceActionGate, homeServiceCanvasEnabled, homeServiceCanvasMode]);
   const homeServiceDraftRestoreAppliedRef = useRef(false);
   const advanceHomeServiceCanvas = useCallback((step: ConciergeHomeServiceCanvasStep) => {
     setHomeServiceCanvasStep(step);
@@ -11514,6 +11538,9 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
 
   useEffect(() => {
     if (!conciergeVoiceAction || !conciergeVoiceDraft) return;
+    const mayBeHomeServiceRequest = conciergeVoiceAction.actionType === "concierge.home_service"
+      || /home service|plumb|fontaner|electric|electricista|locksmith|cerraj|clean|limpiez|repair|repar|handyman|manitas/i.test(`${conciergeVoiceAction.sourceText} ${conciergeVoiceTaskType} ${conciergeVoiceServiceType}`);
+    if (mayBeHomeServiceRequest && homeServiceCanvasRolloutQuery.isLoading) return;
     const actionKey = `${conciergeVoiceAction.id}:${conciergeVoiceAction.sourceText}`;
     if (lastAppliedConciergeVoiceActionRef.current === actionKey) return;
 
@@ -11641,13 +11668,14 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         setHomeServiceIntakeAnswers((current) => ({ ...nextAnswers, ...current }));
         setHomeServiceTextDrafts((current) => ({ ...nextAnswers, ...current }));
         setAppointmentNote("");
-        setHomeServiceCanvasMode(true);
+        setHomeServiceCanvasMode(homeServiceCanvasEnabled);
         setHomeServiceCanvasPhoto(null);
         setHomeServiceCanvasPhotoName("");
         setHomeServiceCanvasError(null);
-        advanceHomeServiceCanvas(serviceType
+        if (homeServiceCanvasEnabled) advanceHomeServiceCanvas(serviceType
           ? (nextAnswers.problem_summary ? "danger" : "description")
           : "service");
+        else setHomeServiceCanvasStep(null);
       } else {
         setHomeServiceCanvasMode(false);
         setHomeServiceCanvasStep(null);
@@ -11685,6 +11713,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     conciergeVoiceTime,
     conciergeVoiceTaskType,
     conciergeVoiceUrgency,
+    homeServiceCanvasEnabled,
+    homeServiceCanvasRolloutQuery.isLoading,
     rideCanvasMode,
     homeServiceCanvasMode,
     mode,
@@ -12060,6 +12090,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   useEffect(() => {
     const draft = activeHomeServiceDraftQuery.data;
     if (!draft?.request || homeServiceDraftRestoreAppliedRef.current || homeServiceCanvasMode || conciergeVoiceAction) return;
+    if (!isRestorableHomeServiceRequestStatus(draft.request.status)) return;
     const intake = homeServiceIntakeFromPreferences(draft.request.preferences);
     if (!intake) return;
     homeServiceDraftRestoreAppliedRef.current = true;
@@ -14871,6 +14902,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleAppointmentCanvasResponse);
     return () => window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleAppointmentCanvasResponse);
   }, [
+    activeAppointmentCanvasSceneRef,
     advanceAppointmentCanvas,
     appointmentCanvasCopy,
     appointmentCanvasSelectedOption,
@@ -15133,6 +15165,10 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       }
       if (homeServiceCanvasStep === "review") {
         if ((response.kind !== "primary" && !affirmative) || !appointmentRequest || !selectedAppointmentOption || !selectedAppointmentActionChannel) return;
+        const actionRequestId = homeServiceCanvasRevision + 1;
+        homeServiceActionGate.authorize(actionRequestId, homeServiceCanvasRevision);
+        const controller = homeServiceActionGate.begin(actionRequestId, homeServiceCanvasRevision);
+        if (!controller) return;
         advanceHomeServiceCanvas("waiting");
         confirmAppointmentMutation.mutate({
           requestId: appointmentRequest.id,
@@ -15145,8 +15181,12 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
               : undefined,
           },
         }, {
-          onSuccess: () => advanceHomeServiceCanvas("completed"),
-          onError: () => advanceHomeServiceCanvas("error"),
+          onSuccess: () => {
+            if (homeServiceActionGate.isCurrent(actionRequestId, controller)) advanceHomeServiceCanvas("completed");
+          },
+          onError: () => {
+            if (homeServiceActionGate.isCurrent(actionRequestId, controller)) advanceHomeServiceCanvas("error");
+          },
         });
         return;
       }
@@ -15166,7 +15206,10 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     confirmAppointmentMutation,
     finalizeHomeServiceCanvasProvider,
     homeServiceCanvasSelectedOption,
+    homeServiceCanvasPhoto,
     homeServiceCanvasStep,
+    homeServiceCanvasRevision,
+    homeServiceActionGate,
     homeServiceIntakeAnswers.access_notes,
     homeServiceIntakeAnswers.problem_summary,
     homeServiceLocalEmergency.telHref,
@@ -15274,6 +15317,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     const nextStep = rideCanvasPendingDetails?.nextQuestion ? "pending_detail" : "pending_confirm";
     if (rideCanvasStep !== nextStep) advanceRideCanvas(nextStep);
   }, [
+    activeRideCanvasSceneRef,
     advanceRideCanvas,
     rideCanvasCompletedSession,
     rideCanvasMode,
@@ -15443,6 +15487,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleRideCanvasResponse);
     return () => window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleRideCanvasResponse);
   }, [
+    activeRideCanvasSceneRef,
     advanceRideCanvas,
     confirmMutation,
     guidedDetailMutation,

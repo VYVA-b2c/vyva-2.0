@@ -117,7 +117,7 @@ describe("ShoppingVoiceCanvas", () => {
     let resolve!: () => void;
     const onConfirm = vi.fn(
       () =>
-        new Promise<any>((done) => {
+        new Promise<{ outcome: "completed" }>((done) => {
           resolve = () => done({ outcome: "completed" });
         }),
     );

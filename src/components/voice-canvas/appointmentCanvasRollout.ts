@@ -1,4 +1,8 @@
-export interface AppointmentCanvasRolloutConfig{enabled:boolean;rolloutPercent:number}
-export function parseAppointmentCanvasRolloutConfig(value:unknown):AppointmentCanvasRolloutConfig{if(!value||typeof value!=="object")return{enabled:false,rolloutPercent:0};const candidate=value as Partial<AppointmentCanvasRolloutConfig>;const rolloutPercent=typeof candidate.rolloutPercent==="number"&&Number.isFinite(candidate.rolloutPercent)?Math.min(100,Math.max(0,Math.round(candidate.rolloutPercent))):0;return{enabled:candidate.enabled===true,rolloutPercent}}
-function bucket(key:string){let hash=2166136261;for(let index=0;index<key.length;index+=1){hash^=key.charCodeAt(index);hash=Math.imul(hash,16777619)}return(hash>>>0)%100}
-export function isAppointmentCanvasEnabled(config:AppointmentCanvasRolloutConfig|undefined,cohortKey:string){if(!config?.enabled||config.rolloutPercent<=0)return false;if(config.rolloutPercent>=100)return true;return bucket(cohortKey)<config.rolloutPercent}
+import {
+  isCanvasRolloutEnabled,
+  parseCanvasRolloutConfig,
+  type CanvasRolloutConfig,
+} from "./canvasPlatform";
+export type AppointmentCanvasRolloutConfig = CanvasRolloutConfig;
+export const parseAppointmentCanvasRolloutConfig = parseCanvasRolloutConfig;
+export const isAppointmentCanvasEnabled = isCanvasRolloutEnabled;
