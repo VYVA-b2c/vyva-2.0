@@ -14,6 +14,16 @@ Set these in the deployment secret store:
 - `CONCIERGE_EMAIL_PILOT_RECIPIENTS=<team-owned pilot inbox>`
 - `CONCIERGE_EMAIL_QA_RECIPIENT=concierge@example.test`
 
+For automatic provider replies, also set:
+
+- `CONCIERGE_EMAIL_INBOUND_ADDRESS=<address on your Resend receiving domain>`
+- `CONCIERGE_EMAIL_INBOUND_WEBHOOK_SECRET=<Resend webhook signing secret>`
+- `CONCIERGE_EMAIL_REPLY_SECRET=<long random routing secret>`
+
+Create a Resend webhook for `email.received` at:
+
+`https://v2.vyva.life/api/webhooks/resend/events`
+
 Optional aliases:
 
 - `CONCIERGE_EMAIL_INTERNAL_ADAPTER_ENABLED=true`

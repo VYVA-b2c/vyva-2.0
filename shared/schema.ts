@@ -2593,6 +2593,42 @@ export const insertConciergePendingSchema = createInsertSchema(conciergePending)
 export type InsertConciergePending = z.infer<typeof insertConciergePendingSchema>;
 export type ConciergePending = typeof conciergePending.$inferSelect;
 
+export const conciergeInboundMessages = pgTable("concierge_inbound_messages", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  channel:               text("channel").notNull(),
+  provider_event_id:     text("provider_event_id").notNull(),
+  webhook_event_id:      text("webhook_event_id"),
+  sender_email:          text("sender_email").notNull(),
+  recipient_emails:      text("recipient_emails").array().notNull().default([]),
+  subject:               text("subject").notNull().default(""),
+  body_text:             text("body_text").notNull().default(""),
+  received_at:           timestamp("received_at", { withTimezone: true }).notNull(),
+  matched_pending_id:    uuid("matched_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  match_status:          text("match_status").notNull().default("processing"),
+  match_method:          text("match_method"),
+  match_reason:          text("match_reason"),
+  action_needed:         boolean("action_needed").notNull().default(false),
+  review_status:         text("review_status").notNull().default("pending"),
+  reviewed_by:           text("reviewed_by"),
+  reviewed_at:           timestamp("reviewed_at", { withTimezone: true }),
+  provider_metadata:     jsonb("provider_metadata").notNull().default({}),
+  created_at:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:            timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("concierge_inbound_messages_channel_event_unique").on(t.channel, t.provider_event_id),
+  uniqueIndex("concierge_inbound_messages_webhook_event_unique").on(t.webhook_event_id),
+  index("concierge_inbound_messages_review_idx").on(t.review_status, t.received_at),
+  index("concierge_inbound_messages_pending_idx").on(t.matched_pending_id),
+]);
+
+export const insertConciergeInboundMessageSchema = createInsertSchema(conciergeInboundMessages).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type InsertConciergeInboundMessage = z.infer<typeof insertConciergeInboundMessageSchema>;
+export type ConciergeInboundMessage = typeof conciergeInboundMessages.$inferSelect;
+
 export const conciergeTaskDrafts = pgTable("concierge_task_drafts", {
   id:                uuid("id").primaryKey().defaultRandom(),
   user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
