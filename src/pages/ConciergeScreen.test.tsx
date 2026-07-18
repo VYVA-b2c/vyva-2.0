@@ -7,6 +7,7 @@ import ConciergeScreen, { type ConciergeScreenMode } from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { CONCIERGE_DRY_RUN_FIXTURES } from "../../shared/conciergeDryRun";
+import { buildConciergeProviderReplyResolution } from "../../shared/conciergeProviderReplyResolution";
 import {
   emitVoiceCanvasResponse,
   VYVA_VOICE_CANVAS_CLEAR_EVENT,
@@ -6532,6 +6533,12 @@ describe("ConciergeScreen route prefill", () => {
         provider_task_status: "done",
         provider_reply: "Driver will wait outside the main door.",
         provider_reply_source: "live",
+        provider_reply_resolution: expect.objectContaining({
+          decision: expect.objectContaining({
+            action: "mark_complete",
+            status: "completed",
+          }),
+        }),
       }),
     }));
   });
@@ -6868,6 +6875,99 @@ describe("ConciergeScreen route prefill", () => {
     }));
     expect(await screen.findByTestId("panel-concierge-provider-reply")).toHaveTextContent("Action needed");
     expect(screen.getByTestId("panel-concierge-provider-reply")).toHaveTextContent("Which insurance plan do you use?");
+  });
+
+  it("asks only for missing provider information and requires a second confirmation before sending", async () => {
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
+    let reviewConfirmCalls = 0;
+    let pendingPayload: Record<string, unknown> = {
+      provider_task_status: "action_needed",
+      provider_reply_status: "needs_more_info",
+      provider_reply: "Please provide the insurance plan, policy number, and phone number.",
+      provider_response_summary: "Provider needs insurance details.",
+      provider_inbound_channel: "email",
+      provider_inbound_sender: "frontdesk@clinic.example",
+      provider_inbound_subject: "Appointment request",
+      insurance_plan: "Sanitas",
+      phone: "+34 600 111 222",
+      provider_follow_up_confirmed: false,
+      no_external_action_without_confirmation: true,
+    };
+    pendingPayload.provider_reply_resolution = buildConciergeProviderReplyResolution({
+      reply: String(pendingPayload.provider_reply),
+      subject: String(pendingPayload.provider_inbound_subject),
+      channel: "email",
+      knownFacts: pendingPayload,
+    });
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/reply-resolution/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        pendingPayload = detailsBody?.action_payload ?? pendingPayload;
+        return jsonResponse({ ok: true, item: { id: "reply-resolution", action_payload: pendingPayload } });
+      }
+      if (target.endsWith("/api/concierge/actions/reply-resolution/review-confirm")) {
+        reviewConfirmCalls += 1;
+        pendingPayload = {
+          ...pendingPayload,
+          provider_follow_up_confirmed: true,
+          execution_adapter: { status: "sent" },
+        };
+        return jsonResponse({
+          pendingId: "reply-resolution",
+          status: "pending",
+          historySessionId: "reply-resolution-history",
+          message: "Email sent.",
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({ items: [{
+          id: "reply-resolution",
+          use_case: "book_appointment",
+          provider_name: "Harbour Clinic",
+          provider_phone: null,
+          action_summary: "Waiting for Harbour Clinic.",
+          action_payload: pendingPayload,
+          status: "calling",
+          language: "en",
+        }] });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-concierge-provider-reply");
+    expect(panel).toHaveTextContent("Action needed");
+    expect(panel).toHaveTextContent("Policy or member number");
+    expect(screen.queryByTestId("input-provider-reply-resolution-phone_number")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("input-provider-reply-resolution-insurance_plan")).not.toBeInTheDocument();
+    const answerButton = screen.getByTestId("button-provider-reply-answer-reply-resolution");
+    expect(answerButton).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("input-provider-reply-resolution-policy_number"), {
+      target: { value: "POL-4455" },
+    });
+    fireEvent.click(answerButton);
+
+    await waitFor(() => expect(detailsBody?.action_payload).toMatchObject({
+      provider_email: "frontdesk@clinic.example",
+      email_subject: "Re: Appointment request",
+      provider_follow_up_status: "draft_ready",
+      provider_follow_up_confirmed: false,
+      no_external_action_without_confirmation: true,
+      provider_reply_resolution: expect.objectContaining({
+        missingInformation: [],
+        decision: expect.objectContaining({ status: "draft_ready" }),
+      }),
+    }));
+    expect(reviewConfirmCalls).toBe(0);
+    expect(await screen.findByTestId("panel-provider-reply-draft")).toHaveTextContent("Policy or member number: POL-4455");
+
+    fireEvent.click(screen.getByTestId("button-provider-reply-send-reply-resolution"));
+    await waitFor(() => expect(reviewConfirmCalls).toBe(1));
+    expect(await screen.findByTestId("status-provider-reply-sent")).toHaveTextContent("Waiting for the provider");
+    expect(screen.queryByTestId("button-provider-reply-send-reply-resolution")).not.toBeInTheDocument();
   });
 
   it.each([

@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ConciergeInboundReplyClassification } from "../../shared/conciergeInboundReplies";
+import {
+  classifyConciergeInboundReply,
+  type ConciergeInboundReplyClassification,
+} from "../../shared/conciergeInboundReplies";
 import { conciergeReplyAddressForPendingTask } from "./conciergeInboundEmailRouting";
 import {
   ingestConciergeInboundReply,
@@ -163,12 +166,9 @@ describe("Concierge inbound reply ingestion", () => {
     const client = { query, release: vi.fn() };
     const database = { connect: vi.fn().mockResolvedValue(client) };
     const repository = new PostgresConciergeInboundReplyRepository(database as never);
-    const classification: ConciergeInboundReplyClassification = {
-      status: "reply_received",
-      reply: "Tuesday at 10 works.",
-      summary: "Tuesday at 10 works.",
-      actionNeeded: false,
-    };
+    const classification = classifyConciergeInboundReply({
+      text: "The booking is confirmed for Tuesday at 10.",
+    });
     const patch = {
       ...pending().actionPayload,
       provider_task_status: "reply_received",
@@ -190,7 +190,7 @@ describe("Concierge inbound reply ingestion", () => {
     const historyParams = historyCall?.[1] as unknown[] | undefined;
     expect(JSON.parse(String(historyParams?.[2]))).toMatchObject({
       provider_task_status: "reply_received",
-      provider_reply: "Tuesday at 10 works.",
+      provider_reply: "The booking is confirmed for Tuesday at 10.",
       provider_follow_up_requires_confirmation: true,
       provider_follow_up_confirmed: false,
       no_external_action_without_confirmation: true,

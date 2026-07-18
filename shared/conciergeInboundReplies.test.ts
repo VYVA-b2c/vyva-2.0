@@ -35,6 +35,20 @@ describe("Concierge inbound replies", () => {
     });
   });
 
+  it("marks a provider offer as action needed so the user can confirm it", () => {
+    expect(classifyConciergeInboundReply({
+      text: "We can visit Thursday at 11:00 for EUR 95.",
+    })).toMatchObject({
+      status: "action_needed",
+      actionNeeded: true,
+      resolution: {
+        primaryAction: "confirm",
+        dateTime: "Thursday at 11:00",
+        price: "EUR 95",
+      },
+    });
+  });
+
   it("uses sanitized HTML when a plain-text body is unavailable", () => {
     expect(plainTextFromInboundHtml("<p>We can help.</p><script>ignore()</script>"))
       .toBe("We can help.");
