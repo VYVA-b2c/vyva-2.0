@@ -1721,6 +1721,23 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     ctaUrl: "https://v2.vyva.life/demo",
   },
   {
+    id: "care-home-residence-outreach",
+    categoryId: "partner",
+    label: "Care home residence outreach",
+    brief: "Open a partnership route with care homes, senior residences, and assisted living operators.",
+    audienceType: "b2b",
+    defaultChannel: "email",
+    targetListHints: ["care home", "residence", "senior residence", "assisted living", "residential care", "nursing home", "operator", "care director", "b2b"],
+    scheduleDaysFromNow: 4,
+    campaignName: "Care home residence partner outreach",
+    contentTitle: "Care home residence partner outreach",
+    objective: "Start a care home or senior residence partnership conversation around resident-family communication, care-team visibility, onboarding, and a clear handoff for families who need extra support.",
+    subject: "A calmer family communication layer for your residence",
+    body: "Hi {{first_name}},\n\nCare homes and senior residences carry a steady flow of family questions, daily updates, and practical care details.\n\nVYVA can support that work as a family communication layer: profile details, care-team visibility, reminders, daily signals, and a clearer handoff when relatives or residents need extra support.\n\nWould it be useful to review a short residence pathway together?",
+    ctaLabel: "Review residence pathway",
+    ctaUrl: "https://v2.vyva.life/demo",
+  },
+  {
     id: "local-event",
     categoryId: "community",
     label: "Local event invite",
@@ -2143,6 +2160,13 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     channels: ["email", "linkedin", "whatsapp", "phone", "print", "facebook", "event"],
   },
   {
+    id: "care-home-residence",
+    title: "Care home residence",
+    detail: "Residence intro, director follow-up, family proof, call script, print handoff, and local briefing.",
+    brief: "Create a care home and senior residence outreach pathway by email, LinkedIn, WhatsApp, phone, print, Facebook, and event handoff. Make the value practical for operators: calmer family communication, resident onboarding support, care-team visibility, and one named relationship owner.",
+    channels: ["email", "linkedin", "whatsapp", "phone", "print", "facebook", "event"],
+  },
+  {
     id: "care-transition",
     title: "Care transition",
     detail: "Discharge checklist, family nudge, direct reminder, and provider handoff.",
@@ -2280,6 +2304,17 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     toneId: "expert",
     angleId: "proof",
     templatePackId: "home-care-agency-outreach",
+  },
+  {
+    id: "care-home-residence-pathway",
+    title: "Build care home residence path",
+    outcome: "Residence partnerships",
+    detail: "Turn care homes and senior residences into resident-family communication and onboarding partners.",
+    brief: "Create a care home and senior residence outreach pathway by email, LinkedIn, WhatsApp, phone, print, Facebook, and event handoff. Lead with calmer family communication, resident onboarding support, care-team visibility, and one pathway review with the right owner.",
+    channels: ["email", "linkedin", "whatsapp", "phone", "print", "facebook", "event"],
+    toneId: "expert",
+    angleId: "proof",
+    templatePackId: "care-home-residence-outreach",
   },
   {
     id: "care-transition-support",
@@ -4593,6 +4628,162 @@ const contentTemplateGallery: ContentTemplate[] = [
     mediaAssets: [],
   },
   {
+    id: "email-care-home-residence-intro",
+    title: "Care home residence intro email",
+    category: "Care home residence",
+    audienceType: "b2b",
+    channel: "email",
+    description: "A residence-facing intro email for care homes, senior residences, and assisted living operators.",
+    subject: "A calmer family communication layer for your residence",
+    body: "Hi {{first_name}},\n\nCare homes and senior residences carry a steady flow of family questions, move-in details, daily updates, and follow-up needs.\n\nVYVA can support that work as a resident-family communication layer: profile details, care-team visibility, reminders, daily signals, and a clearer handoff when relatives or residents need extra support.\n\nIf useful, I can show the residence pathway and the one-page handoff your team could use with families.",
+    htmlBody: "<p>Hi {{first_name}},</p><p>Care homes and senior residences carry a steady flow of family questions, move-in details, daily updates, and follow-up needs.</p><p><strong>VYVA can support that work as a resident-family communication layer:</strong> profile details, care-team visibility, reminders, daily signals, and a clearer handoff when relatives or residents need extra support.</p><p>If useful, I can show the residence pathway and the one-page handoff your team could use with families.</p>",
+    ctaLabel: "Review residence pathway",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "email-care-home-residence-intro",
+      category: "Care home residence",
+      layout: "residence-partner-email",
+      mergeFields: ["first_name"],
+      blocks: [
+        { type: "eyebrow", text: "Care home residence pathway" },
+        { type: "headline", text: "A calmer family communication layer for residents and relatives" },
+        { type: "proof", text: "Profile details, reminders, daily signals, and care-team visibility in one route." },
+        { type: "cta", label: "Review residence pathway" },
+      ],
+      visualPrompt: "professional senior residence team reviewing family communication and resident onboarding pathway, warm realistic care setting, VYVA purple accents",
+      proofPoint: "clearer resident-family communication for care homes and senior residences",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "linkedin-care-home-residence-director-post",
+    title: "LinkedIn care home residence director post",
+    category: "Care home residence",
+    audienceType: "b2b",
+    channel: "linkedin",
+    description: "A professional LinkedIn post for care home directors and senior residence operators.",
+    subject: "",
+    body: "A good care home or senior residence already carries a lot of communication work.\n\nFamilies need practical updates, residents need routines to feel visible, and teams need a calm way to keep the right people aligned.\n\nVYVA can sit beside the residence workflow as a resident-family communication layer: profile details, care-team visibility, reminders, daily signals, and clearer handoffs when someone needs support.\n\nThe goal is not another dashboard for staff. It is a calmer route for the updates families keep asking for.",
+    ctaLabel: "Plan a residence pathway",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "linkedin-care-home-residence-director-post",
+      category: "Care home residence",
+      layout: "linkedin-residence-director-proof",
+      visualPrompt: "care home director and family liaison planning calmer resident-family updates with a simple dashboard",
+      proofPoint: "resident onboarding and family communication made easier",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "whatsapp-care-home-residence-followup",
+    title: "Care home residence WhatsApp follow-up",
+    category: "Care home residence",
+    audienceType: "b2b",
+    channel: "whatsapp",
+    description: "A concise WhatsApp follow-up for a residence director, family liaison, or care manager.",
+    subject: "",
+    body: "Hi {{first_name}}, quick follow-up on the VYVA residence pathway.\n\nThe idea is simple: families get one clearer route for profile details, reminders, resident updates, and next-step ownership without adding noise for the care team.\n\nWould it be useful to review the one-page handoff with the right person at your residence?",
+    ctaLabel: "Review handoff",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "whatsapp-care-home-residence-followup",
+      category: "Care home residence",
+      layout: "whatsapp-residence-follow-up",
+      replyPrompt: "Ask whether the residence wants a one-page handoff or a 15-minute pathway review.",
+      mergeFields: ["first_name"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "phone-care-home-residence-director-script",
+    title: "Care home residence director call script",
+    category: "Care home residence",
+    audienceType: "b2b",
+    channel: "phone",
+    description: "A short call script for qualifying a care home or residence relationship and finding the right owner.",
+    subject: "Care home residence intro call",
+    body: "Opener: Hi {{first_name}}, this is {{owner_name}} from VYVA. I am calling because we are helping residences make family communication and resident onboarding calmer and easier to follow.\n\nQuestion: Where does your team most often lose time with families: move-in questions, daily updates, reminders, care-team visibility, or follow-up ownership?\n\nOffer: We can show a simple VYVA pathway that gives families a clearer profile, update route, and support view without replacing your core residence workflow.\n\nClose: Who would be the best person to review a short residence handoff with us?",
+    ctaLabel: "Book pathway review",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "phone-care-home-residence-director-script",
+      category: "Care home residence",
+      layout: "residence-call-script",
+      callStages: ["opener", "qualifying question", "offer", "owner question", "outcome note"],
+      mergeFields: ["first_name", "owner_name"],
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "print-care-home-residence-one-pager",
+    title: "Printable care home residence one-pager",
+    category: "Care home residence",
+    audienceType: "b2b",
+    channel: "print",
+    description: "A one-page handoff for residence directors, family liaisons, or local partner packets.",
+    subject: "A practical family communication layer for care homes and senior residences",
+    body: "Headline: A practical family communication layer for care homes and senior residences.\n\nProblem: Resident care creates important details, but families often need one clearer route for updates and next steps.\n\nVYVA helps with:\n- Profile and contact details\n- Care-team visibility\n- Reminders and daily signals\n- Family update routes\n- One named follow-up owner\n\nNext step: Scan the code or book a short residence pathway review.",
+    ctaLabel: "Scan for residence pathway",
+    ctaUrl: "https://v2.vyva.life/demo",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "print-care-home-residence-one-pager",
+      category: "Care home residence",
+      layout: "residence-one-page-handoff",
+      printSpecs: { size: "A4", sides: 1, qr: true, largeType: true },
+      visualPrompt: "clean one-page senior residence handoff with resident-family communication pathway, QR placeholder, VYVA purple and soft green accents",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "facebook-care-home-residence-family-proof",
+    title: "Facebook care home residence family proof post",
+    category: "Care home residence",
+    audienceType: "both",
+    channel: "facebook",
+    description: "A public proof post explaining how residences can make family communication easier.",
+    subject: "",
+    body: "Moving into a care home or senior residence should not leave families wondering where updates live or who owns the next step.\n\nVYVA helps turn practical care details into a calmer family routine: profile information, reminders, daily signals, and care-team visibility in one place.",
+    ctaLabel: "See the care routine",
+    ctaUrl: "https://v2.vyva.life",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "facebook-care-home-residence-family-proof",
+      category: "Care home residence",
+      layout: "facebook-residence-family-proof",
+      visualPrompt: "family member and senior residence care coordinator reviewing a calm resident update checklist",
+      proofPoint: "residence onboarding to clearer family follow-up",
+    },
+    mediaAssets: [],
+  },
+  {
+    id: "event-care-home-residence-briefing",
+    title: "Care home residence briefing run sheet",
+    category: "Care home residence",
+    audienceType: "b2b",
+    channel: "event",
+    description: "A local briefing or partner-meeting run sheet for residence directors, family liaisons, and care managers.",
+    subject: "Care home residence pathway briefing",
+    body: "Session: Care home residence pathway review\nAudience: residence directors, family liaisons, care managers, local care partners\nOwner: {{owner_name}}\n\nAgenda:\n1. Map the resident-family communication gap.\n2. Identify the move-in or family update handoff.\n3. Decide which contacts need email, WhatsApp, phone, or print follow-up.\n4. Agree the one-page residence handoff and next owner.\n\nOutcome: one named residence relationship owner, one follow-up campaign, and one reviewed handoff route.",
+    ctaLabel: "Log briefing outcome",
+    ctaUrl: "https://v2.vyva.life/admin/marketing",
+    designJson: {
+      generator: "marketing_content_template_gallery",
+      templateId: "event-care-home-residence-briefing",
+      category: "Care home residence",
+      layout: "residence-briefing-run-sheet",
+      mergeFields: ["owner_name"],
+      checklist: ["family communication gap", "move-in handoff", "contact channels", "one-page handoff", "relationship owner"],
+      visualPrompt: "professional care home residence briefing run sheet with agenda and relationship owner fields",
+    },
+    mediaAssets: [],
+  },
+  {
     id: "email-monthly-care-digest",
     title: "Monthly care digest email",
     category: "Monthly care",
@@ -5868,6 +6059,35 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       { offset: "Day 14", channel: "event", title: "Agency roundtable", detail: "Run a local relationship session with owners, coordinators, and partners.", templateId: "event-home-care-agency-roundtable-brief" },
     ],
     aiPrompt: "Adapt this home care agency outreach pack for one country, city, agency type, referral owner, and follow-up route. Keep it practical for agency operators: clearer family updates after visits, caregiver visibility, referral or activation handoff, and one named relationship owner. Produce email, LinkedIn, WhatsApp, phone, print, Facebook, and event/roundtable copy.",
+  },
+  {
+    id: "care-home-residence-outreach",
+    title: "Care home residence outreach",
+    focus: "Turn care homes and senior residences into resident-family communication partners.",
+    description: "A seven-channel B2B pack for residence intros, director proof, WhatsApp follow-up, phone calls, print handoffs, family proof, and local briefings.",
+    templateIds: [
+      "email-care-home-residence-intro",
+      "linkedin-care-home-residence-director-post",
+      "whatsapp-care-home-residence-followup",
+      "phone-care-home-residence-director-script",
+      "print-care-home-residence-one-pager",
+      "facebook-care-home-residence-family-proof",
+      "event-care-home-residence-briefing",
+    ],
+    heroTemplateId: "email-care-home-residence-intro",
+    studioPlayId: "care-home-residence-outreach",
+    toneId: "expert",
+    angleId: "proof",
+    sequence: [
+      { offset: "Day 0", channel: "email", title: "Residence intro", detail: "Introduce the family communication layer and ask for a pathway review.", templateId: "email-care-home-residence-intro" },
+      { offset: "Day 2", channel: "linkedin", title: "Director proof", detail: "Frame the resident-family communication gap for residence leaders.", templateId: "linkedin-care-home-residence-director-post" },
+      { offset: "Day 3", channel: "whatsapp", title: "Follow-up nudge", detail: "Ask whether the right person can review the one-page residence handoff.", templateId: "whatsapp-care-home-residence-followup" },
+      { offset: "Day 5", channel: "phone", title: "Director call", detail: "Qualify the residence workflow and find the relationship owner.", templateId: "phone-care-home-residence-director-script" },
+      { offset: "Day 7", channel: "print", title: "One-page handoff", detail: "Share the residence handoff in meetings, packets, or local partner visits.", templateId: "print-care-home-residence-one-pager" },
+      { offset: "Day 10", channel: "facebook", title: "Family proof", detail: "Show the public family value of clearer communication after move-in or care changes.", templateId: "facebook-care-home-residence-family-proof" },
+      { offset: "Day 14", channel: "event", title: "Residence briefing", detail: "Run a local relationship session with directors, family liaisons, care managers, and partners.", templateId: "event-care-home-residence-briefing" },
+    ],
+    aiPrompt: "Adapt this care home residence outreach pack for one country, city, residence type, family liaison, and follow-up route. Keep it practical for residence operators: calmer family communication, resident onboarding support, care-team visibility, and one named relationship owner. Produce email, LinkedIn, WhatsApp, phone, print, Facebook, and event/briefing copy.",
   },
   {
     id: "clinic-pharmacy-referral",
@@ -8131,6 +8351,10 @@ function campaignIntentPlay(brief: string) {
     campaignIntentHasAny(text, ["home care agency", "homecare agency", "home care provider", "domiciliary care", "domiciliary", "care agency", "agency pathway", "agency outreach"])
     || (campaignIntentHasAny(text, ["home care", "agency"]) && campaignIntentHasAny(text, ["family update", "after visit", "after-visit", "referral", "handoff", "partner", "outreach"]))
   ) return campaignStudioPlayById("home-care-agency-outreach");
+  if (
+    campaignIntentHasAny(text, ["care home", "senior residence", "retirement residence", "assisted living", "residential care", "nursing home", "residence operator", "care director", "family liaison"])
+    || (campaignIntentHasAny(text, ["residence", "resident", "residents"]) && campaignIntentHasAny(text, ["family communication", "family update", "move-in", "move in", "onboarding", "partner", "outreach", "handoff"]))
+  ) return campaignStudioPlayById("care-home-residence-outreach");
   if (campaignIntentHasAny(text, ["webinar", "session", "demo", "professional session"])) return campaignStudioPlayById("partner-webinar");
   if (
     campaignIntentHasAny(text, ["discharge", "hospital", "rehab", "care transition", "transition support", "post-discharge", "post discharge", "care change"])
@@ -10736,9 +10960,13 @@ export default function MarketingAdminPage() {
   }), []);
   const templatePackRecommendationsForPlay = useCallback((play: CampaignStudioPlay, primaryChannel: Channel, selectedChannels: Channel[]) => {
     const selectedChannelSet = new Set(selectedChannels);
+    const preferredPackIdByPlay: Record<string, string> = {
+      "partner-webinar": "partner-growth",
+    };
     return contentTemplatePacksWithStats.map(({ pack, templates, heroTemplate, channels, audiences: packAudiences, categories, state }) => {
       const packPlay = campaignStudioPlayById(pack.studioPlayId);
       const playMatch = pack.studioPlayId === play.id;
+      const preferredPackMatch = preferredPackIdByPlay[play.id] === pack.id;
       const categoryMatch = packPlay.categoryId === play.categoryId;
       const channelOverlap = channels.filter((channel) => selectedChannelSet.has(channel)).length;
       const audienceMatch = packAudiences.some((audience) => (
@@ -10749,6 +10977,7 @@ export default function MarketingAdminPage() {
       const heroMatchesPrimary = heroTemplate?.channel === primaryChannel;
       const score = Math.min(99,
         (playMatch ? 42 : 0)
+        + (preferredPackMatch ? 24 : 0)
         + (categoryMatch ? 12 : 0)
         + (audienceMatch ? 18 : 0)
         + channelOverlap * 10
@@ -10757,15 +10986,22 @@ export default function MarketingAdminPage() {
       );
       const recommendationState: CampaignReadinessState = score >= 72 ? "ready" : score >= 42 ? "planning" : state;
       const reasons = [
-        playMatch ? `Built for ${play.label}` : categoryMatch ? `${campaignStudioCategories.find((category) => category.id === packPlay.categoryId)?.label ?? packPlay.categoryId} fit` : `${packPlay.label} source play`,
+        playMatch
+          ? `Built for ${play.label}`
+          : preferredPackMatch
+            ? `Preferred pack for ${play.label}`
+            : categoryMatch
+              ? `${campaignStudioCategories.find((category) => category.id === packPlay.categoryId)?.label ?? packPlay.categoryId} fit`
+              : `${packPlay.label} source play`,
         `${templates.length} template${templates.length === 1 ? "" : "s"}`,
         channels.length ? `${channels.map((channel) => channelLabel[channel]).join(" + ")} pack` : "No channel pack",
         audienceMatch ? `${play.audienceType.toUpperCase()} audience fit` : `${packAudiences.map((audience) => audience.toUpperCase()).join(" / ")} audience`,
       ];
-      return { pack, templates, heroTemplate, channels, categories, score, state: recommendationState, reasons, playMatch, categoryMatch, channelOverlap };
+      return { pack, templates, heroTemplate, channels, categories, score, state: recommendationState, reasons, playMatch, preferredPackMatch, categoryMatch, channelOverlap };
     })
       .sort((a, b) => {
         if (b.playMatch !== a.playMatch) return Number(b.playMatch) - Number(a.playMatch);
+        if (b.preferredPackMatch !== a.preferredPackMatch) return Number(b.preferredPackMatch) - Number(a.preferredPackMatch);
         if (b.score !== a.score) return b.score - a.score;
         if (b.categoryMatch !== a.categoryMatch) return Number(b.categoryMatch) - Number(a.categoryMatch);
         if (b.channelOverlap !== a.channelOverlap) return b.channelOverlap - a.channelOverlap;
