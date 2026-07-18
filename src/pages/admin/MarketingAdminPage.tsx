@@ -26551,6 +26551,16 @@ export default function MarketingAdminPage() {
                                     <span key={reason} className="rounded-full bg-[#fffaf4] px-2 py-1 text-[11px] font-black text-[#6f5f59]">{reason}</span>
                                   ))}
                                 </div>
+                                <div className="mt-3 grid gap-1.5 rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#5b4a46]" data-testid={`marketing-campaign-studio-template-pack-preview-${pack.id}`}>
+                                  <p className="font-black uppercase tracking-[0.1em] text-purple-800">Creation preview</p>
+                                  <span>{channels.length} route{channels.length === 1 ? "" : "s"}: {channels.map((channel) => channelLabel[channel]).join(" + ") || "No channel routes"}</span>
+                                  <span>{templates.filter((template) => !content.some((item) => contentAssetMatchesTemplatePack(item, pack, template))).length} new asset{templates.filter((template) => !content.some((item) => contentAssetMatchesTemplatePack(item, pack, template))).length === 1 ? "" : "s"} if saved from this pack</span>
+                                  <span>
+                                    {campaignStudioSelectedChannels.filter((channel) => !channels.includes(channel)).length
+                                      ? `Missing selected route: ${campaignStudioSelectedChannels.filter((channel) => !channels.includes(channel)).map((channel) => channelLabel[channel]).join(", ")}`
+                                      : "Covers selected route pack"}
+                                  </span>
+                                </div>
                               </div>
                               <button
                                 type="button"

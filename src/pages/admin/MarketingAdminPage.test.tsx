@@ -5717,6 +5717,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-template-pack-partner-growth")).toHaveTextContent("Partner growth");
     expect(screen.getByTestId("marketing-campaign-studio-template-pack-partner-growth")).toHaveTextContent("7 templates");
     expect(screen.getByTestId("marketing-campaign-studio-template-pack-partner-growth")).toHaveTextContent("Built for Partner outreach");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-preview-partner-growth")).toHaveTextContent("Creation preview");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-preview-partner-growth")).toHaveTextContent("new assets if saved from this pack");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-preview-partner-growth")).toHaveTextContent("Covers selected route pack");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-template-pack-partner-growth"));
 
