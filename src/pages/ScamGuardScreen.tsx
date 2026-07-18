@@ -27,11 +27,16 @@ import { useToast } from "@/hooks/use-toast";
 import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
+import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
-import { readShowVyvaEvidenceFile, reviewShowVyvaVisualEvidence } from "@/lib/showVyvaEvidence";
+import {
+  prepareShowVyvaEvidenceFile,
+  reviewShowVyvaVisualEvidence,
+  type ShowVyvaPreparedEvidence,
+} from "@/lib/showVyvaEvidence";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -430,6 +435,8 @@ const ScamGuardScreen = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [fullScreenCheck, setFullScreenCheck] = useState<ScamCheck | null>(null);
   const [scamCaptureSource, setScamCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
+  const [scamCaptureDraft, setScamCaptureDraft] = useState<ShowVyvaPreparedEvidence | null>(null);
+  const [scamCapturePreparing, setScamCapturePreparing] = useState(false);
   const [scamReviewInput, setScamReviewInput] = useState<ShowVyvaFileReviewInput>({
     useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
     source: "camera",
@@ -494,6 +501,25 @@ const ScamGuardScreen = () => {
       mimeType: file.type,
     };
     setScamReviewInput(reviewInput);
+    setScamCapturePreparing(true);
+
+    prepareShowVyvaEvidenceFile(file)
+      .then((evidence) => setScamCaptureDraft(evidence))
+      .catch((error) => {
+        console.error("[show-vyva-capture] error:", error);
+        toast({ description: t("showVyva.capture.error", "I could not prepare that item. Please try another photo or file.") });
+      })
+      .finally(() => setScamCapturePreparing(false));
+  };
+
+  const submitScamEvidence = async (evidence: ShowVyvaPreparedEvidence) => {
+    const reviewInput = {
+      ...scamReviewInput,
+      fileName: evidence.fileName,
+      mimeType: evidence.mimeType,
+    };
+    setScamReviewInput(reviewInput);
+    setScamCaptureDraft(null);
     setShowVyvaPasteReview(null);
     setShowVyvaEvidenceReview(null);
     setResult(null);
@@ -510,40 +536,37 @@ const ScamGuardScreen = () => {
       ],
     };
 
-    const sourceType = (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"))
-      ? "pdf"
-      : "image";
-
-    readShowVyvaEvidenceFile(file)
-      .then(async (dataUrl) => {
-        if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.scamCheck) {
-          const contract = await reviewShowVyvaVisualEvidence({
-            image: dataUrl,
-            language,
-            useCaseId: reviewInput.useCaseId,
-            source: reviewInput.source,
-            question: reviewInput.question,
-            fileName: reviewInput.fileName ?? file.name,
-            mimeType: reviewInput.mimeType ?? file.type,
-          });
-          setShowVyvaEvidenceReview(contract);
-          return;
-        }
-        const res = await apiFetch("/api/scam-check", {
-          method: "POST",
-          body: JSON.stringify({ image: dataUrl, language, fileType: sourceType, question: reviewInput.question }),
+    try {
+      if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.scamCheck) {
+        const contract = await reviewShowVyvaVisualEvidence({
+          image: evidence.dataUrl,
+          language,
+          useCaseId: reviewInput.useCaseId,
+          source: reviewInput.source,
+          question: reviewInput.question,
+          fileName: evidence.fileName,
+          mimeType: evidence.mimeType,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json() as ScamCheckResult;
-        if (data.isFallback) {
-          setResult(errorFallback);
-        } else {
-          setResult(data);
-          queryClient.invalidateQueries({ queryKey: ["/api/scam-check"] });
-        }
-      })
-      .catch(() => setResult(errorFallback))
-      .finally(() => setAnalyzing(false));
+        setShowVyvaEvidenceReview(contract);
+        return;
+      }
+      const res = await apiFetch("/api/scam-check", {
+        method: "POST",
+        body: JSON.stringify({ image: evidence.dataUrl, language, fileType: evidence.kind, question: reviewInput.question }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as ScamCheckResult;
+      if (data.isFallback) {
+        setResult(errorFallback);
+      } else {
+        setResult(data);
+        queryClient.invalidateQueries({ queryKey: ["/api/scam-check"] });
+      }
+    } catch {
+      setResult(errorFallback);
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const openScamFilePicker = (
@@ -741,7 +764,7 @@ const ScamGuardScreen = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => openScamFilePicker("camera")}
                   className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-amber-200 bg-white px-4 font-body text-[14px] font-bold text-[#A16207] transition active:scale-[0.98]"
                 >
                   <Camera size={17} />
@@ -849,7 +872,7 @@ const ScamGuardScreen = () => {
                 SHOW_VYVA_USE_CASE_IDS.documentHelp,
                 SHOW_VYVA_USE_CASE_IDS.providerOrDeal,
               ]}
-              busy={analyzing}
+              busy={analyzing || scamCapturePreparing}
               onChooseFileSource={(source, useCase, question) => openScamFilePicker(source, useCase.id, question)}
               onPaste={(payload) => openPastedScamReview(payload)}
             />
@@ -974,12 +997,26 @@ const ScamGuardScreen = () => {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,application/pdf,.pdf"
+              accept={scamCaptureSource === "camera" ? "image/*" : "image/*,application/pdf,.pdf"}
               capture={scamCaptureSource === "camera" ? "environment" : undefined}
               className="hidden"
               onChange={handleFileSelect}
               data-testid="input-scam-check-file"
             />
+
+            {scamCaptureDraft ? (
+              <ShowVyvaCaptureCoach
+                evidence={scamCaptureDraft}
+                useCaseId={scamReviewInput.useCaseId}
+                busy={analyzing}
+                onUse={submitScamEvidence}
+                onRetake={() => {
+                  setScamCaptureDraft(null);
+                  window.setTimeout(() => fileInputRef.current?.click(), 0);
+                }}
+                onClose={() => setScamCaptureDraft(null)}
+              />
+            ) : null}
           </div>
         </div>
 

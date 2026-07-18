@@ -78,5 +78,6 @@ describe("ShowVyvaChooser", () => {
     fireEvent.click(screen.getByTestId(`button-show-vyva-use-case-${SHOW_VYVA_USE_CASE_IDS.medicineOrOtc}`));
 
     expect(screen.getByTestId("text-show-vyva-confirmation")).toHaveTextContent("does not change doses");
+    expect(screen.getByTestId("text-show-vyva-capture-guidance")).toHaveTextContent("full front label");
   });
 });

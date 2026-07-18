@@ -36,6 +36,7 @@ export interface ShowVyvaUseCase {
   label: string;
   shortLabel: string;
   prompt: string;
+  captureInstruction: string;
   workflow: WorkflowReference;
   conciergeFlow?: ConciergeFlowReference;
   conciergeUseCase: ShowVyvaConciergeUseCase;
@@ -70,6 +71,7 @@ export const SHOW_VYVA_USE_CASES: ShowVyvaUseCase[] = [
     label: "Scam or safety check",
     shortLabel: "Scam",
     prompt: "Check a suspicious email, document, phone number, company, or link.",
+    captureInstruction: "Show the full message, sender, and any request for money or details.",
     workflow: CONCIERGE_FLOW_REFERENCES.scamCheck,
     conciergeFlow: CONCIERGE_FLOW_REFERENCES.scamCheck,
     conciergeUseCase: "scam_check",
@@ -84,6 +86,7 @@ export const SHOW_VYVA_USE_CASES: ShowVyvaUseCase[] = [
     label: "Medicine or OTC item",
     shortLabel: "Medicine",
     prompt: "Review a medicine label, OTC item, or pharmacy question.",
+    captureInstruction: "Show the full front label and the strength or ingredients.",
     workflow: APP_WORKFLOW_REFERENCES.medicationSafety,
     conciergeFlow: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
     conciergeUseCase: "shopping_request",
@@ -98,6 +101,7 @@ export const SHOW_VYVA_USE_CASES: ShowVyvaUseCase[] = [
     label: "Document or form",
     shortLabel: "Document",
     prompt: "Understand a letter, bill, form, application, or email draft.",
+    captureInstruction: "Keep the document flat and include all four corners.",
     workflow: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
     conciergeFlow: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
     conciergeUseCase: "paperwork",
@@ -112,6 +116,7 @@ export const SHOW_VYVA_USE_CASES: ShowVyvaUseCase[] = [
     label: "Provider, quote, or deal",
     shortLabel: "Deal",
     prompt: "Compare a quote, provider page, service offer, price, or reputation signal.",
+    captureInstruction: "Show the provider name, price, and important terms.",
     workflow: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
     conciergeFlow: CONCIERGE_FLOW_REFERENCES.shoppingSupport,
     conciergeUseCase: "find_offers",
@@ -126,6 +131,7 @@ export const SHOW_VYVA_USE_CASES: ShowVyvaUseCase[] = [
     label: "Health or home photo",
     shortLabel: "Photo",
     prompt: "Show a health photo, home-safety concern, label, or object.",
+    captureInstruction: "Use good light and keep the area or object in focus.",
     workflow: APP_WORKFLOW_REFERENCES.visualScan,
     conciergeFlow: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
     conciergeUseCase: "paperwork",

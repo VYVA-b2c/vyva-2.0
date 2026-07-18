@@ -16,6 +16,56 @@ export type ShowVyvaVisualEvidenceResult = ShowVyvaReviewContract & {
   isFallback?: boolean;
 };
 
+export const SHOW_VYVA_CAPTURE_QUALITY_ISSUES = ["dark", "glare", "blur", "framing"] as const;
+export type ShowVyvaCaptureQualityIssue = typeof SHOW_VYVA_CAPTURE_QUALITY_ISSUES[number];
+
+export type ShowVyvaCaptureMetrics = {
+  width: number;
+  height: number;
+  averageLuminance: number;
+  darkPixelRatio: number;
+  brightPixelRatio: number;
+  edgeScore: number;
+};
+
+export type ShowVyvaPreparedEvidence = {
+  dataUrl: string;
+  fileName: string;
+  mimeType: string;
+  kind: "image" | "pdf";
+  reviewedPage: number | null;
+  qualityIssues: ShowVyvaCaptureQualityIssue[];
+  metrics: ShowVyvaCaptureMetrics | null;
+};
+
+export function evaluateShowVyvaCaptureMetrics(
+  metrics: ShowVyvaCaptureMetrics,
+  options: { documentLike?: boolean } = {},
+): ShowVyvaCaptureQualityIssue[] {
+  const issues: ShowVyvaCaptureQualityIssue[] = [];
+  const pixels = metrics.width * metrics.height;
+
+  if (metrics.width < 640 || metrics.height < 480 || pixels < 420_000) issues.push("framing");
+  if (metrics.averageLuminance < 58 || metrics.darkPixelRatio > 0.62) issues.push("dark");
+
+  const likelyGlare = !options.documentLike
+    && metrics.brightPixelRatio > 0.2
+    && metrics.averageLuminance < 220
+    && metrics.darkPixelRatio > 0.02;
+  if (likelyGlare) issues.push("glare");
+
+  const blurThreshold = options.documentLike ? 5 : 7;
+  if (
+    metrics.edgeScore < blurThreshold
+    && metrics.averageLuminance >= 45
+    && metrics.brightPixelRatio < 0.86
+  ) {
+    issues.push("blur");
+  }
+
+  return issues;
+}
+
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -66,13 +116,93 @@ async function renderPdfFirstPage(file: File): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.88);
 }
 
-export async function readShowVyvaEvidenceFile(file: File): Promise<string> {
-  if (file.size > 12 * 1024 * 1024) throw new Error("file_too_large");
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-    return renderPdfFirstPage(file);
+function loadDataUrlImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("image_could_not_be_read"));
+    image.src = dataUrl;
+  });
+}
+
+async function measureCaptureQuality(dataUrl: string): Promise<ShowVyvaCaptureMetrics> {
+  const image = await loadDataUrlImage(dataUrl);
+  const sampleMax = 320;
+  const scale = Math.min(1, sampleMax / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+  const sampleWidth = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+  const sampleHeight = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = sampleWidth;
+  canvas.height = sampleHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("image_processing_unavailable");
+  context.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+
+  const { data } = context.getImageData(0, 0, sampleWidth, sampleHeight);
+  const luminance = new Float32Array(sampleWidth * sampleHeight);
+  let luminanceTotal = 0;
+  let darkPixels = 0;
+  let brightPixels = 0;
+
+  for (let pixel = 0, offset = 0; offset < data.length; pixel += 1, offset += 4) {
+    const value = (0.2126 * data[offset]) + (0.7152 * data[offset + 1]) + (0.0722 * data[offset + 2]);
+    luminance[pixel] = value;
+    luminanceTotal += value;
+    if (value < 48) darkPixels += 1;
+    if (value > 246) brightPixels += 1;
   }
-  if (file.type.startsWith("image/")) return compressImage(file);
-  throw new Error("unsupported_file_type");
+
+  let edgeTotal = 0;
+  let edgeSamples = 0;
+  for (let y = 1; y < sampleHeight; y += 1) {
+    for (let x = 1; x < sampleWidth; x += 1) {
+      const index = (y * sampleWidth) + x;
+      edgeTotal += Math.abs(luminance[index] - luminance[index - 1]);
+      edgeTotal += Math.abs(luminance[index] - luminance[index - sampleWidth]);
+      edgeSamples += 2;
+    }
+  }
+
+  const samplePixels = Math.max(1, sampleWidth * sampleHeight);
+  return {
+    width: image.naturalWidth || image.width,
+    height: image.naturalHeight || image.height,
+    averageLuminance: luminanceTotal / samplePixels,
+    darkPixelRatio: darkPixels / samplePixels,
+    brightPixelRatio: brightPixels / samplePixels,
+    edgeScore: edgeSamples ? edgeTotal / edgeSamples : 0,
+  };
+}
+
+export async function prepareShowVyvaEvidenceFile(file: File): Promise<ShowVyvaPreparedEvidence> {
+  if (file.size > 12 * 1024 * 1024) throw new Error("file_too_large");
+
+  const pdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  if (!pdf && !file.type.startsWith("image/")) throw new Error("unsupported_file_type");
+
+  const dataUrl = pdf ? await renderPdfFirstPage(file) : await compressImage(file);
+  let metrics: ShowVyvaCaptureMetrics | null = null;
+  let qualityIssues: ShowVyvaCaptureQualityIssue[] = [];
+  try {
+    metrics = await measureCaptureQuality(dataUrl);
+    qualityIssues = evaluateShowVyvaCaptureMetrics(metrics, { documentLike: pdf });
+  } catch {
+    // A preview is still useful when optional local quality measurement is unavailable.
+  }
+
+  return {
+    dataUrl,
+    fileName: file.name,
+    mimeType: file.type || (pdf ? "application/pdf" : "image/jpeg"),
+    kind: pdf ? "pdf" : "image",
+    reviewedPage: pdf ? 1 : null,
+    qualityIssues,
+    metrics,
+  };
+}
+
+export async function readShowVyvaEvidenceFile(file: File): Promise<string> {
+  return (await prepareShowVyvaEvidenceFile(file)).dataUrl;
 }
 
 export async function reviewShowVyvaVisualEvidence(

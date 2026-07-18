@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../db.js";
 import { scamChecks } from "../../shared/schema.js";
+import { nonRetainedShowVyvaEvidence } from "../services/showVyvaEvidencePrivacy.js";
 import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const DEMO_USER_ID = "demo-user";
@@ -138,7 +139,7 @@ export async function scamCheckHandler(req: Request, res: Response) {
         result_title: resultTitle,
         explanation,
         steps,
-        image_data: image,
+        ...nonRetainedShowVyvaEvidence(),
       });
     } catch (dbErr) {
       console.error("[scam-check] Failed to persist result:", dbErr);

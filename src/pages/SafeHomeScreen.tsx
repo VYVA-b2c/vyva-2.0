@@ -20,11 +20,16 @@ import { useToast } from "@/hooks/use-toast";
 import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
+import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
-import { readShowVyvaEvidenceFile, reviewShowVyvaVisualEvidence } from "@/lib/showVyvaEvidence";
+import {
+  prepareShowVyvaEvidenceFile,
+  reviewShowVyvaVisualEvidence,
+  type ShowVyvaPreparedEvidence,
+} from "@/lib/showVyvaEvidence";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -316,6 +321,8 @@ const SafeHomeScreen = () => {
   const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
   const [fullScreenScan, setFullScreenScan] = useState<HomeScan | null>(null);
   const [homeScanCaptureSource, setHomeScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
+  const [homeCaptureDraft, setHomeCaptureDraft] = useState<ShowVyvaPreparedEvidence | null>(null);
+  const [homeCapturePreparing, setHomeCapturePreparing] = useState(false);
   const [homeScanReviewInput, setHomeScanReviewInput] = useState<ShowVyvaFileReviewInput>({
     useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
     source: "camera",
@@ -358,35 +365,6 @@ const SafeHomeScreen = () => {
     },
   });
 
-  const compressImage = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        const MAX = 1024;
-        let { width, height } = img;
-        if (width > MAX || height > MAX) {
-          if (width > height) {
-            height = Math.round((height * MAX) / width);
-            width = MAX;
-          } else {
-            width = Math.round((width * MAX) / height);
-            height = MAX;
-          }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("canvas context unavailable"));
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.75));
-      };
-      img.onerror = reject;
-      img.src = objectUrl;
-    });
-
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -397,6 +375,25 @@ const SafeHomeScreen = () => {
       mimeType: file.type,
     };
     setHomeScanReviewInput(reviewInput);
+    setHomeCapturePreparing(true);
+
+    prepareShowVyvaEvidenceFile(file)
+      .then((evidence) => setHomeCaptureDraft(evidence))
+      .catch((error) => {
+        console.error("[show-vyva-capture] error:", error);
+        toast({ description: t("showVyva.capture.error", "I could not prepare that item. Please try another photo or file.") });
+      })
+      .finally(() => setHomeCapturePreparing(false));
+  };
+
+  const submitHomeEvidence = async (evidence: ShowVyvaPreparedEvidence) => {
+    const reviewInput = {
+      ...homeScanReviewInput,
+      fileName: evidence.fileName,
+      mimeType: evidence.mimeType,
+    };
+    setHomeScanReviewInput(reviewInput);
+    setHomeCaptureDraft(null);
     setShowVyvaPasteReview(null);
     setShowVyvaEvidenceReview(null);
     setResult(null);
@@ -409,51 +406,48 @@ const SafeHomeScreen = () => {
       advice: t("safeHome.errorAdvice", "We could not analyse the image. Please try again with a clearer photo."),
     };
 
-    readShowVyvaEvidenceFile(file)
-      .then(async (dataUrl) => {
-        if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto) {
-          const contract = await reviewShowVyvaVisualEvidence({
-            image: dataUrl,
-            language,
-            useCaseId: reviewInput.useCaseId,
-            source: reviewInput.source,
-            question: reviewInput.question,
-            fileName: reviewInput.fileName ?? file.name,
-            mimeType: reviewInput.mimeType ?? file.type,
-          });
-          setShowVyvaEvidenceReview(contract);
-          markCompleted({ reason: "home_review_completed" });
-          return;
-        }
-        const res = await apiFetch("/api/home-scan", {
-          method: "POST",
-          body: JSON.stringify({ image: dataUrl, language, question: reviewInput.question }),
+    try {
+      if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto) {
+        const contract = await reviewShowVyvaVisualEvidence({
+          image: evidence.dataUrl,
+          language,
+          useCaseId: reviewInput.useCaseId,
+          source: reviewInput.source,
+          question: reviewInput.question,
+          fileName: evidence.fileName,
+          mimeType: evidence.mimeType,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json() as {
-          riskLevel: string;
-          resultTitle: string;
-          hazards: string[];
-          advice: string;
-          isFallback?: boolean;
-        };
-        if (data.isFallback) {
-          setResult(errorFallback);
-          markBlocked({ reason: "home_scan_unavailable" });
-        } else {
-          setResult(data);
-          markCompleted({ reason: "home_scan_completed" });
-          queryClient.invalidateQueries({ queryKey: ["/api/home-scan/history"] });
-        }
-      })
-      .catch((err) => {
-        console.error("[home-scan] error:", err);
-        setResult(errorFallback);
-        markBlocked({ reason: "home_scan_failed" });
-      })
-      .finally(() => {
-        setAnalyzing(false);
+        setShowVyvaEvidenceReview(contract);
+        markCompleted({ reason: "home_review_completed" });
+        return;
+      }
+      const res = await apiFetch("/api/home-scan", {
+        method: "POST",
+        body: JSON.stringify({ image: evidence.dataUrl, language, question: reviewInput.question }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as {
+        riskLevel: string;
+        resultTitle: string;
+        hazards: string[];
+        advice: string;
+        isFallback?: boolean;
+      };
+      if (data.isFallback) {
+        setResult(errorFallback);
+        markBlocked({ reason: "home_scan_unavailable" });
+      } else {
+        setResult(data);
+        markCompleted({ reason: "home_scan_completed" });
+        queryClient.invalidateQueries({ queryKey: ["/api/home-scan/history"] });
+      }
+    } catch (err) {
+      console.error("[home-scan] error:", err);
+      setResult(errorFallback);
+      markBlocked({ reason: "home_scan_failed" });
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const openHomeScanFilePicker = (
@@ -766,7 +760,7 @@ const SafeHomeScreen = () => {
                 SHOW_VYVA_USE_CASE_IDS.providerOrDeal,
                 SHOW_VYVA_USE_CASE_IDS.documentHelp,
               ]}
-              busy={analyzing}
+              busy={analyzing || homeCapturePreparing}
               onChooseFileSource={(source, useCase, question) => openHomeScanFilePicker(source, useCase.id, question)}
               onPaste={(payload) => openPastedHomeReview(payload)}
             />
@@ -864,12 +858,26 @@ const SafeHomeScreen = () => {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,application/pdf,.pdf"
+              accept={homeScanCaptureSource === "camera" ? "image/*" : "image/*,application/pdf,.pdf"}
               capture={homeScanCaptureSource === "camera" ? "environment" : undefined}
               className="hidden"
               onChange={handlePhotoSelect}
               data-testid="input-home-scan-file"
             />
+
+            {homeCaptureDraft ? (
+              <ShowVyvaCaptureCoach
+                evidence={homeCaptureDraft}
+                useCaseId={homeScanReviewInput.useCaseId}
+                busy={analyzing}
+                onUse={submitHomeEvidence}
+                onRetake={() => {
+                  setHomeCaptureDraft(null);
+                  window.setTimeout(() => fileInputRef.current?.click(), 0);
+                }}
+                onClose={() => setHomeCaptureDraft(null)}
+              />
+            ) : null}
           </div>
         </div>
 
