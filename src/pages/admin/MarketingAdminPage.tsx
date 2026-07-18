@@ -752,6 +752,19 @@ type MarketingWorkflowCoachItem = MarketingOperatorBriefItem & {
   disabled?: boolean;
 };
 
+type MarketingChannelPublishingBoardItem = CampaignReadinessItem & {
+  channel: Channel;
+  routeCount: number;
+  contentReadyCount: number;
+  missingContentCount: number;
+  recipientCount: number;
+  scheduledCount: number;
+  manualResultCount: number;
+  modeLabel: string;
+  actionLabel: string;
+  onSelect: () => void;
+};
+
 type CampaignAudienceInsightItem = {
   key: string;
   title: string;
@@ -20270,6 +20283,105 @@ export default function MarketingAdminPage() {
   const marketingCockpitReadyCount = marketingCockpitItems.filter((item) => item.state === "ready").length;
   const marketingCockpitHasBlocker = marketingCockpitItems.some((item) => item.state === "blocked");
   const marketingCockpitHasReview = marketingCockpitItems.some((item) => item.state === "needs_action");
+  const marketingChannelPublishingBoardItems: MarketingChannelPublishingBoardItem[] = CHANNELS.map((channel) => {
+    const channelCampaigns = campaigns.filter((campaign) => campaign.channels.some((route) => route.channel === channel));
+    const readyCampaignsForChannel = channelCampaigns.filter((campaign) => campaign.channels.some((route) => (
+      route.channel === channel && channelHasUsableContent(route)
+    )));
+    const missingContentCampaignsForChannel = channelCampaigns.filter((campaign) => campaign.channels.some((route) => (
+      route.channel === channel && !channelHasUsableContent(route)
+    )));
+    const scheduledCampaignsForChannel = channelCampaigns.filter((campaign) => (
+      campaign.status === "scheduled"
+      || campaign.channels.some((route) => route.channel === channel && Boolean(route.scheduledAt || campaign.scheduleStartsAt))
+    ));
+    const recipientCount = channelCampaigns.reduce((total, campaign) => (
+      total + campaign.recipients.filter((recipient) => recipient.channel === channel).length
+    ), 0);
+    const manualResultCount = channelCampaigns.reduce((total, campaign) => (
+      total + manualPublishResultsFromMetadata(campaign.metadata).filter((result) => result.channel === channel).length
+    ), 0);
+    const contentReadyCount = readyCampaignsForChannel.length;
+    const missingContentCount = missingContentCampaignsForChannel.length;
+    const channelContentAssetCount = content.filter((item) => item.channel === channel && item.status !== "archived").length;
+    const firstMissingCampaign = missingContentCampaignsForChannel[0] ?? null;
+    const firstReadyCampaign = readyCampaignsForChannel.find((campaign) => (
+      channel === "email" ? campaign.recipientCount > 0 || recipientCount > 0 : true
+    )) ?? readyCampaignsForChannel[0] ?? null;
+    const emailReady = channel === "email" && emailCampaignSendEnabled && Boolean(firstReadyCampaign) && (recipientCount > 0 || (firstReadyCampaign?.recipientCount ?? 0) > 0);
+    const modeLabel = channel === "email"
+      ? emailCampaignSendEnabled ? "VYVA send" : "Email locked"
+      : ["whatsapp"].includes(channel)
+        ? "Future provider"
+        : ["sms", "phone", "print", "event"].includes(channel)
+          ? "Human/offline"
+          : "Manual social";
+    const state: CampaignReadinessState = firstMissingCampaign
+      ? "blocked"
+      : emailReady
+        ? "ready"
+        : firstReadyCampaign
+          ? channel === "email" ? "needs_action" : "planning"
+          : channelCampaigns.length > 0
+            ? "needs_action"
+            : channelContentAssetCount > 0
+              ? "planning"
+              : "planning";
+    const detail = firstMissingCampaign
+      ? `"${firstMissingCampaign.name}" needs ${channelLabel[channel]} content before it can publish or be handed off.`
+      : emailReady
+        ? `${recipientCount || firstReadyCampaign?.recipientCount || 0} saved recipient${(recipientCount || firstReadyCampaign?.recipientCount || 0) === 1 ? "" : "s"} can be reviewed for VYVA email send.`
+        : firstReadyCampaign
+          ? channel === "email"
+            ? `"${firstReadyCampaign.name}" has email content; snapshot recipients before live send.`
+            : `${contentReadyCount} ${channelLabel[channel]} route${contentReadyCount === 1 ? "" : "s"} can be copied, published manually, and tracked back here.`
+          : channelContentAssetCount > 0
+            ? `${channelContentAssetCount} reusable ${channelLabel[channel]} asset${channelContentAssetCount === 1 ? "" : "s"} are available. Link one to a campaign route.`
+            : `No ${channelLabel[channel]} route is active yet. Start from a template or campaign pack when this channel matters.`;
+    const actionLabel = firstMissingCampaign
+      ? "Fix content"
+      : firstReadyCampaign
+        ? channel === "email" ? "Open send review" : "Open handoff"
+        : channelContentAssetCount > 0
+          ? "Open content"
+          : "Find templates";
+
+    return {
+      key: channel,
+      channel,
+      title: channelLabel[channel],
+      detail,
+      state,
+      routeCount: channelCampaigns.length,
+      contentReadyCount,
+      missingContentCount,
+      recipientCount,
+      scheduledCount: scheduledCampaignsForChannel.length,
+      manualResultCount,
+      modeLabel,
+      actionLabel,
+      onSelect: () => {
+        if (firstMissingCampaign) {
+          openCampaignForNextAction(firstMissingCampaign);
+          return;
+        }
+        if (firstReadyCampaign) {
+          startCampaignEdit(firstReadyCampaign);
+          setActiveTab("dashboard");
+          setMessage(channel === "email"
+            ? `Opened "${firstReadyCampaign.name}" for ${channelLabel[channel]} send review.`
+            : `Opened "${firstReadyCampaign.name}" for ${channelLabel[channel]} manual handoff.`);
+          return;
+        }
+        setActiveTab("content");
+        setSearch("");
+        setChannelFilter(channel);
+        setContentSourceFilter("all");
+        setContentTemplateChannelFilter(channel);
+        setContentActionFeedback(`Showing ${channelLabel[channel]} content assets and templates.`);
+      },
+    };
+  });
   const marketingOperatorBriefText = [
     "VYVA marketing daily operator brief",
     `Generated: ${formatDate(new Date().toISOString())}`,
@@ -20859,14 +20971,50 @@ export default function MarketingAdminPage() {
               </SectionCard>
 
               <div className="grid gap-4 xl:grid-cols-[1fr_0.75fr]">
-                <SectionCard title="By channel" subtitle="Planning coverage across campaign channels.">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {summary.byChannel.map((item) => (
-                      <div key={item.channel} className={`rounded-xl border p-3 ${channelClass(item.channel)}`}>
-                        <p className="font-black">{channelLabel[item.channel]}</p>
-                        <p className="mt-2 text-2xl font-black">{item.campaigns}</p>
-                        <p className="text-xs font-bold opacity-80">campaign routes / {item.content} content assets</p>
-                      </div>
+                <SectionCard
+                  title="Channel publishing board"
+                  subtitle="Route-by-route view of what VYVA can send, what needs a handoff, and what still needs content."
+                >
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-channel-publishing-board">
+                    {marketingChannelPublishingBoardItems.map((item) => (
+                      <button
+                        key={item.channel}
+                        type="button"
+                        onClick={item.onSelect}
+                        className={`min-h-[176px] rounded-xl border p-3 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                        data-testid={`button-marketing-channel-publishing-${item.channel}`}
+                      >
+                        <span className="flex items-start justify-between gap-3">
+                          <span>
+                            <span className="block font-black text-[#241133]">{item.title}</span>
+                            <span className="mt-1 block text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.modeLabel}</span>
+                          </span>
+                          <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                        </span>
+                        <span className="mt-3 grid grid-cols-3 gap-2 text-center">
+                          <span className="rounded-lg bg-white px-2 py-1.5">
+                            <span className="block text-lg font-black text-[#241133]">{item.routeCount}</span>
+                            <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-[#8b7a73]">Routes</span>
+                          </span>
+                          <span className="rounded-lg bg-white px-2 py-1.5">
+                            <span className="block text-lg font-black text-[#241133]">{item.contentReadyCount}</span>
+                            <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-[#8b7a73]">Ready</span>
+                          </span>
+                          <span className="rounded-lg bg-white px-2 py-1.5">
+                            <span className={`block text-lg font-black ${item.missingContentCount ? "text-red-800" : "text-[#241133]"}`}>{item.missingContentCount}</span>
+                            <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-[#8b7a73]">Gaps</span>
+                          </span>
+                        </span>
+                        <span className="mt-3 block line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                        <span className="mt-3 flex flex-wrap gap-1.5">
+                          {item.recipientCount > 0 ? <Pill className="bg-white text-purple-800">{item.recipientCount} recipients</Pill> : null}
+                          {item.scheduledCount > 0 ? <Pill className="bg-white text-sky-800">{item.scheduledCount} scheduled</Pill> : null}
+                          {item.manualResultCount > 0 ? <Pill className="bg-white text-emerald-800">{item.manualResultCount} tracked</Pill> : null}
+                        </span>
+                        <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                          {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                        </span>
+                      </button>
                     ))}
                   </div>
                 </SectionCard>

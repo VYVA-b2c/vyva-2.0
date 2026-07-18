@@ -890,6 +890,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("CTA opportunity");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("9% click rate");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Deliverability clean");
+    expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("VYVA send");
+    expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("Manual social");
+    expect(screen.getByTestId("button-marketing-channel-publishing-linkedin")).toHaveTextContent("Partner outreach");
+    fireEvent.click(screen.getByTestId("button-marketing-channel-publishing-linkedin"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
+    expect(screen.getByText('Opened "Partner outreach" to fix the creative gap: LinkedIn.')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-marketing-performance-insight-cta-opportunity"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByText('Opened "Caregiver welcome" to improve the CTA from performance data.')).toBeInTheDocument();
