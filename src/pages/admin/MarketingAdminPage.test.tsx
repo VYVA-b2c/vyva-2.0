@@ -1297,6 +1297,46 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Source export endpoint is already built in");
   }, 30_000);
 
+  it("turns a standalone contact into a reusable campaign audience before opening the studio", async () => {
+    renderPage({}, { audiences: [] });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-view-contact-contact-1"));
+
+    expect(screen.getByTestId("marketing-contact-relationship-context")).toHaveTextContent("No list match yet");
+    expect(screen.getByTestId("button-marketing-build-contact-campaign-contact-1")).toHaveTextContent("Save list + build");
+
+    fireEvent.click(screen.getByTestId("button-marketing-build-contact-campaign-contact-1"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Studio focused on Karim Assad");
+    });
+
+    const singleContactAudiencePost = apiFetchMock.mock.calls.find(([path, init]) => {
+      if (path !== "/api/admin/marketing/audiences" || init?.method !== "POST") return false;
+      const body = JSON.parse(String(init.body ?? "{}"));
+      return body.metadata?.created_from === "relationship_contact_build_campaign";
+    });
+    expect(singleContactAudiencePost).toBeTruthy();
+    expect(JSON.parse(String(singleContactAudiencePost?.[1]?.body ?? "{}"))).toMatchObject({
+      name: "Karim Assad relationship list",
+      listType: "static",
+      contactExternalIds: ["contact-1"],
+      source: "vyva_relationship_contact",
+      rules: {
+        source: "single_contact_relationship",
+        contactId: "contact-1",
+        contactExternalId: "contact-1",
+        audienceType: "b2c",
+        consentStatus: "unknown",
+      },
+    });
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-created");
+    expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-created");
+    expect(screen.getByText("Campaign studio is ready for Karim Assad. Generate AI copy or use the recommended channel pack.")).toBeInTheDocument();
+  });
+
   it("turns the AI command interpretation into matched template actions", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

@@ -18294,21 +18294,25 @@ export default function MarketingAdminPage() {
     ].filter(Boolean).join("\n");
   }
 
-  function buildCampaignForRelationshipContact(contact: MarketingContact) {
-    const isB2bContact = contact.audienceType === "b2b" || Boolean(contact.companyName || contact.roleLabel);
-    const play = campaignStudioPlays.find((item) => item.id === (isB2bContact ? "b2b-partner-outreach" : "family-confidence")) ?? campaignStudioPlays[0];
+  function relationshipAudienceForContact(contact: MarketingContact) {
     const contactKeys = new Set([
       ...lookupKeysForExternalId(contact.id, ["contact"]),
       ...lookupKeysForExternalId(contact.lovableExternalId, ["contact"]),
     ]);
-    const relatedAudience = audiences.find((audience) => {
+    return audiences.find((audience) => {
       if (contactMatchesAudienceList(contact, audience)) return true;
       return audience.memberPreview.some((member) => {
         if (member.id === contact.id) return true;
         return lookupKeysForExternalId(member.contactExternalId || member.lovableExternalId, ["contact"])
           .some((key) => contactKeys.has(key));
       });
-    }) ?? bestCampaignStudioAudience(play, audiences);
+    }) ?? null;
+  }
+
+  function focusCampaignStudioForRelationshipContact(contact: MarketingContact, relatedAudienceOverride?: MarketingAudience | null) {
+    const isB2bContact = contact.audienceType === "b2b" || Boolean(contact.companyName || contact.roleLabel);
+    const play = campaignStudioPlays.find((item) => item.id === (isB2bContact ? "b2b-partner-outreach" : "family-confidence")) ?? campaignStudioPlays[0];
+    const relatedAudience = relatedAudienceOverride ?? relationshipAudienceForContact(contact) ?? bestCampaignStudioAudience(play, audiences);
     const primaryChannel: Channel = contact.email
       ? "email"
       : (contact.whatsappNumber || contact.phoneNumber)
@@ -18342,6 +18346,69 @@ export default function MarketingAdminPage() {
     setCampaignIntentBrief(relationshipCampaignIntentForContact(contact, selectedChannels, relatedAudience));
     setCampaignStudioFeedback(`Studio focused on ${contact.fullName || contact.email || "this contact"} with ${selectedChannels.map((channel) => channelLabel[channel]).join(" + ")}.`);
     setMessage(`Campaign studio is ready for ${contact.fullName || contact.email || "this contact"}. Generate AI copy or use the recommended channel pack.`);
+  }
+
+  async function buildCampaignForRelationshipContact(contact: MarketingContact) {
+    const isB2bContact = contact.audienceType === "b2b" || Boolean(contact.companyName || contact.roleLabel);
+    const play = campaignStudioPlays.find((item) => item.id === (isB2bContact ? "b2b-partner-outreach" : "family-confidence")) ?? campaignStudioPlays[0];
+    const existingAudience = relationshipAudienceForContact(contact);
+    if (existingAudience) {
+      focusCampaignStudioForRelationshipContact(contact, existingAudience);
+      return;
+    }
+
+    const contactName = contact.fullName || contact.email || contact.phoneNumber || contact.whatsappNumber || "Unnamed contact";
+    const contactExternalId = contactAudienceMemberId(contact);
+    setAudienceSaving(true);
+    setContactFeedback(`Creating a reusable relationship list for "${contactName}"...`);
+    try {
+      const result = await api<{ audience: MarketingAudience }>("/api/admin/marketing/audiences", {
+        method: "POST",
+        body: JSON.stringify({
+          name: `${contactName} relationship list`,
+          listType: "static",
+          description: `Single-contact relationship list for ${contactName}. Built from the contact relationship view so campaigns can snapshot a clear audience instead of relying on a text filter.`,
+          rules: {
+            source: "single_contact_relationship",
+            contactId: contact.id,
+            contactExternalId,
+            audienceType: contact.audienceType,
+            consentStatus: contact.consentStatus,
+            language: contact.language,
+            category: contact.category,
+            vertical: contact.vertical,
+            market: contact.market,
+            tags: contact.tags,
+          },
+          contactExternalIds: [contactExternalId],
+          source: "vyva_relationship_contact",
+          metadata: {
+            created_from: "relationship_contact_build_campaign",
+            createdAt: new Date().toISOString(),
+            contact: {
+              id: contact.id,
+              lovableExternalId: contact.lovableExternalId,
+              fullName: contact.fullName,
+              email: contact.email,
+              companyName: contact.companyName,
+              roleLabel: contact.roleLabel,
+            },
+          },
+        }),
+      });
+      setAudiences((current) => [result.audience, ...current.filter((audience) => audience.id !== result.audience.id)]);
+      focusCampaignStudioForRelationshipContact(contact, result.audience);
+      setAudienceFeedback(`Created "${result.audience.name}" and loaded it into the campaign studio.`);
+      setContactFeedback(`Created "${result.audience.name}" for ${contactName}.`);
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Relationship list could not be created.";
+      setAudienceFeedback(errorMessage);
+      setContactFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setAudienceSaving(false);
+    }
   }
 
   function startRelationshipCampaignFromTemplate(contact: MarketingContact, template: ContentTemplate) {
@@ -28679,8 +28746,8 @@ export default function MarketingAdminPage() {
                               )}
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <button type="button" onClick={() => buildCampaignForRelationshipContact(selectedRelationshipContact)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white" data-testid={`button-marketing-build-contact-campaign-${selectedRelationshipContact.id}`}>
-                                <Sparkles size={15} /> Build campaign
+                              <button type="button" onClick={() => void buildCampaignForRelationshipContact(selectedRelationshipContact)} disabled={audienceSaving || contactSaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid={`button-marketing-build-contact-campaign-${selectedRelationshipContact.id}`}>
+                                <Sparkles size={15} /> {audienceSaving ? "Building..." : contactRelationshipAudiences.length ? "Build campaign" : "Save list + build"}
                               </button>
                               <button type="button" onClick={() => startContactEdit(selectedRelationshipContact)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700" data-testid={`button-marketing-edit-relationship-contact-${selectedRelationshipContact.id}`}>
                                 <Pencil size={15} /> Edit contact
