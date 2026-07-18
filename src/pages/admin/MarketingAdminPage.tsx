@@ -8127,6 +8127,10 @@ function campaignStudioPlayById(id: CampaignStudioPlayId) {
 function campaignIntentPlay(brief: string) {
   const text = lower(brief);
   if (campaignIntentHasAny(text, ["monthly", "newsletter", "digest", "roundup", "report", "summary"])) return campaignStudioPlayById("monthly-care-digest");
+  if (
+    campaignIntentHasAny(text, ["home care agency", "homecare agency", "home care provider", "domiciliary care", "domiciliary", "care agency", "agency pathway", "agency outreach"])
+    || (campaignIntentHasAny(text, ["home care", "agency"]) && campaignIntentHasAny(text, ["family update", "after visit", "after-visit", "referral", "handoff", "partner", "outreach"]))
+  ) return campaignStudioPlayById("home-care-agency-outreach");
   if (campaignIntentHasAny(text, ["webinar", "session", "demo", "professional session"])) return campaignStudioPlayById("partner-webinar");
   if (
     campaignIntentHasAny(text, ["discharge", "hospital", "rehab", "care transition", "transition support", "post-discharge", "post discharge", "care change"])
@@ -22226,6 +22230,12 @@ export default function MarketingAdminPage() {
       command: "Invite Madrid partners to a practical webinar by email and LinkedIn.",
     },
     {
+      key: "home-care-agency",
+      label: "Home care agency",
+      detail: "B2B / Full partner path",
+      command: "Create a home care agency outreach pathway by email, LinkedIn, WhatsApp, phone, print, Facebook, and event handoff.",
+    },
+    {
       key: "local-event",
       label: "Local event",
       detail: "Community / Event + social",
@@ -22237,7 +22247,7 @@ export default function MarketingAdminPage() {
       detail: "B2C / Email + WhatsApp",
       command: "Reactivate quiet family contacts with a warm email and WhatsApp follow-up around one useful VYVA routine.",
     },
-  ].slice(0, 5);
+  ].slice(0, 6);
   const marketingDashboardAiCommandPlan = useMemo(() => {
     const brief = marketingDashboardAiCommand.trim();
     if (!brief) return null;
