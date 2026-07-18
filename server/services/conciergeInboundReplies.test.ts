@@ -25,12 +25,22 @@ function pending(overrides: Partial<ConciergeInboundPendingMatch> = {}): Concier
     actionPayload: {
       provider_task_status: "waiting",
       waiting_for_provider: true,
+      execution_adapter: {
+        version: 1,
+        channel: "email",
+        mode: "live",
+        status: "sent",
+      },
+      email_outcome: "sent",
       execution_task: {
         version: 1,
         lifecycle_status: "confirmed",
         user_confirmed: true,
         external_action_allowed: true,
         execution_mode: "live",
+        confirmed_at: "2026-07-18T10:00:00.000Z",
+        approval_fingerprint: { version: 1, fingerprint: "old-approval" },
+        adapter_result: { status: "sent" },
         updated_at: "2026-07-18T10:00:00.000Z",
       },
     },
@@ -106,12 +116,17 @@ describe("Concierge inbound reply ingestion", () => {
       provider_follow_up_requires_confirmation: true,
       provider_follow_up_confirmed: false,
       no_external_action_without_confirmation: true,
+      execution_adapter: null,
+      email_outcome: null,
       execution_task: {
         user_confirmed: false,
         external_action_allowed: false,
         execution_mode: "blocked",
       },
     });
+    expect(repository.attached?.patch.execution_task).not.toHaveProperty("confirmed_at");
+    expect(repository.attached?.patch.execution_task).not.toHaveProperty("approval_fingerprint");
+    expect(repository.attached?.patch.execution_task).not.toHaveProperty("adapter_result");
   });
 
   it("ignores a duplicate provider event", async () => {

@@ -45,6 +45,44 @@ describe("Concierge provider replies", () => {
     });
   });
 
+  it("clears the previous send result when a new provider reply arrives", () => {
+    const payload = buildConciergeProviderReplyPatch({
+      payload: {
+        execution_adapter: { version: 1, status: "sent", channel: "email", mode: "live" },
+        email_outcome: "sent",
+        provider_message_id: "old-message",
+        execution_task: {
+          version: 1,
+          lifecycle_status: "confirmed",
+          user_confirmed: true,
+          external_action_allowed: true,
+          execution_mode: "live",
+          confirmed_at: "2026-07-18T09:00:00.000Z",
+          approval_fingerprint: { version: 1, fingerprint: "old-approval" },
+        },
+      },
+      reply: "Could you confirm your policy number?",
+      summary: "Provider needs the policy number.",
+      source: "live",
+      receivedAt: "2026-07-18T10:00:00.000Z",
+    });
+
+    expect(payload).toMatchObject({
+      execution_adapter: null,
+      email_outcome: null,
+      provider_message_id: null,
+      provider_follow_up_confirmed: false,
+      execution_task: expect.objectContaining({
+        lifecycle_status: "ready",
+        user_confirmed: false,
+        external_action_allowed: false,
+        execution_mode: "blocked",
+      }),
+    });
+    expect(payload.execution_task).not.toHaveProperty("confirmed_at");
+    expect(payload.execution_task).not.toHaveProperty("approval_fingerprint");
+  });
+
   it("keeps no-answer tasks waiting and treats completed history as done", () => {
     const waiting = conciergeProviderReplySnapshot({
       provider_task_status: "waiting",
