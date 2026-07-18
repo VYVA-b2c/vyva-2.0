@@ -1,0 +1,4 @@
+export interface RefillCanvasRolloutConfig{enabled:boolean;rolloutPercent:number}
+export function parseRefillCanvasRolloutConfig(value:unknown):RefillCanvasRolloutConfig{if(!value||typeof value!=="object")return{enabled:false,rolloutPercent:0};const candidate=value as Partial<RefillCanvasRolloutConfig>,percent=typeof candidate.rolloutPercent==="number"&&Number.isFinite(candidate.rolloutPercent)?Math.min(100,Math.max(0,Math.round(candidate.rolloutPercent))):0;return{enabled:candidate.enabled===true,rolloutPercent:percent}}
+function bucket(key:string){let hash=2166136261;for(let index=0;index<key.length;index+=1){hash^=key.charCodeAt(index);hash=Math.imul(hash,16777619)}return(hash>>>0)%100}
+export function isRefillCanvasEnabled(config:RefillCanvasRolloutConfig|undefined,key:string){if(!config?.enabled||config.rolloutPercent<=0)return false;if(config.rolloutPercent>=100)return true;return bucket(key)<config.rolloutPercent}

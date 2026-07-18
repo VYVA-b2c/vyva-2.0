@@ -1,11 +1,13 @@
 import { useTranslation } from "react-i18next";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BarChart2, Copy, AlertCircle, RefreshCw, ClipboardCheck, Flame, ShieldCheck, TriangleAlert, Sparkles, Clock3, Target, LockKeyhole, LogIn, ShoppingCart, PhoneCall, Mail, Stethoscope, Calendar, Car, type LucideIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
-import { ApiError } from "@/lib/queryClient";
+import { ApiError, apiFetch } from "@/lib/queryClient";
+import { RefillVoiceCanvas, isRefillCanvasEnabled, parseRefillCanvasRolloutConfig, trackRefillCanvasEvent, type RefillCanvasCopy, type RefillCanvasDraft } from "@/components/voice-canvas";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
@@ -140,13 +142,19 @@ const AdherenceReportScreen = () => {
     actionTypes: ["meds.inventory_report", "meds.refill_request"],
   });
   const isAuthError = error instanceof ApiError && (error.status === 401 || error.status === 403);
+  const [refillCanvasOpen,setRefillCanvasOpen]=useState(false);
+  const [refillCanvasDismissed,setRefillCanvasDismissed]=useState(false);
+  const refillCanvasRolloutQuery=useQuery({queryKey:["/api/config/features/medication-refill-voice-canvas"],queryFn:async()=>{const response=await apiFetch("/api/config/features/medication-refill-voice-canvas");return response.ok?parseRefillCanvasRolloutConfig(await response.json()):{enabled:false,rolloutPercent:0}},staleTime:0,refetchInterval:10_000,refetchOnWindowFocus:"always",retry:false});
+  const refillCanvasEnabled=isRefillCanvasEnabled(refillCanvasRolloutQuery.data,profile?.profileId??"anonymous");
+  useEffect(()=>{if(!refillCanvasEnabled)setRefillCanvasOpen(false)},[refillCanvasEnabled]);
+  useEffect(()=>{if(voiceAction?.actionType==="meds.refill_request"&&refillCanvasEnabled&&!refillCanvasDismissed)setRefillCanvasOpen(true)},[voiceAction?.actionType,refillCanvasEnabled,refillCanvasDismissed]);
 
   const rawDayLabels = t("meds.adherence.dayLabels", { returnObjects: true });
   const dayLabels: string[] = Array.isArray(rawDayLabels)
     ? (rawDayLabels as string[])
     : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  const medications = data?.perMedication ?? [];
+  const medications = useMemo(() => data?.perMedication ?? [], [data?.perMedication]);
   const medicationsNeedingAttention = medications.filter((med) =>
     med.dailyStatus.includes("missed")
   );
@@ -307,6 +315,30 @@ const AdherenceReportScreen = () => {
   const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
   const gpEmailHref = medicationDoctorMailto(profile?.gpEmail, adherenceDoctorNote, language);
   const attentionContext = attentionNames.length ? attentionNames.join(", ") : t("meds.adherence.shareAllOnTrack");
+  const isSpanish=language.toLowerCase().startsWith("es");
+  const refillCopy=useMemo<RefillCanvasCopy>(()=>({
+    listening:{status:isSpanish?"Escuchando":"Listening",title:isSpanish?"Preparemos tu reposición":"Let’s prepare your refill",helper:isSpanish?"Puedes hablar o usar los botones.":"Use your voice or the buttons below.",start:isSpanish?"Empezar":"Start",cancel:isSpanish?"Ahora no":"Not now"},
+    medication:{title:isSpanish?"¿Qué medicamento necesitas?":"Which medication do you need?",helper:isSpanish?"Elige uno guardado o escribe otro.":"Choose a saved medication or enter another.",manual:isSpanish?"Otro medicamento":"A different medication",manualHelper:isSpanish?"Escribe el nombre exactamente como aparece en la etiqueta.":"Enter the name exactly as it appears on the label.",cannotIdentify:isSpanish?"No puedo identificarlo":"I can’t identify it",cannotIdentifyHelper:isSpanish?"Detente y revisa la etiqueta o pide ayuda.":"Stop and check the label or ask for help.",back:isSpanish?"Volver":"Go back"},
+    medicationEntry:{title:isSpanish?"¿Qué nombre aparece en la etiqueta?":"What name is on the label?",helper:isSpanish?"No adivines ni abrevies el nombre.":"Do not guess or abbreviate the name.",label:isSpanish?"Nombre del medicamento":"Medication name",placeholder:isSpanish?"Nombre exacto de la etiqueta":"Exact label name",continue:isSpanish?"Continuar":"Continue",cannotIdentify:isSpanish?"No puedo identificarlo":"I can’t identify it",back:isSpanish?"Volver":"Go back"},
+    strength:{title:isSpanish?"¿Qué concentración aparece?":"What strength is shown?",helper:isSpanish?"Copia la concentración de la etiqueta. VYVA no la adivinará.":"Copy the strength from the label. VYVA will not infer it.",label:isSpanish?"Concentración":"Strength",placeholder:isSpanish?"Por ejemplo, 10 mg":"For example, 10 mg",continue:isSpanish?"Continuar":"Continue",back:isSpanish?"Volver":"Go back"},
+    safety:{title:isSpanish?"¿Es solo una reposición rutinaria?":"Is this only a routine refill?",helper:isSpanish?"No cambies cómo tomas el medicamento.":"Do not change how you take the medication.",routine:isSpanish?"Sí, reposición rutinaria":"Yes, routine refill",routineHelper:isSpanish?"No hay síntomas graves ni posible sobredosis.":"No severe symptoms or possible overdose.",urgent:isSpanish?"Necesito ayuda urgente":"I need urgent help",urgentHelper:isSpanish?"Reacción grave, posible sobredosis o medicamento crítico agotado.":"Severe reaction, possible overdose, or a time-critical medicine has run out.",back:isSpanish?"Volver":"Go back"},
+    provider:{title:isSpanish?"¿Quién debe revisar la solicitud?":"Who should review the request?",helper:isSpanish?"Elige un prescriptor o farmacia guardados.":"Choose a saved prescriber or pharmacy.",manual:isSpanish?"Otro profesional o farmacia":"A different clinician or pharmacy",manualHelper:isSpanish?"Escribe el nombre para la revisión posterior.":"Enter the name for later review.",back:isSpanish?"Volver":"Go back"},
+    providerEntry:{title:isSpanish?"¿Qué nombre usamos?":"What name should we use?",helper:isSpanish?"No se contactará a nadie ahora.":"Nobody will be contacted now.",label:isSpanish?"Profesional o farmacia":"Clinician or pharmacy",placeholder:isSpanish?"Nombre para revisar":"Name for review",continue:isSpanish?"Continuar":"Continue",back:isSpanish?"Volver":"Go back"},
+    quantity:{title:isSpanish?"¿Qué cantidad o duración necesitas?":"What quantity or supply do you need?",helper:isSpanish?"Copia la cantidad solicitada; no cambies la dosis.":"Enter the requested quantity or supply period; do not change the dose.",label:isSpanish?"Cantidad o duración":"Quantity or supply",placeholder:isSpanish?"Por ejemplo, 28 comprimidos o 30 días":"For example, 28 tablets or 30 days",continue:isSpanish?"Continuar":"Continue",back:isSpanish?"Volver":"Go back"},
+    notes:{title:isSpanish?"¿Alguna nota para revisar?":"Any note for review?",helper:isSpanish?"Opcional. Si describes una reacción grave, te mostraremos ayuda urgente.":"Optional. If you describe a severe reaction, urgent help will be shown.",label:isSpanish?"Nota opcional":"Optional note",placeholder:isSpanish?"Añade solo la información necesaria":"Add only necessary information",continue:isSpanish?"Continuar":"Continue",back:isSpanish?"Volver":"Go back"},
+    contact:{title:isSpanish?"¿Cómo prefieres revisar el siguiente paso?":"How would you prefer to review the next step?",helper:isSpanish?"Esto guarda una preferencia; no contacta a nadie.":"This records a preference; it does not contact anyone.",back:isSpanish?"Volver":"Go back"},
+    review:{title:isSpanish?"Revisa la preparación":"Review refill preparation",helper:isSpanish?"No se solicita ni se contacta a nadie hasta que confirmes.":"Nothing is requested and nobody is contacted until you confirm.",medication:isSpanish?"Medicamento":"Medication",strength:isSpanish?"Concentración":"Strength",provider:isSpanish?"Revisión":"Reviewer",quantity:isSpanish?"Cantidad":"Quantity",notes:isSpanish?"Notas":"Notes",contact:isSpanish?"Preferencia":"Preference",noNotes:isSpanish?"Sin notas":"No notes",confirm:isSpanish?"Confirmar y preparar":"Confirm and prepare",change:isSpanish?"Cambiar un dato":"Make a change"},
+    waiting:{status:isSpanish?"Espera un momento":"Please wait",title:isSpanish?"Preparando para revisión":"Preparing for review",helper:isSpanish?"No se está enviando ni solicitando la reposición.":"The refill is not being sent or ordered.",action:isSpanish?"Preparando…":"Preparing…"},
+    completed:{status:isSpanish?"Preparado":"Prepared",title:isSpanish?"La preparación está lista":"Refill preparation is ready",helper:isSpanish?"Aún no se ha solicitado ni aprobado la reposición.":"The refill has not been requested or approved.",reference:isSpanish?"Referencia":"Reference",done:isSpanish?"Terminar":"Done"},
+    blocked:{status:isSpanish?"Necesita atención":"Needs attention",title:isSpanish?"No pudimos preparar la solicitud":"We could not prepare the request",helper:isSpanish?"Revisa los datos e inténtalo otra vez.":"Review the details and try again.",identificationTitle:isSpanish?"No continúes sin identificarlo":"Do not continue without identifying it",identificationHelper:isSpanish?"Revisa la etiqueta o pide ayuda a un profesional o farmacia.":"Check the label or ask a clinician or pharmacy for help.",retry:isSpanish?"Revisar e intentar otra vez":"Review and retry",cancel:isSpanish?"Cancelar":"Cancel"},
+    urgent:{status:isSpanish?"Ayuda urgente":"Urgent help",title:isSpanish?"Esto necesita ayuda, no una reposición rutinaria":"This needs help, not a routine refill",helper:isSpanish?"Si hay peligro inmediato, llama a emergencias. VYVA no llamará ni enviará mensajes por ti.":"If there is immediate danger, call emergency services. VYVA will not call or message anyone for you.",primary:isSpanish?"Ver opciones de ayuda":"View help options",secondary:isSpanish?"Volver y revisar":"Go back and review"},
+    cancelled:{status:isSpanish?"Cancelado":"Cancelled",title:isSpanish?"No se preparó ninguna reposición":"No refill was prepared",helper:isSpanish?"No se enviaron datos a nadie.":"No details were sent to anyone.",restart:isSpanish?"Empezar otra vez":"Start again"},progress:(current,total)=>isSpanish?`Paso ${current} de ${total}`:`Step ${current} of ${total}`}),[isSpanish]);
+  const refillMedications=useMemo(()=>medications.map((med,index)=>({id:`saved-${index}`,label:med.name,strength:med.dosage,description:med.dosage||undefined})),[medications]);
+  const refillProviders=useMemo(()=>{const saved=(profile?.savedProviders??[]).filter(provider=>provider.name?.trim()&&(/pharmacy|farmacia|doctor|clinic|gp|medic/i.test(`${provider.role??""} ${provider.category??""}`))).map((provider,index)=>({id:`saved-provider-${index}`,label:provider.name!.trim(),kind:/pharmacy|farmacia/i.test(`${provider.role??""} ${provider.category??""}`)?"pharmacy" as const:"prescriber" as const,description:provider.isTrusted?(isSpanish?"Guardado en tu perfil":"Saved in your profile"):undefined}));if(gpName&&!saved.some(item=>item.label===gpName))saved.unshift({id:"saved-gp",label:gpName,kind:"prescriber",description:isSpanish?"Profesional guardado":"Saved clinician"});return saved},[gpName,isSpanish,profile?.savedProviders]);
+  const refillContacts=useMemo(()=>[{id:"in-app",label:isSpanish?"Revisar en VYVA":"Review in VYVA",description:isSpanish?"Sin contacto externo":"No external contact"},{id:"phone",label:isSpanish?"Revisar por teléfono más tarde":"Review by phone later"},{id:"email",label:isSpanish?"Revisar por correo más tarde":"Review by email later"}],[isSpanish]);
+  const refillCommands=useMemo(()=>({start:isSpanish?["empezar","preparar reposición"]:["start","prepare refill"],back:isSpanish?["volver","atrás"]:["back","go back"],cancel:isSpanish?["cancelar","ahora no"]:["cancel","not now"],confirm:isSpanish?["confirmar","sí, confirmar"]:["confirm","yes, confirm"],retry:isSpanish?["intentar otra vez"]:["retry","try again"],routine:isSpanish?["reposición rutinaria"]:["routine refill"],urgent:isSpanish?["ayuda urgente"]:["urgent help"]}),[isSpanish]);
+  const urgentTerms=useMemo(()=>isSpanish?["reacción grave","sobredosis","no puedo respirar","medicamento crítico","me he quedado sin"]:["severe reaction","overdose","cannot breathe","can't breathe","time-critical medicine","critical medicine ran out"],[isSpanish]);
+  const confirmRefillPreparation=useCallback(async(draft:Readonly<RefillCanvasDraft>,{signal}:{requestId:number;signal:AbortSignal})=>{const response=await apiFetch("/api/concierge/actions/trigger",{method:"POST",signal,body:JSON.stringify({use_case:"order_medicine",provider_name:draft.providerName,found_externally:false,action_summary:`Medication refill preparation ready for review.`,action_payload:{preparation_only:true,prescription_refill:true,medication_name:draft.medicationName,strength:draft.strength,provider_name:draft.providerName,provider_kind:draft.providerKind||"unspecified",quantity_or_supply:draft.quantity,notes:draft.notes,preferred_contact_method:draft.contactMethod,confirmation_required_before_contact:true,refill_requested:false,refill_approved:false,no_dosing_advice:true},language,trigger_source:"medication_refill_canvas",auto_start:false})});if(!response.ok){const body=await response.json().catch(()=>null)as{error?:string}|null;throw new Error(body?.error??(isSpanish?"No pudimos preparar la reposición.":"We could not prepare the refill."))}const result=await response.json()as{pendingId?:string;status?:string};return{reference:result.pendingId||result.status}},[isSpanish,language]);
   const serviceActions: AdherenceServiceAction[] = [
     {
       id: "refill",
@@ -315,9 +347,7 @@ const AdherenceReportScreen = () => {
       sub: t("meds.adherenceService.refillSub", "Find pharmacy or delivery options. You confirm before anything is ordered."),
       color: "#C9890A",
       bg: "#FEF3C7",
-      onClick: () => navigate("/concierge/shopping", {
-        state: medicationRefillShoppingState(medicationSummary, language),
-      }),
+      onClick: () => {if(refillCanvasEnabled){setRefillCanvasDismissed(false);setRefillCanvasOpen(true);return}navigate("/concierge/shopping",{state:medicationRefillShoppingState(medicationSummary,language)})},
     },
     ...(gpPhoneHref
       ? [{
@@ -559,6 +589,12 @@ const AdherenceReportScreen = () => {
                 </p>
               </div>
             </div>
+          </section>
+        )}
+
+        {refillCanvasOpen&&refillCanvasEnabled&&(
+          <section className="mb-[14px] flex justify-center rounded-[28px] bg-[#F8F4FA] p-2 sm:p-4" data-testid="panel-medication-refill-voice-canvas">
+            <RefillVoiceCanvas copy={refillCopy} medications={refillMedications} providers={refillProviders} contactChoices={refillContacts} voiceCommands={refillCommands} urgentTerms={urgentTerms} storageKey={`vyva.refillCanvas.adherence.${profile?.profileId??"active"}`} onConfirmPrepare={confirmRefillPreparation} onUrgentHelp={()=>navigate("/health/check-in",{state:{source:"medication_refill_urgent_help"}})} onDone={()=>setRefillCanvasOpen(false)} onCancel={()=>{setRefillCanvasOpen(false);setRefillCanvasDismissed(true)}} onTelemetry={trackRefillCanvasEvent}/>
           </section>
         )}
 
