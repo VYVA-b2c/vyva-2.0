@@ -16,6 +16,15 @@ async function fulfillJson(route: Route, status: number, body: unknown) {
   });
 }
 
+async function openConciergeTask(page: Page, taskId: string) {
+  test.info().setTimeout(Math.max(test.info().timeout, 60_000));
+  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+  const continueButton = page.getByTestId("button-concierge-continue-task");
+  await expect(continueButton).toBeVisible({ timeout: 20_000 });
+  await continueButton.click();
+  await expect(page).toHaveURL(new RegExp(`/concierge/task/${taskId}$`));
+}
+
 function readyServices(overrides: Record<string, unknown> = {}) {
   return {
     medications: { ready: true, missing: [] },
@@ -429,7 +438,7 @@ test("concierge prepared email task requires review, final confirmation, and sav
     await route.fallback();
   });
 
-  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+  await openConciergeTask(page, "email-smoke-1");
 
   await expect(page.getByTestId("button-concierge-confirm-email-smoke-1")).toHaveText("Open email draft");
   await expect(page.getByTestId("panel-concierge-email-draft")).toHaveCount(0);
@@ -562,7 +571,7 @@ test("concierge booking form task requires final confirmation before handoff and
     await route.fallback();
   });
 
-  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+  await openConciergeTask(page, "form-smoke-1");
 
   await expect(page.getByTestId("panel-concierge-appointment-mission")).toContainText("Form ready");
   await expect(page.getByTestId("panel-concierge-form-plan")).toContainText("Ready to open with the gathered details.");
@@ -708,7 +717,7 @@ test("concierge missing booking form details block handoff until details are rea
     await route.fallback();
   });
 
-  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+  await openConciergeTask(page, "form-missing-1");
 
   await expect(page.getByTestId("panel-concierge-appointment-mission")).toContainText("VYVA is handling this");
   await expect(page.getByTestId("panel-concierge-form-plan")).toContainText("Needs first: preferred time, insurance member ID");
@@ -774,8 +783,9 @@ test("concierge provider reply saves confirmed medical appointment outcome", asy
   });
 
   let scheduledBody: Record<string, unknown> | null = null;
+  let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
   let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
-  const pendingAppointmentReply = {
+  let pendingAppointmentReply = {
     id: "reply-appointment-smoke-1",
     use_case: "book_appointment",
     provider_name: "Clinica Lopez",
@@ -823,10 +833,20 @@ test("concierge provider reply saves confirmed medical appointment outcome", asy
       await fulfillJson(route, 200, { ok: true, status: "completed", sessionId: "session-appointment-smoke" });
       return;
     }
+    if (url.pathname === "/api/concierge/actions/reply-appointment-smoke-1/details") {
+      expect(route.request().method()).toBe("PATCH");
+      detailsBody = route.request().postDataJSON();
+      pendingAppointmentReply = {
+        ...pendingAppointmentReply,
+        action_payload: detailsBody?.action_payload ?? pendingAppointmentReply.action_payload,
+      };
+      await fulfillJson(route, 200, { ok: true, item: pendingAppointmentReply });
+      return;
+    }
     await route.fallback();
   });
 
-  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+  await openConciergeTask(page, "reply-appointment-smoke-1");
 
   await expect(page.getByTestId("panel-concierge-provider-reply")).toContainText("Provider reply");
   await page.getByTestId("button-provider-reply-confirmed-reply-appointment-smoke-1").click();
@@ -866,6 +886,8 @@ test("concierge provider reply saves confirmed medical appointment outcome", asy
     }),
   });
   expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
+  await expect.poll(() => detailsBody?.action_payload?.provider_reply_status ?? null).toBe("confirmed");
+  await page.getByTestId("button-provider-reply-mark-complete-reply-appointment-smoke-1").click();
   await expect.poll(() => completeBody?.outcome_payload?.provider_reply_status ?? null).toBe("confirmed");
   expect(completeBody).toMatchObject({
     outcome_summary: "Provider confirmed: Clinica Lopez. Time: 2026-07-22T10:30. Reference: AP-77.",
@@ -880,7 +902,7 @@ test("concierge provider reply saves confirmed medical appointment outcome", asy
       scheduled_event_id: "scheduled-appointment-smoke",
     }),
   });
-  await expect(page.getByTestId("provider-reply-notice")).toContainText("Appointment saved in Scheduled Support. The task is closed.");
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Task completed.");
 });
 
 test("concierge home-service provider reply keeps pending paths and saves confirmed visit", async ({ page }) => {
@@ -896,26 +918,27 @@ test("concierge home-service provider reply keeps pending paths and saves confir
   let noAnswerBody: { action_payload?: Record<string, unknown> } | null = null;
   let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
   let completeCount = 0;
-  const pendingHomeServiceReply = {
+  const pendingHomeServiceActionPayload = {
+    flow_reference: "FLOW_SAFE_HOME_SUPPORT",
+    appointment_type: "home-service",
+    provider_source: "saved",
+    selected_provider_name: "Saved Plumber",
+    service_type: "plumber",
+    service_label: "Plumber",
+    problem_summary: "Leak under kitchen sink",
+    urgency: "tomorrow",
+    location: "Home kitchen",
+    home_access_or_safety_notes: "Caregiver can open the door",
+    mission_status: "awaiting_provider_reply",
+    preferred_channel: "whatsapp",
+  };
+  let pendingHomeServiceReply = {
     id: "reply-home-service-smoke-1",
     use_case: "book_appointment",
     provider_name: "Saved Plumber",
     provider_phone: "+34 600 222 333",
     action_summary: "Saved plumber is checking the kitchen leak slot.",
-    action_payload: {
-      flow_reference: "FLOW_SAFE_HOME_SUPPORT",
-      appointment_type: "home-service",
-      provider_source: "saved",
-      selected_provider_name: "Saved Plumber",
-      service_type: "plumber",
-      service_label: "Plumber",
-      problem_summary: "Leak under kitchen sink",
-      urgency: "tomorrow",
-      location: "Home kitchen",
-      home_access_or_safety_notes: "Caregiver can open the door",
-      mission_status: "awaiting_provider_reply",
-      preferred_channel: "whatsapp",
-    },
+    action_payload: pendingHomeServiceActionPayload,
     status: "calling",
     language: "en",
   };
@@ -944,7 +967,11 @@ test("concierge home-service provider reply keeps pending paths and saves confir
     if (url.pathname === "/api/concierge/actions/reply-home-service-smoke-1/details") {
       expect(route.request().method()).toBe("PATCH");
       noAnswerBody = route.request().postDataJSON();
-      await fulfillJson(route, 200, { ok: true, item: { id: "reply-home-service-smoke-1" } });
+      pendingHomeServiceReply = {
+        ...pendingHomeServiceReply,
+        action_payload: noAnswerBody?.action_payload ?? pendingHomeServiceReply.action_payload,
+      };
+      await fulfillJson(route, 200, { ok: true, item: pendingHomeServiceReply });
       return;
     }
     if (url.pathname === "/api/concierge/actions/reply-home-service-smoke-1/complete") {
@@ -957,7 +984,7 @@ test("concierge home-service provider reply keeps pending paths and saves confir
     await route.fallback();
   });
 
-  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+  await openConciergeTask(page, "reply-home-service-smoke-1");
 
   await expect(page.getByTestId("panel-concierge-provider-reply")).toContainText("Provider reply");
   await page.getByTestId("button-provider-reply-no-answer-reply-home-service-smoke-1").click();
@@ -980,11 +1007,20 @@ test("concierge home-service provider reply keeps pending paths and saves confir
   expect(completeCount).toBe(0);
   expect(scheduledBody).toBeNull();
 
+  await page.getByText("More options", { exact: true }).click();
   await page.getByTestId("button-provider-reply-more-info-reply-home-service-smoke-1").click();
   await page.getByTestId("input-provider-reply-question-reply-home-service-smoke-1").fill("Do they need the water turned off before arrival?");
   await page.getByTestId("button-provider-reply-ask-reply-home-service-smoke-1").click();
-  await expect(page.getByTestId("provider-reply-notice")).toContainText("Question added to chat.");
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("The question is ready to answer.");
   expect(completeCount).toBe(0);
+
+  pendingHomeServiceReply = {
+    ...pendingHomeServiceReply,
+    action_payload: pendingHomeServiceActionPayload,
+  };
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("panel-concierge-provider-reply")).toContainText("Provider reply");
+  await page.getByText("More options", { exact: true }).click();
 
   await page.getByTestId("button-provider-reply-unavailable-reply-home-service-smoke-1").click();
   await expect(page.getByTestId("provider-reply-notice")).toContainText("Home-service search prepared with the original problem.");
@@ -1044,10 +1080,12 @@ test("concierge home-service provider reply keeps pending paths and saves confir
   });
   expect(String(scheduledBody?.description)).toContain("Notes: Caregiver will be home during the visit.");
   expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
+  await expect.poll(() => noAnswerBody?.action_payload?.provider_reply_status ?? null).toBe("confirmed");
+  await page.getByTestId("button-provider-reply-mark-complete-reply-home-service-smoke-1").click();
   await expect.poll(() => completeBody?.outcome_payload?.provider_reply_status ?? null).toBe("confirmed");
   expect(completeCount).toBe(1);
   expect(completeBody).toMatchObject({
-    outcome_summary: "Home service visit confirmed with Saved Plumber.",
+    outcome_summary: "Provider confirmed: Saved Plumber. Time: 2026-07-24T09:15. Reference: PL-42.",
     outcome_payload: expect.objectContaining({
       flow_reference: "FLOW_SAFE_HOME_SUPPORT",
       appointment_type: "home-service",
@@ -1066,7 +1104,7 @@ test("concierge home-service provider reply keeps pending paths and saves confir
       scheduled_event_id: "scheduled-home-service-smoke",
     }),
   });
-  await expect(page.getByTestId("provider-reply-notice")).toContainText("Visit saved in Scheduled Support. The task is closed.");
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Task completed.");
 });
 
 test("concierge scam document review requires final confirmation before saving outcome", async ({ page }) => {
@@ -1130,7 +1168,7 @@ test("concierge scam document review requires final confirmation before saving o
     await route.fallback();
   });
 
-  await page.goto("/concierge", { waitUntil: "domcontentloaded" });
+  await openConciergeTask(page, "scam-document-smoke-1");
 
   const reviewCard = page.getByTestId("panel-concierge-next-action");
   await expect(reviewCard).toContainText("Prize letter photo");
