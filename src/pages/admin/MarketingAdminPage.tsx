@@ -20028,6 +20028,7 @@ export default function MarketingAdminPage() {
     item.status !== "archived"
     && Boolean(item.subject || item.body || item.htmlBody || item.hasDesign || item.mediaAssets.length > 0)
   )).length;
+  const consentCleanupWorkQueue = contactRelationshipWorkQueues.find((queue) => queue.key === "consent-cleanup") ?? null;
   const launchLaneItems: MarketingLaunchLaneItem[] = [
     {
       key: "import",
@@ -20060,9 +20061,17 @@ export default function MarketingAdminPage() {
           : contactHealthUnmappedListMembers > 0
             ? `${contactHealthUnmappedListMembers} imported list member${contactHealthUnmappedListMembers === 1 ? "" : "s"} need contact mapping.`
             : `${contactHealthDirectReachable} contact${contactHealthDirectReachable === 1 ? "" : "s"} have email or WhatsApp reach.`,
-      actionLabel: contactHealthUnmappedListMembers > 0 ? "Open lists" : "Open contacts",
+      actionLabel: contactHealthUnmappedListMembers > 0
+        ? "Open lists"
+        : contactHealthNeedsConsent > 0 && consentCleanupWorkQueue?.count
+          ? consentCleanupWorkQueue.studioLabel
+          : "Open contacts",
       icon: UsersRound,
       onSelect: () => {
+        if (contactHealthNeedsConsent > 0 && consentCleanupWorkQueue?.count) {
+          loadContactWorkQueueInStudio(consentCleanupWorkQueue);
+          return;
+        }
         setActiveTab("contacts");
         setContactView(contactHealthUnmappedListMembers > 0 ? "lists" : "contacts");
         setContactWorkQueueContactIds(null);

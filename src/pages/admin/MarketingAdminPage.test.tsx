@@ -1449,6 +1449,33 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("AI replacement draft prepared");
   });
 
+  it("loads consent-safe campaign planning from the dashboard audience blocker", async () => {
+    renderPage({}, {
+      audiences: [{
+        ...audiences[0],
+        memberCount: 1,
+        mappedMemberCount: 1,
+        contactExternalIds: ["lovable-contact-2"],
+        unmappedContactExternalIds: [],
+      }],
+    });
+
+    expect(await screen.findByTestId("marketing-dashboard-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("button-marketing-launch-lane-audience")).toHaveTextContent("Prepare consent check");
+    expect(screen.getByTestId("button-marketing-workflow-coach-audience")).toHaveTextContent("Prepare consent check");
+
+    fireEvent.click(screen.getByTestId("button-marketing-launch-lane-audience"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Consent-safe re-permission plan loaded");
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Recipient snapshots are off");
+    expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("__no_reviewed_audience__");
+    const intentBrief = screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement;
+    expect(intentBrief.value).toContain("Consent re-permission campaign.");
+    expect(intentBrief.value).toContain("Do not message opted-out contacts.");
+  });
+
   it("shows tracked manual outcomes in campaign performance scans", async () => {
     const manuallyTrackedCampaign = {
       ...campaigns[1],
