@@ -4326,6 +4326,77 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("turns an imported journey step translation into a reusable content asset", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-create-journey-step-translation-content-0-en"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const contentPostCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const contentPayload = JSON.parse(String(contentPostCall?.[1]?.body));
+    expect(contentPayload).toMatchObject({
+      title: "Welcome email",
+      channel: "email",
+      language: "en",
+      status: "draft",
+      subject: "Welcome to VYVA",
+      body: "Hello from Source",
+      htmlBody: "<p>Hello from Source</p>",
+      ctaLabel: "Open VYVA",
+      ctaUrl: "https://v2.vyva.life",
+      source: "vyva",
+      lovableExternalId: null,
+      designJson: {
+        generator: "marketing_journey_step_translation",
+        journeyName: "B2B nurture",
+        stepIndex: 0,
+        stepId: "step-1",
+        channel: "email",
+        language: "en",
+      },
+      metadata: {
+        generatedFrom: "journey_step_translation",
+        journeyName: "B2B nurture",
+        stepIndex: 0,
+        stepId: "step-1",
+        language: "en",
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("select-marketing-journey-step-content-0")).toHaveValue("content-created");
+    });
+    expect(screen.getByTestId("input-marketing-journey-step-template-kind-0")).toHaveValue("content_asset");
+    expect(screen.getByTestId("input-marketing-journey-step-template-ref-0")).toHaveValue("content-created");
+    expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Created en content asset and linked step 1");
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys/journey-1", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/journeys/journey-1" && init?.method === "PATCH");
+    const journeyPayload = JSON.parse(String(patchCall?.[1]?.body));
+    expect(journeyPayload.steps[0]).toMatchObject({
+      contentAssetId: "content-created",
+      templateKind: "content_asset",
+      templateRef: "content-created",
+    });
+    expect(journeyPayload.steps[0].config).toMatchObject({
+      generatedContentAssetId: "content-created",
+      generatedContentTitle: "Welcome email",
+      translationContentAssetIds: {
+        en: "content-created",
+      },
+    });
+  });
+
   it("edits journey logic, steps, ordering, and deletes journey records", async () => {
     renderPage();
 

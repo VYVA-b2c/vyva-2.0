@@ -9250,6 +9250,7 @@ export default function MarketingAdminPage() {
   const [journeySaving, setJourneySaving] = useState(false);
   const [journeyFeedback, setJourneyFeedback] = useState("");
   const [journeyStepContentRunning, setJourneyStepContentRunning] = useState(false);
+  const [journeyStepTranslationContentRunningKey, setJourneyStepTranslationContentRunningKey] = useState<string | null>(null);
   const [confirmingJourneyDeleteId, setConfirmingJourneyDeleteId] = useState<string | null>(null);
   const [contentDraft, setContentDraft] = useState<ContentDraft>(() => emptyContentDraft());
   const [contentTemplateSearch, setContentTemplateSearch] = useState("");
@@ -15700,6 +15701,100 @@ export default function MarketingAdminPage() {
     const configTitle = objectValue(config, "sequenceTitle") || objectValue(config, "templateTitle");
     const noteTitle = step.notes.split(/[.\n]/)[0]?.replace(/^(day|week)\s*-?\d+\s*:\s*/i, "").trim() ?? "";
     return configTitle || noteTitle || `Step ${index + 1} ${channelLabel[step.channel]}`;
+  }
+
+  async function createContentFromJourneyStepTranslation(step: JourneyStepDraft, index: number, translation: JourneyStepTranslationDraft) {
+    const language = translation.language.trim() || journeyStepDefaultLanguage(step.configText) || "en";
+    const title = translation.title.trim() || translation.subject.trim() || `${journeyStepContentTitle(step, index)} (${language})`;
+    const body = translation.body.trim() || translation.subject.trim() || translation.title.trim();
+    if (!body) {
+      setJourneyFeedback(`Add ${language} body copy before creating a content asset.`);
+      return;
+    }
+
+    const runningKey = `${step.id}:${language}`;
+    setJourneyStepTranslationContentRunningKey(runningKey);
+    setJourneyFeedback(`Creating ${language} content asset for step ${index + 1}...`);
+    try {
+      const journeyName = journeyEditDraft.name.trim() || "Untitled journey";
+      const targetAudienceSnapshot = audienceSnapshot(selectedJourneyTargetAudience);
+      const contentResult = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          channel: step.channel,
+          language,
+          status: "draft",
+          subject: translation.subject.trim() || null,
+          body,
+          htmlBody: step.channel === "email" ? emailHtmlFromPlainCopy(body) || null : null,
+          ctaLabel: translation.ctaLabel.trim() || null,
+          ctaUrl: translation.ctaUrl.trim() || null,
+          source: "vyva",
+          lovableExternalId: null,
+          designJson: {
+            generator: "marketing_journey_step_translation",
+            journeyName,
+            stepIndex: index,
+            stepId: step.id,
+            channel: step.channel,
+            language,
+            templateKind: step.templateKind || null,
+            templateRef: step.templateRef || null,
+            targetAudience: targetAudienceSnapshot,
+          },
+          mediaAssets: [],
+          metadata: {
+            generatedFrom: "journey_step_translation",
+            journeyName,
+            stepIndex: index,
+            stepId: step.id,
+            language,
+            stepNotes: step.notes,
+            templateKind: step.templateKind || null,
+            templateRef: step.templateRef || null,
+            targetAudience: targetAudienceSnapshot,
+          },
+        }),
+      });
+      const createdContent = contentResult.content;
+      setContent((current) => [createdContent, ...current.filter((item) => item.id !== createdContent.id)]);
+      setSelectedContentId(createdContent.id);
+      setEditingContentId(createdContent.id);
+      setContentEditDraft(contentEditDraftFromContent(createdContent));
+      setContentDrawerMode("edit");
+      setJourneyEditDraft((draft) => ({
+        ...draft,
+        steps: draft.steps.map((draftStep) => {
+          if (draftStep.id !== step.id) return draftStep;
+          const config = optionalJsonRecordText(draftStep.configText);
+          return {
+            ...draftStep,
+            contentAssetId: createdContent.id,
+            templateKind: "content_asset",
+            templateRef: createdContent.lovableExternalId ?? createdContent.id,
+            configText: jsonText({
+              ...config,
+              generatedContentAssetId: createdContent.id,
+              generatedContentTitle: createdContent.title,
+              translationContentAssetIds: {
+                ...recordValue(config.translationContentAssetIds),
+                [language]: createdContent.id,
+              },
+            }),
+          };
+        }),
+      }));
+      setJourneyFeedback(`Created ${language} content asset and linked step ${index + 1}. Save the journey to keep the link.`);
+      setContentActionFeedback(`Created content from ${journeyName} step ${index + 1}.`);
+      setMessage(`Journey step ${index + 1} content asset created.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Journey step translation could not become content.";
+      setJourneyFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setJourneyStepTranslationContentRunningKey(null);
+    }
   }
 
   async function draftMissingJourneyStepContent() {
@@ -24632,13 +24727,13 @@ export default function MarketingAdminPage() {
                             <button
                               type="button"
                               onClick={() => void draftMissingJourneyStepContent()}
-                              disabled={journeySaving || journeyStepContentRunning || missingJourneyStepContentCount === 0}
+                              disabled={journeySaving || journeyStepContentRunning || Boolean(journeyStepTranslationContentRunningKey) || missingJourneyStepContentCount === 0}
                               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f1e8f5] disabled:text-[#9d8ba3]"
                               data-testid="button-marketing-draft-journey-step-content"
                             >
                               <Sparkles size={14} /> {journeyStepContentRunning ? "Drafting..." : missingJourneyStepContentCount ? `Draft ${missingJourneyStepContentCount} missing content` : "All content linked"}
                             </button>
-                            <button type="button" onClick={addJourneyStep} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-add-journey-step">
+                            <button type="button" onClick={addJourneyStep} disabled={journeySaving || journeyStepContentRunning || Boolean(journeyStepTranslationContentRunningKey)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-add-journey-step">
                               <Plus size={14} /> Add step
                             </button>
                           </div>
@@ -24647,7 +24742,7 @@ export default function MarketingAdminPage() {
                         {journeyEditDraft.steps.length === 0 ? (
                           <div className="rounded-xl border border-dashed border-[#eadfd5] bg-white p-4 text-center">
                             <p className="text-sm font-bold text-[#8b7a73]">No steps yet.</p>
-                            <button type="button" onClick={addJourneyStep} disabled={journeySaving || journeyStepContentRunning} className="mt-3 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-add-first-journey-step">
+                            <button type="button" onClick={addJourneyStep} disabled={journeySaving || journeyStepContentRunning || Boolean(journeyStepTranslationContentRunningKey)} className="mt-3 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-add-first-journey-step">
                               <Plus size={14} /> Add step
                             </button>
                           </div>
@@ -24662,18 +24757,19 @@ export default function MarketingAdminPage() {
                                 : contentOptions;
                               const stepTranslations = journeyStepTranslationsFromConfigText(step.configText);
                               const stepDefaultLanguage = journeyStepDefaultLanguage(step.configText);
+                              const translationContentBusy = Boolean(journeyStepTranslationContentRunningKey);
                               return (
                                 <div key={step.id} className="grid gap-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid={`marketing-journey-step-${index}`}>
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <p className="text-sm font-black text-[#241133]">Step {index + 1}</p>
                                     <div className="flex flex-wrap gap-1.5">
-                                      <button type="button" onClick={() => moveJourneyStep(step.id, -1)} disabled={journeySaving || journeyStepContentRunning || index === 0} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-up-${index}`}>
+                                      <button type="button" onClick={() => moveJourneyStep(step.id, -1)} disabled={journeySaving || journeyStepContentRunning || translationContentBusy || index === 0} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-up-${index}`}>
                                         <ArrowUp size={13} />
                                       </button>
-                                      <button type="button" onClick={() => moveJourneyStep(step.id, 1)} disabled={journeySaving || journeyStepContentRunning || index === journeyEditDraft.steps.length - 1} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-down-${index}`}>
+                                      <button type="button" onClick={() => moveJourneyStep(step.id, 1)} disabled={journeySaving || journeyStepContentRunning || translationContentBusy || index === journeyEditDraft.steps.length - 1} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-down-${index}`}>
                                         <ArrowDown size={13} />
                                       </button>
-                                      <button type="button" onClick={() => removeJourneyStep(step.id)} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-remove-journey-step-${index}`}>
+                                      <button type="button" onClick={() => removeJourneyStep(step.id)} disabled={journeySaving || journeyStepContentRunning || translationContentBusy} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-remove-journey-step-${index}`}>
                                         <Trash2 size={13} /> Remove
                                       </button>
                                     </div>
@@ -24723,7 +24819,7 @@ export default function MarketingAdminPage() {
                                         <p className="text-sm font-black text-[#241133]">Step language variants</p>
                                         <p className="text-xs font-bold text-[#6b5b54]">Imported Source copy is editable here instead of hidden in config JSON.</p>
                                       </div>
-                                      <button type="button" onClick={() => addJourneyStepTranslation(step.id)} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-blue-200 bg-white px-2 text-xs font-black text-blue-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-add-journey-step-translation-${index}`}>
+                                      <button type="button" onClick={() => addJourneyStepTranslation(step.id)} disabled={journeySaving || journeyStepContentRunning || translationContentBusy} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-blue-200 bg-white px-2 text-xs font-black text-blue-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-add-journey-step-translation-${index}`}>
                                         <Plus size={13} /> Add variant
                                       </button>
                                     </div>
@@ -24738,13 +24834,19 @@ export default function MarketingAdminPage() {
                                       <div className="grid gap-3">
                                         {stepTranslations.map((translation) => {
                                           const languageLabel = contentLocalizationLanguageLabel[translation.language as ContentLocalizationLanguage] ?? translation.language;
+                                          const isCreatingContent = journeyStepTranslationContentRunningKey === `${step.id}:${translation.language}`;
                                           return (
                                             <div key={translation.language} className="grid gap-3 rounded-xl border border-blue-100 bg-white p-3" data-testid={`marketing-journey-step-translation-${index}-${translation.language}`}>
                                               <div className="flex flex-wrap items-center justify-between gap-2">
                                                 <Pill className="bg-blue-50 text-blue-800">{languageLabel} ({translation.language})</Pill>
-                                                <button type="button" onClick={() => removeJourneyStepTranslation(step.id, translation.language)} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-remove-journey-step-translation-${index}-${translation.language}`}>
-                                                  <Trash2 size={13} /> Remove
-                                                </button>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                  <button type="button" onClick={() => void createContentFromJourneyStepTranslation(step, index, translation)} disabled={journeySaving || journeyStepContentRunning || translationContentBusy} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-create-journey-step-translation-content-${index}-${translation.language}`}>
+                                                    <FileText size={13} /> {isCreatingContent ? "Creating..." : "Create content asset"}
+                                                  </button>
+                                                  <button type="button" onClick={() => removeJourneyStepTranslation(step.id, translation.language)} disabled={journeySaving || journeyStepContentRunning || translationContentBusy} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-remove-journey-step-translation-${index}-${translation.language}`}>
+                                                    <Trash2 size={13} /> Remove
+                                                  </button>
+                                                </div>
                                               </div>
                                               <div className="grid gap-3 xl:grid-cols-2">
                                                 <Field label="Title">
@@ -24793,10 +24895,10 @@ export default function MarketingAdminPage() {
                       ) : null}
 
                       <div className="flex flex-wrap gap-2">
-                        <button type="submit" disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-save-journey">
+                        <button type="submit" disabled={journeySaving || journeyStepContentRunning || Boolean(journeyStepTranslationContentRunningKey)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-save-journey">
                           <Save size={15} /> {journeySaving ? "Saving..." : editingJourneyId === "new" ? "Create journey" : "Save journey"}
                         </button>
-                        <button type="button" onClick={cancelJourneyEdit} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-cancel-journey">
+                        <button type="button" onClick={cancelJourneyEdit} disabled={journeySaving || journeyStepContentRunning || Boolean(journeyStepTranslationContentRunningKey)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-cancel-journey">
                           <X size={15} /> Close details
                         </button>
                       </div>
