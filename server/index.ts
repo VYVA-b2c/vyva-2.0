@@ -70,6 +70,7 @@ import transportRouter from "./routes/transport.js";
 import { woundScanHandler, woundScanHistoryHandler, woundScanDeleteHandler } from "./routes/woundScan.js";
 import { homeScanHandler, homeScanHistoryHandler, homeScanDeleteHandler } from "./routes/homeScan.js";
 import { scamCheckHandler, scamCheckHistoryHandler, scamCheckDeleteHandler } from "./routes/scamCheck.js";
+import { showVyvaReviewHandler } from "./routes/showVyvaReview.js";
 import { allergiesVoiceParseHandler } from "./routes/allergiesVoiceParse.js";
 import { addressVoiceParseHandler } from "./routes/addressVoiceParse.js";
 import activityRouter from "./routes/activity.js";
@@ -149,6 +150,8 @@ app.post("/api/scam-check", express.json({ limit: "10mb" }), authMiddleware, sca
 app.get("/api/scam-check", authMiddleware, scamCheckHistoryHandler);
 app.get("/api/scam-check/history", authMiddleware, scamCheckHistoryHandler);
 app.delete("/api/scam-check/:id", authMiddleware, scamCheckDeleteHandler);
+
+app.post("/api/show-vyva/review", express.json({ limit: "10mb" }), authMiddleware, showVyvaReviewHandler);
 
 app.post("/api/triage/scan", express.json({ limit: "10mb" }), authMiddleware, requireUser, requireEntitlement("symptom_check"), triageScanHandler);
 

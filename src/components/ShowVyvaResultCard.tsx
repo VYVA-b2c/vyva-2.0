@@ -111,7 +111,15 @@ export default function ShowVyvaResultCard({
   const confidenceLabel = t(`showVyva.contract.confidence.${contract.confidenceLevel}`, contract.confidenceLevel);
   const reviewedValue = compactReviewedValue(contract.reviewedValue ?? contract.fileName);
   const defaultReviewedLabel = reviewedValue ? `${inputLabel}: ${reviewedValue}` : inputLabel;
-  const noticed = contract.noticed.length ? contract.noticed : [contract.concernSummary];
+  const verifiedObservations = contract.verifiedObservations?.length
+    ? contract.verifiedObservations
+    : contract.noticed.length
+      ? contract.noticed
+      : [contract.concernSummary];
+  const warningSigns = contract.warningSigns ?? [];
+  const unknowns = contract.unknowns?.length
+    ? contract.unknowns
+    : [t("showVyva.contract.unknownFallback", "VYVA cannot confirm details that are not visible in this item.")];
   const nextSteps = contract.safeNextSteps.length ? contract.safeNextSteps : [contract.concernSummary];
   const followUpActions = actions ?? contract.followUpActions;
 
@@ -168,22 +176,50 @@ export default function ShowVyvaResultCard({
           </p>
         </section>
 
-        <section className="rounded-[16px] bg-[#FFFCF8] p-3">
+        <section className="rounded-[16px] bg-[#F0FDFA] p-3">
           <p className="font-body text-[11px] font-black uppercase tracking-[0.09em] text-[#7C3AED]">
-            {t("showVyva.contract.sections.thinks", "What VYVA thinks")}
+            {t("showVyva.contract.sections.visible", "What is visible")}
           </p>
           <p data-testid={`show-vyva-result-thinks-${testIdSuffix}`} className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-1">
-            {thinkingLabel ?? noticed[0]}
+            {thinkingLabel ?? verifiedObservations[0]}
           </p>
-          {noticed.length > 1 ? (
+          {verifiedObservations.length > 1 ? (
             <ul className="mt-2 grid gap-1.5">
-              {noticed.slice(1, 4).map((item, index) => (
+              {verifiedObservations.slice(1, 4).map((item, index) => (
                 <li key={`${item}-${index}`} className="font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
                   {item}
                 </li>
               ))}
             </ul>
           ) : null}
+        </section>
+
+        {warningSigns.length ? (
+          <section className="rounded-[16px] border border-[#FDE68A] bg-[#FFFBEB] p-3" data-testid={`show-vyva-result-warning-signs-${testIdSuffix}`}>
+            <p className="font-body text-[11px] font-black uppercase tracking-[0.09em] text-[#92400E]">
+              {t("showVyva.contract.sections.warningSigns", "Warning signs")}
+            </p>
+            <ul className="mt-2 grid gap-1.5">
+              {warningSigns.slice(0, 4).map((item, index) => (
+                <li key={`${item}-${index}`} className="font-body text-[13px] font-semibold leading-snug text-[#78350F]">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        <section className="rounded-[16px] border border-[#E2E8F0] bg-[#F8FAFC] p-3" data-testid={`show-vyva-result-unknowns-${testIdSuffix}`}>
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.09em] text-[#475569]">
+            {t("showVyva.contract.sections.unknowns", "What VYVA cannot confirm")}
+          </p>
+          <ul className="mt-2 grid gap-1.5">
+            {unknowns.slice(0, 4).map((item, index) => (
+              <li key={`${item}-${index}`} className="font-body text-[13px] font-semibold leading-snug text-[#475569]">
+                {item}
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="rounded-[16px] p-3" style={{ background: tone.bg, border: `1px solid ${tone.border}` }}>

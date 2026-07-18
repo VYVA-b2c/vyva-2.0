@@ -31,6 +31,7 @@ import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { readShowVyvaEvidenceFile, reviewShowVyvaVisualEvidence } from "@/lib/showVyvaEvidence";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -76,6 +77,7 @@ type ShowVyvaFileReviewInput = {
   source: Extract<ShowVyvaCaptureSource, "camera" | "upload">;
   fileName?: string | null;
   mimeType?: string | null;
+  question?: string;
 };
 
 type ScamGuardConciergeState = {
@@ -424,6 +426,7 @@ const ScamGuardScreen = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<ScamCheckResult | null>(null);
   const [showVyvaPasteReview, setShowVyvaPasteReview] = useState<ShowVyvaPastePayload | null>(null);
+  const [showVyvaEvidenceReview, setShowVyvaEvidenceReview] = useState<ShowVyvaReviewContract | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [fullScreenCheck, setFullScreenCheck] = useState<ScamCheck | null>(null);
   const [scamCaptureSource, setScamCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
@@ -485,12 +488,14 @@ const ScamGuardScreen = () => {
     if (!file) return;
     e.target.value = "";
     stopTts();
-    setScamReviewInput((current) => ({
-      ...current,
+    const reviewInput = {
+      ...scamReviewInput,
       fileName: file.name,
       mimeType: file.type,
-    }));
+    };
+    setScamReviewInput(reviewInput);
     setShowVyvaPasteReview(null);
+    setShowVyvaEvidenceReview(null);
     setResult(null);
     setAnalyzing(true);
 
@@ -509,11 +514,24 @@ const ScamGuardScreen = () => {
       ? "pdf"
       : "image";
 
-    processFile(file)
+    readShowVyvaEvidenceFile(file)
       .then(async (dataUrl) => {
+        if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.scamCheck) {
+          const contract = await reviewShowVyvaVisualEvidence({
+            image: dataUrl,
+            language,
+            useCaseId: reviewInput.useCaseId,
+            source: reviewInput.source,
+            question: reviewInput.question,
+            fileName: reviewInput.fileName ?? file.name,
+            mimeType: reviewInput.mimeType ?? file.type,
+          });
+          setShowVyvaEvidenceReview(contract);
+          return;
+        }
         const res = await apiFetch("/api/scam-check", {
           method: "POST",
-          body: JSON.stringify({ image: dataUrl, language, fileType: sourceType }),
+          body: JSON.stringify({ image: dataUrl, language, fileType: sourceType, question: reviewInput.question }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as ScamCheckResult;
@@ -531,6 +549,7 @@ const ScamGuardScreen = () => {
   const openScamFilePicker = (
     source: Extract<ShowVyvaCaptureSource, "camera" | "upload">,
     useCaseId: ShowVyvaUseCaseId = SHOW_VYVA_USE_CASE_IDS.scamCheck,
+    question = "",
   ) => {
     setScamCaptureSource(source);
     setScamReviewInput({
@@ -538,6 +557,7 @@ const ScamGuardScreen = () => {
       source,
       fileName: null,
       mimeType: null,
+      question,
     });
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
@@ -545,6 +565,7 @@ const ScamGuardScreen = () => {
   const openPastedScamReview = (payload: ShowVyvaPastePayload) => {
     stopTts();
     setResult(null);
+    setShowVyvaEvidenceReview(null);
     setShowVyvaPasteReview(payload);
   };
 
@@ -598,7 +619,12 @@ const ScamGuardScreen = () => {
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
         toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
         setShowVyvaPasteReview(null);
-        openScamConcierge(reviewContext);
+        setShowVyvaEvidenceReview(null);
+        if (reviewContract.followUpContext === "scam") {
+          openScamConcierge(reviewContext);
+        } else {
+          navigate(plan.targetRoute);
+        }
       })
       .catch(() => {
         toast({ description: t("showVyva.executor.error", "I could not save that step. Please try again.") });
@@ -824,7 +850,7 @@ const ScamGuardScreen = () => {
                 SHOW_VYVA_USE_CASE_IDS.providerOrDeal,
               ]}
               busy={analyzing}
-              onChooseFileSource={(source, useCase) => openScamFilePicker(source, useCase.id)}
+              onChooseFileSource={(source, useCase, question) => openScamFilePicker(source, useCase.id, question)}
               onPaste={(payload) => openPastedScamReview(payload)}
             />
 
@@ -853,6 +879,27 @@ const ScamGuardScreen = () => {
                 onActionSelect={handleScamReviewAction}
                 onClose={() => setShowVyvaPasteReview(null)}
               />
+            )}
+
+            {showVyvaEvidenceReview && !analyzing && (
+              <div className="mt-[14px]">
+                <ShowVyvaResultCard
+                  contract={showVyvaEvidenceReview}
+                  testIdSuffix="scam-visual-evidence"
+                  headerAction={(
+                    <button
+                      type="button"
+                      data-testid="button-close-scam-visual-evidence"
+                      onClick={() => setShowVyvaEvidenceReview(null)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE5DB] bg-white text-vyva-text-2"
+                      aria-label={t("showVyva.closeReview", "Close review")}
+                    >
+                      <X size={18} aria-hidden="true" />
+                    </button>
+                  )}
+                  onActionSelect={handleScamReviewAction}
+                />
+              </div>
             )}
 
             {result && !analyzing && (() => {

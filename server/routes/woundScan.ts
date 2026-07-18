@@ -103,7 +103,7 @@ function normalizeImageType(value: unknown): VisualScanImageType {
 }
 
 export async function woundScanHandler(req: Request, res: Response) {
-  const { image, language } = req.body as { image?: string; language?: string };
+  const { image, language, question } = req.body as { image?: string; language?: string; question?: string };
 
   if (!image || typeof image !== "string") {
     return res.status(400).json({ error: "image (base64 data URL) is required" });
@@ -144,7 +144,10 @@ export async function woundScanHandler(req: Request, res: Response) {
             },
             {
               type: "text",
-              text: "Please classify and review this medical-looking image as an assistive visual health scan. Return only the requested JSON.",
+              text: [
+                "Please classify and review this medical-looking image as an assistive visual health scan. Return only the requested JSON.",
+                question?.trim() ? `The user asks: ${question.trim().slice(0, 240)}` : "",
+              ].filter(Boolean).join("\n"),
             },
           ],
         },

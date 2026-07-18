@@ -80,7 +80,7 @@ describe("VisualHealthScanCardContent", () => {
     expect(screen.getByRole("button", { name: "Paste text or link" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Upload" }));
-    expect(onScanSource).toHaveBeenCalledWith("upload", SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto);
+    expect(onScanSource).toHaveBeenCalledWith("upload", SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto, "");
 
     for (const label of ["Wounds", "Bruises", "Fluids", "Stool", "Urine", "X-rays"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
@@ -129,7 +129,9 @@ describe("VisualScanResultPanel", () => {
 
     expect(screen.getByText("X-ray")).toBeInTheDocument();
     expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
-    expect(screen.getByText("What VYVA thinks")).toBeInTheDocument();
+    expect(screen.getByText("What is visible")).toBeInTheDocument();
+    expect(screen.getByText("Warning signs")).toBeInTheDocument();
+    expect(screen.getByText("What VYVA cannot confirm")).toBeInTheDocument();
     expect(screen.getByText("Risk or urgency")).toBeInTheDocument();
     expect(screen.getByText("Recommended next step")).toBeInTheDocument();
     expect(screen.getByText("Assistive description only, not medical advice or diagnosis. A qualified clinician should review anything concerning.")).toBeInTheDocument();

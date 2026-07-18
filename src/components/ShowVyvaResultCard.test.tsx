@@ -22,7 +22,9 @@ describe("ShowVyvaResultCard", () => {
       concernSummary: "Suspicious phone number",
       riskLevel: "high",
       confidenceLevel: "medium",
-      noticed: ["The number asks for fast action.", "The request could expose private details."],
+      verifiedObservations: ["The message includes a phone number."],
+      warningSigns: ["The number asks for fast action."],
+      unknowns: ["The sender's identity cannot be confirmed from this message."],
       safeNextSteps: ["Do not call back yet.", "Ask VYVA to verify the source first."],
     });
     const onActionSelect = vi.fn();
@@ -37,7 +39,11 @@ describe("ShowVyvaResultCard", () => {
     );
 
     expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
-    expect(screen.getByText("What VYVA thinks")).toBeInTheDocument();
+    expect(screen.getByText("What is visible")).toBeInTheDocument();
+    expect(screen.getByText("Warning signs")).toBeInTheDocument();
+    expect(screen.getByText("What VYVA cannot confirm")).toBeInTheDocument();
+    expect(screen.getByText("The message includes a phone number.")).toBeInTheDocument();
+    expect(screen.getByText("The number asks for fast action.")).toBeInTheDocument();
     expect(screen.getByText("Risk or urgency")).toBeInTheDocument();
     expect(screen.getByText("Recommended next step")).toBeInTheDocument();
     expect(screen.getByText("Ask VYVA to help or save for later")).toBeInTheDocument();
@@ -93,7 +99,8 @@ describe("ShowVyvaResultCard", () => {
 
       expect(screen.getByTestId(`show-vyva-result-case-${index}`)).toBeInTheDocument();
       expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
-      expect(screen.getByText("What VYVA thinks")).toBeInTheDocument();
+      expect(screen.getByText("What is visible")).toBeInTheDocument();
+      expect(screen.getByText("What VYVA cannot confirm")).toBeInTheDocument();
       expect(screen.getByText("Risk or urgency")).toBeInTheDocument();
       expect(screen.getByText("Recommended next step")).toBeInTheDocument();
       expect(screen.getByText("Ask VYVA to help or save for later")).toBeInTheDocument();

@@ -24,6 +24,7 @@ import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { readShowVyvaEvidenceFile, reviewShowVyvaVisualEvidence } from "@/lib/showVyvaEvidence";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -62,6 +63,7 @@ type ShowVyvaFileReviewInput = {
   source: Extract<ShowVyvaCaptureSource, "camera" | "upload">;
   fileName?: string | null;
   mimeType?: string | null;
+  question?: string;
 };
 
 type SafeHomeShoppingState = {
@@ -310,6 +312,7 @@ const SafeHomeScreen = () => {
     advice: string;
   }>(null);
   const [showVyvaPasteReview, setShowVyvaPasteReview] = useState<ShowVyvaPastePayload | null>(null);
+  const [showVyvaEvidenceReview, setShowVyvaEvidenceReview] = useState<ShowVyvaReviewContract | null>(null);
   const [expandedScanId, setExpandedScanId] = useState<string | null>(null);
   const [fullScreenScan, setFullScreenScan] = useState<HomeScan | null>(null);
   const [homeScanCaptureSource, setHomeScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
@@ -388,12 +391,14 @@ const SafeHomeScreen = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    setHomeScanReviewInput((current) => ({
-      ...current,
+    const reviewInput = {
+      ...homeScanReviewInput,
       fileName: file.name,
       mimeType: file.type,
-    }));
+    };
+    setHomeScanReviewInput(reviewInput);
     setShowVyvaPasteReview(null);
+    setShowVyvaEvidenceReview(null);
     setResult(null);
     setAnalyzing(true);
 
@@ -404,11 +409,25 @@ const SafeHomeScreen = () => {
       advice: t("safeHome.errorAdvice", "We could not analyse the image. Please try again with a clearer photo."),
     };
 
-    compressImage(file)
+    readShowVyvaEvidenceFile(file)
       .then(async (dataUrl) => {
+        if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto) {
+          const contract = await reviewShowVyvaVisualEvidence({
+            image: dataUrl,
+            language,
+            useCaseId: reviewInput.useCaseId,
+            source: reviewInput.source,
+            question: reviewInput.question,
+            fileName: reviewInput.fileName ?? file.name,
+            mimeType: reviewInput.mimeType ?? file.type,
+          });
+          setShowVyvaEvidenceReview(contract);
+          markCompleted({ reason: "home_review_completed" });
+          return;
+        }
         const res = await apiFetch("/api/home-scan", {
           method: "POST",
-          body: JSON.stringify({ image: dataUrl, language }),
+          body: JSON.stringify({ image: dataUrl, language, question: reviewInput.question }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as {
@@ -440,6 +459,7 @@ const SafeHomeScreen = () => {
   const openHomeScanFilePicker = (
     source: Extract<ShowVyvaCaptureSource, "camera" | "upload">,
     useCaseId: ShowVyvaUseCaseId = SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+    question = "",
   ) => {
     setHomeScanCaptureSource(source);
     setHomeScanReviewInput({
@@ -447,12 +467,14 @@ const SafeHomeScreen = () => {
       source,
       fileName: null,
       mimeType: null,
+      question,
     });
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
   const openPastedHomeReview = (payload: ShowVyvaPastePayload) => {
     setResult(null);
+    setShowVyvaEvidenceReview(null);
     setShowVyvaPasteReview(payload);
     markCompleted({ reason: "home_review_completed" });
   };
@@ -745,7 +767,7 @@ const SafeHomeScreen = () => {
                 SHOW_VYVA_USE_CASE_IDS.documentHelp,
               ]}
               busy={analyzing}
-              onChooseFileSource={(source, useCase) => openHomeScanFilePicker(source, useCase.id)}
+              onChooseFileSource={(source, useCase, question) => openHomeScanFilePicker(source, useCase.id, question)}
               onPaste={(payload) => openPastedHomeReview(payload)}
             />
 
@@ -775,6 +797,27 @@ const SafeHomeScreen = () => {
                 onActionSelect={handleSafeHomeReviewAction}
                 onClose={() => setShowVyvaPasteReview(null)}
               />
+            )}
+
+            {showVyvaEvidenceReview && !analyzing && (
+              <div className="mt-[14px]">
+                <ShowVyvaResultCard
+                  contract={showVyvaEvidenceReview}
+                  testIdSuffix="home-visual-evidence"
+                  headerAction={(
+                    <button
+                      type="button"
+                      data-testid="button-close-home-visual-evidence"
+                      onClick={() => setShowVyvaEvidenceReview(null)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE5DB] bg-white text-vyva-text-2"
+                      aria-label={t("showVyva.closeReview", "Close review")}
+                    >
+                      <X size={18} aria-hidden="true" />
+                    </button>
+                  )}
+                  onActionSelect={handleSafeHomeReviewAction}
+                />
+              </div>
             )}
 
             {/* Result */}
@@ -821,7 +864,7 @@ const SafeHomeScreen = () => {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,application/pdf,.pdf"
               capture={homeScanCaptureSource === "camera" ? "environment" : undefined}
               className="hidden"
               onChange={handlePhotoSelect}

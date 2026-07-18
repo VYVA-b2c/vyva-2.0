@@ -54,6 +54,7 @@ import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { readShowVyvaEvidenceFile, reviewShowVyvaVisualEvidence } from "@/lib/showVyvaEvidence";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
@@ -111,6 +112,7 @@ type ShowVyvaFileReviewInput = {
   source: Extract<ShowVyvaCaptureSource, "camera" | "upload">;
   fileName?: string | null;
   mimeType?: string | null;
+  question?: string;
 };
 
 type TriageReport = {
@@ -669,7 +671,7 @@ export function VisualHealthScanCardContent({
 }: {
   t: TFunction;
   analyzing: boolean;
-  onScanSource: (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">, useCaseId: ShowVyvaUseCaseId) => void;
+  onScanSource: (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">, useCaseId: ShowVyvaUseCaseId, question: string) => void;
   onPasteReview?: (payload: ShowVyvaPastePayload) => void;
 }) {
   return (
@@ -685,7 +687,7 @@ export function VisualHealthScanCardContent({
             SHOW_VYVA_USE_CASE_IDS.documentHelp,
           ]}
           busy={analyzing}
-          onChooseFileSource={(source, useCase) => onScanSource(source, useCase.id)}
+          onChooseFileSource={(source, useCase, question) => onScanSource(source, useCase.id, question)}
           onPaste={onPasteReview ? (payload) => onPasteReview(payload) : undefined}
         />
       </div>
@@ -1599,6 +1601,7 @@ const HealthScreen = () => {
   const [woundAnalyzing,   setWoundAnalyzing]   = useState(false);
   const [woundResult,      setWoundResult]      = useState<VisualScanResult | null>(null);
   const [showVyvaPasteReview, setShowVyvaPasteReview] = useState<ShowVyvaPastePayload | null>(null);
+  const [showVyvaEvidenceReview, setShowVyvaEvidenceReview] = useState<ShowVyvaReviewContract | null>(null);
   const [visualScanCaptureSource, setVisualScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
   const [visualScanReviewInput, setVisualScanReviewInput] = useState<ShowVyvaFileReviewInput>({
     useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
@@ -2237,12 +2240,14 @@ const HealthScreen = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    setVisualScanReviewInput((current) => ({
-      ...current,
+    const reviewInput = {
+      ...visualScanReviewInput,
       fileName: file.name,
       mimeType: file.type,
-    }));
+    };
+    setVisualScanReviewInput(reviewInput);
     setShowVyvaPasteReview(null);
+    setShowVyvaEvidenceReview(null);
     setWoundResult(null);
     setWoundAnalyzing(true);
 
@@ -2257,11 +2262,24 @@ const HealthScreen = () => {
       advice: t("health.scanWound.errorAdvice"),
     };
 
-    compressImage(file)
+    readShowVyvaEvidenceFile(file)
       .then(async (dataUrl) => {
+        if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto) {
+          const contract = await reviewShowVyvaVisualEvidence({
+            image: dataUrl,
+            language: appLanguage,
+            useCaseId: reviewInput.useCaseId,
+            source: reviewInput.source,
+            question: reviewInput.question,
+            fileName: reviewInput.fileName ?? file.name,
+            mimeType: reviewInput.mimeType ?? file.type,
+          });
+          setShowVyvaEvidenceReview(contract);
+          return;
+        }
         const res = await apiFetch("/api/wound-scan", {
           method: "POST",
-          body: JSON.stringify({ image: dataUrl, language: appLanguage }),
+          body: JSON.stringify({ image: dataUrl, language: appLanguage, question: reviewInput.question }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json() as VisualScanResult;
@@ -2282,6 +2300,7 @@ const HealthScreen = () => {
   const openVisualScanFilePicker = (
     source: Extract<ShowVyvaCaptureSource, "camera" | "upload">,
     useCaseId: ShowVyvaUseCaseId = SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+    question = "",
   ) => {
     setVisualScanCaptureSource(source);
     setVisualScanReviewInput({
@@ -2289,12 +2308,14 @@ const HealthScreen = () => {
       source,
       fileName: null,
       mimeType: null,
+      question,
     });
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
   const openShowVyvaConciergeReview = (payload: ShowVyvaPastePayload) => {
     setWoundResult(null);
+    setShowVyvaEvidenceReview(null);
     setShowVyvaPasteReview(payload);
     setVisualScanOpen(true);
   };
@@ -3478,6 +3499,27 @@ const HealthScreen = () => {
               </div>
             )}
 
+            {showVyvaEvidenceReview && !woundAnalyzing && (
+              <div className="mx-[18px]">
+                <ShowVyvaResultCard
+                  contract={showVyvaEvidenceReview}
+                  testIdSuffix="health-visual-evidence"
+                  headerAction={(
+                    <button
+                      type="button"
+                      data-testid="button-close-health-visual-evidence"
+                      onClick={() => setShowVyvaEvidenceReview(null)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE5DB] bg-white text-vyva-text-2"
+                      aria-label={t("showVyva.closeReview", "Close review")}
+                    >
+                      <X size={18} aria-hidden="true" />
+                    </button>
+                  )}
+                  onActionSelect={handleVisualScanFollowUpSelect}
+                />
+              </div>
+            )}
+
             {woundResult && (
               <VisualScanResultPanel
                 result={woundResult}
@@ -3855,6 +3897,26 @@ const HealthScreen = () => {
                     testIdSuffix="health-pasted"
                     onActionSelect={handleVisualScanFollowUpSelect}
                     onClose={() => setShowVyvaPasteReview(null)}
+                  />
+                </div>
+              )}
+
+              {showVyvaEvidenceReview && !woundAnalyzing && (
+                <div className="mx-[18px]">
+                  <ShowVyvaResultCard
+                    contract={showVyvaEvidenceReview}
+                    testIdSuffix="health-visual-evidence-mobile"
+                    headerAction={(
+                      <button
+                        type="button"
+                        onClick={() => setShowVyvaEvidenceReview(null)}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE5DB] bg-white text-vyva-text-2"
+                        aria-label={t("showVyva.closeReview", "Close review")}
+                      >
+                        <X size={18} aria-hidden="true" />
+                      </button>
+                    )}
+                    onActionSelect={handleVisualScanFollowUpSelect}
                   />
                 </div>
               )}
@@ -4338,7 +4400,7 @@ const HealthScreen = () => {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf,.pdf"
         capture={visualScanCaptureSource === "camera" ? "environment" : undefined}
         className="hidden"
         onChange={handleWoundSelect}
