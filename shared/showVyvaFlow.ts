@@ -50,6 +50,7 @@ export interface ShowVyvaPastePayload {
   useCaseId: ShowVyvaUseCaseId;
   source: Extract<ShowVyvaCaptureSource, "paste_text" | "paste_link">;
   value: string;
+  question?: string;
 }
 
 export type ShowVyvaConciergePrefill = {
@@ -163,19 +164,22 @@ export function buildShowVyvaConciergePrefill(payload: ShowVyvaPastePayload, lan
   const common = isSpanish
     ? "No envies, llames, subas, compres ni compartas datos sin mi confirmacion final."
     : "Do not send, call, upload, buy, or share details without my final confirmation.";
+  const question = payload.question?.trim();
   const message = isSpanish
     ? [
         `Ayudame con este ${itemType}: ${useCase.label}.`,
         `Contenido: ${payload.value.trim()}`,
+        question ? `Mi pregunta: ${question}` : "",
         `Primero: ${useCase.nextStep}`,
         common,
-      ].join("\n")
+      ].filter(Boolean).join("\n")
     : [
         `Please help me review this ${itemType}: ${useCase.label}.`,
         `Item: ${payload.value.trim()}`,
+        question ? `My question: ${question}` : "",
         `First: ${useCase.nextStep}`,
         common,
-      ].join("\n");
+      ].filter(Boolean).join("\n");
 
   return {
     kind: "task",

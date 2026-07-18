@@ -44,7 +44,7 @@ function fallbackResult() {
 }
 
 export async function homeScanHandler(req: Request, res: Response) {
-  const { image, language } = req.body as { image?: string; language?: string };
+  const { image, language, question } = req.body as { image?: string; language?: string; question?: string };
 
   if (!image || typeof image !== "string") {
     return res.status(400).json({ error: "image (base64 data URL) is required" });
@@ -85,7 +85,10 @@ export async function homeScanHandler(req: Request, res: Response) {
             },
             {
               type: "text",
-              text: "Please analyse this room image for home safety hazards and provide a JSON assessment.",
+              text: [
+                "Please analyse this room image for home safety hazards and provide a JSON assessment.",
+                question?.trim() ? `The user asks: ${question.trim().slice(0, 240)}` : "",
+              ].filter(Boolean).join("\n"),
             },
           ],
         },

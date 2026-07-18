@@ -68,6 +68,9 @@ describe("Show VYVA review contract", () => {
       riskLevel: "medium",
       confidenceLevel: "medium",
       noticed: ["Price is not clear.", "Provider reputation should be checked."],
+      verifiedObservations: ["A price is shown."],
+      warningSigns: ["The total cost is not explained."],
+      unknowns: ["Provider reputation is not established by the offer."],
       safeNextSteps: ["Compare price.", "Check reputation.", "Ask before contacting."],
     });
 
@@ -83,6 +86,9 @@ describe("Show VYVA review contract", () => {
     });
     expect(contract.concernSummary).toBe("Compare this offer");
     expect(contract.reviewedValue).toBe("https://example.com/deal");
+    expect(contract.verifiedObservations).toEqual(["A price is shown."]);
+    expect(contract.warningSigns).toEqual(["The total cost is not explained."]);
+    expect(contract.unknowns).toEqual(["Provider reputation is not established by the offer."]);
     expect(contract.noticed).toHaveLength(2);
     expect(contract.safeNextSteps).toHaveLength(3);
     expect(contract.followUpActions.map((action) => action.id)).toEqual([
@@ -273,6 +279,12 @@ describe("Show VYVA review contract", () => {
     for (const { code } of LANGUAGES) {
       expect(translate(code, "showVyva.contract.finalConfirmation")).not.toBe("showVyva.contract.finalConfirmation");
       expect(translate(code, "showVyva.contract.sections.noticed")).not.toBe("showVyva.contract.sections.noticed");
+      expect(translate(code, "showVyva.contract.sections.visible")).not.toBe("showVyva.contract.sections.visible");
+      expect(translate(code, "showVyva.contract.sections.warningSigns")).not.toBe("showVyva.contract.sections.warningSigns");
+      expect(translate(code, "showVyva.contract.sections.unknowns")).not.toBe("showVyva.contract.sections.unknowns");
+      expect(translate(code, "showVyva.contract.unknownFallback")).not.toBe("showVyva.contract.unknownFallback");
+      expect(translate(code, "showVyva.questionLabel")).not.toBe("showVyva.questionLabel");
+      expect(translate(code, "showVyva.questionPlaceholder")).not.toBe("showVyva.questionPlaceholder");
       expect(translate(code, "showVyva.contract.input.phone_number")).not.toBe("showVyva.contract.input.phone_number");
       expect(translate(code, "showVyva.contract.input.company_name")).not.toBe("showVyva.contract.input.company_name");
       expect(translate(code, "showVyva.contract.risk.high")).not.toBe("showVyva.contract.risk.high");

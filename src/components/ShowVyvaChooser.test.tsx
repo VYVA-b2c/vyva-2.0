@@ -20,11 +20,15 @@ describe("ShowVyvaChooser", () => {
       />,
     );
 
+    fireEvent.change(screen.getByTestId("input-show-vyva-question"), {
+      target: { value: "Does this look genuine?" },
+    });
     fireEvent.click(screen.getByTestId("button-show-vyva-source-camera"));
 
     expect(onChooseFileSource).toHaveBeenCalledWith(
       "camera",
       expect.objectContaining({ id: SHOW_VYVA_USE_CASE_IDS.scamCheck }),
+      "Does this look genuine?",
     );
   });
 
@@ -40,6 +44,9 @@ describe("ShowVyvaChooser", () => {
     );
 
     fireEvent.click(screen.getByTestId(`button-show-vyva-use-case-${SHOW_VYVA_USE_CASE_IDS.providerOrDeal}`));
+    fireEvent.change(screen.getByTestId("input-show-vyva-question"), {
+      target: { value: "Is the price clearly explained?" },
+    });
     fireEvent.click(screen.getByTestId("button-show-vyva-source-paste"));
     fireEvent.change(screen.getByTestId("textarea-show-vyva-paste"), {
       target: { value: "https://example.com/provider-quote" },
@@ -51,6 +58,7 @@ describe("ShowVyvaChooser", () => {
         useCaseId: SHOW_VYVA_USE_CASE_IDS.providerOrDeal,
         source: "paste_link",
         value: "https://example.com/provider-quote",
+        question: "Is the price clearly explained?",
       },
       expect.objectContaining({ id: SHOW_VYVA_USE_CASE_IDS.providerOrDeal }),
     );
