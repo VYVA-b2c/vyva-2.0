@@ -1479,7 +1479,11 @@ describe("MarketingAdminPage", () => {
 
     const missingPanel = screen.getByTestId("marketing-missing-content-reference-panel");
     expect(missingPanel).toHaveTextContent("Birthday wishes Source template");
-    expect(missingPanel).toHaveTextContent("Draft replacement");
+    expect(missingPanel).toHaveTextContent("Open repair draft");
+    expect(missingPanel).toHaveTextContent("Repair checklist");
+    expect(missingPanel).toHaveTextContent("Source ask");
+    expect(missingPanel).toHaveTextContent("email template");
+    expect(missingPanel).toHaveTextContent("Used by Campaign: Birthday Wishes");
 
     fireEvent.click(screen.getByTestId(`button-marketing-repair-missing-content-${missingLovableContent.id}`));
 
@@ -1495,13 +1499,18 @@ describe("MarketingAdminPage", () => {
     const repairDesign = screen.getByTestId("textarea-marketing-edit-content-design-json") as HTMLTextAreaElement;
     const repairMetadata = screen.getByTestId("textarea-marketing-edit-content-metadata") as HTMLTextAreaElement;
     expect(repairBody.value).toContain("Birthday Wishes");
+    expect(repairBody.value).toContain("Repair checklist");
+    expect(repairBody.value).toContain("Source request prompt");
     expect(repairBody.value).toContain("Review tone, offer, audience, and compliance before saving.");
     expect(repairHtml.value).toContain("Birthday Wishes");
+    expect(repairHtml.value).toContain("Subject line and HTML body");
     expect(repairDesign.value).toContain("marketing_missing_lovable_reference_repair");
     expect(repairDesign.value).toContain("replacement draft");
+    expect(repairDesign.value).toContain("Design/media references");
     expect(repairMetadata.value).toContain("repairDraft");
     expect(repairMetadata.value).toContain("source_repaired_draft");
     expect(repairMetadata.value).toContain("original_lovable_source_type");
+    expect(repairMetadata.value).toContain("sourceRequestPrompt");
     expect(repairMetadata.value).toContain("email_template:6199c1eb-75ca-4347-a619-f7f5a7af989d");
 
     fireEvent.click(screen.getByTestId(`button-marketing-repair-content-${missingLovableContent.id}`));
@@ -1518,6 +1527,8 @@ describe("MarketingAdminPage", () => {
     expect(payload.metadata.lovable_source_type).toBe("source_repaired_draft");
     expect(payload.metadata.original_lovable_source_type).toBe("missing_lovable_reference");
     expect(payload.metadata.repairDraft.sourceReference).toBe("email_template:6199c1eb-75ca-4347-a619-f7f5a7af989d");
+    expect(payload.metadata.repairDraft.reviewChecklist).toContain("Subject line and HTML body");
+    expect(payload.metadata.repairDraft.whereUsed).toContain("Campaign: Birthday Wishes");
     await waitFor(() => {
       expect(screen.queryByTestId("marketing-missing-content-reference-panel")).not.toBeInTheDocument();
     });

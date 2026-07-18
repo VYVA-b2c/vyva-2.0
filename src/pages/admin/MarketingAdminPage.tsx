@@ -8706,24 +8706,67 @@ function contentEditDraftFromContent(content: ContentAsset): ContentEditDraft {
   };
 }
 
-function missingLovableReferenceRepairDraft(content: ContentAsset): ContentEditDraft {
-  const base = contentEditDraftFromContent(content);
+function missingLovableRepairContext(content: ContentAsset) {
   const metadata = recordValue(content.metadata);
   const lovableMetadata = recordValue(metadata.lovable);
   const sourceReference = content.lovableExternalId
     || displayText(metadata.contentExternalId)
     || displayText(lovableMetadata.contentExternalId)
     || displayText(lovableMetadata.templateRef)
+    || displayText(metadata.templateRef)
+    || displayText(metadata.sourceReference)
     || content.id;
-  const title = base.title.trim() || "Missing Source content";
-  const channelName = channelLabel[base.channel] ?? base.channel;
+  const sourceKind = displayText(metadata.lovable_source_kind)
+    || displayText(lovableMetadata.sourceType)
+    || displayText(lovableMetadata.table)
+    || (sourceReference.includes(":") ? sourceReference.split(":")[0].replace(/_/g, " ") : "Source content");
+  const title = content.title.trim() || "Missing Source content";
+  const channelName = channelLabel[content.channel] ?? content.channel;
   const campaignName = displayText(lovableMetadata.campaignName) || displayText(metadata.campaignName);
   const journeyName = displayText(lovableMetadata.journeyName) || displayText(metadata.journeyName);
-  const contextLine = campaignName
-    ? `This draft replaces a missing Source asset referenced by "${campaignName}".`
-    : journeyName
-      ? `This draft replaces a missing Source asset referenced by "${journeyName}".`
-      : "This draft replaces a Source/Lovable content reference that arrived without body or design data.";
+  const audience = displayText(lovableMetadata.audienceType) || displayText(metadata.audienceType);
+  const whereUsed = [
+    campaignName ? `Campaign: ${campaignName}` : "",
+    journeyName ? `Journey: ${journeyName}` : "",
+    audience ? `Audience: ${audience.toUpperCase()}` : "",
+  ].filter(Boolean);
+  const reviewChecklist = [
+    `${channelName} body/copy`,
+    content.channel === "email" ? "Subject line and HTML body" : "Channel-specific layout",
+    "CTA and destination",
+    "Design/media references",
+    "Consent and compliance review",
+  ];
+  const sourceRequestPrompt = [
+    "Ask Source/Lovable to export the missing content record with:",
+    `- Source reference: ${sourceReference}`,
+    `- Channel: ${channelName}`,
+    whereUsed.length ? `- Used by: ${whereUsed.join("; ")}` : "- Used by: imported campaign or journey reference",
+    "- Required fields: title, subject/body, HTML/design JSON, CTA, and media assets if available.",
+  ].join("\n");
+
+  return {
+    sourceReference,
+    sourceKind,
+    title,
+    channelName,
+    campaignName,
+    journeyName,
+    audience,
+    whereUsed,
+    reviewChecklist,
+    sourceRequestPrompt,
+  };
+}
+
+function missingLovableReferenceRepairDraft(content: ContentAsset): ContentEditDraft {
+  const base = contentEditDraftFromContent(content);
+  const metadata = recordValue(content.metadata);
+  const repairContext = missingLovableRepairContext(content);
+  const { title, channelName, sourceReference, whereUsed, reviewChecklist, sourceRequestPrompt } = repairContext;
+  const contextLine = whereUsed.length
+    ? `This draft replaces a missing Source asset used by ${whereUsed.join("; ")}.`
+    : "This draft replaces a Source/Lovable content reference that arrived without body or design data.";
   const reviewLine = `Original reference: ${sourceReference}. Review tone, offer, audience, and compliance before saving.`;
   const generatedBody = [
     `Draft replacement for ${title}`,
@@ -8731,8 +8774,14 @@ function missingLovableReferenceRepairDraft(content: ContentAsset): ContentEditD
     contextLine,
     `Channel: ${channelName}.`,
     "",
+    "Repair checklist:",
+    ...reviewChecklist.map((item) => `- ${item}`),
+    "",
     "Suggested message:",
     "Keep this communication focused on one useful next step for the audience. Make the benefit concrete, friendly, and easy to act on.",
+    "",
+    "Source request prompt:",
+    sourceRequestPrompt,
     "",
     reviewLine,
   ].join("\n");
@@ -8741,6 +8790,9 @@ function missingLovableReferenceRepairDraft(content: ContentAsset): ContentEditD
     `  <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: #6f2dbd; font-weight: 700;">${escapeHtmlText(channelName)} replacement draft</p>`,
     `  <h1 style="font-size: 28px; line-height: 1.2; margin: 0 0 12px;">${escapeHtmlText(title)}</h1>`,
     `  <p style="font-size: 16px; line-height: 1.6;">${escapeHtmlText(contextLine)}</p>`,
+    '  <ul style="font-size: 15px; line-height: 1.6; padding-left: 20px;">',
+    ...reviewChecklist.map((item) => `    <li>${escapeHtmlText(item)}</li>`),
+    "  </ul>",
     '  <p style="font-size: 16px; line-height: 1.6;">Keep the copy useful, specific, and easy to act on. Replace this placeholder with the final offer before publishing.</p>',
     `  <p style="font-size: 13px; line-height: 1.5; color: #7d6b65;">${escapeHtmlText(reviewLine)}</p>`,
     "</section>",
@@ -8752,10 +8804,13 @@ function missingLovableReferenceRepairDraft(content: ContentAsset): ContentEditD
     channel: base.channel,
     title,
     reviewRequired: true,
+    whereUsed,
+    reviewChecklist,
     blocks: [
       { type: "eyebrow", text: `${channelName} replacement draft` },
       { type: "headline", text: title },
       { type: "body", text: contextLine },
+      { type: "checklist", items: reviewChecklist },
       { type: "body", text: "Replace this placeholder with final copy, visual direction, and CTA before publishing." },
     ],
   };
@@ -8778,6 +8833,11 @@ function missingLovableReferenceRepairDraft(content: ContentAsset): ContentEditD
         generatedAt: new Date().toISOString(),
         originalLovableExternalId: content.lovableExternalId ?? null,
         sourceReference,
+        sourceKind: repairContext.sourceKind,
+        channel: base.channel,
+        whereUsed,
+        reviewChecklist,
+        sourceRequestPrompt,
         reviewRequired: true,
       },
     }),
@@ -29726,35 +29786,66 @@ export default function MarketingAdminPage() {
                     </button>
                   </div>
                   {missingSourceReferenceContent.length ? (
-                    <div className="mt-4 grid gap-2">
-                      {missingSourceReferenceContent.map((item) => (
-                        <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#5b4a46]">
-                          <div>
-                            <span className="font-black text-[#241133]">{item.title}</span>
-                            {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Source ID: {item.lovableExternalId}</span> : null}
+                    <div className="mt-4 grid gap-3">
+                      {missingSourceReferenceContent.map((item) => {
+                        const repairContext = missingLovableRepairContext(item);
+                        return (
+                          <div key={item.id} className="grid gap-3 rounded-xl border border-amber-200 bg-white p-3 text-sm font-bold text-[#5b4a46]">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Pill className={channelClass(item.channel)}>{repairContext.channelName}</Pill>
+                                  <Pill className="bg-amber-100 text-amber-900">{repairContext.sourceKind}</Pill>
+                                  <Pill className="bg-red-50 text-red-700">Missing copy/design</Pill>
+                                </div>
+                                <p className="mt-2 font-black text-[#241133]">{repairContext.title}</p>
+                                <p className="mt-1 break-all text-xs text-[#8b7a73]">Source reference: {repairContext.sourceReference}</p>
+                                {repairContext.whereUsed.length ? (
+                                  <p className="mt-1 text-xs text-[#6f5f59]">Used by {repairContext.whereUsed.join("; ")}</p>
+                                ) : (
+                                  <p className="mt-1 text-xs text-[#6f5f59]">Used by an imported campaign or journey that Source did not export fully.</p>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => startMissingLovableContentRepair(item)}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
+                                  disabled={contentSaving}
+                                  data-testid={`button-marketing-repair-missing-content-${item.id}`}
+                                >
+                                  <Sparkles size={13} /> Open repair draft
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void saveMissingLovableContentRepair(item)}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-amber-700 px-3 text-xs font-black text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                  disabled={contentSaving}
+                                  data-testid={`button-marketing-save-repair-missing-content-${item.id}`}
+                                >
+                                  <Save size={13} /> Save starter repair
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid gap-2 rounded-xl bg-amber-50 px-3 py-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.1em] text-amber-900">Repair checklist</p>
+                                <ul className="mt-1 grid gap-1 text-xs font-bold text-[#6f5f59]">
+                                  {repairContext.reviewChecklist.map((check) => (
+                                    <li key={check} className="flex items-center gap-2">
+                                      <CheckCircle2 size={13} className="text-amber-700" /> {check}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.1em] text-amber-900">Source ask</p>
+                                <p className="mt-1 whitespace-pre-line text-xs font-bold leading-relaxed text-[#6f5f59]">{repairContext.sourceRequestPrompt}</p>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => startMissingLovableContentRepair(item)}
-                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
-                              disabled={contentSaving}
-                              data-testid={`button-marketing-repair-missing-content-${item.id}`}
-                            >
-                              <Sparkles size={13} /> Draft replacement
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void saveMissingLovableContentRepair(item)}
-                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-amber-700 px-3 text-xs font-black text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                              disabled={contentSaving}
-                              data-testid={`button-marketing-save-repair-missing-content-${item.id}`}
-                            >
-                              <Save size={13} /> Save replacement draft
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="mt-4 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#6f5f59]">
