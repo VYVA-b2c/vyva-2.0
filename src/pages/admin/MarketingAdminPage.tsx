@@ -18011,6 +18011,22 @@ export default function MarketingAdminPage() {
     setContactFeedback(`Showing "${queue.title}" queue: ${queue.countLabel}.`);
   }
 
+  function reviewFirstContactInWorkQueue(queue: ContactRelationshipWorkQueue) {
+    const contact = queue.contacts.find((item) => item.consentStatus !== "opted_in") ?? queue.sampleContact ?? queue.contacts[0] ?? null;
+    if (!contact) {
+      const feedback = `"${queue.title}" has no contacts to review.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+    showContactWorkQueue(queue);
+    startContactEdit(contact);
+    const contactLabel = contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact";
+    const feedback = `Reviewing "${contactLabel}". Update consent or contact details, then save.`;
+    setContactFeedback(feedback);
+    setMessage(feedback);
+  }
+
   function loadContactWorkQueueInStudio(queue: ContactRelationshipWorkQueue) {
     const play = campaignStudioPlays.find((item) => item.id === queue.playId) ?? campaignStudioPlays[0];
     const isConsentCleanup = queue.key === "consent-cleanup";
@@ -28242,6 +28258,17 @@ export default function MarketingAdminPage() {
                           >
                             <Eye size={13} /> {queue.showLabel}
                           </button>
+                          {queue.key === "consent-cleanup" ? (
+                            <button
+                              type="button"
+                              onClick={() => reviewFirstContactInWorkQueue(queue)}
+                              disabled={queue.count === 0}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-black text-amber-900 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
+                              data-testid={`button-marketing-contact-work-queue-review-${queue.key}`}
+                            >
+                              <Pencil size={13} /> Review first contact
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => buildAudienceFromContactWorkQueue(queue)}

@@ -4045,6 +4045,21 @@ describe("MarketingAdminPage", () => {
     expect(intentBrief.value).toContain("pending/unknown");
   });
 
+  it("opens the first consent cleanup contact directly from the work queue", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-contact-work-queue-review-consent-cleanup"));
+
+    expect(screen.getByTestId("marketing-contact-editor-feedback")).toHaveTextContent('Reviewing "Karim Assad". Update consent or contact details, then save.');
+    expect(screen.getByText("Contact editor")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-contact-name")).toHaveValue("Karim Assad");
+    expect(screen.getByTestId("select-marketing-edit-contact-consent")).toHaveValue("unknown");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("2 visible of 2 contacts");
+  });
+
   it("builds consent cleanup review lists without opted-out contacts", async () => {
     renderPage({}, {
       contacts: [
