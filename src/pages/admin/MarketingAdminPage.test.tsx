@@ -1298,6 +1298,12 @@ describe("MarketingAdminPage", () => {
   }, 30_000);
 
   it("turns the AI command interpretation into matched template actions", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
     renderPage();
 
     expect(await screen.findByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
@@ -1309,6 +1315,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-ai-command-create-kit")).toHaveTextContent("Create kit");
     expect(screen.getByTestId("button-marketing-ai-command-open-pack")).toHaveTextContent("Open templates");
     expect(screen.getByTestId("button-marketing-ai-command-customize-pack")).toHaveTextContent("Customize pack");
+    expect(screen.getByTestId("button-marketing-ai-command-copy-brief")).toHaveTextContent("Copy brief");
+
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-copy-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA AI campaign command launch brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn: Manual handoff"));
+    expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent("AI command launch brief copied.");
 
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-create-kit"));
     await waitFor(() => {

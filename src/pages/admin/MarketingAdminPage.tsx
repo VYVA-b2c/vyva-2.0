@@ -9258,6 +9258,7 @@ export default function MarketingAdminPage() {
   const [campaignStudioFeedback, setCampaignStudioFeedback] = useState("");
   const [campaignIntentBrief, setCampaignIntentBrief] = useState("");
   const [marketingDashboardAiCommand, setMarketingDashboardAiCommand] = useState("");
+  const [marketingDashboardAiCommandFeedback, setMarketingDashboardAiCommandFeedback] = useState("");
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
@@ -20253,6 +20254,39 @@ export default function MarketingAdminPage() {
       angleLabel: campaignStudioAngleOptions.find((item) => item.id === match.angleId)?.label ?? match.angleId,
     };
   }, [audiences, contacts, marketingDashboardAiCommand, sendCapabilityByChannel, templatePackRecommendationsForPlay]);
+  const marketingDashboardAiCommandBriefText = useMemo(() => {
+    const plan = marketingDashboardAiCommandPlan;
+    if (!plan) return "";
+
+    const audienceName = plan.match.targetAudience?.name ?? `${plan.match.play.audienceType.toUpperCase()} contacts`;
+    const routeLines = plan.channelRoutes.map((route) => (
+      `- ${channelLabel[route.channel]}: ${route.mode}; ${readinessLabel(route.state).toLowerCase()}; ${route.reachableContacts} reachable; ${route.templateCount} matching template${route.templateCount === 1 ? "" : "s"}`
+    ));
+    const packLine = plan.packMatch
+      ? `${plan.packMatch.pack.title} (${plan.packMatch.templates.length} templates)`
+      : "Best available saved templates";
+
+    return [
+      "VYVA AI campaign command launch brief",
+      "",
+      `Command: ${marketingDashboardAiCommand.trim()}`,
+      `Play: ${plan.match.play.label}`,
+      `Objective: ${plan.match.play.objective}`,
+      `Audience: ${audienceName}`,
+      `Reach: ${plan.reachableContacts} reachable contact${plan.reachableContacts === 1 ? "" : "s"} across ${formatChannelList(plan.selectedChannels)}`,
+      `Tone and angle: ${campaignStudioToneLabel[plan.match.toneId]} / ${plan.angleLabel}`,
+      `Template pack: ${packLine}`,
+      "",
+      "Channel routes",
+      ...routeLines,
+      "",
+      "Next actions",
+      "- Create kit in VYVA to save campaign records, reusable content, and recipient snapshots.",
+      "- Review email copy and recipients before sending through VYVA.",
+      "- Use manual handoff routes for WhatsApp, social, phone, print, or event publishing until provider controls are enabled.",
+      "- Track replies, handoff outcomes, and relationship follow-up back on the campaign.",
+    ].join("\n");
+  }, [marketingDashboardAiCommand, marketingDashboardAiCommandPlan]);
 
   function openMarketingDashboardAiTemplatePack(mode: "content" | "studio") {
     const plan = marketingDashboardAiCommandPlan;
@@ -20291,6 +20325,41 @@ export default function MarketingAdminPage() {
     setCampaignIntentBrief(marketingDashboardAiCommand.trim());
     setCampaignStudioFeedback(`Creating AI-matched launch kit from ${packMatch.pack.title}...`);
     await createCampaignPlanFromTemplatePack(packMatch.pack, packMatch.templates, packMatch.heroTemplate);
+  }
+
+  async function copyMarketingDashboardAiCommandBrief() {
+    const label = "AI command launch brief";
+    if (!marketingDashboardAiCommandBriefText.trim()) {
+      const feedback = "Type a campaign goal first so VYVA can prepare a launch brief.";
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(marketingDashboardAiCommandBriefText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = marketingDashboardAiCommandBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+    }
   }
   const marketingOperatorBriefItems: MarketingOperatorBriefItem[] = [
     {
@@ -20798,7 +20867,12 @@ export default function MarketingAdminPage() {
                           <p className="mt-3 rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-bold leading-relaxed text-emerald-900">
                             Next: build the plan, review channel copy, then create campaign records with recipient snapshots.
                           </p>
-                          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          {marketingDashboardAiCommandFeedback ? (
+                            <p className="mt-3 rounded-lg bg-purple-50 px-2.5 py-2 text-[11px] font-black text-purple-900" data-testid="marketing-ai-command-feedback">
+                              {marketingDashboardAiCommandFeedback}
+                            </p>
+                          ) : null}
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                             <button
                               type="button"
                               onClick={() => void createMarketingDashboardAiLaunchKit()}
@@ -20825,6 +20899,15 @@ export default function MarketingAdminPage() {
                               data-testid="button-marketing-ai-command-customize-pack"
                             >
                               <Sparkles size={13} /> Customize pack
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void copyMarketingDashboardAiCommandBrief()}
+                              disabled={contentSaving || campaignSaving}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-[#fffbf7] px-3 text-xs font-black text-[#5b3324] transition hover:bg-white disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                              data-testid="button-marketing-ai-command-copy-brief"
+                            >
+                              <Copy size={13} /> Copy brief
                             </button>
                           </div>
                         </div>
