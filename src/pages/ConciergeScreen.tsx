@@ -755,6 +755,13 @@ interface ConciergePendingItem {
   expires_at?: string | null;
 }
 
+interface ConciergeActionConfirmationResult {
+  pendingId: string;
+  status: string;
+  message?: string;
+  historySessionId?: string | null;
+}
+
 type ConciergeExternalConfirmationKind = "confirm" | "phone" | "email" | "whatsapp" | "booking";
 
 type ConciergeExternalConfirmationRequest = {
@@ -3192,6 +3199,10 @@ async function confirmPendingActionReview(item: ConciergePendingItem) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Failed to confirm concierge action");
   }
+  return await res.json().catch(() => ({
+    pendingId: item.id,
+    status: item.status,
+  })) as ConciergeActionConfirmationResult;
 }
 
 function guidedDetailInputTestId(question: ConciergeGuidedDetailQuestion, useFormCompatibleIds = true): string {
@@ -4415,7 +4426,7 @@ function completedSessionDetails(session: ConciergeCompletedSession, isSpanish: 
     },
     {
       label: isSpanish ? "Referencia" : "Reference",
-      value: payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]),
+      value: payloadString(payload, ["booking_reference", "pharmacy_reference", "reference", "provider_message_id"]),
     },
     {
       label: isSpanish ? "Telefono" : "Phone",
@@ -4461,6 +4472,11 @@ function completedSessionReceiptDetails(
         : executionMode === "simulated"
           ? (isSpanish ? "Prueba sin contacto real" : "Test mode, no real contact")
           : "";
+  const executionTask = isRecord(session.outcome_payload?.execution_task)
+    ? session.outcome_payload.execution_task
+    : null;
+  const userConfirmed = session.outcome_payload?.user_confirmed === true
+    || executionTask?.user_confirmed === true;
   return [
     {
       label: isSpanish ? "Tipo" : "Type",
@@ -4484,6 +4500,10 @@ function completedSessionReceiptDetails(
     }] : isConciergeDryRunPayload(session.outcome_payload) ? [{
       label: isSpanish ? "Modo" : "Mode",
       value: isSpanish ? "Prueba sin contacto real" : "Test mode, no real contact",
+    }] : []),
+    ...(userConfirmed ? [{
+      label: isSpanish ? "Confirmado" : "Confirmed",
+      value: isSpanish ? "Si" : "Yes",
     }] : []),
     ...completedSessionDetails(session, isSpanish),
   ].filter((entry) => entry.value);
@@ -9790,10 +9810,22 @@ const ConciergeScreen = () => {
 
   const reviewConfirmMutation = useMutation({
     mutationFn: async ({ item, kind }: { item: ConciergePendingItem; kind: "phone" | "email" | "whatsapp" }) => {
-      await confirmPendingActionReview(item);
-      return { item, kind };
+      const result = await confirmPendingActionReview(item);
+      return { item, kind, result };
     },
-    onSuccess: ({ item, kind }) => {
+    onSuccess: async ({ item, kind, result }) => {
+      if (result.historySessionId) {
+        const notice = isSpanish
+          ? "Email enviado y guardado. Esperando al proveedor."
+          : "Email sent and saved. Waiting for the provider.";
+        setEmailDraftNotice(notice);
+        setRecentEmailDraftCompletion({ actionId: item.id, notice });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+          queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+        ]);
+        return;
+      }
       setConfirmedReviewActionIds((current) => {
         const next = new Set(current);
         next.add(item.id);
@@ -13489,6 +13521,10 @@ const ConciergeScreen = () => {
         locale,
       })
     : null;
+  const activeActionNeedsRecipientEmail = Boolean(
+    activeActionGuidedDetails?.nextQuestion?.key === "recipient_email"
+      && activeActionExecutionChannel === "email",
+  );
   const activeActionCoreGuidedUseCase = Boolean(
     activeAction &&
     ["book_ride", "order_medicine", "home_service"].includes(activeAction.use_case),
@@ -13510,6 +13546,7 @@ const ConciergeScreen = () => {
     !activeActionGuidedDetails.complete &&
     (
       (activeActionExecutionTask?.lifecycle_status === "needs_info" && !activeActionHasPreparedGuidedBypass) ||
+      activeActionNeedsRecipientEmail ||
       (!activeActionExecutionTask && activeActionCanUseGuidedFallback)
     ),
   );

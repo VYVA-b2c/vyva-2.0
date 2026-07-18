@@ -52,6 +52,9 @@ function mockPendingRow(row: Record<string, unknown>, channelSettingsRows: Recor
     if (sql.includes("from concierge_channel_readiness_settings")) {
       return { rows: channelSettingsRows };
     }
+    if (sql.includes("receipt_kind") && sql.includes("insert into concierge_sessions")) {
+      return { rows: [{ id: "session-live-email-receipt" }], rowCount: 1, params };
+    }
     if (sql.includes("update concierge_pending")) {
       return { rows: [], rowCount: 1, params };
     }
@@ -83,9 +86,15 @@ function lastUpdatedPayload() {
   return JSON.parse(rawPayload as string) as Record<string, unknown>;
 }
 
-function mockCompletionClient() {
+function mockCompletionClient(existingReceiptId?: string) {
   const client = {
     query: vi.fn(async (sql: string, params?: unknown[]) => {
+      if (sql.includes("from concierge_sessions") && sql.includes("receipt_kind")) {
+        return { rows: existingReceiptId ? [{ id: existingReceiptId }] : [], rowCount: existingReceiptId ? 1 : 0, params };
+      }
+      if (sql.includes("update concierge_sessions")) {
+        return { rows: [{ id: existingReceiptId ?? "session-dry-run" }], rowCount: 1, params };
+      }
       if (sql.includes("insert into concierge_sessions")) {
         return { rows: [{ id: "session-dry-run" }], rowCount: 1, params };
       }
@@ -1068,6 +1077,7 @@ describe("confirmed Concierge action execution", () => {
       pendingId,
       status: "pending",
       message: "sent",
+      historySessionId: "session-live-email-receipt",
     });
     expect(globalThis.fetch).toHaveBeenCalledWith(
       "https://adapter.example.test/email",
@@ -1090,6 +1100,36 @@ describe("confirmed Concierge action execution", () => {
       provider_contact: "concierge@vyva.life",
       result_id: "email-adapter-smoke-1",
     });
+    const receiptCall = dbMock.pool.query.mock.calls.find(([sql]) => (
+      String(sql).includes("receipt_kind") && String(sql).includes("insert into concierge_sessions")
+    ));
+    expect(receiptCall).toBeTruthy();
+    const receiptParams = receiptCall?.[1] as unknown[];
+    const receiptOutcomePayload = JSON.parse(receiptParams[9] as string) as Record<string, unknown>;
+    expect(receiptParams[10]).toBe("Email sent to Controlled Email Pilot Inbox (concierge@vyva.life). Waiting for provider reply.");
+    expect(receiptOutcomePayload).toMatchObject({
+      receipt_kind: "provider_contact_sent",
+      email_outcome: "sent",
+      execution_mode: "live",
+      live_action: true,
+      external_action_allowed: true,
+      user_confirmed: true,
+      confirmation_source: "user_controlled_execution",
+      provider_name: "Controlled Email Pilot Inbox",
+      provider_email: "concierge@vyva.life",
+      recipient_email: "concierge@vyva.life",
+      provider_message_id: "email-adapter-smoke-1",
+      adapter_status: "sent",
+      waiting_for_provider: true,
+      execution_task: expect.objectContaining({
+        lifecycle_status: "confirmed",
+        user_confirmed: true,
+      }),
+    });
+
+    const repeated = await confirmPendingConciergeActionReview(pendingId, "user-1");
+    expect(repeated).toMatchObject({ historySessionId: "session-live-email-receipt" });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 
     dbMock.pool.query.mockReset();
     mockPendingRow({
@@ -1097,21 +1137,22 @@ describe("confirmed Concierge action execution", () => {
       action_payload: confirmedPayload,
       status: "pending",
     });
-    const client = mockCompletionClient();
+    const client = mockCompletionClient("session-live-email-receipt");
 
     const completed = await completePendingConciergeAction(pendingId, "user-1", {
       outcomeSummary: "App-triggered pilot email sent and receipt confirmed.",
       outcomePayload: { smoke_check: "app_triggered_live_email_history" },
     });
 
-    expect(completed).toEqual({ ok: true, status: "completed", sessionId: "session-dry-run" });
-    const insertCall = client.query.mock.calls.find(([sql]) => String(sql).includes("insert into concierge_sessions"));
-    expect(insertCall).toBeTruthy();
-    const params = insertCall?.[1] as unknown[];
-    const actionPayload = JSON.parse(params[8] as string) as Record<string, unknown>;
-    const outcomePayload = JSON.parse(params[9] as string) as Record<string, unknown>;
+    expect(completed).toEqual({ ok: true, status: "completed", sessionId: "session-live-email-receipt" });
+    const updateReceiptCall = client.query.mock.calls.find(([sql]) => String(sql).includes("update concierge_sessions"));
+    expect(updateReceiptCall).toBeTruthy();
+    expect(client.query.mock.calls.some(([sql]) => String(sql).includes("insert into concierge_sessions"))).toBe(false);
+    const params = updateReceiptCall?.[1] as unknown[];
+    const actionPayload = JSON.parse(params[1] as string) as Record<string, unknown>;
+    const outcomePayload = JSON.parse(params[2] as string) as Record<string, unknown>;
 
-    expect(params[10]).toBe("App-triggered pilot email sent and receipt confirmed.");
+    expect(params[3]).toBe("App-triggered pilot email sent and receipt confirmed.");
     expect(actionPayload.execution_audit).toEqual(expect.arrayContaining([
       expect.objectContaining({
         event: "adapter_execution_succeeded",
@@ -1131,6 +1172,7 @@ describe("confirmed Concierge action execution", () => {
     ]));
     expect(outcomePayload).toMatchObject({
       smoke_check: "app_triggered_live_email_history",
+      receipt_kind: "final_task_completion",
       execution_mode: "live",
       live_action: true,
       external_action_allowed: true,
@@ -1139,6 +1181,10 @@ describe("confirmed Concierge action execution", () => {
       adapter_channel: "email",
       adapter_provider: "Controlled Email Pilot Inbox",
       adapter_provider_contact: "concierge@vyva.life",
+      provider_email: "concierge@vyva.life",
+      recipient_email: "concierge@vyva.life",
+      provider_message_id: "email-adapter-smoke-1",
+      email_outcome: "sent",
       adapter_status: "sent",
       adapter_result: expect.objectContaining({
         result_id: "email-adapter-smoke-1",
