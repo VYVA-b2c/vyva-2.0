@@ -1047,6 +1047,8 @@ type CampaignDetailActionItem = CampaignReadinessItem & {
   onSelect?: () => void;
 };
 
+type CampaignDetailCopilotAction = CampaignDetailActionItem;
+
 type CampaignLaunchControlItem = CampaignReadinessItem & {
   label: string;
   value: string;
@@ -20358,6 +20360,158 @@ export default function MarketingAdminPage() {
     "",
     "Final safety note: keep copy practical, consent-aware, and non-clinical. Do not imply diagnosis, treatment, cure, or guaranteed outcomes.",
   ].join("\n") : "";
+  const firstCampaignConsentReviewRecipient = savedCampaignRecipients
+    .filter((recipient) => recipient.channel === "email")
+    .find((recipient) => campaignRecipientConsentStatus(recipient, contactByCampaignRecipientId) !== "opted_in") ?? null;
+  const firstCampaignConsentReviewContact = firstCampaignConsentReviewRecipient
+    ? contactByCampaignRecipientId.get(firstCampaignConsentReviewRecipient.id) ?? null
+    : null;
+  const campaignConsentReviewSearch = firstCampaignConsentReviewContact?.fullName
+    || firstCampaignConsentReviewContact?.email
+    || firstCampaignConsentReviewRecipient?.recipient
+    || "";
+  const campaignCopilotState: CampaignReadinessState = campaignBlockedCount > 0 || campaignApprovalBlockedCount > 0
+    ? "blocked"
+    : campaignNeedsActionCount > 0 || campaignApprovalNeedsActionCount > 0
+      ? "needs_action"
+      : "ready";
+  const campaignCopilotTitle = campaignCopilotState === "ready"
+    ? "Ready for controlled launch"
+    : campaignCopilotState === "blocked"
+      ? "Fix the launch blocker first"
+      : "One guided step before launch";
+  const campaignCopilotDetail = editingCampaign
+    ? firstCampaignConsentReviewRecipient
+      ? `${savedEmailRecipientConsentReviewCount} saved email recipient${savedEmailRecipientConsentReviewCount === 1 ? "" : "s"} ${savedEmailRecipientConsentReviewCount === 1 ? "needs" : "need"} consent review before this email can send.`
+      : missingCampaignContentChannels.length
+        ? `Create or attach ${missingCampaignContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")} content before this campaign can publish cleanly.`
+        : hasUnsavedCampaignSendChanges
+          ? "Save the campaign so the channel setup, schedule, and recipient snapshot match the launch review."
+          : campaignNextLaunchStep?.detail ?? "Review the launch packet, send email explicitly, or hand off manual channels."
+    : "";
+  const campaignDetailCopilotActions: CampaignDetailCopilotAction[] = editingCampaign ? [
+    ...(firstCampaignConsentReviewRecipient ? [{
+      key: "consent",
+      label: "Blocker",
+      title: "Review recipient consent",
+      detail: campaignConsentReviewSearch
+        ? `Open ${campaignConsentReviewSearch} and confirm consent before sending.`
+        : "Open the contact queue and confirm opted-in consent before sending.",
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: firstCampaignConsentReviewContact ? "Open contact" : "Show consent queue",
+      icon: UsersRound,
+      onSelect: () => {
+        if (firstCampaignConsentReviewContact) {
+          startContactEdit(firstCampaignConsentReviewContact);
+          return;
+        }
+        const status = campaignRecipientConsentStatus(firstCampaignConsentReviewRecipient, contactByCampaignRecipientId);
+        setActiveTab("contacts");
+        setContactView("contacts");
+        setSearch(campaignConsentReviewSearch);
+        setContactConsentFilter(CONSENT_STATUSES.includes(status as ConsentStatus) ? status : "all");
+        setContactFeedback("Showing the saved recipient that needs consent review before campaign email send.");
+      },
+    }] : []),
+    ...(missingCampaignContentChannels.length ? [{
+      key: "creative",
+      label: "Creative",
+      title: "Create missing content",
+      detail: `Generate starter assets for ${missingCampaignContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")} and link them back to this campaign.`,
+      state: "blocked" as CampaignReadinessState,
+      actionLabel: missingCampaignContentChannels.length > 1 ? "Create missing assets" : "Create content",
+      icon: Sparkles,
+      disabled: contentSaving || campaignSaving,
+      onSelect: () => {
+        void createAndLinkAllMissingCampaignContent();
+      },
+    }] : []),
+    ...(hasUnsavedCampaignSendChanges ? [{
+      key: "save",
+      label: "Save",
+      title: campaignEditDraft.snapshotRecipients ? "Save and lock recipients" : "Save campaign changes",
+      detail: campaignEditDraft.snapshotRecipients
+        ? `${pendingCampaignSnapshotCount} planned recipient${pendingCampaignSnapshotCount === 1 ? "" : "s"} will be snapshotted with the latest channel setup.`
+        : "Save the campaign before test sends, live sends, or manual handoffs.",
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: campaignEditDraft.snapshotRecipients ? "Save + snapshot" : "Save campaign",
+      icon: Save,
+      buttonType: "submit" as const,
+      disabled: campaignSaving,
+    }] : []),
+    ...(!hasUnsavedCampaignSendChanges && savedCampaignRecipientCount <= 0 && pendingCampaignSnapshotCount > 0 ? [{
+      key: "snapshot",
+      label: "Audience",
+      title: "Snapshot recipients",
+      detail: `Save ${pendingCampaignSnapshotCount} eligible recipient${pendingCampaignSnapshotCount === 1 ? "" : "s"} so the campaign has an auditable launch list.`,
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Save snapshot",
+      icon: UsersRound,
+      buttonType: "submit" as const,
+      disabled: campaignSaving,
+    }] : []),
+    ...(draftEmailChannel && !campaignEmailDisabled ? [{
+      key: "send",
+      label: "Email",
+      title: "Send through VYVA",
+      detail: `${savedCampaignRecipientCount} saved recipient${savedCampaignRecipientCount === 1 ? "" : "s"} can receive this email after explicit confirmation.`,
+      state: "ready" as CampaignReadinessState,
+      actionLabel: confirmingCampaignSendId === editingCampaign.id ? "Confirm send" : "Send email",
+      icon: Send,
+      disabled: campaignEmailSending,
+      onSelect: () => {
+        void sendCampaignEmails(editingCampaign);
+      },
+    }] : []),
+    ...(firstManualPublishKitItem ? [{
+      key: "manual",
+      label: "Handoff",
+      title: manualPublishResults.length ? "Update manual outcome" : "Track manual channel",
+      detail: `${channelLabel[firstManualPublishKitItem.channel]} needs its publish result recorded so follow-up does not get lost.`,
+      state: manualPublishResults.length ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      actionLabel: manualPublishResults.length ? "Track another" : "Track result",
+      icon: ExternalLink,
+      disabled: hasUnsavedCampaignSendChanges,
+      onSelect: () => prepareManualCampaignChannelTracking(firstManualPublishKitItem.key, firstManualPublishKitItem.channel, firstManualPublishKitItem.scheduledAt),
+    }] : []),
+    ...(campaignAiCommandBrief ? [{
+      key: "ai",
+      label: "AI",
+      title: "Copy AI launch command",
+      detail: "Give AI the campaign, channels, audience, readiness, creative, and follow-up context in one command.",
+      state: "ready" as CampaignReadinessState,
+      actionLabel: "Copy AI command",
+      icon: Sparkles,
+      onSelect: () => {
+        void copyCampaignHandoffText("Campaign AI command brief", campaignAiCommandBrief);
+      },
+    }] : []),
+  ].filter((item, index, items) => items.findIndex((candidate) => candidate.key === item.key) === index).slice(0, 4) : [];
+  const campaignCopilotBrief = editingCampaign && campaignForLaunchPacket ? [
+    "VYVA campaign copilot command",
+    `Campaign: ${campaignForLaunchPacket.name}`,
+    `Current decision: ${campaignCopilotTitle}`,
+    `Primary detail: ${campaignCopilotDetail}`,
+    `Status: ${campaignEditDraft.status}`,
+    `Audience: ${campaignOperatorAudienceLabel}`,
+    `Recipients: ${savedCampaignRecipientCount > 0 ? `${savedCampaignRecipientCount} saved` : pendingCampaignSnapshotCount > 0 ? `${pendingCampaignSnapshotCount} preview` : "No saved snapshot"}`,
+    `Channels: ${campaignOperatorChannelLabels.join(", ") || "None"}`,
+    `Schedule: ${campaignForLaunchPacket.scheduleStartsAt ? formatDate(campaignForLaunchPacket.scheduleStartsAt) : "Not scheduled"} (${campaignForLaunchPacket.timezone})`,
+    "",
+    "Readiness gates:",
+    ...campaignReadinessItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Approval gates:",
+    ...campaignApprovalItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Recommended admin actions:",
+    ...campaignDetailCopilotActions.map((item) => `- ${item.title}: ${item.detail}`),
+    "",
+    "Channel work:",
+    ...campaignChannelWorkflowItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "AI task: Recommend the safest next admin move, rewrite or improve any weak channel copy, keep claims non-clinical, preserve consent requirements, and return a publish-ready action list for email, social, WhatsApp, phone, print, or local event channels.",
+  ].join("\n") : "";
   const unmappedAudienceMemberCount = latestSyncRun
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
@@ -24670,6 +24824,56 @@ export default function MarketingAdminPage() {
                                 <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
                               </div>
                             ))}
+                          </div>
+                        ) : null}
+                        {campaignDetailCopilotActions.length ? (
+                          <div className={`mt-3 rounded-xl border p-3 ${readinessClass(campaignCopilotState)}`} data-testid="marketing-campaign-copilot">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] opacity-75">Campaign copilot</p>
+                                <h4 className="mt-1 text-base font-black">{campaignCopilotTitle}</h4>
+                                <p className="mt-1 text-sm font-bold leading-relaxed opacity-85">{campaignCopilotDetail}</p>
+                              </div>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <Pill className={readinessPillClass(campaignCopilotState)}>{readinessLabel(campaignCopilotState)}</Pill>
+                                <button
+                                  type="button"
+                                  onClick={() => void copyCampaignHandoffText("Campaign copilot command", campaignCopilotBrief)}
+                                  disabled={!campaignCopilotBrief.trim()}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                  data-testid="button-marketing-campaign-copilot-copy-brief"
+                                >
+                                  <Sparkles size={14} /> Copy copilot command
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-2 xl:grid-cols-2" data-testid="marketing-campaign-copilot-actions">
+                              {campaignDetailCopilotActions.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                  <article key={item.key} className="rounded-lg border border-white/70 bg-white/90 p-3 text-[#241133]" data-testid={`marketing-campaign-copilot-action-${item.key}`}>
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div>
+                                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">{item.label}</p>
+                                        <h5 className="mt-1 text-sm font-black">{item.title}</h5>
+                                      </div>
+                                      <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                    </div>
+                                    <p className="mt-2 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.detail}</p>
+                                    <button
+                                      type={item.buttonType ?? "button"}
+                                      disabled={item.disabled}
+                                      onClick={item.buttonType === "submit" ? undefined : item.onSelect}
+                                      className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-[#241133] px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                      data-testid={`button-marketing-campaign-copilot-action-${item.key}`}
+                                    >
+                                      <Icon size={14} aria-hidden="true" />
+                                      {item.actionLabel}
+                                    </button>
+                                  </article>
+                                );
+                              })}
+                            </div>
                           </div>
                         ) : null}
                         {campaignOperatorSheetItems.length ? (

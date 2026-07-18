@@ -5777,6 +5777,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-operator-brief-reach")).toHaveTextContent("1 saved");
     expect(screen.getByTestId("marketing-campaign-operator-brief-creative")).toHaveTextContent("2/2 linked");
     expect(screen.getByTestId("marketing-campaign-operator-brief-channels")).toHaveTextContent("Email can send in VYVA; LinkedIn stay as manual handoff.");
+    expect(screen.getByTestId("marketing-campaign-copilot")).toHaveTextContent("Campaign copilot");
+    expect(screen.getByTestId("marketing-campaign-copilot")).toHaveTextContent("One guided step before launch");
+    expect(screen.getByTestId("marketing-campaign-copilot-action-consent")).toHaveTextContent("Review recipient consent");
+    expect(screen.getByTestId("marketing-campaign-copilot-action-consent")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-copilot-action-manual")).toHaveTextContent("Track manual channel");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-copilot-copy-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign copilot command"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Recommended admin actions:"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign copilot command copied.");
     expect(screen.getByTestId("marketing-campaign-operator-sheet")).toHaveTextContent("Operator sheet");
     expect(screen.getByTestId("marketing-campaign-operator-sheet-who")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-campaign-operator-sheet-who")).toHaveTextContent("1 saved recipient");
