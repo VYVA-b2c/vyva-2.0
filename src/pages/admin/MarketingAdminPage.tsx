@@ -9257,6 +9257,7 @@ export default function MarketingAdminPage() {
   const [campaignStudioSaving, setCampaignStudioSaving] = useState(false);
   const [campaignStudioFeedback, setCampaignStudioFeedback] = useState("");
   const [campaignIntentBrief, setCampaignIntentBrief] = useState("");
+  const [marketingDashboardAiCommand, setMarketingDashboardAiCommand] = useState("");
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
@@ -14166,6 +14167,18 @@ export default function MarketingAdminPage() {
 
   function applyCampaignIntentBrief() {
     applyCampaignIntentBriefText(campaignIntentBrief);
+  }
+
+  function applyMarketingDashboardAiCommand(command = marketingDashboardAiCommand) {
+    const brief = command.trim();
+    if (!brief) {
+      setMessage("Describe the campaign you want VYVA to build, then run the AI command.");
+      return;
+    }
+
+    setMarketingDashboardAiCommand(brief);
+    applyCampaignIntentBriefText(brief);
+    setMessage("AI command loaded into Smart campaign studio. Review the matched plan, improve copy, then create the campaign.");
   }
 
   function applyCampaignIntentQuickStart(quickStart: CampaignIntentQuickStart) {
@@ -20153,6 +20166,39 @@ export default function MarketingAdminPage() {
 
   const topCampaignRecommendation = dashboardCampaignRecommendations[0] ?? null;
   const topCampaignPackMatch = topCampaignRecommendation?.packMatch ?? null;
+  const marketingDashboardAiCommandSuggestions = [
+    ...(topCampaignRecommendation ? [{
+      key: "best-smart-pick",
+      label: "Best smart pick",
+      detail: `${topCampaignRecommendation.recommendation.reachableContacts} reachable / ${formatChannelList(topCampaignRecommendation.recommendation.channels)}`,
+      command: [
+        `Create a ${topCampaignRecommendation.recommendation.play.label} campaign`,
+        `for ${topCampaignRecommendation.recommendation.targetAudience?.name ?? `${topCampaignRecommendation.recommendation.play.audienceType.toUpperCase()} contacts`}`,
+        `using ${formatChannelList(topCampaignRecommendation.recommendation.channels)}.`,
+        topCampaignRecommendation.recommendation.play.brief,
+        topCampaignPackMatch ? `Use the ${topCampaignPackMatch.pack.title} template pack.` : "Use the best matching templates.",
+        "Include one consent-safe relationship follow-up step.",
+      ].join(" "),
+    }] : []),
+    {
+      key: "partner-webinar",
+      label: "Partner webinar",
+      detail: "B2B / Email + LinkedIn",
+      command: "Invite Madrid partners to a practical webinar by email and LinkedIn.",
+    },
+    {
+      key: "local-event",
+      label: "Local event",
+      detail: "Community / Event + social",
+      command: "Promote a local Madrid activity for families on Facebook, WhatsApp, and an event handoff.",
+    },
+    {
+      key: "reactivation",
+      label: "Reactivate families",
+      detail: "B2C / Email + WhatsApp",
+      command: "Reactivate quiet family contacts with a warm email and WhatsApp follow-up around one useful VYVA routine.",
+    },
+  ].slice(0, 4);
   const marketingOperatorBriefItems: MarketingOperatorBriefItem[] = [
     {
       key: "priority",
@@ -20553,6 +20599,59 @@ export default function MarketingAdminPage() {
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+                <div className="mt-4 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-amber-50 p-4 shadow-sm" data-testid="marketing-ai-command-launcher">
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                    <div>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">AI campaign command</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Describe the move. VYVA builds the plan.</h3>
+                          <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                            One sentence routes into the studio with audience, channel pack, tone, starter schedule, templates, and the next relationship step.
+                          </p>
+                        </div>
+                        <Pill className="bg-white text-violet-800"><Sparkles size={13} className="mr-1" /> Smart match</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
+                        <textarea
+                          className={`${inputClass} min-h-[104px] resize-y bg-white`}
+                          value={marketingDashboardAiCommand}
+                          onChange={(event) => setMarketingDashboardAiCommand(event.target.value)}
+                          placeholder="Example: invite Madrid partners to a practical webinar by email and LinkedIn."
+                          data-testid="textarea-marketing-ai-command"
+                        />
+                        <div className="grid gap-2">
+                          <button
+                            type="button"
+                            onClick={() => applyMarketingDashboardAiCommand()}
+                            disabled={!marketingDashboardAiCommand.trim()}
+                            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-purple-200"
+                            data-testid="button-marketing-ai-command-run"
+                          >
+                            <Sparkles size={16} aria-hidden="true" /> Build smart plan
+                          </button>
+                          <p className="rounded-xl bg-white px-3 py-2 text-[11px] font-bold leading-relaxed text-[#7d6b65]">
+                            Email still requires final review. Social, WhatsApp, phone, print, and event routes become handoffs.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid gap-2" data-testid="marketing-ai-command-suggestions">
+                      {marketingDashboardAiCommandSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion.key}
+                          type="button"
+                          onClick={() => applyMarketingDashboardAiCommand(suggestion.command)}
+                          className="rounded-xl border border-[#eadfd5] bg-white px-3 py-2 text-left shadow-sm transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                          data-testid={`button-marketing-ai-command-suggestion-${suggestion.key}`}
+                        >
+                          <span className="block text-sm font-black text-[#241133]">{suggestion.label}</span>
+                          <span className="mt-1 block text-[11px] font-black uppercase tracking-[0.1em] text-purple-700">{suggestion.detail}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </SectionCard>

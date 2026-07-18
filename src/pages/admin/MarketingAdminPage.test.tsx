@@ -890,6 +890,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("CTA opportunity");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("9% click rate");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Deliverability clean");
+    expect(screen.getByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
+    expect(screen.getByTestId("marketing-ai-command-suggestions")).toHaveTextContent("Partner webinar");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
+    expect(screen.getByTestId("textarea-marketing-ai-command")).toHaveValue("Invite Madrid partners to a practical webinar by email and LinkedIn.");
+    expect(screen.getByTestId("textarea-marketing-campaign-intent")).toHaveValue("Invite Madrid partners to a practical webinar by email and LinkedIn.");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Brief matched to Partner webinar");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("Email");
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("VYVA send");
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("LinkedIn");
