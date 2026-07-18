@@ -1575,6 +1575,16 @@ const pt = {
       detailTitle: "Mais um detalhe", detailHelper: "Adicione-o antes da confirmação final.", confirmTitle: "Pronto para confirmar", confirmHelper: "Só esta confirmação final pode iniciar o contacto ou a reserva.", confirmContact: "Confirmar e continuar",
       waitingTitle: "A VYVA prepara o próximo passo", waitingHelper: "Pode minimizar isto e continuar a usar a aplicação.", completedTitle: "Viagem organizada", completedHelper: "O resultado confirmado foi guardado no Concierge.", errorTitle: "Não foi possível continuar a viagem", tryAgain: "Tentar novamente",
     },
+    appointment: {
+      reasonTitle: "Qual é o motivo da consulta?", reasonHelper: "Partilhe apenas o que for útil para o pedido.", reasonLabel: "Motivo da consulta", reasonPlaceholder: "Por exemplo, revisão ou seguimento", continue: "Continuar",
+      timeTitle: "Quando lhe dá mais jeito?", timeHelper: "Escolha uma preferência. O prestador confirmará a disponibilidade.", today: "Hoje", tomorrow: "Amanhã", thisWeek: "Esta semana", nextWeek: "Próxima semana", anotherTime: "Outro momento", timeLabel: "Data ou hora preferida", timePlaceholder: "Por exemplo, sexta-feira de manhã",
+      coverageTitle: "Como será coberta esta consulta?", coverageHelper: "A VYVA voltará a pedir autorização antes de partilhar dados de cobertura.", useSavedCoverage: "Usar cobertura guardada", publicCoverage: "Cobertura pública", privateCoverage: "Seguro privado", selfPay: "Pago eu", coverageUnsure: "Não tenho a certeza",
+      providerTitle: "Que prestador devemos verificar?", providerHelper: "Use o médico guardado, procure outro ou adicione um de confiança.", useSavedProvider: "Usar médico guardado", useSavedProviderDescription: "Guardado no seu perfil", findProvider: "Procurar outro prestador", findProviderDescription: "Comparar antes do contacto", addProvider: "Adicionar médico ou clínica de confiança", addProviderDescription: "Guardar e voltar aqui",
+      searchingTitle: "A procurar prestadores adequados", searchingHelper: "Ainda ninguém foi contactado e nada foi reservado.", optionsTitle: "Escolha uma opção para rever", optionsHelper: "A disponibilidade pode ainda precisar de confirmação.", savedProvider: "Prestador guardado", availabilityUnknown: "Disponibilidade por confirmar",
+      reviewTitle: "Confirme antes de a VYVA contactar alguém", reviewHelper: "Reveja prestador, horário, cobertura e canal.", reason: "Motivo", preferredTime: "Horário preferido", coverage: "Cobertura", provider: "Prestador", availability: "Disponibilidade", contactRoute: "Canal de contacto", confirmContact: "Confirmar e contactar", change: "Alterar dados", back: "Voltar",
+      contactingTitle: "A VYVA prepara o contacto", contactingHelper: "Pode minimizar isto e continuar a usar a aplicação.", completedTitle: "O pedido de consulta está em curso", completedHelper: "A VYVA guardará a resposta do prestador no Concierge.", errorTitle: "Não foi possível continuar o pedido", tryAgain: "Tentar novamente", missingDetails: "Adicione primeiro o motivo e o horário preferido.",
+      channels: { booking_url: "Formulário de reserva", phone: "Chamada telefónica", whatsapp: "WhatsApp", email: "E-mail", manual: "Revisão VYVA" },
+    },
   },
   statusVitals: {
     actions: {

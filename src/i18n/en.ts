@@ -2221,6 +2221,16 @@
       detailTitle: "One more detail", detailHelper: "Add this before reviewing the final confirmation.", confirmTitle: "Ready for your confirmation", confirmHelper: "Only this final confirmation can start contact or booking.", confirmContact: "Confirm and continue",
       waitingTitle: "VYVA is preparing the next step", waitingHelper: "You can minimize this and keep using the app.", completedTitle: "Ride arranged", completedHelper: "The confirmed result is saved in Concierge.", errorTitle: "The ride could not continue", tryAgain: "Try again",
     },
+    appointment: {
+      reasonTitle: "What is the appointment for?", reasonHelper: "Share only what is useful for the request.", reasonLabel: "Reason for appointment", reasonPlaceholder: "For example, a check-up or follow-up", continue: "Continue",
+      timeTitle: "When would suit you?", timeHelper: "Choose a preference. The provider will confirm availability.", today: "Today", tomorrow: "Tomorrow", thisWeek: "This week", nextWeek: "Next week", anotherTime: "Another time", timeLabel: "Preferred date or time", timePlaceholder: "For example, Friday morning",
+      coverageTitle: "How will this appointment be covered?", coverageHelper: "VYVA will ask again before sharing coverage details.", useSavedCoverage: "Use saved coverage", publicCoverage: "Public coverage", privateCoverage: "Private insurance", selfPay: "I will pay", coverageUnsure: "I am not sure",
+      providerTitle: "Which provider should we check?", providerHelper: "Use your saved doctor, find another, or add a trusted provider.", useSavedProvider: "Use saved doctor", useSavedProviderDescription: "Saved in your profile", findProvider: "Find another provider", findProviderDescription: "Compare suitable options before contact", addProvider: "Add a trusted doctor or clinic", addProviderDescription: "Save a provider, then return here",
+      searchingTitle: "Checking suitable providers", searchingHelper: "Nothing is contacted or booked yet.", optionsTitle: "Choose an option to review", optionsHelper: "Availability may still need provider confirmation.", savedProvider: "Saved provider", availabilityUnknown: "Availability to be confirmed",
+      reviewTitle: "Confirm before VYVA contacts anyone", reviewHelper: "Review the provider, time, coverage, and contact route.", reason: "Reason", preferredTime: "Preferred time", coverage: "Coverage", provider: "Provider", availability: "Availability", contactRoute: "Contact route", confirmContact: "Confirm and contact provider", change: "Change details", back: "Back",
+      contactingTitle: "VYVA is preparing the contact", contactingHelper: "You can minimize this and continue using the app.", completedTitle: "The appointment request is in progress", completedHelper: "VYVA will keep the provider response in Concierge.", errorTitle: "The appointment request could not continue", tryAgain: "Try again", missingDetails: "Add the reason and preferred time first.",
+      channels: { booking_url: "Booking form", phone: "Phone call", whatsapp: "WhatsApp", email: "Email", manual: "VYVA review" },
+    },
   },
   statusVitals: {
     actions: {

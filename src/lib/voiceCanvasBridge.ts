@@ -4,7 +4,7 @@ export const VYVA_VOICE_CANVAS_PRESENT_EVENT = "vyva:voice-canvas-present";
 export const VYVA_VOICE_CANVAS_CLEAR_EVENT = "vyva:voice-canvas-clear";
 export const VYVA_VOICE_CANVAS_RESPONSE_EVENT = "vyva:voice-canvas-response";
 
-export type VoiceCanvasSceneOwner = "voice_action" | "concierge_ride";
+export type VoiceCanvasSceneOwner = "voice_action" | "concierge_ride" | "concierge_appointment";
 
 export type VoiceCanvasSceneEnvelope = {
   viewModel: VoiceCanvasViewModel;
