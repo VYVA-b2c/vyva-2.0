@@ -708,6 +708,16 @@ type MarketingActionCenterItem = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type MarketingPublishingQueueItem = CampaignReadinessItem & {
+  campaign: Campaign;
+  timingLabel: string;
+  channelLabels: string;
+  audienceLabel: string;
+  actionLabel: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+};
+
 type CampaignRelationshipFollowUpItem = CampaignReadinessItem & {
   value: string;
   icon: LucideIcon;
@@ -2340,6 +2350,18 @@ function formatDate(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown";
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function scheduledTime(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  const time = date.getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+function isScheduledNowOrPast(value: string | null, now = Date.now()) {
+  const time = scheduledTime(value);
+  return time !== null && time <= now;
 }
 
 function offsetSchedule(value: string, offsetHours: number) {
@@ -20888,6 +20910,128 @@ export default function MarketingAdminPage() {
   const firstReadyEmailCampaign = readyEmailCampaigns[0];
   const firstConsentReviewCampaign = emailCampaignsNeedingConsent[0];
   const firstManualHandoffCampaign = manualHandoffCampaigns[0];
+  const dueReadyEmailCampaigns = readyEmailCampaigns.filter((campaign) => (
+    campaign.status === "scheduled"
+    && isScheduledNowOrPast(campaign.scheduleStartsAt)
+  ));
+  const dueReadyEmailCampaignIds = new Set(dueReadyEmailCampaigns.map((campaign) => campaign.id));
+  const scheduledReadyEmailCampaigns = readyEmailCampaigns.filter((campaign) => (
+    campaign.status === "scheduled"
+    && Boolean(campaign.scheduleStartsAt)
+    && !dueReadyEmailCampaignIds.has(campaign.id)
+  ));
+  const firstDueReadyEmailCampaign = dueReadyEmailCampaigns[0] ?? null;
+  const firstScheduledReadyEmailCampaign = scheduledReadyEmailCampaigns[0] ?? null;
+  const recipientSnapshotQueueCampaign = scheduledEmailCampaignWithoutRecipients ?? campaignNeedingAudience ?? null;
+  const queueChannelLabels = (campaign: Campaign) => formatChannelList(Array.from(new Set(campaign.channels.map((channel) => channel.channel))));
+  const publishingQueueItems: MarketingPublishingQueueItem[] = [
+    ...(firstDueReadyEmailCampaign ? [{
+      key: "due-email",
+      campaign: firstDueReadyEmailCampaign,
+      title: "Due email ready for final review",
+      detail: `"${firstDueReadyEmailCampaign.name}" is due now with ${firstDueReadyEmailCampaign.recipientCount} saved opted-in recipient${firstDueReadyEmailCampaign.recipientCount === 1 ? "" : "s"}. VYVA still asks for confirmation before sending.`,
+      state: "ready" as CampaignReadinessState,
+      timingLabel: "Due now",
+      channelLabels: "Email",
+      audienceLabel: firstDueReadyEmailCampaign.audienceType.toUpperCase(),
+      actionLabel: "Open send review",
+      icon: Send,
+      onSelect: () => {
+        startCampaignEdit(firstDueReadyEmailCampaign);
+        setActiveTab("dashboard");
+        setCampaignEmailFeedback(`"${firstDueReadyEmailCampaign.name}" is due now. Review content and recipients, then confirm from the campaign panel.`);
+        setMessage(`Opened "${firstDueReadyEmailCampaign.name}" for due email review.`);
+      },
+    }] : []),
+    ...(firstConsentReviewCampaign ? [{
+      key: "recipient-consent",
+      campaign: firstConsentReviewCampaign,
+      title: "Consent review before email",
+      detail: `${campaignEmailRecipientConsentReviewCount(firstConsentReviewCampaign, contactByCampaignRecipientId)} saved email recipient${campaignEmailRecipientConsentReviewCount(firstConsentReviewCampaign, contactByCampaignRecipientId) === 1 ? "" : "s"} need opted-in consent before this campaign can send.`,
+      state: "needs_action" as CampaignReadinessState,
+      timingLabel: firstConsentReviewCampaign.scheduleStartsAt ? formatDate(firstConsentReviewCampaign.scheduleStartsAt) : "No schedule",
+      channelLabels: "Email",
+      audienceLabel: firstConsentReviewCampaign.audienceType.toUpperCase(),
+      actionLabel: "Review consent",
+      icon: UsersRound,
+      onSelect: () => {
+        const consentReviewCount = campaignEmailRecipientConsentReviewCount(firstConsentReviewCampaign, contactByCampaignRecipientId);
+        startCampaignEdit(firstConsentReviewCampaign);
+        setActiveTab("dashboard");
+        setCampaignEmailFeedback(`${consentReviewCount} saved email recipient${consentReviewCount === 1 ? "" : "s"} ${consentReviewCount === 1 ? "needs" : "need"} opted-in consent before sending.`);
+        setMessage(`Opened "${firstConsentReviewCampaign.name}" to review recipient consent before sending.`);
+      },
+    }] : []),
+    ...(recipientSnapshotQueueCampaign ? [{
+      key: "recipient-snapshot",
+      campaign: recipientSnapshotQueueCampaign,
+      title: recipientSnapshotQueueCampaign.status === "scheduled" ? "Snapshot scheduled recipients" : "Snapshot campaign recipients",
+      detail: `"${recipientSnapshotQueueCampaign.name}" has content, but no saved email recipients. Save an auditable recipient snapshot before launch.`,
+      state: "needs_action" as CampaignReadinessState,
+      timingLabel: recipientSnapshotQueueCampaign.scheduleStartsAt ? formatDate(recipientSnapshotQueueCampaign.scheduleStartsAt) : "No schedule",
+      channelLabels: queueChannelLabels(recipientSnapshotQueueCampaign),
+      audienceLabel: recipientSnapshotQueueCampaign.audienceType.toUpperCase(),
+      actionLabel: "Open recipients",
+      icon: UsersRound,
+      onSelect: () => {
+        startCampaignEdit(recipientSnapshotQueueCampaign);
+        setActiveTab("dashboard");
+        setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: true }));
+        setCampaignEmailFeedback("Recipient snapshot is enabled. Review the preview, then save the campaign.");
+        setMessage(`Opened "${recipientSnapshotQueueCampaign.name}" to snapshot recipients before sending.`);
+      },
+    }] : []),
+    ...(campaignMissingChannelContent ? [{
+      key: "creative-gap",
+      campaign: campaignMissingChannelContent,
+      title: "Fix campaign creative gap",
+      detail: `"${campaignMissingChannelContent.name}" still needs ${campaignMissingChannelContentLabels || "channel"} content before it can publish cleanly.`,
+      state: "blocked" as CampaignReadinessState,
+      timingLabel: campaignMissingChannelContent.scheduleStartsAt ? formatDate(campaignMissingChannelContent.scheduleStartsAt) : "Before scheduling",
+      channelLabels: queueChannelLabels(campaignMissingChannelContent),
+      audienceLabel: campaignMissingChannelContent.audienceType.toUpperCase(),
+      actionLabel: "Fix creative gap",
+      icon: FileText,
+      onSelect: () => {
+        openCampaignForNextAction(campaignMissingChannelContent);
+      },
+    }] : []),
+    ...(firstManualHandoffCampaign ? [{
+      key: "manual-handoff",
+      campaign: firstManualHandoffCampaign,
+      title: "Prepare manual channel handoff",
+      detail: `"${firstManualHandoffCampaign.name}" has non-email content ready for manual publishing or tracking back into VYVA.`,
+      state: "planning" as CampaignReadinessState,
+      timingLabel: firstManualHandoffCampaign.scheduleStartsAt ? formatDate(firstManualHandoffCampaign.scheduleStartsAt) : "Manual window",
+      channelLabels: formatChannelList(Array.from(new Set(firstManualHandoffCampaign.channels.filter((channel) => channel.channel !== "email").map((channel) => channel.channel)))),
+      audienceLabel: firstManualHandoffCampaign.audienceType.toUpperCase(),
+      actionLabel: "Open handoff",
+      icon: ExternalLink,
+      onSelect: () => {
+        startCampaignEdit(firstManualHandoffCampaign);
+        setActiveTab("dashboard");
+        setMessage(`Opened "${firstManualHandoffCampaign.name}" to prepare non-email channel handoff.`);
+      },
+    }] : []),
+    ...(firstScheduledReadyEmailCampaign ? [{
+      key: "scheduled-email",
+      campaign: firstScheduledReadyEmailCampaign,
+      title: "Scheduled email ready",
+      detail: `"${firstScheduledReadyEmailCampaign.name}" has email content and recipients saved. Keep it queued or open it for final review.`,
+      state: "ready" as CampaignReadinessState,
+      timingLabel: firstScheduledReadyEmailCampaign.scheduleStartsAt ? formatDate(firstScheduledReadyEmailCampaign.scheduleStartsAt) : "Scheduled",
+      channelLabels: "Email",
+      audienceLabel: firstScheduledReadyEmailCampaign.audienceType.toUpperCase(),
+      actionLabel: "Open schedule",
+      icon: CalendarDays,
+      onSelect: () => {
+        startCampaignEdit(firstScheduledReadyEmailCampaign);
+        setActiveTab("dashboard");
+        setCampaignEmailFeedback(`"${firstScheduledReadyEmailCampaign.name}" is scheduled and ready for final email review.`);
+        setMessage(`Opened "${firstScheduledReadyEmailCampaign.name}" for scheduled email review.`);
+      },
+    }] : []),
+  ].slice(0, 5);
   const actionCenterTemplatePack = bestCampaignStudioTemplatePack
     ?? contentTemplatePacksWithStats.find(({ templates }) => templates.length > 0)
     ?? null;
@@ -22265,6 +22409,64 @@ export default function MarketingAdminPage() {
                       <p className="text-xs font-bold leading-relaxed text-[#7d6b65]">One click takes you to the work area that unblocks the most marketing progress.</p>
                     </div>
                   </div>
+                </div>
+                <div className="mb-4 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-publishing-queue">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Publishing queue</p>
+                      <h3 className="mt-1 text-lg font-black text-[#241133]">Today&apos;s campaign worklist</h3>
+                      <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                        Due sends, consent blocks, recipient snapshots, creative gaps, and manual handoffs in one operating view.
+                      </p>
+                    </div>
+                    <Pill className={publishingQueueItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : publishingQueueItems.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : publishingQueueItems.length ? "bg-emerald-50 text-emerald-800" : "bg-white text-[#7d6b65]"}>
+                      {publishingQueueItems.length ? `${publishingQueueItems.length} queued` : "Clear"}
+                    </Pill>
+                  </div>
+                  {publishingQueueItems.length ? (
+                    <div className="mt-3 grid gap-2">
+                      {publishingQueueItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={item.onSelect}
+                            className={`grid min-h-[92px] gap-3 rounded-xl border p-3 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center ${readinessClass(item.state)}`}
+                            data-testid={`button-marketing-publishing-queue-${item.key}`}
+                          >
+                            <span className="flex min-w-0 items-start gap-3">
+                              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                                <Icon size={17} aria-hidden="true" />
+                              </span>
+                              <span className="min-w-0">
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span className="font-black text-[#241133]">{item.title}</span>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </span>
+                                <span className="mt-1 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                                <span className="mt-2 flex flex-wrap gap-1.5">
+                                  <Pill className="bg-white text-purple-800">{item.timingLabel}</Pill>
+                                  <Pill className="bg-white text-[#5b4a46]">{item.channelLabels || "No channel"}</Pill>
+                                  <Pill className="bg-white text-[#5b4a46]">{item.audienceLabel}</Pill>
+                                </span>
+                              </span>
+                            </span>
+                            <span className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-xs font-black text-purple-700 shadow-sm lg:justify-center">
+                              {item.campaign.name}
+                              <span className="inline-flex items-center gap-1">
+                                {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-3 rounded-xl border border-dashed border-[#d9c9bd] bg-[#fffaf4] p-4 text-sm font-bold text-[#7d6b65]">
+                      No campaign needs immediate publishing work. Start a new campaign play, import Source updates, or review analytics for the next opportunity.
+                    </div>
+                  )}
                 </div>
                 <div className="mb-4 rounded-2xl border border-purple-100 bg-white p-4 shadow-sm" data-testid="marketing-workflow-coach">
                   <div className="flex flex-wrap items-start justify-between gap-3">

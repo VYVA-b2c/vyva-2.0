@@ -1641,6 +1641,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Next best move");
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Finish Source sync setup");
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("The export endpoint is ready");
+    expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Today's campaign worklist");
+    expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Consent review before email");
+    expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Snapshot scheduled recipients");
+    expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Fix campaign creative gap");
+    expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Prepare manual channel handoff");
+    fireEvent.click(screen.getByTestId("button-marketing-publishing-queue-recipient-consent"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-publishing-queue-recipient-snapshot"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Birthday Wishes");
+    expect(screen.getByTestId("checkbox-marketing-edit-campaign-snapshot")).toBeChecked();
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Recipient snapshot is enabled");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-operator-brief")).toHaveTextContent("Daily AI operator brief");
     expect(screen.getByTestId("marketing-operator-brief")).toHaveTextContent("One work order");
     expect(screen.getByTestId("button-marketing-operator-brief-priority")).toHaveTextContent("Finish Source sync setup");
@@ -1777,6 +1793,35 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByText('Opened "Caregiver welcome" to prepare non-email channel handoff.')).toBeInTheDocument();
   }, 30000);
+
+  it("routes due ready email campaigns from the publishing queue to final review", async () => {
+    const dueAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const dueCampaign = {
+      ...campaigns[0],
+      scheduleStartsAt: dueAt,
+      channels: campaigns[0].channels.map((channel) => channel.channel === "email" ? { ...channel, scheduledAt: dueAt } : channel),
+      recipients: [{
+        ...campaigns[0].recipients[0],
+        contactId: "contact-2",
+        snapshot: { fullName: "Hassan Partner", email: "hassan@example.com", contact_external_id: "lovable-contact-2" },
+      }],
+    };
+    const optedInContacts = contacts.map((contact) => contact.id === "contact-2" ? { ...contact, consentStatus: "opted_in" } : contact);
+
+    renderPage({}, { campaigns: [dueCampaign], contacts: optedInContacts });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Due email ready for final review");
+    expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Due now");
+    expect(screen.getByTestId("button-marketing-publishing-queue-due-email")).toHaveTextContent("Open send review");
+
+    fireEvent.click(screen.getByTestId("button-marketing-publishing-queue-due-email"));
+
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("is due now");
+    expect(screen.getByText('Opened "Caregiver welcome" for due email review.')).toBeInTheDocument();
+  });
 
   it("promotes recommended campaigns from the dashboard into the campaign studio", async () => {
     renderPage();
