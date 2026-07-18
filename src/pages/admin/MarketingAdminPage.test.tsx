@@ -2385,7 +2385,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver invite acceptance email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver invite WhatsApp reminder");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable caregiver invite one-pager");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("109 templates");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro call script");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("116 templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -2748,6 +2750,43 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Premium family upgrade pack into the campaign studio");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
 
+    expect(screen.getByTestId("marketing-template-pack-home-care-agency-outreach")).toHaveTextContent("Home care agency outreach");
+    expect(screen.getByTestId("marketing-template-pack-home-care-agency-outreach")).toHaveTextContent("7 templates");
+    expect(screen.getByTestId("marketing-template-pack-home-care-agency-outreach")).toHaveTextContent("AI pack prompt");
+    expect(screen.getByTestId("marketing-template-pack-home-care-agency-outreach")).toHaveTextContent("Phone call");
+    expect(screen.getByTestId("marketing-template-pack-home-care-agency-outreach")).toHaveTextContent("Print / direct mail");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-home-care-agency-outreach"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Home care agency outreach template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn home care agency operations post");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro call script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable home care agency one-pager");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-home-care-agency-outreach")).toHaveTextContent("Agency intro");
+    expect(screen.getByTestId("marketing-template-pack-sequence-home-care-agency-outreach")).toHaveTextContent("Intro call");
+    expect(screen.getByTestId("marketing-template-pack-sequence-home-care-agency-outreach")).toHaveTextContent("Agency roundtable");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-ai-home-care-agency-outreach"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Home care agency outreach"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Home care agency intro email"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Home care agency outreach AI command copied.");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-home-care-agency-outreach"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Home care agency outreach");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Phone call");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Home care agency outreach pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("Clinic and pharmacy referral");
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("6 templates");
     expect(screen.getByTestId("marketing-template-pack-clinic-pharmacy-referral")).toHaveTextContent("AI pack prompt");
@@ -2802,9 +2841,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("17");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("18");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Local event");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("3");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("4");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("8");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
@@ -4975,7 +5014,7 @@ describe("MarketingAdminPage", () => {
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("All plays");
-    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("28");
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("29");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Best next campaigns from your data");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Event reminder");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Choose launch mode");
