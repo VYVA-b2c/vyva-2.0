@@ -13,7 +13,7 @@ export const emptyRefillDraft:RefillCanvasDraft={medicationId:"",medicationName:
 export const initialRefillCanvasState:RefillCanvasState={step:"listening",draft:emptyRefillDraft,requestId:0};
 export function refillCanvasReducer(state:RefillCanvasState,event:RefillCanvasEvent):RefillCanvasState{
  switch(event.type){
-  case"START":return state.step==="listening"?{...state,step:"medication"}:state.step==="cancelled"?{...initialRefillCanvasState,draft:{...emptyRefillDraft}}:state;
+  case"START":return state.step==="listening"?{...state,step:"medication"}:state.step==="cancelled"?{...initialRefillCanvasState,step:"medication",draft:{...emptyRefillDraft}}:state;
   case"CHOOSE_MEDICATION":if(state.step!=="medication")return state;if(event.manual)return{...state,step:"medicationEntry",draft:{...state.draft,medicationId:"",medicationName:"",strength:""}};return event.medication?{...state,step:event.medication.strength?.trim()?"safety":"strength",draft:{...state.draft,medicationId:event.medication.id,medicationName:event.medication.label,strength:event.medication.strength?.trim()??""}}:state;
   case"CHANGE_MEDICATION":return state.step==="medicationEntry"?{...state,draft:{...state.draft,medicationId:"",medicationName:event.value}}:state;
   case"CONTINUE_MEDICATION":return state.step==="medicationEntry"&&state.draft.medicationName.trim()?{...state,step:"strength"}:state;
