@@ -27,3 +27,4 @@ export{prescriptionFollowUpReducer,initialPrescriptionFollowUpState,isRestorable
 export{prescriptionFollowUpViewModel}from"./prescriptionFollowUpViewModel";export type*from"./prescriptionFollowUpViewModel";
 export{trackPrescriptionFollowUpEvent,VYVA_PRESCRIPTION_FOLLOW_UP_TELEMETRY_EVENT}from"./prescriptionFollowUpTelemetry";export type*from"./prescriptionFollowUpTelemetry";
 export{isPrescriptionFollowUpEnabled,parsePrescriptionFollowUpRolloutConfig}from"./prescriptionFollowUpRollout";export type*from"./prescriptionFollowUpRollout";
+export{executePrescriptionFollowUp}from"./prescriptionFollowUpActions";export type*from"./prescriptionFollowUpActions";
