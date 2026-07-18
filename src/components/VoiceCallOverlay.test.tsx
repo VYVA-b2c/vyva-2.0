@@ -228,6 +228,31 @@ describe("VoiceCallOverlay voice room", () => {
     expect(baseProps.onEnd).not.toHaveBeenCalled();
   });
 
+  it("renders a Canvas question and submits typed input through the shared callback", () => {
+    const onCanvasPrimary = vi.fn();
+    renderOverlay([], {
+      canvasViewModel: {
+        sceneId: "ride-destination",
+        kind: "text-entry",
+        title: "Where are you going?",
+        textEntry: {
+          label: "Destination",
+          value: "",
+          placeholder: "Type an address",
+        },
+        primaryAction: { label: "Continue" },
+      },
+      onCanvasPrimary,
+    });
+
+    expect(screen.getByTestId("voice-canvas-surface")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-mode-zamora-orb")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Destination"), { target: { value: "10 Market Street" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(onCanvasPrimary).toHaveBeenCalledWith("10 Market Street");
+  });
+
   it("calls the type escape when available", () => {
     const onType = vi.fn();
     renderOverlay([], { onType });

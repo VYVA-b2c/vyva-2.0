@@ -1783,6 +1783,19 @@ const es = {
     reviewPasted: "Revisar seguro",
     closeReview: "Cerrar revision",
   },
+  voiceCanvas: {
+    ride: {
+      destinationTitle: "¿Adónde quieres ir?", destinationHelper: "Di el lugar o escribe la dirección.", destinationLabel: "Destino", destinationPlaceholder: "Lugar o dirección", continue: "Continuar",
+      pickupTitle: "¿Dónde te recogemos?", pickupHelper: "Elige tu casa guardada u otro lugar.", savedHome: "Casa guardada", savedHomeDescription: "Usar la dirección de tu perfil", anotherPickup: "Otro lugar", anotherPickupDescription: "Di o escribe otro punto de recogida", pickupLabel: "Lugar de recogida", pickupPlaceholder: "Dirección de recogida",
+      timeTitle: "¿Cuándo necesitas el viaje?", timeHelper: "Elige una hora o dísela a VYVA.", now: "Ahora", today: "Más tarde hoy", tomorrowMorning: "Mañana por la mañana", appointmentTime: "Para una cita", anotherTime: "Otra hora", timeLabel: "Hora de recogida", timePlaceholder: "Por ejemplo, viernes a las 10",
+      mobilityTitle: "¿Necesitas ayuda para el trayecto?", mobilityHelper: "Solo lo preguntamos si no está guardado en tu perfil.", noMobilityNeeds: "Sin ayuda extra", wheelchair: "Espacio para silla de ruedas", doorHelp: "Ayuda en la puerta", walkerOrCane: "Andador o bastón", caregiverComing: "Me acompaña alguien",
+      providerTitle: "Añade un transporte de confianza", providerHelper: "Guarda un taxi o contacto de transporte antes de preparar el viaje.", addProvider: "Añadir proveedor",
+      reviewTitle: "Revisa los datos del viaje", reviewHelper: "Todavía no se ha reservado ni contactado con nadie.", pickup: "Recogida", destination: "Destino", when: "Cuándo", mobility: "Ayuda en el trayecto", provider: "Proveedor", none: "Ninguna", compareRides: "Ver opciones", change: "Cambiar datos",
+      optionsTitle: "Elige una opción", optionsHelper: "Revisa una opción antes de que VYVA prepare el contacto.", optionReviewTitle: "¿Preparar este viaje?", optionReviewHelper: "Esto prepara la solicitud. No contacta con nadie.", prepareRide: "Preparar viaje", back: "Atrás",
+      detailTitle: "Falta un dato", detailHelper: "Añádelo antes de revisar la confirmación final.", confirmTitle: "Listo para confirmar", confirmHelper: "Solo esta confirmación final puede iniciar el contacto o la reserva.", confirmContact: "Confirmar y continuar",
+      waitingTitle: "VYVA prepara el siguiente paso", waitingHelper: "Puedes minimizar esto y seguir usando la app.", completedTitle: "Viaje organizado", completedHelper: "El resultado confirmado está guardado en Concierge.", errorTitle: "No se pudo continuar con el viaje", tryAgain: "Intentar de nuevo",
+    },
+  },
   statusVitals: {
     actions: {
       ride: "Buscar transporte",

@@ -83,6 +83,20 @@ import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import {
+  buildConciergeRideCanvasViewModel,
+  type ConciergeRideCanvasCopy,
+  type ConciergeRideCanvasStep,
+  type ConciergeRideCanvasOption,
+} from "@/lib/conciergeRideCanvas";
+import {
+  clearVoiceCanvasScene,
+  emitVoiceCanvasScene,
+  voiceCanvasResponseMatchesScene,
+  VYVA_VOICE_CANVAS_RESPONSE_EVENT,
+  type VoiceCanvasResponseDetail,
+  type VoiceCanvasSceneEnvelope,
+} from "@/lib/voiceCanvasBridge";
+import {
   buildHomeServiceIntake,
   homeServiceAddressFromPreferences,
   homeServiceQuestionsFor,
@@ -199,6 +213,7 @@ type ConciergeProviderResumeContext =
       destination?: string;
       time?: string;
       mobilityNeeds?: string[];
+      voiceCanvas?: boolean;
     }
   | {
       kind: "otc_pharmacy";
@@ -417,6 +432,7 @@ function coerceConciergeResumeContext(value: unknown): ConciergeProviderResumeCo
       destination: routeText(value, ["destination", "destinationAddress"]),
       time: routeText(value, ["time", "requestedTime"]),
       mobilityNeeds: routeStringList(value.mobilityNeeds ?? value.mobility_needs),
+      voiceCanvas: value.voiceCanvas === true || value.voice_canvas === true,
     };
   }
   if (kind === "otc_pharmacy") {
@@ -8953,6 +8969,15 @@ const ConciergeScreen = () => {
   const [transportResult, setTransportResult] = useState<TransportOptionsResponse | null>(null);
   const [transportPreparedOption, setTransportPreparedOption] = useState<TransportOption | null>(null);
   const [transportPreparedResult, setTransportPreparedResult] = useState<TransportPreparedResponse | null>(null);
+  const [rideCanvasMode, setRideCanvasMode] = useState(false);
+  const [rideCanvasStep, setRideCanvasStep] = useState<ConciergeRideCanvasStep | null>(null);
+  const [rideCanvasRevision, setRideCanvasRevision] = useState(1);
+  const [rideCanvasSelectedOptionId, setRideCanvasSelectedOptionId] = useState<string | null>(null);
+  const activeRideCanvasSceneRef = useRef<VoiceCanvasSceneEnvelope | null>(null);
+  const advanceRideCanvas = useCallback((step: ConciergeRideCanvasStep) => {
+    setRideCanvasStep(step);
+    setRideCanvasRevision((revision) => revision + 1);
+  }, []);
   const [transportFinalForm, setTransportFinalForm] = useState({
     scheduledFor: "",
     pickup: "",
@@ -9146,6 +9171,70 @@ const ConciergeScreen = () => {
     isSpanish,
   ]);
   const savedTransportPickupLabel = isSpanish ? "Casa guardada" : "Saved home";
+  const rideCanvasCopy = useMemo<ConciergeRideCanvasCopy>(() => {
+    const copy = (key: string, fallback: string) => String(t(`voiceCanvas.ride.${key}`, { defaultValue: fallback }));
+    return {
+      destinationTitle: copy("destinationTitle", "Where are you going?"),
+      destinationHelper: copy("destinationHelper", "Say the place or type the address."),
+      destinationLabel: copy("destinationLabel", "Destination"),
+      destinationPlaceholder: copy("destinationPlaceholder", "Place or address"),
+      continue: copy("continue", "Continue"),
+      pickupTitle: copy("pickupTitle", "Where should we pick you up?"),
+      pickupHelper: copy("pickupHelper", "Choose your saved home or another place."),
+      savedHome: copy("savedHome", "Saved home"),
+      savedHomeDescription: copy("savedHomeDescription", "Use the address in your profile"),
+      anotherPickup: copy("anotherPickup", "Another place"),
+      anotherPickupDescription: copy("anotherPickupDescription", "Say or type a different pickup"),
+      pickupLabel: copy("pickupLabel", "Pickup place"),
+      pickupPlaceholder: copy("pickupPlaceholder", "Pickup address"),
+      timeTitle: copy("timeTitle", "When do you need the ride?"),
+      timeHelper: copy("timeHelper", "Choose a time or tell VYVA."),
+      now: copy("now", "Now"),
+      today: copy("today", "Later today"),
+      tomorrowMorning: copy("tomorrowMorning", "Tomorrow morning"),
+      appointmentTime: copy("appointmentTime", "For an appointment"),
+      anotherTime: copy("anotherTime", "Another time"),
+      timeLabel: copy("timeLabel", "Pickup time"),
+      timePlaceholder: copy("timePlaceholder", "For example, Friday at 10"),
+      mobilityTitle: copy("mobilityTitle", "Any help for the journey?"),
+      mobilityHelper: copy("mobilityHelper", "We only ask when this is not saved in your profile."),
+      noMobilityNeeds: copy("noMobilityNeeds", "No extra help"),
+      wheelchair: copy("wheelchair", "Wheelchair space"),
+      doorHelp: copy("doorHelp", "Help at the door"),
+      walkerOrCane: copy("walkerOrCane", "Walker or cane"),
+      caregiverComing: copy("caregiverComing", "Someone is coming with me"),
+      providerTitle: copy("providerTitle", "Add a trusted transport provider"),
+      providerHelper: copy("providerHelper", "Save a taxi or transport contact before VYVA prepares the ride."),
+      addProvider: copy("addProvider", "Add provider"),
+      reviewTitle: copy("reviewTitle", "Check the ride details"),
+      reviewHelper: copy("reviewHelper", "Nothing is booked or contacted yet."),
+      pickup: copy("pickup", "Pickup"),
+      destination: copy("destination", "Destination"),
+      when: copy("when", "When"),
+      mobility: copy("mobility", "Journey help"),
+      provider: copy("provider", "Provider"),
+      none: copy("none", "None"),
+      compareRides: copy("compareRides", "Show ride options"),
+      change: copy("change", "Change details"),
+      optionsTitle: copy("optionsTitle", "Choose a ride option"),
+      optionsHelper: copy("optionsHelper", "Review one option before VYVA prepares contact."),
+      optionReviewTitle: copy("optionReviewTitle", "Prepare this ride?"),
+      optionReviewHelper: copy("optionReviewHelper", "This prepares the request. It does not contact anyone."),
+      prepareRide: copy("prepareRide", "Prepare ride"),
+      back: copy("back", "Back"),
+      detailTitle: copy("detailTitle", "One more detail"),
+      detailHelper: copy("detailHelper", "Add this before reviewing the final confirmation."),
+      confirmTitle: copy("confirmTitle", "Ready for your confirmation"),
+      confirmHelper: copy("confirmHelper", "Only this final confirmation can start contact or booking."),
+      confirmContact: copy("confirmContact", "Confirm and continue"),
+      waitingTitle: copy("waitingTitle", "VYVA is preparing the next step"),
+      waitingHelper: copy("waitingHelper", "You can minimize this and keep using the app."),
+      completedTitle: copy("completedTitle", "Ride arranged"),
+      completedHelper: copy("completedHelper", "The confirmed result is saved in Concierge."),
+      errorTitle: copy("errorTitle", "The ride could not continue"),
+      tryAgain: copy("tryAgain", "Try again"),
+    };
+  }, [t]);
 
   const { data: pendingActions = [], isLoading: pendingLoading } = useQuery({
     queryKey: ["/api/concierge/actions/pending"],
@@ -9232,6 +9321,7 @@ const ConciergeScreen = () => {
           destination: transportDestination.trim(),
           time: transportTime.trim() || "now",
           mobilityNeeds: transportMobilityNeeds,
+          voiceCanvas: rideCanvasMode,
         },
         notice: isSpanish
           ? "Guarda un taxi o transporte preferido para usarlo primero."
@@ -9242,6 +9332,7 @@ const ConciergeScreen = () => {
     isSpanish,
     navigate,
     routePrefill,
+    rideCanvasMode,
     savedTransportPickupLabel,
     transportDestination,
     transportMobilityNeeds,
@@ -10791,7 +10882,16 @@ const ConciergeScreen = () => {
       || conciergeVoiceTaskType.toLowerCase().includes("taxi");
     const isReminderVoiceRequest = conciergeVoiceAction.actionType === "concierge.reminder";
 
+    if (!isRideVoiceRequest && rideCanvasMode) {
+      setRideCanvasMode(false);
+      setRideCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_ride" });
+    }
+
     if (isRideVoiceRequest) {
+      setRideCanvasMode(true);
+      setRideCanvasSelectedOptionId(null);
+      advanceRideCanvas(conciergeVoiceDestination.trim() ? "pickup" : "destination");
       setRoutePrefill({ kind: "ride", message: conciergeVoiceDraft, source: "voice_action" });
       clearAppointmentAssistantState();
       setTransportPickup((current) => current.trim() ? current : conciergeVoicePickup || savedTransportPickupLabel);
@@ -10810,10 +10910,16 @@ const ConciergeScreen = () => {
       setTransportDetailsOpen(true);
       setOffersOpen(false);
     } else if (isReminderVoiceRequest) {
+      setRideCanvasMode(false);
+      setRideCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_ride" });
       setRoutePrefill({ kind: "task", message: conciergeVoiceDraft, source: "voice_action" });
       clearAppointmentAssistantState();
       setOffersOpen(false);
     } else if (isAppointmentRequest || isHomeServiceVoiceRequest) {
+      setRideCanvasMode(false);
+      setRideCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_ride" });
       setAppointmentOpen(true);
       setOffersOpen(false);
       if (isHomeServiceVoiceRequest) {
@@ -10841,6 +10947,7 @@ const ConciergeScreen = () => {
     setInput((current) => current.trim() ? current : conciergeVoiceDraft);
     window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }, [
+    advanceRideCanvas,
     conciergePayloadValue,
     clearAppointmentAssistantState,
     conciergeVoiceAction,
@@ -10855,6 +10962,7 @@ const ConciergeScreen = () => {
     conciergeVoiceTime,
     conciergeVoiceTaskType,
     conciergeVoiceUrgency,
+    rideCanvasMode,
     savedTransportPickupLabel,
   ]);
 
@@ -10944,11 +11052,20 @@ const ConciergeScreen = () => {
       setTransportTime(routeTime || "now");
       setTransportMobilityNeeds(routeMobilityNeeds);
       setTransportDetailsOpen(true);
+      if (prefill.source === "voice_action") {
+        setRideCanvasMode(true);
+        setRideCanvasSelectedOptionId(null);
+        advanceRideCanvas(routeDestination ? "pickup" : "destination");
+      }
+    } else if (rideCanvasMode) {
+      setRideCanvasMode(false);
+      setRideCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_ride" });
     }
 
     window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-  }, [location.pathname, location.search, location.state, navigate, savedTransportPickupLabel]);
+  }, [advanceRideCanvas, location.pathname, location.search, location.state, navigate, rideCanvasMode, savedTransportPickupLabel]);
 
   useEffect(() => {
     try {
@@ -13185,11 +13302,12 @@ const ConciergeScreen = () => {
     }
 
     if (conciergeResume?.kind === "transport") {
+      const resumeInVoiceCanvas = conciergeResume.voiceCanvas === true;
       const message = conciergeResume.message?.trim()
         || (isSpanish
           ? `Usa ${name} como proveedor de transporte de confianza. Confirma destino, recogida y hora antes de reservar.`
           : `Use ${name} as my trusted transport provider. Confirm destination, pickup, and time before booking.`);
-      setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
+      setRoutePrefill({ kind: "ride", message, source: resumeInVoiceCanvas ? "voice_action" : "home_quick_action" });
       setInput((current) => current.trim() ? current : message);
       clearAppointmentAssistantState();
       setInsuranceAdminOpen(false);
@@ -13205,6 +13323,11 @@ const ConciergeScreen = () => {
       resetTransportFinalReview();
       setTransportDetailsOpen(true);
       setOffersOpen(false);
+      if (resumeInVoiceCanvas) {
+        setRideCanvasMode(true);
+        setRideCanvasSelectedOptionId(null);
+        advanceRideCanvas(conciergeResume.destination?.trim() ? "review" : "destination");
+      }
       window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
       return;
     }
@@ -13657,6 +13780,298 @@ const ConciergeScreen = () => {
         : activeActionIsVyvaTask
           ? Sparkles
           : PhoneCall;
+  const rideCanvasOptions = useMemo<ConciergeRideCanvasOption[]>(() => (
+    (transportResult?.options ?? []).map((option) => ({
+      id: option.id,
+      label: option.label,
+      description: option.description,
+      providerName: option.providerName,
+    }))
+  ), [transportResult?.options]);
+  const rideCanvasSelectedTransportOption = transportResult?.options.find((option) => option.id === rideCanvasSelectedOptionId) ?? null;
+  const rideCanvasSelectedOption = rideCanvasOptions.find((option) => option.id === rideCanvasSelectedOptionId) ?? null;
+  const rideCanvasPendingId = transportPreparedResult?.pendingId?.trim() || "";
+  const rideCanvasPendingAction = rideCanvasPendingId
+    ? pendingActions.find((item) => item.id === rideCanvasPendingId) ?? null
+    : null;
+  const rideCanvasPendingDetails = rideCanvasPendingAction
+    ? buildConciergeGuidedDetailCapture({
+        useCase: rideCanvasPendingAction.use_case,
+        payload: rideCanvasPendingAction.action_payload,
+        providerName: rideCanvasPendingAction.provider_name,
+        providerPhone: rideCanvasPendingAction.provider_phone,
+        locale,
+      })
+    : null;
+  const rideCanvasCompletedSession = rideCanvasPendingId
+    ? completedSessions.find((session) => session.pending_id === rideCanvasPendingId) ?? null
+    : null;
+  const rideCanvasViewModel = useMemo(() => {
+    if (!rideCanvasMode || !rideCanvasStep) return null;
+    const question = rideCanvasPendingDetails?.nextQuestion ?? null;
+    return buildConciergeRideCanvasViewModel({
+      step: rideCanvasStep,
+      copy: rideCanvasCopy,
+      destination: transportDestination,
+      pickup: transportPickup,
+      requestedTime: transportTime,
+      mobilityNeeds: transportMobilityNeeds,
+      savedPickupLabel: savedTransportPickupLabel,
+      savedProviderName: savedTransportProvider,
+      options: rideCanvasOptions,
+      selectedOption: rideCanvasSelectedOption,
+      pendingProviderName: rideCanvasPendingAction?.provider_name ?? transportPreparedOption?.providerName,
+      pendingDetail: question ? {
+        label: question.label,
+        prompt: question.prompt,
+        placeholder: question.placeholder,
+      } : null,
+      error: transportError,
+    });
+  }, [
+    rideCanvasCopy,
+    rideCanvasMode,
+    rideCanvasOptions,
+    rideCanvasPendingAction?.provider_name,
+    rideCanvasPendingDetails?.nextQuestion,
+    rideCanvasSelectedOption,
+    rideCanvasStep,
+    savedTransportPickupLabel,
+    savedTransportProvider,
+    transportDestination,
+    transportError,
+    transportMobilityNeeds,
+    transportPickup,
+    transportPreparedOption?.providerName,
+    transportTime,
+  ]);
+
+  useEffect(() => {
+    if (!rideCanvasMode || !rideCanvasViewModel) {
+      activeRideCanvasSceneRef.current = null;
+      clearVoiceCanvasScene({ owner: "concierge_ride" });
+      return;
+    }
+    const scene: VoiceCanvasSceneEnvelope = {
+      owner: "concierge_ride",
+      revision: rideCanvasRevision,
+      actionId: conciergeVoiceAction?.id,
+      flowReference: TRANSPORT_BOOKING_FLOW_REFERENCE,
+      pendingId: rideCanvasPendingId || undefined,
+      viewModel: rideCanvasViewModel,
+    };
+    activeRideCanvasSceneRef.current = scene;
+    emitVoiceCanvasScene(scene);
+  }, [conciergeVoiceAction?.id, rideCanvasMode, rideCanvasPendingId, rideCanvasRevision, rideCanvasViewModel]);
+
+  useEffect(() => () => {
+    clearVoiceCanvasScene({ owner: "concierge_ride" });
+  }, []);
+
+  useEffect(() => {
+    if (!rideCanvasMode || !rideCanvasStep) return;
+    if (transportError && rideCanvasStep !== "error") {
+      advanceRideCanvas("error");
+      return;
+    }
+    if (rideCanvasCompletedSession && rideCanvasStep !== "completed") {
+      advanceRideCanvas("completed");
+      return;
+    }
+    if (!rideCanvasPendingAction) return;
+    if (rideCanvasPendingAction.status === "calling" || rideCanvasPendingAction.confirmed_at) {
+      if (rideCanvasStep !== "waiting") advanceRideCanvas("waiting");
+      return;
+    }
+    if (rideCanvasPendingAction.status !== "pending") return;
+    const nextStep = rideCanvasPendingDetails?.nextQuestion ? "pending_detail" : "pending_confirm";
+    if (rideCanvasStep !== nextStep) advanceRideCanvas(nextStep);
+  }, [
+    advanceRideCanvas,
+    rideCanvasCompletedSession,
+    rideCanvasMode,
+    rideCanvasPendingAction,
+    rideCanvasPendingDetails?.nextQuestion,
+    rideCanvasStep,
+    transportError,
+  ]);
+
+  useEffect(() => {
+    if (rideCanvasMode && rideCanvasStep === "provider" && hasSavedTransportProvider) {
+      advanceRideCanvas("review");
+    }
+  }, [advanceRideCanvas, hasSavedTransportProvider, rideCanvasMode, rideCanvasStep]);
+
+  useEffect(() => {
+    const handleRideCanvasResponse = (event: Event) => {
+      const response = event instanceof CustomEvent
+        ? (event.detail as VoiceCanvasResponseDetail | undefined)
+        : undefined;
+      const scene = activeRideCanvasSceneRef.current;
+      if (!response || !scene || scene.owner !== "concierge_ride" || !voiceCanvasResponseMatchesScene(response, scene)) return;
+
+      const answer = (response.value || response.utterance).trim();
+      const normalizedAnswer = answer.toLocaleLowerCase();
+      const affirmative = /^(yes|yes please|confirm|continue|go ahead|si|sí|confirmar|continua|continúa|adelante|ja|bestätigen|weiter|oui|confirmer|continuer|sì|si|conferma|continua|sim|confirmar|continuar)$/i.test(normalizedAnswer);
+      const nextAfterTimeOrMobility = () => advanceRideCanvas(hasSavedTransportProvider ? "review" : "provider");
+
+      if (response.kind === "secondary") {
+        if (rideCanvasStep === "pickup_custom") advanceRideCanvas("pickup");
+        else if (rideCanvasStep === "time_custom") advanceRideCanvas("time");
+        else if (rideCanvasStep === "provider") advanceRideCanvas(shouldAskTransportMobility ? "mobility" : "time");
+        else if (rideCanvasStep === "option_review") advanceRideCanvas("options");
+        else if (rideCanvasStep === "pending_detail" || rideCanvasStep === "pending_confirm") advanceRideCanvas("review");
+        else if (rideCanvasStep === "error") advanceRideCanvas("destination");
+        else advanceRideCanvas("destination");
+        return;
+      }
+
+      if (rideCanvasStep === "destination") {
+        if (!answer || response.kind === "primary") return;
+        setTransportDestination(answer);
+        advanceRideCanvas("pickup");
+        return;
+      }
+      if (rideCanvasStep === "pickup") {
+        if (response.choiceId === "another_pickup") {
+          advanceRideCanvas("pickup_custom");
+          return;
+        }
+        if (response.choiceId === "saved_home") {
+          setTransportPickup(savedTransportPickupLabel);
+        } else if (answer) {
+          setTransportPickup(answer);
+        } else {
+          return;
+        }
+        advanceRideCanvas("time");
+        return;
+      }
+      if (rideCanvasStep === "pickup_custom") {
+        if (!answer || response.kind === "primary") return;
+        setTransportPickup(answer);
+        advanceRideCanvas("time");
+        return;
+      }
+      if (rideCanvasStep === "time") {
+        if (response.choiceId === "another_time" || response.choiceId === "appointment_time") {
+          advanceRideCanvas("time_custom");
+          return;
+        }
+        const selectedTime = response.choiceId === "now"
+          ? "now"
+          : response.choiceId === "today"
+            ? rideCanvasCopy.today
+            : response.choiceId === "tomorrow_morning"
+              ? rideCanvasCopy.tomorrowMorning
+              : answer;
+        if (!selectedTime) return;
+        setTransportTime(selectedTime);
+        if (shouldAskTransportMobility) advanceRideCanvas("mobility");
+        else nextAfterTimeOrMobility();
+        return;
+      }
+      if (rideCanvasStep === "time_custom") {
+        if (!answer || response.kind === "primary") return;
+        setTransportTime(answer);
+        if (shouldAskTransportMobility) advanceRideCanvas("mobility");
+        else nextAfterTimeOrMobility();
+        return;
+      }
+      if (rideCanvasStep === "mobility") {
+        const mobilityByChoice: Record<string, string[]> = {
+          none: [],
+          wheelchair: [rideCanvasCopy.wheelchair],
+          door_help: [rideCanvasCopy.doorHelp],
+          walker: [rideCanvasCopy.walkerOrCane],
+          caregiver: [rideCanvasCopy.caregiverComing],
+        };
+        const nextMobilityNeeds = response.choiceId
+          ? mobilityByChoice[response.choiceId]
+          : answer
+            ? [answer]
+            : undefined;
+        if (!nextMobilityNeeds) return;
+        setTransportMobilityNeeds(nextMobilityNeeds);
+        nextAfterTimeOrMobility();
+        return;
+      }
+      if (rideCanvasStep === "provider") {
+        if (response.kind === "primary" || affirmative) openTransportProviderSetup();
+        return;
+      }
+      if (rideCanvasStep === "review") {
+        if (response.kind !== "primary" && !affirmative) return;
+        if (!hasSavedTransportProvider) {
+          advanceRideCanvas("provider");
+          return;
+        }
+        transportOptionsMutation.mutate(undefined, {
+          onSuccess: () => advanceRideCanvas("options"),
+          onError: () => advanceRideCanvas("error"),
+        });
+        return;
+      }
+      if (rideCanvasStep === "options") {
+        if (!response.choiceId || !transportResult?.options.some((option) => option.id === response.choiceId)) return;
+        setRideCanvasSelectedOptionId(response.choiceId);
+        advanceRideCanvas("option_review");
+        return;
+      }
+      if (rideCanvasStep === "option_review") {
+        if ((response.kind !== "primary" && !affirmative) || !rideCanvasSelectedTransportOption) return;
+        prepareTransportMutation.mutate(rideCanvasSelectedTransportOption, {
+          onSuccess: (result) => {
+            if (result.pendingId) setVisibleActionId(result.pendingId);
+            setIsRightNowHidden(false);
+            advanceRideCanvas("waiting");
+          },
+          onError: () => advanceRideCanvas("error"),
+        });
+        return;
+      }
+      if (rideCanvasStep === "pending_detail") {
+        const question = rideCanvasPendingDetails?.nextQuestion;
+        if (!rideCanvasPendingAction || !question || !answer || response.kind === "primary") return;
+        guidedDetailMutation.mutate({ item: rideCanvasPendingAction, question, value: answer }, {
+          onSuccess: () => advanceRideCanvas("waiting"),
+          onError: () => advanceRideCanvas("error"),
+        });
+        return;
+      }
+      if (rideCanvasStep === "pending_confirm") {
+        if (!rideCanvasPendingAction || (response.kind !== "primary" && !affirmative)) return;
+        confirmMutation.mutate(rideCanvasPendingAction, {
+          onSuccess: () => advanceRideCanvas("waiting"),
+          onError: () => advanceRideCanvas("error"),
+        });
+        return;
+      }
+      if (rideCanvasStep === "error" && (response.kind === "primary" || affirmative)) {
+        setTransportError(null);
+        advanceRideCanvas("review");
+      }
+    };
+
+    window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleRideCanvasResponse);
+    return () => window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleRideCanvasResponse);
+  }, [
+    advanceRideCanvas,
+    confirmMutation,
+    guidedDetailMutation,
+    hasSavedTransportProvider,
+    openTransportProviderSetup,
+    prepareTransportMutation,
+    rideCanvasCopy,
+    rideCanvasPendingAction,
+    rideCanvasPendingDetails?.nextQuestion,
+    rideCanvasSelectedTransportOption,
+    rideCanvasStep,
+    savedTransportPickupLabel,
+    shouldAskTransportMobility,
+    transportOptionsMutation,
+    transportResult?.options,
+  ]);
   const routePrefillHighlights = routePrefill
     ? buildRoutePrefillHighlights(routePrefill.message, isSpanish)
     : [];
@@ -13718,17 +14133,17 @@ const ConciergeScreen = () => {
       if (!response.ok) return { enabled: false, rolloutPercent: 0 };
       return parseRideCanvasRolloutConfig(await response.json());
     },
-    enabled: isVoiceRideHandoff,
+    enabled: isVoiceRideHandoff && !rideCanvasMode,
     staleTime: 0,
     refetchInterval: 10_000,
     refetchOnWindowFocus: "always",
     retry: false,
   });
-  const usesRideVoiceCanvas = isVoiceRideHandoff && isRideCanvasEnabled(
+  const usesLegacyRideVoiceCanvas = !rideCanvasMode && isVoiceRideHandoff && isRideCanvasEnabled(
     rideCanvasRolloutQuery.data,
     conciergeVoiceAction?.id ?? "anonymous",
   );
-  const rideCanvasCopy = useMemo<RideCanvasCopy>(() => ({
+  const legacyRideCanvasCopy = useMemo<RideCanvasCopy>(() => ({
     listening: {
       status: isSpanish ? "Escuchando" : "Listening",
       title: isSpanish ? "¿Adonde te ayudo a ir?" : "Where can I help you go?",
@@ -14845,13 +15260,13 @@ const ConciergeScreen = () => {
         </section>
       )}
 
-      {usesRideVoiceCanvas && (
+      {usesLegacyRideVoiceCanvas && (
         <section
           className="order-[15] mt-4 flex justify-center rounded-[28px] bg-[#F8F4FA] p-2 sm:p-4"
           data-testid="panel-concierge-ride-voice-canvas"
         >
           <RideVoiceCanvas
-            copy={rideCanvasCopy}
+            copy={legacyRideCanvasCopy}
             places={rideCanvasPlaces}
             dateChoices={rideCanvasDates}
             voiceCommands={rideCanvasCommands}
@@ -14865,7 +15280,7 @@ const ConciergeScreen = () => {
         </section>
       )}
 
-      {routePrefill?.kind === "ride" && (!isVoiceRideHandoff || !usesRideVoiceCanvas) && routePrefillMeta && (
+      {routePrefill?.kind === "ride" && (!isVoiceRideHandoff || !usesLegacyRideVoiceCanvas) && routePrefillMeta && (
         <section
           className="relative z-20 order-[15] mt-4 scroll-mt-[88px] overflow-hidden rounded-[28px] border border-[#BBF7D0] bg-white"
           style={{ boxShadow: "0 18px 42px rgba(4,120,87,0.14)" }}

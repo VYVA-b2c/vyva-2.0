@@ -27,6 +27,7 @@ import { useServiceGate } from "@/hooks/useServiceGate";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { useToastSurface } from "@/hooks/useToastSurface";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
+import { useVoiceCanvasContext } from "@/contexts/VoiceCanvasContext";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
@@ -433,6 +434,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const { canUseService, guardPath } = useServiceGate();
   const [sosOpen, setSosOpen] = useState(false);
   const [dockVoiceOverlayOpen, setDockVoiceOverlayOpen] = useState(false);
+  const [minimizedCanvasKey, setMinimizedCanvasKey] = useState<string | null>(null);
   const [externalVoiceOverlayPresent, setExternalVoiceOverlayPresent] = useState(false);
   const lastVoiceActionRef = useRef<{ key: string; at: number } | null>(null);
   const lastOpenedVoiceActionRef = useRef<{ key: string; at: number } | null>(null);
@@ -459,6 +461,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     completeActiveAction,
     dismissActiveAction,
   } = useVoiceActionContext();
+  const { activeScene: activeCanvasScene, submitResponse: submitCanvasResponse } = useVoiceCanvasContext();
   const appShellLayout = getAppShellLayout(location.pathname);
   const isFullScreen = appShellLayout === "fullscreen";
   const isVitalsRoute = appShellLayout === "vitals";
@@ -488,7 +491,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const showInlineVoiceAction = Boolean(!isFullScreen && visibleVoiceAction && visibleVoiceActionRouteMatches);
   const hasVoiceSessionSurface =
     !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring" || Boolean(lastError));
-  const showDockVoiceOverlay = !isFullScreen && dockVoiceOverlayOpen && hasVoiceSessionSurface;
+  const activeCanvasKey = activeCanvasScene
+    ? `${activeCanvasScene.viewModel.sceneId}:${activeCanvasScene.revision}`
+    : null;
+  const showDockVoiceOverlay = !isFullScreen && dockVoiceOverlayOpen && (hasVoiceSessionSurface || Boolean(activeCanvasScene));
   const isVoiceOverlayFocused = externalVoiceOverlayPresent || showDockVoiceOverlay;
   const showVoiceDock =
     !isFullScreen &&
@@ -539,15 +545,46 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   }, [canUseService]);
 
   useEffect(() => {
-    if (!hasVoiceSessionSurface) setDockVoiceOverlayOpen(false);
-  }, [hasVoiceSessionSurface]);
+    if (!hasVoiceSessionSurface && !activeCanvasScene) setDockVoiceOverlayOpen(false);
+  }, [activeCanvasScene, hasVoiceSessionSurface]);
+
+  useEffect(() => {
+    if (!activeCanvasKey || activeCanvasKey === minimizedCanvasKey) return;
+    setDockVoiceOverlayOpen(true);
+  }, [activeCanvasKey, minimizedCanvasKey]);
 
   useEffect(() => {
     if (previousPathRef.current === location.pathname) return;
 
     previousPathRef.current = location.pathname;
+    if (!activeCanvasScene) setDockVoiceOverlayOpen(false);
+  }, [activeCanvasScene, location.pathname]);
+
+  const minimizeVoiceCanvas = useCallback(() => {
+    if (activeCanvasKey) setMinimizedCanvasKey(activeCanvasKey);
     setDockVoiceOverlayOpen(false);
-  }, [location.pathname]);
+  }, [activeCanvasKey]);
+
+  const handleCanvasChoice = useCallback((choiceId: string) => {
+    const choice = activeCanvasScene?.viewModel.choices?.find((item) => item.id === choiceId);
+    if (!choice) return;
+    submitCanvasResponse({ kind: "choice", choiceId, value: choice.label, utterance: choice.label });
+  }, [activeCanvasScene, submitCanvasResponse]);
+
+  const handleCanvasPrimary = useCallback((value?: string) => {
+    const viewModel = activeCanvasScene?.viewModel;
+    if (!viewModel?.primaryAction) return;
+    const trimmedValue = value?.trim();
+    submitCanvasResponse(viewModel.textEntry && trimmedValue
+      ? { kind: "text", value: trimmedValue, utterance: trimmedValue }
+      : { kind: "primary", utterance: viewModel.primaryAction.label });
+  }, [activeCanvasScene, submitCanvasResponse]);
+
+  const handleCanvasSecondary = useCallback(() => {
+    const label = activeCanvasScene?.viewModel.secondaryAction?.label;
+    if (!label) return;
+    submitCanvasResponse({ kind: "secondary", utterance: label });
+  }, [activeCanvasScene, submitCanvasResponse]);
 
   const openVoiceAppAction = useCallback((action: VoiceAppAction) => {
     const actionKey = `${action.id}:${action.route}`;
@@ -755,7 +792,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               setDockVoiceOverlayOpen(false);
               stopVoice();
             }}
-            onMinimize={() => setDockVoiceOverlayOpen(false)}
+            onMinimize={minimizeVoiceCanvas}
             activeAction={visibleVoiceAction}
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
@@ -764,6 +801,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             connectionErrorCode={lastErrorCode}
             voiceDiagnostics={voiceDiagnostics}
             onType={() => setDockVoiceOverlayOpen(false)}
+            canvasViewModel={activeCanvasScene?.viewModel}
+            onCanvasChoice={handleCanvasChoice}
+            onCanvasPrimary={handleCanvasPrimary}
+            onCanvasSecondary={handleCanvasSecondary}
           />
         )}
         {showVoiceDock && (
@@ -775,7 +816,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={setMicrophoneMuted}
-            onOpen={() => setDockVoiceOverlayOpen(true)}
+            onOpen={() => {
+              setMinimizedCanvasKey(null);
+              setDockVoiceOverlayOpen(true);
+            }}
           />
         )}
       </div>

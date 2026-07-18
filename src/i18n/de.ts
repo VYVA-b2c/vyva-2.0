@@ -1653,6 +1653,19 @@ const de = {
     reviewPasted: "Sicher prufen",
     closeReview: "Prufung schliessen",
   },
+  voiceCanvas: {
+    ride: {
+      destinationTitle: "Wohin möchten Sie fahren?", destinationHelper: "Sagen Sie den Ort oder geben Sie die Adresse ein.", destinationLabel: "Ziel", destinationPlaceholder: "Ort oder Adresse", continue: "Weiter",
+      pickupTitle: "Wo sollen wir Sie abholen?", pickupHelper: "Wählen Sie Ihr gespeichertes Zuhause oder einen anderen Ort.", savedHome: "Gespeichertes Zuhause", savedHomeDescription: "Adresse aus Ihrem Profil verwenden", anotherPickup: "Anderer Ort", anotherPickupDescription: "Anderen Abholort sagen oder eingeben", pickupLabel: "Abholort", pickupPlaceholder: "Abholadresse",
+      timeTitle: "Wann benötigen Sie die Fahrt?", timeHelper: "Wählen Sie eine Zeit oder sagen Sie es VYVA.", now: "Jetzt", today: "Später heute", tomorrowMorning: "Morgen früh", appointmentTime: "Für einen Termin", anotherTime: "Andere Zeit", timeLabel: "Abholzeit", timePlaceholder: "Zum Beispiel Freitag um 10 Uhr",
+      mobilityTitle: "Benötigen Sie Hilfe für die Fahrt?", mobilityHelper: "Wir fragen nur, wenn dies nicht im Profil gespeichert ist.", noMobilityNeeds: "Keine zusätzliche Hilfe", wheelchair: "Rollstuhlplatz", doorHelp: "Hilfe an der Tür", walkerOrCane: "Rollator oder Stock", caregiverComing: "Jemand begleitet mich",
+      providerTitle: "Vertrauenswürdigen Fahrdienst hinzufügen", providerHelper: "Speichern Sie einen Taxi- oder Fahrdienstkontakt, bevor VYVA die Fahrt vorbereitet.", addProvider: "Anbieter hinzufügen",
+      reviewTitle: "Fahrtdaten prüfen", reviewHelper: "Es wurde noch nichts gebucht und niemand kontaktiert.", pickup: "Abholung", destination: "Ziel", when: "Zeit", mobility: "Fahrthilfe", provider: "Anbieter", none: "Keine", compareRides: "Fahrtoptionen anzeigen", change: "Daten ändern",
+      optionsTitle: "Fahrtoption wählen", optionsHelper: "Prüfen Sie eine Option, bevor VYVA den Kontakt vorbereitet.", optionReviewTitle: "Diese Fahrt vorbereiten?", optionReviewHelper: "Dies bereitet die Anfrage vor. Niemand wird kontaktiert.", prepareRide: "Fahrt vorbereiten", back: "Zurück",
+      detailTitle: "Noch eine Angabe", detailHelper: "Ergänzen Sie diese vor der abschließenden Bestätigung.", confirmTitle: "Bereit zur Bestätigung", confirmHelper: "Erst diese letzte Bestätigung kann Kontakt oder Buchung starten.", confirmContact: "Bestätigen und weiter",
+      waitingTitle: "VYVA bereitet den nächsten Schritt vor", waitingHelper: "Sie können dies minimieren und die App weiter nutzen.", completedTitle: "Fahrt organisiert", completedHelper: "Das bestätigte Ergebnis ist im Concierge gespeichert.", errorTitle: "Die Fahrt konnte nicht fortgesetzt werden", tryAgain: "Erneut versuchen",
+    },
+  },
   statusVitals: {
     actions: {
       ride: "Transport finden",
