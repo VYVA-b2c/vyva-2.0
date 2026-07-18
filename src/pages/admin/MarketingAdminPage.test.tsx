@@ -891,7 +891,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("9% click rate");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Deliverability clean");
     expect(screen.getByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
+    expect(screen.getByTestId("marketing-ai-command-suggestions")).toHaveTextContent("Relationship queue");
+    expect(screen.getByTestId("marketing-ai-command-suggestions")).toHaveTextContent("Performance follow-up");
     expect(screen.getByTestId("marketing-ai-command-suggestions")).toHaveTextContent("Partner webinar");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-relationship-partner-nurture"));
+    expect((screen.getByTestId("textarea-marketing-ai-command") as HTMLTextAreaElement).value).toContain("b2b partner nurture queue");
+    expect((screen.getByTestId("textarea-marketing-ai-command") as HTMLTextAreaElement).value).toContain("Hassan Partner");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-performance-follow-up"));
+    expect((screen.getByTestId("textarea-marketing-ai-command") as HTMLTextAreaElement).value).toContain("latest performance signal");
+    expect((screen.getByTestId("textarea-marketing-ai-command") as HTMLTextAreaElement).value).toContain("click rate");
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
     expect(screen.getByTestId("textarea-marketing-ai-command")).toHaveValue("Invite Madrid partners to a practical webinar by email and LinkedIn.");
     expect(screen.getByTestId("textarea-marketing-campaign-intent")).toHaveValue("Invite Madrid partners to a practical webinar by email and LinkedIn.");

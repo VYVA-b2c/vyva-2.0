@@ -20447,6 +20447,13 @@ export default function MarketingAdminPage() {
 
   const topCampaignRecommendation = dashboardCampaignRecommendations[0] ?? null;
   const topCampaignPackMatch = topCampaignRecommendation?.packMatch ?? null;
+  const topRelationshipCommandQueue = contactRelationshipPriorityQueue && contactRelationshipPriorityQueue.count > 0
+    ? contactRelationshipPriorityQueue
+    : null;
+  const topPerformanceCommandInsight = campaignPerformanceInsights.find((insight) => insight.state === "needs_action")
+    ?? campaignPerformanceInsights.find((insight) => insight.state === "ready")
+    ?? campaignPerformanceInsights[0]
+    ?? null;
   const marketingDashboardAiCommandSuggestions = [
     ...(topCampaignRecommendation ? [{
       key: "best-smart-pick",
@@ -20459,6 +20466,32 @@ export default function MarketingAdminPage() {
         topCampaignRecommendation.recommendation.play.brief,
         topCampaignPackMatch ? `Use the ${topCampaignPackMatch.pack.title} template pack.` : "Use the best matching templates.",
         "Include one consent-safe relationship follow-up step.",
+      ].join(" "),
+    }] : []),
+    ...(topRelationshipCommandQueue ? [{
+      key: `relationship-${topRelationshipCommandQueue.key}`,
+      label: "Relationship queue",
+      detail: `${topRelationshipCommandQueue.countLabel} / ${topRelationshipCommandQueue.title}`,
+      command: [
+        `Create a ${campaignStudioPlays.find((play) => play.id === topRelationshipCommandQueue.playId)?.label ?? topRelationshipCommandQueue.title} campaign`,
+        `for ${topRelationshipCommandQueue.countLabel} in the ${topRelationshipCommandQueue.title.toLowerCase()} queue`,
+        `using ${formatChannelList(topRelationshipCommandQueue.channels)}.`,
+        topRelationshipCommandQueue.detail,
+        topRelationshipCommandQueue.sampleContact
+          ? `Use ${topRelationshipCommandQueue.sampleContact.fullName || topRelationshipCommandQueue.sampleContact.email || topRelationshipCommandQueue.sampleContact.phoneNumber} as the example contact.`
+          : "Use the highest-priority contact as the example.",
+        "Make the next action clear and consent-safe.",
+      ].join(" "),
+    }] : []),
+    ...(topPerformanceCommandInsight ? [{
+      key: "performance-follow-up",
+      label: "Performance follow-up",
+      detail: `${topPerformanceCommandInsight.value} / ${topPerformanceCommandInsight.title}`,
+      command: [
+        "Create a follow-up campaign from the latest performance signal.",
+        `${topPerformanceCommandInsight.title}: ${topPerformanceCommandInsight.value}.`,
+        topPerformanceCommandInsight.detail,
+        "Use the strongest matching template pack, improve the copy with AI, and include one measurable next step.",
       ].join(" "),
     }] : []),
     {
@@ -20479,7 +20512,7 @@ export default function MarketingAdminPage() {
       detail: "B2C / Email + WhatsApp",
       command: "Reactivate quiet family contacts with a warm email and WhatsApp follow-up around one useful VYVA routine.",
     },
-  ].slice(0, 4);
+  ].slice(0, 5);
   const marketingDashboardAiCommandPlan = useMemo(() => {
     const brief = marketingDashboardAiCommand.trim();
     if (!brief) return null;
