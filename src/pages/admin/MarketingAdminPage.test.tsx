@@ -6665,6 +6665,66 @@ describe("MarketingAdminPage", () => {
     ]);
   });
 
+  it("applies all smart content matches for multi-channel campaign gaps", async () => {
+    const campaignWithMultipleCreativeGaps = {
+      ...campaigns[1],
+      objective: "Warm partner B2B leads with email and LinkedIn outreach.",
+      channels: [
+        { id: "channel-2-email", channel: "email", contentAssetId: null, scheduledAt: null, status: "draft", sendCapability: "enabled" },
+        { id: "channel-2-linkedin", channel: "linkedin", contentAssetId: null, scheduledAt: null, status: "draft", sendCapability: "planning_only" },
+      ],
+    };
+    const partnerEmailContent = {
+      id: "content-3",
+      title: "Partner outreach email",
+      channel: "email",
+      language: "en",
+      status: "draft",
+      subject: "Partner outreach",
+      body: "Warm partner B2B leads with email outreach.",
+      source: "lovable",
+      lovableExternalId: "lovable-content-3",
+    };
+
+    renderPage({}, {
+      campaigns: [campaigns[0], campaignWithMultipleCreativeGaps],
+      content: [...content, partnerEmailContent],
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-2"));
+
+    expect(screen.getByTestId("marketing-campaign-content-match-panel")).toHaveTextContent("2 suggestions");
+    expect(screen.getByTestId("marketing-campaign-content-match-email-0")).toHaveTextContent("Partner outreach email");
+    expect(screen.getByTestId("marketing-campaign-content-match-linkedin-1")).toHaveTextContent("Partner post");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-use-all-content-matches"));
+
+    expect(screen.getByTestId("select-marketing-edit-campaign-content")).toHaveValue("content-3");
+    expect(screen.getByTestId("select-marketing-campaign-channel-content-0")).toHaveValue("content-3");
+    expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("2 content matches attached. Save the campaign to keep them.");
+    expect(screen.queryByTestId("marketing-campaign-content-match-panel")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns/campaign-2" && init?.method === "PATCH");
+    const patchBody = JSON.parse(String(patchCall?.[1]?.body));
+    expect(patchBody.channels).toEqual([
+      expect.objectContaining({
+        channel: "email",
+        contentAssetId: "content-3",
+      }),
+      expect.objectContaining({
+        channel: "linkedin",
+        contentAssetId: "content-2",
+      }),
+    ]);
+  });
+
   it("creates and links missing campaign channel content from the creative accelerator", async () => {
     renderPage();
 

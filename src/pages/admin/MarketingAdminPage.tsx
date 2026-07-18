@@ -17505,6 +17505,30 @@ export default function MarketingAdminPage() {
     setMessage(`Attached "${contentAsset.title}" to the ${channelLabel[channelDraft.channel]} route. Save the campaign to keep it.`);
   }
 
+  function applyCampaignContentMatchSuggestions(suggestions: CampaignContentMatchSuggestion[]) {
+    if (!suggestions.length) return;
+    const contentByChannelId = new Map(suggestions.map((suggestion) => [suggestion.channelDraft.id, suggestion.contentAsset.id]));
+    setCampaignEditDraft((draft) => {
+      const channels = campaignChannelsWithPrimary(draft).map((channel) => (
+        contentByChannelId.has(channel.id)
+          ? { ...channel, contentAssetId: contentByChannelId.get(channel.id) ?? channel.contentAssetId }
+          : channel
+      ));
+      const primary = channels[0] ?? newCampaignChannelDraft();
+      return {
+        ...draft,
+        channels,
+        channel: primary.channel,
+        contentAssetId: primary.contentAssetId,
+        status: primary.status,
+        scheduleStartsAt: primary.scheduledAt,
+      };
+    });
+    const matchCount = suggestions.length;
+    setCampaignEmailFeedback(`${matchCount} content matches attached. Save the campaign to keep them.`);
+    setMessage(`Attached ${matchCount} smart content match${matchCount === 1 ? "" : "es"}. Save the campaign to keep them.`);
+  }
+
   function addCampaignChannel() {
     setCampaignEditDraft((draft) => ({
       ...draft,
@@ -27725,7 +27749,19 @@ export default function MarketingAdminPage() {
                                       VYVA found existing content that can close the missing route before creating a new asset.
                                     </p>
                                   </div>
-                                  <Pill className="bg-white text-emerald-800">{campaignContentMatchSuggestions.length} suggestion{campaignContentMatchSuggestions.length === 1 ? "" : "s"}</Pill>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Pill className="bg-white text-emerald-800">{campaignContentMatchSuggestions.length} suggestion{campaignContentMatchSuggestions.length === 1 ? "" : "s"}</Pill>
+                                    {campaignContentMatchSuggestions.length > 1 ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => applyCampaignContentMatchSuggestions(campaignContentMatchSuggestions)}
+                                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white hover:bg-emerald-800"
+                                        data-testid="button-marketing-campaign-use-all-content-matches"
+                                      >
+                                        <CheckCircle2 size={13} aria-hidden="true" /> Use all matches
+                                      </button>
+                                    ) : null}
+                                  </div>
                                 </div>
                                 <div className="mt-3 grid gap-2 xl:grid-cols-2">
                                   {campaignContentMatchSuggestions.map((suggestion, index) => (
