@@ -926,8 +926,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("66 sent");
     expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("44 opened");
     expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("4 clicked");
-    expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("Ready to send");
-    expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("1 saved recipient");
+    expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("Review consent");
+    expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1-linkedin")).toHaveTextContent("Partner post");
 
@@ -1625,7 +1625,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Finish Source sync setup");
-    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review ready email send");
+    expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review recipient consent");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Replace missing Source content");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Review audience mapping");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Fix campaign creative gap");
@@ -1636,7 +1636,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Create a full launch kit");
     expect(screen.getByTestId("button-marketing-action-template-launch-kit")).toHaveTextContent("Create full launch kit");
     expect(screen.getByTestId("marketing-action-center")).toHaveTextContent("Prepare manual channel handoff");
-    expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-1")).toHaveTextContent("Review send");
+    expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-1")).toHaveTextContent("Review consent");
     expect(screen.getByTestId("button-marketing-campaign-row-next-campaign-2")).toHaveTextContent("Attach content");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-row-next-campaign-2"));
@@ -1670,10 +1670,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Recipient snapshot is enabled");
     expect(screen.getByText('Opened "Birthday Wishes" to snapshot campaign recipients.')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-marketing-action-ready-email"));
+    fireEvent.click(screen.getByTestId("button-marketing-action-recipient-consent"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
-    expect(screen.getByTestId("marketing-campaign-readiness-panel")).toHaveTextContent("Email send");
-    expect(screen.getByText('Opened "Caregiver welcome" for final email review.')).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");
+    expect(screen.getByText('Opened "Caregiver welcome" to review recipient consent before sending.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-action-missing-content"));
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Source content coverage");
@@ -5673,7 +5673,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("0");
   });
 
-  it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
+  it("edits, snapshots recipients for, blocks pending-consent sends, and deletes campaigns", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -5699,7 +5699,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-operator-brief-channels")).toHaveTextContent("Email can send in VYVA; LinkedIn stay as manual handoff.");
     expect(screen.getByTestId("marketing-campaign-launch-control")).toHaveTextContent("Launch control");
     expect(screen.getByTestId("marketing-campaign-launch-control-send")).toHaveTextContent("VYVA send");
-    expect(screen.getByTestId("marketing-campaign-launch-control-send")).toHaveTextContent("1 ready");
+    expect(screen.getByTestId("marketing-campaign-launch-control-send")).toHaveTextContent("Needs setup");
+    expect(screen.getByTestId("marketing-campaign-launch-control-send")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");
     expect(screen.getByTestId("marketing-campaign-launch-control-manual")).toHaveTextContent("Manual channels");
     expect(screen.getByTestId("marketing-campaign-launch-control-manual")).toHaveTextContent("1 route");
     expect(screen.getByTestId("button-marketing-campaign-launch-control-manual")).toHaveTextContent("Track first result");
@@ -5752,10 +5753,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-launch-step-audience")).toHaveTextContent("Partners: 1/2 contacts mapped");
     expect(screen.getByTestId("marketing-campaign-launch-step-recipients")).toHaveTextContent("1 saved recipient");
     expect(screen.getByTestId("marketing-campaign-launch-step-test")).toHaveTextContent("Send test email");
-    expect(screen.getByTestId("marketing-campaign-launch-step-launch")).toHaveTextContent("Send campaign email");
+    expect(screen.getByTestId("marketing-campaign-launch-step-launch")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending.");
     expect(screen.getByTestId("marketing-campaign-publish-kit")).toHaveTextContent("Channel handoff plan");
     expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("VYVA email send");
-    expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved recipient can be sent through VYVA email");
+    expect(screen.getByTestId("marketing-campaign-publish-kit-email")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Manual publishing");
     expect(screen.getByTestId("marketing-campaign-publish-kit-linkedin")).toHaveTextContent("Preview the content, then publish or track it in the channel tool.");
     expect(screen.getByTestId("button-marketing-campaign-publish-kit-secondary-linkedin")).toHaveTextContent("Track result");
@@ -5993,6 +5994,28 @@ describe("MarketingAdminPage", () => {
       expect(screen.getByTestId("marketing-test-email-feedback")).toHaveTextContent("Test email sent to karim.assad@mokadigital.net.");
     });
 
+    expect(screen.getByTestId("button-marketing-send-campaign-email")).toBeDisabled();
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending.");
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
+    expect(screen.getByTestId("button-marketing-delete-campaign-campaign-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-campaign-delete-confirmation-campaign-1")).toHaveTextContent("Click Confirm delete to remove this campaign, its channels, and recipient snapshots.");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));
+    });
+  });
+
+  it("sends email campaigns when saved recipients are opted in", async () => {
+    renderPage({}, {
+      contacts: contacts.map((contact) => contact.id === "contact-2" ? { ...contact, consentStatus: "opted_in" } : contact),
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+
+    expect(screen.getByTestId("marketing-campaign-approval-consent")).toHaveTextContent("Saved email recipients are mapped with opted-in consent");
     expect(screen.getByTestId("button-marketing-send-campaign-email")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-marketing-send-campaign-email"));
     expect(screen.getByTestId("button-marketing-send-campaign-email")).toHaveTextContent("Confirm send emails");
@@ -6003,14 +6026,6 @@ describe("MarketingAdminPage", () => {
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Campaign email sent to 1 recipient.");
-    });
-
-    fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
-    expect(screen.getByTestId("button-marketing-delete-campaign-campaign-1")).toHaveTextContent("Confirm delete");
-    expect(screen.getByTestId("marketing-campaign-delete-confirmation-campaign-1")).toHaveTextContent("Click Confirm delete to remove this campaign, its channels, and recipient snapshots.");
-    fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
-    await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));
     });
   });
 

@@ -6437,7 +6437,19 @@ function campaignTargetAudience(campaign: Campaign, audiences: MarketingAudience
   return audiences.find((audience) => refs.some((reference) => audienceMatchesReference(audience, reference))) ?? null;
 }
 
-function campaignRowReadiness(campaign: Campaign, contentById: ReadonlyMap<string, ContentAsset>, audiences: MarketingAudience[]): CampaignRowReadiness {
+function campaignRecipientConsentStatus(recipient: CampaignRecipient, contactByCampaignRecipientId?: ReadonlyMap<string, MarketingContact>) {
+  const contact = contactByCampaignRecipientId?.get(recipient.id) ?? null;
+  return contact?.consentStatus ?? String(recordValue(recipient.snapshot).consentStatus ?? "unknown");
+}
+
+function campaignEmailRecipientConsentReviewCount(campaign: Campaign, contactByCampaignRecipientId?: ReadonlyMap<string, MarketingContact>) {
+  return (campaign.recipients ?? [])
+    .filter((recipient) => recipient.channel === "email")
+    .filter((recipient) => campaignRecipientConsentStatus(recipient, contactByCampaignRecipientId) !== "opted_in")
+    .length;
+}
+
+function campaignRowReadiness(campaign: Campaign, contentById: ReadonlyMap<string, ContentAsset>, audiences: MarketingAudience[], contactByCampaignRecipientId?: ReadonlyMap<string, MarketingContact>): CampaignRowReadiness {
   const targetAudience = campaignTargetAudience(campaign, audiences);
   const channels = campaign.channels;
   const missingContentChannels = channels.filter((channel) => !channel.contentAssetId || !contentById.has(channel.contentAssetId));
@@ -6447,12 +6459,16 @@ function campaignRowReadiness(campaign: Campaign, contentById: ReadonlyMap<strin
   const targetAudienceNeedsMapping = Boolean(targetAudience && targetAudience.memberCount > 0 && targetAudience.mappedMemberCount === 0);
   const needsSchedule = ["scheduled", "published"].includes(campaign.status) && !campaign.scheduleStartsAt;
   const needsRecipients = hasEmailSendPath && campaign.recipientCount <= 0;
+  const emailRecipientConsentReviewCount = hasEmailSendPath
+    ? campaignEmailRecipientConsentReviewCount(campaign, contactByCampaignRecipientId)
+    : 0;
   const checks = [
     channels.length > 0,
     missingContentChannels.length === 0,
     !targetAudienceNeedsMapping,
     !needsSchedule,
     !needsRecipients,
+    emailRecipientConsentReviewCount === 0,
   ];
   const readyCount = checks.filter(Boolean).length;
   const totalCount = checks.length;
@@ -6482,6 +6498,16 @@ function campaignRowReadiness(campaign: Campaign, contentById: ReadonlyMap<strin
       state: "blocked",
       label: "Snapshot recipients",
       detail: "Email has content, but no saved recipients yet.",
+      readyCount,
+      totalCount,
+    };
+  }
+
+  if (emailRecipientConsentReviewCount > 0) {
+    return {
+      state: "needs_action",
+      label: "Review consent",
+      detail: `${emailRecipientConsentReviewCount} saved email recipient${emailRecipientConsentReviewCount === 1 ? "" : "s"} ${emailRecipientConsentReviewCount === 1 ? "needs" : "need"} opted-in consent before sending.`,
       readyCount,
       totalCount,
     };
@@ -6540,6 +6566,7 @@ function campaignRowReadinessActionLabel(readiness: CampaignRowReadiness) {
   if (readiness.label === "Ready to send") return "Review send";
   if (readiness.label === "Snapshot recipients") return "Snapshot list";
   if (readiness.label === "Needs content") return "Attach content";
+  if (readiness.label === "Review consent") return "Review consent";
   if (readiness.label === "Map audience") return "Map list";
   if (readiness.label === "Add schedule") return "Set time";
   if (readiness.label === "Manual handoff") return "Prepare handoff";
@@ -9412,6 +9439,21 @@ export default function MarketingAdminPage() {
     }
     return map;
   }, [contacts]);
+  const contactByCampaignRecipientId = useMemo(() => {
+    const map = new Map<string, MarketingContact>();
+    for (const campaign of campaigns) {
+      for (const recipient of campaign.recipients ?? []) {
+        const directContact = recipient.contactId ? contactById.get(recipient.contactId) ?? null : null;
+        const importedContact = recipientContactLookupKeys(recipient)
+          .map((key) => contactByImportId.get(key) ?? null)
+          .find((contact): contact is MarketingContact => Boolean(contact)) ?? null;
+        const emailContact = contactByEmail.get(recipientEmailLookupKey(recipient)) ?? null;
+        const contact = directContact ?? importedContact ?? emailContact;
+        if (contact) map.set(recipient.id, contact);
+      }
+    }
+    return map;
+  }, [campaigns, contactById, contactByImportId, contactByEmail]);
   const contentSourceOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of content) {
@@ -9504,7 +9546,7 @@ export default function MarketingAdminPage() {
   }, [audiences]);
 
   const openCampaignForNextAction = useCallback((campaign: Campaign) => {
-    const readiness = campaignRowReadiness(campaign, contentById, audiences);
+    const readiness = campaignRowReadiness(campaign, contentById, audiences, contactByCampaignRecipientId);
     startCampaignEdit(campaign);
     setActiveTab("dashboard");
 
@@ -9526,6 +9568,12 @@ export default function MarketingAdminPage() {
       return;
     }
 
+    if (readiness.label === "Review consent") {
+      setCampaignEmailFeedback(`${readiness.detail} Review the saved recipient snapshots before sending.`);
+      setMessage(`Opened "${campaign.name}" to review email recipient consent before sending.`);
+      return;
+    }
+
     if (readiness.label === "Ready to send") {
       setMessage(`Opened "${campaign.name}" for final email review.`);
       return;
@@ -9537,7 +9585,7 @@ export default function MarketingAdminPage() {
     }
 
     setMessage(`Opened "${campaign.name}" for campaign setup.`);
-  }, [audiences, contentById, startCampaignEdit]);
+  }, [audiences, contactByCampaignRecipientId, contentById, startCampaignEdit]);
 
   const campaignPerformanceInsights = useMemo<CampaignPerformanceInsight[]>(() => {
     const grouped = new Map<string, MarketingCampaignMetric[]>();
@@ -11173,22 +11221,6 @@ export default function MarketingAdminPage() {
     }
     return map;
   }, [journeyEnrollments, contactById, contactByImportId]);
-
-  const contactByCampaignRecipientId = useMemo(() => {
-    const map = new Map<string, MarketingContact>();
-    for (const campaign of campaigns) {
-      for (const recipient of campaign.recipients ?? []) {
-        const directContact = recipient.contactId ? contactById.get(recipient.contactId) ?? null : null;
-        const importedContact = recipientContactLookupKeys(recipient)
-          .map((key) => contactByImportId.get(key) ?? null)
-          .find((contact): contact is MarketingContact => Boolean(contact)) ?? null;
-        const emailContact = contactByEmail.get(recipientEmailLookupKey(recipient)) ?? null;
-        const contact = directContact ?? importedContact ?? emailContact;
-        if (contact) map.set(recipient.id, contact);
-      }
-    }
-    return map;
-  }, [campaigns, contactById, contactByImportId, contactByEmail]);
 
   const visibleJourneyEnrollments = useMemo(() => journeyEnrollments.filter((enrollment) => {
     const journey = journeyById.get(enrollment.journeyId) ?? null;
@@ -18741,7 +18773,12 @@ export default function MarketingAdminPage() {
     !campaignChannelsMatch(campaignEditDraft, editingCampaign) ||
     campaignEditDraft.snapshotRecipients
   ));
-  const campaignEmailDisabled = !editingCampaign || campaignEmailSending || hasUnsavedCampaignSendChanges || !draftEmailChannel?.contentAssetId || editingCampaign.recipientCount <= 0;
+  const savedCampaignRecipients = editingCampaign?.recipients ?? [];
+  const savedEmailRecipientConsentReviewCount = savedCampaignRecipients
+    .filter((recipient) => recipient.channel === "email")
+    .filter((recipient) => campaignRecipientConsentStatus(recipient, contactByCampaignRecipientId) !== "opted_in")
+    .length;
+  const campaignEmailDisabled = !editingCampaign || campaignEmailSending || hasUnsavedCampaignSendChanges || !draftEmailChannel?.contentAssetId || editingCampaign.recipientCount <= 0 || savedEmailRecipientConsentReviewCount > 0;
   const testEmailBlockedReason = !draftEmailChannel
     ? "Add an Email channel before sending a test."
     : !draftEmailChannel.contentAssetId
@@ -18755,13 +18792,14 @@ export default function MarketingAdminPage() {
       ? "Attach an email content asset before sending."
       : editingCampaign && editingCampaign.recipientCount <= 0
         ? "Save a recipient snapshot before sending."
+        : savedEmailRecipientConsentReviewCount > 0
+          ? `${savedEmailRecipientConsentReviewCount} saved email recipient${savedEmailRecipientConsentReviewCount === 1 ? "" : "s"} ${savedEmailRecipientConsentReviewCount === 1 ? "needs" : "need"} opted-in consent before sending.`
         : "";
   const testEmailFeedbackIsError = Boolean(testEmailFeedback && /fail|error|could not|attach|only/i.test(testEmailFeedback));
   const testEmailPromptIsBlocked = Boolean(!testEmailFeedback && testEmailBlockedReason);
   const campaignEmailFeedbackIsError = Boolean(campaignEmailFeedback && /fail|error|could not|attach|only|no eligible/i.test(campaignEmailFeedback));
   const campaignEmailPromptIsBlocked = Boolean(!campaignEmailFeedback && campaignEmailBlockedReason);
   const journeyFeedbackIsError = Boolean(journeyFeedback && /fail|error|could not|required|valid json/i.test(journeyFeedback));
-  const savedCampaignRecipients = editingCampaign?.recipients ?? [];
   const selectedCampaignMetrics = editingCampaign
     ? campaignMetrics.filter((metric) => metric.campaignId === editingCampaign.id)
     : [];
@@ -19714,11 +19752,6 @@ export default function MarketingAdminPage() {
     return matches;
   }))).slice(0, 6);
   const savedEmailRecipientCount = savedCampaignRecipients.filter((recipient) => recipient.channel === "email").length;
-  const savedEmailRecipientConsentReviewCount = savedCampaignRecipients.filter((recipient) => recipient.channel === "email").filter((recipient) => {
-    const contact = contactByCampaignRecipientId.get(recipient.id) ?? null;
-    const consentStatus = contact?.consentStatus ?? String(recordValue(recipient.snapshot).consentStatus ?? "unknown");
-    return consentStatus !== "opted_in";
-  }).length;
   const campaignNeedsTimedApproval = ["scheduled", "published"].includes(campaignEditDraft.status);
   const campaignApprovalItems: CampaignApprovalItem[] = editingCampaign ? [
     {
@@ -19850,12 +19883,14 @@ export default function MarketingAdminPage() {
   const emailCampaignSendEnabled = (emailCapability?.sendCapability ?? "enabled") === "enabled" && emailCapability?.locked !== true;
   const channelHasUsableContent = (channel: CampaignChannel) => Boolean(channel.contentAssetId && contentById.has(channel.contentAssetId));
   const campaignHasUsableContent = (campaign: Campaign) => campaign.channels.some(channelHasUsableContent);
-  const readyEmailCampaigns = campaigns.filter((campaign) => (
+  const emailSendCandidateCampaigns = campaigns.filter((campaign) => (
     emailCampaignSendEnabled
     && !["archived", "paused", "published"].includes(campaign.status)
     && campaign.recipientCount > 0
     && campaign.channels.some((channel) => channel.channel === "email" && channelHasUsableContent(channel))
   ));
+  const emailCampaignsNeedingConsent = emailSendCandidateCampaigns.filter((campaign) => campaignEmailRecipientConsentReviewCount(campaign, contactByCampaignRecipientId) > 0);
+  const readyEmailCampaigns = emailSendCandidateCampaigns.filter((campaign) => campaignEmailRecipientConsentReviewCount(campaign, contactByCampaignRecipientId) === 0);
   const campaignMissingChannelContent = campaigns.find((campaign) => campaign.channels.some((channel) => !channelHasUsableContent(channel)));
   const campaignMissingChannelContentLabels = campaignMissingChannelContent
     ? formatChannelList(campaignMissingChannelContent.channels
@@ -19878,6 +19913,7 @@ export default function MarketingAdminPage() {
     && channelHasUsableContent(channel)
   )));
   const firstReadyEmailCampaign = readyEmailCampaigns[0];
+  const firstConsentReviewCampaign = emailCampaignsNeedingConsent[0];
   const firstManualHandoffCampaign = manualHandoffCampaigns[0];
   const actionCenterTemplatePack = bestCampaignStudioTemplatePack
     ?? contentTemplatePacksWithStats.find(({ templates }) => templates.length > 0)
@@ -19905,6 +19941,21 @@ export default function MarketingAdminPage() {
       onSelect: () => {
         setActiveTab("settings");
         setMessage("Review the failed Source sync run.");
+      },
+    }] : []),
+    ...(firstConsentReviewCampaign ? [{
+      key: "recipient-consent",
+      title: "Review recipient consent",
+      detail: `${emailCampaignsNeedingConsent.length} email campaign${emailCampaignsNeedingConsent.length === 1 ? "" : "s"} have saved recipients who still need opted-in consent before sending.`,
+      state: "needs_action" as CampaignReadinessState,
+      actionLabel: "Review consent",
+      icon: UsersRound,
+      onSelect: () => {
+        const consentReviewCount = campaignEmailRecipientConsentReviewCount(firstConsentReviewCampaign, contactByCampaignRecipientId);
+        startCampaignEdit(firstConsentReviewCampaign);
+        setActiveTab("dashboard");
+        setCampaignEmailFeedback(`${consentReviewCount} saved email recipient${consentReviewCount === 1 ? "" : "s"} ${consentReviewCount === 1 ? "needs" : "need"} opted-in consent before sending.`);
+        setMessage(`Opened "${firstConsentReviewCampaign.name}" to review recipient consent before sending.`);
       },
     }] : []),
     ...(firstReadyEmailCampaign ? [{
@@ -24029,6 +24080,7 @@ export default function MarketingAdminPage() {
                     contentTitleById={contentTitleById}
                     metricsByCampaignId={campaignMetricSummaryByCampaignId}
                     audiences={audiences}
+                    contactByCampaignRecipientId={contactByCampaignRecipientId}
                     activeCampaignId={editingCampaignId}
                     onEdit={openCampaignForNextAction}
                     onDuplicate={(campaign) => duplicateCampaignAsDraft(campaign).catch((error) => setMessage(error.message))}
@@ -29630,6 +29682,7 @@ function CampaignTable({
   contentTitleById = new Map<string, string>(),
   metricsByCampaignId = new Map<string, CampaignMetricSummary>(),
   audiences = [],
+  contactByCampaignRecipientId = new Map<string, MarketingContact>(),
   activeCampaignId,
   onEdit,
   onDuplicate,
@@ -29644,6 +29697,7 @@ function CampaignTable({
   contentTitleById?: ReadonlyMap<string, string>;
   metricsByCampaignId?: ReadonlyMap<string, CampaignMetricSummary>;
   audiences?: MarketingAudience[];
+  contactByCampaignRecipientId?: ReadonlyMap<string, MarketingContact>;
   activeCampaignId?: string | null;
   onEdit?: (campaign: Campaign) => void;
   onDuplicate?: (campaign: Campaign) => void;
@@ -29679,7 +29733,7 @@ function CampaignTable({
             const targetAudience = campaignTargetAudience(campaign, audiences);
             const metricSummary = metricsByCampaignId.get(campaign.id);
             const manualResults = manualPublishResultsFromMetadata(campaign.metadata);
-            const rowReadiness = campaignRowReadiness(campaign, contentById, audiences);
+            const rowReadiness = campaignRowReadiness(campaign, contentById, audiences, contactByCampaignRecipientId);
             const rowNextActionLabel = campaignRowReadinessActionLabel(rowReadiness);
             return (
             <tr
