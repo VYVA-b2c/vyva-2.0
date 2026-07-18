@@ -1501,6 +1501,7 @@ const it = {
       saved: "Salvato. Continua in Concierge quando vuoi.",
       error: "Non sono riuscita a salvare questo passaggio. Riprova.",
     },
+        handoff: { kicker: "Miglior prossimo passo", explain: "Spiega", hideExplain: "Nascondi spiegazione", actionsTitle: "Scegli una azione sicura", title: { scam: "Sembra rischioso", document: "Serve una verifica", medicine: "Controlla prima di usare", health_visual: "Controlla prima di agire", home_safety: "Rendilo piu sicuro", provider_deal: "Confronta prima di decidere" } },
     contract: {
       finalConfirmation: "VYVA prepara prima. Confermi prima che qualcosa sia inviato, comprato, prenotato, chiamato, caricato, presentato o condiviso.",
       sections: {
@@ -1561,6 +1562,12 @@ const it = {
       },
       confirmation: "VYVA prepara prima il prossimo passo. Confermi prima che qualcosa sia inviato, comprato, prenotato, chiamato, caricato o condiviso.",
       action: {
+                do_not_reply: { label: "Non rispondere", detail: "Tienilo in pausa per ora." },
+        block_or_report: { label: "Blocca o segnala", detail: "Prepara una segnalazione sicura." },
+        ask_someone: { label: "Chiedi a qualcuno", detail: "Condividi solo dopo conferma." },
+        ask_provider: { label: "Chiedi al fornitore", detail: "Prepara una domanda chiara." },
+        compare_options: { label: "Confronta opzioni", detail: "Controlla le scelte prima." },
+        find_alternatives: { label: "Trova alternative", detail: "Cerca opzioni piu sicure." },
         check_company: { label: "Controlla azienda", detail: "Verifica prima la reputazione." },
         call_trusted_contact: { label: "Chiama fidato", detail: "Chiedi a una persona fidata." },
         save_report: { label: "Salva o segnala", detail: "Conserva traccia prima di agire." },

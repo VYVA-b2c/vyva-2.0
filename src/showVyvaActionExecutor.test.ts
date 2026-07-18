@@ -183,6 +183,46 @@ describe("Show VYVA action executor", () => {
     expect(showVyvaActionPlanBlocksExternalAction(plan)).toBe(true);
   });
 
+  it("turns decision handoff actions into confirmation-gated drafts", () => {
+    const reportPlan = buildShowVyvaActionExecutionPlan({
+      contract: baseContract,
+      action: getShowVyvaFollowUpAction("block_or_report"),
+      language: "en",
+      sourceRoute: "/scam-guard",
+    });
+
+    expect(reportPlan.triggerRequest.action_payload).toMatchObject({
+      flow_reference: "FLOW_SCAM_CHECK",
+      show_vyva_action_id: "block_or_report",
+      report_status: "saved_private",
+      user_confirmed: false,
+      no_external_action_without_confirmation: true,
+    });
+    expect(showVyvaActionPlanBlocksExternalAction(reportPlan)).toBe(true);
+
+    const providerContract = buildShowVyvaReviewContract({
+      useCaseId: SHOW_VYVA_USE_CASE_IDS.documentHelp,
+      source: "paste_text",
+      value: "Utility bill question",
+      concernSummary: "Bill question",
+    });
+    const askProviderPlan = buildShowVyvaActionExecutionPlan({
+      contract: providerContract,
+      action: getShowVyvaFollowUpAction("ask_provider"),
+      language: "en",
+      sourceRoute: "/scam-guard",
+    });
+
+    expect(askProviderPlan.triggerRequest.action_payload).toMatchObject({
+      flow_reference: "FLOW_INSURANCE_ADMIN",
+      show_vyva_action_id: "ask_provider",
+      requested_tool: "email",
+      user_confirmed: false,
+      no_external_action_without_confirmation: true,
+    });
+    expect(showVyvaActionPlanBlocksExternalAction(askProviderPlan)).toBe(true);
+  });
+
   it("turns Continue with Concierge into a resumable pending task", () => {
     const medicineContract = buildShowVyvaReviewContract({
       useCaseId: SHOW_VYVA_USE_CASE_IDS.medicineOrOtc,
