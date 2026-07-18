@@ -8618,6 +8618,22 @@ function syncParityItems(summary: Record<string, unknown>) {
     .filter((item) => item.exported > 0 || item.imported > 0 || item.skipped > 0);
 }
 
+function syncParityExplanation(item: ReturnType<typeof syncParityItems>[number]) {
+  if (item.status === "derived") {
+    return `VYVA-only ${item.label.toLowerCase()} are local, manually created, or derived records that Source did not export.`;
+  }
+  if (item.status === "missing") {
+    return `${item.missing} exported ${item.label.toLowerCase()} did not import into VYVA. Review the sync run before trusting this area.`;
+  }
+  if (item.status === "review") {
+    return `${item.skipped} ${item.label.toLowerCase()} were skipped and need manual review.`;
+  }
+  if (item.status === "complete") {
+    return "Source and VYVA counts match for this area.";
+  }
+  return "No Source or VYVA records reported for this area.";
+}
+
 function syncUnmappedCount(summary: Record<string, unknown>) {
   return numberValue(recordValue(summary.unmapped).audienceContactExternalIdCount);
 }
@@ -9342,7 +9358,7 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
                 : item.status === "review"
                   ? `${item.skipped} skipped`
                   : item.status === "derived"
-                    ? "derived"
+                    ? "VYVA-only"
                     : "complete";
               return (
                 <div key={item.key} className={`rounded-lg border px-3 py-2 ${className}`}>
@@ -9351,6 +9367,7 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
                     <span>{detail}</span>
                   </div>
                   <p className="mt-1 font-semibold">Source {item.exported} / VYVA {item.imported}</p>
+                  <p className="mt-1 font-semibold opacity-80">{syncParityExplanation(item)}</p>
                 </div>
               );
             })}
@@ -9493,7 +9510,7 @@ function SourceImportCoveragePanel({
                 : item.status === "review"
                   ? `${item.skipped} skipped`
                   : item.status === "derived"
-                    ? "derived"
+                    ? "VYVA-only"
                     : "complete";
               return (
                 <div key={item.key} className="rounded-lg bg-white p-3 text-[#241133]">
@@ -9502,6 +9519,7 @@ function SourceImportCoveragePanel({
                     <Pill className={badgeClass}>{detail}</Pill>
                   </div>
                   <p className="mt-1 text-xs font-bold text-[#7d6b65]">Source {item.exported} / VYVA {item.imported}</p>
+                  <p className="mt-1 text-xs font-semibold text-[#7d6b65]">{syncParityExplanation(item)}</p>
                   {item.skipped ? <p className="mt-1 text-xs font-bold text-amber-800">Skipped: {item.skipped}</p> : null}
                 </div>
               );

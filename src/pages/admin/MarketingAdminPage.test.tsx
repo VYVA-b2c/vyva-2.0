@@ -1297,7 +1297,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("complete");
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("Source 2 / VYVA 2");
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("Mapped members");
-    expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("derived");
+    expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("VYVA-only");
+    expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("local, manually created, or derived records");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("contacts: 11 of 11 fields mapped first-class");
