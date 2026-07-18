@@ -86,6 +86,7 @@ import MasterDashboardLayout, {
 } from "@/components/MasterDashboardLayout";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
+import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
@@ -102,16 +103,21 @@ import {
   type ConciergeRideCanvasOption,
 } from "@/lib/conciergeRideCanvas";
 import {
+  buildConciergeHomeServiceCanvasViewModel,
+  homeServiceCanvasCopy,
+  type ConciergeHomeServiceCanvasOption,
+  type ConciergeHomeServiceCanvasStep,
+} from "@/lib/conciergeHomeServiceCanvas";
+import {
   clearVoiceCanvasScene,
-  emitVoiceCanvasScene,
   voiceCanvasResponseMatchesScene,
   VYVA_VOICE_CANVAS_RESPONSE_EVENT,
   type VoiceCanvasResponseDetail,
-  type VoiceCanvasSceneEnvelope,
 } from "@/lib/voiceCanvasBridge";
 import {
   buildHomeServiceIntake,
   homeServiceAddressFromPreferences,
+  homeServiceIntakeFromPreferences,
   homeServiceQuestionsFor,
   homeServiceTypeLabel,
   HOME_SERVICE_TYPES,
@@ -250,6 +256,8 @@ type ConciergeProviderResumeContext =
       note?: string;
       answers?: Record<string, string>;
       textDrafts?: Record<string, string>;
+      voiceCanvas?: boolean;
+      photoName?: string;
     }
   | {
       kind: "provider_search";
@@ -481,6 +489,8 @@ function coerceConciergeResumeContext(value: unknown): ConciergeProviderResumeCo
       note: routeText(value, ["note", "message", "appointmentNote"]),
       answers: routeStringRecord(value.answers),
       textDrafts: routeStringRecord(value.textDrafts ?? value.text_drafts),
+      voiceCanvas: value.voiceCanvas === true || value.voice_canvas === true,
+      photoName: routeText(value, ["photoName", "photo_name"]),
     };
   }
   if (kind === "provider_search") {
@@ -1997,6 +2007,7 @@ async function createAppointmentRequest(params: {
   flowReference?: ConciergeFlowReference;
   routePrefillSource?: string;
   locale: string;
+  draft?: boolean;
 }): Promise<AppointmentRequestResponse> {
   const preferences = params.flowReference
     ? { ...(params.preferences ?? {}), flow_reference: params.flowReference }
@@ -2009,11 +2020,48 @@ async function createAppointmentRequest(params: {
       preferences,
       route_prefill_source: params.routePrefillSource,
       language: params.locale,
+      draft: params.draft ?? false,
     }),
   });
   if (!res.ok) {
     const data = await readAppointmentErrorBody(res);
     throw new AppointmentRequestError(data.error ?? "Could not create appointment request", res.status, data.code, data.nextRoute);
+  }
+  return await res.json() as AppointmentRequestResponse;
+}
+
+interface HomeServiceCanvasPhoto {
+  name: string;
+  type: "image/jpeg" | "image/png" | "image/webp";
+  dataUrl: string;
+}
+
+async function fetchActiveHomeServiceDraft(): Promise<AppointmentRequestResponse | null> {
+  const res = await apiFetch("/api/appointments/requests/active-home-service");
+  if (!res.ok) return null;
+  const data = await res.json() as AppointmentRequestResponse & { request: AppointmentRequestItem | null };
+  return data.request ? data as AppointmentRequestResponse : null;
+}
+
+async function updateHomeServiceDraft(params: {
+  requestId: string;
+  detail: string;
+  preferences: Record<string, unknown>;
+  locale: string;
+  finalize?: boolean;
+}): Promise<AppointmentRequestResponse> {
+  const res = await apiFetch(`/api/appointments/requests/${params.requestId}/home-service-draft`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      detail: params.detail,
+      preferences: params.preferences,
+      language: params.locale,
+      finalize: params.finalize ?? false,
+    }),
+  });
+  if (!res.ok) {
+    const data = await readAppointmentErrorBody(res);
+    throw new AppointmentRequestError(data.error ?? "Could not save home service draft", res.status, data.code, data.nextRoute);
   }
   return await res.json() as AppointmentRequestResponse;
 }
@@ -2065,12 +2113,17 @@ async function confirmAppointmentAttempt(params: {
   requestId: string;
   optionId: string;
   channel: AppointmentChannel;
+  shareDetails?: {
+    share_home_address: boolean;
+    photo?: { name: string; type: "image/jpeg" | "image/png" | "image/webp"; data_url: string };
+  };
 }): Promise<AppointmentAttemptResponse> {
   const res = await apiFetch(`/api/appointments/requests/${params.requestId}/confirm-attempt`, {
     method: "POST",
     body: JSON.stringify({
       option_id: params.optionId,
       channel: params.channel,
+      share_details: params.shareDetails,
     }),
   });
   if (!res.ok) {
@@ -3335,6 +3388,21 @@ function appointmentOptionAvailability(option: AppointmentProviderOption | null 
     if (value) return value;
   }
   return "";
+}
+
+function homeServiceCanvasOptionDescription(option: AppointmentProviderOption, isSpanish: boolean): string {
+  const value = (...keys: string[]) => keys.map((key) => appointmentSnapshotText(option, key)).find(Boolean) || "";
+  const unknown = isSpanish ? "No indicado" : "Unknown";
+  const availability = appointmentOptionAvailability(option) || unknown;
+  const price = value("call_out_fee", "callout_fee", "price", "price_or_advantage") || unknown;
+  const distance = value("distance", "distance_text", "distance_or_availability") || unknown;
+  const reputation = value("rating", "reputation", "trust_note") || unknown;
+  return [
+    `${isSpanish ? "Disponibilidad" : "Availability"}: ${availability}`,
+    `${isSpanish ? "Precio" : "Price"}: ${price}`,
+    `${isSpanish ? "Distancia" : "Distance"}: ${distance}`,
+    `${isSpanish ? "Reputacion" : "Reputation"}: ${reputation}`,
+  ].join(" · ");
 }
 
 function appointmentChannelLabel(channel: AppointmentChannel, isSpanish: boolean): string {
@@ -8974,6 +9042,17 @@ const ConciergeScreen = () => {
   const [homeServiceIntakeOrigin, setHomeServiceIntakeOrigin] = useState<ServiceIntakeOrigin>("app");
   const [homeServiceIntakeAnswers, setHomeServiceIntakeAnswers] = useState<Record<string, string>>({});
   const [homeServiceTextDrafts, setHomeServiceTextDrafts] = useState<Record<string, string>>({});
+  const [homeServiceCanvasMode, setHomeServiceCanvasMode] = useState(false);
+  const [homeServiceCanvasStep, setHomeServiceCanvasStep] = useState<ConciergeHomeServiceCanvasStep | null>(null);
+  const [homeServiceCanvasRevision, setHomeServiceCanvasRevision] = useState(1);
+  const [homeServiceCanvasPhoto, setHomeServiceCanvasPhoto] = useState<HomeServiceCanvasPhoto | null>(null);
+  const [homeServiceCanvasPhotoName, setHomeServiceCanvasPhotoName] = useState("");
+  const [homeServiceCanvasError, setHomeServiceCanvasError] = useState<string | null>(null);
+  const homeServiceDraftRestoreAppliedRef = useRef(false);
+  const advanceHomeServiceCanvas = useCallback((step: ConciergeHomeServiceCanvasStep) => {
+    setHomeServiceCanvasStep(step);
+    setHomeServiceCanvasRevision((revision) => revision + 1);
+  }, []);
   const [appointmentRequest, setAppointmentRequest] = useState<AppointmentRequestItem | null>(null);
   const [appointmentOptions, setAppointmentOptions] = useState<AppointmentProviderOption[]>([]);
   const [appointmentDiscovery, setAppointmentDiscovery] = useState<AppointmentDiscoveryMeta | null>(null);
@@ -9012,7 +9091,6 @@ const ConciergeScreen = () => {
   const [appointmentCanvasRevision, setAppointmentCanvasRevision] = useState(1);
   const [appointmentCanvasRequestedTime, setAppointmentCanvasRequestedTime] = useState("");
   const [appointmentCanvasCoverageLabel, setAppointmentCanvasCoverageLabel] = useState("");
-  const activeAppointmentCanvasSceneRef = useRef<VoiceCanvasSceneEnvelope | null>(null);
   const advanceAppointmentCanvas = useCallback((step: ConciergeAppointmentCanvasStep) => {
     setAppointmentCanvasStep(step);
     setAppointmentCanvasRevision((revision) => revision + 1);
@@ -9032,7 +9110,6 @@ const ConciergeScreen = () => {
   const [rideCanvasStep, setRideCanvasStep] = useState<ConciergeRideCanvasStep | null>(null);
   const [rideCanvasRevision, setRideCanvasRevision] = useState(1);
   const [rideCanvasSelectedOptionId, setRideCanvasSelectedOptionId] = useState<string | null>(null);
-  const activeRideCanvasSceneRef = useRef<VoiceCanvasSceneEnvelope | null>(null);
   const advanceRideCanvas = useCallback((step: ConciergeRideCanvasStep) => {
     setRideCanvasStep(step);
     setRideCanvasRevision((revision) => revision + 1);
@@ -9374,6 +9451,13 @@ const ConciergeScreen = () => {
     staleTime: 30 * 1000,
   });
 
+  const activeHomeServiceDraftQuery = useQuery({
+    queryKey: ["/api/appointments/requests/active-home-service"],
+    queryFn: fetchActiveHomeServiceDraft,
+    staleTime: 15 * 1000,
+    retry: false,
+  });
+
   const selectedAppointmentOption = useMemo(() => {
     if (selectedAppointmentOptionId) {
       return appointmentOptions.find((option) => option.id === selectedAppointmentOptionId) ?? appointmentOptions[0] ?? null;
@@ -9487,6 +9571,39 @@ const ConciergeScreen = () => {
     isSpanish,
     navigate,
     selectedAppointmentChip?.key,
+  ]);
+  const openHomeServiceProviderSetup = useCallback(() => {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: "home_service",
+        setupFlow: CONCIERGE_FLOW_REFERENCES.homeService,
+        setupReason: "Add or choose a saved home service provider",
+        conciergeResume: {
+          kind: "home_service",
+          serviceType: homeServiceType,
+          origin: homeServiceIntakeOrigin,
+          note: homeServiceIntakeAnswers.problem_summary?.trim() || appointmentNote.trim(),
+          answers: homeServiceIntakeAnswers,
+          textDrafts: homeServiceTextDrafts,
+          voiceCanvas: homeServiceCanvasMode,
+          photoName: homeServiceCanvasPhotoName,
+        },
+        notice: isSpanish
+          ? "Guarda un proveedor de servicio en casa para continuar esta solicitud."
+          : "Add a trusted home service provider to continue this request.",
+      },
+    });
+  }, [
+    appointmentNote,
+    homeServiceCanvasMode,
+    homeServiceCanvasPhotoName,
+    homeServiceIntakeAnswers,
+    homeServiceIntakeOrigin,
+    homeServiceTextDrafts,
+    homeServiceType,
+    isSpanish,
+    navigate,
   ]);
   const canSaveOtcOutcome = Boolean(otcPreparedResult?.pendingId)
     && (
@@ -9766,6 +9883,44 @@ const ConciergeScreen = () => {
       setAppointmentError(appointmentErrorMessage(error, isSpanish, isSpanish ? "No he podido crear la solicitud." : "I could not create the request."));
     },
   });
+
+  const homeServiceDraftMutation = useMutation({
+    mutationFn: async ({ finalize = false }: { finalize?: boolean } = {}) => {
+      const { intake, preferences } = buildCurrentHomeServiceIntake();
+      if (appointmentRequest?.appointment_type === "home-service") {
+        return updateHomeServiceDraft({
+          requestId: appointmentRequest.id,
+          detail: intake.research_brief,
+          preferences: { ...preferences, flow_reference: CONCIERGE_FLOW_REFERENCES.homeService },
+          locale,
+          finalize,
+        });
+      }
+      return createAppointmentRequest({
+        appointmentType: "home-service",
+        detail: intake.research_brief,
+        preferences: { ...preferences, flow_reference: CONCIERGE_FLOW_REFERENCES.homeService },
+        flowReference: CONCIERGE_FLOW_REFERENCES.homeService,
+        routePrefillSource: routePrefill?.source,
+        locale,
+        draft: !finalize,
+      });
+    },
+    onSuccess: (result) => {
+      setAppointmentRequest(result.request);
+      setAppointmentOptions(result.options);
+      setAppointmentDiscovery(result.discovery ?? null);
+      setSelectedAppointmentOptionId((current) => current && result.options.some((option) => option.id === current)
+        ? current
+        : result.options[0]?.id ?? null);
+      void queryClient.invalidateQueries({ queryKey: ["/api/appointments/requests/active-home-service"] });
+    },
+    onError: (error) => {
+      setHomeServiceCanvasError(error instanceof Error ? error.message : (isSpanish ? "No pude guardar la solicitud." : "I could not save the request."));
+    },
+  });
+  const saveHomeServiceDraft = homeServiceDraftMutation.mutate;
+  const isHomeServiceDraftSaving = homeServiceDraftMutation.isPending;
 
   const discoverAppointmentOptionsMutation = useMutation({
     mutationFn: discoverAppointmentOptions,
@@ -10922,7 +11077,7 @@ const ConciergeScreen = () => {
       if (!response.ok) throw new Error(`onboarding-state ${response.status}`);
       return response.json();
     },
-    enabled: isHomeServiceElectricalDanger,
+    enabled: isHomeServiceElectricalDanger || homeServiceIntakeAnswers.immediate_danger === "yes",
     staleTime: 2 * 60 * 1000,
     retry: false,
   });
@@ -10982,6 +11137,9 @@ const ConciergeScreen = () => {
   }, []);
 
   const clearAppointmentAssistantState = useCallback(() => {
+    setHomeServiceCanvasMode(false);
+    setHomeServiceCanvasStep(null);
+    clearVoiceCanvasScene({ owner: "concierge_home_service" });
     setAppointmentCanvasMode(false);
     setAppointmentCanvasStep(null);
     clearVoiceCanvasScene({ owner: "concierge_appointment" });
@@ -10989,6 +11147,9 @@ const ConciergeScreen = () => {
     setSelectedAppointmentChip(null);
     setAppointmentNote("");
     resetHomeServiceIntake("app", null);
+    setHomeServiceCanvasPhoto(null);
+    setHomeServiceCanvasPhotoName("");
+    setHomeServiceCanvasError(null);
     setAppointmentRequest(null);
     setAppointmentOptions([]);
     setAppointmentDiscovery(null);
@@ -11037,8 +11198,16 @@ const ConciergeScreen = () => {
       setAppointmentCanvasStep(null);
       clearVoiceCanvasScene({ owner: "concierge_appointment" });
     }
+    if (!isHomeServiceVoiceRequest && homeServiceCanvasMode) {
+      setHomeServiceCanvasMode(false);
+      setHomeServiceCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_home_service" });
+    }
 
     if (isRideVoiceRequest) {
+      setHomeServiceCanvasMode(false);
+      setHomeServiceCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_home_service" });
       setAppointmentCanvasMode(false);
       setAppointmentCanvasStep(null);
       clearVoiceCanvasScene({ owner: "concierge_appointment" });
@@ -11063,6 +11232,9 @@ const ConciergeScreen = () => {
       setTransportDetailsOpen(true);
       setOffersOpen(false);
     } else if (isReminderVoiceRequest) {
+      setHomeServiceCanvasMode(false);
+      setHomeServiceCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_home_service" });
       setAppointmentCanvasMode(false);
       setAppointmentCanvasStep(null);
       clearVoiceCanvasScene({ owner: "concierge_appointment" });
@@ -11080,7 +11252,10 @@ const ConciergeScreen = () => {
       setOffersOpen(false);
       if (isHomeServiceVoiceRequest) {
         const homeServiceChip = APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "home-service") ?? APPOINTMENT_TYPE_CHIPS[0];
-        const serviceType = normalizeHomeServiceType(conciergeVoiceServiceType || conciergeVoiceReason || conciergeVoiceAction.sourceText);
+        const serviceTypeSource = conciergeVoiceServiceType || conciergeVoiceReason || conciergeVoiceAction.sourceText;
+        const hasSpecificServiceType = Boolean(conciergeVoiceServiceType.trim())
+          || /plumb|fontaner|electric|electricista|locksmith|cerraj|clean|limpiez|handyman|manitas|other service|otro servicio/i.test(serviceTypeSource);
+        const serviceType = hasSpecificServiceType ? normalizeHomeServiceType(serviceTypeSource) : null;
         const nextAnswers: Record<string, string> = {};
         HOME_SERVICE_VOICE_ANSWER_KEYS.forEach((key) => {
           const value = conciergePayloadValue(key);
@@ -11095,7 +11270,17 @@ const ConciergeScreen = () => {
         setHomeServiceIntakeAnswers((current) => ({ ...nextAnswers, ...current }));
         setHomeServiceTextDrafts((current) => ({ ...nextAnswers, ...current }));
         setAppointmentNote("");
+        setHomeServiceCanvasMode(true);
+        setHomeServiceCanvasPhoto(null);
+        setHomeServiceCanvasPhotoName("");
+        setHomeServiceCanvasError(null);
+        advanceHomeServiceCanvas(serviceType
+          ? (nextAnswers.problem_summary ? "danger" : "description")
+          : "service");
       } else {
+        setHomeServiceCanvasMode(false);
+        setHomeServiceCanvasStep(null);
+        clearVoiceCanvasScene({ owner: "concierge_home_service" });
         const reason = conciergeVoiceReason.trim() || conciergeVoiceDraft.trim();
         const requestedTime = [conciergeVoiceDate.trim(), conciergeVoiceTime.trim()].filter(Boolean).join(" ");
         setSelectedAppointmentChip(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "medical") ?? APPOINTMENT_TYPE_CHIPS[0]);
@@ -11111,6 +11296,7 @@ const ConciergeScreen = () => {
     window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }, [
     advanceAppointmentCanvas,
+    advanceHomeServiceCanvas,
     advanceRideCanvas,
     appointmentCanvasMode,
     conciergePayloadValue,
@@ -11129,6 +11315,7 @@ const ConciergeScreen = () => {
     conciergeVoiceTaskType,
     conciergeVoiceUrgency,
     rideCanvasMode,
+    homeServiceCanvasMode,
     savedTransportPickupLabel,
   ]);
 
@@ -11458,6 +11645,10 @@ const ConciergeScreen = () => {
       intake,
       preferences: {
         service_intake: intake,
+        requested_time: homeServiceIntakeAnswers.requested_time?.trim() || null,
+        home_access_or_safety_notes: homeServiceIntakeAnswers.access_notes?.trim() || null,
+        photo_name: homeServiceCanvasPhotoName || null,
+        photo_ready: Boolean(homeServiceCanvasPhoto),
         ...(visitAddress ? {
           home_address: visitAddress,
           home_address_source: homeServiceAddressSource || "session",
@@ -11465,6 +11656,84 @@ const ConciergeScreen = () => {
       },
     };
   }
+
+  useEffect(() => {
+    const draft = activeHomeServiceDraftQuery.data;
+    if (!draft?.request || homeServiceDraftRestoreAppliedRef.current || homeServiceCanvasMode || conciergeVoiceAction) return;
+    const intake = homeServiceIntakeFromPreferences(draft.request.preferences);
+    if (!intake) return;
+    homeServiceDraftRestoreAppliedRef.current = true;
+    const preferences = draft.request.preferences ?? {};
+    const requestedTime = typeof preferences.requested_time === "string" ? preferences.requested_time : "";
+    const accessNotes = typeof preferences.home_access_or_safety_notes === "string" ? preferences.home_access_or_safety_notes : "";
+    const photoName = typeof preferences.photo_name === "string" ? preferences.photo_name : "";
+    const answers = {
+      ...intake.answers,
+      ...(requestedTime ? { requested_time: requestedTime } : {}),
+      ...(accessNotes ? { access_notes: accessNotes } : {}),
+    };
+    const nextStep: ConciergeHomeServiceCanvasStep = draft.options.length > 0
+      ? "options"
+      : draft.request.status === "needs_provider"
+        ? "provider"
+        : !intake.service_type
+          ? "service"
+          : !answers.problem_summary
+            ? "description"
+            : !answers.immediate_danger
+              ? "danger"
+              : answers.immediate_danger === "yes" || answers.immediate_danger === "not_sure"
+                ? "emergency"
+              : !answers.safety_check
+                ? "safety"
+                : answers.safety_check === "yes" || answers.safety_check === "not_sure"
+                  ? "emergency"
+                : !answers.urgency
+                  ? "urgency"
+                  : !answers.requested_time
+                    ? "time"
+                    : !Object.prototype.hasOwnProperty.call(answers, "access_notes")
+                      ? "access"
+                      : !homeServiceAddressFromPreferences(preferences)
+                        ? "location"
+                        : "provider";
+    setAppointmentOpen(true);
+    setSelectedAppointmentChip(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "home-service") ?? APPOINTMENT_TYPE_CHIPS[0]);
+    setAppointmentRequest(draft.request);
+    setAppointmentOptions(draft.options);
+    setSelectedAppointmentOptionId(draft.options[0]?.id ?? null);
+    setHomeServiceType(intake.service_type);
+    setHomeServiceIntakeOrigin(intake.origin);
+    setHomeServiceIntakeAnswers(answers);
+    setHomeServiceTextDrafts(answers);
+    setHomeServiceCanvasPhoto(null);
+    setHomeServiceCanvasPhotoName(photoName);
+    setHomeServiceCanvasMode(true);
+    advanceHomeServiceCanvas(nextStep);
+  }, [
+    activeHomeServiceDraftQuery.data,
+    advanceHomeServiceCanvas,
+    conciergeVoiceAction,
+    homeServiceCanvasMode,
+  ]);
+
+  useEffect(() => {
+    if (!homeServiceCanvasMode || !homeServiceType || !homeServiceIntakeAnswers.problem_summary?.trim()) return;
+    if (!homeServiceCanvasStep || !["description", "danger", "emergency", "safety", "urgency", "time", "access", "location", "location_custom", "provider"].includes(homeServiceCanvasStep)) return;
+    const timer = window.setTimeout(() => {
+      if (!isHomeServiceDraftSaving) saveHomeServiceDraft({ finalize: false });
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [
+    appointmentRequest?.id,
+    homeServiceCanvasMode,
+    homeServiceCanvasPhotoName,
+    homeServiceCanvasStep,
+    homeServiceIntakeAnswers,
+    homeServiceType,
+    isHomeServiceDraftSaving,
+    saveHomeServiceDraft,
+  ]);
 
   function openScheduleAssistant(chipKey?: AppointmentType) {
     const chip = chipKey ? APPOINTMENT_TYPE_CHIPS.find((item) => item.key === chipKey) ?? null : null;
@@ -13531,9 +13800,16 @@ const ConciergeScreen = () => {
       setHomeServiceType(conciergeResume.serviceType ?? null);
       setHomeServiceIntakeAnswers(conciergeResume.answers ?? {});
       setHomeServiceTextDrafts(conciergeResume.textDrafts ?? conciergeResume.answers ?? {});
+      setHomeServiceCanvasPhoto(null);
+      setHomeServiceCanvasPhotoName(conciergeResume.photoName?.trim() || "");
       setAppointmentNote(conciergeResume.note?.trim() || (isSpanish
         ? `Usa ${name} como proveedor de servicio en casa de confianza. Preguntame el problema, urgencia y horario preferido.`
         : `Use ${name} as my trusted home-service provider. Ask me for the problem, urgency, and preferred time.`));
+      if (conciergeResume.voiceCanvas === true) {
+        setHomeServiceCanvasMode(true);
+        setHomeServiceCanvasError(null);
+        advanceHomeServiceCanvas("provider");
+      }
       return;
     }
 
@@ -14065,31 +14341,14 @@ const ConciergeScreen = () => {
     t,
   ]);
 
-  useEffect(() => {
-    if (!appointmentCanvasMode || !appointmentCanvasViewModel) {
-      activeAppointmentCanvasSceneRef.current = null;
-      clearVoiceCanvasScene({ owner: "concierge_appointment" });
-      return;
-    }
-    const scene: VoiceCanvasSceneEnvelope = {
-      owner: "concierge_appointment",
-      revision: appointmentCanvasRevision,
-      actionId: conciergeVoiceAction?.id,
-      flowReference: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
-      viewModel: appointmentCanvasViewModel,
-    };
-    activeAppointmentCanvasSceneRef.current = scene;
-    emitVoiceCanvasScene(scene);
-  }, [
-    appointmentCanvasMode,
-    appointmentCanvasRevision,
-    appointmentCanvasViewModel,
-    conciergeVoiceAction?.id,
-  ]);
-
-  useEffect(() => () => {
-    clearVoiceCanvasScene({ owner: "concierge_appointment" });
-  }, []);
+  const activeAppointmentCanvasSceneRef = useVoiceCanvasController({
+    owner: "concierge_appointment",
+    enabled: appointmentCanvasMode,
+    revision: appointmentCanvasRevision,
+    actionId: conciergeVoiceAction?.id,
+    flowReference: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
+    viewModel: appointmentCanvasViewModel,
+  });
 
   useEffect(() => {
     const handleAppointmentCanvasResponse = (event: Event) => {
@@ -14218,6 +14477,299 @@ const ConciergeScreen = () => {
     selectedAppointmentOption,
   ]);
 
+  const homeServiceCanvasCopyValue = useMemo(() => homeServiceCanvasCopy(locale), [locale]);
+  const homeServiceCanvasOptions = useMemo<ConciergeHomeServiceCanvasOption[]>(() => (
+    appointmentOptions.map((option) => ({
+      id: option.id,
+      label: appointmentOptionName(option, isSpanish),
+      description: homeServiceCanvasOptionDescription(option, isSpanish),
+    }))
+  ), [appointmentOptions, isSpanish]);
+  const homeServiceCanvasSelectedOption = homeServiceCanvasOptions.find((option) => option.id === selectedAppointmentOptionId)
+    ?? homeServiceCanvasOptions[0]
+    ?? null;
+  const homeServiceCanvasChannelLabel = selectedAppointmentActionChannel
+    ? appointmentChannelLabel(selectedAppointmentActionChannel, isSpanish)
+    : "";
+  const homeServiceCanvasViewModel = useMemo(() => {
+    if (!homeServiceCanvasMode || !homeServiceCanvasStep) return null;
+    return buildConciergeHomeServiceCanvasViewModel({
+      step: homeServiceCanvasStep,
+      copy: homeServiceCanvasCopyValue,
+      serviceType: homeServiceType,
+      description: homeServiceIntakeAnswers.problem_summary?.trim() || "",
+      photoName: homeServiceCanvasPhotoName,
+      photoAvailable: Boolean(homeServiceCanvasPhoto),
+      safetyAnswer: homeServiceIntakeAnswers.safety_check,
+      urgency: homeServiceIntakeAnswers.urgency?.trim() || "",
+      requestedTime: homeServiceIntakeAnswers.requested_time?.trim() || "",
+      accessNotes: homeServiceIntakeAnswers.access_notes === "__none__"
+        ? ""
+        : homeServiceIntakeAnswers.access_notes?.trim() || "",
+      location: homeServiceVisitAddress,
+      hasSavedLocation: Boolean(savedHomeAddress),
+      savedProviderName: savedHomeServiceProvider,
+      options: homeServiceCanvasOptions,
+      selectedOption: homeServiceCanvasSelectedOption,
+      contactChannelLabel: homeServiceCanvasChannelLabel,
+      photoWillBeSent: selectedAppointmentActionChannel === "email" && Boolean(homeServiceCanvasPhoto),
+      error: homeServiceCanvasError || appointmentError,
+    });
+  }, [
+    appointmentError,
+    homeServiceCanvasChannelLabel,
+    homeServiceCanvasCopyValue,
+    homeServiceCanvasError,
+    homeServiceCanvasMode,
+    homeServiceCanvasOptions,
+    homeServiceCanvasPhoto,
+    homeServiceCanvasPhotoName,
+    homeServiceCanvasSelectedOption,
+    homeServiceCanvasStep,
+    homeServiceIntakeAnswers,
+    homeServiceType,
+    homeServiceVisitAddress,
+    savedHomeAddress,
+    savedHomeServiceProvider,
+    selectedAppointmentActionChannel,
+  ]);
+  const activeHomeServiceCanvasSceneRef = useVoiceCanvasController({
+    owner: "concierge_home_service",
+    enabled: homeServiceCanvasMode,
+    revision: homeServiceCanvasRevision,
+    actionId: conciergeVoiceAction?.id,
+    flowReference: CONCIERGE_FLOW_REFERENCES.homeService,
+    pendingId: appointmentAttemptResult?.pending?.pendingId || appointmentAttemptResult?.form_task?.pending_id || undefined,
+    viewModel: homeServiceCanvasViewModel,
+  });
+
+  const finalizeHomeServiceCanvasProvider = useCallback((mode: "saved" | "compare") => {
+    setHomeServiceCanvasError(null);
+    advanceHomeServiceCanvas("searching");
+    saveHomeServiceDraft({ finalize: true }, {
+      onSuccess: async (result) => {
+        try {
+          let nextResult = result;
+          if (mode === "compare") {
+            nextResult = await discoverAppointmentOptions({ requestId: result.request.id });
+            setAppointmentRequest(nextResult.request);
+            setAppointmentOptions(nextResult.options);
+            setAppointmentDiscovery(nextResult.discovery ?? null);
+          }
+          const nextOption = mode === "saved"
+            ? nextResult.options.find((option) => option.provider_source === "saved") ?? nextResult.options[0]
+            : nextResult.options[0];
+          if (!nextOption) {
+            setHomeServiceCanvasError(isSpanish
+              ? "No encontré una opción clara. Puedes añadir un proveedor de confianza o volver a intentarlo."
+              : "I could not find a clear option. Add a trusted provider or try again.");
+            advanceHomeServiceCanvas("error");
+            return;
+          }
+          setSelectedAppointmentOptionId(nextOption.id);
+          advanceHomeServiceCanvas(mode === "saved" ? "review" : "options");
+        } catch (error) {
+          setHomeServiceCanvasError(error instanceof Error ? error.message : (isSpanish ? "No pude buscar proveedores." : "I could not check providers."));
+          advanceHomeServiceCanvas("error");
+        }
+      },
+      onError: () => advanceHomeServiceCanvas("error"),
+    });
+  }, [advanceHomeServiceCanvas, isSpanish, saveHomeServiceDraft]);
+
+  useEffect(() => {
+    const handleHomeServiceCanvasResponse = async (event: Event) => {
+      const response = event instanceof CustomEvent
+        ? (event.detail as VoiceCanvasResponseDetail | undefined)
+        : undefined;
+      const scene = activeHomeServiceCanvasSceneRef.current;
+      if (!response || !scene || scene.owner !== "concierge_home_service" || !voiceCanvasResponseMatchesScene(response, scene)) return;
+
+      const answer = (response.value || response.utterance).trim();
+      const affirmative = /^(yes|yes please|confirm|continue|go ahead|si|sí|confirmar|continúa|adelante|ja|bestätigen|weiter|oui|confirmer|continuer|sì|conferma|sim|continuar)$/i.test(answer.toLocaleLowerCase());
+
+      if (response.kind === "file") {
+        if (!response.file) {
+          setHomeServiceCanvasPhoto(null);
+          setHomeServiceCanvasPhotoName("");
+          setHomeServiceCanvasError(null);
+          return;
+        }
+        if (!/^image\/(jpeg|png|webp)$/i.test(response.file.type)) {
+          setHomeServiceCanvasError(isSpanish ? "Elige una foto JPG, PNG o WebP." : "Choose a JPG, PNG, or WebP photo.");
+          return;
+        }
+        try {
+          const dataUrl = await compressBillImage(response.file, 1_800_000);
+          const normalizedName = response.file.name.replace(/\.[^.]+$/, "") || "home-service-photo";
+          setHomeServiceCanvasPhoto({ name: `${normalizedName}.jpg`, type: "image/jpeg", dataUrl });
+          setHomeServiceCanvasPhotoName(response.file.name);
+          setHomeServiceCanvasError(null);
+        } catch {
+          setHomeServiceCanvasError(isSpanish ? "No pude preparar esa foto. Prueba con otra." : "I could not prepare that photo. Try another one.");
+        }
+        return;
+      }
+
+      if (response.kind === "secondary") {
+        if (homeServiceCanvasStep === "description") advanceHomeServiceCanvas("service");
+        else if (homeServiceCanvasStep === "danger") advanceHomeServiceCanvas("description");
+        else if (homeServiceCanvasStep === "emergency") {
+          setHomeServiceAnswer("immediate_danger", "no");
+          advanceHomeServiceCanvas("safety");
+        } else if (homeServiceCanvasStep === "safety") advanceHomeServiceCanvas("danger");
+        else if (homeServiceCanvasStep === "urgency") advanceHomeServiceCanvas("safety");
+        else if (homeServiceCanvasStep === "time") advanceHomeServiceCanvas("urgency");
+        else if (homeServiceCanvasStep === "access") {
+          setHomeServiceAnswer("access_notes", "__none__");
+          advanceHomeServiceCanvas("location");
+        } else if (homeServiceCanvasStep === "location") advanceHomeServiceCanvas("access");
+        else if (homeServiceCanvasStep === "location_custom") advanceHomeServiceCanvas("location");
+        else if (homeServiceCanvasStep === "provider") advanceHomeServiceCanvas("location");
+        else if (homeServiceCanvasStep === "options") advanceHomeServiceCanvas("provider");
+        else if (homeServiceCanvasStep === "review") advanceHomeServiceCanvas("provider");
+        else if (homeServiceCanvasStep === "error") advanceHomeServiceCanvas(homeServiceCanvasSelectedOption ? "review" : "provider");
+        return;
+      }
+
+      if (homeServiceCanvasStep === "service") {
+        const nextType = normalizeHomeServiceType(response.choiceId || answer);
+        if (!nextType) return;
+        setHomeServiceType(nextType);
+        advanceHomeServiceCanvas("description");
+        return;
+      }
+      if (homeServiceCanvasStep === "description") {
+        const description = response.kind === "primary"
+          ? homeServiceIntakeAnswers.problem_summary?.trim() || ""
+          : answer;
+        if (!description) return;
+        setHomeServiceAnswer("problem_summary", description);
+        setAppointmentNote(description);
+        advanceHomeServiceCanvas("danger");
+        return;
+      }
+      if (homeServiceCanvasStep === "danger") {
+        const danger = response.choiceId || answer;
+        if (!danger) return;
+        setHomeServiceAnswer("immediate_danger", danger);
+        advanceHomeServiceCanvas(danger === "no" ? "safety" : "emergency");
+        return;
+      }
+      if (homeServiceCanvasStep === "emergency") {
+        if (response.kind === "primary" || affirmative) {
+          const emergencyHref = homeServiceLocalEmergency.telHref || "tel:112";
+          window.location.assign(emergencyHref);
+        }
+        return;
+      }
+      if (homeServiceCanvasStep === "safety") {
+        const safety = response.choiceId || answer;
+        if (!safety) return;
+        setHomeServiceAnswer("safety_check", safety);
+        if (safety === "yes") {
+          if (homeServiceType === "plumber") setHomeServiceAnswer("active_flooding", "yes");
+          else if (homeServiceType === "electrician") setHomeServiceAnswer("problem_type", "sparks_smell");
+          else if (homeServiceType === "locksmith") setHomeServiceAnswer("lockout_hazard", "yes");
+          else setHomeServiceAnswer("environment_hazard", "yes");
+        }
+        advanceHomeServiceCanvas(safety === "no" ? "urgency" : "emergency");
+        return;
+      }
+      if (homeServiceCanvasStep === "urgency") {
+        const urgency = response.choiceId || answer;
+        if (!urgency) return;
+        setHomeServiceAnswer("urgency", urgency);
+        advanceHomeServiceCanvas("time");
+        return;
+      }
+      if (homeServiceCanvasStep === "time") {
+        if (!answer) return;
+        setHomeServiceAnswer("requested_time", answer);
+        advanceHomeServiceCanvas("access");
+        return;
+      }
+      if (homeServiceCanvasStep === "access") {
+        setHomeServiceAnswer("access_notes", response.kind === "primary" ? (homeServiceIntakeAnswers.access_notes?.trim() || "__none__") : (answer || "__none__"));
+        advanceHomeServiceCanvas("location");
+        return;
+      }
+      if (homeServiceCanvasStep === "location") {
+        if (response.choiceId === "saved_home" && savedHomeAddress) {
+          setHomeServiceAnswer("home_address", savedHomeAddress);
+          advanceHomeServiceCanvas("provider");
+        } else if (response.choiceId === "another_address") {
+          advanceHomeServiceCanvas("location_custom");
+        }
+        return;
+      }
+      if (homeServiceCanvasStep === "location_custom") {
+        if (!answer) return;
+        setHomeServiceAnswer("home_address", answer);
+        setHomeServiceAnswer("location", answer);
+        advanceHomeServiceCanvas("provider");
+        return;
+      }
+      if (homeServiceCanvasStep === "provider") {
+        if (response.choiceId === "add_provider") openHomeServiceProviderSetup();
+        else if (response.choiceId === "saved_provider") finalizeHomeServiceCanvasProvider("saved");
+        else if (response.choiceId === "compare_providers") finalizeHomeServiceCanvasProvider("compare");
+        return;
+      }
+      if (homeServiceCanvasStep === "options") {
+        if (!response.choiceId || !appointmentOptions.some((option) => option.id === response.choiceId)) return;
+        setSelectedAppointmentOptionId(response.choiceId);
+        advanceHomeServiceCanvas("review");
+        return;
+      }
+      if (homeServiceCanvasStep === "review") {
+        if ((response.kind !== "primary" && !affirmative) || !appointmentRequest || !selectedAppointmentOption || !selectedAppointmentActionChannel) return;
+        advanceHomeServiceCanvas("waiting");
+        confirmAppointmentMutation.mutate({
+          requestId: appointmentRequest.id,
+          optionId: selectedAppointmentOption.id,
+          channel: selectedAppointmentActionChannel,
+          shareDetails: {
+            share_home_address: Boolean(homeServiceVisitAddress.trim()),
+            photo: selectedAppointmentActionChannel === "email" && homeServiceCanvasPhoto
+              ? { name: homeServiceCanvasPhoto.name, type: homeServiceCanvasPhoto.type, data_url: homeServiceCanvasPhoto.dataUrl }
+              : undefined,
+          },
+        }, {
+          onSuccess: () => advanceHomeServiceCanvas("completed"),
+          onError: () => advanceHomeServiceCanvas("error"),
+        });
+        return;
+      }
+      if (homeServiceCanvasStep === "error" && (response.kind === "primary" || affirmative)) {
+        setHomeServiceCanvasError(null);
+        advanceHomeServiceCanvas(homeServiceCanvasSelectedOption ? "review" : "provider");
+      }
+    };
+
+    window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleHomeServiceCanvasResponse);
+    return () => window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleHomeServiceCanvasResponse);
+  }, [
+    activeHomeServiceCanvasSceneRef,
+    advanceHomeServiceCanvas,
+    appointmentOptions,
+    appointmentRequest,
+    confirmAppointmentMutation,
+    finalizeHomeServiceCanvasProvider,
+    homeServiceCanvasSelectedOption,
+    homeServiceCanvasStep,
+    homeServiceIntakeAnswers.access_notes,
+    homeServiceIntakeAnswers.problem_summary,
+    homeServiceLocalEmergency.telHref,
+    homeServiceType,
+    homeServiceVisitAddress,
+    isSpanish,
+    openHomeServiceProviderSetup,
+    savedHomeAddress,
+    selectedAppointmentActionChannel,
+    selectedAppointmentOption,
+  ]);
+
   const rideCanvasOptions = useMemo<ConciergeRideCanvasOption[]>(() => (
     (transportResult?.options ?? []).map((option) => ({
       id: option.id,
@@ -14284,27 +14836,15 @@ const ConciergeScreen = () => {
     transportTime,
   ]);
 
-  useEffect(() => {
-    if (!rideCanvasMode || !rideCanvasViewModel) {
-      activeRideCanvasSceneRef.current = null;
-      clearVoiceCanvasScene({ owner: "concierge_ride" });
-      return;
-    }
-    const scene: VoiceCanvasSceneEnvelope = {
-      owner: "concierge_ride",
-      revision: rideCanvasRevision,
-      actionId: conciergeVoiceAction?.id,
-      flowReference: TRANSPORT_BOOKING_FLOW_REFERENCE,
-      pendingId: rideCanvasPendingId || undefined,
-      viewModel: rideCanvasViewModel,
-    };
-    activeRideCanvasSceneRef.current = scene;
-    emitVoiceCanvasScene(scene);
-  }, [conciergeVoiceAction?.id, rideCanvasMode, rideCanvasPendingId, rideCanvasRevision, rideCanvasViewModel]);
-
-  useEffect(() => () => {
-    clearVoiceCanvasScene({ owner: "concierge_ride" });
-  }, []);
+  const activeRideCanvasSceneRef = useVoiceCanvasController({
+    owner: "concierge_ride",
+    enabled: rideCanvasMode,
+    revision: rideCanvasRevision,
+    actionId: conciergeVoiceAction?.id,
+    flowReference: TRANSPORT_BOOKING_FLOW_REFERENCE,
+    pendingId: rideCanvasPendingId || undefined,
+    viewModel: rideCanvasViewModel,
+  });
 
   useEffect(() => {
     if (!rideCanvasMode || !rideCanvasStep) return;

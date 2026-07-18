@@ -39,6 +39,7 @@ type SubmitCanvasResponseInput = {
   utterance: string;
   value?: string;
   choiceId?: string;
+  file?: File | null;
 };
 
 type VoiceCanvasContextValue = {
@@ -152,17 +153,18 @@ export function VoiceCanvasProvider({ children }: { children: ReactNode }) {
   const submitResponse = useCallback((response: SubmitCanvasResponseInput) => {
     const scene = activeSceneRef.current;
     const utterance = response.utterance.trim();
-    if (!scene || !utterance) return false;
+    if (!scene || (!utterance && response.kind !== "file")) return false;
 
     emitVoiceCanvasResponse({
       sceneId: scene.viewModel.sceneId,
       revision: scene.revision,
       ...response,
-      utterance,
+      utterance: utterance || (response.file?.name ?? "file"),
       at: new Date().toISOString(),
     });
-    lastTouchResponseRef.current = { utterance, at: Date.now() };
-    sendText(utterance, { invisibleInTranscript: true });
+    const responseUtterance = utterance || (response.file?.name ?? "file");
+    lastTouchResponseRef.current = { utterance: responseUtterance, at: Date.now() };
+    if (response.kind !== "file") sendText(responseUtterance, { invisibleInTranscript: true });
     return true;
   }, [sendText]);
 

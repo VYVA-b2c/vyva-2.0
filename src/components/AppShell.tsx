@@ -586,6 +586,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     submitCanvasResponse({ kind: "secondary", utterance: label });
   }, [activeCanvasScene, submitCanvasResponse]);
 
+  const handleCanvasFile = useCallback((file: File | null) => {
+    const label = file?.name || "Remove file";
+    submitCanvasResponse({ kind: "file", file, value: file?.name, utterance: label });
+  }, [submitCanvasResponse]);
+
   const openVoiceAppAction = useCallback((action: VoiceAppAction) => {
     const actionKey = `${action.id}:${action.route}`;
     const previous = lastOpenedVoiceActionRef.current;
@@ -805,6 +810,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             onCanvasChoice={handleCanvasChoice}
             onCanvasPrimary={handleCanvasPrimary}
             onCanvasSecondary={handleCanvasSecondary}
+            onCanvasFile={handleCanvasFile}
           />
         )}
         {showVoiceDock && (

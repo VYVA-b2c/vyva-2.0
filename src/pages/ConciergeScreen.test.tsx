@@ -354,6 +354,242 @@ describe("ConciergeScreen action hub", () => {
     window.removeEventListener(VYVA_VOICE_CANVAS_CLEAR_EVENT, handleClear);
   });
 
+  it("guides a Home Service voice request to an exact-sharing confirmation", async () => {
+    voiceActionMock.action = {
+      id: "voice-home-canvas-1",
+      actionType: "concierge.home_service",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Home service help",
+      summary: "Opening home service help",
+      cue: "Ask what kind of home service is needed",
+      sourceText: "I need help at home",
+      priority: "high",
+      feedbackReason: "User requested home service",
+      payload: {},
+    };
+    let confirmedBody: Record<string, unknown> | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          street: "10 Garden Lane",
+          cityState: "Marbella",
+          postalCode: "29602",
+          country: "ES",
+          savedProviders: [{
+            name: "Trusted Plumber",
+            role: "plumber",
+            category: "home_service",
+            email: "plumber@example.com",
+            preferredChannel: "email",
+          }],
+        });
+      }
+      if (target === "/api/appointments/requests/active-home-service") {
+        return jsonResponse({ request: null, options: [] });
+      }
+      if (target === "/api/appointments/requests") {
+        const body = JSON.parse(String(init?.body));
+        expect(body).toMatchObject({ appointment_type: "home-service", draft: false });
+        return jsonResponse({
+          request: {
+            id: "home-canvas-request-1",
+            appointment_type: "home-service",
+            reason_detail: body.detail,
+            preferences: body.preferences,
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "home-canvas-option-1",
+            provider_source: "saved",
+            provider_snapshot: {
+              name: "Trusted Plumber",
+              email: "plumber@example.com",
+              preferred_channel: "email",
+              availability: "Tomorrow morning",
+              call_out_fee: "EUR 45",
+            },
+            match_reason: "Saved trusted provider",
+            available_channels: ["email"],
+            rank: 1,
+            status: "recommended",
+          }],
+        });
+      }
+      if (target.endsWith("/confirm-attempt")) {
+        confirmedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return jsonResponse({ pending: { pendingId: "home-canvas-pending-1", status: "pending" } });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    const respond = async (sceneId: string, response: Partial<Parameters<typeof emitVoiceCanvasResponse>[0]>) => {
+      const scene = [...scenes].reverse().find((item) => item.viewModel.sceneId === sceneId);
+      expect(scene).toBeTruthy();
+      act(() => emitVoiceCanvasResponse({
+        sceneId,
+        revision: scene!.revision,
+        kind: "choice",
+        utterance: "",
+        at: "2026-07-18T10:00:00.000Z",
+        ...response,
+      }));
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+    renderScreen();
+
+    await waitFor(() => expect(scenes.map((scene) => scene.viewModel.sceneId)).toContain("home-service-type"));
+    await respond("home-service-type", { choiceId: "plumber", value: "Plumber", utterance: "Plumber" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-description")).toBe(true));
+    await respond("home-service-description", { kind: "text", value: "Water is leaking under the sink", utterance: "Water is leaking under the sink" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-danger")).toBe(true));
+    await respond("home-service-danger", { choiceId: "no", value: "No", utterance: "No" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-safety")).toBe(true));
+    await respond("home-service-safety", { choiceId: "no", value: "No", utterance: "No" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-urgency")).toBe(true));
+    await respond("home-service-urgency", { choiceId: "today", value: "Today", utterance: "Today" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-time")).toBe(true));
+    await respond("home-service-time", { kind: "text", value: "Tomorrow morning", utterance: "Tomorrow morning" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-access")).toBe(true));
+    await respond("home-service-access", { kind: "text", value: "Use the side entrance", utterance: "Use the side entrance" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-location")).toBe(true));
+    await respond("home-service-location", { choiceId: "saved_home", value: "Use my saved home", utterance: "Use my saved home" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-provider")).toBe(true));
+    await respond("home-service-provider", { choiceId: "saved_provider", value: "Trusted Plumber", utterance: "Trusted Plumber" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-review")).toBe(true));
+
+    const review = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "home-service-review")!;
+    expect(review.viewModel.summaryRows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "location", value: "10 Garden Lane, 29602 Marbella, ES" }),
+      expect.objectContaining({ id: "provider", value: "Trusted Plumber" }),
+      expect.objectContaining({ id: "photo", value: "No photo" }),
+    ]));
+    await respond("home-service-review", { kind: "primary", utterance: "Confirm and prepare contact" });
+    await waitFor(() => expect(confirmedBody).not.toBeNull());
+    expect(confirmedBody).toMatchObject({
+      option_id: "home-canvas-option-1",
+      channel: "email",
+      share_details: { share_home_address: true },
+    });
+    expect((confirmedBody?.share_details as Record<string, unknown>).photo).toBeUndefined();
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-completed")).toBe(true));
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
+  it("stops the Home Service Canvas when immediate danger is uncertain", async () => {
+    voiceActionMock.action = {
+      id: "voice-home-canvas-danger",
+      actionType: "concierge.home_service",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Home service help",
+      summary: "Opening home service help",
+      cue: "Check safety first",
+      sourceText: "I need an electrician",
+      priority: "high",
+      feedbackReason: "User requested home service",
+      payload: { service_type: "electrician" },
+    };
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/appointments/requests/active-home-service") {
+        return jsonResponse({ request: null, options: [] });
+      }
+      return jsonResponse({ items: [] });
+    });
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    const respond = async (sceneId: string, response: Partial<Parameters<typeof emitVoiceCanvasResponse>[0]>) => {
+      const scene = [...scenes].reverse().find((item) => item.viewModel.sceneId === sceneId);
+      expect(scene).toBeTruthy();
+      act(() => emitVoiceCanvasResponse({
+        sceneId,
+        revision: scene!.revision,
+        kind: "choice",
+        utterance: "",
+        at: "2026-07-18T10:00:00.000Z",
+        ...response,
+      }));
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+    renderScreen();
+
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-description")).toBe(true));
+    await respond("home-service-description", { kind: "text", value: "There is a burning smell", utterance: "There is a burning smell" });
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-danger")).toBe(true));
+    await respond("home-service-danger", { choiceId: "not_sure", value: "I am not sure", utterance: "I am not sure" });
+
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-emergency")).toBe(true));
+    expect(scenes.some((scene) => scene.viewModel.sceneId === "home-service-urgency")).toBe(false);
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
+  it("restores an unfinished Home Service Canvas draft after a new session", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({ street: "10 Garden Lane", savedProviders: [] });
+      }
+      if (target === "/api/appointments/requests/active-home-service") {
+        return jsonResponse({
+          request: {
+            id: "home-draft-1",
+            appointment_type: "home-service",
+            reason_detail: "Cleaning help this week",
+            status: "needs_provider",
+            selected_provider_option_id: null,
+            selected_channel: null,
+            preferences: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+              requested_time: "Friday morning",
+              home_access_or_safety_notes: "No pets",
+              photo_name: "room.jpg",
+              home_address: "10 Garden Lane",
+              service_intake: {
+                version: "home-service-intake-v1",
+                origin: "voice",
+                service_type: "cleaner",
+                urgency: "this_week",
+                criteria: ["trusted"],
+                answers: {
+                  problem_summary: "Cleaning help this week",
+                  immediate_danger: "no",
+                  safety_check: "no",
+                  urgency: "this_week",
+                  home_address: "10 Garden Lane",
+                },
+                safety_flags: [],
+                research_brief: "Cleaning help this week",
+              },
+            },
+          },
+          options: [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+    renderScreen();
+
+    await waitFor(() => expect(scenes.map((scene) => scene.viewModel.sceneId)).toContain("home-service-provider"));
+    const providerScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "home-service-provider")!;
+    expect(providerScene.viewModel.title).toBe("Who should VYVA check?");
+    expect(screen.getByTestId("panel-appointment-assistant")).toBeVisible();
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
   it("runs a saved medical appointment through coverage, availability, and final confirmation", async () => {
     voiceActionMock.action = {
       id: "voice-appointment-canvas-1",
@@ -4278,6 +4514,65 @@ describe("ConciergeScreen route prefill", () => {
     window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
   });
 
+  it("resumes the same Home Service Canvas after trusted provider setup returns", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          street: "10 Garden Lane",
+          savedProviders: [{
+            name: "Trusted Electrician",
+            role: "electrician",
+            category: "home_service",
+            phone: "+34 600 333 444",
+            preferredChannel: "phone",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        trustedProviderSaved: {
+          name: "Trusted Electrician",
+          category: "home_service",
+          conciergeResume: {
+            kind: "home_service",
+            serviceType: "electrician",
+            origin: "voice",
+            note: "Kitchen socket is not working",
+            answers: {
+              problem_summary: "Kitchen socket is not working",
+              immediate_danger: "no",
+              safety_check: "no",
+              urgency: "today",
+              requested_time: "Tomorrow morning",
+              access_notes: "Ring twice",
+              home_address: "10 Garden Lane",
+            },
+            textDrafts: { problem_summary: "Kitchen socket is not working" },
+            voiceCanvas: true,
+            photoName: "socket.jpg",
+          },
+        },
+      },
+    }]);
+
+    fireEvent.click(await screen.findByTestId("button-provider-resume-continue"));
+    await waitFor(() => {
+      const providerScene = scenes.find((scene) => scene.viewModel.sceneId === "home-service-provider");
+      expect(providerScene).toBeDefined();
+      expect(providerScene?.viewModel.choices?.some((choice) => choice.label === "Trusted Electrician")).toBe(true);
+    });
+    expect(screen.getByTestId("route-state")).toHaveTextContent("null");
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
   it("returns from trusted provider setup to the original active shortlist", async () => {
     const pendingShortlist = {
       id: "shortlist-return-1",
@@ -4437,7 +4732,7 @@ describe("ConciergeScreen route prefill", () => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests", expect.objectContaining({ method: "POST" }));
     });
     expect(fetchMock).not.toHaveBeenCalled();
-    const [, init] = apiFetchMock.mock.calls.find(([url]) => String(url).includes("/api/appointments/requests")) ?? [];
+    const [, init] = apiFetchMock.mock.calls.find(([url]) => String(url) === "/api/appointments/requests") ?? [];
     const body = JSON.parse(String(init?.body));
     expect(body.detail).toContain("Please help me schedule care");
     expect(body.language).toBe("en");

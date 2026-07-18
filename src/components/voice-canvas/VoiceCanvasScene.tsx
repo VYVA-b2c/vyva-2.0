@@ -1,4 +1,4 @@
-import { Check, CircleAlert, LoaderCircle, MapPin, type LucideIcon } from "lucide-react";
+import { Camera, Check, CircleAlert, LoaderCircle, MapPin, Trash2, type LucideIcon } from "lucide-react";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import ZamoraVoiceOrb from "@/components/ZamoraVoiceOrb";
 import type { VoiceCanvasChoice, VoiceCanvasViewModel } from "./types";
@@ -10,6 +10,7 @@ export interface VoiceCanvasSceneProps {
   onPrimary?: () => void;
   onSecondary?: () => void;
   onTextChange?: (value: string) => void;
+  onFileChange?: (file: File | null) => void;
   className?: string;
 }
 
@@ -41,8 +42,8 @@ function ChoiceButton({ choice, onChoice }: { choice: VoiceCanvasChoice; onChoic
   );
 }
 
-export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, onTextChange, className = "" }: VoiceCanvasSceneProps) {
-  const { kind, title, helperText, progress, choices = [], summaryRows = [], textEntry, statusLabel } = viewModel;
+export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, onTextChange, onFileChange, className = "" }: VoiceCanvasSceneProps) {
+  const { kind, title, helperText, progress, choices = [], summaryRows = [], textEntry, fileEntry, statusLabel } = viewModel;
   const StatusIcon = statusIcons[kind];
   const isWaiting = kind === "waiting" || viewModel.status === "loading";
   const titleId = `voice-canvas-title-${viewModel.sceneId}`;
@@ -98,6 +99,33 @@ export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, 
               <input value={textEntry.value} placeholder={textEntry.placeholder} maxLength={textEntry.maxLength} disabled={textEntry.disabled} aria-label={textEntry.accessibleLabel} inputMode={textEntry.inputMode} type={textEntry.type ?? "text"} onChange={handleTextChange} />
             )}
           </label>
+        )}
+
+        {fileEntry && (
+          <div className="vc-file-entry">
+            <label className="vc-file-button">
+              <Camera size={22} aria-hidden="true" />
+              <span>{fileEntry.label}</span>
+              <input
+                type="file"
+                accept={fileEntry.accept}
+                capture={fileEntry.capture}
+                disabled={fileEntry.disabled}
+                aria-label={fileEntry.accessibleLabel ?? fileEntry.label}
+                onChange={(event) => onFileChange?.(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            {fileEntry.fileName && (
+              <div className="vc-file-status" role="status">
+                <span><Check size={18} aria-hidden="true" />{fileEntry.statusLabel || fileEntry.fileName}</span>
+                {fileEntry.removeLabel && (
+                  <button type="button" onClick={() => onFileChange?.(null)} aria-label={fileEntry.removeLabel} title={fileEntry.removeLabel}>
+                    <Trash2 size={18} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {summaryRows.length > 0 && <dl className="vc-summary">{summaryRows.map((row) => <div key={row.id}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>}
