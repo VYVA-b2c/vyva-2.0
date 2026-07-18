@@ -747,6 +747,11 @@ type MarketingOperatorBriefItem = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type MarketingWorkflowCoachItem = MarketingOperatorBriefItem & {
+  eyebrow: string;
+  disabled?: boolean;
+};
+
 type CampaignAudienceInsightItem = {
   key: string;
   title: string;
@@ -20063,12 +20068,69 @@ export default function MarketingAdminPage() {
       },
     },
   ];
+  const importWorkflowItem = launchLaneItems.find((item) => item.key === "import") ?? launchLaneItems[0];
+  const audienceWorkflowItem = launchLaneItems.find((item) => item.key === "audience") ?? launchLaneItems[1];
+  const creativeWorkflowItem = launchLaneItems.find((item) => item.key === "creative") ?? launchLaneItems[2];
+  const launchWorkflowItem = launchLaneItems.find((item) => item.key === "launch") ?? launchLaneItems[3];
+  const marketingWorkflowCoachItems: MarketingWorkflowCoachItem[] = [
+    {
+      key: "next",
+      eyebrow: "Do first",
+      title: primaryMarketingAction?.title ?? "Start a campaign play",
+      value: primaryMarketingAction ? readinessLabel(primaryMarketingAction.state) : "Ready",
+      detail: primaryMarketingAction?.detail ?? "No urgent blocker is open. Choose a campaign play, template, audience, or performance insight to move forward.",
+      state: primaryMarketingAction?.state ?? "planning",
+      actionLabel: primaryMarketingAction?.actionLabel ?? "Open studio",
+      icon: PrimaryMarketingActionIcon,
+      disabled: primaryMarketingAction?.disabled,
+      onSelect: primaryMarketingAction?.onSelect ?? (() => {
+        setActiveTab("dashboard");
+        setMessage("Use Smart campaign studio to choose a playbook, generate AI copy, and create a campaign.");
+      }),
+    },
+    ...(importWorkflowItem ? [{
+      ...importWorkflowItem,
+      key: "source",
+      eyebrow: "Source",
+      title: "Keep Source data current",
+    }] : []),
+    ...(audienceWorkflowItem ? [{
+      ...audienceWorkflowItem,
+      eyebrow: "Audience",
+      title: "Prepare the right people",
+    }] : []),
+    ...(creativeWorkflowItem ? [{
+      ...creativeWorkflowItem,
+      eyebrow: "Creative",
+      title: "Finish reusable copy and assets",
+    }] : []),
+    ...(launchWorkflowItem ? [{
+      ...launchWorkflowItem,
+      eyebrow: "Launch",
+      title: "Move from plan to publish",
+    }] : []),
+    ...(contactRelationshipPriorityQueue ? [{
+      key: "relationships",
+      eyebrow: "Relationships",
+      title: contactRelationshipPriorityQueue.title,
+      value: contactRelationshipPriorityQueue.countLabel,
+      detail: contactRelationshipPriorityQueue.detail,
+      state: contactRelationshipPriorityQueue.state,
+      actionLabel: contactRelationshipPriorityQueue.studioLabel,
+      icon: contactRelationshipPriorityQueue.icon,
+      disabled: contactRelationshipPriorityQueue.count === 0,
+      onSelect: () => loadContactWorkQueueInStudio(contactRelationshipPriorityQueue),
+    }] : []),
+  ].slice(0, 6);
   const marketingOperatorBriefText = [
     "VYVA marketing daily operator brief",
     `Generated: ${formatDate(new Date().toISOString())}`,
     "",
     `Next best move: ${primaryMarketingAction?.title ?? "No urgent setup work"} (${primaryMarketingAction ? readinessLabel(primaryMarketingAction.state) : "Ready"})`,
     `Why: ${primaryMarketingAction?.detail ?? "The marketing workspace is clear enough to start a new campaign play."}`,
+    "",
+    "Workflow coach:",
+    ...marketingWorkflowCoachItems.map((item, index) => `${index + 1}. ${item.eyebrow} - ${item.title}: ${item.detail} Next: ${item.actionLabel}.`),
     "",
     "Command items:",
     ...marketingOperatorBriefItems.map((item, index) => `${index + 1}. ${item.title} - ${item.value}: ${item.detail} Next: ${item.actionLabel}.`),
@@ -20224,6 +20286,49 @@ export default function MarketingAdminPage() {
                       )}
                       <p className="text-xs font-bold leading-relaxed text-[#7d6b65]">One click takes you to the work area that unblocks the most marketing progress.</p>
                     </div>
+                  </div>
+                </div>
+                <div className="mb-4 rounded-2xl border border-purple-100 bg-white p-4 shadow-sm" data-testid="marketing-workflow-coach">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Workflow coach</p>
+                      <h3 className="mt-1 text-lg font-black text-[#241133]">One clear path from source data to audience relationships</h3>
+                      <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                        Use these cards as the daily operating route: import, clean the audience, finish creative, prepare launch, and keep relationships moving.
+                      </p>
+                    </div>
+                    <Pill className={marketingWorkflowCoachItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : marketingWorkflowCoachItems.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                      {marketingWorkflowCoachItems.filter((item) => item.state === "ready").length}/{marketingWorkflowCoachItems.length} ready
+                    </Pill>
+                  </div>
+                  <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                    {marketingWorkflowCoachItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={item.onSelect}
+                          disabled={item.disabled}
+                          className={`min-h-[154px] rounded-2xl border p-4 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)}`}
+                          data-testid={`button-marketing-workflow-coach-${item.key}`}
+                        >
+                          <span className="flex items-start justify-between gap-3">
+                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                              <Icon size={17} aria-hidden="true" />
+                            </span>
+                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                          </span>
+                          <span className="mt-3 block text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.eyebrow}</span>
+                          <span className="mt-1 block text-sm font-black text-[#241133]">{item.title}</span>
+                          <span className="mt-1 block text-lg font-black text-purple-800">{item.value}</span>
+                          <span className="mt-2 line-clamp-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                          <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                            {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm" data-testid="marketing-operator-brief">

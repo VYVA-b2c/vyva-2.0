@@ -1429,6 +1429,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Source sync");
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    expect(screen.getByTestId("marketing-workflow-coach")).toHaveTextContent("Workflow coach");
+    expect(screen.getByTestId("marketing-workflow-coach")).toHaveTextContent("Do first");
+    expect(screen.getByTestId("marketing-workflow-coach")).toHaveTextContent("Audience");
+    expect(screen.getByTestId("marketing-workflow-coach")).toHaveTextContent("Creative");
+    expect(screen.getByTestId("marketing-workflow-coach")).toHaveTextContent("Launch");
+    fireEvent.click(screen.getByTestId("button-marketing-workflow-coach-creative"));
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Source content coverage");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Source content placeholders");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("AI opportunity radar");
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("AI ranked");
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("Event reminder");
