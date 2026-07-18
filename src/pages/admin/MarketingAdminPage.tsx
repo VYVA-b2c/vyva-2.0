@@ -29672,9 +29672,17 @@ export default function MarketingAdminPage() {
                     action={contentDrawerMode === "preview" ? (
                       <div className="flex flex-wrap gap-2">
                         {selectedContent ? (
-                          <button type="button" onClick={() => startContentEdit(selectedContent)} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white" data-testid="button-marketing-edit-previewed-content">
-                            <Pencil size={14} /> Edit
-                          </button>
+                          <>
+                            <button type="button" onClick={() => startCampaignFromContentAsset(selectedContent)} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white" disabled={contentSaving} data-testid="button-marketing-campaign-previewed-content">
+                              <Megaphone size={14} /> Use in campaign
+                            </button>
+                            <button type="button" onClick={() => startContentEdit(selectedContent)} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700" disabled={contentSaving} data-testid="button-marketing-edit-previewed-content">
+                              <Pencil size={14} /> Edit
+                            </button>
+                            <button type="button" onClick={() => void duplicateContentAsDraft(selectedContent)} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700" disabled={contentSaving} data-testid="button-marketing-duplicate-previewed-content">
+                              <Copy size={14} /> Duplicate
+                            </button>
+                          </>
                         ) : null}
                         <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]" data-testid="button-marketing-close-content-drawer">
                           <X size={14} /> Close

@@ -3220,6 +3220,27 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
   });
 
+  it("turns previewed content into a campaign starter", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("button-marketing-campaign-previewed-content")).toHaveTextContent("Use in campaign");
+    expect(screen.getByTestId("button-marketing-duplicate-previewed-content")).toHaveTextContent("Duplicate");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-previewed-content"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Partner post campaign");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-campaign-content")).toHaveValue("content-2");
+    expect(screen.getByTestId("marketing-campaign-content-handoff")).toHaveTextContent("Partner post is loaded into the campaign studio.");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Campaign starter loaded from "Partner post".');
+    expect(screen.getByText("Campaign starter loaded from Partner post. Review the planner, then add the campaign.")).toBeInTheDocument();
+  });
+
   it("loads a smart campaign planner starter with audience, content, and recipients", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
