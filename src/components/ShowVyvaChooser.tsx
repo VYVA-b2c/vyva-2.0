@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Camera, ClipboardPaste, FileUp, Link2, MessageCircleQuestion, ShieldCheck } from "lucide-react";
+import { Camera, ClipboardPaste, FileUp, Focus, Link2, MessageCircleQuestion, ShieldCheck } from "lucide-react";
 import {
   SHOW_VYVA_USE_CASES,
   SHOW_VYVA_USE_CASE_IDS,
@@ -123,6 +123,13 @@ export default function ShowVyvaChooser({
       <p data-testid="text-show-vyva-prompt" className="mt-3 font-body text-[15px] font-extrabold leading-snug text-vyva-text-1">
         {t(`showVyva.prompt.${selectedUseCase.id}`, selectedUseCase.prompt)}
       </p>
+
+      <div className="mt-3 flex items-start gap-2 rounded-[14px] border border-[#D8CFF7] bg-[#F8F6FF] px-3 py-2.5">
+        <Focus size={18} className="mt-0.5 flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+        <p data-testid="text-show-vyva-capture-guidance" className="font-body text-[13px] font-bold leading-snug text-[#4C3565]">
+          {t(`showVyva.capture.instruction.${selectedUseCase.id}`, selectedUseCase.captureInstruction)}
+        </p>
+      </div>
 
       <label className="mt-3 flex min-h-[50px] items-center gap-2 rounded-[15px] border border-[#EDE5DB] bg-[#FFFCF8] px-3 focus-within:border-vyva-purple focus-within:ring-2 focus-within:ring-[#EDE9FE]">
         <MessageCircleQuestion size={18} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />

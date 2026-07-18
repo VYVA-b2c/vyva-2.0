@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../db.js";
 import { homeScans } from "../../shared/schema.js";
+import { nonRetainedShowVyvaEvidence } from "../services/showVyvaEvidencePrivacy.js";
 import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const DEMO_USER_ID = "demo-user";
@@ -131,7 +132,7 @@ export async function homeScanHandler(req: Request, res: Response) {
         result_title: resultTitle,
         hazards,
         advice,
-        image_data: image,
+        ...nonRetainedShowVyvaEvidence(),
       });
     } catch (dbErr) {
       console.error("[home-scan] Failed to persist scan result:", dbErr);

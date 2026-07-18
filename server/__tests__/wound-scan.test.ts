@@ -89,7 +89,7 @@ describe("wound scan visual health route", () => {
           severity: imageType === "xray" ? "Moderate" : "Minor",
           result_title: `${imageType} review`,
           advice: "This is a cautious assistive review. A clinician should review anything concerning.",
-          image_data: TEST_IMAGE,
+          image_data: null,
         }),
       );
     },
