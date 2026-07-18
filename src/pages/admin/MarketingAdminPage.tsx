@@ -8599,6 +8599,11 @@ type SourceReviewAction = {
   countKeys: SyncCountKey[];
 };
 
+type SourceReviewShortcut = SourceReviewAction & {
+  count: number;
+  onSelect: () => void;
+};
+
 const sourceReviewActionsConfig: SourceReviewAction[] = [
   {
     key: "campaigns",
@@ -8645,6 +8650,53 @@ function sourceReviewActionCount(summary: Record<string, unknown>, action: Sourc
   const imported = action.countKeys.reduce((total, key) => total + syncCountValue(summary, "imported", key), 0);
   if (imported) return imported;
   return action.countKeys.reduce((total, key) => total + numberValue(summary[key]), 0);
+}
+
+function SourceReviewShortcuts({
+  title,
+  subtitle,
+  actions,
+  testId = "marketing-source-review-panel",
+  buttonTestIdPrefix = "button-marketing-source-review",
+}: {
+  title: string;
+  subtitle: string;
+  actions: SourceReviewShortcut[];
+  testId?: string;
+  buttonTestIdPrefix?: string;
+}) {
+  if (!actions.some((action) => action.count > 0)) return null;
+  return (
+    <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3" data-testid={testId}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-black text-emerald-950">{title}</p>
+          <p className="mt-1 text-xs font-bold text-emerald-800">{subtitle}</p>
+        </div>
+        <Pill className="bg-white text-emerald-800">ready</Pill>
+      </div>
+      <div className="mt-3 grid gap-2 xl:grid-cols-2">
+        {actions.map((action) => (
+          <button
+            key={action.key}
+            type="button"
+            onClick={action.onSelect}
+            className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-left shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
+            data-testid={`${buttonTestIdPrefix}-${action.key}`}
+          >
+            <span>
+              <span className="block text-sm font-black text-[#241133]">{action.label}</span>
+              <span className="mt-0.5 block text-xs font-semibold text-[#6f625e]">{action.detail}</span>
+            </span>
+            <span className="inline-flex items-center gap-2 text-sm font-black text-emerald-800">
+              {action.count}
+              <ExternalLink size={14} />
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function syncFieldCoverageItems(summary: Record<string, unknown>) {
@@ -9147,12 +9199,14 @@ function SourceImportCoveragePanel({
   subtitle = "Latest sync coverage across Source export and VYVA import.",
   focusKeys,
   onOpenSettings,
+  onOpenReviewAction,
 }: {
   run: SyncRun | null;
   title?: string;
   subtitle?: string;
   focusKeys?: SyncCountKey[];
   onOpenSettings: () => void;
+  onOpenReviewAction?: (action: SourceReviewAction) => void;
 }) {
   const parity = run ? syncParityItems(run.summary) : [];
   const focusedParity = focusKeys?.length
@@ -9163,6 +9217,13 @@ function SourceImportCoveragePanel({
   const unmappedCount = run ? syncUnmappedCount(run.summary) : 0;
   const unmappedCampaignRecipientCount = run ? syncUnmappedCampaignRecipientCount(run.summary) : 0;
   const isFailed = run?.status === "failed";
+  const reviewActions = run && onOpenReviewAction
+    ? sourceReviewActionsConfig.map((action) => ({
+      ...action,
+      count: sourceReviewActionCount(run.summary, action),
+      onSelect: () => onOpenReviewAction(action),
+    }))
+    : [];
   const coverageNote = !run
     ? "No Source sync has run yet. Run sync from Settings to import campaigns, content, contacts, lists, media, metrics, and journey history."
     : isFailed
@@ -9265,6 +9326,13 @@ function SourceImportCoveragePanel({
           </div>
         ) : null}
         {run ? <SourceDestinationMap summary={run.summary} /> : null}
+        <SourceReviewShortcuts
+          title="Review imported Source data"
+          subtitle="Open the VYVA areas populated by the latest sync, without returning to Settings."
+          actions={reviewActions}
+          testId="marketing-source-coverage-review-panel"
+          buttonTestIdPrefix="button-marketing-source-coverage-review"
+        />
         {unmappedCount || unmappedCampaignRecipientCount ? (
           <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-lovable-unmapped-summary">
             {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
@@ -19083,7 +19151,6 @@ export default function MarketingAdminPage() {
   const sourceReviewActions = useMemo(() => sourceReviewSummary
     ? sourceReviewActionsConfig.map((action) => ({ ...action, count: sourceReviewActionCount(sourceReviewSummary, action) }))
     : [], [sourceReviewSummary]);
-  const sourceReviewHasCounts = sourceReviewActions.some((action) => action.count > 0);
   const sourceReviewTitle = sourceReviewMode === "preview" ? "Review available Source data" : "Review imported data";
   const sourceReviewSubtitle = sourceReviewMode === "preview"
     ? "The export is reachable. Use these shortcuts to see where each Source object will land after sync."
@@ -19094,6 +19161,10 @@ export default function MarketingAdminPage() {
     const modeLabel = sourceReviewMode === "preview" ? "Source preview" : "Source sync";
     setMessage(`Opened ${action.label} from ${modeLabel}.`);
   }
+  const sourceReviewShortcuts = sourceReviewActions.map((action) => ({
+    ...action,
+    onSelect: () => openSourceReviewAction(action),
+  }));
   const emailScheduler = syncState.emailScheduler ?? summary.emailScheduler ?? emptySummary.emailScheduler ?? {
     enabled: false,
     intervalMinutes: 5,
@@ -21990,6 +22061,7 @@ export default function MarketingAdminPage() {
               <SourceImportCoveragePanel
                 run={latestSyncRun}
                 onOpenSettings={() => setActiveTab("settings")}
+                onOpenReviewAction={openSourceReviewAction}
               />
 
               <SectionCard
@@ -27084,6 +27156,7 @@ export default function MarketingAdminPage() {
                 subtitle="Quickly see whether Source exported templates, social posts, briefs, media, and campaign links."
                 focusKeys={["content", "mediaAssets", "campaigns", "campaignChannels", "journeys"]}
                 onOpenSettings={() => setActiveTab("settings")}
+                onOpenReviewAction={openSourceReviewAction}
               />
               {missingSourceReferenceCount > 0 ? (
                 <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm" data-testid="marketing-missing-content-reference-panel">
@@ -30531,37 +30604,11 @@ export default function MarketingAdminPage() {
                       {syncFeedbackText}
                     </p>
                   ) : null}
-                  {sourceReviewHasCounts ? (
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3" data-testid="marketing-source-review-panel">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-black text-emerald-950">{sourceReviewTitle}</p>
-                          <p className="mt-1 text-xs font-bold text-emerald-800">{sourceReviewSubtitle}</p>
-                        </div>
-                        <Pill className="bg-white text-emerald-800">ready</Pill>
-                      </div>
-                      <div className="mt-3 grid gap-2 xl:grid-cols-2">
-                        {sourceReviewActions.map((action) => (
-                          <button
-                            key={action.key}
-                            type="button"
-                            onClick={() => openSourceReviewAction(action)}
-                            className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-left shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
-                            data-testid={`button-marketing-source-review-${action.key}`}
-                          >
-                            <span>
-                              <span className="block text-sm font-black text-[#241133]">{action.label}</span>
-                              <span className="mt-0.5 block text-xs font-semibold text-[#6f625e]">{action.detail}</span>
-                            </span>
-                            <span className="inline-flex items-center gap-2 text-sm font-black text-emerald-800">
-                              {action.count}
-                              <ExternalLink size={14} />
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+                  <SourceReviewShortcuts
+                    title={sourceReviewTitle}
+                    subtitle={sourceReviewSubtitle}
+                    actions={sourceReviewShortcuts}
+                  />
                   <div className="grid gap-2">
                     {syncState.runs.length === 0 ? <EmptyState text="No Source sync runs yet." /> : syncState.runs.map((run) => (
                       <div key={run.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">

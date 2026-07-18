@@ -1658,6 +1658,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Source sync");
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    expect(screen.getByTestId("marketing-source-coverage-review-panel")).toHaveTextContent("Review imported Source data");
+    fireEvent.click(screen.getByTestId("button-marketing-source-coverage-review-journeys"));
+    expect(screen.getByTestId("marketing-journeys-tab")).toBeInTheDocument();
+    expect(screen.getByText("Opened Journeys from Source sync.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-workflow-coach")).toHaveTextContent("Workflow coach");
     expect(screen.getByTestId("marketing-workflow-coach")).toHaveTextContent("Do first");
     expect(screen.getByTestId("marketing-workflow-coach")).toHaveTextContent("Audience");
