@@ -92,6 +92,8 @@ describe("Show VYVA review contract", () => {
     expect(contract.noticed).toHaveLength(2);
     expect(contract.safeNextSteps).toHaveLength(3);
     expect(contract.followUpActions.map((action) => action.id)).toEqual([
+      "find_alternatives",
+      "save_note",
       "compare_price",
       "compare_proximity",
       "check_reputation",
@@ -118,6 +120,9 @@ describe("Show VYVA review contract", () => {
     expect(phone.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.phoneNumber);
     expect(phone.followUpContext).toBe("scam");
     expect(phone.followUpActions.map((action) => action.id)).toEqual([
+      "do_not_reply",
+      "block_or_report",
+      "ask_someone",
       "check_number",
       "call_trusted_contact",
       "save_report",
@@ -131,6 +136,9 @@ describe("Show VYVA review contract", () => {
     });
     expect(scamLink.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.pastedLink);
     expect(scamLink.followUpActions.map((action) => action.id)).toEqual([
+      "do_not_reply",
+      "block_or_report",
+      "ask_someone",
       "check_link",
       "call_trusted_contact",
       "save_report",
@@ -144,6 +152,9 @@ describe("Show VYVA review contract", () => {
     });
     expect(company.inputType).toBe(SHOW_VYVA_REVIEW_INPUT_TYPES.companyName);
     expect(company.followUpActions.map((action) => action.id)).toEqual([
+      "do_not_reply",
+      "block_or_report",
+      "ask_someone",
       "check_company",
       "call_trusted_contact",
       "save_report",
@@ -173,6 +184,9 @@ describe("Show VYVA review contract", () => {
     expect(scam.context).toBe("scam");
     expect(scam.riskLevel).toBe("high");
     expect(scam.followUpActions.map((action) => action.id)).toEqual([
+      "do_not_reply",
+      "block_or_report",
+      "ask_someone",
       "check_company",
       "call_trusted_contact",
       "save_report",
@@ -190,6 +204,9 @@ describe("Show VYVA review contract", () => {
       steps: ["Do not reply."],
     });
     expect(scamMessage.followUpActions.map((action) => action.id)).toEqual([
+      "do_not_reply",
+      "block_or_report",
+      "ask_someone",
       "forward_email",
       "check_company",
       "call_trusted_contact",
@@ -229,9 +246,10 @@ describe("Show VYVA review contract", () => {
     expect(health.context).toBe("health_medication");
     expect(health.conciergeFlow).toBe(CONCIERGE_FLOW_REFERENCES.otcPharmacy);
     expect(health.followUpActions.map((action) => action.id)).toEqual([
-      "pharmacist_questions",
-      "medicine_safety",
       "save_note",
+      "pharmacist_questions",
+      "call_gp",
+      "medicine_safety",
       "continue_concierge",
     ]);
 
@@ -288,7 +306,11 @@ describe("Show VYVA review contract", () => {
       expect(translate(code, "showVyva.contract.input.phone_number")).not.toBe("showVyva.contract.input.phone_number");
       expect(translate(code, "showVyva.contract.input.company_name")).not.toBe("showVyva.contract.input.company_name");
       expect(translate(code, "showVyva.contract.risk.high")).not.toBe("showVyva.contract.risk.high");
+      expect(translate(code, "showVyva.handoff.kicker")).not.toBe("showVyva.handoff.kicker");
+      expect(translate(code, "showVyva.handoff.title.scam")).not.toBe("showVyva.handoff.title.scam");
       expect(translate(code, "showVyva.followUp.action.save_note.label")).not.toBe("showVyva.followUp.action.save_note.label");
+      expect(translate(code, "showVyva.followUp.action.do_not_reply.label")).not.toBe("showVyva.followUp.action.do_not_reply.label");
+      expect(translate(code, "showVyva.followUp.action.find_alternatives.label")).not.toBe("showVyva.followUp.action.find_alternatives.label");
       expect(translate(code, "showVyva.closeReview")).not.toBe("showVyva.closeReview");
     }
   });

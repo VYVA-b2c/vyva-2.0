@@ -1559,6 +1559,7 @@ const fr = {
       saved: "Enregistre. Continue dans Concierge quand tu es pret.",
       error: "Je n'ai pas pu enregistrer cette etape. Reessaie.",
     },
+        handoff: { kicker: "Meilleure prochaine etape", explain: "Expliquer", hideExplain: "Masquer explication", actionsTitle: "Choisir une action sure", title: { scam: "Cela semble risque", document: "Cela doit etre verifie", medicine: "Verifier avant usage", health_visual: "Verifier avant agir", home_safety: "Rendre cela plus sur", provider_deal: "Comparer avant de decider" } },
     contract: {
       finalConfirmation: "VYVA prepare d'abord. Vous confirmez avant tout envoi, achat, reservation, appel, import, soumission ou partage.",
       sections: {
@@ -1619,6 +1620,12 @@ const fr = {
       },
       confirmation: "VYVA prepare d'abord la prochaine etape. Vous confirmez avant tout envoi, achat, reservation, appel, import ou partage.",
       action: {
+                do_not_reply: { label: "Ne pas repondre", detail: "Garder en pause pour instant." },
+        block_or_report: { label: "Bloquer ou signaler", detail: "Preparer un signalement sur." },
+        ask_someone: { label: "Demander a quelqu un", detail: "Partager seulement apres confirmation." },
+        ask_provider: { label: "Demander au prestataire", detail: "Preparer une question claire." },
+        compare_options: { label: "Comparer options", detail: "Verifier les choix abord." },
+        find_alternatives: { label: "Trouver alternatives", detail: "Chercher des options plus sures." },
         check_company: { label: "Verifier entreprise", detail: "Voir la reputation d'abord." },
         call_trusted_contact: { label: "Appeler confiance", detail: "Demander a une personne fiable." },
         save_report: { label: "Garder ou signaler", detail: "Conserver une trace avant d'agir." },

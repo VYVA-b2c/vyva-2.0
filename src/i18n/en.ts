@@ -2147,6 +2147,7 @@
       saved: "Saved. Continue in Concierge when you are ready.",
       error: "I could not save that step. Please try again.",
     },
+        handoff: { kicker: "Best next step", explain: "Explain", hideExplain: "Hide explanation", actionsTitle: "Choose a safe action", title: { scam: "This looks risky", document: "This needs checking", medicine: "Check before using", health_visual: "Check before acting", home_safety: "Make this safer", provider_deal: "Compare before deciding" } },
     contract: {
       finalConfirmation: "VYVA prepares first. You confirm before anything is sent, bought, booked, called, uploaded, submitted, or shared.",
       sections: {
@@ -2207,6 +2208,12 @@
       },
       confirmation: "VYVA prepares the next step first. You confirm before anything is sent, bought, booked, called, uploaded, or shared.",
       action: {
+                do_not_reply: { label: "Do not reply", detail: "Keep it paused for now." },
+        block_or_report: { label: "Block or report", detail: "Prepare a safe report." },
+        ask_someone: { label: "Ask someone", detail: "Share only after confirming." },
+        ask_provider: { label: "Ask provider", detail: "Prepare a clear question." },
+        compare_options: { label: "Compare options", detail: "Check choices first." },
+        find_alternatives: { label: "Find alternatives", detail: "Look for safer options." },
         check_company: { label: "Check company", detail: "Look up reputation first." },
         call_trusted_contact: { label: "Call trusted contact", detail: "Ask someone you trust." },
         save_report: { label: "Save or report", detail: "Keep a record before acting." },

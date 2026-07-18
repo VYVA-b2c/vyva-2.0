@@ -1,8 +1,9 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CheckCircle2, HelpCircle, ShieldCheck, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, HelpCircle, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { ShowVyvaReviewContract, ShowVyvaReviewRiskLevel } from "../../shared/showVyvaReviewContract";
 import type { ShowVyvaFollowUpAction } from "../../shared/showVyvaFollowUp";
+import { buildShowVyvaDecisionHandoff, type ShowVyvaDecisionTone } from "../../shared/showVyvaDecisionHandoff";
 import ShowVyvaFollowUpPanel from "./ShowVyvaFollowUpPanel";
 
 type ShowVyvaResultCardProps = {
@@ -55,6 +56,13 @@ const RISK_TONES: Record<ShowVyvaReviewRiskLevel, {
   },
 };
 
+const DECISION_TONES: Record<ShowVyvaDecisionTone, { bg: string; border: string; text: string }> = {
+  safe: { bg: "#F0FDFA", border: "#99F6E4", text: "#0F766E" },
+  care: { bg: "#FFFBEB", border: "#FDE68A", text: "#92400E" },
+  warn: { bg: "#FEF2F2", border: "#FECACA", text: "#991B1B" },
+  neutral: { bg: "#F8FAFC", border: "#E2E8F0", text: "#475569" },
+};
+
 function fallbackRiskLabel(riskLevel: ShowVyvaReviewRiskLevel): string {
   if (riskLevel === "low") return "Low";
   if (riskLevel === "medium") return "Needs care";
@@ -104,7 +112,10 @@ export default function ShowVyvaResultCard({
   onActionSelect,
 }: ShowVyvaResultCardProps) {
   const { t } = useTranslation();
+  const [explainOpen, setExplainOpen] = useState(false);
   const tone = RISK_TONES[contract.riskLevel];
+  const handoff = buildShowVyvaDecisionHandoff(contract);
+  const handoffTone = DECISION_TONES[handoff.tone];
   const RiskIcon = tone.icon;
   const inputLabel = t(`showVyva.contract.input.${contract.inputType}`, fallbackInputLabel(contract.inputType));
   const riskLabel = t(`showVyva.contract.risk.${contract.riskLevel}`, fallbackRiskLabel(contract.riskLevel));
@@ -121,7 +132,7 @@ export default function ShowVyvaResultCard({
     ? contract.unknowns
     : [t("showVyva.contract.unknownFallback", "VYVA cannot confirm details that are not visible in this item.")];
   const nextSteps = contract.safeNextSteps.length ? contract.safeNextSteps : [contract.concernSummary];
-  const followUpActions = actions ?? contract.followUpActions;
+  const followUpActions = actions ?? handoff.actions;
 
   return (
     <section
@@ -166,7 +177,43 @@ export default function ShowVyvaResultCard({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3">
+      <section
+        data-testid={`show-vyva-decision-handoff-${testIdSuffix}`}
+        className="mt-4 rounded-[18px] border p-3"
+        style={{ background: handoffTone.bg, borderColor: handoffTone.border }}
+      >
+        <p className="font-body text-[11px] font-black uppercase tracking-[0.09em]" style={{ color: handoffTone.text }}>
+          {t("showVyva.handoff.kicker", "Best next step")}
+        </p>
+        <h4
+          data-testid={`show-vyva-decision-title-${testIdSuffix}`}
+          className="mt-1 font-body text-[19px] font-black leading-tight"
+          style={{ color: handoffTone.text }}
+        >
+          {t(`showVyva.handoff.title.${contract.followUpContext}`, handoff.title)}
+        </h4>
+        <p
+          data-testid={`show-vyva-decision-subtitle-${testIdSuffix}`}
+          className="mt-1 font-body text-[14px] font-bold leading-snug"
+          style={{ color: handoffTone.text }}
+        >
+          {handoff.subtitle}
+        </p>
+      </section>
+
+      <button
+        type="button"
+        data-testid={`button-show-vyva-explain-${testIdSuffix}`}
+        onClick={() => setExplainOpen((value) => !value)}
+        className="mt-3 flex min-h-[44px] w-full items-center justify-between rounded-[15px] border border-[#EDE5DB] bg-[#FFFCF8] px-3 text-left font-body text-[13px] font-black text-vyva-text-2 transition active:scale-[0.99]"
+        aria-expanded={explainOpen}
+      >
+        <span>{explainOpen ? t("showVyva.handoff.hideExplain", "Hide explanation") : t("showVyva.handoff.explain", "Explain")}</span>
+        <ChevronDown size={17} className={explainOpen ? "rotate-180 transition" : "transition"} aria-hidden="true" />
+      </button>
+
+      {explainOpen ? (
+      <div className="mt-3 grid gap-3" data-testid={`show-vyva-result-details-${testIdSuffix}`}>
         <section className="rounded-[16px] bg-[#FFFCF8] p-3">
           <p className="font-body text-[11px] font-black uppercase tracking-[0.09em] text-[#7C3AED]">
             {t("showVyva.contract.sections.reviewed", "What VYVA reviewed")}
@@ -249,12 +296,13 @@ export default function ShowVyvaResultCard({
           ) : null}
         </section>
       </div>
+      ) : null}
 
       {onActionSelect && followUpActions.length ? (
         <ShowVyvaFollowUpPanel
           context={contract.followUpContext}
           testIdSuffix={testIdSuffix}
-          title={actionTitle ?? t("showVyva.contract.sections.safeActions", "Ask VYVA to help or save for later")}
+          title={actionTitle ?? t("showVyva.handoff.actionsTitle", "Choose a safe action")}
           subtitle={actionSubtitle}
           confirmation={t("showVyva.contract.finalConfirmation", contract.finalConfirmationRule)}
           actions={followUpActions}
