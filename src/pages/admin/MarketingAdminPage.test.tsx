@@ -776,7 +776,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
 } = {}) {
   const syncResponse = { ...sync, ...syncOverride };
   let campaignsResponse = dataOverride.campaigns ?? campaigns;
-  const contactsResponse = dataOverride.contacts ?? contacts;
+  let contactsResponse = dataOverride.contacts ?? contacts;
   let contentResponse = dataOverride.content ?? content;
   const mediaAssetsResponse = dataOverride.mediaAssets ?? mediaAssets;
   let audiencesResponse = dataOverride.audiences ?? audiences;
@@ -846,7 +846,12 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
     if (path === "/api/admin/marketing/media/media-1" && method === "PATCH") return jsonResponse({ ok: true, mediaAsset: mediaFromRequestBody("media-1", init) });
     if (path === "/api/admin/marketing/media/media-1" && method === "DELETE") return jsonResponse({ ok: true, deletedMediaAssetId: "media-1" });
     if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
-    if (path === "/api/admin/marketing/contacts/contact-2" && method === "PATCH") return jsonResponse({ ok: true, contact: contactFromRequestBody("contact-2", init) });
+    const contactPatchMatch = path.match(/^\/api\/admin\/marketing\/contacts\/([^/]+)$/);
+    if (contactPatchMatch && method === "PATCH") {
+      const updatedContact = contactFromRequestBody(contactPatchMatch[1], init);
+      contactsResponse = contactsResponse.map((contact) => (contact as { id?: string }).id === updatedContact.id ? updatedContact : contact);
+      return jsonResponse({ ok: true, contact: updatedContact });
+    }
     if (path === "/api/admin/marketing/contacts/contact-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContactId: "contact-2" });
     if (path === "/api/admin/marketing/audiences" && method === "POST") {
       const createdAudience = audienceFromRequestBody("audience-created", init);
@@ -4553,6 +4558,35 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-contact-name")).toHaveValue("Karim Assad");
     expect(screen.getByTestId("select-marketing-edit-contact-consent")).toHaveValue("unknown");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("2 visible of 2 contacts");
+  });
+
+  it("updates consent directly from the consent triage queue", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    expect(screen.getByTestId("marketing-contact-consent-triage")).toHaveTextContent("Clear the first blockers");
+    expect(screen.getByTestId("marketing-contact-consent-triage-row-contact-1")).toHaveTextContent("unknown");
+
+    fireEvent.click(screen.getByTestId("button-marketing-consent-triage-opted-in-contact-1"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-1", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/contacts/contact-1" && init?.method === "PATCH");
+    const patchBody = JSON.parse(String(patchCall?.[1]?.body));
+    expect(patchBody).toMatchObject({
+      fullName: "Karim Assad",
+      consentStatus: "opted_in",
+      whatsappNumber: "+34600000001",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('"Karim Assad" marked opted_in.');
+    });
+    expect(screen.queryByTestId("marketing-contact-consent-triage-row-contact-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-contact-consent-triage-row-contact-2")).toHaveTextContent("pending");
   });
 
   it("builds consent cleanup review lists without opted-out contacts", async () => {

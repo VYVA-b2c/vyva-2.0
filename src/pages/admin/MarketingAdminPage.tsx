@@ -20495,6 +20495,42 @@ export default function MarketingAdminPage() {
     setMessage(feedback);
   }
 
+  async function quickUpdateContactConsent(contact: MarketingContact, consentStatus: ConsentStatus) {
+    const contactLabel = contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact";
+    setActiveTab("contacts");
+    setContactView("contacts");
+    setContactSaving(true);
+    setConfirmingContactDeleteId(null);
+    setContactFeedback(`Updating consent for "${contactLabel}"...`);
+    try {
+      const draft = {
+        ...contactEditDraftFromContact(contact),
+        consentStatus,
+      };
+      const result = await api<{ contact: MarketingContact }>(`/api/admin/marketing/contacts/${contact.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(contactPayloadFromDraft(draft)),
+      });
+      setContacts((current) => current.map((item) => item.id === result.contact.id ? result.contact : item));
+      if (editingContactId === result.contact.id) {
+        setContactEditDraft(contactEditDraftFromContact(result.contact));
+      }
+      if (selectedRelationshipContactId === result.contact.id) {
+        setSelectedRelationshipContactId(result.contact.id);
+      }
+      const feedback = `"${contactLabel}" marked ${consentStatus}.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Consent could not be updated.";
+      setContactFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setContactSaving(false);
+    }
+  }
+
   function loadContactWorkQueueInStudio(queue: ContactRelationshipWorkQueue) {
     const play = campaignStudioPlays.find((item) => item.id === queue.playId) ?? campaignStudioPlays[0];
     const isConsentCleanup = queue.key === "consent-cleanup";
@@ -23198,6 +23234,7 @@ export default function MarketingAdminPage() {
     && Boolean(item.subject || item.body || item.htmlBody || item.hasDesign || item.mediaAssets.length > 0)
   )).length;
   const consentCleanupWorkQueue = contactRelationshipWorkQueues.find((queue) => queue.key === "consent-cleanup") ?? null;
+  const consentTriageContacts = consentCleanupWorkQueue?.contacts.slice(0, 5) ?? [];
   const launchLaneItems: MarketingLaunchLaneItem[] = [
     {
       key: "import",
@@ -32043,6 +32080,74 @@ export default function MarketingAdminPage() {
                     );
                   })}
                 </div>
+                {consentTriageContacts.length ? (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3 shadow-sm" data-testid="marketing-contact-consent-triage">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-900">Consent triage</p>
+                        <p className="mt-1 text-sm font-black text-[#241133]">Clear the first blockers without opening every full contact record.</p>
+                        <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                          Mark opted in only when consent is confirmed. Mark opted out when the contact should stay excluded from campaign snapshots.
+                        </p>
+                      </div>
+                      <Pill className="bg-white text-amber-900">
+                        {consentCleanupWorkQueue?.countLabel ?? `${consentTriageContacts.length} contacts`}
+                      </Pill>
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      {consentTriageContacts.map((contact) => {
+                        const contactLabel = contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact";
+                        const availableChannels = (["email", "whatsapp", "phone"] as const).filter((channel) => Boolean(recipientForChannel(contact, channel)));
+                        return (
+                          <div key={contact.id} className="grid gap-2 rounded-xl border border-amber-200 bg-white p-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center" data-testid={`marketing-contact-consent-triage-row-${contact.id}`}>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-black text-[#241133]">{contactLabel}</p>
+                                <Pill className={statusClass(contact.consentStatus)}>{contact.consentStatus}</Pill>
+                                <Pill className="bg-[#f5eee8] text-[#5b4a46]">{contact.audienceType.toUpperCase()}</Pill>
+                              </div>
+                              <p className="mt-1 truncate text-xs font-bold text-[#7d6b65]">
+                                {[contact.email, contact.whatsappNumber, contact.phoneNumber, contact.companyName].filter(Boolean).join(" - ") || "No direct contact channel"}
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {availableChannels.length ? availableChannels.map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>) : <Pill className="bg-red-50 text-red-700">No channel</Pill>}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => startContactEdit(contact)}
+                                disabled={contactSaving}
+                                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-900 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                data-testid={`button-marketing-consent-triage-edit-${contact.id}`}
+                              >
+                                <Pencil size={13} /> Review
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void quickUpdateContactConsent(contact, "opted_in")}
+                                disabled={contactSaving}
+                                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                data-testid={`button-marketing-consent-triage-opted-in-${contact.id}`}
+                              >
+                                <CheckCircle2 size={13} /> Opted in
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void quickUpdateContactConsent(contact, "opted_out")}
+                                disabled={contactSaving}
+                                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                data-testid={`button-marketing-consent-triage-opted-out-${contact.id}`}
+                              >
+                                <X size={13} /> Opted out
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               {contactView === "contacts" ? (
