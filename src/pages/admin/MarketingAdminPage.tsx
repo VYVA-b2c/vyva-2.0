@@ -1286,6 +1286,16 @@ type CampaignPlannerCopilotAction = CampaignReadinessItem & {
   kind: CampaignPlannerCopilotActionKind;
 };
 
+type CampaignPlannerGuideActionKind = "focus_name" | "focus_content" | "focus_audience" | "focus_preview" | "focus_schedule" | "snapshot_recipients" | "save";
+
+type CampaignPlannerGuideStep = CampaignReadinessItem & {
+  actionLabel: string;
+  icon: LucideIcon;
+  kind: CampaignPlannerGuideActionKind;
+  step: string;
+  value: string;
+};
+
 type MarketingDashboardAiCreatedKitSummary = {
   campaignId: string;
   campaignName: string;
@@ -16428,6 +16438,95 @@ export default function MarketingAdminPage() {
     campaignDraftSelectedChannels,
     campaignPlannerRecipes,
   ]);
+  const campaignPlannerGuideSteps = useMemo<CampaignPlannerGuideStep[]>(() => {
+    const itemByKey = new Map(campaignDraftReadinessItems.map((item) => [item.key, item]));
+    const nameItem = itemByKey.get("name");
+    const contentItem = itemByKey.get("content");
+    const audienceItem = itemByKey.get("audience");
+    const recipientsItem = itemByKey.get("recipients");
+    const scheduleItem = itemByKey.get("schedule");
+    const channelItem = itemByKey.get("channel");
+    const linkedContentCount = campaignDraftSelectedChannels.length - campaignDraftMissingContentChannels.length;
+    const composeBlocked = nameItem?.state === "blocked";
+    const composeState: CampaignReadinessState = composeBlocked
+      ? "blocked"
+      : contentItem?.state ?? "planning";
+    const composeAction: CampaignPlannerGuideActionKind = composeBlocked ? "focus_name" : "focus_content";
+    const audienceNeedsSnapshot = !campaignDraft.snapshotRecipients && campaignDraftEligibleRecipientPreview.length > 0;
+    const audienceState: CampaignReadinessState = recipientsItem?.state === "blocked"
+      ? "blocked"
+      : audienceItem?.state === "needs_action" ? "needs_action" : audienceNeedsSnapshot ? "planning" : "ready";
+    const previewState: CampaignReadinessState = composeState === "blocked"
+      ? "blocked"
+      : campaignDraftMissingContentChannels.length > 0 ? "needs_action" : "ready";
+    return [
+      {
+        key: "compose",
+        step: "1",
+        title: "Compose",
+        value: `${linkedContentCount}/${campaignDraftSelectedChannels.length} content linked`,
+        state: composeState,
+        detail: composeBlocked
+          ? nameItem?.detail ?? "Name the campaign before adding it."
+          : contentItem?.detail ?? "Choose or generate content for every selected route.",
+        actionLabel: composeBlocked
+          ? "Name campaign"
+          : campaignDraftMissingContentChannels.length > 0 ? "Review content" : "Open content",
+        kind: composeAction,
+        icon: FileText,
+      },
+      {
+        key: "audience",
+        step: "2",
+        title: "Audience",
+        value: campaignDraft.snapshotRecipients
+          ? `${campaignDraftRecipientPreview.length} saved`
+          : `${campaignDraftEligibleRecipientPreview.length} eligible`,
+        state: audienceState,
+        detail: audienceNeedsSnapshot
+          ? `${campaignDraftEligibleRecipientPreview.length} eligible contact${campaignDraftEligibleRecipientPreview.length === 1 ? "" : "s"} can be snapshotted for an auditable launch.`
+          : audienceItem?.detail ?? "Choose the audience and recipient snapshot rules.",
+        actionLabel: audienceNeedsSnapshot ? "Snapshot audience" : "Review audience",
+        kind: audienceNeedsSnapshot ? "snapshot_recipients" : "focus_audience",
+        icon: UsersRound,
+      },
+      {
+        key: "preview",
+        step: "3",
+        title: "Preview",
+        value: formatChannelList(campaignDraftSelectedChannels),
+        state: previewState,
+        detail: previewState === "ready"
+          ? "Every selected route has a launch preview with content and handoff mode."
+          : `Review ${formatChannelList(campaignDraftMissingContentChannels)} before launch preview is complete.`,
+        actionLabel: "Review preview",
+        kind: "focus_preview",
+        icon: Eye,
+      },
+      {
+        key: "launch",
+        step: "4",
+        title: "Schedule/send",
+        value: campaignDraft.scheduleStartsAt ? formatDate(fromDateTimeLocal(campaignDraft.scheduleStartsAt)) : "Draft first",
+        state: campaignDraftReadinessState,
+        detail: campaignDraft.scheduleStartsAt
+          ? `${scheduleItem?.detail ?? "Scheduled."} ${channelItem?.detail ?? ""}`.trim()
+          : `${scheduleItem?.detail ?? "Add a schedule when ready."} ${channelItem?.detail ?? ""}`.trim(),
+        actionLabel: campaignDraftReadinessState === "ready" ? "Add campaign" : "Save draft",
+        kind: "save",
+        icon: Send,
+      },
+    ];
+  }, [
+    campaignDraft.scheduleStartsAt,
+    campaignDraft.snapshotRecipients,
+    campaignDraftEligibleRecipientPreview.length,
+    campaignDraftMissingContentChannels,
+    campaignDraftReadinessItems,
+    campaignDraftReadinessState,
+    campaignDraftRecipientPreview.length,
+    campaignDraftSelectedChannels,
+  ]);
   const campaignPlannerAiBrief = useMemo(() => [
     campaignDraft.name,
     campaignDraft.objective,
@@ -16849,7 +16948,7 @@ export default function MarketingAdminPage() {
 
   function focusCampaignPlannerField(testId: string) {
     const element = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
-    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    element?.scrollIntoView?.({ behavior: "smooth", block: "center" });
     element?.focus();
   }
 
@@ -16875,6 +16974,53 @@ export default function MarketingAdminPage() {
     if (kind === "snapshot_recipients") {
       setCampaignDraft((draft) => ({ ...draft, snapshotRecipients: true }));
       setMessage("Recipient snapshot enabled for this campaign draft.");
+    }
+  }
+
+  function scrollCampaignPlannerElement(testId: string) {
+    const element = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+    element?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    return element;
+  }
+
+  function runCampaignPlannerGuideAction(kind: CampaignPlannerGuideActionKind) {
+    if (kind === "focus_name") {
+      focusCampaignPlannerField("input-marketing-campaign-name");
+      setMessage("Start with a clear campaign name. The guide will unlock content, audience, preview, and launch steps as you go.");
+      return;
+    }
+    if (kind === "focus_content") {
+      const target = campaignDraftMissingContentChannels.length > 1
+        ? "marketing-campaign-route-content-map"
+        : "select-marketing-campaign-content";
+      scrollCampaignPlannerElement(target)?.focus();
+      setMessage(campaignDraftMissingContentChannels.length
+        ? `Review or create content for ${formatChannelList(campaignDraftMissingContentChannels)}.`
+        : "Content is linked. Review the selected asset or preview it before saving.");
+      return;
+    }
+    if (kind === "focus_audience") {
+      focusCampaignPlannerField("select-marketing-campaign-target-audience");
+      setMessage("Review the list, recipient filter, and snapshot setting before launch.");
+      return;
+    }
+    if (kind === "focus_preview") {
+      const previewElement = scrollCampaignPlannerElement("marketing-campaign-launch-preview");
+      if (!previewElement) {
+        scrollCampaignPlannerElement("marketing-campaign-draft-readiness");
+      }
+      setMessage("Review the launch preview and readiness checklist before creating the campaign.");
+      return;
+    }
+    if (kind === "focus_schedule") {
+      focusCampaignPlannerField("input-marketing-campaign-schedule");
+      setMessage("Choose a schedule if this should become a scheduled campaign; otherwise save it as a draft.");
+      return;
+    }
+    if (kind === "snapshot_recipients") {
+      setCampaignDraft((draft) => ({ ...draft, snapshotRecipients: true }));
+      scrollCampaignPlannerElement("marketing-campaign-draft-recipient-preview");
+      setMessage("Recipient snapshot enabled. Review the count, then preview or save the campaign.");
     }
   }
 
@@ -27178,6 +27324,58 @@ export default function MarketingAdminPage() {
                     </div>
                   </div>
                   <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
+                  <div className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm" data-testid="marketing-campaign-guided-launch-path">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Guided campaign path</p>
+                        <h3 className="mt-1 text-lg font-black text-[#241133]">Compose, choose the audience, preview, then schedule or send</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                          The guide uses the same readiness checks as the final campaign record, so every button moves the draft toward a real launch.
+                        </p>
+                      </div>
+                      <Pill className={readinessPillClass(campaignDraftReadinessState)}>{campaignPlannerCopilotScore}% ready</Pill>
+                    </div>
+                    <div className="mt-4 grid gap-3 xl:grid-cols-4">
+                      {campaignPlannerGuideSteps.map((step) => {
+                        const Icon = step.icon;
+                        const buttonDisabled = campaignSaving || (contentSaving && step.kind === "focus_content");
+                        return (
+                          <article key={step.key} className={`flex min-h-[190px] flex-col rounded-xl border p-3 ${readinessClass(step.state)}`} data-testid={`marketing-campaign-guided-step-${step.key}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-purple-700 shadow-sm">
+                                <Icon size={16} aria-hidden="true" />
+                              </span>
+                              <Pill className={readinessPillClass(step.state)}>{readinessLabel(step.state)}</Pill>
+                            </div>
+                            <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] opacity-70">Step {step.step}</p>
+                            <h4 className="mt-1 text-base font-black">{step.title}</h4>
+                            <p className="mt-1 text-sm font-black opacity-90">{step.value}</p>
+                            <p className="mt-2 flex-1 text-xs font-bold leading-relaxed opacity-85">{step.detail}</p>
+                            {step.kind === "save" ? (
+                              <button
+                                type="submit"
+                                disabled={campaignSaving}
+                                className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                data-testid={`button-marketing-campaign-guided-step-${step.key}`}
+                              >
+                                <Plus size={13} /> {campaignSaving ? "Creating..." : step.actionLabel}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => runCampaignPlannerGuideAction(step.kind)}
+                                disabled={buttonDisabled}
+                                className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                data-testid={`button-marketing-campaign-guided-step-${step.key}`}
+                              >
+                                <Sparkles size={13} /> {buttonDisabled ? "Working..." : step.actionLabel}
+                              </button>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <div className={`rounded-xl border p-4 shadow-sm ${readinessClass(campaignPlannerCopilotAction.state)}`} data-testid="marketing-campaign-planner-copilot">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>

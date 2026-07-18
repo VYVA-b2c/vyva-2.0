@@ -1921,6 +1921,36 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByText('Opened "Caregiver welcome" for due email review.')).toBeInTheDocument();
   });
 
+  it("guides campaign creation through compose audience preview and launch steps", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    const launchPath = screen.getByTestId("marketing-campaign-guided-launch-path");
+    expect(launchPath).toHaveTextContent("Compose, choose the audience, preview, then schedule or send");
+    expect(screen.getByTestId("marketing-campaign-guided-step-compose")).toHaveTextContent("Name the campaign");
+    expect(screen.getByTestId("marketing-campaign-guided-step-audience")).toHaveTextContent("eligible");
+    expect(screen.getByTestId("marketing-campaign-guided-step-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-guided-step-launch")).toHaveTextContent("Draft first");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-guided-step-compose"));
+    expect(screen.getByText("Start with a clear campaign name. The guide will unlock content, audience, preview, and launch steps as you go.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "Guided caregiver launch" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-content"), { target: { value: "content-1" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-guided-step-compose")).toHaveTextContent("1/1 content linked");
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-guided-step-audience"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("checkbox-marketing-campaign-snapshot")).toBeChecked();
+    });
+    expect(screen.getByText("Recipient snapshot enabled. Review the count, then preview or save the campaign.")).toBeInTheDocument();
+  });
+
   it("promotes recommended campaigns from the dashboard into the campaign studio", async () => {
     renderPage();
 
