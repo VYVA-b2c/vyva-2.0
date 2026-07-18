@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComponentProps, ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import ConciergeScreen from "./ConciergeScreen";
+import ConciergeScreen, { type ConciergeScreenMode } from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { CONCIERGE_DRY_RUN_FIXTURES } from "../../shared/conciergeDryRun";
@@ -113,6 +113,11 @@ function LocationProbe() {
   );
 }
 
+function RoutedConciergeScreen() {
+  const location = useLocation();
+  return <ConciergeScreen mode={location.pathname.startsWith("/concierge/task/") ? "task" : "home"} />;
+}
+
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -172,7 +177,10 @@ function liveReadyExecutionTask(
   };
 }
 
-function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge"]) {
+function renderScreen(
+  initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge"],
+  mode: ConciergeScreenMode | "route" = "legacy",
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -184,7 +192,7 @@ function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initi
     <QueryClientProvider client={queryClient}>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={initialEntries}>
         <LocationProbe />
-        <ConciergeScreen />
+        {mode === "route" ? <RoutedConciergeScreen /> : <ConciergeScreen mode={mode} />}
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -248,6 +256,84 @@ afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
   sessionStorage.clear();
+});
+
+describe("ConciergeScreen task navigation", () => {
+  const pendingTask = {
+    id: "task-1",
+    use_case: "book_appointment",
+    provider_name: "Harbour Clinic",
+    provider_phone: "+34 600 111 222",
+    requested_tool: "email",
+    active_tool: "email",
+    action_summary: "Email Harbour Clinic to ask for an appointment.",
+    action_payload: {},
+    status: "pending" as const,
+    language: "en",
+  };
+
+  function mockConciergeLists(pending = [pendingTask], completed: unknown[] = []) {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/concierge/actions/pending") return jsonResponse({ items: pending });
+      if (String(url) === "/api/concierge/actions/sessions") return jsonResponse({ items: completed });
+      if (String(url) === "/api/profile") return jsonResponse({ savedProviders: [], serviceReadiness: {} });
+      return jsonResponse({ items: [] });
+    });
+  }
+
+  it("keeps the production home focused on starting and resuming tasks", async () => {
+    mockConciergeLists();
+    renderScreen(["/concierge"], "home");
+
+    expect(await screen.findByTestId("concierge-home-task-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("section-concierge-active-task")).not.toBeInTheDocument();
+    expect(screen.getByTestId("concierge-master-hero")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByTestId("button-concierge-continue-task"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/task-1");
+  });
+
+  it("opens a selected home workflow after the route changes without requiring a remount", async () => {
+    mockConciergeLists([]);
+    renderScreen(["/concierge"], "route");
+
+    fireEvent.click(await screen.findByTestId("button-concierge-fast-fill-form"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/new");
+    expect(await screen.findByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "details");
+    expect(await screen.findByTestId("panel-insurance-admin")).toBeInTheDocument();
+    expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["document", { kind: "document" }, "panel-insurance-admin"],
+    ["appointment", { kind: "appointment", appointmentKind: "medical" }, "panel-appointment-assistant"],
+    ["home service", { kind: "home_service" }, "panel-appointment-assistant"],
+    ["provider contact", { kind: "provider_contact", providerSearchMode: "specialist", query: "find a specialist" }, "panel-offers-search"],
+  ])("opens the reusable %s task workspace", async (_label, conciergeTaskEntry, expectedPanel) => {
+    mockConciergeLists([]);
+    localStorage.setItem(HOME_SERVICE_GUIDE_STORAGE_KEY, "true");
+    renderScreen([{
+      pathname: "/concierge/task/new",
+      state: { conciergeTaskEntry },
+    }], "task");
+
+    expect(await screen.findByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "details");
+    expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
+    expect(await screen.findByTestId(expectedPanel)).toBeInTheDocument();
+  });
+
+  it("uses the confirmation stage for an unconfirmed active task", async () => {
+    mockConciergeLists();
+    renderScreen(["/concierge/task/task-1"], "task");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "confirmation");
+    });
+    expect(screen.getByTestId("concierge-task-confirmation-screen")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Task progress" })).getByText("Confirm")).toHaveAttribute("aria-current", "step");
+    expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
+  });
 });
 
 describe("ConciergeScreen action hub", () => {

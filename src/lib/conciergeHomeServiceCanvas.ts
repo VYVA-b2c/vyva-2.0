@@ -1,4 +1,4 @@
-import { BrushCleaning, KeyRound, Lightbulb, Wrench, House } from "lucide-react";
+import { Brush, KeyRound, Lightbulb, Wrench, House } from "lucide-react";
 import type { VoiceCanvasViewModel } from "@/components/voice-canvas";
 import type { HomeServiceType } from "../../shared/serviceIntake";
 
@@ -109,7 +109,7 @@ export function buildConciergeHomeServiceCanvasViewModel(input: BuildConciergeHo
       { id: "plumber", label: copy.plumber, icon: Wrench },
       { id: "electrician", label: copy.electrician, icon: Lightbulb },
       { id: "locksmith", label: copy.locksmith, icon: KeyRound },
-      { id: "cleaner", label: copy.cleaner, icon: BrushCleaning },
+      { id: "cleaner", label: copy.cleaner, icon: Brush },
       { id: "other", label: copy.other, icon: House },
     ],
   };

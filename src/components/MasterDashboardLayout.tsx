@@ -76,6 +76,7 @@ type MasterDashboardLayoutProps = {
   fastHelpVisibleCount?: number;
   fastHelpRotationMs?: number;
   beforeFastHelp?: ReactNode;
+  showLauncher?: boolean;
   children?: ReactNode;
 };
 
@@ -103,6 +104,7 @@ export default function MasterDashboardLayout({
   fastHelpVisibleCount = 3,
   fastHelpRotationMs = 9000,
   beforeFastHelp,
+  showLauncher = true,
   children,
 }: MasterDashboardLayoutProps) {
   const heroTone = hero.tone ?? defaultHeroTone;
@@ -161,7 +163,7 @@ export default function MasterDashboardLayout({
 
   return (
     <div className="vyva-page px-4 pb-7 min-[390px]:px-[22px] sm:pb-10" data-testid={testId}>
-      <section
+      {showLauncher ? <section
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className="mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6"
         style={{
@@ -220,9 +222,9 @@ export default function MasterDashboardLayout({
             {hero.action.label}
           </button>
         )}
-      </section>
+      </section> : null}
 
-      <section className="mt-4" data-testid={cardGridTestId}>
+      {showLauncher ? <section className="mt-4" data-testid={cardGridTestId}>
         <div className="grid grid-cols-2 gap-3 min-[390px]:gap-3.5 sm:gap-4">
           {cards.slice(0, 4).map((card) => {
             const Icon = card.icon;
@@ -275,11 +277,11 @@ export default function MasterDashboardLayout({
             );
           })}
         </div>
-      </section>
+      </section> : null}
 
-      {beforeFastHelp ? <div className="mt-4">{beforeFastHelp}</div> : null}
+      {showLauncher && beforeFastHelp ? <div className="mt-4">{beforeFastHelp}</div> : null}
 
-      <section
+      {showLauncher ? <section
         className="mt-4 rounded-[24px] border border-[#E6E0F4] bg-white p-3 shadow-[0_12px_28px_rgba(63,45,35,0.055)] min-[390px]:rounded-[26px] min-[390px]:p-4"
         data-testid={fastHelpTestId}
         onMouseEnter={() => setFastHelpPaused(true)}
@@ -340,7 +342,7 @@ export default function MasterDashboardLayout({
             );
           })}
         </div>
-      </section>
+      </section> : null}
 
       {children}
     </div>
