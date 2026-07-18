@@ -2179,6 +2179,14 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Source sync completed. Imported Campaigns: 1, Contacts: 1, Content: 1, Journeys: 1.");
     });
+    expect(screen.getByTestId("marketing-source-review-panel")).toHaveTextContent("Review imported data");
+    expect(screen.getByTestId("button-marketing-source-review-content")).toHaveTextContent("Content");
+    expect(screen.getByTestId("button-marketing-source-review-content")).toHaveTextContent("1");
+
+    fireEvent.click(screen.getByTestId("button-marketing-source-review-content"));
+
+    expect(screen.getByTestId("marketing-content-tab")).toBeInTheDocument();
+    expect(screen.getByText("Opened Content from Source sync.")).toBeInTheDocument();
   });
 
   it("previews the Source export before importing rows", async () => {
@@ -2211,6 +2219,14 @@ describe("MarketingAdminPage", () => {
     expect(previewDestinationMap).toHaveTextContent("Content tab");
     expect(previewDestinationMap).toHaveTextContent("Journeys");
     expect(previewDestinationMap).toHaveTextContent("Journeys tab");
+    expect(screen.getByTestId("marketing-source-review-panel")).toHaveTextContent("Review available Source data");
+
+    fireEvent.click(screen.getByTestId("button-marketing-source-review-lists"));
+
+    expect(screen.getByTestId("marketing-contacts-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("button-marketing-lists-view")).toHaveClass("bg-purple-700");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("Recognized sample rows");
     expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("template_name");
     expect(screen.getByTestId("marketing-export-preview-raw-samples")).toHaveTextContent("social_posts");

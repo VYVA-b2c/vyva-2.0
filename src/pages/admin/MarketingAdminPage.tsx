@@ -8585,7 +8585,66 @@ function syncDestinationCount(summary: Record<string, unknown>, row: typeof lova
   if (sourceCount) return sourceCount;
   const exported = row.countKeys.reduce((total, key) => total + syncCountValue(summary, "exported", key), 0);
   if (exported) return exported;
-  return row.countKeys.reduce((total, key) => total + syncCountValue(summary, "imported", key), 0);
+  const imported = row.countKeys.reduce((total, key) => total + syncCountValue(summary, "imported", key), 0);
+  if (imported) return imported;
+  return row.countKeys.reduce((total, key) => total + numberValue(summary[key]), 0);
+}
+
+type SourceReviewAction = {
+  key: "campaigns" | "content" | "contacts" | "lists" | "journeys";
+  label: string;
+  detail: string;
+  tab: Tab;
+  contactView?: ContactView;
+  countKeys: SyncCountKey[];
+};
+
+const sourceReviewActionsConfig: SourceReviewAction[] = [
+  {
+    key: "campaigns",
+    label: "Campaigns",
+    detail: "Review schedules, channels, recipients, and launch controls.",
+    tab: "dashboard",
+    countKeys: ["campaigns", "campaignChannels", "campaignRecipients", "campaignMetrics"],
+  },
+  {
+    key: "content",
+    label: "Content",
+    detail: "Edit imported copy, templates, media, and missing references.",
+    tab: "content",
+    countKeys: ["content", "journeyStepPresetContent", "missingContentReferences", "mediaAssets"],
+  },
+  {
+    key: "contacts",
+    label: "Contacts",
+    detail: "Check contact records, consent, channels, tags, and segmentation.",
+    tab: "contacts",
+    contactView: "contacts",
+    countKeys: ["contacts"],
+  },
+  {
+    key: "lists",
+    label: "Lists",
+    detail: "Review imported audiences, mapped members, and unmatched IDs.",
+    tab: "contacts",
+    contactView: "lists",
+    countKeys: ["audiences", "audienceMembers", "mappedAudienceMembers"],
+  },
+  {
+    key: "journeys",
+    label: "Journeys",
+    detail: "Review journey steps, enrollments, and event history.",
+    tab: "journeys",
+    countKeys: ["journeys", "journeyEnrollments", "journeyStepEvents"],
+  },
+];
+
+function sourceReviewActionCount(summary: Record<string, unknown>, action: SourceReviewAction) {
+  const exported = action.countKeys.reduce((total, key) => total + syncCountValue(summary, "exported", key), 0);
+  if (exported) return exported;
+  const imported = action.countKeys.reduce((total, key) => total + syncCountValue(summary, "imported", key), 0);
+  if (imported) return imported;
+  return action.countKeys.reduce((total, key) => total + numberValue(summary[key]), 0);
 }
 
 function syncFieldCoverageItems(summary: Record<string, unknown>) {
@@ -9334,6 +9393,8 @@ export default function MarketingAdminPage() {
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
   const [exportPreview, setExportPreview] = useState<SourceExportPreview | null>(null);
+  const [lastSourceReviewSummary, setLastSourceReviewSummary] = useState<Record<string, unknown> | null>(null);
+  const [lastSourceReviewMode, setLastSourceReviewMode] = useState<"preview" | "sync" | null>(null);
   const [exportPreviewRunning, setExportPreviewRunning] = useState(false);
   const [exportPreviewFeedback, setExportPreviewFeedback] = useState("");
   const [contactFeedback, setContactFeedback] = useState("");
@@ -18960,11 +19021,15 @@ export default function MarketingAdminPage() {
     try {
       const result = await api<{ summary?: Record<string, unknown> }>("/api/admin/marketing/sync/source/run", { method: "POST" });
       const completionMessage = syncCompletionMessage(result.summary);
+      setLastSourceReviewSummary(result.summary ?? null);
+      setLastSourceReviewMode("sync");
       await refreshAll();
       setMessage(completionMessage);
       setSyncFeedback(completionMessage);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Source sync failed.";
+      setLastSourceReviewSummary(null);
+      setLastSourceReviewMode(null);
       setMessage(errorMessage);
       setSyncFeedback(errorMessage);
     } finally {
@@ -18980,11 +19045,15 @@ export default function MarketingAdminPage() {
       const result = await api<SourceExportPreview>("/api/admin/marketing/sync/source/preview");
       const completionMessage = exportPreviewMessage(result.summary);
       setExportPreview(result);
+      setLastSourceReviewSummary(result.summary);
+      setLastSourceReviewMode("preview");
       setExportPreviewFeedback(completionMessage);
       setMessage(completionMessage);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Source export preview failed.";
       setExportPreview(null);
+      setLastSourceReviewSummary(null);
+      setLastSourceReviewMode(null);
       setExportPreviewFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -19002,6 +19071,29 @@ export default function MarketingAdminPage() {
   const syncFeedbackText = syncFeedback || syncBlockedReason;
   const syncFeedbackIsError = Boolean(syncBlockedReason) || /fail|error|unauthorized|forbidden|not configured|only the super admin/i.test(syncFeedback);
   const exportPreviewFeedbackIsError = /fail|error|unauthorized|forbidden|not configured|only the super admin/i.test(exportPreviewFeedback);
+  const latestSucceededSyncSummary = syncState.runs.find((run) => run.status === "succeeded" && Object.keys(run.summary ?? {}).length > 0)?.summary ?? null;
+  const sourceReviewSummary = lastSourceReviewSummary ?? exportPreview?.summary ?? latestSucceededSyncSummary;
+  const sourceReviewMode = lastSourceReviewSummary
+    ? lastSourceReviewMode
+    : exportPreview
+      ? "preview"
+      : latestSucceededSyncSummary
+        ? "sync"
+        : null;
+  const sourceReviewActions = useMemo(() => sourceReviewSummary
+    ? sourceReviewActionsConfig.map((action) => ({ ...action, count: sourceReviewActionCount(sourceReviewSummary, action) }))
+    : [], [sourceReviewSummary]);
+  const sourceReviewHasCounts = sourceReviewActions.some((action) => action.count > 0);
+  const sourceReviewTitle = sourceReviewMode === "preview" ? "Review available Source data" : "Review imported data";
+  const sourceReviewSubtitle = sourceReviewMode === "preview"
+    ? "The export is reachable. Use these shortcuts to see where each Source object will land after sync."
+    : "Sync completed. Open the VYVA areas that were updated.";
+  function openSourceReviewAction(action: SourceReviewAction) {
+    setActiveTab(action.tab);
+    if (action.contactView) setContactView(action.contactView);
+    const modeLabel = sourceReviewMode === "preview" ? "Source preview" : "Source sync";
+    setMessage(`Opened ${action.label} from ${modeLabel}.`);
+  }
   const emailScheduler = syncState.emailScheduler ?? summary.emailScheduler ?? emptySummary.emailScheduler ?? {
     enabled: false,
     intervalMinutes: 5,
@@ -30438,6 +30530,37 @@ export default function MarketingAdminPage() {
                     >
                       {syncFeedbackText}
                     </p>
+                  ) : null}
+                  {sourceReviewHasCounts ? (
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3" data-testid="marketing-source-review-panel">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-black text-emerald-950">{sourceReviewTitle}</p>
+                          <p className="mt-1 text-xs font-bold text-emerald-800">{sourceReviewSubtitle}</p>
+                        </div>
+                        <Pill className="bg-white text-emerald-800">ready</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                        {sourceReviewActions.map((action) => (
+                          <button
+                            key={action.key}
+                            type="button"
+                            onClick={() => openSourceReviewAction(action)}
+                            className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-left shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
+                            data-testid={`button-marketing-source-review-${action.key}`}
+                          >
+                            <span>
+                              <span className="block text-sm font-black text-[#241133]">{action.label}</span>
+                              <span className="mt-0.5 block text-xs font-semibold text-[#6f625e]">{action.detail}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-2 text-sm font-black text-emerald-800">
+                              {action.count}
+                              <ExternalLink size={14} />
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   ) : null}
                   <div className="grid gap-2">
                     {syncState.runs.length === 0 ? <EmptyState text="No Source sync runs yet." /> : syncState.runs.map((run) => (
