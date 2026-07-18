@@ -2417,7 +2417,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro call script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence intro email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence director call script");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("130 templates");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("137 templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -2901,6 +2901,30 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Professional referral webinar pack into the campaign studio");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
 
+    expect(screen.getByTestId("marketing-template-pack-post-webinar-relationship-follow-up")).toHaveTextContent("Post-webinar relationship follow-up");
+    expect(screen.getByTestId("marketing-template-pack-post-webinar-relationship-follow-up")).toHaveTextContent("7 templates");
+    expect(screen.getByTestId("marketing-template-pack-post-webinar-relationship-follow-up")).toHaveTextContent("AI pack prompt");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-post-webinar-relationship-follow-up"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Post-webinar relationship follow-up template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Post-webinar recap email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Post-webinar discovery call script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Post-webinar follow-up log");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-post-webinar-relationship-follow-up")).toHaveTextContent("Recap and resource");
+    expect(screen.getByTestId("marketing-template-pack-sequence-post-webinar-relationship-follow-up")).toHaveTextContent("Follow-up log");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-post-webinar-relationship-follow-up"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Post-webinar relationship follow-up");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Post-webinar relationship follow-up pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("Partner growth");
     expect(screen.getByTestId("marketing-template-pack-partner-growth")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-partner-growth"));
@@ -2932,16 +2956,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("20");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("21");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Local event");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("6");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("7");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("8");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Target: 3 per pack");
     expect(screen.getByTestId("button-marketing-template-matrix-event-b2c")).toHaveTextContent("3");
     expect(screen.getByTestId("button-marketing-template-matrix-event-b2c")).toHaveTextContent("Strong");
-    expect(screen.getByTestId("button-marketing-template-matrix-sms-b2b")).toHaveTextContent("4");
+    expect(screen.getByTestId("button-marketing-template-matrix-sms-b2b")).toHaveTextContent("5");
     expect(screen.getByTestId("button-marketing-template-matrix-sms-b2b")).toHaveTextContent("Strong");
     expect(screen.getByTestId("button-marketing-template-matrix-linkedin-b2c")).toHaveTextContent("3");
     expect(screen.getByTestId("button-marketing-template-matrix-linkedin-b2c")).toHaveTextContent("Strong");
