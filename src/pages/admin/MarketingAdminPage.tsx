@@ -10662,6 +10662,82 @@ export default function MarketingAdminPage() {
     contactRelationshipPriorityQueue,
     contactRelationshipWorkQueues,
   ]);
+  const contactRelationshipOperatingLanes = useMemo(() => {
+    const queueByKey = new Map(contactRelationshipWorkQueues.map((queue) => [queue.key, queue]));
+    const consentQueue = queueByKey.get("consent-cleanup") ?? null;
+    const segmentationQueue = queueByKey.get("segmentation-gaps") ?? null;
+    const priorityQueue = contactRelationshipPriorityQueue
+      ?? contactRelationshipWorkQueues.find((queue) => queue.count > 0)
+      ?? contactRelationshipWorkQueues[0]
+      ?? null;
+    const campaignQueue = priorityQueue && !["consent-cleanup", "segmentation-gaps"].includes(priorityQueue.key)
+      ? priorityQueue
+      : queueByKey.get("partner-nurture")
+        ?? queueByKey.get("family-onboarding")
+        ?? queueByKey.get("local-market")
+        ?? priorityQueue;
+
+    return [
+      {
+        key: "consent",
+        step: "1",
+        title: "Clean consent",
+        value: contactHealthNeedsConsent ? `${contactHealthNeedsConsent} to review` : "Consent ready",
+        detail: contactHealthNeedsConsent
+          ? "Review pending and unknown contacts before sending. Opted-out contacts stay out of campaign snapshots."
+          : "Visible contacts are ready for consent-safe relationship work.",
+        state: contactHealthTotal === 0 ? "blocked" as CampaignReadinessState : contactHealthNeedsConsent > 0 ? "needs_action" as CampaignReadinessState : "ready" as CampaignReadinessState,
+        queue: consentQueue,
+        action: "show" as const,
+        actionLabel: "Review",
+      },
+      {
+        key: "segment",
+        step: "2",
+        title: "Sharpen segments",
+        value: `${contactHealthSegmented}/${contactHealthTotal} enriched`,
+        detail: contactHealthSegmented === contactHealthTotal
+          ? "Language, market, list, or role data is strong enough for smart targeting."
+          : "Fill language, market, category, list, or role gaps so campaigns can be more personal.",
+        state: contactHealthTotal === 0 ? "blocked" as CampaignReadinessState : contactHealthSegmented === contactHealthTotal ? "ready" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+        queue: segmentationQueue,
+        action: "show" as const,
+        actionLabel: "Review gaps",
+      },
+      {
+        key: "list",
+        step: "3",
+        title: "Save a relationship list",
+        value: priorityQueue?.countLabel ?? "No queue",
+        detail: priorityQueue
+          ? `Turn "${priorityQueue.title}" into a reusable audience before publishing.`
+          : "Import or create contacts before saving a relationship list.",
+        state: priorityQueue?.count ? "ready" as CampaignReadinessState : "planning" as CampaignReadinessState,
+        queue: priorityQueue,
+        action: "list" as const,
+        actionLabel: "Build list",
+      },
+      {
+        key: "campaign",
+        step: "4",
+        title: "Open the campaign play",
+        value: campaignQueue?.channels.length ? formatChannelList(campaignQueue.channels) : "No route",
+        detail: campaignQueue
+          ? `Load "${campaignQueue.title}" with channels, tone, and AI context pre-selected.`
+          : "Choose a contact queue before opening a campaign play.",
+        state: campaignQueue?.count ? "ready" as CampaignReadinessState : "planning" as CampaignReadinessState,
+        queue: campaignQueue,
+        action: "studio" as const,
+        actionLabel: "Open play",
+      },
+    ];
+  }, [
+    contactHealthNeedsConsent,
+    contactHealthSegmented,
+    contactHealthTotal,
+    contactRelationshipPriorityQueue,
+    contactRelationshipWorkQueues,
+  ]);
   const campaignStudioRelationshipQueues = useMemo(() => {
     const activeQueues = contactRelationshipWorkQueues.filter((queue) => queue.count > 0);
     const sourceQueues = activeQueues.length ? activeQueues : contactRelationshipWorkQueues;
@@ -27187,6 +27263,53 @@ export default function MarketingAdminPage() {
                     </div>
                   );
                 })() : null}
+                <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3 shadow-sm" data-testid="marketing-contact-operating-path">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Daily relationship path</p>
+                      <p className="mt-1 text-sm font-black text-[#241133]">Work the audience in order: consent, segment, save, then launch.</p>
+                    </div>
+                    <Pill className="bg-purple-50 text-purple-800">4 steps</Pill>
+                  </div>
+                  <div className="mt-3 grid gap-3 xl:grid-cols-4">
+                    {contactRelationshipOperatingLanes.map((lane) => {
+                      const runLaneAction = () => {
+                        if (!lane.queue) return;
+                        if (lane.action === "list") {
+                          buildAudienceFromContactWorkQueue(lane.queue);
+                        } else if (lane.action === "studio") {
+                          loadContactWorkQueueInStudio(lane.queue);
+                        } else {
+                          showContactWorkQueue(lane.queue);
+                        }
+                      };
+                      return (
+                        <article
+                          key={lane.key}
+                          className={`flex min-h-[190px] flex-col rounded-xl border p-3 ${readinessClass(lane.state)}`}
+                          data-testid={`marketing-contact-operating-path-${lane.key}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-sm font-black text-purple-800 shadow-sm">{lane.step}</span>
+                            <Pill className={readinessPillClass(lane.state)}>{readinessLabel(lane.state)}</Pill>
+                          </div>
+                          <p className="mt-3 text-sm font-black text-[#241133]">{lane.title}</p>
+                          <p className="mt-1 text-lg font-black text-[#241133]">{lane.value}</p>
+                          <p className="mt-2 flex-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{lane.detail}</p>
+                          <button
+                            type="button"
+                            onClick={runLaneAction}
+                            disabled={!lane.queue || lane.queue.count === 0}
+                            className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                            data-testid={`button-marketing-contact-operating-path-${lane.key}`}
+                          >
+                            <ExternalLink size={13} /> {lane.actionLabel}
+                          </button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="mt-3 grid gap-3 rounded-xl border border-purple-100 bg-white p-3 shadow-sm xl:grid-cols-[1fr_minmax(320px,0.8fr)]" data-testid="marketing-contact-command-brief">
                   <div>
                     <div className="flex flex-wrap items-start justify-between gap-2">

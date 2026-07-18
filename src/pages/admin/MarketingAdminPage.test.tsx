@@ -1037,6 +1037,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-priority-move")).toHaveTextContent("1 partner");
     expect(screen.getByTestId("marketing-contact-priority-move")).toHaveTextContent("Sample: Hassan Partner");
     expect(screen.getByTestId("button-marketing-contact-priority-studio")).toHaveTextContent("Open partner play");
+    expect(screen.getByTestId("marketing-contact-operating-path")).toHaveTextContent("Daily relationship path");
+    expect(screen.getByTestId("marketing-contact-operating-path-consent")).toHaveTextContent("Clean consent");
+    expect(screen.getByTestId("marketing-contact-operating-path-segment")).toHaveTextContent("Sharpen segments");
+    expect(screen.getByTestId("marketing-contact-operating-path-list")).toHaveTextContent("Save a relationship list");
+    expect(screen.getByTestId("marketing-contact-operating-path-campaign")).toHaveTextContent("Open the campaign play");
+    fireEvent.click(screen.getByTestId("button-marketing-contact-operating-path-segment"));
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Showing "Segmentation gaps" queue: 1 gap.');
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-contact-filters"));
     expect(screen.getByTestId("marketing-contact-command-brief")).toHaveTextContent("Relationship command brief");
     expect(screen.getByTestId("marketing-contact-command-brief")).toHaveTextContent("One weekly operating plan");
     const commandBrief = screen.getByTestId("textarea-marketing-contact-command-brief") as HTMLTextAreaElement;
