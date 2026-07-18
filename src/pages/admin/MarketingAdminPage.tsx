@@ -2400,6 +2400,17 @@ function hasPersonalizationToken(value: string) {
   return /\{\{\s*(first_name|name|full_name)\s*\}\}/i.test(value);
 }
 
+const CONTENT_PERSONALIZATION_TOKENS = [
+  { key: "first_name", label: "First name", detail: "Warm greeting without guessing." },
+  { key: "full_name", label: "Full name", detail: "Formal greetings and handoff notes." },
+  { key: "company_name", label: "Company", detail: "B2B partner and provider context." },
+  { key: "role_label", label: "Role", detail: "Professional relationship context." },
+  { key: "language", label: "Language", detail: "Localization and review routing." },
+  { key: "market", label: "Market", detail: "Local relevance and geography." },
+  { key: "category", label: "Category", detail: "Segment-specific messaging." },
+  { key: "cta_url", label: "CTA URL", detail: "Keep the final link explicit." },
+] as const;
+
 function extractPersonalizationTokens(value: string) {
   const tokens: string[] = [];
   const seen = new Set<string>();
@@ -2432,11 +2443,37 @@ function contactTokenValue(contact: MarketingContact, token: string) {
   return "";
 }
 
+function contentDraftTokenValue(draft: ContentDraft, token: string) {
+  const normalized = token.trim().toLowerCase();
+  if (normalized === "cta_url") return draft.ctaUrl.trim();
+  if (normalized === "cta_label") return draft.ctaLabel.trim();
+  if (normalized === "language") return draft.language.trim();
+  return "";
+}
+
+function contentTokenValue(draft: ContentDraft, contact: MarketingContact | null, token: string) {
+  return contentDraftTokenValue(draft, token) || (contact ? contactTokenValue(contact, token) : "");
+}
+
 function personalizePreview(value: string, contact: MarketingContact) {
   return value.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_token, name: string) => {
     const replacement = contactTokenValue(contact, name);
     return replacement || `[${name.trim()}]`;
   });
+}
+
+function personalizeContentDraftPreview(value: string, draft: ContentDraft, contact: MarketingContact | null) {
+  return value.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_token, name: string) => {
+    const replacement = contentTokenValue(draft, contact, name);
+    return replacement || `[${name.trim()}]`;
+  });
+}
+
+function appendPersonalizationToken(value: string, token: string) {
+  const formattedToken = `{{${token}}}`;
+  if (new RegExp(`\\{\\{\\s*${token}\\s*\\}\\}`, "i").test(value)) return value;
+  if (!value.trim()) return formattedToken;
+  return `${value}${/\s$/.test(value) ? "" : " "}${formattedToken}`;
 }
 
 function firstPreviewLine(value: string) {
@@ -11846,6 +11883,98 @@ export default function MarketingAdminPage() {
       detail: contentEditorVariantCount ? "Related channel or language variants exist." : "Create variants when the base copy is strong.",
     },
   ] : [];
+  const contentDraftPersonalizationSourceText = [
+    contentDraft.subject,
+    contentDraft.body,
+    contentDraft.htmlBody,
+    contentDraft.ctaLabel,
+    contentDraft.ctaUrl,
+  ].join("\n");
+  const contentDraftPersonalizationTokens = useMemo(
+    () => extractPersonalizationTokens(contentDraftPersonalizationSourceText),
+    [contentDraftPersonalizationSourceText],
+  );
+  const contentDraftReachableContacts = useMemo(
+    () => visibleContacts.filter((contact) => contact.consentStatus !== "opted_out" && contactReachableForChannel(contact, contentDraft.channel)),
+    [contentDraft.channel, visibleContacts],
+  );
+  const contentDraftPersonalizationSample = useMemo(() => {
+    const samplePool = contentDraftReachableContacts.length
+      ? contentDraftReachableContacts
+      : visibleContacts.filter((contact) => contact.consentStatus !== "opted_out");
+    return samplePool
+      .slice()
+      .sort((a, b) => {
+        const scoreFor = (contact: MarketingContact) => contentDraftPersonalizationTokens
+          .filter((token) => Boolean(contentTokenValue(contentDraft, contact, token)))
+          .length;
+        return scoreFor(b) - scoreFor(a);
+      })[0] ?? null;
+  }, [contentDraft, contentDraftPersonalizationTokens, contentDraftReachableContacts, visibleContacts]);
+  const contentDraftPersonalizationCoverage = useMemo(() => {
+    const samplePool = contentDraftReachableContacts.length
+      ? contentDraftReachableContacts
+      : visibleContacts.filter((contact) => contact.consentStatus !== "opted_out");
+    return contentDraftPersonalizationTokens.map((token) => {
+      const draftLevelValue = contentDraftTokenValue(contentDraft, token);
+      const available = draftLevelValue
+        ? samplePool.length
+        : samplePool.filter((contact) => Boolean(contactTokenValue(contact, token))).length;
+      return { token, available, total: samplePool.length };
+    });
+  }, [contentDraft, contentDraftPersonalizationTokens, contentDraftReachableContacts, visibleContacts]);
+  const contentDraftRecommendedTokens = useMemo(() => {
+    const existingTokens = new Set(contentDraftPersonalizationTokens);
+    const samplePool = contentDraftReachableContacts.length
+      ? contentDraftReachableContacts
+      : visibleContacts.filter((contact) => contact.consentStatus !== "opted_out");
+    return CONTENT_PERSONALIZATION_TOKENS.filter((option) => {
+      if (existingTokens.has(option.key)) return false;
+      if (option.key === "cta_url") return Boolean(contentDraft.ctaUrl.trim());
+      return samplePool.some((contact) => Boolean(contactTokenValue(contact, option.key)));
+    }).slice(0, 5);
+  }, [contentDraft.ctaUrl, contentDraftPersonalizationTokens, contentDraftReachableContacts, visibleContacts]);
+  const contentDraftPersonalizedSubject = contentDraft.subject.trim()
+    ? personalizeContentDraftPreview(contentDraft.subject, contentDraft, contentDraftPersonalizationSample)
+    : contentDraft.title.trim() || "No subject yet.";
+  const contentDraftPersonalizedBody = personalizeContentDraftPreview(
+    contentDraft.body.trim() || plainTextFromHtml(contentDraft.htmlBody) || "No body copy yet.",
+    contentDraft,
+    contentDraftPersonalizationSample,
+  );
+  const contentDraftPersonalizationAiBrief = useMemo(() => {
+    const tokenLines = contentDraftPersonalizationCoverage.length
+      ? contentDraftPersonalizationCoverage.map((item) => `- {{${item.token}}}: ${item.available}/${item.total} contacts have a value`)
+      : ["- No merge tokens in the draft yet."];
+    const recommendedLines = contentDraftRecommendedTokens.length
+      ? contentDraftRecommendedTokens.map((item) => `- {{${item.key}}}: ${item.detail}`)
+      : ["- No extra suggested fields for the current audience view."];
+    const sampleLabel = contentDraftPersonalizationSample
+      ? [contentDraftPersonalizationSample.fullName, contentDraftPersonalizationSample.companyName, contentDraftPersonalizationSample.market].filter(Boolean).join(" / ")
+      : "No sample contact available";
+
+    return [
+      "VYVA content personalization AI brief",
+      `Asset: ${contentDraft.title.trim() || "Untitled draft"}`,
+      `Channel: ${channelLabel[contentDraft.channel]}`,
+      `Language: ${contentDraft.language.trim() || "Not set"}`,
+      `Status: ${contentDraft.status}`,
+      `Sample contact: ${sampleLabel}`,
+      "",
+      "Merge tokens in this draft:",
+      ...tokenLines,
+      "",
+      "Safe suggested tokens:",
+      ...recommendedLines,
+      "",
+      "Current draft:",
+      `Subject: ${contentDraft.subject.trim() || "No subject yet."}`,
+      `Body: ${contentDraft.body.trim() || plainTextFromHtml(contentDraft.htmlBody) || "No body copy yet."}`,
+      `CTA: ${contentDraft.ctaLabel.trim() || "No CTA label"}${contentDraft.ctaUrl.trim() ? ` -> ${contentDraft.ctaUrl.trim()}` : ""}`,
+      "",
+      "AI task: Improve this campaign content for the selected audience. Use only the merge tokens listed above, keep consent-safe wording, do not invent personal data, keep one clear CTA, and return subject, plain copy, optional HTML notes, and channel-specific publishing notes.",
+    ].join("\n");
+  }, [contentDraft, contentDraftPersonalizationCoverage, contentDraftPersonalizationSample, contentDraftRecommendedTokens]);
   const selectedContentUsage = useMemo(
     () => selectedContent ? contentUsageById.get(selectedContent.id) ?? [] : [],
     [contentUsageById, selectedContent],
@@ -16675,6 +16804,37 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setJourneySaving(false);
+    }
+  }
+
+  function insertContentDraftPersonalizationToken(field: "subject" | "body", token: string) {
+    const label = field === "subject" ? "subject" : "plain copy";
+    setContentDraft((draft) => ({
+      ...draft,
+      [field]: appendPersonalizationToken(draft[field], token),
+    }));
+    setContentFeedback(`Inserted {{${token}}} into ${label}.`);
+  }
+
+  async function copyContentDraftPersonalizationBrief() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contentDraftPersonalizationAiBrief);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contentDraftPersonalizationAiBrief;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard copy failed.");
+      }
+      setContentFeedback("Personalization AI brief copied.");
+    } catch (error) {
+      setContentFeedback(error instanceof Error ? error.message : "Personalization brief could not be copied.");
     }
   }
 
@@ -28413,6 +28573,92 @@ export default function MarketingAdminPage() {
                     <Field label="HTML body">
                       <textarea className={`${textareaClass} font-mono text-xs`} value={contentDraft.htmlBody} onChange={(event) => setContentDraft((draft) => ({ ...draft, htmlBody: event.target.value }))} placeholder="<p>Optional HTML</p>" disabled={contentSaving} data-testid="textarea-marketing-content-html" />
                     </Field>
+                  </div>
+                  <div className="rounded-2xl border border-purple-100 bg-purple-50/70 p-4 shadow-sm" data-testid="marketing-content-personalization-panel">
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className="bg-white text-purple-800">Personalization readiness</Pill>
+                          <Pill className="bg-white text-[#5b4a46]">{contentDraftReachableContacts.length} reachable sample{contentDraftReachableContacts.length === 1 ? "" : "s"}</Pill>
+                          <Pill className={contentDraftPersonalizationTokens.length ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                            {contentDraftPersonalizationTokens.length ? `${contentDraftPersonalizationTokens.length} token${contentDraftPersonalizationTokens.length === 1 ? "" : "s"}` : "No tokens yet"}
+                          </Pill>
+                        </div>
+                        <h3 className="mt-2 text-base font-black text-[#241133]">Make this draft personal without inventing data.</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                          Add only supported merge fields, preview against a real contact, then copy the AI brief when you want a safer rewrite.
+                        </p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2" data-testid="marketing-content-personalization-coverage">
+                          {contentDraftPersonalizationCoverage.length ? contentDraftPersonalizationCoverage.map((item) => (
+                            <div key={item.token} className="rounded-xl border border-purple-100 bg-white px-3 py-2">
+                              <p className="text-xs font-black text-[#241133]">{`{{${item.token}}}`}</p>
+                              <p className="text-xs font-bold text-[#7d6b65]">{item.available}/{item.total} contacts have this value</p>
+                            </div>
+                          )) : (
+                            <div className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs font-bold text-amber-800">
+                              No merge fields yet. Start with first name or company when the audience data supports it.
+                            </div>
+                          )}
+                        </div>
+                        {contentDraftRecommendedTokens.length ? (
+                          <div className="mt-3">
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Suggested tokens</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {contentDraftRecommendedTokens.map((option) => (
+                                <button
+                                  key={option.key}
+                                  type="button"
+                                  onClick={() => insertContentDraftPersonalizationToken("body", option.key)}
+                                  className="inline-flex min-h-8 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
+                                  disabled={contentSaving}
+                                  title={option.detail}
+                                  data-testid={`button-marketing-content-insert-token-${option.key}`}
+                                >
+                                  + {`{{${option.key}}}`}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="grid gap-3">
+                        <div className="rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-content-personalization-preview">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Sample preview</p>
+                          <p className="mt-2 text-sm font-black text-[#241133]">{contentDraftPersonalizedSubject}</p>
+                          <p className="mt-1 line-clamp-3 text-xs font-bold leading-relaxed text-[#6b5b54]">{firstPreviewLine(contentDraftPersonalizedBody)}</p>
+                          <p className="mt-2 text-xs font-semibold text-[#8b7a73]">
+                            Sample: {contentDraftPersonalizationSample?.fullName || contentDraftPersonalizationSample?.email || contentDraftPersonalizationSample?.phoneNumber || "No contact available"}
+                          </p>
+                        </div>
+                        <textarea
+                          className={`${textareaClass} min-h-[150px] font-mono text-xs`}
+                          value={contentDraftPersonalizationAiBrief}
+                          readOnly
+                          aria-label="Content personalization AI brief"
+                          data-testid="textarea-marketing-content-personalization-brief"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => insertContentDraftPersonalizationToken("subject", "first_name")}
+                            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d]"
+                            disabled={contentSaving}
+                            data-testid="button-marketing-content-insert-subject-first-name"
+                          >
+                            <Plus size={13} /> Subject first name
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void copyContentDraftPersonalizationBrief()}
+                            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            disabled={contentSaving}
+                            data-testid="button-marketing-content-copy-personalization-brief"
+                          >
+                            <Copy size={13} /> Copy AI brief
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div className="grid gap-3 xl:grid-cols-2">
                     <Field label="Design JSON">

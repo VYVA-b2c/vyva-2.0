@@ -1605,6 +1605,40 @@ describe("MarketingAdminPage", () => {
     expect(campaignExperimentBrief.value).toContain("Goal: create the next campaign/content variant");
   });
 
+  it("guides content drafts with safe personalization tokens and an AI brief", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    const panel = screen.getByTestId("marketing-content-personalization-panel");
+    expect(panel).toHaveTextContent("Personalization readiness");
+    expect(panel).toHaveTextContent("No tokens yet");
+
+    fireEvent.change(screen.getByTestId("input-marketing-content-title"), { target: { value: "Partner intro" } });
+    fireEvent.click(screen.getByTestId("button-marketing-content-insert-subject-first-name"));
+    fireEvent.click(screen.getByTestId("button-marketing-content-insert-token-company_name"));
+
+    expect(screen.getByTestId("input-marketing-content-subject")).toHaveValue("{{first_name}}");
+    expect(screen.getByTestId("textarea-marketing-content-body")).toHaveValue("{{company_name}}");
+    expect(screen.getByTestId("marketing-content-personalization-coverage")).toHaveTextContent("{{first_name}}");
+    expect(screen.getByTestId("marketing-content-personalization-coverage")).toHaveTextContent("{{company_name}}");
+    expect(screen.getByTestId("marketing-content-personalization-preview")).toHaveTextContent("Hassan");
+    expect(screen.getByTestId("marketing-content-personalization-preview")).toHaveTextContent("Moka Digital");
+
+    fireEvent.click(screen.getByTestId("button-marketing-content-copy-personalization-brief"));
+
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA content personalization AI brief")));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Use only the merge tokens listed above"));
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Personalization AI brief copied.");
+  });
+
   it("surfaces recommended next actions and routes to the right work area", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
