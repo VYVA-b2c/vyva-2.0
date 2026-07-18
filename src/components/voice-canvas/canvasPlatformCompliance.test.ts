@@ -10,12 +10,17 @@ import {
   initialShoppingCanvasState,
   isRestorableShoppingCanvasState,
 } from "./shoppingCanvasMachine";
+import {
+  initialProviderReplyCanvasState,
+  isRestorableProviderReplyCanvasState,
+} from "./providerReplyCanvasMachine";
 import { isRideCanvasEnabled } from "./rideCanvasRollout";
 import { isAppointmentCanvasEnabled } from "./appointmentCanvasRollout";
 import { isRefillCanvasEnabled } from "./refillCanvasRollout";
 import { isPrescriptionFollowUpEnabled } from "./prescriptionFollowUpRollout";
 import { isShoppingCanvasEnabled } from "./shoppingCanvasRollout";
 import { isHomeServiceCanvasEnabled } from "./homeServiceCanvasRollout";
+import { isProviderReplyCanvasEnabled } from "./providerReplyCanvasRollout";
 
 describe("Canvas platform cross-flow compliance", () => {
   it.each([
@@ -25,6 +30,7 @@ describe("Canvas platform cross-flow compliance", () => {
     ["refill", isRefillCanvasEnabled],
     ["prescription follow-up", isPrescriptionFollowUpEnabled],
     ["shopping", isShoppingCanvasEnabled],
+    ["provider reply", isProviderReplyCanvasEnabled],
   ])("%s fails closed without rollout configuration", (_flow, enabled) => {
     expect(enabled(undefined, "cohort")).toBe(false);
   });
@@ -43,6 +49,7 @@ describe("Canvas platform cross-flow compliance", () => {
       }),
     ],
     ["shopping", isRestorableShoppingCanvasState, initialShoppingCanvasState],
+    ["provider reply", isRestorableProviderReplyCanvasState, initialProviderReplyCanvasState],
   ])("%s never restores a waiting request", (_flow, isRestorable, initial) => {
     expect(isRestorable({ ...initial, step: "waiting" })).toBe(false);
   });
