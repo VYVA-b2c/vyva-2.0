@@ -1665,6 +1665,16 @@ const de = {
       detailTitle: "Noch eine Angabe", detailHelper: "Ergänzen Sie diese vor der abschließenden Bestätigung.", confirmTitle: "Bereit zur Bestätigung", confirmHelper: "Erst diese letzte Bestätigung kann Kontakt oder Buchung starten.", confirmContact: "Bestätigen und weiter",
       waitingTitle: "VYVA bereitet den nächsten Schritt vor", waitingHelper: "Sie können dies minimieren und die App weiter nutzen.", completedTitle: "Fahrt organisiert", completedHelper: "Das bestätigte Ergebnis ist im Concierge gespeichert.", errorTitle: "Die Fahrt konnte nicht fortgesetzt werden", tryAgain: "Erneut versuchen",
     },
+    appointment: {
+      reasonTitle: "Wofür ist der Termin?", reasonHelper: "Teilen Sie nur mit, was für die Anfrage nötig ist.", reasonLabel: "Termingrund", reasonPlaceholder: "Zum Beispiel Kontrolle oder Nachsorge", continue: "Weiter",
+      timeTitle: "Wann passt es Ihnen?", timeHelper: "Wählen Sie eine Präferenz. Der Anbieter bestätigt die Verfügbarkeit.", today: "Heute", tomorrow: "Morgen", thisWeek: "Diese Woche", nextWeek: "Nächste Woche", anotherTime: "Andere Zeit", timeLabel: "Bevorzugtes Datum oder Uhrzeit", timePlaceholder: "Zum Beispiel Freitagvormittag",
+      coverageTitle: "Wie wird der Termin abgedeckt?", coverageHelper: "VYVA fragt erneut, bevor Versicherungsdaten geteilt werden.", useSavedCoverage: "Gespeicherte Abdeckung verwenden", publicCoverage: "Gesetzliche Abdeckung", privateCoverage: "Private Versicherung", selfPay: "Selbst zahlen", coverageUnsure: "Ich bin nicht sicher",
+      providerTitle: "Welchen Anbieter sollen wir prüfen?", providerHelper: "Gespeicherten Arzt verwenden, einen anderen finden oder einen vertrauenswürdigen hinzufügen.", useSavedProvider: "Gespeicherten Arzt verwenden", useSavedProviderDescription: "In Ihrem Profil gespeichert", findProvider: "Anderen Anbieter finden", findProviderDescription: "Optionen vor dem Kontakt vergleichen", addProvider: "Vertrauenswürdigen Arzt oder Klinik hinzufügen", addProviderDescription: "Speichern und hierher zurückkehren",
+      searchingTitle: "Passende Anbieter werden geprüft", searchingHelper: "Noch wurde niemand kontaktiert und nichts gebucht.", optionsTitle: "Option zur Prüfung wählen", optionsHelper: "Die Verfügbarkeit muss möglicherweise noch bestätigt werden.", savedProvider: "Gespeicherter Anbieter", availabilityUnknown: "Verfügbarkeit zu bestätigen",
+      reviewTitle: "Bestätigen, bevor VYVA Kontakt aufnimmt", reviewHelper: "Prüfen Sie Anbieter, Zeit, Abdeckung und Kontaktweg.", reason: "Grund", preferredTime: "Wunschzeit", coverage: "Abdeckung", provider: "Anbieter", availability: "Verfügbarkeit", contactRoute: "Kontaktweg", confirmContact: "Bestätigen und kontaktieren", change: "Angaben ändern", back: "Zurück",
+      contactingTitle: "VYVA bereitet den Kontakt vor", contactingHelper: "Sie können dies minimieren und die App weiter nutzen.", completedTitle: "Die Terminanfrage läuft", completedHelper: "VYVA hält die Antwort des Anbieters im Concierge fest.", errorTitle: "Die Terminanfrage konnte nicht fortgesetzt werden", tryAgain: "Erneut versuchen", missingDetails: "Bitte zuerst Grund und Wunschzeit ergänzen.",
+      channels: { booking_url: "Buchungsformular", phone: "Telefonanruf", whatsapp: "WhatsApp", email: "E-Mail", manual: "VYVA-Prüfung" },
+    },
   },
   statusVitals: {
     actions: {

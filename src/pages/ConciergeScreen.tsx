@@ -83,6 +83,12 @@ import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import {
+  buildConciergeAppointmentCanvasViewModel,
+  type ConciergeAppointmentCanvasCopy,
+  type ConciergeAppointmentCanvasOption,
+  type ConciergeAppointmentCanvasStep,
+} from "@/lib/conciergeAppointmentCanvas";
+import {
   buildConciergeRideCanvasViewModel,
   type ConciergeRideCanvasCopy,
   type ConciergeRideCanvasStep,
@@ -226,6 +232,9 @@ type ConciergeProviderResumeContext =
       kind: "medical_appointment";
       appointmentType?: AppointmentType;
       note?: string;
+      requestedTime?: string;
+      coverageLabel?: string;
+      voiceCanvas?: boolean;
     }
   | {
       kind: "home_service";
@@ -450,6 +459,9 @@ function coerceConciergeResumeContext(value: unknown): ConciergeProviderResumeCo
       kind,
       appointmentType: isAppointmentType(value.appointmentType ?? value.appointment_type) ? (value.appointmentType ?? value.appointment_type) as AppointmentType : "medical",
       note: routeText(value, ["note", "message", "appointmentNote"]),
+      requestedTime: routeText(value, ["requestedTime", "requested_time", "datePreference", "date_preference"]),
+      coverageLabel: routeText(value, ["coverageLabel", "coverage_label"]),
+      voiceCanvas: value.voiceCanvas === true || value.voice_canvas === true,
     };
   }
   if (kind === "home_service") {
@@ -3306,6 +3318,16 @@ function appointmentSnapshotText(option: AppointmentProviderOption | null | unde
 
 function appointmentOptionName(option: AppointmentProviderOption | null | undefined, isSpanish: boolean): string {
   return appointmentSnapshotText(option, "name") || (isSpanish ? "Proveedor guardado" : "Saved provider");
+}
+
+function appointmentOptionAvailability(option: AppointmentProviderOption | null | undefined): string {
+  if (!option) return "";
+  const keys = ["next_available", "availability", "available_at", "opening_hours", "hours"];
+  for (const key of keys) {
+    const value = appointmentSnapshotText(option, key);
+    if (value) return value;
+  }
+  return "";
 }
 
 function appointmentChannelLabel(channel: AppointmentChannel, isSpanish: boolean): string {
@@ -8978,6 +9000,16 @@ const ConciergeScreen = () => {
     reference: "",
     notes: "",
   });
+  const [appointmentCanvasMode, setAppointmentCanvasMode] = useState(false);
+  const [appointmentCanvasStep, setAppointmentCanvasStep] = useState<ConciergeAppointmentCanvasStep | null>(null);
+  const [appointmentCanvasRevision, setAppointmentCanvasRevision] = useState(1);
+  const [appointmentCanvasRequestedTime, setAppointmentCanvasRequestedTime] = useState("");
+  const [appointmentCanvasCoverageLabel, setAppointmentCanvasCoverageLabel] = useState("");
+  const activeAppointmentCanvasSceneRef = useRef<VoiceCanvasSceneEnvelope | null>(null);
+  const advanceAppointmentCanvas = useCallback((step: ConciergeAppointmentCanvasStep) => {
+    setAppointmentCanvasStep(step);
+    setAppointmentCanvasRevision((revision) => revision + 1);
+  }, []);
   const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
   const [routePrefillError, setRoutePrefillError] = useState<string | null>(null);
   const [trustedProviderResume, setTrustedProviderResume] = useState<TrustedProviderSavedRoute | null>(null);
@@ -9255,6 +9287,63 @@ const ConciergeScreen = () => {
       tryAgain: copy("tryAgain", "Try again"),
     };
   }, [t]);
+  const appointmentCanvasCopy = useMemo<ConciergeAppointmentCanvasCopy>(() => {
+    const copy = (key: string, fallback: string) => String(t(`voiceCanvas.appointment.${key}`, { defaultValue: fallback }));
+    return {
+      reasonTitle: copy("reasonTitle", "What is the appointment for?"),
+      reasonHelper: copy("reasonHelper", "Share only what is useful for the request."),
+      reasonLabel: copy("reasonLabel", "Reason for appointment"),
+      reasonPlaceholder: copy("reasonPlaceholder", "For example, a check-up or follow-up"),
+      continue: copy("continue", "Continue"),
+      timeTitle: copy("timeTitle", "When would suit you?"),
+      timeHelper: copy("timeHelper", "Choose a preference. The provider will confirm availability."),
+      today: copy("today", "Today"),
+      tomorrow: copy("tomorrow", "Tomorrow"),
+      thisWeek: copy("thisWeek", "This week"),
+      nextWeek: copy("nextWeek", "Next week"),
+      anotherTime: copy("anotherTime", "Another time"),
+      timeLabel: copy("timeLabel", "Preferred date or time"),
+      timePlaceholder: copy("timePlaceholder", "For example, Friday morning"),
+      coverageTitle: copy("coverageTitle", "How will this appointment be covered?"),
+      coverageHelper: copy("coverageHelper", "VYVA will ask again before sharing coverage details."),
+      useSavedCoverage: copy("useSavedCoverage", "Use saved coverage"),
+      publicCoverage: copy("publicCoverage", "Public coverage"),
+      privateCoverage: copy("privateCoverage", "Private insurance"),
+      selfPay: copy("selfPay", "I will pay"),
+      coverageUnsure: copy("coverageUnsure", "I am not sure"),
+      providerTitle: copy("providerTitle", "Which provider should we check?"),
+      providerHelper: copy("providerHelper", "Use your saved doctor, find another, or add a trusted provider."),
+      useSavedProvider: copy("useSavedProvider", "Use saved doctor"),
+      useSavedProviderDescription: copy("useSavedProviderDescription", "Saved in your profile"),
+      findProvider: copy("findProvider", "Find another provider"),
+      findProviderDescription: copy("findProviderDescription", "Compare suitable options before contact"),
+      addProvider: copy("addProvider", "Add a trusted doctor or clinic"),
+      addProviderDescription: copy("addProviderDescription", "Save a provider, then return here"),
+      searchingTitle: copy("searchingTitle", "Checking suitable providers"),
+      searchingHelper: copy("searchingHelper", "Nothing is contacted or booked yet."),
+      optionsTitle: copy("optionsTitle", "Choose an option to review"),
+      optionsHelper: copy("optionsHelper", "Availability may still need provider confirmation."),
+      savedProvider: copy("savedProvider", "Saved provider"),
+      availabilityUnknown: copy("availabilityUnknown", "Availability to be confirmed"),
+      reviewTitle: copy("reviewTitle", "Confirm before VYVA contacts anyone"),
+      reviewHelper: copy("reviewHelper", "Review the provider, time, coverage, and contact route."),
+      reason: copy("reason", "Reason"),
+      preferredTime: copy("preferredTime", "Preferred time"),
+      coverage: copy("coverage", "Coverage"),
+      provider: copy("provider", "Provider"),
+      availability: copy("availability", "Availability"),
+      contactRoute: copy("contactRoute", "Contact route"),
+      confirmContact: copy("confirmContact", "Confirm and contact provider"),
+      change: copy("change", "Change details"),
+      back: copy("back", "Back"),
+      contactingTitle: copy("contactingTitle", "VYVA is preparing the contact"),
+      contactingHelper: copy("contactingHelper", "You can minimize this and continue using the app."),
+      completedTitle: copy("completedTitle", "The appointment request is in progress"),
+      completedHelper: copy("completedHelper", "VYVA will keep the provider response in Concierge."),
+      errorTitle: copy("errorTitle", "The appointment request could not continue"),
+      tryAgain: copy("tryAgain", "Try again"),
+    };
+  }, [t]);
 
   const { data: pendingActions = [], isLoading: pendingLoading } = useQuery({
     queryKey: ["/api/concierge/actions/pending"],
@@ -9296,6 +9385,7 @@ const ConciergeScreen = () => {
   const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
   const savedCoverage = conciergeProfile?.coverage ?? null;
   const hasSavedMedicalProvider = profileHasSavedMedicalProvider(conciergeProfile);
+  const savedMedicalProvider = savedMedicalProviderName(conciergeProfile);
   const savedPharmacyProviderDetailsValue = savedPharmacyProviderDetails(conciergeProfile);
   const savedPharmacy = savedPharmacyProviderDetailsValue?.name?.trim() || savedPharmacyName(conciergeProfile);
   const hasSavedPharmacy = profileHasSavedPharmacy(conciergeProfile);
@@ -9372,13 +9462,25 @@ const ConciergeScreen = () => {
           kind: "medical_appointment",
           appointmentType,
           note: appointmentNote.trim(),
+          requestedTime: appointmentCanvasRequestedTime.trim(),
+          coverageLabel: appointmentCanvasCoverageLabel.trim(),
+          voiceCanvas: appointmentCanvasMode,
         },
         notice: isSpanish
           ? "Guarda un medico o clinica de confianza para usarlo primero."
           : "Add or choose a trusted doctor or clinic so VYVA can use it first.",
       },
     });
-  }, [appointmentNote, appointmentRequest?.appointment_type, isSpanish, navigate, selectedAppointmentChip?.key]);
+  }, [
+    appointmentCanvasCoverageLabel,
+    appointmentCanvasMode,
+    appointmentCanvasRequestedTime,
+    appointmentNote,
+    appointmentRequest?.appointment_type,
+    isSpanish,
+    navigate,
+    selectedAppointmentChip?.key,
+  ]);
   const canSaveOtcOutcome = Boolean(otcPreparedResult?.pendingId)
     && (
       otcOutcomeForm.availability.trim().length > 0
@@ -10873,6 +10975,9 @@ const ConciergeScreen = () => {
   }, []);
 
   const clearAppointmentAssistantState = useCallback(() => {
+    setAppointmentCanvasMode(false);
+    setAppointmentCanvasStep(null);
+    clearVoiceCanvasScene({ owner: "concierge_appointment" });
     setAppointmentOpen(false);
     setSelectedAppointmentChip(null);
     setAppointmentNote("");
@@ -10913,14 +11018,23 @@ const ConciergeScreen = () => {
       || conciergeVoiceTaskType.toLowerCase().includes("transport")
       || conciergeVoiceTaskType.toLowerCase().includes("taxi");
     const isReminderVoiceRequest = conciergeVoiceAction.actionType === "concierge.reminder";
+    const isMedicalAppointmentVoiceRequest = isAppointmentRequest && !isHomeServiceVoiceRequest;
 
     if (!isRideVoiceRequest && rideCanvasMode) {
       setRideCanvasMode(false);
       setRideCanvasStep(null);
       clearVoiceCanvasScene({ owner: "concierge_ride" });
     }
+    if (!isMedicalAppointmentVoiceRequest && appointmentCanvasMode) {
+      setAppointmentCanvasMode(false);
+      setAppointmentCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_appointment" });
+    }
 
     if (isRideVoiceRequest) {
+      setAppointmentCanvasMode(false);
+      setAppointmentCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_appointment" });
       setRideCanvasMode(true);
       setRideCanvasSelectedOptionId(null);
       advanceRideCanvas(conciergeVoiceDestination.trim() ? "pickup" : "destination");
@@ -10942,6 +11056,9 @@ const ConciergeScreen = () => {
       setTransportDetailsOpen(true);
       setOffersOpen(false);
     } else if (isReminderVoiceRequest) {
+      setAppointmentCanvasMode(false);
+      setAppointmentCanvasStep(null);
+      clearVoiceCanvasScene({ owner: "concierge_appointment" });
       setRideCanvasMode(false);
       setRideCanvasStep(null);
       clearVoiceCanvasScene({ owner: "concierge_ride" });
@@ -10972,18 +11089,28 @@ const ConciergeScreen = () => {
         setHomeServiceTextDrafts((current) => ({ ...nextAnswers, ...current }));
         setAppointmentNote("");
       } else {
-        setAppointmentNote((current) => current.trim() ? current : conciergeVoiceDraft);
+        const reason = conciergeVoiceReason.trim() || conciergeVoiceDraft.trim();
+        const requestedTime = [conciergeVoiceDate.trim(), conciergeVoiceTime.trim()].filter(Boolean).join(" ");
+        setSelectedAppointmentChip(APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "medical") ?? APPOINTMENT_TYPE_CHIPS[0]);
+        setAppointmentNote((current) => current.trim() ? current : reason);
+        setAppointmentCanvasRequestedTime((current) => current.trim() ? current : requestedTime);
+        setAppointmentCanvasCoverageLabel((current) => current.trim() ? current : "");
+        setAppointmentCanvasMode(true);
+        advanceAppointmentCanvas(reason ? (requestedTime ? "coverage" : "time") : "reason");
       }
     }
 
     setInput((current) => current.trim() ? current : conciergeVoiceDraft);
     window.setTimeout(() => scrollIntoViewIfAvailable(chatSectionRef.current, { behavior: "smooth", block: "start" }), 80);
   }, [
+    advanceAppointmentCanvas,
     advanceRideCanvas,
+    appointmentCanvasMode,
     conciergePayloadValue,
     clearAppointmentAssistantState,
     conciergeVoiceAction,
     conciergeVoiceCriteria,
+    conciergeVoiceDate,
     conciergeVoiceDestination,
     conciergeVoiceDraft,
     conciergeVoiceMobilityNeeds,
@@ -13378,9 +13505,16 @@ const ConciergeScreen = () => {
 
     if (conciergeResume?.kind === "medical_appointment") {
       openScheduleAssistant(conciergeResume.appointmentType ?? "medical");
-      setAppointmentNote(conciergeResume.note?.trim() || (isSpanish
+      const restoredReason = conciergeResume.note?.trim() || (isSpanish
         ? `Usa ${name} como proveedor medico de confianza. Preguntame motivo y horario preferido antes de preparar la solicitud.`
-        : `Use ${name} as my trusted medical provider. Ask me for reason and preferred time before preparing the request.`));
+        : `Use ${name} as my trusted medical provider. Ask me for reason and preferred time before preparing the request.`);
+      setAppointmentNote(restoredReason);
+      setAppointmentCanvasRequestedTime(conciergeResume.requestedTime?.trim() || "");
+      setAppointmentCanvasCoverageLabel(conciergeResume.coverageLabel?.trim() || "");
+      if (conciergeResume.voiceCanvas === true) {
+        setAppointmentCanvasMode(true);
+        advanceAppointmentCanvas(conciergeResume.requestedTime?.trim() ? "provider" : "time");
+      }
       return;
     }
 
@@ -13816,7 +13950,267 @@ const ConciergeScreen = () => {
         ? ExternalLink
         : activeActionIsVyvaTask
           ? Sparkles
-          : PhoneCall;
+      : PhoneCall;
+  const appointmentCanvasOptions = useMemo<ConciergeAppointmentCanvasOption[]>(() => (
+    appointmentOptions.map((option) => ({
+      id: option.id,
+      label: appointmentOptionName(option, isSpanish),
+      description: option.match_reason || undefined,
+      availability: appointmentOptionAvailability(option) || undefined,
+      providerSource: option.provider_source,
+    }))
+  ), [appointmentOptions, isSpanish]);
+  const appointmentCanvasSelectedOption = appointmentCanvasOptions.find((option) => option.id === selectedAppointmentOptionId)
+    ?? appointmentCanvasOptions[0]
+    ?? null;
+  const appointmentCanvasChannelLabel = selectedAppointmentActionChannel
+    ? String(t(`voiceCanvas.appointment.channels.${selectedAppointmentActionChannel}`, {
+        defaultValue: appointmentChannelLabel(selectedAppointmentActionChannel, isSpanish),
+      }))
+    : "";
+  const savedAppointmentCoverageLabel = useMemo(() => {
+    const detail = [savedCoverage?.provider, savedCoverage?.plan].map((value) => value?.trim()).filter(Boolean).join(" · ");
+    if (detail) return detail;
+    switch (savedCoverage?.coverageType) {
+      case "private": return appointmentCanvasCopy.privateCoverage;
+      case "self_pay": return appointmentCanvasCopy.selfPay;
+      case "mixed": return `${appointmentCanvasCopy.publicCoverage} + ${appointmentCanvasCopy.privateCoverage}`;
+      default: return appointmentCanvasCopy.publicCoverage;
+    }
+  }, [appointmentCanvasCopy, savedCoverage?.coverageType, savedCoverage?.plan, savedCoverage?.provider]);
+  const appointmentCanvasViewModel = useMemo(() => {
+    if (!appointmentCanvasMode || !appointmentCanvasStep) return null;
+    return buildConciergeAppointmentCanvasViewModel({
+      step: appointmentCanvasStep,
+      copy: appointmentCanvasCopy,
+      reason: appointmentNote,
+      requestedTime: appointmentCanvasRequestedTime,
+      coverageLabel: appointmentCanvasCoverageLabel,
+      hasSavedCoverage: hasAppointmentCoverageInfo,
+      savedProviderName: savedMedicalProvider,
+      options: appointmentCanvasOptions,
+      selectedOption: appointmentCanvasSelectedOption,
+      contactChannelLabel: appointmentCanvasChannelLabel,
+      error: appointmentError,
+    });
+  }, [
+    appointmentCanvasChannelLabel,
+    appointmentCanvasCopy,
+    appointmentCanvasCoverageLabel,
+    appointmentCanvasMode,
+    appointmentCanvasOptions,
+    appointmentCanvasRequestedTime,
+    appointmentCanvasSelectedOption,
+    appointmentCanvasStep,
+    appointmentError,
+    appointmentNote,
+    hasAppointmentCoverageInfo,
+    savedMedicalProvider,
+  ]);
+
+  const requestAppointmentCanvasOptions = useCallback((preferSavedProvider: boolean) => {
+    if (!appointmentNote.trim() || !appointmentCanvasRequestedTime.trim()) {
+      setAppointmentError(String(t("voiceCanvas.appointment.missingDetails", { defaultValue: "Add the reason and preferred time first." })));
+      advanceAppointmentCanvas("error");
+      return;
+    }
+    setAppointmentError(null);
+    advanceAppointmentCanvas("searching");
+    createAppointmentMutation.mutate({
+      appointmentType: "medical",
+      detail: appointmentNote.trim(),
+      preferences: {
+        date_preference: appointmentCanvasRequestedTime.trim(),
+        coverage_type: coverageType,
+        coverage_provider: coverageProvider.trim() || undefined,
+        coverage_plan: coveragePlan.trim() || undefined,
+        use_saved_provider: preferSavedProvider,
+        provider_preference: preferSavedProvider ? savedMedicalProvider : undefined,
+        no_external_action_without_confirmation: true,
+      },
+      flowReference: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
+      routePrefillSource: "voice_action",
+      locale,
+    }, {
+      onSuccess: (result) => {
+        if (result.options.length > 0) {
+          advanceAppointmentCanvas("options");
+          return;
+        }
+        discoverAppointmentOptionsMutation.mutate({ requestId: result.request.id }, {
+          onSuccess: (discoveryResult) => advanceAppointmentCanvas(discoveryResult.options.length > 0 ? "options" : "error"),
+          onError: () => advanceAppointmentCanvas("error"),
+        });
+      },
+      onError: () => advanceAppointmentCanvas("error"),
+    });
+  }, [
+    advanceAppointmentCanvas,
+    appointmentCanvasRequestedTime,
+    appointmentNote,
+    coveragePlan,
+    coverageProvider,
+    coverageType,
+    createAppointmentMutation,
+    discoverAppointmentOptionsMutation,
+    locale,
+    savedMedicalProvider,
+    t,
+  ]);
+
+  useEffect(() => {
+    if (!appointmentCanvasMode || !appointmentCanvasViewModel) {
+      activeAppointmentCanvasSceneRef.current = null;
+      clearVoiceCanvasScene({ owner: "concierge_appointment" });
+      return;
+    }
+    const scene: VoiceCanvasSceneEnvelope = {
+      owner: "concierge_appointment",
+      revision: appointmentCanvasRevision,
+      actionId: conciergeVoiceAction?.id,
+      flowReference: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
+      viewModel: appointmentCanvasViewModel,
+    };
+    activeAppointmentCanvasSceneRef.current = scene;
+    emitVoiceCanvasScene(scene);
+  }, [
+    appointmentCanvasMode,
+    appointmentCanvasRevision,
+    appointmentCanvasViewModel,
+    conciergeVoiceAction?.id,
+  ]);
+
+  useEffect(() => () => {
+    clearVoiceCanvasScene({ owner: "concierge_appointment" });
+  }, []);
+
+  useEffect(() => {
+    const handleAppointmentCanvasResponse = (event: Event) => {
+      const response = event instanceof CustomEvent
+        ? (event.detail as VoiceCanvasResponseDetail | undefined)
+        : undefined;
+      const scene = activeAppointmentCanvasSceneRef.current;
+      if (!response || !scene || scene.owner !== "concierge_appointment" || !voiceCanvasResponseMatchesScene(response, scene)) return;
+
+      const answer = (response.value || response.utterance).trim();
+      const affirmative = /^(yes|yes please|confirm|continue|go ahead|si|sí|confirmar|continúa|adelante|ja|bestätigen|weiter|oui|confirmer|continuer|sì|conferma|sim|continuar)$/i.test(answer.toLocaleLowerCase());
+
+      if (response.kind === "secondary") {
+        if (appointmentCanvasStep === "time_custom") advanceAppointmentCanvas("time");
+        else if (appointmentCanvasStep === "time") advanceAppointmentCanvas("reason");
+        else if (appointmentCanvasStep === "coverage") advanceAppointmentCanvas("time");
+        else if (appointmentCanvasStep === "provider") advanceAppointmentCanvas("coverage");
+        else if (appointmentCanvasStep === "options") advanceAppointmentCanvas("provider");
+        else if (appointmentCanvasStep === "review") advanceAppointmentCanvas("options");
+        else if (appointmentCanvasStep === "error") advanceAppointmentCanvas(appointmentCanvasSelectedOption ? "review" : "provider");
+        return;
+      }
+
+      if (appointmentCanvasStep === "reason") {
+        const reason = response.kind === "primary" ? appointmentNote.trim() : answer;
+        if (!reason) return;
+        setAppointmentNote(reason);
+        advanceAppointmentCanvas("time");
+        return;
+      }
+      if (appointmentCanvasStep === "time") {
+        if (response.choiceId === "another_time") {
+          advanceAppointmentCanvas("time_custom");
+          return;
+        }
+        const timeByChoice: Record<string, string> = {
+          today: appointmentCanvasCopy.today,
+          tomorrow: appointmentCanvasCopy.tomorrow,
+          this_week: appointmentCanvasCopy.thisWeek,
+          next_week: appointmentCanvasCopy.nextWeek,
+        };
+        const requestedTime = response.choiceId ? timeByChoice[response.choiceId] : answer;
+        if (!requestedTime) return;
+        setAppointmentCanvasRequestedTime(requestedTime);
+        advanceAppointmentCanvas("coverage");
+        return;
+      }
+      if (appointmentCanvasStep === "time_custom") {
+        if (!answer || response.kind === "primary") return;
+        setAppointmentCanvasRequestedTime(answer);
+        advanceAppointmentCanvas("coverage");
+        return;
+      }
+      if (appointmentCanvasStep === "coverage") {
+        const labels: Record<string, string> = {
+          saved: savedAppointmentCoverageLabel,
+          public: appointmentCanvasCopy.publicCoverage,
+          private: appointmentCanvasCopy.privateCoverage,
+          self_pay: appointmentCanvasCopy.selfPay,
+          unknown: appointmentCanvasCopy.coverageUnsure,
+        };
+        const choice = response.choiceId || "";
+        const nextLabel = labels[choice] || answer;
+        if (!nextLabel) return;
+        setAppointmentCanvasCoverageLabel(nextLabel);
+        if (choice === "public" || choice === "private" || choice === "self_pay" || choice === "unknown") {
+          setCoverageType(choice);
+        }
+        advanceAppointmentCanvas("provider");
+        return;
+      }
+      if (appointmentCanvasStep === "provider") {
+        if (response.choiceId === "add_provider") {
+          openMedicalProviderSetup();
+          return;
+        }
+        if (response.choiceId === "saved_provider") {
+          requestAppointmentCanvasOptions(true);
+          return;
+        }
+        if (response.choiceId === "find_provider") {
+          requestAppointmentCanvasOptions(false);
+        }
+        return;
+      }
+      if (appointmentCanvasStep === "options") {
+        if (!response.choiceId || !appointmentOptions.some((option) => option.id === response.choiceId)) return;
+        setSelectedAppointmentOptionId(response.choiceId);
+        advanceAppointmentCanvas("review");
+        return;
+      }
+      if (appointmentCanvasStep === "review") {
+        if ((response.kind !== "primary" && !affirmative) || !appointmentRequest || !selectedAppointmentOption || !selectedAppointmentActionChannel) return;
+        advanceAppointmentCanvas("contacting");
+        confirmAppointmentMutation.mutate({
+          requestId: appointmentRequest.id,
+          optionId: selectedAppointmentOption.id,
+          channel: selectedAppointmentActionChannel,
+        }, {
+          onSuccess: () => advanceAppointmentCanvas("completed"),
+          onError: () => advanceAppointmentCanvas("error"),
+        });
+        return;
+      }
+      if (appointmentCanvasStep === "error" && (response.kind === "primary" || affirmative)) {
+        setAppointmentError(null);
+        advanceAppointmentCanvas(appointmentCanvasSelectedOption ? "review" : "provider");
+      }
+    };
+
+    window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleAppointmentCanvasResponse);
+    return () => window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleAppointmentCanvasResponse);
+  }, [
+    advanceAppointmentCanvas,
+    appointmentCanvasCopy,
+    appointmentCanvasSelectedOption,
+    appointmentCanvasStep,
+    appointmentNote,
+    appointmentOptions,
+    appointmentRequest,
+    confirmAppointmentMutation,
+    openMedicalProviderSetup,
+    requestAppointmentCanvasOptions,
+    savedAppointmentCoverageLabel,
+    selectedAppointmentActionChannel,
+    selectedAppointmentOption,
+  ]);
+
   const rideCanvasOptions = useMemo<ConciergeRideCanvasOption[]>(() => (
     (transportResult?.options ?? []).map((option) => ({
       id: option.id,

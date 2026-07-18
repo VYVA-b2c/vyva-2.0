@@ -354,6 +354,177 @@ describe("ConciergeScreen action hub", () => {
     window.removeEventListener(VYVA_VOICE_CANVAS_CLEAR_EVENT, handleClear);
   });
 
+  it("runs a saved medical appointment through coverage, availability, and final confirmation", async () => {
+    voiceActionMock.action = {
+      id: "voice-appointment-canvas-1",
+      actionType: "concierge.appointment_help",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Book an appointment",
+      summary: "Opening appointment help",
+      cue: "Ask for appointment details",
+      sourceText: "Book my annual check-up tomorrow morning",
+      priority: "high",
+      feedbackReason: "User requested a medical appointment",
+      payload: {
+        appointment_reason: "Annual check-up",
+        date_preference: "Tomorrow morning",
+      },
+    };
+    let contactAttempts = 0;
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{ name: "Riverside Clinic", role: "doctor", category: "doctor_clinic", phone: "+34 600 111 222" }],
+          coverage: { coverageType: "private", provider: "Health Plan", plan: "Senior Plus" },
+          serviceReadiness: { hasSavedMedicalProvider: true, hasCoverageInfo: true },
+        });
+      }
+      if (target === "/api/appointments/requests") {
+        return jsonResponse({
+          request: {
+            id: "appointment-request-1",
+            appointment_type: "medical",
+            reason_detail: "Annual check-up",
+            preferences: { date_preference: "Tomorrow morning" },
+            status: "selecting_provider",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "appointment-option-1",
+            provider_id: "provider-1",
+            provider_source: "saved",
+            provider_snapshot: {
+              name: "Riverside Clinic",
+              availability: "Tuesday at 10:00",
+              preferred_channel: "phone",
+            },
+            match_reason: "Saved trusted provider",
+            available_channels: ["phone"],
+            rank: 1,
+            status: "ready",
+          }],
+        });
+      }
+      if (target.endsWith("/confirm-attempt")) {
+        contactAttempts += 1;
+        return jsonResponse({ pending: { pendingId: "appointment-pending-1", status: "pending" } });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+    renderScreen();
+
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "appointment-coverage")).toBe(true));
+    const coverageScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "appointment-coverage")!;
+    act(() => emitVoiceCanvasResponse({
+      sceneId: coverageScene.viewModel.sceneId,
+      revision: coverageScene.revision,
+      kind: "choice",
+      choiceId: "saved",
+      utterance: "Use saved coverage",
+      value: "Use saved coverage",
+      at: "2026-07-18T11:00:00.000Z",
+    }));
+
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "appointment-provider")).toBe(true));
+    const providerScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "appointment-provider")!;
+
+    act(() => emitVoiceCanvasResponse({
+      sceneId: coverageScene.viewModel.sceneId,
+      revision: coverageScene.revision,
+      kind: "choice",
+      choiceId: "private",
+      utterance: "Private insurance",
+      value: "Private insurance",
+      at: "2026-07-18T11:00:01.000Z",
+    }));
+    expect(apiFetchMock.mock.calls.filter(([url]) => String(url) === "/api/appointments/requests")).toHaveLength(0);
+
+    act(() => emitVoiceCanvasResponse({
+      sceneId: providerScene.viewModel.sceneId,
+      revision: providerScene.revision,
+      kind: "choice",
+      choiceId: "saved_provider",
+      utterance: "Riverside Clinic",
+      value: "Riverside Clinic",
+      at: "2026-07-18T11:00:02.000Z",
+    }));
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "appointment-options")).toBe(true));
+    const optionsScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "appointment-options")!;
+    expect(optionsScene.viewModel.choices?.[0].description).toContain("Tuesday at 10:00");
+
+    act(() => emitVoiceCanvasResponse({
+      sceneId: optionsScene.viewModel.sceneId,
+      revision: optionsScene.revision,
+      kind: "choice",
+      choiceId: "appointment-option-1",
+      utterance: "Riverside Clinic",
+      value: "Riverside Clinic",
+      at: "2026-07-18T11:00:03.000Z",
+    }));
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "appointment-review")).toBe(true));
+    expect(contactAttempts).toBe(0);
+
+    const reviewScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "appointment-review")!;
+    expect(reviewScene.viewModel.primaryAction?.label).toBe("Confirm and contact provider");
+    act(() => emitVoiceCanvasResponse({
+      sceneId: reviewScene.viewModel.sceneId,
+      revision: reviewScene.revision,
+      kind: "primary",
+      utterance: "Confirm and contact provider",
+      at: "2026-07-18T11:00:04.000Z",
+    }));
+
+    await waitFor(() => expect(contactAttempts).toBe(1));
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "appointment-completed")).toBe(true));
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
+  it("clears the appointment Canvas when voice moves to another request", async () => {
+    voiceActionMock.action = {
+      id: "voice-appointment-before-interruption",
+      actionType: "concierge.appointment_help",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Book an appointment",
+      summary: "Opening appointment help",
+      cue: "Ask for appointment details",
+      sourceText: "I need a medical appointment",
+      priority: "high",
+      feedbackReason: "User requested an appointment",
+      payload: {},
+    };
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+    const clears: Array<{ owner?: string }> = [];
+    const handleClear = (event: Event) => {
+      if (event instanceof CustomEvent) clears.push(event.detail as { owner?: string });
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_CLEAR_EVENT, handleClear);
+    const view = renderScreen();
+    await waitFor(() => expect(screen.getByTestId("panel-appointment-assistant")).toBeInTheDocument());
+
+    voiceActionMock.action = {
+      ...voiceActionMock.action,
+      id: "voice-reminder-after-appointment",
+      actionType: "concierge.reminder",
+      title: "Set a reminder",
+      sourceText: "Remind me to call Maria",
+      feedbackReason: "User requested a reminder",
+    } as NonNullable<typeof voiceActionMock.action>;
+    view.rerenderScreen();
+
+    await waitFor(() => expect(clears.some((detail) => detail.owner === "concierge_appointment")).toBe(true));
+    window.removeEventListener(VYVA_VOICE_CANVAS_CLEAR_EVENT, handleClear);
+  });
+
   it("prepares a Canvas ride before requiring the separate final confirmation", async () => {
     voiceActionMock.action = {
       id: "voice-ride-canvas-confirm",
@@ -4047,6 +4218,63 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow morning");
     expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
     await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "ride-review")).toBe(true));
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
+  it("resumes a medical appointment Canvas after trusted provider setup returns", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{
+            name: "Harbour Clinic",
+            role: "doctor_clinic",
+            phone: "+34 600 222 333",
+            preferredChannel: "phone",
+          }],
+          serviceReadiness: {
+            hasSavedMedicalProvider: true,
+          },
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        trustedProviderSaved: {
+          name: "Harbour Clinic",
+          category: "doctor_clinic",
+          conciergeResume: {
+            kind: "medical_appointment",
+            appointmentType: "medical",
+            note: "Annual check-up",
+            requestedTime: "Next Tuesday morning",
+            coverageLabel: "Health Plan",
+            voiceCanvas: true,
+          },
+        },
+      },
+    }]);
+
+    const resume = await screen.findByTestId("panel-concierge-provider-resume");
+    expect(resume).toHaveTextContent("Provider saved");
+    expect(resume).toHaveTextContent("Harbour Clinic");
+
+    fireEvent.click(screen.getByTestId("button-provider-resume-continue"));
+
+    await waitFor(() => {
+      const providerScene = scenes.find((scene) => scene.viewModel.sceneId === "appointment-provider");
+      expect(providerScene).toBeDefined();
+      expect(providerScene?.viewModel.choices?.some((choice) => choice.label.includes("Harbour Clinic"))).toBe(true);
+    });
+    expect(screen.getByTestId("route-state")).toHaveTextContent("null");
+    expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
     window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
   });
 
