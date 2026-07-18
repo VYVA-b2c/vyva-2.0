@@ -1206,6 +1206,16 @@ type CampaignPlannerCopilotAction = CampaignReadinessItem & {
   kind: CampaignPlannerCopilotActionKind;
 };
 
+type MarketingDashboardAiCreatedKitSummary = {
+  campaignId: string;
+  campaignName: string;
+  packTitle: string;
+  routeChannels: Channel[];
+  recipientCount: number;
+  createdContentCount: number;
+  reusedContentCount: number;
+};
+
 type ContentDraft = {
   title: string;
   channel: Channel;
@@ -9259,6 +9269,7 @@ export default function MarketingAdminPage() {
   const [campaignIntentBrief, setCampaignIntentBrief] = useState("");
   const [marketingDashboardAiCommand, setMarketingDashboardAiCommand] = useState("");
   const [marketingDashboardAiCommandFeedback, setMarketingDashboardAiCommandFeedback] = useState("");
+  const [marketingDashboardAiCreatedKitSummary, setMarketingDashboardAiCreatedKitSummary] = useState<MarketingDashboardAiCreatedKitSummary | null>(null);
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
@@ -14178,6 +14189,8 @@ export default function MarketingAdminPage() {
     }
 
     setMarketingDashboardAiCommand(brief);
+    setMarketingDashboardAiCreatedKitSummary(null);
+    setMarketingDashboardAiCommandFeedback("");
     applyCampaignIntentBriefText(brief);
     setMessage("AI command loaded into Smart campaign studio. Review the matched plan, improve copy, then create the campaign.");
   }
@@ -16619,13 +16632,18 @@ export default function MarketingAdminPage() {
     }
   }
 
-  async function createCampaignPlanFromTemplatePack(pack: ContentTemplatePack, templates: ContentTemplate[], heroTemplate: ContentTemplate | null) {
+  async function createCampaignPlanFromTemplatePack(
+    pack: ContentTemplatePack,
+    templates: ContentTemplate[],
+    heroTemplate: ContentTemplate | null,
+    options: { routeChannels?: Channel[] } = {},
+  ): Promise<MarketingDashboardAiCreatedKitSummary | null> {
     if (!templates.length) {
       const feedback = `${pack.title} has no templates to turn into a campaign.`;
       setContentActionFeedback(feedback);
       setCampaignStudioFeedback(feedback);
       setMessage(feedback);
-      return;
+      return null;
     }
 
     const play = campaignStudioPlays.find((item) => item.id === pack.studioPlayId) ?? campaignStudioPlays[0];
@@ -16633,21 +16651,33 @@ export default function MarketingAdminPage() {
     const targetAudience = bestCampaignStudioAudience(play, audiences);
     const targetAudienceSnapshot = audienceSnapshot(targetAudience);
     const scheduleStartsAt = fromDateTimeLocal(campaignStudioDefaultSchedule(play));
-    const routeChannels = uniqueChannels([
+    const allPackRouteChannels = uniqueChannels([
       heroTemplate?.channel ?? play.defaultChannel,
       ...pack.sequence.map((step) => step.channel),
       ...templates.map((template) => template.channel),
     ]);
+    const requestedRouteChannels = options.routeChannels?.length ? uniqueChannels(options.routeChannels) : null;
+    const routeChannels = requestedRouteChannels
+      ? uniqueChannels(requestedRouteChannels.filter((channel) => allPackRouteChannels.includes(channel)))
+      : allPackRouteChannels;
+    const activeRouteChannels = routeChannels.length ? routeChannels : allPackRouteChannels;
+    const planTemplates = requestedRouteChannels
+      ? templates.filter((template) => activeRouteChannels.includes(template.channel))
+      : templates;
+    const campaignTemplates = planTemplates.length ? planTemplates : templates;
+    const planHeroTemplate = heroTemplate && activeRouteChannels.includes(heroTemplate.channel)
+      ? heroTemplate
+      : campaignTemplates.find((template) => activeRouteChannels.includes(template.channel)) ?? heroTemplate;
     const sequenceTemplates = pack.sequence.map((step) => ({
       step,
       template: step.templateId
-        ? templates.find((template) => template.id === step.templateId) ?? contentTemplateGallery.find((template) => template.id === step.templateId) ?? null
+        ? campaignTemplates.find((template) => template.id === step.templateId) ?? contentTemplateGallery.find((template) => template.id === step.templateId) ?? null
         : null,
     }));
     const routeTemplateByChannel = new Map<Channel, ContentTemplate>();
-    for (const channel of routeChannels) {
+    for (const channel of activeRouteChannels) {
       const sequenceTemplate = sequenceTemplates.find((item) => item.step.channel === channel && item.template)?.template;
-      const fallbackTemplate = templates.find((template) => template.channel === channel) ?? heroTemplate ?? templates[0];
+      const fallbackTemplate = campaignTemplates.find((template) => template.channel === channel) ?? planHeroTemplate ?? campaignTemplates[0];
       if (sequenceTemplate || fallbackTemplate) routeTemplateByChannel.set(channel, sequenceTemplate ?? fallbackTemplate);
     }
     const eligibleContacts = contacts.filter((contact) => (
@@ -16664,7 +16694,7 @@ export default function MarketingAdminPage() {
       const contentByTemplateId = new Map<string, ContentAsset>();
       const createdContent: ContentAsset[] = [];
 
-      for (const template of templates) {
+      for (const template of campaignTemplates) {
         const existing = content.find((item) => contentAssetMatchesTemplatePack(item, pack, template));
         if (existing) {
           contentByTemplateId.set(template.id, existing);
@@ -16695,11 +16725,11 @@ export default function MarketingAdminPage() {
         createdContent.push(response.content);
       }
 
-      const channelContentAssetIds = Object.fromEntries(routeChannels.map((channel) => {
+      const channelContentAssetIds = Object.fromEntries(activeRouteChannels.map((channel) => {
         const template = routeTemplateByChannel.get(channel);
         return [channel, template ? contentByTemplateId.get(template.id)?.id ?? null : null];
       })) as Partial<Record<Channel, string | null>>;
-      const channels = routeChannels.map((channel, index) => {
+      const channels = activeRouteChannels.map((channel, index) => {
         const sequenceIndex = pack.sequence.findIndex((step) => step.channel === channel);
         const sequenceStep = sequenceIndex >= 0 ? pack.sequence[sequenceIndex] : null;
         const scheduledAt = scheduleWithDelay(
@@ -16714,7 +16744,7 @@ export default function MarketingAdminPage() {
           sendCapability: channel === "email" ? "enabled" : "planning_only",
         };
       });
-      const recipients = routeChannels.flatMap((channel) => eligibleContacts.flatMap((contact) => {
+      const recipients = activeRouteChannels.flatMap((channel) => eligibleContacts.flatMap((contact) => {
         const recipient = recipientForChannel(contact, channel);
         if (!recipient) return [];
         const scheduledAt = channels.find((item) => item.channel === channel)?.scheduledAt ?? scheduleStartsAt;
@@ -16738,7 +16768,7 @@ export default function MarketingAdminPage() {
         audienceType,
         targetAudience: targetAudienceSnapshot,
         scheduleStartsAt,
-        routeChannels,
+        routeChannels: activeRouteChannels,
         routeTemplateByChannel,
         contentByTemplateId,
         channels,
@@ -16770,10 +16800,11 @@ export default function MarketingAdminPage() {
               tone: pack.toneId,
               angle: pack.angleId,
               aiPrompt: pack.aiPrompt,
-              routeChannels,
-              templateIds: templates.map((template) => template.id),
+              routeChannels: activeRouteChannels,
+              templateIds: campaignTemplates.map((template) => template.id),
               contentAssetIds: channelContentAssetIds,
               sequence: pack.sequence,
+              routeFilter: requestedRouteChannels ? activeRouteChannels : undefined,
               launchPacket,
             },
           }, targetAudience),
@@ -16797,16 +16828,26 @@ export default function MarketingAdminPage() {
       setContentTemplateAudienceFilter("all");
       setContentTemplateCategoryFilter("all");
       setActiveTab("dashboard");
-      const reusedCount = templates.length - createdContent.length;
-      const feedback = `Created ${pack.title} campaign plan with ${routeChannels.length} channel route${routeChannels.length === 1 ? "" : "s"}, ${recipients.length} recipient snapshot${recipients.length === 1 ? "" : "s"}, ${createdContent.length} new content asset${createdContent.length === 1 ? "" : "s"}${reusedCount ? `, and ${reusedCount} reused asset${reusedCount === 1 ? "" : "s"}` : ""}.`;
+      const reusedCount = campaignTemplates.length - createdContent.length;
+      const feedback = `Created ${pack.title} campaign plan with ${activeRouteChannels.length} channel route${activeRouteChannels.length === 1 ? "" : "s"}, ${recipients.length} recipient snapshot${recipients.length === 1 ? "" : "s"}, ${createdContent.length} new content asset${createdContent.length === 1 ? "" : "s"}${reusedCount ? `, and ${reusedCount} reused asset${reusedCount === 1 ? "" : "s"}` : ""}.`;
       setContentActionFeedback(feedback);
       setCampaignStudioFeedback(feedback);
       setMessage(feedback);
+      return {
+        campaignId: campaignResult.campaign.id,
+        campaignName: campaignResult.campaign.name,
+        packTitle: pack.title,
+        routeChannels: activeRouteChannels,
+        recipientCount: recipients.length,
+        createdContentCount: createdContent.length,
+        reusedContentCount: reusedCount,
+      };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : `${pack.title} campaign plan could not be created.`;
       setContentActionFeedback(errorMessage);
       setCampaignStudioFeedback(errorMessage);
       setMessage(errorMessage);
+      return null;
     } finally {
       setCampaignSaving(false);
       setContentSaving(false);
@@ -20360,7 +20401,17 @@ export default function MarketingAdminPage() {
 
     setCampaignIntentBrief(marketingDashboardAiCommand.trim());
     setCampaignStudioFeedback(`Creating AI-matched launch kit from ${packMatch.pack.title}...`);
-    await createCampaignPlanFromTemplatePack(packMatch.pack, packMatch.templates, packMatch.heroTemplate);
+    setMarketingDashboardAiCommandFeedback(`Creating ${packMatch.pack.title} launch kit...`);
+    const summary = await createCampaignPlanFromTemplatePack(
+      packMatch.pack,
+      packMatch.templates,
+      packMatch.heroTemplate,
+      { routeChannels: plan.selectedChannels },
+    );
+    if (summary) {
+      setMarketingDashboardAiCreatedKitSummary(summary);
+      setMarketingDashboardAiCommandFeedback(`Created "${summary.campaignName}". Review the campaign detail panel for send, handoff, and follow-up.`);
+    }
   }
 
   async function copyMarketingDashboardAiCommandBrief() {
@@ -20939,6 +20990,36 @@ export default function MarketingAdminPage() {
                             <p className="mt-3 rounded-lg bg-purple-50 px-2.5 py-2 text-[11px] font-black text-purple-900" data-testid="marketing-ai-command-feedback">
                               {marketingDashboardAiCommandFeedback}
                             </p>
+                          ) : null}
+                          {marketingDashboardAiCreatedKitSummary ? (
+                            <div className="mt-3 rounded-xl border border-purple-200 bg-white p-3 shadow-sm" data-testid="marketing-ai-command-created-kit">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-purple-800">Launch kit created</p>
+                                  <h4 className="mt-1 text-sm font-black text-[#241133]">{marketingDashboardAiCreatedKitSummary.campaignName}</h4>
+                                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                                    Open below in campaign details for final email review, manual handoffs, and relationship follow-up.
+                                  </p>
+                                </div>
+                                <Pill className="bg-emerald-100 text-emerald-900">Opened for review</Pill>
+                              </div>
+                              <div className="mt-3 grid gap-2 text-xs font-bold text-[#5b4a46] sm:grid-cols-3">
+                                <div className="rounded-lg bg-purple-50 px-2.5 py-2" data-testid="marketing-ai-command-created-kit-routes">
+                                  <span className="block text-[#7d6b65]">Routes</span>
+                                  <span className="mt-1 block text-[#241133]">{formatChannelList(marketingDashboardAiCreatedKitSummary.routeChannels)}</span>
+                                </div>
+                                <div className="rounded-lg bg-emerald-50 px-2.5 py-2" data-testid="marketing-ai-command-created-kit-recipients">
+                                  <span className="block text-[#7d6b65]">Recipient snapshots</span>
+                                  <span className="mt-1 block text-[#241133]">{marketingDashboardAiCreatedKitSummary.recipientCount}</span>
+                                </div>
+                                <div className="rounded-lg bg-amber-50 px-2.5 py-2" data-testid="marketing-ai-command-created-kit-assets">
+                                  <span className="block text-[#7d6b65]">Content assets</span>
+                                  <span className="mt-1 block text-[#241133]">
+                                    {marketingDashboardAiCreatedKitSummary.createdContentCount} new / {marketingDashboardAiCreatedKitSummary.reusedContentCount} reused
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
                           ) : null}
                           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                             <button

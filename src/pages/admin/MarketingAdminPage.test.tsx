@@ -1333,6 +1333,11 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Created Clinic and pharmacy referral campaign plan");
     });
+    expect(screen.getByTestId("marketing-ai-command-created-kit")).toHaveTextContent("Launch kit created");
+    expect(screen.getByTestId("marketing-ai-command-created-kit")).toHaveTextContent("Clinic and pharmacy referral campaign plan");
+    expect(screen.getByTestId("marketing-ai-command-created-kit-routes")).toHaveTextContent("Email and LinkedIn");
+    expect(screen.getByTestId("marketing-ai-command-created-kit-recipients")).toHaveTextContent("2");
+    expect(screen.getByTestId("marketing-ai-command-created-kit-assets")).toHaveTextContent("new");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Clinic and pharmacy referral campaign plan");
 
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-customize-pack"));
