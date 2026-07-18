@@ -1063,6 +1063,14 @@ type CampaignApprovalItem = CampaignReadinessItem & {
   icon: LucideIcon;
 };
 
+type CampaignOperatorSheetItem = {
+  key: string;
+  label: string;
+  value: string;
+  detail: string;
+  state: CampaignReadinessState;
+};
+
 type AudienceHealthAction = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -19897,6 +19905,99 @@ export default function MarketingAdminPage() {
         : "All channels are planning or manual handoff until provider integrations are enabled.",
     },
   ] : [];
+  const campaignOperatorAudienceLabel = selectedCampaignTargetAudience
+    ? selectedCampaignTargetAudience.name
+    : `${campaignEditDraft.audienceType.toUpperCase()} audience`;
+  const campaignOperatorChannelLabels = campaignPublishKitItems.map((item) => channelLabel[item.channel]);
+  const campaignOperatorContentRouteDetail = campaignPublishKitItems.length
+    ? campaignPublishKitItems.map((item) => `${channelLabel[item.channel]}: ${item.contentAsset?.title ?? "missing content"}`).join("; ")
+    : "No campaign channels have been added.";
+  const campaignOperatorWhereDetail = campaignPublishKitItems.length
+    ? campaignPublishKitItems.map((item) => {
+      if (item.channel === "email") return `${channelLabel[item.channel]}: VYVA email dispatcher`;
+      return `${channelLabel[item.channel]}: manual handoff and outcome tracking`;
+    }).join("; ")
+    : "Add at least one channel before planning launch work.";
+  const campaignOperatorRiskDetail = campaignEmailBlockedReason || testEmailBlockedReason || (
+    selectedCampaignMetrics.length || manualPublishResults.length
+      ? `${selectedCampaignMetrics.length} imported metric row${selectedCampaignMetrics.length === 1 ? "" : "s"} and ${manualPublishResults.length} manual outcome${manualPublishResults.length === 1 ? "" : "s"} available.`
+      : "No active send blocker. Track results after launch."
+  );
+  const campaignOperatorSheetItems: CampaignOperatorSheetItem[] = editingCampaign ? [
+    {
+      key: "who",
+      label: "Who",
+      value: campaignOperatorAudienceLabel,
+      detail: savedCampaignRecipientCount > 0
+        ? `${savedCampaignRecipientCount} saved recipient${savedCampaignRecipientCount === 1 ? "" : "s"} locked for launch.`
+        : pendingCampaignSnapshotCount > 0
+          ? `${pendingCampaignSnapshotCount} eligible contact${pendingCampaignSnapshotCount === 1 ? "" : "s"} waiting to be saved as a snapshot.`
+          : selectedCampaignTargetAudience
+            ? `${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} list contacts mapped.`
+            : "No fixed list selected; uses all eligible contacts for the audience type.",
+      state: savedCampaignRecipientCount > 0
+        ? "ready"
+        : pendingCampaignSnapshotCount > 0
+          ? "needs_action"
+          : selectedCampaignTargetAudience && selectedCampaignTargetAudience.mappedMemberCount === 0
+            ? "blocked"
+            : "planning",
+    },
+    {
+      key: "what",
+      label: "What",
+      value: `${linkedCampaignContentCount}/${campaignReadinessChannels.length} assets linked`,
+      detail: campaignOperatorContentRouteDetail,
+      state: campaignReadinessChannels.length > 0 && missingCampaignContentChannels.length === 0
+        ? "ready"
+        : linkedCampaignContentCount > 0
+          ? "needs_action"
+          : "blocked",
+    },
+    {
+      key: "when",
+      label: "When",
+      value: campaignForLaunchPacket?.scheduleStartsAt ? formatDate(campaignForLaunchPacket.scheduleStartsAt) : "Not scheduled",
+      detail: campaignForLaunchPacket?.scheduleEndsAt
+        ? `Ends ${formatDate(campaignForLaunchPacket.scheduleEndsAt)} in ${campaignForLaunchPacket.timezone}.`
+        : `Timezone: ${campaignForLaunchPacket?.timezone || campaignEditDraft.timezone || "Europe/Madrid"}.`,
+      state: campaignEditDraft.scheduleStartsAt ? "ready" : "planning",
+    },
+    {
+      key: "where",
+      label: "Where",
+      value: campaignOperatorChannelLabels.length ? campaignOperatorChannelLabels.join(", ") : "No channels",
+      detail: campaignOperatorWhereDetail,
+      state: campaignPublishKitItems.length > 0 ? "ready" : "blocked",
+    },
+    {
+      key: "risk",
+      label: "Risk",
+      value: campaignEmailBlockedReason || testEmailBlockedReason ? "Review before launch" : "No active blocker",
+      detail: campaignOperatorRiskDetail,
+      state: campaignEmailBlockedReason || testEmailBlockedReason ? "needs_action" : "ready",
+    },
+  ] : [];
+  const campaignOperatorSheetText = editingCampaign && campaignForLaunchPacket ? [
+    "VYVA campaign operator sheet",
+    `Campaign: ${campaignForLaunchPacket.name}`,
+    `Status: ${campaignForLaunchPacket.status}`,
+    `Audience: ${campaignOperatorAudienceLabel}`,
+    `Recipients: ${savedCampaignRecipientCount > 0 ? `${savedCampaignRecipientCount} saved` : pendingCampaignSnapshotCount > 0 ? `${pendingCampaignSnapshotCount} preview` : "No saved snapshot"}`,
+    `Schedule: ${campaignForLaunchPacket.scheduleStartsAt ? formatDate(campaignForLaunchPacket.scheduleStartsAt) : "Not scheduled"} (${campaignForLaunchPacket.timezone})`,
+    `Channels: ${campaignOperatorChannelLabels.join(", ") || "None"}`,
+    `Objective: ${campaignForLaunchPacket.objective || "No objective yet."}`,
+    "",
+    "Operator checklist:",
+    ...campaignOperatorSheetItems.map((item) => `- ${item.label}: ${item.value} - ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Channel route:",
+    ...campaignPublishKitItems.map((item) => `- ${channelLabel[item.channel]}: ${item.contentAsset?.title ?? "Missing content"}; ${item.channel === "email" ? "send through VYVA when unblocked" : "publish manually, then record the outcome"}; recipients: ${item.recipients || savedCampaignRecipientCount}.`),
+    "",
+    `Next action: ${campaignNextLaunchStep?.title ?? "Review campaign"} - ${campaignNextLaunchStep?.detail ?? "Complete the first unfinished campaign step."}`,
+    `Risk gate: ${campaignOperatorRiskDetail}`,
+    `Tracking: ${selectedCampaignMetrics.length} imported metric row${selectedCampaignMetrics.length === 1 ? "" : "s"}; ${manualPublishResults.length} manual outcome${manualPublishResults.length === 1 ? "" : "s"}.`,
+  ].join("\n") : "";
   const campaignAiCommandBrief = editingCampaign && campaignForLaunchPacket ? [
     "VYVA campaign AI command brief",
     `Campaign: ${campaignForLaunchPacket.name}`,
@@ -24473,6 +24574,41 @@ export default function MarketingAdminPage() {
                                 <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
                               </div>
                             ))}
+                          </div>
+                        ) : null}
+                        {campaignOperatorSheetItems.length ? (
+                          <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-campaign-operator-sheet">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Operator sheet</p>
+                                <h4 className="mt-1 text-base font-black text-[#241133]">Who, what, when, where, and launch risk</h4>
+                                <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">A compact handoff for the person sending, publishing, or tracking this campaign.</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignHandoffText("Campaign operator sheet", campaignOperatorSheetText)}
+                                disabled={!campaignOperatorSheetText.trim()}
+                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:text-[#b8abb8]"
+                                data-testid="button-marketing-copy-campaign-operator-sheet"
+                              >
+                                <Copy size={15} aria-hidden="true" />
+                                Copy operator sheet
+                              </button>
+                            </div>
+                            <div className="mt-3 grid gap-2 xl:grid-cols-5">
+                              {campaignOperatorSheetItems.map((item) => (
+                                <article key={item.key} className={`rounded-lg border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-operator-sheet-${item.key}`}>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <p className="text-[11px] font-black uppercase tracking-[0.12em] opacity-75">{item.label}</p>
+                                      <h5 className="mt-1 text-sm font-black">{item.value}</h5>
+                                    </div>
+                                    <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                  </div>
+                                  <p className="mt-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                                </article>
+                              ))}
+                            </div>
                           </div>
                         ) : null}
                         {campaignLaunchControlItems.length ? (
