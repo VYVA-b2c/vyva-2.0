@@ -1575,6 +1575,23 @@ const fr = {
         hold_steady: "Restez immobile",
         ready: "Pret - ne bougez plus",
       },
+      spoken: {
+        turnOffGuidance: "Desactiver le guidage vocal",
+        turnOnGuidance: "Activer le guidage vocal",
+        turnOffCommands: "Desactiver les commandes vocales",
+        turnOnCommands: "Activer les commandes vocales",
+        commandsUnavailable: "Les commandes vocales ne sont pas disponibles dans ce navigateur",
+        commandHint: "Dites 'Prendre la photo', 'Annuler' ou 'Importer plutot'.",
+        preparingCommands: "Preparation des commandes vocales...",
+        prompt: {
+          find_more_light: "Trouvez plus de lumiere.",
+          move_closer: "Rapprochez-vous.",
+          tilt_away_from_glare: "Inclinez pour eviter le reflet.",
+          hold_steady: "Restez immobile.",
+        },
+        countdown: { three: "Trois", two: "Deux", one: "Un" },
+        captured: "Photo prise.",
+      },
     },
     executor: {
       saved: "Enregistre. Continue dans Concierge quand tu es pret.",

@@ -1907,3 +1907,7 @@ export function useVyvaVoice() {
   }
   return context;
 }
+
+export function useOptionalVyvaVoice() {
+  return useContext(VyvaVoiceContext);
+}

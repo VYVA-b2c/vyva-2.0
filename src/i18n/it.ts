@@ -1517,6 +1517,23 @@ const it = {
         hold_steady: "Tieni fermo",
         ready: "Pronto - resta fermo",
       },
+      spoken: {
+        turnOffGuidance: "Disattiva la guida vocale",
+        turnOnGuidance: "Attiva la guida vocale",
+        turnOffCommands: "Disattiva i comandi vocali",
+        turnOnCommands: "Attiva i comandi vocali",
+        commandsUnavailable: "I comandi vocali non sono disponibili in questo browser",
+        commandHint: "Di 'Scatta la foto', 'Annulla' o 'Carica invece'.",
+        preparingCommands: "Preparazione dei comandi vocali...",
+        prompt: {
+          find_more_light: "Trova piu luce.",
+          move_closer: "Avvicinati.",
+          tilt_away_from_glare: "Inclina per evitare il riflesso.",
+          hold_steady: "Tieni fermo.",
+        },
+        countdown: { three: "Tre", two: "Due", one: "Uno" },
+        captured: "Foto scattata.",
+      },
     },
     executor: {
       saved: "Salvato. Continua in Concierge quando vuoi.",
