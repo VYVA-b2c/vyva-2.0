@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComponentProps, ReactNode } from "react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeScreen, { type ConciergeScreenMode } from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
@@ -113,9 +113,13 @@ function LocationProbe() {
   );
 }
 
-function RoutedConciergeScreen() {
-  const location = useLocation();
-  return <ConciergeScreen mode={location.pathname.startsWith("/concierge/task/") ? "task" : "home"} />;
+function RoutedConciergeRoutes() {
+  return (
+    <Routes>
+      <Route path="/concierge" element={<ConciergeScreen mode="home" />} />
+      <Route path="/concierge/task/:taskId" element={<ConciergeScreen mode="task" />} />
+    </Routes>
+  );
 }
 
 function jsonResponse(body: unknown) {
@@ -192,7 +196,15 @@ function renderScreen(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={initialEntries}>
         <LocationProbe />
-        {mode === "route" ? <RoutedConciergeScreen /> : <ConciergeScreen mode={mode} />}
+        {mode === "route"
+          ? <RoutedConciergeRoutes />
+          : mode === "task"
+            ? (
+                <Routes>
+                  <Route path="/concierge/task/:taskId" element={<ConciergeScreen mode="task" />} />
+                </Routes>
+              )
+            : <ConciergeScreen mode={mode} />}
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -259,6 +271,7 @@ afterEach(() => {
 });
 
 describe("ConciergeScreen task navigation", () => {
+  const savedTaskId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const pendingTask = {
     id: "task-1",
     use_case: "book_appointment",
@@ -272,11 +285,45 @@ describe("ConciergeScreen task navigation", () => {
     language: "en",
   };
 
-  function mockConciergeLists(pending = [pendingTask], completed: unknown[] = []) {
-    apiFetchMock.mockImplementation(async (url) => {
-      if (String(url) === "/api/concierge/actions/pending") return jsonResponse({ items: pending });
-      if (String(url) === "/api/concierge/actions/sessions") return jsonResponse({ items: completed });
-      if (String(url) === "/api/profile") return jsonResponse({ savedProviders: [], serviceReadiness: {} });
+  function mockConciergeLists(pending = [pendingTask], completed: unknown[] = [], tasks: Array<Record<string, unknown>> = []) {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target === "/api/concierge/actions/pending") return jsonResponse({ items: pending });
+      if (target === "/api/concierge/actions/sessions") return jsonResponse({ items: completed });
+      if (target === "/api/profile") return jsonResponse({ savedProviders: [], serviceReadiness: {} });
+      if (target === "/api/concierge/tasks" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { entry: Record<string, unknown>; language: string };
+        return jsonResponse({ task: {
+          id: savedTaskId,
+          user_id: "user-1",
+          kind: body.entry.kind,
+          entry_payload: body.entry,
+          progress_payload: {},
+          stage: "details",
+          status: "active",
+          linked_pending_id: null,
+          language: body.language,
+          created_at: "2026-07-18T12:00:00.000Z",
+          updated_at: "2026-07-18T12:00:00.000Z",
+          completed_at: null,
+          deleted_at: null,
+        } });
+      }
+      if (target === "/api/concierge/tasks") return jsonResponse({ items: tasks });
+      if (target.startsWith("/api/concierge/tasks/") && init?.method === "PATCH") {
+        const current = tasks.find((task) => task.id === target.split("/").pop());
+        const body = JSON.parse(String(init.body)) as { progress: Record<string, unknown>; stage: string };
+        return jsonResponse({ task: {
+          ...(current ?? tasks[0] ?? {}),
+          id: target.split("/").pop(),
+          progress_payload: body.progress,
+          stage: body.stage,
+        } });
+      }
+      if (target.startsWith("/api/concierge/tasks/")) {
+        const current = tasks.find((task) => task.id === target.split("/").pop());
+        return current ? jsonResponse({ task: current }) : errorResponse(404, { error: "not found" });
+      }
       return jsonResponse({ items: [] });
     });
   }
@@ -299,7 +346,9 @@ describe("ConciergeScreen task navigation", () => {
 
     fireEvent.click(await screen.findByTestId("button-concierge-fast-fill-form"));
 
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/new");
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent(`/concierge/task/${savedTaskId}`);
+    });
     expect(await screen.findByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "details");
     expect(await screen.findByTestId("panel-insurance-admin")).toBeInTheDocument();
     expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
@@ -333,6 +382,178 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getByTestId("concierge-task-confirmation-screen")).toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "Task progress" })).getByText("Confirm")).toHaveAttribute("aria-current", "step");
     expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
+  });
+
+  it("continues the newest saved task at its saved stage", async () => {
+    const savedTask = {
+      id: savedTaskId,
+      user_id: "user-1",
+      kind: "document",
+      entry_payload: { kind: "document", documentKind: "claim" },
+      progress_payload: {
+        documentKind: "claim",
+        documentDetails: { subject: "Roof claim", recipient: "Insurer", deadline: "Friday", notes: "Photos ready" },
+      },
+      stage: "review",
+      status: "active",
+      linked_pending_id: null,
+      language: "en",
+      created_at: "2026-07-18T12:00:00.000Z",
+      updated_at: "2026-07-18T12:05:00.000Z",
+      completed_at: null,
+      deleted_at: null,
+    };
+    mockConciergeLists([], [], [savedTask]);
+    renderScreen(["/concierge"], "route");
+
+    fireEvent.click(await screen.findByTestId("button-concierge-continue-task"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent(`/concierge/task/${savedTaskId}`);
+    await waitFor(() => {
+      expect(screen.getByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "review");
+      expect(screen.getByTestId("input-insurance-admin-subject")).toHaveValue("Roof claim");
+    });
+    expect(screen.getByTestId("input-insurance-admin-recipient")).toHaveValue("Insurer");
+  });
+
+  it.each([
+    ["appointment", { appointmentType: "medical", note: "Annual check", requestedTime: "Tuesday morning" }, "input-appointment-note", "Annual check"],
+    ["provider_contact", { providerSearchMode: "specialist", query: "dermatologist nearby", criteria: ["nearby"] }, "input-offers-query", "dermatologist nearby"],
+  ])("restores saved %s progress after refresh", async (kind, progress, fieldTestId, expectedValue) => {
+    const savedTask = {
+      id: savedTaskId,
+      user_id: "user-1",
+      kind,
+      entry_payload: { kind },
+      progress_payload: progress,
+      stage: "details",
+      status: "active",
+      linked_pending_id: null,
+      language: "en",
+      created_at: "2026-07-18T12:00:00.000Z",
+      updated_at: "2026-07-18T12:05:00.000Z",
+      completed_at: null,
+      deleted_at: null,
+    };
+    mockConciergeLists([], [], [savedTask]);
+    localStorage.setItem(HOME_SERVICE_GUIDE_STORAGE_KEY, "true");
+    renderScreen([`/concierge/task/${savedTaskId}`], "task");
+
+    expect(await screen.findByTestId(fieldTestId)).toHaveValue(expectedValue);
+    expect(screen.getByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "details");
+  });
+
+  it("restores saved home-service answers after refresh", async () => {
+    const savedTask = {
+      id: savedTaskId,
+      user_id: "user-1",
+      kind: "home_service",
+      entry_payload: { kind: "home_service" },
+      progress_payload: {
+        appointmentType: "home-service",
+        note: "Leaking tap",
+        serviceType: "plumber",
+        answers: { problem_summary: "Leaking tap" },
+        textDrafts: { problem_summary: "Leaking tap" },
+      },
+      stage: "details",
+      status: "active",
+      linked_pending_id: null,
+      language: "en",
+      created_at: "2026-07-18T12:00:00.000Z",
+      updated_at: "2026-07-18T12:05:00.000Z",
+      completed_at: null,
+      deleted_at: null,
+    };
+    mockConciergeLists([], [], [savedTask]);
+    localStorage.setItem(HOME_SERVICE_GUIDE_STORAGE_KEY, "true");
+    renderScreen([`/concierge/task/${savedTaskId}`], "task");
+
+    expect(await screen.findByTestId("panel-home-service-intake")).toHaveTextContent("Plumber");
+    expect(screen.getByTestId("panel-home-service-question")).toBeInTheDocument();
+  });
+
+  it("autosaves edited progress without confirmation state", async () => {
+    const savedTask = {
+      id: savedTaskId,
+      user_id: "user-1",
+      kind: "document",
+      entry_payload: { kind: "document", documentKind: "claim" },
+      progress_payload: {
+        documentKind: "claim",
+        documentDetails: { subject: "", recipient: "", deadline: "", notes: "" },
+      },
+      stage: "details",
+      status: "active",
+      linked_pending_id: null,
+      language: "en",
+      created_at: "2026-07-18T12:00:00.000Z",
+      updated_at: "2026-07-18T12:00:00.000Z",
+      completed_at: null,
+      deleted_at: null,
+    };
+    mockConciergeLists([], [], [savedTask]);
+    renderScreen([`/concierge/task/${savedTaskId}`], "task");
+    fireEvent.change(await screen.findByTestId("input-insurance-admin-subject"), {
+      target: { value: "Updated claim" },
+    });
+
+    await waitFor(() => {
+      const saveCall = apiFetchMock.mock.calls.find(([url, init]) => (
+        String(url) === `/api/concierge/tasks/${savedTaskId}` && init?.method === "PATCH"
+      ));
+      expect(saveCall).toBeDefined();
+      const body = JSON.parse(String(saveCall?.[1]?.body));
+      expect(body).toMatchObject({
+        stage: "details",
+        progress: { documentDetails: { subject: "Updated claim" } },
+      });
+      expect(JSON.stringify(body)).not.toContain("confirm");
+    }, { timeout: 2_000 });
+  });
+
+  it("requires fresh confirmation for a resumed provider action", async () => {
+    const linkedPending = { ...pendingTask, id: "pending-action-1" };
+    const savedTask = {
+      id: savedTaskId,
+      user_id: "user-1",
+      kind: "appointment",
+      entry_payload: { kind: "appointment", appointmentKind: "medical" },
+      progress_payload: { appointmentType: "medical", note: "Follow-up" },
+      stage: "review",
+      status: "active",
+      linked_pending_id: linkedPending.id,
+      language: "en",
+      created_at: "2026-07-18T12:00:00.000Z",
+      updated_at: "2026-07-18T12:05:00.000Z",
+      completed_at: null,
+      deleted_at: null,
+    };
+    mockConciergeLists([linkedPending], [], [savedTask]);
+    renderScreen([`/concierge/task/${savedTaskId}`], "task");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "confirmation");
+    });
+    expect(screen.getByTestId("concierge-task-confirmation-screen")).toBeInTheDocument();
+    expect(screen.queryByTestId("modal-concierge-final-confirmation")).not.toBeInTheDocument();
+  });
+
+  it("redirects instead of reopening a completed or deleted task", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === `/api/concierge/tasks/${savedTaskId}`) {
+        return errorResponse(410, { error: "Task is no longer active", status: "deleted" });
+      }
+      if (target === "/api/concierge/tasks") return jsonResponse({ items: [] });
+      if (target === "/api/profile") return jsonResponse({ savedProviders: [], serviceReadiness: {} });
+      return jsonResponse({ items: [] });
+    });
+    renderScreen([`/concierge/task/${savedTaskId}`], "route");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge");
+    });
+    expect(screen.queryByTestId("button-concierge-task-delete")).not.toBeInTheDocument();
   });
 });
 

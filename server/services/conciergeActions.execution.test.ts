@@ -877,6 +877,7 @@ describe("confirmed Concierge action execution", () => {
       found_externally: false,
       action_summary: "Dry-run insurance paperwork request.",
       action_payload: {
+        concierge_task_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         dry_run: true,
         test_mode: "concierge_dry_run",
         no_real_provider_contact: true,
@@ -895,6 +896,10 @@ describe("confirmed Concierge action execution", () => {
     const result = await completePendingConciergeAction("55555555-5555-5555-5555-555555555555", "user-1");
 
     expect(result).toEqual({ ok: true, status: "completed", sessionId: "session-dry-run" });
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining("update concierge_task_drafts"),
+      ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "user-1"],
+    );
     const insertCall = client.query.mock.calls.find(([sql]) => String(sql).includes("insert into concierge_sessions"));
     expect(insertCall).toBeTruthy();
     const params = insertCall?.[1] as unknown[];

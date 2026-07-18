@@ -119,6 +119,14 @@ export interface PendingActionDetailsUpdateInput {
   answerValue?: string | null;
 }
 
+function conciergeTaskIdFromPayload(payload: Record<string, unknown> | null | undefined): string | null {
+  const value = payload?.concierge_task_id;
+  return typeof value === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
+}
+
 export interface PendingActionDetailsUpdateResult {
   ok: true;
   item: PendingRow;
@@ -417,6 +425,18 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
       language,
     ],
   );
+
+  const conciergeTaskId = conciergeTaskIdFromPayload(actionPayload);
+  if (conciergeTaskId && result.rows[0]) {
+    await pool.query(
+      `
+        update concierge_task_drafts
+        set linked_pending_id = $2::uuid, stage = 'review', updated_at = now()
+        where id = $1::uuid and user_id = $3 and status = 'active'
+      `,
+      [conciergeTaskId, result.rows[0].id, input.userId],
+    );
+  }
 
   return result.rows[0]!;
 }
@@ -1419,6 +1439,17 @@ export async function completePendingConciergeAction(
       `,
       [pendingId, JSON.stringify(finalActionPayload)],
     );
+    const conciergeTaskId = conciergeTaskIdFromPayload(finalActionPayload);
+    if (conciergeTaskId) {
+      await client.query(
+        `
+          update concierge_task_drafts
+          set status = 'completed', completed_at = now(), updated_at = now()
+          where id = $1::uuid and user_id = $2 and status = 'active'
+        `,
+        [conciergeTaskId, pending.user_id],
+      );
+    }
     await client.query("commit");
     return { ok: true, status: "completed", sessionId: storedSession.rows[0]?.id ?? null };
   } catch (err) {

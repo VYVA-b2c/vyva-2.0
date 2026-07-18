@@ -732,6 +732,20 @@ router.get("/requests/active-home-service", async (req: Request, res: Response) 
   }
 });
 
+router.get("/requests/:id", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  try {
+    const request = await loadRequestForUser(req.params.id, userId);
+    if (!request) return res.status(404).json({ error: "Appointment request not found" });
+    const options = await loadOptionsForRequest(request.id, userId);
+    return res.json({ request, options, mission: missionStateFor({ request, options }) });
+  } catch (err) {
+    console.error("[appointments GET /requests/:id]", err);
+    return res.status(500).json({ error: "Could not load appointment request" });
+  }
+});
+
 router.post("/requests", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -1032,6 +1046,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
     const bookingUrl = snapshotText(snapshot, "booking_url");
     const channel = parsed.data.channel;
     const flowReference = appointmentRequestFlowReference(request);
+    const conciergeTaskId = recordText(recordValue(request.preferences), "concierge_task_id");
     const communicationRecipient = appointmentChannelRecipient(channel, snapshot);
     const homeServicePayload = confirmedHomeServicePayload(request, parsed.data.share_details);
     const photoAttachment = confirmedPhotoAttachment(request, channel, parsed.data.share_details);
@@ -1090,6 +1105,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           foundExternally: option.provider_source !== "saved",
           actionSummary: `VYVA is calling ${providerName} to request this appointment.`,
           actionPayload: {
+            concierge_task_id: conciergeTaskId,
             appointment_request_id: request.id,
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
@@ -1255,6 +1271,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           foundExternally: option.provider_source !== "saved",
           actionSummary: `VYVA will handle the booking form for ${providerName}.`,
           actionPayload: {
+            concierge_task_id: conciergeTaskId,
             appointment_request_id: request.id,
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
@@ -1315,6 +1332,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
         foundExternally: option.provider_source !== "saved",
         actionSummary: `VYVA will handle the next appointment step for ${providerName}.`,
         actionPayload: {
+          concierge_task_id: conciergeTaskId,
           appointment_request_id: request.id,
           appointment_option_id: option.id,
           appointment_attempt_id: attempt.id,
