@@ -298,6 +298,7 @@ app.get("/api/config/features/ride-voice-canvas", (_req, res) => {
   res.setHeader("cache-control", "no-store");
   return res.json({ enabled, rolloutPercent });
 });
+app.get("/api/config/features/appointment-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
 
 app.post("/api/places/autocomplete", async (req, res) => {
   const key = getGooglePlacesApiKey();

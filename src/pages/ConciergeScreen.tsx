@@ -63,12 +63,19 @@ import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPane
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
 import {
+  AppointmentVoiceCanvas,
   RideVoiceCanvas,
+  type AppointmentCanvasCopy,
+  type AppointmentCanvasDraft,
+  type AppointmentCanvasState,
   type RideCanvasCopy,
   type RideCanvasDraft,
   type RideCanvasState,
+  isAppointmentCanvasEnabled,
   isRideCanvasEnabled,
+  parseAppointmentCanvasRolloutConfig,
   parseRideCanvasRolloutConfig,
+  trackAppointmentCanvasEvent,
   trackRideCanvasEvent,
 } from "@/components/voice-canvas";
 import ProviderComparisonPanel from "@/components/ProviderComparisonPanel";
@@ -9296,6 +9303,7 @@ const ConciergeScreen = () => {
   const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
   const savedCoverage = conciergeProfile?.coverage ?? null;
   const hasSavedMedicalProvider = profileHasSavedMedicalProvider(conciergeProfile);
+  const savedMedicalProvider = savedMedicalProviderName(conciergeProfile);
   const savedPharmacyProviderDetailsValue = savedPharmacyProviderDetails(conciergeProfile);
   const savedPharmacy = savedPharmacyProviderDetailsValue?.name?.trim() || savedPharmacyName(conciergeProfile);
   const hasSavedPharmacy = profileHasSavedPharmacy(conciergeProfile);
@@ -14336,6 +14344,25 @@ const ConciergeScreen = () => {
     transportMobilityNeeds,
     transportPickup,
   ]);
+  const isVoiceAppointmentHandoff=routePrefill?.kind==="appointment"&&routePrefill.source==="voice_action";
+  const appointmentCanvasRolloutQuery=useQuery({queryKey:["/api/config/features/appointment-voice-canvas"],queryFn:async()=>{const response=await apiFetch("/api/config/features/appointment-voice-canvas");return response.ok?parseAppointmentCanvasRolloutConfig(await response.json()):{enabled:false,rolloutPercent:0}},enabled:isVoiceAppointmentHandoff,staleTime:0,refetchInterval:10_000,refetchOnWindowFocus:"always",retry:false});
+  const usesAppointmentVoiceCanvas=isVoiceAppointmentHandoff&&isAppointmentCanvasEnabled(appointmentCanvasRolloutQuery.data,conciergeVoiceAction?.id??"anonymous");
+  const appointmentCanvasCopy=useMemo<AppointmentCanvasCopy>(()=>({
+    listening:{status:isSpanish?"Escuchando":"Listening",title:isSpanish?"Preparemos tu cita":"Let’s prepare your appointment",helper:isSpanish?"Puedes hablar o usar los botones.":"Use your voice or the buttons below.",start:isSpanish?"Empezar":"Start",cancel:isSpanish?"Ahora no":"Not now"},
+    provider:{title:isSpanish?"¿Con qué profesional o clínica?":"Which clinician or clinic?",helper:isSpanish?"Elige uno guardado o añade otro.":"Choose a saved provider or add another.",newProvider:isSpanish?"Otro profesional o clínica":"A different provider",newProviderHelper:isSpanish?"Escribe el nombre":"Enter the provider name",back:isSpanish?"Volver":"Go back"},
+    providerEntry:{title:isSpanish?"¿Qué nombre usamos?":"What provider should we use?",helper:isSpanish?"Escribe el profesional o la clínica.":"Enter the clinician or clinic.",label:isSpanish?"Profesional o clínica":"Clinician or clinic",placeholder:isSpanish?"Nombre del profesional o clínica":"Provider or clinic name",continue:isSpanish?"Continuar":"Continue",back:isSpanish?"Volver":"Go back"},
+    reason:{title:isSpanish?"¿Para qué es la cita?":"What is the appointment for?",helper:isSpanish?"Incluye solo lo necesario para preparar la solicitud.":"Include only what is helpful to prepare the request.",label:isSpanish?"Motivo de la cita":"Reason for appointment",placeholder:isSpanish?"Por ejemplo, revisión o seguimiento":"For example, check-up or follow-up",continue:isSpanish?"Continuar":"Continue",back:isSpanish?"Volver":"Go back"},
+    dateTime:{title:isSpanish?"¿Cuándo te viene bien?":"When works for you?",helper:isSpanish?"Elige un día y una hora preferidos.":"Choose a preferred day and time.",timeLabel:isSpanish?"Hora preferida":"Preferred time",continue:isSpanish?"Revisar":"Review",back:isSpanish?"Volver":"Go back"},
+    review:{title:isSpanish?"Revisa la preparación":"Review appointment preparation",helper:isSpanish?"Nada se envía ni se reserva hasta que confirmes.":"Nothing is sent or booked until you confirm.",provider:isSpanish?"Profesional":"Provider",reason:isSpanish?"Motivo":"Reason",date:isSpanish?"Día":"Day",time:isSpanish?"Hora":"Time",confirm:isSpanish?"Confirmar y preparar":"Confirm and prepare",change:isSpanish?"Cambiar un dato":"Make a change"},
+    waiting:{status:isSpanish?"Espera un momento":"Please wait",title:isSpanish?"Preparando la solicitud":"Preparing the request",helper:isSpanish?"No salgas de esta pantalla.":"Please stay on this screen.",action:isSpanish?"Preparando…":"Preparing…"},
+    completed:{status:isSpanish?"Completado":"Completed",title:isSpanish?"La preparación está lista":"Appointment preparation is ready",helper:isSpanish?"Revisa los siguientes pasos antes de cualquier acción externa.":"Review the next steps before any external action.",reference:isSpanish?"Referencia":"Reference",done:isSpanish?"Terminar":"Done"},
+    blocked:{status:isSpanish?"Necesita atención":"Needs attention",title:isSpanish?"No pudimos preparar la solicitud":"We could not prepare the request",helper:isSpanish?"Revisa los datos e inténtalo otra vez.":"Review the details and try again.",retry:isSpanish?"Revisar e intentar otra vez":"Review and retry",cancel:isSpanish?"Cancelar":"Cancel"},
+    cancelled:{status:isSpanish?"Cancelado":"Cancelled",title:isSpanish?"No se preparó ninguna solicitud":"Nothing was prepared",helper:isSpanish?"No se envió ningún dato.":"No details were sent.",restart:isSpanish?"Empezar otra vez":"Start again"},progress:(current,total)=>isSpanish?`Paso ${current} de ${total}`:`Step ${current} of ${total}`}),[isSpanish]);
+  const appointmentCanvasProviders=useMemo(()=>savedMedicalProvider?[{id:"saved-medical-provider",label:savedMedicalProvider,description:isSpanish?"Guardado en tu perfil":"Saved in your profile"}]:[],[isSpanish,savedMedicalProvider]);
+  const appointmentCanvasDates=useMemo(()=>[{id:"today",label:isSpanish?"Hoy":"Today",value:"today"},{id:"tomorrow",label:isSpanish?"Mañana":"Tomorrow",value:"tomorrow"},{id:"next-week",label:isSpanish?"La próxima semana":"Next week",value:"next-week"}],[isSpanish]);
+  const appointmentCanvasCommands=useMemo(()=>({start:isSpanish?["empezar","preparar cita"]:["start","prepare appointment"],back:isSpanish?["volver","atrás"]:["back","go back"],cancel:isSpanish?["cancelar","ahora no"]:["cancel","not now"],confirm:isSpanish?["confirmar","sí, confirmar"]:["confirm","yes, confirm"],retry:isSpanish?["intentar otra vez"]:["retry","try again"]}),[isSpanish]);
+  const appointmentCanvasInitialState=useMemo<AppointmentCanvasState>(()=>({step:"listening",requestId:0,draft:{providerId:"",providerName:conciergeVoiceProvider.trim(),reason:conciergeVoiceReason.trim(),dateChoice:conciergeVoiceDate.trim(),time:conciergeVoiceTime.trim()}}),[conciergeVoiceDate,conciergeVoiceProvider,conciergeVoiceReason,conciergeVoiceTime]);
+  const confirmAppointmentCanvas=useCallback(async(draft:Readonly<AppointmentCanvasDraft>,{signal}:{requestId:number;signal:AbortSignal})=>{const result=await createAppointmentRequest({appointmentType:"medical",detail:draft.reason,locale,routePrefillSource:routePrefill?.source,preferences:{provider_id:draft.providerId||undefined,provider_name:draft.providerName,date_preference:draft.dateChoice,preferred_time:draft.time,preparation_only:true,no_external_action_without_confirmation:true}});if(signal.aborted)throw new DOMException("Appointment preparation cancelled","AbortError");setAppointmentRequest(result.request);setAppointmentOptions(result.options);setAppointmentDiscovery(result.discovery??null);setSelectedAppointmentOptionId(result.options[0]?.id??null);setAppointmentOpen(true);setAppointmentNotice(isSpanish?"Solicitud preparada. Revisa el siguiente paso antes de actuar.":"Request prepared. Review the next step before any action.");return{reference:result.request.id}},[isSpanish,locale,routePrefill?.source]);
 
   function showNextQueuedAction() {
     const nextAction = queuedActions[0] ?? pendingActions[0];
@@ -15816,7 +15843,12 @@ const ConciergeScreen = () => {
         </section>
       )}
 
-      {routePrefill && routePrefill.kind !== "ride" && routePrefillMeta && (
+      {usesAppointmentVoiceCanvas && (
+        <section className="order-[15] mt-4 flex justify-center rounded-[28px] bg-[#F8F4FA] p-2 sm:p-4" data-testid="panel-concierge-appointment-voice-canvas">
+          <AppointmentVoiceCanvas copy={appointmentCanvasCopy} providers={appointmentCanvasProviders} dateChoices={appointmentCanvasDates} voiceCommands={appointmentCanvasCommands} initialState={appointmentCanvasInitialState} storageKey={`vyva.appointmentCanvas.concierge.${conciergeVoiceAction?.id??"active"}`} onConfirmPrepare={confirmAppointmentCanvas} onDone={()=>setRoutePrefill(null)} onCancel={()=>setRoutePrefill(null)} onTelemetry={trackAppointmentCanvasEvent}/>
+        </section>
+      )}
+      {routePrefill && routePrefill.kind !== "ride" && !usesAppointmentVoiceCanvas && routePrefillMeta && (
         <section
           className="order-[15] mt-4 overflow-hidden rounded-[28px] border border-[#D8B4FE] bg-white"
           style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.16)" }}
