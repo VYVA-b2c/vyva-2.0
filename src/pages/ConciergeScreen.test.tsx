@@ -457,6 +457,7 @@ describe("ConciergeScreen action hub", () => {
     let confirmedBody: Record<string, unknown> | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
+      if (target === "/api/config/features/home-service-voice-canvas") return jsonResponse({ enabled: true, rolloutPercent: 100 });
       if (target === "/api/profile") {
         return jsonResponse({
           street: "10 Garden Lane",
@@ -584,6 +585,7 @@ describe("ConciergeScreen action hub", () => {
       payload: { service_type: "electrician" },
     };
     apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/config/features/home-service-voice-canvas") return jsonResponse({ enabled: true, rolloutPercent: 100 });
       if (String(url) === "/api/appointments/requests/active-home-service") {
         return jsonResponse({ request: null, options: [] });
       }
@@ -621,6 +623,7 @@ describe("ConciergeScreen action hub", () => {
   it("restores an unfinished Home Service Canvas draft after a new session", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
+      if (target === "/api/config/features/home-service-voice-canvas") return jsonResponse({ enabled: true, rolloutPercent: 100 });
       if (target === "/api/profile") {
         return jsonResponse({ street: "10 Garden Lane", savedProviders: [] });
       }
@@ -4602,6 +4605,7 @@ describe("ConciergeScreen route prefill", () => {
 
   it("resumes the same Home Service Canvas after trusted provider setup returns", async () => {
     apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/config/features/home-service-voice-canvas") return jsonResponse({ enabled: true, rolloutPercent: 100 });
       if (String(url) === "/api/profile") {
         return jsonResponse({
           street: "10 Garden Lane",

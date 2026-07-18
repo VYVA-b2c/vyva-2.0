@@ -1,1 +1,8 @@
-export interface PrescriptionFollowUpRolloutConfig{enabled:boolean;rolloutPercent:number}export function parsePrescriptionFollowUpRolloutConfig(value:unknown):PrescriptionFollowUpRolloutConfig{if(!value||typeof value!=="object")return{enabled:false,rolloutPercent:0};const item=value as Partial<PrescriptionFollowUpRolloutConfig>,rolloutPercent=typeof item.rolloutPercent==="number"&&Number.isFinite(item.rolloutPercent)?Math.min(100,Math.max(0,Math.round(item.rolloutPercent))):0;return{enabled:item.enabled===true,rolloutPercent}}function bucket(key:string){let hash=2166136261;for(const char of key){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619)}return(hash>>>0)%100}export function isPrescriptionFollowUpEnabled(config:PrescriptionFollowUpRolloutConfig|undefined,key:string){return!!config?.enabled&&config.rolloutPercent>0&&(config.rolloutPercent>=100||bucket(key)<config.rolloutPercent)}
+import {
+  isCanvasRolloutEnabled,
+  parseCanvasRolloutConfig,
+  type CanvasRolloutConfig,
+} from "./canvasPlatform";
+export type PrescriptionFollowUpRolloutConfig = CanvasRolloutConfig;
+export const parsePrescriptionFollowUpRolloutConfig = parseCanvasRolloutConfig;
+export const isPrescriptionFollowUpEnabled = isCanvasRolloutEnabled;

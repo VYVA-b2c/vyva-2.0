@@ -844,7 +844,19 @@ const ConciergeShoppingScreen = () => {
     }
   }, []);
 
-  useEffect(() => { let active = true; Promise.all([apiFetch("/api/config/features/shopping-delivery-voice-canvas").then((response) => response.ok ? response.json() : null).catch(() => null), apiFetch("/api/profile").then((response) => response.ok ? response.json() : null).catch(() => null)]).then(([config, profile]) => { if (!active) return; setShoppingCanvasConfig(parseShoppingCanvasRolloutConfig(config)); setShoppingProfile(profile); }); return () => { active = false; }; }, []);
+  useEffect(() => { let active = true; apiFetch("/api/profile").then((response) => response.ok ? response.json() : null).catch(() => null).then((profile) => { if (active) setShoppingProfile(profile); }); return () => { active = false; }; }, []);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => apiFetch("/api/config/features/shopping-delivery-voice-canvas")
+      .then((response) => response.ok ? response.json() : null)
+      .catch(() => null)
+      .then((config) => { if (active) setShoppingCanvasConfig(parseShoppingCanvasRolloutConfig(config)); });
+    refresh();
+    const interval = window.setInterval(refresh, 10_000);
+    window.addEventListener("focus", refresh);
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener("focus", refresh); };
+  }, []);
+  useEffect(() => { if (!shoppingCanvasEnabled) setShoppingCanvasOpen(false); }, [shoppingCanvasEnabled]);
   useEffect(() => { if (!shoppingCanvasEnabled) setShoppingCanvasOpen(false); }, [shoppingCanvasEnabled]);
 
   useEffect(() => {

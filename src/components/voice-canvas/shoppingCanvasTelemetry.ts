@@ -1,4 +1,5 @@
 import type { ShoppingCanvasStep } from "./shoppingCanvasMachine";
+import { dispatchCanvasTelemetryEvent } from "./canvasPlatform";
 export const VYVA_SHOPPING_CANVAS_TELEMETRY_EVENT =
   "vyva:shopping-canvas-telemetry";
 export type ShoppingCanvasTelemetryName =
@@ -20,8 +21,5 @@ export interface ShoppingCanvasTelemetryEvent {
   restored: boolean;
 }
 export function trackShoppingCanvasEvent(event: ShoppingCanvasTelemetryEvent) {
-  if (typeof window !== "undefined")
-    window.dispatchEvent(
-      new CustomEvent(VYVA_SHOPPING_CANVAS_TELEMETRY_EVENT, { detail: event }),
-    );
+  dispatchCanvasTelemetryEvent(VYVA_SHOPPING_CANVAS_TELEMETRY_EVENT, event);
 }
