@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Camera, Check, ImagePlus, Upload, X } from "lucide-react";
+import { Camera, Check, ImagePlus, Mic, MicOff, Upload, Volume2, VolumeX, X } from "lucide-react";
 import {
   assessShowVyvaLiveFrame,
   evaluateShowVyvaCaptureMetrics,
@@ -9,6 +9,7 @@ import {
   type ShowVyvaLiveCameraStatus,
 } from "@/lib/showVyvaEvidence";
 import { getShowVyvaUseCase, type ShowVyvaUseCaseId } from "../../shared/showVyvaFlow";
+import { useShowVyvaSpokenCapture } from "@/hooks/useShowVyvaSpokenCapture";
 
 type ShowVyvaLiveCameraProps = {
   useCaseId: ShowVyvaUseCaseId;
@@ -122,6 +123,7 @@ export default function ShowVyvaLiveCamera({
   const stableSamplesRef = useRef(0);
   const captureInProgressRef = useRef(false);
   const countdownRef = useRef<number | null>(null);
+  const announceCaptureSuccessRef = useRef<() => Promise<void>>(async () => {});
   const [phase, setPhase] = useState<CameraPhase>("starting");
   const [status, setStatus] = useState<ShowVyvaLiveCameraStatus>("hold_steady");
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -164,9 +166,40 @@ export default function ShowVyvaLiveCamera({
         return;
       }
       stopCamera();
-      onCapture(new File([blob], `vyva-capture-${Date.now()}.jpg`, { type: "image/jpeg" }));
+      const file = new File([blob], `vyva-capture-${Date.now()}.jpg`, { type: "image/jpeg" });
+      void announceCaptureSuccessRef.current().finally(() => onCapture(file));
     }, "image/jpeg", 0.9);
   }, [onCapture, stopCamera, updateCountdown]);
+
+  const handleCancel = useCallback(() => {
+    stopCamera();
+    onCancel();
+  }, [onCancel, stopCamera]);
+
+  const handleUpload = useCallback(() => {
+    stopCamera();
+    onUpload();
+  }, [onUpload, stopCamera]);
+
+  const handleDeviceCamera = useCallback(() => {
+    stopCamera();
+    onUseDeviceCamera();
+  }, [onUseDeviceCamera, stopCamera]);
+
+  const handleVoiceTakePhoto = useCallback(() => {
+    if (phase === "error") handleDeviceCamera();
+    else captureFrame();
+  }, [captureFrame, handleDeviceCamera, phase]);
+
+  const spokenCapture = useShowVyvaSpokenCapture({
+    phase,
+    status,
+    countdown,
+    onTakePhoto: handleVoiceTakePhoto,
+    onCancel: handleCancel,
+    onUpload: handleUpload,
+  });
+  announceCaptureSuccessRef.current = spokenCapture.announceCaptureSuccess;
 
   useEffect(() => {
     let cancelled = false;
@@ -240,11 +273,6 @@ export default function ShowVyvaLiveCamera({
     return () => window.clearTimeout(timeout);
   }, [captureFrame, countdown, phase, updateCountdown]);
 
-  const leaveCamera = (next: () => void) => {
-    stopCamera();
-    next();
-  };
-
   if (phase === "error") {
     return (
       <div className="fixed inset-0 z-[95] flex items-end justify-center bg-[#241B2E]/45 sm:items-center sm:p-5" role="dialog" aria-modal="true" data-testid="dialog-show-vyva-camera-fallback">
@@ -257,16 +285,16 @@ export default function ShowVyvaLiveCamera({
               <h2 className="font-body text-[21px] font-black text-vyva-text-1">{t("showVyva.liveCamera.unavailableTitle", "Use your device camera")}</h2>
               <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">{t("showVyva.liveCamera.unavailableBody", "The guided camera is not available here. You can still take or upload a photo.")}</p>
             </div>
-            <button type="button" onClick={onCancel} className="flex h-11 w-11 items-center justify-center rounded-full border border-[#EDE5DB] bg-white" aria-label={t("common.cancel", "Cancel")}>
+            <button type="button" onClick={handleCancel} className="flex h-11 w-11 items-center justify-center rounded-full border border-[#EDE5DB] bg-white" aria-label={t("common.cancel", "Cancel")}>
               <X size={19} aria-hidden="true" />
             </button>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={onUseDeviceCamera} className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] bg-vyva-purple px-4 font-body text-[15px] font-black text-white" data-testid="button-show-vyva-device-camera">
+            <button type="button" onClick={handleDeviceCamera} className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] bg-vyva-purple px-4 font-body text-[15px] font-black text-white" data-testid="button-show-vyva-device-camera">
               <Camera size={20} aria-hidden="true" />
               {t("showVyva.liveCamera.useDeviceCamera", "Use device camera")}
             </button>
-            <button type="button" onClick={onUpload} className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border border-[#D8CFF7] bg-white px-4 font-body text-[15px] font-black text-vyva-purple" data-testid="button-show-vyva-camera-upload-fallback">
+            <button type="button" onClick={handleUpload} className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[16px] border border-[#D8CFF7] bg-white px-4 font-body text-[15px] font-black text-vyva-purple" data-testid="button-show-vyva-camera-upload-fallback">
               <Upload size={20} aria-hidden="true" />
               {t("showVyva.liveCamera.upload", "Upload")}
             </button>
@@ -280,16 +308,59 @@ export default function ShowVyvaLiveCamera({
     <div className="fixed inset-0 z-[95] overflow-y-auto bg-[#FFFCF8]" role="dialog" aria-modal="true" aria-labelledby="show-vyva-live-camera-title" data-testid="dialog-show-vyva-live-camera">
       <div className="mx-auto flex min-h-full w-full max-w-[680px] flex-col">
         <header className="flex items-center gap-3 border-b border-[#EDE5DB] px-4 py-3">
-          <button type="button" onClick={() => leaveCamera(onCancel)} className="flex h-11 w-11 items-center justify-center rounded-full border border-[#EDE5DB] bg-white" aria-label={t("common.cancel", "Cancel")} data-testid="button-show-vyva-live-cancel">
+          <button type="button" onClick={handleCancel} className="flex h-11 w-11 items-center justify-center rounded-full border border-[#EDE5DB] bg-white" aria-label={t("common.cancel", "Cancel")} data-testid="button-show-vyva-live-cancel">
             <X size={19} aria-hidden="true" />
           </button>
           <div className="min-w-0 flex-1">
             <h2 id="show-vyva-live-camera-title" className="font-body text-[18px] font-black text-vyva-text-1">{t("showVyva.liveCamera.title", "Show VYVA")}</h2>
             <p className="font-body text-[12px] font-semibold leading-tight text-vyva-text-2">{t("showVyva.liveCamera.taskOpen", "Your current task stays open")}</p>
           </div>
-          <button type="button" onClick={() => leaveCamera(onUpload)} className="flex min-h-[44px] items-center gap-2 rounded-full border border-[#D8CFF7] bg-white px-4 font-body text-[13px] font-black text-vyva-purple" data-testid="button-show-vyva-live-upload">
+          <button
+            type="button"
+            onClick={spokenCapture.toggleSpokenGuidance}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-[#D8CFF7] bg-white text-vyva-purple"
+            aria-label={t(
+              spokenCapture.spokenGuidanceEnabled
+                ? "showVyva.liveCamera.spoken.turnOffGuidance"
+                : "showVyva.liveCamera.spoken.turnOnGuidance",
+            )}
+            aria-pressed={spokenCapture.spokenGuidanceEnabled}
+            title={t(
+              spokenCapture.spokenGuidanceEnabled
+                ? "showVyva.liveCamera.spoken.turnOffGuidance"
+                : "showVyva.liveCamera.spoken.turnOnGuidance",
+            )}
+            data-testid="button-show-vyva-spoken-guidance"
+          >
+            {spokenCapture.spokenGuidanceEnabled ? <Volume2 size={19} aria-hidden="true" /> : <VolumeX size={19} aria-hidden="true" />}
+          </button>
+          <button
+            type="button"
+            onClick={spokenCapture.toggleCommands}
+            disabled={!spokenCapture.commandsSupported}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-[#D8CFF7] bg-white text-vyva-purple disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label={t(
+              !spokenCapture.commandsSupported
+                ? "showVyva.liveCamera.spoken.commandsUnavailable"
+                : spokenCapture.commandsEnabled
+                  ? "showVyva.liveCamera.spoken.turnOffCommands"
+                  : "showVyva.liveCamera.spoken.turnOnCommands",
+            )}
+            aria-pressed={spokenCapture.commandsEnabled}
+            title={t(
+              !spokenCapture.commandsSupported
+                ? "showVyva.liveCamera.spoken.commandsUnavailable"
+                : spokenCapture.commandsEnabled
+                  ? "showVyva.liveCamera.spoken.turnOffCommands"
+                  : "showVyva.liveCamera.spoken.turnOnCommands",
+            )}
+            data-testid="button-show-vyva-voice-commands"
+          >
+            {spokenCapture.commandsEnabled && spokenCapture.commandsSupported ? <Mic size={19} aria-hidden="true" /> : <MicOff size={19} aria-hidden="true" />}
+          </button>
+          <button type="button" onClick={handleUpload} className="flex min-h-[44px] flex-shrink-0 items-center gap-2 rounded-full border border-[#D8CFF7] bg-white px-3 font-body text-[13px] font-black text-vyva-purple" data-testid="button-show-vyva-live-upload">
             <Upload size={17} aria-hidden="true" />
-            {t("showVyva.liveCamera.upload", "Upload")}
+            <span className="hidden sm:inline">{t("showVyva.liveCamera.upload", "Upload")}</span>
           </button>
         </header>
 
@@ -306,7 +377,7 @@ export default function ShowVyvaLiveCamera({
               <div className="absolute inset-0 flex items-center justify-center bg-[#211A27]/75 font-body text-[16px] font-black text-white">{t("showVyva.liveCamera.starting", "Opening camera...")}</div>
             ) : null}
             {countdown !== null ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-[#211A27]/20" data-testid="text-show-vyva-live-countdown">
+              <div className="absolute inset-0 flex items-center justify-center bg-[#211A27]/20" role="status" aria-live="assertive" aria-atomic="true" data-testid="text-show-vyva-live-countdown">
                 <span className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-[#6B21A8]/85 font-body text-[48px] font-black text-white shadow-[0_12px_30px_rgba(0,0,0,0.25)]">{countdown}</span>
               </div>
             ) : null}
@@ -314,7 +385,7 @@ export default function ShowVyvaLiveCamera({
           <canvas ref={analysisCanvasRef} className="hidden" aria-hidden="true" />
 
           <div className="mt-4 flex flex-col items-center gap-3">
-            <div className={`flex min-h-[44px] items-center gap-2 rounded-full px-4 font-body text-[14px] font-black ${status === "ready" ? "bg-[#E7F8F4] text-[#0F766E]" : "bg-[#FFF4DE] text-[#92400E]"}`} data-testid="text-show-vyva-live-status">
+            <div className={`flex min-h-[44px] items-center gap-2 rounded-full px-4 font-body text-[14px] font-black ${status === "ready" ? "bg-[#E7F8F4] text-[#0F766E]" : "bg-[#FFF4DE] text-[#92400E]"}`} role="status" aria-live="polite" aria-atomic="true" data-testid="text-show-vyva-live-status">
               {status === "ready" ? <Check size={17} aria-hidden="true" /> : <Camera size={17} aria-hidden="true" />}
               {t(`showVyva.liveCamera.status.${status}`, {
                 dark: "Find more light",
@@ -326,6 +397,13 @@ export default function ShowVyvaLiveCamera({
               }[status])}
             </div>
             <p className="font-body text-[12px] font-bold text-vyva-text-2">{t("showVyva.liveCamera.autoCapture", "Auto capture is on")}</p>
+            {spokenCapture.commandsSupported && spokenCapture.commandsEnabled ? (
+              <p className="max-w-[420px] text-center font-body text-[12px] font-semibold leading-snug text-vyva-text-2" data-testid="text-show-vyva-command-hint">
+                {spokenCapture.commandsListening
+                  ? t("showVyva.liveCamera.spoken.commandHint")
+                  : t("showVyva.liveCamera.spoken.preparingCommands")}
+              </p>
+            ) : null}
             <button type="button" onClick={captureFrame} disabled={phase !== "live"} className="vyva-tap flex min-h-[64px] min-w-[190px] items-center justify-center gap-3 rounded-full bg-vyva-purple px-7 font-body text-[17px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.24)] disabled:opacity-50" data-testid="button-show-vyva-live-shutter">
               <Camera size={24} aria-hidden="true" />
               {phase === "capturing" ? t("showVyva.liveCamera.capturing", "Taking photo...") : t("showVyva.liveCamera.takePhoto", "Take photo")}

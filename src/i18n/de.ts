@@ -1607,6 +1607,23 @@ const de = {
         hold_steady: "Ruhig halten",
         ready: "Bereit - ruhig bleiben",
       },
+      spoken: {
+        turnOffGuidance: "Sprachfuhrung ausschalten",
+        turnOnGuidance: "Sprachfuhrung einschalten",
+        turnOffCommands: "Sprachbefehle ausschalten",
+        turnOnCommands: "Sprachbefehle einschalten",
+        commandsUnavailable: "Sprachbefehle sind in diesem Browser nicht verfugbar",
+        commandHint: "Sagen Sie 'Foto aufnehmen', 'Abbrechen' oder 'Stattdessen hochladen'.",
+        preparingCommands: "Sprachbefehle werden vorbereitet...",
+        prompt: {
+          find_more_light: "Suchen Sie mehr Licht.",
+          move_closer: "Gehen Sie naher heran.",
+          tilt_away_from_glare: "Neigen Sie die Kamera von der Spiegelung weg.",
+          hold_steady: "Halten Sie ruhig.",
+        },
+        countdown: { three: "Drei", two: "Zwei", one: "Eins" },
+        captured: "Foto aufgenommen.",
+      },
     },
     executor: {
       saved: "Gespeichert. Weiter im Concierge, wenn du bereit bist.",

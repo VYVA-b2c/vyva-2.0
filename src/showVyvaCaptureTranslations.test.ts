@@ -35,5 +35,20 @@ describe("Show VYVA capture translations", () => {
     for (const status of SHOW_VYVA_LIVE_CAMERA_STATUSES) {
       expect(liveCamera.status[status]).toBeTruthy();
     }
+    expect(liveCamera.spoken.turnOffGuidance).toBeTruthy();
+    expect(liveCamera.spoken.turnOnGuidance).toBeTruthy();
+    expect(liveCamera.spoken.turnOffCommands).toBeTruthy();
+    expect(liveCamera.spoken.turnOnCommands).toBeTruthy();
+    expect(liveCamera.spoken.commandsUnavailable).toBeTruthy();
+    expect(liveCamera.spoken.commandHint).toBeTruthy();
+    expect(liveCamera.spoken.preparingCommands).toBeTruthy();
+    expect(liveCamera.spoken.prompt.find_more_light).toBeTruthy();
+    expect(liveCamera.spoken.prompt.move_closer).toBeTruthy();
+    expect(liveCamera.spoken.prompt.tilt_away_from_glare).toBeTruthy();
+    expect(liveCamera.spoken.prompt.hold_steady).toBeTruthy();
+    expect(liveCamera.spoken.countdown.three).toBeTruthy();
+    expect(liveCamera.spoken.countdown.two).toBeTruthy();
+    expect(liveCamera.spoken.countdown.one).toBeTruthy();
+    expect(liveCamera.spoken.captured).toBeTruthy();
   });
 });

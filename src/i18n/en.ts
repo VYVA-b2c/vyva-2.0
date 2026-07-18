@@ -2163,6 +2163,23 @@
         hold_steady: "Hold steady",
         ready: "Ready - keep still",
       },
+      spoken: {
+        turnOffGuidance: "Turn voice guidance off",
+        turnOnGuidance: "Turn voice guidance on",
+        turnOffCommands: "Turn voice commands off",
+        turnOnCommands: "Turn voice commands on",
+        commandsUnavailable: "Voice commands are not available in this browser",
+        commandHint: "Say 'Take photo', 'Cancel', or 'Upload instead'.",
+        preparingCommands: "Preparing voice commands...",
+        prompt: {
+          find_more_light: "Find more light.",
+          move_closer: "Move closer.",
+          tilt_away_from_glare: "Tilt away from the glare.",
+          hold_steady: "Hold steady.",
+        },
+        countdown: { three: "Three", two: "Two", one: "One" },
+        captured: "Photo taken.",
+      },
     },
     executor: {
       saved: "Saved. Continue in Concierge when you are ready.",
