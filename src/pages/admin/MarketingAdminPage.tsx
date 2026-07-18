@@ -661,6 +661,13 @@ type CampaignChannelDraft = {
   scheduledAt: string;
 };
 
+type CampaignContentMatchSuggestion = {
+  channelDraft: CampaignChannelDraft;
+  contentAsset: ContentAsset;
+  score: number;
+  reasons: string[];
+};
+
 type ManualPublishResultStatus = "published" | "scheduled" | "blocked" | "needs_follow_up";
 
 type ManualPublishTrackerDraft = {
@@ -9354,6 +9361,90 @@ function contentMatchesCampaignPlay(play: CampaignStudioPlay, channel: Channel, 
   return needles.some((needle) => haystack.includes(needle));
 }
 
+const contentMatchStopWords = new Set([
+  "and",
+  "are",
+  "for",
+  "from",
+  "into",
+  "not",
+  "the",
+  "this",
+  "that",
+  "with",
+  "your",
+]);
+
+function contentMatchTokens(value: string) {
+  return Array.from(new Set(lower(value)
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3 && !contentMatchStopWords.has(token))));
+}
+
+function campaignContentMatchSuggestion(
+  campaign: Campaign,
+  draft: CampaignEditDraft,
+  channelDraft: CampaignChannelDraft,
+  contentAssets: ContentAsset[],
+  targetAudience: MarketingAudience | null,
+): CampaignContentMatchSuggestion | null {
+  const contextText = [
+    campaign.name,
+    draft.name,
+    campaign.objective,
+    draft.objective,
+    campaign.audienceType,
+    draft.audienceType,
+    campaign.source,
+    campaign.lovableExternalId ?? "",
+    targetAudience?.name ?? "",
+    targetAudience?.description ?? "",
+    targetAudience?.listType ?? "",
+    targetAudience?.source ?? "",
+    targetAudience?.lovableExternalId ?? "",
+    jsonText(campaign.metadata),
+  ].join(" ");
+  const contextTokens = contentMatchTokens(contextText);
+  const campaignAudience = draft.audienceType || campaign.audienceType;
+  const candidates = contentAssets
+    .filter((item) => item.channel === channelDraft.channel && item.status !== "archived" && contentAssetHasCopy(item))
+    .map((contentAsset) => {
+      const contentText = lower([
+        contentAsset.title,
+        contentAsset.subject ?? "",
+        contentAsset.body,
+        contentAsset.htmlBody ?? "",
+        contentAsset.ctaLabel ?? "",
+        contentAsset.ctaUrl ?? "",
+        contentAsset.source,
+        contentAsset.lovableExternalId ?? "",
+        jsonText(contentAsset.designJson),
+        jsonText(contentAsset.metadata),
+      ].join(" "));
+      const matchedTokens = contextTokens.filter((token) => contentText.includes(token));
+      let score = 20;
+      score += matchedTokens.length * 4;
+      if (contentAsset.source === campaign.source) score += 8;
+      if (contentAsset.source === "lovable" || contentOriginKey(contentAsset) !== "vyva") score += 5;
+      if (contentText.includes(campaignAudience)) score += 5;
+      if (contentAsset.hasDesign || Object.keys(contentAsset.designJson ?? {}).length) score += 3;
+      if (contentAsset.hasHtml || contentAsset.htmlBody) score += 2;
+      if ((contentAsset.mediaAssetCount ?? 0) > 0 || (contentAsset.mediaAssets ?? []).length > 0) score += 2;
+      const reasons = [
+        `${channelLabel[channelDraft.channel]} asset`,
+        matchedTokens.length ? `Matches ${matchedTokens.slice(0, 4).join(", ")}` : "",
+        contentAsset.source === "lovable" || contentOriginKey(contentAsset) !== "vyva" ? "Imported from Source" : "VYVA draft",
+        contentAsset.hasDesign || Object.keys(contentAsset.designJson ?? {}).length ? "Design data ready" : "",
+        (contentAsset.mediaAssetCount ?? 0) > 0 || (contentAsset.mediaAssets ?? []).length > 0 ? "Media attached" : "",
+      ].filter(Boolean);
+      return { channelDraft, contentAsset, score, reasons };
+    })
+    .filter((item) => item.score >= 25)
+    .sort((a, b) => b.score - a.score || a.contentAsset.title.localeCompare(b.contentAsset.title));
+
+  return candidates[0] ?? null;
+}
+
 function bestCampaignPlannerContent(play: CampaignStudioPlay, channel: Channel, content: ContentAsset[]) {
   const activeChannelContent = content.filter((item) => item.channel === channel && item.status !== "archived");
   return activeChannelContent.find((item) => contentMatchesCampaignPlay(play, channel, item)) ?? null;
@@ -17408,6 +17499,12 @@ export default function MarketingAdminPage() {
     setManualPublishFeedback("");
   }
 
+  function applyCampaignContentMatchSuggestion(channelDraft: CampaignChannelDraft, contentAsset: ContentAsset) {
+    updateCampaignChannel(channelDraft.id, { contentAssetId: contentAsset.id });
+    setCampaignEmailFeedback(`${channelLabel[channelDraft.channel]} content match attached: ${contentAsset.title}. Save the campaign to keep it.`);
+    setMessage(`Attached "${contentAsset.title}" to the ${channelLabel[channelDraft.channel]} route. Save the campaign to keep it.`);
+  }
+
   function addCampaignChannel() {
     setCampaignEditDraft((draft) => ({
       ...draft,
@@ -21292,7 +21389,12 @@ export default function MarketingAdminPage() {
   const campaignSavedLaunchPacketText = Object.keys(campaignSavedLaunchPacket).length
     ? launchPacketTextFromMetadata(campaignSavedLaunchPacket)
     : displayText(campaignStudioSavedLaunchKit.launchPacketText);
-  const missingCampaignContentChannels = campaignReadinessChannels.filter((channel) => !channel.contentAssetId);
+  const missingCampaignContentChannels = campaignReadinessChannels.filter((channel) => !channel.contentAssetId || !contentById.has(channel.contentAssetId));
+  const campaignContentMatchSuggestions = editingCampaign
+    ? missingCampaignContentChannels
+      .map((channelDraft) => campaignContentMatchSuggestion(editingCampaign, campaignEditDraft, channelDraft, content, selectedCampaignTargetAudience))
+      .filter((suggestion): suggestion is CampaignContentMatchSuggestion => Boolean(suggestion))
+    : [];
   const planningOnlyCampaignChannels = campaignReadinessChannels.filter((channel) => channel.channel !== "email");
   const savedCampaignRecipientCount = editingCampaign?.recipientCount ?? 0;
   const pendingCampaignSnapshotCount = campaignEditDraft.snapshotRecipients ? campaignRecipientPreviewSnapshotCount : 0;
@@ -22188,7 +22290,7 @@ export default function MarketingAdminPage() {
           : undefined,
     },
   ] : [];
-  const linkedCampaignContentCount = campaignReadinessChannels.filter((channelDraft) => Boolean(channelDraft.contentAssetId)).length;
+  const linkedCampaignContentCount = campaignReadinessChannels.filter((channelDraft) => Boolean(channelDraft.contentAssetId && contentById.has(channelDraft.contentAssetId))).length;
   const firstMissingCampaignContentChannel = missingCampaignContentChannels[0] ?? null;
   const campaignOperatorBriefItems = editingCampaign ? [
     {
@@ -27614,6 +27716,51 @@ export default function MarketingAdminPage() {
                                 </button>
                               ) : null}
                             </div>
+                            {campaignContentMatchSuggestions.length ? (
+                              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3" data-testid="marketing-campaign-content-match-panel">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Smart content match</p>
+                                    <p className="mt-1 text-sm font-bold leading-relaxed text-emerald-950">
+                                      VYVA found existing content that can close the missing route before creating a new asset.
+                                    </p>
+                                  </div>
+                                  <Pill className="bg-white text-emerald-800">{campaignContentMatchSuggestions.length} suggestion{campaignContentMatchSuggestions.length === 1 ? "" : "s"}</Pill>
+                                </div>
+                                <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                                  {campaignContentMatchSuggestions.map((suggestion, index) => (
+                                    <article key={`${suggestion.channelDraft.id}-${suggestion.contentAsset.id}`} className="rounded-lg border border-emerald-100 bg-white p-3" data-testid={`marketing-campaign-content-match-${suggestion.channelDraft.channel}-${index}`}>
+                                      <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <Pill className={channelClass(suggestion.channelDraft.channel)}>{channelLabel[suggestion.channelDraft.channel]}</Pill>
+                                          <p className="mt-2 text-sm font-black text-[#241133]">{suggestion.contentAsset.title}</p>
+                                          <p className="mt-1 text-xs font-bold text-[#6f5f59]">{suggestion.reasons.join(" - ")}</p>
+                                        </div>
+                                        <Pill className="bg-emerald-100 text-emerald-900">{Math.min(99, suggestion.score)} fit</Pill>
+                                      </div>
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => previewContent(suggestion.contentAsset)}
+                                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:bg-emerald-100"
+                                          data-testid={`button-marketing-campaign-preview-content-match-${suggestion.channelDraft.channel}-${index}`}
+                                        >
+                                          <Eye size={13} aria-hidden="true" /> Preview
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => applyCampaignContentMatchSuggestion(suggestion.channelDraft, suggestion.contentAsset)}
+                                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white hover:bg-emerald-800"
+                                          data-testid={`button-marketing-campaign-use-content-match-${suggestion.channelDraft.channel}-${index}`}
+                                        >
+                                          <CheckCircle2 size={13} aria-hidden="true" /> Use match
+                                        </button>
+                                      </div>
+                                    </article>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
                             {campaignCreativeRescueBrief ? (
                               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3" data-testid="marketing-campaign-creative-rescue-brief">
                                 <div className="flex flex-wrap items-start justify-between gap-3">

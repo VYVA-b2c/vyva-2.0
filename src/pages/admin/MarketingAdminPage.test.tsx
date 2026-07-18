@@ -6631,6 +6631,40 @@ describe("MarketingAdminPage", () => {
     ]);
   });
 
+  it("suggests existing content matches for missing campaign routes", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-2"));
+
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Fix the creative gap");
+    expect(screen.getByTestId("marketing-campaign-content-match-panel")).toHaveTextContent("Smart content match");
+    expect(screen.getByTestId("marketing-campaign-content-match-linkedin-0")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-campaign-content-match-linkedin-0")).toHaveTextContent("Imported from Source");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-use-content-match-linkedin-0"));
+
+    expect(screen.getByTestId("select-marketing-edit-campaign-content")).toHaveValue("content-2");
+    expect(screen.getByTestId("select-marketing-campaign-channel-content-0")).toHaveValue("content-2");
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("LinkedIn content match attached: Partner post. Save the campaign to keep it.");
+    expect(screen.queryByTestId("marketing-campaign-content-match-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("Creative is ready to improve");
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns/campaign-2" && init?.method === "PATCH");
+    const patchBody = JSON.parse(String(patchCall?.[1]?.body));
+    expect(patchBody.channels).toEqual([
+      expect.objectContaining({
+        channel: "linkedin",
+        contentAssetId: "content-2",
+      }),
+    ]);
+  });
+
   it("creates and links missing campaign channel content from the creative accelerator", async () => {
     renderPage();
 
