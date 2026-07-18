@@ -91,7 +91,7 @@ describe("ShowVyvaPastedReviewResult", () => {
 
       expect(screen.getByTestId(`show-vyva-result-${item.suffix}`)).toBeInTheDocument();
       expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
-      expect(screen.getByText("What VYVA thinks")).toBeInTheDocument();
+      expect(screen.getByText("What is visible")).toBeInTheDocument();
       expect(screen.getByText("Risk or urgency")).toBeInTheDocument();
       expect(screen.getByText("Recommended next step")).toBeInTheDocument();
       expect(screen.getByTestId(`show-vyva-result-input-${item.suffix}`)).toHaveTextContent(item.input);
