@@ -104,6 +104,15 @@ type MarketingSmartSearchResult = {
   icon: LucideIcon;
   onSelect: () => void;
 };
+type MarketingSavedViewKey = "launch" | "consent" | "partner" | "creative" | "source";
+type MarketingSavedView = {
+  key: MarketingSavedViewKey;
+  title: string;
+  detail: string;
+  countLabel: string;
+  icon: LucideIcon;
+  className: string;
+};
 
 const CAMPAIGN_STUDIO_ROUTE_FAMILIES: Array<{ key: string; title: string; detail: string; channels: Channel[] }> = [
   { key: "email", title: "Email", detail: "Send-ready campaign route through VYVA when content and recipients are ready.", channels: ["email"] },
@@ -11564,6 +11573,59 @@ export default function MarketingAdminPage() {
   useEffect(() => {
     refreshAll().catch((error) => setMessage(error.message));
   }, []);
+
+  function clearMarketingWorkspaceFilters() {
+    setSearch("");
+    setChannelFilter("all");
+    setAudienceFilter("all");
+    setContentSourceFilter("all");
+    setContactSourceFilter("all");
+    setContactConsentFilter("all");
+    setContactLanguageFilter("all");
+    setContactCategoryFilter("all");
+    setContactVerticalFilter("all");
+    setContactMarketFilter("all");
+    setContactListFilter("all");
+    setContactWorkQueueContactIds(null);
+    setContactView("contacts");
+    setContentTemplateChannelFilter("all");
+    setContentTemplateAudienceFilter("all");
+    setContentTemplateCategoryFilter("all");
+    setContentTemplatePackFilter("all");
+  }
+
+  function applyMarketingSavedView(viewKey: MarketingSavedViewKey) {
+    clearMarketingWorkspaceFilters();
+    if (viewKey === "launch") {
+      setActiveTab("dashboard");
+      setChannelFilter("email");
+      setMessage("Saved view: email launch cockpit. Review due sends, recipient snapshots, and final send controls.");
+      return;
+    }
+    if (viewKey === "consent") {
+      setActiveTab("contacts");
+      setContactConsentFilter(contactConsentReviewFilter ?? "pending");
+      setContactFeedback("Saved view: contacts that need consent review before outreach.");
+      setMessage("Saved view: consent review.");
+      return;
+    }
+    if (viewKey === "partner") {
+      setActiveTab("contacts");
+      setAudienceFilter("b2b");
+      setSearch("partner");
+      setContactFeedback("Saved view: B2B partner outreach contacts.");
+      setMessage("Saved view: partner outreach.");
+      return;
+    }
+    if (viewKey === "creative") {
+      setActiveTab("content");
+      setContentActionFeedback("Saved view: content gaps, reusable templates, and AI expansion ideas.");
+      setMessage("Saved view: creative gaps and template library.");
+      return;
+    }
+    setActiveTab("settings");
+    setMessage("Saved view: Source sync status, export preview, and one-way import controls.");
+  }
 
   const contentById = useMemo(() => new Map(content.map((item) => [item.id, item])), [content]);
   const contentTitleById = useMemo(() => new Map(content.map((item) => [item.id, item.title])), [content]);
@@ -24238,6 +24300,67 @@ export default function MarketingAdminPage() {
   const marketingCockpitReadyCount = marketingCockpitItems.filter((item) => item.state === "ready").length;
   const marketingCockpitHasBlocker = marketingCockpitItems.some((item) => item.state === "blocked");
   const marketingCockpitHasReview = marketingCockpitItems.some((item) => item.state === "needs_action");
+  const savedViewConsentCount = contacts.filter((contact) => contact.consentStatus !== "opted_in").length;
+  const savedViewB2bCount = contacts.filter((contact) => (
+    contact.audienceType === "b2b"
+    || contact.audienceType === "both"
+    || Boolean(contact.companyName || contact.roleLabel)
+  )).length;
+  const savedViewCreativeGapCount = Math.max(missingSourceReferenceCount, contentTemplateGapSuggestions.length);
+  const marketingSavedViews: MarketingSavedView[] = [
+    {
+      key: "launch",
+      title: "Email launch",
+      detail: "Due sends, ready campaigns, recipient snapshots, and final send checks.",
+      countLabel: firstDueReadyEmailCampaign
+        ? "Due now"
+        : readyEmailCampaigns.length
+          ? `${readyEmailCampaigns.length} ready`
+          : `${publishingQueueItems.length} queued`,
+      icon: Send,
+      className: "border-emerald-100 bg-emerald-50 text-emerald-950",
+    },
+    {
+      key: "consent",
+      title: "Consent review",
+      detail: "Contacts that need permission cleanup before outreach.",
+      countLabel: `${savedViewConsentCount} review`,
+      icon: ShieldCheck,
+      className: savedViewConsentCount
+        ? "border-amber-100 bg-amber-50 text-amber-950"
+        : "border-emerald-100 bg-emerald-50 text-emerald-950",
+    },
+    {
+      key: "partner",
+      title: "Partner outreach",
+      detail: "B2B partners, organizations, lists, and relationship follow-up.",
+      countLabel: `${savedViewB2bCount} B2B`,
+      icon: UsersRound,
+      className: "border-blue-100 bg-blue-50 text-blue-950",
+    },
+    {
+      key: "creative",
+      title: "Creative gaps",
+      detail: "Missing Source references, reusable templates, and AI expansion ideas.",
+      countLabel: savedViewCreativeGapCount
+        ? `${savedViewCreativeGapCount} gaps`
+        : `${launchLaneContentReadyCount} ready`,
+      icon: FileText,
+      className: savedViewCreativeGapCount
+        ? "border-purple-100 bg-purple-50 text-purple-950"
+        : "border-emerald-100 bg-emerald-50 text-emerald-950",
+    },
+    {
+      key: "source",
+      title: "Source sync",
+      detail: "Export preview, import history, and one-way sync controls.",
+      countLabel: syncState.configured ? latestSyncRun?.status ?? "configured" : "blocked",
+      icon: RefreshCw,
+      className: syncState.configured
+        ? "border-teal-100 bg-teal-50 text-teal-950"
+        : "border-red-100 bg-red-50 text-red-950",
+    },
+  ];
   const marketingChannelPublishingBoardItems: MarketingChannelPublishingBoardItem[] = CHANNELS.map((channel) => {
     const channelCampaigns = campaigns.filter((campaign) => campaign.channels.some((route) => route.channel === channel));
     const readyCampaignsForChannel = channelCampaigns.filter((campaign) => campaign.channels.some((route) => (
@@ -24427,6 +24550,40 @@ export default function MarketingAdminPage() {
               {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
             </select>
           </div>
+
+          <section className="rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-saved-views">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Saved views</p>
+                <h3 className="mt-1 text-lg font-black text-[#241133]">Jump into the right work mode</h3>
+                <p className="mt-1 text-sm font-bold text-[#7d6b65]">One click sets the tab and filters for common marketing jobs.</p>
+              </div>
+              <Pill className="bg-purple-50 text-purple-800">{marketingSavedViews.length} views</Pill>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {marketingSavedViews.map((view) => {
+                const ViewIcon = view.icon;
+                return (
+                  <button
+                    key={view.key}
+                    type="button"
+                    onClick={() => applyMarketingSavedView(view.key)}
+                    className={`min-h-[126px] rounded-xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${view.className}`}
+                    data-testid={`button-marketing-saved-view-${view.key}`}
+                  >
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/80">
+                        <ViewIcon size={17} aria-hidden="true" />
+                      </span>
+                      <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-black">{view.countLabel}</span>
+                    </span>
+                    <span className="mt-3 block text-sm font-black">{view.title}</span>
+                    <span className="mt-1 block text-xs font-bold leading-relaxed opacity-80">{view.detail}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
           {smartSearchQuery ? (
             <section className="rounded-[14px] border border-purple-100 bg-purple-50/60 p-4 shadow-sm" data-testid="marketing-smart-search-results">

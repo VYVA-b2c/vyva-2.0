@@ -1374,6 +1374,28 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-relationship-panel")).toHaveTextContent("Hassan Partner");
   });
 
+  it("applies saved marketing views to tabs and filters", async () => {
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Marketing" });
+    expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Email launch");
+    expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Consent review");
+    expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Partner outreach");
+
+    fireEvent.click(screen.getByTestId("button-marketing-saved-view-partner"));
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByLabelText("Audience filter")).toHaveValue("b2b");
+    expect(screen.getByTestId("input-marketing-search")).toHaveValue("partner");
+
+    fireEvent.click(screen.getByTestId("button-marketing-saved-view-consent"));
+    expect(screen.getByTestId("marketing-contacts-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("select-marketing-contact-consent-filter")).toHaveValue("pending");
+    expect(screen.getByTestId("marketing-contact-consent-triage")).toHaveTextContent("Clear the first blockers");
+
+    fireEvent.click(screen.getByTestId("button-marketing-saved-view-source"));
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Source sync");
+  });
+
   it("turns a standalone contact into a reusable campaign audience before opening the studio", async () => {
     renderPage({}, { audiences: [] });
 
