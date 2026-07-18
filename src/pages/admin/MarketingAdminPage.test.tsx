@@ -143,6 +143,23 @@ const journeys = [
       dayOffset: 3,
       templateKind: "email_template",
       templateRef: "content-1",
+      config: {
+        default_language: "en",
+        translations: {
+          en: {
+            title: "Welcome email",
+            subject: "Welcome to VYVA",
+            body: "Hello from Source",
+            ctaLabel: "Open VYVA",
+            ctaUrl: "https://v2.vyva.life",
+          },
+          es: {
+            title: "Correo de bienvenida",
+            subject: "Bienvenido a VYVA",
+            body: "Hola desde Source",
+          },
+        },
+      },
       status: "draft",
     }],
   },
@@ -4267,6 +4284,46 @@ describe("MarketingAdminPage", () => {
     });
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("New onboarding");
     expect(screen.getByTestId("button-marketing-save-journey")).toHaveTextContent("Save journey");
+  });
+
+  it("exposes imported journey step translations as editable first-class fields", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
+
+    const variantsPanel = screen.getByTestId("marketing-journey-step-language-variants-0");
+    expect(variantsPanel).toHaveTextContent("Step language variants");
+    expect(variantsPanel).toHaveTextContent("English (en)");
+    expect(variantsPanel).toHaveTextContent("Spanish (es)");
+    expect(screen.getByTestId("input-marketing-journey-step-default-language-0")).toHaveValue("en");
+    expect(screen.getByTestId("input-marketing-journey-step-translation-subject-0-en")).toHaveValue("Welcome to VYVA");
+    expect(screen.getByTestId("textarea-marketing-journey-step-translation-body-0-es")).toHaveValue("Hola desde Source");
+
+    fireEvent.change(screen.getByTestId("textarea-marketing-journey-step-translation-body-0-en"), { target: { value: "Updated English body" } });
+    fireEvent.change(screen.getByTestId("input-marketing-journey-step-translation-subject-0-es"), { target: { value: "Asunto actualizado" } });
+    fireEvent.change(screen.getByTestId("input-marketing-journey-step-default-language-0"), { target: { value: "es" } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys/journey-1", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/journeys/journey-1" && init?.method === "PATCH");
+    const payload = JSON.parse(String(patchCall?.[1]?.body));
+    expect(payload.steps[0].config).toMatchObject({
+      default_language: "es",
+      translations: {
+        en: {
+          body: "Updated English body",
+          subject: "Welcome to VYVA",
+        },
+        es: {
+          body: "Hola desde Source",
+          subject: "Asunto actualizado",
+        },
+      },
+    });
   });
 
   it("edits journey logic, steps, ordering, and deletes journey records", async () => {

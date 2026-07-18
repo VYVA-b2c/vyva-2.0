@@ -1143,6 +1143,12 @@ type JourneyStepDraft = {
   notes: string;
 };
 
+type JourneyStepTranslationField = "title" | "subject" | "body" | "ctaLabel" | "ctaUrl";
+
+type JourneyStepTranslationDraft = Record<JourneyStepTranslationField, string> & {
+  language: string;
+};
+
 type JourneyStarterRecommendation = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -6728,6 +6734,53 @@ function notesFromMetadata(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "";
   const notes = (value as Record<string, unknown>).notes;
   return typeof notes === "string" ? notes : "";
+}
+
+function translationFieldText(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const text = displayText(record[key]);
+    if (text) return text;
+  }
+  return "";
+}
+
+function journeyStepTranslationDraft(language: string, value: unknown): JourneyStepTranslationDraft {
+  if (typeof value === "string") {
+    return { language, title: "", subject: "", body: value, ctaLabel: "", ctaUrl: "" };
+  }
+  const record = recordValue(value);
+  return {
+    language,
+    title: translationFieldText(record, ["title", "name", "label", "templateTitle", "sequenceTitle"]),
+    subject: translationFieldText(record, ["subject", "headline", "heading"]),
+    body: translationFieldText(record, ["body", "text", "message", "caption", "copy", "content"]),
+    ctaLabel: translationFieldText(record, ["ctaLabel", "cta_label", "buttonLabel", "button_label"]),
+    ctaUrl: translationFieldText(record, ["ctaUrl", "cta_url", "buttonUrl", "button_url", "url"]),
+  };
+}
+
+function journeyStepTranslationsFromConfigText(configText: string): JourneyStepTranslationDraft[] {
+  const config = optionalJsonRecordText(configText);
+  const translations = config.translations;
+  if (Array.isArray(translations)) {
+    return translations
+      .map((item) => {
+        const record = recordValue(item);
+        const language = translationFieldText(record, ["language", "lang", "locale", "code"]);
+        return language ? journeyStepTranslationDraft(language, record) : null;
+      })
+      .filter((item): item is JourneyStepTranslationDraft => Boolean(item));
+  }
+  return Object.entries(recordValue(translations))
+    .map(([language, value]) => journeyStepTranslationDraft(language, value))
+    .filter((item) => item.language);
+}
+
+function journeyStepDefaultLanguage(configText: string) {
+  const config = optionalJsonRecordText(configText);
+  return translationFieldText(config, ["default_language", "defaultLanguage", "language", "locale"])
+    || journeyStepTranslationsFromConfigText(configText)[0]?.language
+    || "";
 }
 
 function emptyJourneyEditDraft(): JourneyEditDraft {
@@ -15512,6 +15565,76 @@ export default function MarketingAdminPage() {
       ...draft,
       steps: draft.steps.map((step) => step.id === stepId ? { ...step, ...patch } : step),
     }));
+  }
+
+  function updateJourneyStepConfig(stepId: string, updater: (config: Record<string, unknown>) => Record<string, unknown>) {
+    setJourneyEditDraft((draft) => ({
+      ...draft,
+      steps: draft.steps.map((step) => {
+        if (step.id !== stepId) return step;
+        const nextConfig = updater({ ...optionalJsonRecordText(step.configText) });
+        return { ...step, configText: jsonText(nextConfig) };
+      }),
+    }));
+    setJourneyFeedback("");
+  }
+
+  function updateJourneyStepDefaultLanguage(stepId: string, language: string) {
+    updateJourneyStepConfig(stepId, (config) => {
+      const next = { ...config };
+      const trimmed = language.trim();
+      if (trimmed) {
+        next.default_language = trimmed;
+      } else {
+        delete next.default_language;
+        delete next.defaultLanguage;
+      }
+      return next;
+    });
+  }
+
+  function updateJourneyStepTranslationField(stepId: string, language: string, field: JourneyStepTranslationField, value: string) {
+    updateJourneyStepConfig(stepId, (config) => {
+      const next = { ...config };
+      const translations = { ...recordValue(next.translations) };
+      const existingValue = translations[language];
+      const existingRecord = typeof existingValue === "string" ? { body: existingValue } : { ...recordValue(existingValue) };
+      existingRecord[field] = value;
+      translations[language] = existingRecord;
+      next.translations = translations;
+      if (!displayText(next.default_language) && !displayText(next.defaultLanguage)) next.default_language = language;
+      return next;
+    });
+  }
+
+  function addJourneyStepTranslation(stepId: string) {
+    updateJourneyStepConfig(stepId, (config) => {
+      const next = { ...config };
+      const translations = { ...recordValue(next.translations) };
+      const existingLanguages = new Set(Object.keys(translations).map((language) => language.toLowerCase()));
+      const suggestedLanguage = CONTENT_LOCALIZATION_LANGUAGES.find((language) => !existingLanguages.has(language.value.toLowerCase()))?.value
+        ?? `lang_${existingLanguages.size + 1}`;
+      translations[suggestedLanguage] = { title: "", subject: "", body: "", ctaLabel: "", ctaUrl: "" };
+      next.translations = translations;
+      if (!displayText(next.default_language) && !displayText(next.defaultLanguage)) next.default_language = suggestedLanguage;
+      return next;
+    });
+  }
+
+  function removeJourneyStepTranslation(stepId: string, language: string) {
+    updateJourneyStepConfig(stepId, (config) => {
+      const next = { ...config };
+      const translations = { ...recordValue(next.translations) };
+      delete translations[language];
+      if (Object.keys(translations).length) {
+        next.translations = translations;
+      } else {
+        delete next.translations;
+      }
+      if (displayText(next.default_language) === language) delete next.default_language;
+      if (displayText(next.defaultLanguage) === language) delete next.defaultLanguage;
+      return next;
+    });
   }
 
   function addJourneyStep() {
@@ -24537,6 +24660,8 @@ export default function MarketingAdminPage() {
                               const options = selectedContentOption && !contentOptions.some((item) => item.id === selectedContentOption.id)
                                 ? [selectedContentOption, ...contentOptions]
                                 : contentOptions;
+                              const stepTranslations = journeyStepTranslationsFromConfigText(step.configText);
+                              const stepDefaultLanguage = journeyStepDefaultLanguage(step.configText);
                               return (
                                 <div key={step.id} className="grid gap-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid={`marketing-journey-step-${index}`}>
                                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -24592,6 +24717,60 @@ export default function MarketingAdminPage() {
                                     onPreview={previewContent}
                                     onEdit={startContentEdit}
                                   />
+                                  <div className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-3" data-testid={`marketing-journey-step-language-variants-${index}`}>
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div>
+                                        <p className="text-sm font-black text-[#241133]">Step language variants</p>
+                                        <p className="text-xs font-bold text-[#6b5b54]">Imported Source copy is editable here instead of hidden in config JSON.</p>
+                                      </div>
+                                      <button type="button" onClick={() => addJourneyStepTranslation(step.id)} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-blue-200 bg-white px-2 text-xs font-black text-blue-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-add-journey-step-translation-${index}`}>
+                                        <Plus size={13} /> Add variant
+                                      </button>
+                                    </div>
+                                    <Field label="Default language">
+                                      <input className={inputClass} value={stepDefaultLanguage} onChange={(event) => updateJourneyStepDefaultLanguage(step.id, event.target.value)} placeholder="en" disabled={journeySaving} data-testid={`input-marketing-journey-step-default-language-${index}`} />
+                                    </Field>
+                                    {stepTranslations.length === 0 ? (
+                                      <p className="rounded-lg border border-dashed border-blue-200 bg-white px-3 py-2 text-xs font-bold text-[#6b5b54]" data-testid={`marketing-journey-step-no-translations-${index}`}>
+                                        No translated step copy in config yet. Add a variant when this step needs localized copy.
+                                      </p>
+                                    ) : (
+                                      <div className="grid gap-3">
+                                        {stepTranslations.map((translation) => {
+                                          const languageLabel = contentLocalizationLanguageLabel[translation.language as ContentLocalizationLanguage] ?? translation.language;
+                                          return (
+                                            <div key={translation.language} className="grid gap-3 rounded-xl border border-blue-100 bg-white p-3" data-testid={`marketing-journey-step-translation-${index}-${translation.language}`}>
+                                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <Pill className="bg-blue-50 text-blue-800">{languageLabel} ({translation.language})</Pill>
+                                                <button type="button" onClick={() => removeJourneyStepTranslation(step.id, translation.language)} disabled={journeySaving || journeyStepContentRunning} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-remove-journey-step-translation-${index}-${translation.language}`}>
+                                                  <Trash2 size={13} /> Remove
+                                                </button>
+                                              </div>
+                                              <div className="grid gap-3 xl:grid-cols-2">
+                                                <Field label="Title">
+                                                  <input className={inputClass} value={translation.title} onChange={(event) => updateJourneyStepTranslationField(step.id, translation.language, "title", event.target.value)} disabled={journeySaving} data-testid={`input-marketing-journey-step-translation-title-${index}-${translation.language}`} />
+                                                </Field>
+                                                <Field label="Subject/headline">
+                                                  <input className={inputClass} value={translation.subject} onChange={(event) => updateJourneyStepTranslationField(step.id, translation.language, "subject", event.target.value)} disabled={journeySaving} data-testid={`input-marketing-journey-step-translation-subject-${index}-${translation.language}`} />
+                                                </Field>
+                                              </div>
+                                              <Field label="Body copy">
+                                                <textarea className={`${textareaClass} min-h-[92px]`} value={translation.body} onChange={(event) => updateJourneyStepTranslationField(step.id, translation.language, "body", event.target.value)} disabled={journeySaving} data-testid={`textarea-marketing-journey-step-translation-body-${index}-${translation.language}`} />
+                                              </Field>
+                                              <div className="grid gap-3 xl:grid-cols-2">
+                                                <Field label="CTA label">
+                                                  <input className={inputClass} value={translation.ctaLabel} onChange={(event) => updateJourneyStepTranslationField(step.id, translation.language, "ctaLabel", event.target.value)} disabled={journeySaving} data-testid={`input-marketing-journey-step-translation-cta-label-${index}-${translation.language}`} />
+                                                </Field>
+                                                <Field label="CTA URL">
+                                                  <input className={inputClass} value={translation.ctaUrl} onChange={(event) => updateJourneyStepTranslationField(step.id, translation.language, "ctaUrl", event.target.value)} disabled={journeySaving} data-testid={`input-marketing-journey-step-translation-cta-url-${index}-${translation.language}`} />
+                                                </Field>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
                                   <div className="grid gap-3 xl:grid-cols-2">
                                     <Field label="Internal notes">
                                       <textarea className={`${textareaClass} min-h-[72px]`} value={step.notes} onChange={(event) => updateJourneyStep(step.id, { notes: event.target.value })} disabled={journeySaving} data-testid={`textarea-marketing-journey-step-notes-${index}`} />
