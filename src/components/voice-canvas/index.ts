@@ -22,3 +22,8 @@ export{refillCanvasReducer,initialRefillCanvasState,emptyRefillDraft}from"./refi
 export{refillCanvasViewModel}from"./refillCanvasViewModel";export type*from"./refillCanvasViewModel";
 export{trackRefillCanvasEvent,VYVA_REFILL_CANVAS_TELEMETRY_EVENT}from"./refillCanvasTelemetry";export type*from"./refillCanvasTelemetry";
 export{isRefillCanvasEnabled,parseRefillCanvasRolloutConfig}from"./refillCanvasRollout";export type*from"./refillCanvasRollout";
+export{default as PrescriptionFollowUpVoiceCanvas}from"./PrescriptionFollowUpVoiceCanvas";export type*from"./PrescriptionFollowUpVoiceCanvas";
+export{prescriptionFollowUpReducer,initialPrescriptionFollowUpState,isRestorablePrescriptionFollowUpState}from"./prescriptionFollowUpMachine";export type*from"./prescriptionFollowUpMachine";
+export{prescriptionFollowUpViewModel}from"./prescriptionFollowUpViewModel";export type*from"./prescriptionFollowUpViewModel";
+export{trackPrescriptionFollowUpEvent,VYVA_PRESCRIPTION_FOLLOW_UP_TELEMETRY_EVENT}from"./prescriptionFollowUpTelemetry";export type*from"./prescriptionFollowUpTelemetry";
+export{isPrescriptionFollowUpEnabled,parsePrescriptionFollowUpRolloutConfig}from"./prescriptionFollowUpRollout";export type*from"./prescriptionFollowUpRollout";

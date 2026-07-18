@@ -37,7 +37,7 @@ const triggerSchema = z.object({
   action_payload: z.record(z.string(), z.unknown()).default({}),
   language: z.string().trim().min(2).max(12).optional(),
   trigger_source: z
-    .enum(["user_request", "agent_confirmed", "automation", "no_contact_nudge", "manual"])
+    .enum(["user_request", "agent_confirmed", "automation", "no_contact_nudge", "manual", "medication_refill_canvas"])
     .optional()
     .default("user_request"),
   auto_start: z.boolean().optional().default(true),
