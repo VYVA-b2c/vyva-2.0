@@ -340,6 +340,57 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/task-1");
   });
 
+  it("shows only the provider task that needs the user's next action", async () => {
+    const waitingTaskId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const replyTaskId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    mockConciergeLists([
+      {
+        ...pendingTask,
+        id: "pending-waiting",
+        action_payload: {
+          provider_task_status: "waiting",
+          waiting_for_provider: true,
+          provider_last_contact_summary: "Waiting for Harbour Clinic.",
+        },
+      },
+      {
+        ...pendingTask,
+        id: "pending-reply",
+        action_payload: {
+          provider_task_status: "action_needed",
+          provider_reply_status: "needs_more_info",
+          provider_reply: "Please confirm your insurance plan.",
+        },
+      },
+    ], [], [
+      {
+        id: waitingTaskId,
+        kind: "appointment",
+        entry_payload: { kind: "appointment", appointmentKind: "medical" },
+        progress_payload: {},
+        stage: "review",
+        status: "active",
+        linked_pending_id: "pending-waiting",
+      },
+      {
+        id: replyTaskId,
+        kind: "appointment",
+        entry_payload: { kind: "appointment", appointmentKind: "medical" },
+        progress_payload: {},
+        stage: "review",
+        status: "active",
+        linked_pending_id: "pending-reply",
+      },
+    ]);
+    renderScreen(["/concierge"], "home");
+
+    expect(await screen.findByTestId("concierge-home-task-status")).toHaveTextContent("Action needed");
+    expect(screen.getByTestId("concierge-home-active-task")).toHaveTextContent("Please confirm your insurance plan.");
+    expect(screen.getAllByTestId("concierge-home-active-task")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Respond" }));
+    expect(screen.getByTestId("location-path")).toHaveTextContent(`/concierge/task/${replyTaskId}`);
+  });
+
   it("opens a selected home workflow after the route changes without requiring a remount", async () => {
     mockConciergeLists([]);
     renderScreen(["/concierge"], "route");
@@ -3236,6 +3287,7 @@ describe("ConciergeScreen action hub", () => {
     };
     let pendingItems = [contact, shortlist];
     let shortlistPatch: Record<string, unknown> | null = null;
+    let contactPatch: Record<string, unknown> | null = null;
     let contactCompletion: { outcome_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
@@ -3246,6 +3298,12 @@ describe("ConciergeScreen action hub", () => {
         shortlistPatch = body.action_payload;
         pendingItems = pendingItems.map((item) => item.id === shortlist.id ? { ...shortlist, action_payload: body.action_payload } : item);
         return jsonResponse({ ok: true });
+      }
+      if (target.endsWith("/api/concierge/actions/success-contact-1/details")) {
+        const body = JSON.parse(String(init?.body)) as { action_payload: Record<string, unknown> };
+        contactPatch = body.action_payload;
+        pendingItems = pendingItems.map((item) => item.id === contact.id ? { ...contact, action_payload: body.action_payload } : item);
+        return jsonResponse({ ok: true, item: pendingItems[0] });
       }
       if (target.endsWith("/api/concierge/actions/success-contact-1/complete")) {
         contactCompletion = JSON.parse(String(init?.body));
@@ -3265,12 +3323,21 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.change(screen.getByTestId("input-provider-reply-follow-up-success-contact-1"), { target: { value: "Bring insurance card" } });
     fireEvent.click(screen.getByTestId("button-provider-reply-save-success-contact-1"));
 
-    await waitFor(() => expect(contactCompletion?.outcome_payload).toMatchObject({
+    await waitFor(() => expect(contactPatch).toMatchObject({
+      provider_task_status: "reply_received",
       provider_reply_status: "confirmed",
       scheduled_for: "Friday 10:30",
       reference: "HC-908",
       price: "EUR 65",
       follow_up: "Bring insurance card",
+      provider_follow_up_confirmed: false,
+    }));
+    expect(await screen.findByTestId("panel-concierge-provider-reply")).toHaveTextContent("Reply received");
+    fireEvent.click(screen.getByTestId("button-provider-reply-mark-complete-success-contact-1"));
+    await waitFor(() => expect(contactCompletion?.outcome_payload).toMatchObject({
+      provider_task_status: "done",
+      provider_reply_status: "confirmed",
+      provider_reply_source: "live",
     }));
     await waitFor(() => expect(shortlistPatch).toMatchObject({
       shortlist_status: "preferred_selected",
@@ -6378,13 +6445,25 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-provider-reply")).toHaveTextContent("Provider reply");
   });
 
-  it("records a confirmed provider reply through the existing completion endpoint", async () => {
+  it("keeps a confirmed provider reply on the original task until the user marks it done", async () => {
+    let pendingPayload: Record<string, unknown> = {
+      pickup_address: "Saved home",
+      destination_address: "City Clinic",
+      requested_time: "tomorrow 09:00",
+      mission_status: "awaiting_provider_reply",
+    };
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
     let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.endsWith("/api/concierge/actions/reply-ride-1/complete")) {
         completeBody = JSON.parse(String(init?.body));
         return jsonResponse({ ok: true, status: "completed", sessionId: "session-reply-ride-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/reply-ride-1/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        pendingPayload = detailsBody?.action_payload ?? pendingPayload;
+        return jsonResponse({ ok: true, item: { id: "reply-ride-1", action_payload: pendingPayload } });
       }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
@@ -6394,12 +6473,7 @@ describe("ConciergeScreen route prefill", () => {
             provider_name: "Radio Taxi",
             provider_phone: "+34 612 345 678",
             action_summary: "VYVA is waiting for the taxi provider reply.",
-            action_payload: {
-              pickup_address: "Saved home",
-              destination_address: "City Clinic",
-              requested_time: "tomorrow 09:00",
-              mission_status: "awaiting_provider_reply",
-            },
+            action_payload: pendingPayload,
             status: "calling",
             language: "en",
           }],
@@ -6430,9 +6504,8 @@ describe("ConciergeScreen route prefill", () => {
     fireEvent.click(screen.getByTestId("button-provider-reply-save-reply-ride-1"));
 
     await waitFor(() => {
-      expect(completeBody).toMatchObject({
-        outcome_summary: "Provider confirmed: Radio Taxi. Time: tomorrow 09:30. Reference: RT-42.",
-        outcome_payload: expect.objectContaining({
+      expect(detailsBody).toMatchObject({
+        action_payload: expect.objectContaining({
           provider_name: "Radio Taxi",
           provider_phone: "+34 612 345 678",
           provider_reply_status: "confirmed",
@@ -6443,26 +6516,38 @@ describe("ConciergeScreen route prefill", () => {
           follow_up: "Driver calls five minutes before arrival",
           pickup_address: "Saved home",
           destination_address: "City Clinic",
-          live_handoff_status: "completed",
-          live_handoff_outcome: "provider_confirmed",
-          completed_from: "provider_reply_panel",
+          provider_task_status: "reply_received",
+          live_handoff_status: "ready",
+          live_handoff_outcome: "provider_replied",
+          provider_follow_up_confirmed: false,
         }),
       });
     });
+    expect(await screen.findByTestId("panel-concierge-provider-reply")).toHaveTextContent("Reply received");
+    fireEvent.click(screen.getByTestId("button-provider-reply-mark-complete-reply-ride-1"));
+
+    await waitFor(() => expect(completeBody).toMatchObject({
+      outcome_summary: "Provider confirmed: Radio Taxi. Time: tomorrow 09:30. Reference: RT-42.",
+      outcome_payload: expect.objectContaining({
+        provider_task_status: "done",
+        provider_reply: "Driver will wait outside the main door.",
+        provider_reply_source: "live",
+      }),
+    }));
   });
 
-  it("saves a confirmed medical appointment reply into Scheduled Support before closing the task", async () => {
+  it("saves a confirmed medical appointment reply into Scheduled Support and keeps it on the task", async () => {
     let scheduledBody: Record<string, unknown> | null = null;
-    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.endsWith("/api/profile/scheduled-events")) {
         scheduledBody = JSON.parse(String(init?.body));
         return jsonResponse({ event: { id: "scheduled-appointment-reply", ...scheduledBody } }, { status: 201 });
       }
-      if (target.endsWith("/api/concierge/actions/reply-appointment-1/complete")) {
-        completeBody = JSON.parse(String(init?.body));
-        return jsonResponse({ ok: true, status: "completed", sessionId: "session-appointment-reply" });
+      if (target.endsWith("/api/concierge/actions/reply-appointment-1/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, item: { id: "reply-appointment-1", action_payload: detailsBody?.action_payload } });
       }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
@@ -6532,9 +6617,8 @@ describe("ConciergeScreen route prefill", () => {
         }),
       });
       expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
-      expect(completeBody).toMatchObject({
-        outcome_summary: "Provider confirmed: Clinica Lopez. Time: 2026-07-22T10:30. Reference: AP-77.",
-        outcome_payload: expect.objectContaining({
+      expect(detailsBody).toMatchObject({
+        action_payload: expect.objectContaining({
           flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
           appointment_type: "medical",
           provider_name: "Clinica Lopez",
@@ -6543,25 +6627,27 @@ describe("ConciergeScreen route prefill", () => {
           reference: "AP-77",
           location: "Marbella",
           scheduled_event_id: "scheduled-appointment-reply",
-          live_handoff_status: "completed",
-          live_handoff_outcome: "provider_confirmed",
+          provider_task_status: "reply_received",
+          live_handoff_status: "ready",
+          live_handoff_outcome: "provider_replied",
+          provider_follow_up_confirmed: false,
         }),
       });
     });
   });
 
-  it("saves a confirmed Safe Home service reply before closing the task", async () => {
+  it("saves a confirmed Safe Home service reply and keeps it on the task", async () => {
     let scheduledBody: Record<string, unknown> | null = null;
-    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.endsWith("/api/profile/scheduled-events")) {
         scheduledBody = JSON.parse(String(init?.body));
         return jsonResponse({ event: { id: "scheduled-home-reply", ...scheduledBody } }, { status: 201 });
       }
-      if (target.endsWith("/api/concierge/actions/reply-home-service-1/complete")) {
-        completeBody = JSON.parse(String(init?.body));
-        return jsonResponse({ ok: true, status: "completed", sessionId: "session-home-reply" });
+      if (target.endsWith("/api/concierge/actions/reply-home-service-1/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, item: { id: "reply-home-service-1", action_payload: detailsBody?.action_payload } });
       }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
@@ -6646,9 +6732,8 @@ describe("ConciergeScreen route prefill", () => {
       });
       expect(String(scheduledBody?.description)).toContain("Notes: Caregiver will be home during the visit.");
       expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
-      expect(completeBody).toMatchObject({
-        outcome_summary: "Home service visit confirmed with Saved Plumber.",
-        outcome_payload: expect.objectContaining({
+      expect(detailsBody).toMatchObject({
+        action_payload: expect.objectContaining({
           flow_reference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
           appointment_type: "home-service",
           provider_name: "Saved Plumber",
@@ -6663,8 +6748,10 @@ describe("ConciergeScreen route prefill", () => {
           location: "Home kitchen",
           notes: "Caregiver will be home during the visit.",
           scheduled_event_id: "scheduled-home-reply",
-          live_handoff_status: "completed",
-          live_handoff_outcome: "provider_confirmed",
+          provider_task_status: "reply_received",
+          live_handoff_status: "ready",
+          live_handoff_outcome: "provider_replied",
+          provider_follow_up_confirmed: false,
         }),
       });
     });
@@ -6710,7 +6797,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-provider-reply-confirmed-reply-follow-up")).toHaveTextContent("I got a reply");
     expect(screen.getByTestId("button-provider-reply-no-answer-reply-follow-up")).toHaveTextContent("No answer");
     expect(screen.getByTestId("button-provider-reply-unavailable-reply-follow-up")).toHaveTextContent("Try another provider");
-    expect(screen.getByTestId("button-provider-reply-more-info-reply-follow-up")).toHaveTextContent("Ask me for missing info");
+    expect(screen.getByTestId("button-provider-reply-more-info-reply-follow-up")).toHaveTextContent("Provider needs info");
     expect(screen.getByTestId("button-provider-reply-mark-complete-reply-follow-up")).toHaveTextContent("Mark complete");
 
     fireEvent.click(screen.getByTestId("button-provider-reply-no-answer-reply-follow-up"));
@@ -6726,11 +6813,61 @@ describe("ConciergeScreen route prefill", () => {
           provider_contact_attempt_count: 1,
           waiting_for_provider: true,
           mission_status: "awaiting_provider_reply",
+          provider_task_status: "waiting",
+          provider_follow_up_requires_confirmation: true,
+          provider_follow_up_confirmed: false,
           no_external_action_without_confirmation: true,
         }),
       });
     });
     expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("No answer saved. The task stays open");
+  });
+
+  it("keeps a provider question on the task as the next action", async () => {
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
+    let pendingPayload: Record<string, unknown> = {
+      mission_status: "awaiting_provider_reply",
+      waiting_for_provider: true,
+    };
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/reply-more-info/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        pendingPayload = detailsBody?.action_payload ?? pendingPayload;
+        return jsonResponse({ ok: true, item: { id: "reply-more-info", action_payload: pendingPayload } });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({ items: [{
+          id: "reply-more-info",
+          use_case: "book_appointment",
+          provider_name: "Harbour Clinic",
+          provider_phone: "+34 600 111 222",
+          action_summary: "Waiting for Harbour Clinic.",
+          action_payload: pendingPayload,
+          status: "calling",
+          language: "en",
+        }] });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    await screen.findByTestId("panel-concierge-provider-reply");
+    fireEvent.click(screen.getByTestId("button-provider-reply-more-info-reply-more-info"));
+    fireEvent.change(screen.getByTestId("input-provider-reply-question-reply-more-info"), {
+      target: { value: "Which insurance plan do you use?" },
+    });
+    fireEvent.click(screen.getByTestId("button-provider-reply-ask-reply-more-info"));
+
+    await waitFor(() => expect(detailsBody?.action_payload).toMatchObject({
+      provider_task_status: "action_needed",
+      provider_reply_status: "needs_more_info",
+      provider_reply: "Which insurance plan do you use?",
+      provider_follow_up_requires_confirmation: true,
+      provider_follow_up_confirmed: false,
+    }));
+    expect(await screen.findByTestId("panel-concierge-provider-reply")).toHaveTextContent("Action needed");
+    expect(screen.getByTestId("panel-concierge-provider-reply")).toHaveTextContent("Which insurance plan do you use?");
   });
 
   it.each([
@@ -7246,7 +7383,7 @@ describe("ConciergeScreen route prefill", () => {
     });
     fireEvent.click(screen.getByTestId("button-provider-reply-ask-reply-more-info"));
 
-    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Question added to chat.");
+    expect(await screen.findByTestId("provider-reply-notice")).toHaveTextContent("The question is ready to answer.");
   });
 
   it("reveals prepared email draft actions only after user confirmation and final confirmation", async () => {

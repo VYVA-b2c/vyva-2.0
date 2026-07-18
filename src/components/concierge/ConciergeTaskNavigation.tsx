@@ -1,10 +1,12 @@
-import { ArrowLeft, Check, ChevronRight, ClipboardCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, ClipboardCheck, Trash2 } from "lucide-react";
 import type { ConciergeTaskStage } from "@/lib/conciergeTaskNavigation";
+import type { ConciergeProviderTaskStatus } from "../../../shared/conciergeProviderReplies";
 
 type HomeTask = {
   id: string;
   title: string;
   summary: string;
+  providerStatus?: ConciergeProviderTaskStatus | null;
 };
 
 type CompletedTask = {
@@ -13,9 +15,25 @@ type CompletedTask = {
   summary: string;
 };
 
+function providerStatusLabel(status: ConciergeProviderTaskStatus, isSpanish: boolean): string {
+  const labels: Record<ConciergeProviderTaskStatus, [string, string]> = {
+    waiting: ["Waiting", "Esperando"],
+    reply_received: ["Reply received", "Respuesta recibida"],
+    action_needed: ["Action needed", "Accion necesaria"],
+    done: ["Done", "Hecho"],
+  };
+  return labels[status][isSpanish ? 1 : 0];
+}
+
+function taskActionLabel(status: ConciergeProviderTaskStatus | null | undefined, isSpanish: boolean): string {
+  if (status === "action_needed") return isSpanish ? "Responder" : "Respond";
+  if (status === "reply_received") return isSpanish ? "Revisar respuesta" : "Review reply";
+  if (status === "waiting") return isSpanish ? "Ver estado" : "View status";
+  return isSpanish ? "Continuar" : "Continue";
+}
+
 export function ConciergeHomeTaskOverview({
   activeTask,
-  queuedCount,
   completedTasks,
   isLoading,
   isSpanish,
@@ -34,12 +52,12 @@ export function ConciergeHomeTaskOverview({
     <section className="mt-5 border-t border-vyva-border pt-5" data-testid="concierge-home-task-overview">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-body text-[22px] font-black text-vyva-text-1">
-          {isSpanish ? "Tus tareas" : "Your tasks"}
+          {isSpanish ? "Siguiente paso" : "Next step"}
         </h2>
-        {queuedCount > 0 ? (
-          <span className="font-body text-[12px] font-bold text-vyva-text-2">
-            {queuedCount} {isSpanish ? "en cola" : "queued"}
-          </span>
+        {completedTasks.length > 0 ? (
+          <button type="button" onClick={onReviewHistory} className="vyva-tap font-body text-[13px] font-black text-vyva-purple">
+            {isSpanish ? "Historial" : "History"}
+          </button>
         ) : null}
       </div>
 
@@ -54,6 +72,11 @@ export function ConciergeHomeTaskOverview({
               <ClipboardCheck size={20} aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
+              {activeTask.providerStatus ? (
+                <p className="mb-1 font-body text-[11px] font-black uppercase text-[#047857]" data-testid="concierge-home-task-status">
+                  {providerStatusLabel(activeTask.providerStatus, isSpanish)}
+                </p>
+              ) : null}
               <p className="font-body text-[16px] font-black text-vyva-text-1">{activeTask.title}</p>
               <p className="mt-1 line-clamp-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
                 {activeTask.summary}
@@ -66,7 +89,7 @@ export function ConciergeHomeTaskOverview({
             className="vyva-tap mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg bg-[#047857] px-4 font-body text-[15px] font-black text-white"
             data-testid="button-concierge-continue-task"
           >
-            {isSpanish ? "Continuar" : "Continue"}
+            {taskActionLabel(activeTask.providerStatus, isSpanish)}
             <ChevronRight size={18} aria-hidden="true" />
           </button>
         </div>
@@ -76,29 +99,6 @@ export function ConciergeHomeTaskOverview({
         </p>
       )}
 
-      {completedTasks.length > 0 ? (
-        <div className="pt-4" data-testid="concierge-home-completed-tasks">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="font-body text-[14px] font-black text-vyva-text-1">
-              {isSpanish ? "Hecho recientemente" : "Done recently"}
-            </h3>
-            <button type="button" onClick={onReviewHistory} className="vyva-tap font-body text-[13px] font-black text-vyva-purple">
-              {isSpanish ? "Ver historial" : "View history"}
-            </button>
-          </div>
-          <div className="mt-2 divide-y divide-vyva-border">
-            {completedTasks.map((task) => (
-              <div key={task.id} className="flex items-start gap-3 py-3">
-                <Check size={17} className="mt-0.5 flex-shrink-0 text-[#047857]" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="font-body text-[13px] font-black text-vyva-text-1">{task.title}</p>
-                  <p className="mt-0.5 line-clamp-1 font-body text-[12px] font-semibold text-vyva-text-2">{task.summary}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -111,6 +111,7 @@ export function ConciergeTaskWorkspaceHeader({
   onBack,
   onDelete,
   isDeleting = false,
+  providerUpdate,
 }: {
   title: string;
   summary: string;
@@ -119,6 +120,10 @@ export function ConciergeTaskWorkspaceHeader({
   onBack: () => void;
   onDelete?: () => void;
   isDeleting?: boolean;
+  providerUpdate?: {
+    status: ConciergeProviderTaskStatus;
+    summary: string;
+  } | null;
 }) {
   const stages: Array<{ id: ConciergeTaskStage; label: string }> = [
     { id: "details", label: isSpanish ? "Detalles" : "Details" },
@@ -154,6 +159,16 @@ export function ConciergeTaskWorkspaceHeader({
       </div>
       <h1 className="mt-3 font-body text-[28px] font-black leading-tight text-vyva-text-1">{title}</h1>
       <p className="mt-2 max-w-2xl font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">{summary}</p>
+      {providerUpdate ? (
+        <div className="mt-4 border-l-4 border-[#10B981] pl-3" data-testid="concierge-task-provider-update">
+          <p className="font-body text-[12px] font-black uppercase text-[#047857]">
+            {providerStatusLabel(providerUpdate.status, isSpanish)}
+          </p>
+          {providerUpdate.summary ? (
+            <p className="mt-1 font-body text-[14px] font-semibold text-vyva-text-1">{providerUpdate.summary}</p>
+          ) : null}
+        </div>
+      ) : null}
       <ol className="mt-4 grid grid-cols-3 gap-2" aria-label={isSpanish ? "Progreso de la tarea" : "Task progress"}>
         {stages.map((item, index) => {
           const isCurrent = item.id === stage;
