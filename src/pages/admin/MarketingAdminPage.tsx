@@ -20243,6 +20243,41 @@ export default function MarketingAdminPage() {
         state,
       };
     });
+    const emailRouteReady = channelRoutes.some((route) => route.channel === "email" && route.mode === "VYVA send");
+    const manualRouteCount = channelRoutes.filter((route) => route.mode === "Manual handoff").length;
+    const blockedRouteCount = channelRoutes.filter((route) => route.state === "blocked").length;
+    const publishPath: Array<{ key: string; title: string; detail: string; state: CampaignReadinessState }> = [
+      {
+        key: "templates",
+        title: packMatch ? "Template pack matched" : "Choose templates",
+        detail: packMatch
+          ? `${packMatch.pack.title} covers ${formatChannelList(selectedChannels)}.`
+          : "Open saved templates or customize the studio before creating records.",
+        state: packMatch ? "ready" : "needs_action",
+      },
+      {
+        key: "records",
+        title: "Create campaign kit",
+        detail: `Save campaign metadata, ${selectedChannels.length} channel route${selectedChannels.length === 1 ? "" : "s"}, content assets, and recipient snapshots.`,
+        state: reachableContacts > 0 ? "ready" : "blocked",
+      },
+      {
+        key: "dispatch",
+        title: emailRouteReady ? "Review send and handoffs" : "Prepare handoff",
+        detail: emailRouteReady
+          ? manualRouteCount > 0
+            ? `Email can send in VYVA after review; ${manualRouteCount} route${manualRouteCount === 1 ? "" : "s"} become manual handoffs.`
+            : "Review recipients and copy before sending email through VYVA."
+          : `${manualRouteCount || selectedChannels.length} route${(manualRouteCount || selectedChannels.length) === 1 ? "" : "s"} stay as planning or manual publishing handoffs.`,
+        state: blockedRouteCount > 0 ? "needs_action" : emailRouteReady ? "needs_action" : "planning",
+      },
+      {
+        key: "follow-up",
+        title: "Track relationship follow-up",
+        detail: "Log replies, handoff outcomes, and next relationship tasks back on the campaign.",
+        state: "planning",
+      },
+    ];
     return {
       match,
       primaryChannel,
@@ -20251,6 +20286,7 @@ export default function MarketingAdminPage() {
       reachableContacts,
       packMatch,
       channelRoutes,
+      publishPath,
       angleLabel: campaignStudioAngleOptions.find((item) => item.id === match.angleId)?.label ?? match.angleId,
     };
   }, [audiences, contacts, marketingDashboardAiCommand, sendCapabilityByChannel, templatePackRecommendationsForPlay]);
@@ -20860,6 +20896,38 @@ export default function MarketingAdminPage() {
                                     <span>{route.reachableContacts} reachable</span>
                                     <span>{route.templateCount} templates</span>
                                   </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3" data-testid="marketing-ai-command-publish-path">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-emerald-900">Path to publish</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#5b4a46]">
+                                  Follow this order after the AI match so campaign work does not get lost between tools.
+                                </p>
+                              </div>
+                              <Pill className="bg-white text-emerald-800">
+                                {marketingDashboardAiCommandPlan.publishPath.filter((item) => item.state === "ready").length}/{marketingDashboardAiCommandPlan.publishPath.length} ready
+                              </Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 md:grid-cols-2">
+                              {marketingDashboardAiCommandPlan.publishPath.map((item, index) => (
+                                <div
+                                  key={item.key}
+                                  className={`rounded-lg border bg-white p-3 ${readinessClass(item.state)}`}
+                                  data-testid={`marketing-ai-command-publish-path-${item.key}`}
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-black text-[#241133] ring-1 ring-current">
+                                      {index + 1}
+                                    </span>
+                                    <div>
+                                      <p className="text-xs font-black text-[#241133]">{item.title}</p>
+                                      <p className="mt-1 text-[11px] font-bold leading-relaxed text-[#5b4a46]">{item.detail}</p>
+                                    </div>
+                                  </div>
                                 </div>
                               ))}
                             </div>

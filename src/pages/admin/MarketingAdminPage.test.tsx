@@ -1312,6 +1312,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-route-preview")).toHaveTextContent("Launch route preview");
     expect(screen.getByTestId("marketing-ai-command-route-email")).toHaveTextContent("VYVA send");
     expect(screen.getByTestId("marketing-ai-command-route-linkedin")).toHaveTextContent("Manual handoff");
+    expect(screen.getByTestId("marketing-ai-command-publish-path")).toHaveTextContent("Path to publish");
+    expect(screen.getByTestId("marketing-ai-command-publish-path-templates")).toHaveTextContent("Template pack matched");
+    expect(screen.getByTestId("marketing-ai-command-publish-path-records")).toHaveTextContent("Create campaign kit");
+    expect(screen.getByTestId("marketing-ai-command-publish-path-dispatch")).toHaveTextContent("Review send and handoffs");
+    expect(screen.getByTestId("marketing-ai-command-publish-path-follow-up")).toHaveTextContent("Track relationship follow-up");
     expect(screen.getByTestId("button-marketing-ai-command-create-kit")).toHaveTextContent("Create kit");
     expect(screen.getByTestId("button-marketing-ai-command-open-pack")).toHaveTextContent("Open templates");
     expect(screen.getByTestId("button-marketing-ai-command-customize-pack")).toHaveTextContent("Customize pack");
