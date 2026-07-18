@@ -3959,6 +3959,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-contact-email"), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByTestId("input-marketing-contact-phone"), { target: { value: "+34 600 000 002" } });
     fireEvent.change(screen.getByTestId("input-marketing-contact-whatsapp"), { target: { value: "+34 600 000 003" } });
+    fireEvent.change(screen.getByTestId("select-marketing-contact-consent"), { target: { value: "opted_in" } });
     fireEvent.change(screen.getByTestId("input-marketing-contact-role"), { target: { value: "Director" } });
     fireEvent.change(screen.getByTestId("input-marketing-contact-company"), { target: { value: "New Org" } });
     fireEvent.click(screen.getByTestId("button-marketing-contact-language-option-es"));
@@ -3981,6 +3982,7 @@ describe("MarketingAdminPage", () => {
       email: "new@example.com",
       phoneNumber: "+34 600 000 002",
       whatsappNumber: "+34 600 000 003",
+      consentStatus: "opted_in",
       roleLabel: "Director",
       companyName: "New Org",
       language: "es",

@@ -1308,6 +1308,7 @@ type MediaEditDraft = {
 type ContactDraft = {
   fullName: string;
   audienceType: Audience;
+  consentStatus: ConsentStatus;
   email: string;
   phoneNumber: string;
   whatsappNumber: string;
@@ -9347,6 +9348,7 @@ export default function MarketingAdminPage() {
   const [contactDraft, setContactDraft] = useState<ContactDraft>({
     fullName: "",
     audienceType: "b2b",
+    consentStatus: "unknown",
     email: "",
     phoneNumber: "",
     whatsappNumber: "",
@@ -17916,6 +17918,7 @@ export default function MarketingAdminPage() {
         body: JSON.stringify({
           fullName: contactDraft.fullName,
           audienceType: contactDraft.audienceType,
+          consentStatus: contactDraft.consentStatus,
           email: contactDraft.email || null,
           phoneNumber: contactDraft.phoneNumber || null,
           whatsappNumber: contactDraft.whatsappNumber || null,
@@ -17944,6 +17947,7 @@ export default function MarketingAdminPage() {
       setContactDraft({
         fullName: "",
         audienceType: "b2b",
+        consentStatus: "unknown",
         email: "",
         phoneNumber: "",
         whatsappNumber: "",
@@ -28301,13 +28305,18 @@ export default function MarketingAdminPage() {
                       setContactFeedback(error.message);
                       setMessage(error.message);
                     })}>
-                  <div className="grid gap-3 xl:grid-cols-[1.3fr_160px_1fr_1fr]">
+                  <div className="grid gap-3 xl:grid-cols-[1.3fr_150px_170px_1fr_1fr]">
                     <Field label="Name">
                       <input className={inputClass} value={contactDraft.fullName} onChange={(event) => setContactDraft((draft) => ({ ...draft, fullName: event.target.value }))} placeholder="Contact name" disabled={contactSaving} data-testid="input-marketing-contact-name" />
                     </Field>
                     <Field label="Audience">
                       <select className={inputClass} value={contactDraft.audienceType} onChange={(event) => setContactDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))} disabled={contactSaving}>
                         {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Consent">
+                      <select className={inputClass} value={contactDraft.consentStatus} onChange={(event) => setContactDraft((draft) => ({ ...draft, consentStatus: event.target.value as ConsentStatus }))} disabled={contactSaving} data-testid="select-marketing-contact-consent">
+                        {CONSENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
                     </Field>
                     <Field label="Email">
