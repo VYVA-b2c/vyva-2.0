@@ -223,6 +223,11 @@ import {
   conciergeProviderReplySnapshot,
   type ConciergeProviderTaskStatus,
 } from "../../shared/conciergeProviderReplies";
+import {
+  buildConciergeProviderReplyDecisionPatch,
+  parseConciergeProviderReplyResolution,
+  type ConciergeProviderReplyResolution,
+} from "../../shared/conciergeProviderReplyResolution";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -4570,7 +4575,23 @@ function completedSessionOutcomeLabel(session: ConciergeCompletedSession, isSpan
 
 function completedSessionDetails(session: ConciergeCompletedSession, isSpanish: boolean): Array<{ label: string; value: string }> {
   const payload = session.outcome_payload;
+  const providerResolution = parseConciergeProviderReplyResolution(payload?.provider_reply_resolution);
+  const providerDecision = providerResolution?.decision?.action === "confirm"
+    ? (isSpanish ? "Confirmado" : "Confirmed")
+    : providerResolution?.decision?.action === "answer_provider"
+      ? (isSpanish ? "Respuesta enviada" : "Provider answered")
+      : providerResolution?.decision?.action === "mark_complete"
+        ? (isSpanish ? "Marcado como hecho" : "Marked complete")
+        : "";
   const entries = [
+    {
+      label: isSpanish ? "Respuesta" : "Provider reply",
+      value: payloadString(payload, ["provider_reply"]),
+    },
+    {
+      label: isSpanish ? "Decision" : "Decision",
+      value: providerDecision,
+    },
     {
       label: isSpanish ? "Hora" : "Time",
       value: payloadString(payload, ["scheduled_for", "requested_time"]),
@@ -6711,7 +6732,8 @@ function ProviderReplyPanel({
   onSaveConfirmed,
   onUnavailable,
   onNeedMoreInfo,
-  onFollowUp,
+  onResolve,
+  onReviewDraft,
   onMarkComplete,
 }: {
   item: ConciergePendingItem;
@@ -6729,9 +6751,12 @@ function ProviderReplyPanel({
   onSaveConfirmed: () => void;
   onUnavailable: () => void;
   onNeedMoreInfo: () => void;
-  onFollowUp: () => void;
+  onResolve: (resolution: ConciergeProviderReplyResolution, answers: Record<string, string>) => void;
+  onReviewDraft: (resolution: ConciergeProviderReplyResolution) => void;
   onMarkComplete: () => void;
 }) {
+  const [resolutionAnswers, setResolutionAnswers] = useState<Record<string, string>>({});
+  useEffect(() => setResolutionAnswers({}), [item.id]);
   const needsScheduledTime = isMedicalAppointmentPendingAction(item) || isHomeServicePendingAction(item);
   const scheduledTimeLabel = isHomeServicePendingAction(item)
     ? (isSpanish ? "visita" : "visit")
@@ -6742,44 +6767,142 @@ function ProviderReplyPanel({
     : providerReplyFormHasDetails(form)) && !isSaving && !isUpdating;
   const providerUpdate = conciergeProviderReplySnapshot(item.action_payload);
   if (providerUpdate?.status === "reply_received" || providerUpdate?.status === "action_needed") {
-    const actionNeeded = providerUpdate.status === "action_needed";
+    const resolution = providerUpdate.resolution;
+    const primaryAction = resolution?.primaryAction
+      ?? (providerUpdate.status === "action_needed" ? "answer_provider" : "mark_complete");
+    const missingRequests = resolution?.requestedInformation.filter((request) => request.missing) ?? [];
+    const answersComplete = missingRequests.every((request) => Boolean(resolutionAnswers[request.key]?.trim()));
+    const draftReady = Boolean(resolution?.decision?.status === "draft_ready" && resolution.draftFollowUp);
+    const executionTask = isRecord(item.action_payload?.execution_task)
+      ? item.action_payload.execution_task
+      : {};
+    const executionAdapter = isRecord(item.action_payload?.execution_adapter)
+      ? item.action_payload.execution_adapter
+      : {};
+    const followUpSent = draftReady && (
+      item.action_payload?.provider_follow_up_confirmed === true
+      || executionAdapter.status === "sent"
+      || item.action_payload?.email_outcome === "sent"
+      || executionTask.user_confirmed === true
+    );
+    const facts = resolution ? [
+      resolution.availability !== "unknown" ? {
+        label: isSpanish ? "Disponibilidad" : "Availability",
+        value: resolution.availability === "available"
+          ? (isSpanish ? "Disponible" : "Available")
+          : resolution.availability === "limited"
+            ? (isSpanish ? "Limitada" : "Limited")
+            : (isSpanish ? "No disponible" : "Unavailable"),
+      } : null,
+      resolution.dateTime ? { label: isSpanish ? "Fecha y hora" : "Date and time", value: resolution.dateTime } : null,
+      resolution.price ? { label: isSpanish ? "Precio" : "Price", value: resolution.price } : null,
+      resolution.referenceNumber ? { label: isSpanish ? "Referencia" : "Reference", value: resolution.referenceNumber } : null,
+    ].filter((fact): fact is { label: string; value: string } => Boolean(fact)) : [];
+    const actionLabel = draftReady
+      ? (resolution?.channel === "whatsapp"
+        ? (isSpanish ? "Confirmar y enviar WhatsApp" : "Confirm and send WhatsApp")
+        : (isSpanish ? "Confirmar y enviar email" : "Confirm and send email"))
+      : primaryAction === "confirm"
+        ? (isSpanish ? "Confirmar" : "Confirm")
+        : primaryAction === "answer_provider"
+          ? (isSpanish ? "Responder al proveedor" : "Answer provider")
+          : (isSpanish ? "Marcar como hecho" : "Mark complete");
     return (
       <div className="mt-3 border-y border-vyva-border py-4" data-testid="panel-concierge-provider-reply">
         <p className="font-body text-[11px] font-black uppercase text-[#047857]">
-          {actionNeeded
+          {providerUpdate.status === "action_needed"
             ? (isSpanish ? "Accion necesaria" : "Action needed")
             : (isSpanish ? "Respuesta recibida" : "Reply received")}
         </p>
         <p className="mt-2 font-body text-[15px] font-black text-vyva-text-1">
-          {providerUpdate.summary || providerUpdate.reply}
+          {resolution?.summary || providerUpdate.summary || providerUpdate.reply}
         </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <Button
-            type="button"
-            onClick={actionNeeded ? onNeedMoreInfo : onMarkComplete}
-            disabled={isSaving || isUpdating}
-            className="vyva-primary-action h-auto"
-            data-testid={actionNeeded ? `button-provider-reply-answer-${item.id}` : `button-provider-reply-mark-complete-${item.id}`}
+        {facts.length > 0 ? (
+          <dl className="mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-2" data-testid="list-provider-reply-facts">
+            {facts.map((fact) => (
+              <div key={fact.label} className="border-t border-vyva-border pt-2">
+                <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">{fact.label}</dt>
+                <dd className="mt-0.5 font-body text-[13px] font-bold text-vyva-text-1">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        {primaryAction === "answer_provider" && missingRequests.length > 0 && !draftReady ? (
+          <div className="mt-3 grid gap-3" data-testid="panel-provider-reply-missing-information">
+            {missingRequests.map((request) => (
+              <label key={request.key} className="grid gap-1 font-body text-[12px] font-black text-vyva-text-2">
+                {request.label}
+                <Input
+                  value={resolutionAnswers[request.key] ?? ""}
+                  onChange={(event) => setResolutionAnswers((current) => ({
+                    ...current,
+                    [request.key]: event.target.value,
+                  }))}
+                  data-testid={`input-provider-reply-resolution-${request.key}`}
+                  className="h-[44px] rounded-[12px] border-vyva-border bg-white font-body text-[14px]"
+                />
+              </label>
+            ))}
+          </div>
+        ) : null}
+        {draftReady && resolution?.draftFollowUp ? (
+          <div className="mt-3 border-t border-vyva-border pt-3" data-testid="panel-provider-reply-draft">
+            <p className="font-body text-[11px] font-black uppercase text-vyva-text-3">
+              {isSpanish ? "Respuesta preparada" : "Reply ready"}
+            </p>
+            <p className="mt-1 whitespace-pre-wrap font-body text-[13px] font-semibold leading-relaxed text-vyva-text-1">
+              {resolution.draftFollowUp.body}
+            </p>
+          </div>
+        ) : null}
+        {providerUpdate.reply && providerUpdate.reply !== (resolution?.summary || providerUpdate.summary) ? (
+          <details className="mt-3 border-t border-vyva-border pt-2">
+            <summary className="vyva-tap cursor-pointer font-body text-[12px] font-black text-vyva-text-2">
+              {isSpanish ? "Ver respuesta original" : "View original reply"}
+            </summary>
+            <p className="mt-2 whitespace-pre-wrap font-body text-[13px] font-semibold text-vyva-text-2">
+              {providerUpdate.reply}
+            </p>
+          </details>
+        ) : null}
+        {followUpSent ? (
+          <p
+            className="mt-3 border-t border-vyva-border pt-3 font-body text-[13px] font-black text-[#047857]"
+            data-testid="status-provider-reply-sent"
           >
-            {actionNeeded
-              ? (isSpanish ? "Preparar respuesta" : "Prepare answer")
-              : (isSpanish ? "Marcar como hecho" : "Mark done")}
-          </Button>
-          <Button
-            type="button"
-            onClick={onFollowUp}
-            disabled={isSaving || isUpdating}
-            variant="outline"
-            className="vyva-secondary-action h-auto"
-          >
-            {isSpanish ? "Preparar seguimiento" : "Prepare follow-up"}
-          </Button>
-        </div>
-        <p className="mt-2 font-body text-[12px] font-semibold text-vyva-text-2">
-          {isSpanish
-            ? "Cualquier nuevo contacto pedira tu confirmacion."
-            : "Any new contact will ask for your confirmation."}
-        </p>
+            {isSpanish ? "Respuesta enviada. Esperando al proveedor." : "Reply sent. Waiting for the provider."}
+          </p>
+        ) : (
+          <>
+            <Button
+              type="button"
+              onClick={() => {
+                if (draftReady && resolution) onReviewDraft(resolution);
+                else if (primaryAction === "mark_complete") onMarkComplete();
+                else if (resolution) onResolve(resolution, resolutionAnswers);
+                else onNeedMoreInfo();
+              }}
+              disabled={isSaving || isUpdating || (primaryAction === "answer_provider" && !draftReady && !answersComplete)}
+              className="vyva-primary-action mt-3 h-auto w-full"
+              data-testid={draftReady
+                ? `button-provider-reply-send-${item.id}`
+                : primaryAction === "answer_provider"
+                  ? `button-provider-reply-answer-${item.id}`
+                  : primaryAction === "confirm"
+                    ? `button-provider-reply-confirm-${item.id}`
+                    : `button-provider-reply-mark-complete-${item.id}`}
+            >
+              {actionLabel}
+            </Button>
+            <p className="mt-2 font-body text-[12px] font-semibold text-vyva-text-2">
+              {draftReady
+                ? (isSpanish ? "Este boton es tu confirmacion final antes de enviar." : "This is your final confirmation before sending.")
+                : primaryAction === "mark_complete"
+                  ? (isSpanish ? "La respuesta quedara en el historial." : "The reply will stay in completion history.")
+                  : (isSpanish ? "Primero prepararemos la respuesta. Nada se enviara todavia." : "We will prepare the reply first. Nothing will be sent yet.")}
+            </p>
+          </>
+        )}
         {notice ? <p data-testid="provider-reply-notice" className="mt-2 font-body text-[12px] font-black text-[#047857]">{notice}</p> : null}
         {error ? <p data-testid="provider-reply-error" className="mt-2 font-body text-[12px] font-black text-[#B91C1C]">{error}</p> : null}
       </div>
@@ -10883,22 +11006,70 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     },
   });
 
-  const providerMarkCompleteMutation = useMutation({
-    mutationFn: ({ item }: { item: ConciergePendingItem }) => completePendingConciergeAction({
+  const providerReplyResolutionMutation = useMutation({
+    mutationFn: ({
+      item,
+      resolution,
+      answers,
+    }: {
+      item: ConciergePendingItem;
+      resolution: ConciergeProviderReplyResolution;
+      answers: Record<string, string>;
+    }) => patchPendingConciergeAction({
       pendingId: item.id,
-      outcomeSummary: conciergeProviderCompletionSummary(
-        item.action_payload,
-        isSpanish ? "Tarea marcada como completada." : "Task marked complete.",
-      ),
-      outcomePayload: {
-        ...(item.action_payload ?? {}),
-        provider_task_status: "done",
-        live_handoff_status: "completed",
-        live_handoff_outcome: "user_marked_complete",
-        completed_from: "provider_follow_up_panel",
-        no_external_action_without_confirmation: true,
-      },
+      actionPayload: buildConciergeProviderReplyDecisionPatch({
+        payload: item.action_payload,
+        resolution,
+        answers,
+      }),
     }),
+    onMutate: () => {
+      setProviderReplyError(null);
+      setProviderReplyNotice(null);
+    },
+    onSuccess: async () => {
+      setProviderReplyNotice(isSpanish
+        ? "Respuesta preparada. Revisala antes de enviar."
+        : "Reply prepared. Review it before sending.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setProviderReplyError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido preparar la respuesta." : "I could not prepare the reply."));
+    },
+  });
+
+  const providerMarkCompleteMutation = useMutation({
+    mutationFn: ({ item }: { item: ConciergePendingItem }) => {
+      const completedAt = new Date().toISOString();
+      const resolution = conciergeProviderReplySnapshot(item.action_payload)?.resolution ?? null;
+      return completePendingConciergeAction({
+        pendingId: item.id,
+        outcomeSummary: conciergeProviderCompletionSummary(
+          item.action_payload,
+          isSpanish ? "Tarea marcada como completada." : "Task marked complete.",
+        ),
+        outcomePayload: {
+          ...(item.action_payload ?? {}),
+          ...(resolution ? {
+            provider_reply_resolution: {
+              ...resolution,
+              decision: {
+                action: "mark_complete",
+                status: "completed",
+                recordedAt: completedAt,
+              },
+            },
+          } : {}),
+          provider_task_status: "done",
+          live_handoff_status: "completed",
+          live_handoff_outcome: "user_marked_complete",
+          completed_from: "provider_follow_up_panel",
+          no_external_action_without_confirmation: true,
+        },
+      });
+    },
     onMutate: () => {
       setProviderReplyError(null);
       setProviderReplyNotice(null);
@@ -13576,6 +13747,25 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     const question = providerReplyForm.followUpQuestion.trim();
     if (!question) return;
     providerNeedsInfoMutation.mutate({ item, question });
+  }
+
+  function handleProviderReplyResolution(
+    item: ConciergePendingItem,
+    resolution: ConciergeProviderReplyResolution,
+    answers: Record<string, string>,
+  ) {
+    providerReplyResolutionMutation.mutate({ item, resolution, answers });
+  }
+
+  function handleProviderReplyDraftReview(
+    item: ConciergePendingItem,
+    resolution: ConciergeProviderReplyResolution,
+  ) {
+    if (resolution.channel === "whatsapp") {
+      handleWhatsAppDraftReview(item);
+      return;
+    }
+    handleEmailDraftReview(item);
   }
 
   function handleSaveProviderSearchProvider(item: ConciergePendingItem) {
@@ -18033,7 +18223,10 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                 notice={providerReplyNotice}
                 error={providerReplyError}
                 isSaving={providerReplyCompletionMutation.isPending}
-                isUpdating={providerNoAnswerMutation.isPending || providerMarkCompleteMutation.isPending}
+                isUpdating={providerNoAnswerMutation.isPending
+                  || providerMarkCompleteMutation.isPending
+                  || providerReplyResolutionMutation.isPending
+                  || reviewConfirmMutation.isPending}
                 isSpanish={isSpanish}
                 onMode={(mode) => openProviderReplyMode(activeAction, mode)}
                 onFormChange={updateProviderReplyForm}
@@ -18041,7 +18234,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                 onSaveConfirmed={() => handleSaveProviderReply(activeAction)}
                 onUnavailable={() => handleProviderUnavailable(activeAction)}
                 onNeedMoreInfo={() => handleProviderNeedMoreInfo(activeAction)}
-                onFollowUp={() => handleProviderFollowUp(activeAction)}
+                onResolve={(resolution, answers) => handleProviderReplyResolution(activeAction, resolution, answers)}
+                onReviewDraft={(resolution) => handleProviderReplyDraftReview(activeAction, resolution)}
                 onMarkComplete={() => handleProviderMarkComplete(activeAction)}
               />
             ) : null}

@@ -1,4 +1,8 @@
 import type { ConciergeProviderTaskStatus } from "./conciergeProviderReplies";
+import {
+  buildConciergeProviderReplyResolution,
+  type ConciergeProviderReplyResolution,
+} from "./conciergeProviderReplyResolution";
 
 export const CONCIERGE_INBOUND_REPLY_MATCH_STATUSES = [
   "processing",
@@ -15,6 +19,7 @@ export type ConciergeInboundReplyClassification = {
   reply: string;
   summary: string;
   actionNeeded: boolean;
+  resolution: ConciergeProviderReplyResolution;
 };
 
 export type ConciergeInboundReplyCandidate = {
@@ -112,12 +117,19 @@ export function classifyConciergeInboundReply(input: {
   const reply = extractInboundReplyText(input.text || fallbackText)
     || input.subject?.trim()
     || "Provider replied by email.";
-  const actionNeeded = ACTION_REQUEST_PATTERNS.some((pattern) => pattern.test(reply));
-  const summary = reply.replace(/\s+/g, " ").trim().slice(0, 280);
+  const resolution = buildConciergeProviderReplyResolution({
+    reply,
+    subject: input.subject,
+    channel: "email",
+  });
+  const actionNeeded = resolution.primaryAction !== "mark_complete"
+    || ACTION_REQUEST_PATTERNS.some((pattern) => pattern.test(reply));
+  const summary = resolution.summary;
   return {
     status: actionNeeded ? "action_needed" : "reply_received",
     reply,
     summary,
     actionNeeded,
+    resolution,
   };
 }
