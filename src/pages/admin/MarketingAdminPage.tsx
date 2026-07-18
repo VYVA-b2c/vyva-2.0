@@ -20266,6 +20266,10 @@ export default function MarketingAdminPage() {
       onSelect: () => loadContactWorkQueueInStudio(contactRelationshipPriorityQueue),
     }] : []),
   ].slice(0, 6);
+  const marketingCockpitItems = marketingWorkflowCoachItems.slice(0, 5);
+  const marketingCockpitReadyCount = marketingCockpitItems.filter((item) => item.state === "ready").length;
+  const marketingCockpitHasBlocker = marketingCockpitItems.some((item) => item.state === "blocked");
+  const marketingCockpitHasReview = marketingCockpitItems.some((item) => item.state === "needs_action");
   const marketingOperatorBriefText = [
     "VYVA marketing daily operator brief",
     `Generated: ${formatDate(new Date().toISOString())}`,
@@ -20373,6 +20377,73 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Email/social sends tracked" value={analyticsTotals.sent} icon={BarChart3} />
                 <MetricCard label="Clicks tracked" value={analyticsTotals.clicked} icon={CheckCircle2} />
               </div>
+
+              <SectionCard
+                title="Marketing cockpit"
+                subtitle="Start here: one compact command path across sync, audiences, content, campaigns, and relationships."
+                action={<Pill className={marketingCockpitHasBlocker ? "bg-red-50 text-red-800" : marketingCockpitHasReview ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>{marketingCockpitReadyCount}/{marketingCockpitItems.length} ready</Pill>}
+              >
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]" data-testid="marketing-cockpit">
+                  <div className={`rounded-2xl border p-4 shadow-sm ${primaryMarketingAction ? readinessClass(primaryMarketingAction.state) : "border-emerald-100 bg-emerald-50 text-emerald-950"}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-purple-700 shadow-sm">
+                          <PrimaryMarketingActionIcon size={20} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Do first</p>
+                          <h3 className="mt-1 text-xl font-black text-[#241133]">{primaryMarketingAction?.title ?? "Choose the next campaign move"}</h3>
+                          <p className="mt-1 max-w-3xl text-sm font-bold leading-relaxed text-[#6b5b54]">
+                            {primaryMarketingAction?.detail ?? "No urgent blocker is open. Pick a playbook, template, audience, or relationship queue to keep momentum."}
+                          </p>
+                        </div>
+                      </div>
+                      <Pill className={primaryMarketingAction ? readinessPillClass(primaryMarketingAction.state) : "bg-emerald-100 text-emerald-800"}>
+                        {primaryMarketingAction ? readinessLabel(primaryMarketingAction.state) : "Ready"}
+                      </Pill>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={primaryMarketingAction?.onSelect ?? (() => {
+                        setActiveTab("dashboard");
+                        setMessage("Use Smart campaign studio to choose a playbook, generate AI copy, and create a campaign.");
+                      })}
+                      disabled={primaryMarketingAction?.disabled}
+                      className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-[#b6a5b9]"
+                      data-testid="button-marketing-cockpit-primary"
+                    >
+                      <PrimaryMarketingActionIcon size={16} aria-hidden="true" />
+                      {primaryMarketingAction?.actionLabel ?? "Open studio"}
+                    </button>
+                  </div>
+
+                  <div className="grid gap-2 rounded-2xl border border-[#eadfd5] bg-white p-3 shadow-sm">
+                    {marketingCockpitItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={item.onSelect}
+                          disabled={item.disabled}
+                          className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          data-testid={`button-marketing-cockpit-${item.key}`}
+                        >
+                          <span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                            <Icon size={16} aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-[11px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.eyebrow}</span>
+                            <span className="block truncate text-sm font-black text-[#241133]">{item.title}</span>
+                            <span className="block truncate text-xs font-bold text-[#6b5b54]">{item.actionLabel}</span>
+                          </span>
+                          <Pill className={readinessPillClass(item.state)}>{item.value}</Pill>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </SectionCard>
 
               <SourceImportCoveragePanel
                 run={latestSyncRun}

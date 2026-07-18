@@ -1418,6 +1418,15 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByTestId("marketing-dashboard-tab");
 
+    expect(screen.getByText("Marketing cockpit")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-cockpit")).toHaveTextContent("Do first");
+    expect(screen.getByTestId("marketing-cockpit")).toHaveTextContent("Source");
+    expect(screen.getByTestId("marketing-cockpit")).toHaveTextContent("Audience");
+    expect(screen.getByTestId("marketing-cockpit")).toHaveTextContent("Creative");
+    fireEvent.click(screen.getByTestId("button-marketing-cockpit-primary"));
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Source sync");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Next best move");
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Finish Source sync setup");
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("The export endpoint is ready");
