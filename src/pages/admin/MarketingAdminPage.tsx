@@ -809,6 +809,10 @@ type CampaignAudienceInsightItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignStudioRecipientMixItem = CampaignAudienceInsightItem & {
+  channels?: Channel[];
+};
+
 type CampaignCreativeQualityItem = {
   key: string;
   title: string;
@@ -15125,6 +15129,40 @@ export default function MarketingAdminPage() {
       detail: `Markets: ${campaignStudioMarketLabels.join(" / ") || "Unknown"}. Mix: ${campaignStudioAudienceTypeLabels.join(" / ") || "Unknown"}.`,
     },
   ];
+  const campaignStudioContactsWithoutSelectedRoute = campaignStudioAudiencePool.filter((contact) => (
+    !campaignStudioSelectedChannels.some((channel) => contactReachableForChannel(contact, channel))
+  )).length;
+  const campaignStudioStrongestSegmentLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => (
+    contact.market || contact.vertical || contact.category || contact.language
+  )), "Unsegmented", 3);
+  const campaignStudioRecipientMixItems: CampaignStudioRecipientMixItem[] = [
+    {
+      key: "segments",
+      title: "Strongest segment",
+      value: campaignStudioStrongestSegmentLabels.join(" / ") || "No segment data",
+      state: campaignStudioAudiencePool.length > 0 ? "planning" : "blocked",
+      detail: campaignStudioAudiencePool.length > 0
+        ? "Most common market, vertical, category, or language signals in this audience."
+        : "No audience contacts are available to analyze yet.",
+    },
+    {
+      key: "route-gaps",
+      title: "Contact gaps",
+      value: `${campaignStudioContactsWithoutSelectedRoute} missing route`,
+      state: campaignStudioContactsWithoutSelectedRoute > 0 ? "needs_action" : "ready",
+      detail: campaignStudioContactsWithoutSelectedRoute > 0
+        ? `${campaignStudioContactsWithoutSelectedRoute} matching contact${campaignStudioContactsWithoutSelectedRoute === 1 ? "" : "s"} cannot be reached through the selected channel pack.`
+        : "Every matching contact has at least one selected channel route.",
+      channels: campaignStudioSelectedChannels,
+    },
+    {
+      key: "consent-watch",
+      title: "Consent watch",
+      value: `${campaignStudioConsentCounts.review + campaignStudioConsentCounts.optedOut} to review`,
+      state: campaignStudioConsentCounts.optedOut > 0 ? "needs_action" : campaignStudioConsentCounts.review > 0 ? "planning" : "ready",
+      detail: `${campaignStudioConsentCounts.review} pending/unknown and ${campaignStudioConsentCounts.optedOut} opted out before any future send.`,
+    },
+  ];
   const campaignStudioAudienceRecommendation = campaignStudioAudiencePool.length === 0
     ? "Sync or add contacts before using this play."
     : campaignStudioRecipientPreview.length === 0 && campaignStudioBestChannelReach.count > 0
@@ -26993,6 +27031,58 @@ export default function MarketingAdminPage() {
                             <Sparkles size={13} aria-hidden="true" /> Use {channelLabel[campaignStudioBestChannelReach.channel]} route
                           </button>
                         ) : null}
+                      </div>
+                      <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-campaign-studio-recipient-mix">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Recipient mix</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Selected channel coverage, segment signals, and gaps before this becomes a campaign.</p>
+                          </div>
+                          <Pill className={campaignStudioPackRecipientCount > 0 ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}>
+                            {campaignStudioPackRecipientCount} route snapshot{campaignStudioPackRecipientCount === 1 ? "" : "s"}
+                          </Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2">
+                          {campaignStudioSelectedChannels.map((channel) => {
+                            const recipients = campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0;
+                            const state: CampaignReadinessState = recipients > 0 ? "ready" : "blocked";
+                            return (
+                              <div key={channel} className={`rounded-xl border p-3 ${readinessClass(state)}`} data-testid={`marketing-campaign-studio-recipient-mix-channel-${channel}`}>
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-black uppercase tracking-[0.08em] opacity-80">{channelLabel[channel]}</p>
+                                    <p className="mt-1 text-base font-black">{recipients}/{campaignStudioAudiencePool.length}</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed">
+                                      {recipients > 0
+                                        ? `${channelLabel[channel]} can reach this many matching contacts.`
+                                        : `No matching contacts have a usable ${channelLabel[channel]} route.`}
+                                    </p>
+                                  </div>
+                                  <Pill className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {campaignStudioRecipientMixItems.map((item) => (
+                            <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-recipient-mix-${item.key}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-black uppercase tracking-[0.08em] opacity-80">{item.title}</p>
+                                  <p className="mt-1 text-base font-black">{item.value}</p>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed">{item.detail}</p>
+                                  {item.channels?.length ? (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                      {item.channels.map((channel) => (
+                                        <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-studio-recipient-sample">
                         <div className="flex flex-wrap items-start justify-between gap-3">

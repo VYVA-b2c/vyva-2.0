@@ -5451,6 +5451,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-consent")).toHaveTextContent("1 pending/unknown and 0 opted out");
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-localization")).toHaveTextContent("Spain 1");
     expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Review 1 unmapped list member from Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-mix")).toHaveTextContent("Recipient mix");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-mix-channel-linkedin")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-mix-channel-linkedin")).toHaveTextContent("1/1");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-mix-segments")).toHaveTextContent("Spain 1");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-mix-route-gaps")).toHaveTextContent("0 missing route");
+    expect(screen.getByTestId("marketing-campaign-studio-recipient-mix-consent-watch")).toHaveTextContent("1 to review");
     expect(screen.getByTestId("marketing-campaign-studio-recipient-sample")).toHaveTextContent("Reachable contact sample");
     expect(screen.getByTestId("marketing-campaign-studio-recipient-sample")).toHaveTextContent("1/1 shown");
     expect(screen.getByTestId("marketing-campaign-studio-recipient-sample-contact-2")).toHaveTextContent("Hassan Partner");
