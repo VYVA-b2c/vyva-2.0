@@ -7154,6 +7154,28 @@ function optionalJsonRecordText(value: string) {
   }
 }
 
+function optionalJsonArrayText(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed as unknown[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function jsonTextInvalid(value: string, expected: "object" | "array") {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return expected === "array" ? !Array.isArray(parsed) : !parsed || typeof parsed !== "object" || Array.isArray(parsed);
+  } catch {
+    return true;
+  }
+}
+
 function contentCreatePayloadFromDraft(draft: ContentDraft) {
   return {
     title: draft.title,
@@ -11975,6 +11997,141 @@ export default function MarketingAdminPage() {
       "AI task: Improve this campaign content for the selected audience. Use only the merge tokens listed above, keep consent-safe wording, do not invent personal data, keep one clear CTA, and return subject, plain copy, optional HTML notes, and channel-specific publishing notes.",
     ].join("\n");
   }, [contentDraft, contentDraftPersonalizationCoverage, contentDraftPersonalizationSample, contentDraftRecommendedTokens]);
+  const contentDraftCopyText = contentDraft.body.trim() || plainTextFromHtml(contentDraft.htmlBody);
+  const contentDraftWordCount = wordCount(contentDraftCopyText);
+  const contentDraftHasCopy = Boolean(contentDraft.title.trim() && contentDraftCopyText);
+  const contentDraftHasCta = Boolean(contentDraft.ctaLabel.trim() || contentDraft.ctaUrl.trim());
+  const contentDraftDesignInvalid = jsonTextInvalid(contentDraft.designJsonText, "object");
+  const contentDraftMediaInvalid = jsonTextInvalid(contentDraft.mediaAssetsText, "array");
+  const contentDraftDesignObject = optionalJsonRecordText(contentDraft.designJsonText);
+  const contentDraftMediaArray = optionalJsonArrayText(contentDraft.mediaAssetsText);
+  const contentDraftHasDesignOrMedia = Boolean(
+    contentDraft.htmlBody.trim()
+    || Object.keys(contentDraftDesignObject).length
+    || contentDraftMediaArray.length,
+  );
+  const contentDraftChannelFit = (() => {
+    if (!contentDraftHasCopy) {
+      return {
+        state: "blocked" as CampaignReadinessState,
+        detail: "Add a title and usable copy before this can become a campaign asset.",
+      };
+    }
+    if (contentDraft.channel === "email") {
+      if (!contentDraft.subject.trim()) return { state: "needs_action" as CampaignReadinessState, detail: "Email needs a subject before test or launch." };
+      if (contentDraftWordCount > 280) return { state: "needs_action" as CampaignReadinessState, detail: "Email copy is long; consider tightening before launch." };
+      return { state: "ready" as CampaignReadinessState, detail: "Email has a subject and readable body length." };
+    }
+    if (contentDraft.channel === "sms") {
+      if (contentDraftWordCount > 35) return { state: "needs_action" as CampaignReadinessState, detail: "SMS should be short enough to scan in one glance." };
+      return { state: "ready" as CampaignReadinessState, detail: "SMS copy is compact." };
+    }
+    if (contentDraft.channel === "whatsapp") {
+      if (contentDraftWordCount > 90) return { state: "needs_action" as CampaignReadinessState, detail: "WhatsApp works best as a short relationship nudge." };
+      return { state: "ready" as CampaignReadinessState, detail: "WhatsApp copy is concise enough for manual handoff." };
+    }
+    if (["facebook", "instagram", "linkedin", "tiktok"].includes(contentDraft.channel)) {
+      return contentDraftHasDesignOrMedia
+        ? { state: "ready" as CampaignReadinessState, detail: `${channelLabel[contentDraft.channel]} has copy plus visual or design context.` }
+        : { state: "needs_action" as CampaignReadinessState, detail: `${channelLabel[contentDraft.channel]} should include a visual, media reference, or design brief.` };
+    }
+    if (contentDraft.channel === "phone") {
+      return contentDraftCopyText.includes("?")
+        ? { state: "ready" as CampaignReadinessState, detail: "Phone script includes at least one question for the call." }
+        : { state: "needs_action" as CampaignReadinessState, detail: "Add one clear question so the call has a useful outcome." };
+    }
+    if (contentDraft.channel === "print" || contentDraft.channel === "event") {
+      return contentDraftHasDesignOrMedia
+        ? { state: "ready" as CampaignReadinessState, detail: `${channelLabel[contentDraft.channel]} has handoff/design context.` }
+        : { state: "needs_action" as CampaignReadinessState, detail: `Add design, media, or layout notes before ${channelLabel[contentDraft.channel].toLowerCase()} handoff.` };
+    }
+    return { state: "planning" as CampaignReadinessState, detail: "Review the channel-specific handoff before publishing." };
+  })();
+  const contentDraftQualityItems: CampaignCreativeQualityItem[] = [
+    {
+      key: "copy",
+      title: "Core copy",
+      state: contentDraftHasCopy ? "ready" : "blocked",
+      detail: contentDraftHasCopy
+        ? `${contentDraftWordCount} word${contentDraftWordCount === 1 ? "" : "s"} with a named asset title.`
+        : "Add title and body copy before this asset can be used.",
+    },
+    {
+      key: "channel-fit",
+      title: "Channel fit",
+      state: contentDraftChannelFit.state,
+      detail: contentDraftChannelFit.detail,
+    },
+    {
+      key: "cta",
+      title: "CTA",
+      state: contentDraftHasCta ? "ready" : "needs_action",
+      detail: contentDraftHasCta
+        ? [contentDraft.ctaLabel.trim(), contentDraft.ctaUrl.trim()].filter(Boolean).join(" -> ")
+        : "Add one clear next step, link, reply instruction, or handoff action.",
+    },
+    {
+      key: "personalization",
+      title: "Personalization",
+      state: ["email", "whatsapp", "sms"].includes(contentDraft.channel)
+        ? contentDraftPersonalizationTokens.length ? "ready" : "needs_action"
+        : "planning",
+      detail: contentDraftPersonalizationTokens.length
+        ? `${contentDraftPersonalizationTokens.length} supported merge field${contentDraftPersonalizationTokens.length === 1 ? "" : "s"} in use.`
+        : ["email", "whatsapp", "sms"].includes(contentDraft.channel)
+          ? "Add a safe merge field such as first name when the audience supports it."
+          : "Personalization is optional for public or offline channel assets.",
+    },
+    {
+      key: "design",
+      title: "Design/media",
+      state: contentDraftDesignInvalid || contentDraftMediaInvalid
+        ? "blocked"
+        : contentDraftHasDesignOrMedia
+          ? "ready"
+          : ["facebook", "instagram", "tiktok", "print", "event"].includes(contentDraft.channel)
+            ? "needs_action"
+            : "planning",
+      detail: contentDraftDesignInvalid
+        ? "Design JSON is invalid."
+        : contentDraftMediaInvalid
+          ? "Media assets JSON must be an array."
+          : contentDraftHasDesignOrMedia
+            ? "HTML, design JSON, or media references are present."
+            : "Plain copy only. Add visual direction when this channel needs assets.",
+    },
+  ];
+  const contentDraftQualityReadyCount = contentDraftQualityItems.filter((item) => item.state === "ready").length;
+  const contentDraftQualityBlockedCount = contentDraftQualityItems.filter((item) => item.state === "blocked").length;
+  const contentDraftQualityNeedsActionCount = contentDraftQualityItems.filter((item) => item.state === "needs_action").length;
+  const contentDraftQualityState: CampaignReadinessState = contentDraftQualityBlockedCount
+    ? "blocked"
+    : contentDraftQualityNeedsActionCount
+      ? "needs_action"
+      : "ready";
+  const contentDraftQualitySummary = contentDraftQualityBlockedCount
+    ? `${contentDraftQualityBlockedCount} blocked`
+    : contentDraftQualityNeedsActionCount
+      ? `${contentDraftQualityNeedsActionCount} need review`
+      : "Publish-ready draft";
+  const contentDraftQualityAiBrief = [
+    "VYVA content quality AI brief",
+    `Asset: ${contentDraft.title.trim() || "Untitled draft"}`,
+    `Channel: ${channelLabel[contentDraft.channel]}`,
+    `Language: ${contentDraft.language.trim() || "Not set"}`,
+    `Status: ${contentDraft.status}`,
+    `Word count: ${contentDraftWordCount}`,
+    `CTA: ${contentDraft.ctaLabel.trim() || "No CTA label"}${contentDraft.ctaUrl.trim() ? ` -> ${contentDraft.ctaUrl.trim()}` : ""}`,
+    "",
+    "Readiness checklist:",
+    ...contentDraftQualityItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Current draft:",
+    `Subject: ${contentDraft.subject.trim() || "No subject yet."}`,
+    `Body: ${contentDraftCopyText || "No body copy yet."}`,
+    "",
+    "AI task: Make this asset more publish-ready for its channel. Keep claims non-clinical, preserve consent-safe language, include one clear CTA, keep only supported merge tokens, and return improved copy plus visual or handoff notes where useful.",
+  ].join("\n");
   const selectedContentUsage = useMemo(
     () => selectedContent ? contentUsageById.get(selectedContent.id) ?? [] : [],
     [contentUsageById, selectedContent],
@@ -16835,6 +16992,28 @@ export default function MarketingAdminPage() {
       setContentFeedback("Personalization AI brief copied.");
     } catch (error) {
       setContentFeedback(error instanceof Error ? error.message : "Personalization brief could not be copied.");
+    }
+  }
+
+  async function copyContentDraftQualityBrief() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contentDraftQualityAiBrief);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contentDraftQualityAiBrief;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard copy failed.");
+      }
+      setContentFeedback("Content quality AI brief copied.");
+    } catch (error) {
+      setContentFeedback(error instanceof Error ? error.message : "Content quality brief could not be copied.");
     }
   }
 
@@ -28659,6 +28838,48 @@ export default function MarketingAdminPage() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                  <div className={`rounded-2xl border p-4 shadow-sm ${readinessClass(contentDraftQualityState)}`} data-testid="marketing-content-quality-panel">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className="bg-white text-purple-800">AI quality pass</Pill>
+                          <Pill className={readinessPillClass(contentDraftQualityState)}>{contentDraftQualitySummary}</Pill>
+                          <Pill className="bg-white text-[#5b4a46]">{contentDraftQualityReadyCount}/{contentDraftQualityItems.length} ready</Pill>
+                        </div>
+                        <h3 className="mt-2 text-base font-black text-[#241133]">Know if this content is safe to turn into a campaign.</h3>
+                        <p className="mt-1 max-w-3xl text-sm font-bold leading-relaxed text-[#6b5b54]">
+                          Checks copy, channel fit, CTA, personalization, and design/media before the asset is saved or reused in a campaign.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void copyContentDraftQualityBrief()}
+                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        disabled={contentSaving}
+                        data-testid="button-marketing-content-copy-quality-brief"
+                      >
+                        <Sparkles size={13} /> Copy quality brief
+                      </button>
+                    </div>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5" data-testid="marketing-content-quality-items">
+                      {contentDraftQualityItems.map((item) => (
+                        <div key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-content-quality-${item.key}`}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</p>
+                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                          </div>
+                          <p className="mt-2 text-xs font-bold leading-relaxed text-[#5b4a46]">{item.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <textarea
+                      className={`${textareaClass} mt-3 min-h-[132px] font-mono text-xs`}
+                      value={contentDraftQualityAiBrief}
+                      readOnly
+                      aria-label="Content quality AI brief"
+                      data-testid="textarea-marketing-content-quality-brief"
+                    />
                   </div>
                   <div className="grid gap-3 xl:grid-cols-2">
                     <Field label="Design JSON">

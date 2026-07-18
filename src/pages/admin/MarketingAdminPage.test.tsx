@@ -1620,10 +1620,13 @@ describe("MarketingAdminPage", () => {
     const panel = screen.getByTestId("marketing-content-personalization-panel");
     expect(panel).toHaveTextContent("Personalization readiness");
     expect(panel).toHaveTextContent("No tokens yet");
+    expect(screen.getByTestId("marketing-content-quality-panel")).toHaveTextContent("AI quality pass");
+    expect(screen.getByTestId("marketing-content-quality-copy")).toHaveTextContent("Add title and body copy before this asset can be used.");
 
     fireEvent.change(screen.getByTestId("input-marketing-content-title"), { target: { value: "Partner intro" } });
     fireEvent.click(screen.getByTestId("button-marketing-content-insert-subject-first-name"));
     fireEvent.click(screen.getByTestId("button-marketing-content-insert-token-company_name"));
+    fireEvent.change(screen.getByTestId("input-marketing-content-cta-label"), { target: { value: "Book intro" } });
 
     expect(screen.getByTestId("input-marketing-content-subject")).toHaveValue("{{first_name}}");
     expect(screen.getByTestId("textarea-marketing-content-body")).toHaveValue("{{company_name}}");
@@ -1631,12 +1634,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-personalization-coverage")).toHaveTextContent("{{company_name}}");
     expect(screen.getByTestId("marketing-content-personalization-preview")).toHaveTextContent("Hassan");
     expect(screen.getByTestId("marketing-content-personalization-preview")).toHaveTextContent("Moka Digital");
+    expect(screen.getByTestId("marketing-content-quality-copy")).toHaveTextContent("named asset title");
+    expect(screen.getByTestId("marketing-content-quality-channel-fit")).toHaveTextContent("Email has a subject");
+    expect(screen.getByTestId("marketing-content-quality-cta")).toHaveTextContent("Book intro");
+    expect(screen.getByTestId("marketing-content-quality-personalization")).toHaveTextContent("2 supported merge fields");
 
     fireEvent.click(screen.getByTestId("button-marketing-content-copy-personalization-brief"));
 
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA content personalization AI brief")));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Use only the merge tokens listed above"));
     expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Personalization AI brief copied.");
+
+    fireEvent.click(screen.getByTestId("button-marketing-content-copy-quality-brief"));
+
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA content quality AI brief")));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Make this asset more publish-ready"));
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Content quality AI brief copied.");
   });
 
   it("surfaces recommended next actions and routes to the right work area", async () => {
