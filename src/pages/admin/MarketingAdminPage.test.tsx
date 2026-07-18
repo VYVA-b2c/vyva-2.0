@@ -2382,7 +2382,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Premium family plan email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Instagram Premium benefits carousel");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable Premium family one-pager");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("102 templates");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver invite acceptance email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver invite WhatsApp reminder");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable caregiver invite one-pager");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("109 templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -2411,6 +2414,40 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Clinic referral intro email");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-packs")).toHaveTextContent("Family onboarding");
+    expect(screen.getByTestId("marketing-template-pack-caregiver-invite-activation")).toHaveTextContent("Caregiver invite activation");
+    expect(screen.getByTestId("marketing-template-pack-caregiver-invite-activation")).toHaveTextContent("7 templates");
+    expect(screen.getByTestId("marketing-template-pack-caregiver-invite-activation")).toHaveTextContent("AI pack prompt");
+    expect(screen.getByTestId("marketing-template-pack-caregiver-invite-activation")).toHaveTextContent("Print / direct mail");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-caregiver-invite-activation"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Caregiver invite activation template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver invite acceptance email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver invite WhatsApp reminder");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Caregiver invite SMS reminder");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn caregiver access partner note");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Clinic referral intro email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-caregiver-invite-activation")).toHaveTextContent("Accept access");
+    expect(screen.getByTestId("marketing-template-pack-sequence-caregiver-invite-activation")).toHaveTextContent("Partner workflow");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-ai-caregiver-invite-activation"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Caregiver invite activation"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Caregiver invite acceptance email"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Caregiver invite activation AI command copied.");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-caregiver-invite-activation"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Caregiver invite activation");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("SMS");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Caregiver invite activation pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("5 templates");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("AI pack prompt");
