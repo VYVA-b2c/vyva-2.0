@@ -520,6 +520,7 @@ test("concierge booking form task requires final confirmation before handoff and
           active_tool: "booking_link",
           lifecycle_status: "confirmed",
           provider_ready: true,
+          external_action_allowed: true,
           missing_requirements: [],
           confirmation_required: true,
           user_confirmed: true,
@@ -578,6 +579,12 @@ test("concierge booking form task requires final confirmation before handoff and
   await page.getByTestId("button-concierge-final-confirm").click();
 
   await expect.poll(() => confirmCount).toBe(1);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+  await expect(page.getByTestId("link-booking-form-open-form-smoke-1")).toBeVisible();
+  await page.getByTestId("link-booking-form-open-form-smoke-1").click();
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+  await page.getByTestId("button-concierge-final-confirm").click();
   await expect.poll(async () => {
     const records = await openedWindowRecords(page);
     return records[0]?.url ?? "";
@@ -665,6 +672,7 @@ test("concierge missing booking form details block handoff until details are rea
           active_tool: "booking_link",
           lifecycle_status: "confirmed",
           provider_ready: true,
+          external_action_allowed: true,
           missing_requirements: [],
           confirmation_required: true,
           user_confirmed: true,
@@ -744,6 +752,12 @@ test("concierge missing booking form details block handoff until details are rea
   await page.getByTestId("button-concierge-final-confirm").click();
 
   await expect.poll(() => confirmCount).toBe(1);
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+  await expect(page.getByTestId("link-booking-form-open-form-missing-1")).toBeVisible();
+  await page.getByTestId("link-booking-form-open-form-missing-1").click();
+  await expect(page.getByTestId("modal-concierge-final-confirmation")).toContainText("Review first");
+  await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
+  await page.getByTestId("button-concierge-final-confirm").click();
   await expect.poll(async () => {
     const records = await openedWindowRecords(page);
     return records[0]?.url ?? "";
