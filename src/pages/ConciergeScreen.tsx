@@ -14628,6 +14628,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleAppointmentCanvasResponse);
     return () => window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleAppointmentCanvasResponse);
   }, [
+    activeAppointmentCanvasSceneRef,
     advanceAppointmentCanvas,
     appointmentCanvasCopy,
     appointmentCanvasSelectedOption,
@@ -14931,6 +14932,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     confirmAppointmentMutation,
     finalizeHomeServiceCanvasProvider,
     homeServiceCanvasSelectedOption,
+    homeServiceCanvasPhoto,
     homeServiceCanvasStep,
     homeServiceCanvasRevision,
     homeServiceActionGate,
@@ -15041,6 +15043,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     const nextStep = rideCanvasPendingDetails?.nextQuestion ? "pending_detail" : "pending_confirm";
     if (rideCanvasStep !== nextStep) advanceRideCanvas(nextStep);
   }, [
+    activeRideCanvasSceneRef,
     advanceRideCanvas,
     rideCanvasCompletedSession,
     rideCanvasMode,
@@ -15210,6 +15213,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleRideCanvasResponse);
     return () => window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleRideCanvasResponse);
   }, [
+    activeRideCanvasSceneRef,
     advanceRideCanvas,
     confirmMutation,
     guidedDetailMutation,

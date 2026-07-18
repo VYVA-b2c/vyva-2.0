@@ -120,7 +120,7 @@ export function RefillVoiceCanvas({
         restored: true,
       });
     }
-  }, [state.step, state.requestId, onTelemetry]);
+  }, [state.step, state.requestId, onTelemetry, restoredRef]);
   useEffect(() => {
     onTelemetry({
       name: "scene_viewed",
@@ -138,7 +138,7 @@ export function RefillVoiceCanvas({
         restored: restoredRef.current,
       });
     inputRef.current = "system";
-  }, [state.step, state.requestId, onTelemetry]);
+  }, [state.step, state.requestId, onTelemetry, restoredRef]);
   const choose = useCallback(
     (id: string) => {
       inputRef.current = "touch_or_keyboard";
@@ -164,7 +164,7 @@ export function RefillVoiceCanvas({
         if (contact) dispatch({ type: "CHOOSE_CONTACT", value: contact.label });
       }
     },
-    [medications, providers, contactChoices],
+    [medications, providers, contactChoices, dispatch],
   );
   const primary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
@@ -206,6 +206,8 @@ export function RefillVoiceCanvas({
     onUrgentHelp,
     onTelemetry,
     actionGate,
+    dispatch,
+    restoredRef,
   ]);
   const secondary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
@@ -220,7 +222,7 @@ export function RefillVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state.step, state.requestId, onCancel, onTelemetry]);
+  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef]);
   useEffect(() => {
     if (state.step !== "waiting") return;
     const controller = actionGate.begin(state.requestId);
@@ -274,6 +276,8 @@ export function RefillVoiceCanvas({
     onPrepared,
     onTelemetry,
     actionGate,
+    dispatch,
+    restoredRef,
   ]);
   useCanvasVoiceSynchronization((event: Event) => {
       const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;

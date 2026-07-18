@@ -96,7 +96,7 @@ export function RideVoiceCanvas({
       restored: restoredRef.current,
     });
     inputRef.current = "system";
-  }, [state.step, state.requestId, onTelemetry]);
+  }, [state.step, state.requestId, onTelemetry, restoredRef]);
 
   const choose = useCallback(
     (id: string) => {
@@ -113,7 +113,7 @@ export function RideVoiceCanvas({
         if (date) dispatch({ type: "CHOOSE_DATE", value: date.value });
       }
     },
-    [places, dateChoices],
+    [places, dateChoices, dispatch],
   );
 
   const primary = useCallback(() => {
@@ -144,7 +144,7 @@ export function RideVoiceCanvas({
       dispatch({ type: "CONFIRM" });
     } else if (state.step === "blocked") dispatch({ type: "RETRY" });
     else if (state.step === "completed") onDone?.();
-  }, [state.step, state.requestId, onDone, onTelemetry, actionGate]);
+  }, [state.step, state.requestId, onDone, onTelemetry, actionGate, dispatch, restoredRef]);
   const secondary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked")
@@ -159,7 +159,7 @@ export function RideVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state.step, state.requestId, onCancel, onTelemetry]);
+  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef]);
 
   useEffect(() => {
     if (state.step !== "waiting") return;
@@ -209,6 +209,8 @@ export function RideVoiceCanvas({
     onConfirmRide,
     onTelemetry,
     actionGate,
+    dispatch,
+    restoredRef,
   ]);
 
   useCanvasVoiceSynchronization((event: Event) => {

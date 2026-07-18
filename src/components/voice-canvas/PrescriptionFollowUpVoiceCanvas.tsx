@@ -99,7 +99,7 @@ export function PrescriptionFollowUpVoiceCanvas({
         restored: true,
       });
     }
-  }, [state.step, state.requestId, onTelemetry]);
+  }, [state.step, state.requestId, onTelemetry, restoredRef]);
   useEffect(() => {
     onTelemetry({
       name: "scene_viewed",
@@ -109,7 +109,7 @@ export function PrescriptionFollowUpVoiceCanvas({
       restored: restoredRef.current,
     });
     inputRef.current = "system";
-  }, [state.step, state.requestId, onTelemetry]);
+  }, [state.step, state.requestId, onTelemetry, restoredRef]);
   const choose = useCallback((id: string) => {
     inputRef.current = "touch_or_keyboard";
     if (["clinician", "pharmacy", "status", "update"].includes(id))
@@ -117,7 +117,7 @@ export function PrescriptionFollowUpVoiceCanvas({
         type: "CHOOSE_ACTION",
         action: id as Exclude<PrescriptionFollowUpAction, "">,
       });
-  }, []);
+  }, [dispatch]);
   const primary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "cancelled")
@@ -144,7 +144,7 @@ export function PrescriptionFollowUpVoiceCanvas({
       dispatch({ type: "RETRY" });
     } else if (state.step === "completed" || state.step === "pending")
       onDone?.();
-  }, [state.step, state.requestId, onDone, onTelemetry, actionGate]);
+  }, [state.step, state.requestId, onDone, onTelemetry, actionGate, dispatch, restoredRef]);
   const secondary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked") {
@@ -158,7 +158,7 @@ export function PrescriptionFollowUpVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state.step, state.requestId, onCancel, onTelemetry]);
+  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef]);
   useEffect(() => {
     if (state.step !== "waiting") return;
     const controller = actionGate.begin(state.requestId);
@@ -208,6 +208,8 @@ export function PrescriptionFollowUpVoiceCanvas({
     onConfirm,
     onTelemetry,
     actionGate,
+    dispatch,
+    restoredRef,
   ]);
   useCanvasVoiceSynchronization((event: Event) => {
       const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;

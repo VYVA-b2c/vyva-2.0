@@ -111,7 +111,7 @@ export function ShoppingVoiceCanvas({
         restored: true,
       });
     }
-  }, [state.step, state.requestId, state.revision, onTelemetry]);
+  }, [state.step, state.requestId, state.revision, onTelemetry, restoredRef]);
   useEffect(() => {
     onTelemetry({
       name: "scene_viewed",
@@ -122,7 +122,7 @@ export function ShoppingVoiceCanvas({
       restored: restoredRef.current,
     });
     inputRef.current = "system";
-  }, [state.step, state.requestId, state.revision, onTelemetry]);
+  }, [state.step, state.requestId, state.revision, onTelemetry, restoredRef]);
   const choose = useCallback(
     (id: string) => {
       inputRef.current = "touch_or_keyboard";
@@ -164,7 +164,7 @@ export function ShoppingVoiceCanvas({
           value: id.endsWith("provided") ? "provided" : "unverified",
         });
     },
-    [retailers, addresses],
+    [retailers, addresses, dispatch],
   );
   const primary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
@@ -214,7 +214,7 @@ export function ShoppingVoiceCanvas({
       dispatch(event);
     } else if (state.step === "completed" || state.step === "pending")
       onDone?.();
-  }, [state, onDone, onTelemetry, actionGate]);
+  }, [state, onDone, onTelemetry, actionGate, dispatch, restoredRef]);
   const secondary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked") {
@@ -229,7 +229,7 @@ export function ShoppingVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state, onCancel, onTelemetry]);
+  }, [state, onCancel, onTelemetry, dispatch, restoredRef]);
   const change = useCallback(
     (value: string) => {
       inputRef.current = "touch_or_keyboard";
@@ -247,7 +247,7 @@ export function ShoppingVoiceCanvas({
       const type = types[state.step];
       if (type) dispatch({ type, value } as ShoppingCanvasEvent);
     },
-    [state.step],
+    [state, dispatch],
   );
   useEffect(() => {
     if (state.step !== "waiting") return;
@@ -310,6 +310,8 @@ export function ShoppingVoiceCanvas({
     onConfirm,
     onTelemetry,
     actionGate,
+    dispatch,
+    restoredRef,
   ]);
   useCanvasVoiceSynchronization((event: Event) => {
       const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;
