@@ -1183,7 +1183,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-next-actions")).toHaveTextContent("Review consent: pending.");
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Consent review first");
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Primary route: Email");
-    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Start with "WhatsApp partner proof nudge" on WhatsApp.');
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Start with "Press and partner announcement email" on Email.');
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Partner outreach for Partner at Moka Digital with Spain / healthcare / lead.");
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Connect it to "Partner outreach" or create a focused Partners follow-up.');
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Review consent: pending.");
@@ -1776,8 +1776,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("AI opportunity radar");
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("AI ranked");
     expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("Event reminder");
+    expect(screen.getByTestId("marketing-opportunity-radar")).toHaveTextContent("B2B partner nurture");
+    expect(screen.getByTestId("button-marketing-opportunity-relationship-partner-nurture")).toHaveTextContent("Show partners");
+    expect(screen.getByTestId("button-marketing-opportunity-create-relationship-partner-nurture")).toHaveTextContent("Open partner play");
     expect(screen.getByTestId("button-marketing-opportunity-play-event-reminder")).toHaveTextContent("Load in studio");
     expect(screen.getByTestId("button-marketing-opportunity-create-play-event-reminder")).toHaveTextContent("Create full launch kit");
+    fireEvent.click(screen.getByTestId("button-marketing-opportunity-relationship-partner-nurture"));
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Showing "B2B partner nurture" queue: 1 partner.');
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-opportunity-create-relationship-partner-nurture"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Relationship queue loaded: B2B partner nurture.");
     fireEvent.click(screen.getByTestId("button-marketing-opportunity-play-event-reminder"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Playbook loaded: Event reminder");
 

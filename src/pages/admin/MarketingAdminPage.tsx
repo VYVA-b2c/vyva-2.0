@@ -23182,6 +23182,9 @@ export default function MarketingAdminPage() {
       },
     },
   ];
+  const relationshipRadarQueue = contactRelationshipPriorityQueue && contactRelationshipPriorityQueue.count > 0
+    ? contactRelationshipPriorityQueue
+    : null;
   const marketingOpportunityRadarItems: MarketingOpportunityRadarItem[] = [
     ...(!syncState.configured ? [{
       key: "sync",
@@ -23218,6 +23221,26 @@ export default function MarketingAdminPage() {
         ? () => void createCampaignPlanFromTemplatePack(packMatch.pack, packMatch.templates, packMatch.heroTemplate)
         : undefined,
     })),
+    ...(relationshipRadarQueue ? [{
+      key: `relationship-${relationshipRadarQueue.key}`,
+      title: relationshipRadarQueue.title,
+      detail: [
+        relationshipRadarQueue.detail,
+        relationshipRadarQueue.sampleContact
+          ? `First contact: ${relationshipRadarQueue.sampleContact.fullName || relationshipRadarQueue.sampleContact.email || relationshipRadarQueue.sampleContact.phoneNumber}.`
+          : "",
+      ].filter(Boolean).join(" "),
+      signal: `Relationship queue - ${relationshipRadarQueue.countLabel}`,
+      scoreLabel: "Relationship",
+      state: relationshipRadarQueue.state,
+      channels: relationshipRadarQueue.channels,
+      actionLabel: relationshipRadarQueue.showLabel,
+      icon: relationshipRadarQueue.icon,
+      onSelect: () => showContactWorkQueue(relationshipRadarQueue),
+      secondaryActionLabel: relationshipRadarQueue.studioLabel,
+      secondaryDisabled: relationshipRadarQueue.count === 0,
+      onSecondarySelect: () => loadContactWorkQueueInStudio(relationshipRadarQueue),
+    }] : []),
     ...(firstReadyEmailCampaign ? [{
       key: "ready-email-send",
       title: "Send-ready email campaign",
