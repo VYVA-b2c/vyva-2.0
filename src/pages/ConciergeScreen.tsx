@@ -184,6 +184,11 @@ import type {
   ConciergeExecutionTaskStatus,
 } from "../../shared/conciergeActionExecution";
 import {
+  conciergeCanvasPrimaryActionDisplayLabel,
+  conciergeCanvasStateLabel,
+  deriveConciergeCanvasState,
+} from "../../shared/conciergeCanvasState";
+import {
   CONCIERGE_DRY_RUN_TEST_MODE,
   isConciergeDryRunPayload,
 } from "../../shared/conciergeDryRun";
@@ -16790,6 +16795,28 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     ))[0] ?? null;
   const activeSavedTaskEntry = coerceConciergeTaskEntry(activeSavedTask?.task.entry_payload);
   const activeActionProviderUpdate = conciergeProviderReplySnapshot(activeAction?.action_payload);
+  const activeActionCanvasState = activeAction
+    ? deriveConciergeCanvasState({
+        status: activeAction.status,
+        useCase: activeAction.use_case,
+        flowReference: activeActionExecutionTask?.flow_reference
+          ?? payloadString(activeAction.action_payload, ["flow_reference"]),
+        actionType: activeActionExecutionTask?.action_type,
+        executionTask: activeActionExecutionTask,
+        hasMissingDetails: activeActionNeedsGuidedDetails
+          || activeActionFormMissingFields.length > 0
+          || Boolean(activeActionReviewSummary?.missingDetails.length),
+        hasReviewSummary: Boolean(activeActionReviewSummary),
+        reviewPresented: activeActionNeedsUserConfirmation && Boolean(activeActionReviewSummary),
+        providerReply: activeActionProviderUpdate,
+        waitingForProvider: activeAction.status === "calling",
+        missionStatus: payloadString(activeAction.action_payload, ["mission_status", "status"]),
+        reconfirmationRequired: Boolean(activeActionReviewSummary?.reconfirmation),
+      })
+    : null;
+  const activeActionCanvasPrimaryLabel = activeActionCanvasState
+    ? conciergeCanvasPrimaryActionDisplayLabel(activeActionCanvasState.state, isSpanish)
+    : "";
   const homeActiveTask = activeSavedTask
     ? {
         id: activeSavedTask.task.id,
@@ -18309,6 +18336,15 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                 >
                   {statusLabel(activeAction.status, locale)}
                 </span>
+                {activeActionCanvasState ? (
+                  <span
+                    className="rounded-full border border-[#BFE7E1] bg-[#F0FDFA] px-3 py-1 font-body text-[12px] font-black text-[#0F766E]"
+                    data-testid={`badge-concierge-canvas-state-${activeAction.id}`}
+                    title={activeActionCanvasState.reason}
+                  >
+                    {conciergeCanvasStateLabel(activeActionCanvasState.state, isSpanish)}
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setIsRightNowHidden(true)}
@@ -18398,7 +18434,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
             {!activeActionNeedsGuidedDetails && activeActionNeedsUserConfirmation && activeActionReviewSummary ? (
               <PendingActionReviewCard
                 review={activeActionReviewSummary}
-                primaryLabel={activeActionPrimaryLabel}
+                primaryLabel={activeActionCanvasPrimaryLabel || activeActionPrimaryLabel}
                 primaryIcon={activeActionPrimaryIcon}
                 onConfirm={() => {
                   if (activeActionNeedsPhoneOutcome) {
