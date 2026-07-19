@@ -50,6 +50,12 @@ import {
   type ShowVyvaReviewHistoryItem,
 } from "@/lib/showVyvaReviewHistory";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import {
+  conciergeCanvasStateLabel,
+  deriveConciergeCanvasState,
+  type ConciergeCanvasStateSummary,
+} from "../../shared/conciergeCanvasState";
+import type { ConciergeExecutionTask } from "../../shared/conciergeActionExecution";
 import { HOME_FAST_HELP_RANKING_VERSION } from "../../shared/homeFastHelpSync";
 import {
   isShowVyvaPreparedTask,
@@ -462,6 +468,54 @@ function conciergeHomePayloadString(item: ConciergePendingHomeItem, keys: string
   return "";
 }
 
+function conciergeHomeExecutionTask(item: ConciergePendingHomeItem): Partial<ConciergeExecutionTask> | null {
+  const task = item.action_payload?.execution_task;
+  return task && typeof task === "object" && !Array.isArray(task)
+    ? task as Partial<ConciergeExecutionTask>
+    : null;
+}
+
+function conciergeHomePayloadBoolean(item: ConciergePendingHomeItem, keys: string[]) {
+  const payload = item.action_payload;
+  if (!payload) return false;
+  return keys.some((key) => payload[key] === true);
+}
+
+function conciergeHomeHasMissingDetails(item: ConciergePendingHomeItem) {
+  const task = conciergeHomeExecutionTask(item);
+  const missingRequirements = Array.isArray(task?.missing_requirements)
+    ? task.missing_requirements
+    : [];
+  const missingDetails = item.action_payload?.missingDetails ?? item.action_payload?.missing_details;
+  return missingRequirements.length > 0
+    || (Array.isArray(missingDetails) && missingDetails.length > 0);
+}
+
+function conciergeHomeCanvasState(item: ConciergePendingHomeItem): ConciergeCanvasStateSummary {
+  const executionTask = conciergeHomeExecutionTask(item);
+  const hasMissingDetails = conciergeHomeHasMissingDetails(item);
+  const requiresConfirmation = conciergeHomePayloadBoolean(item, [
+    "confirmation_required_before_action",
+    "no_external_action_without_confirmation",
+  ]);
+  const status = conciergeHomeStatus(item);
+
+  return deriveConciergeCanvasState({
+    status,
+    useCase: item.use_case,
+    flowReference: executionTask?.flow_reference
+      ?? conciergeHomePayloadString(item, ["flow_reference"]),
+    actionType: executionTask?.action_type
+      ?? conciergeHomePayloadString(item, ["action_type", "task_type"]),
+    executionTask,
+    hasMissingDetails,
+    hasReviewSummary: !hasMissingDetails,
+    reviewPresented: status === "pending" && !hasMissingDetails && (requiresConfirmation || Boolean(executionTask)),
+    waitingForProvider: conciergeHomeIsWaitingOnProvider(item),
+    missionStatus: conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]),
+  });
+}
+
 function conciergeCompletedPayloadString(item: ConciergeCompletedHomeItem, keys: string[]) {
   const payload = item.outcome_payload;
   if (!payload) return "";
@@ -546,35 +600,32 @@ function conciergeHomeWaitingLabel(
   return t("home.conciergeResume.waitingSince", "Waiting since {{time}}", { time });
 }
 
-function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate, isSpanish = false) {
   if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.step.providerShortlist", "Review saved options");
   if (isShowVyvaPreparedTask(item.action_payload)) {
     return t("home.showVyvaResume.step", "Review first");
   }
-  const missionStatus = conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]).toLowerCase();
-  if (conciergeHomeIsWaitingOnProvider(item)) return t("home.conciergeResume.step.waiting", "Waiting for reply");
-  if (missionStatus.includes("form")) return t("home.conciergeResume.step.form", "Preparing form");
-  if (missionStatus.includes("save") || missionStatus.includes("booked")) return t("home.conciergeResume.step.save", "Ready to save");
-  if (conciergeHomeStatus(item) === "failed") return t("home.conciergeResume.step.attention", "Needs your review");
-  return t("home.conciergeResume.step.confirm", "Waiting for your confirmation");
+  return conciergeCanvasStateLabel(conciergeHomeCanvasState(item).state, isSpanish);
 }
 
-function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTranslate, isSpanish = false) {
   if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.kickerProviderShortlist", "Saved shortlist");
   if (isShowVyvaPreparedTask(item.action_payload)) return t("home.showVyvaResume.kicker", "VYVA prepared this");
-  const status = conciergeHomeStatus(item);
-  if (status === "failed") return t("home.conciergeResume.kickerReview", "Needs review");
-  if (conciergeHomeIsWaitingOnProvider(item)) return t("home.conciergeResume.kickerWaiting", "Waiting");
-  if (status === "pending") return t("home.conciergeResume.kickerConfirm", "Needs your OK");
-  return t("home.conciergeResume.kicker", "Right now");
+  return conciergeCanvasStateLabel(conciergeHomeCanvasState(item).state, isSpanish);
 }
 
 function conciergeHomeTitlePrefix(item: ConciergePendingHomeItem, t: HomeTranslate) {
   if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.titleProviderShortlistPrefix", "Review your");
-  const status = conciergeHomeStatus(item);
-  if (status === "failed") return t("home.conciergeResume.titleReviewPrefix", "Review your");
-  if (status === "pending") return t("home.conciergeResume.titleConfirmPrefix", "Confirm your");
+  const state = conciergeHomeCanvasState(item).state;
+  if (state === "collecting") return t("home.conciergeResume.titleCollectPrefix", "Add detail for your");
+  if (state === "ready_to_review") return t("home.conciergeResume.titleReviewPrefix", "Review your");
+  if (state === "awaiting_confirmation") return t("home.conciergeResume.titleConfirmPrefix", "Confirm your");
+  if (state === "failed") return t("home.conciergeResume.titleTryAgainPrefix", "Try another way for your");
   return t("home.conciergeResume.titlePrefix", "VYVA is working on your");
+}
+
+function conciergeCompletedCanvasLabel(isSpanish: boolean) {
+  return conciergeCanvasStateLabel("completed", isSpanish);
 }
 
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
@@ -1240,13 +1291,16 @@ const HomeScreen = () => {
       ? showVyvaResumeActionLabel(activeConciergeHomeTask.action_payload, language)
       : conciergeHomeTaskLabel(activeConciergeHomeTask, t)
     : "";
-  const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t) : "";
-  const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t) : "";
+  const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t, language === "es") : "";
+  const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t, language === "es") : "";
   const conciergeHomeTitlePrefixText = activeConciergeHomeTask ? conciergeHomeTitlePrefix(activeConciergeHomeTask, t) : "";
   const activeConciergeWaitingOnProvider = activeConciergeHomeTask ? conciergeHomeIsWaitingOnProvider(activeConciergeHomeTask) : false;
   const activeConciergeWaitingText = activeConciergeHomeTask && activeConciergeWaitingOnProvider
     ? conciergeHomeWaitingLabel(activeConciergeHomeTask, conciergeClockMs, language, t)
     : conciergeHomeStepText;
+  const activeConciergeCanvasState = activeConciergeHomeTask
+    ? conciergeHomeCanvasState(activeConciergeHomeTask)
+    : null;
   const activeConciergeProviderText = activeConciergeHomeTask ? conciergeHomeProviderLabel(activeConciergeHomeTask, t) : "";
   const activeConciergeShowVyvaSourceText = activeConciergeHomeTask && activeConciergeShowVyvaTask
     ? showVyvaResumeSourceLabel(activeConciergeHomeTask.action_payload, language)
@@ -1366,6 +1420,14 @@ const HomeScreen = () => {
               ? `${activeConciergeShowVyvaSourceText} · ${activeConciergeTaskText}`
               : activeConciergeWaitingText}
           </span>
+          {activeConciergeCanvasState && activeConciergeCanvasState.state !== "completed" ? (
+            <span
+              className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-[#0F766E]"
+              data-testid="text-home-concierge-safety-rule"
+            >
+              {t("home.conciergeResume.safetyRule", "Nothing happens before you confirm.")}
+            </span>
+          ) : null}
           {activeConciergeShowVyvaSummary ? (
             <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-vyva-text-3">
               {activeConciergeShowVyvaSummary}
@@ -1423,6 +1485,12 @@ const HomeScreen = () => {
       <span className="min-w-0 flex-1">
         <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-vyva-purple">
           {t("home.conciergeReuse.kicker", "Useful again")}
+        </span>
+        <span
+          className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#047857]"
+          data-testid="badge-home-concierge-completed-state"
+        >
+          {conciergeCompletedCanvasLabel(language === "es")}
         </span>
         <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
           {t("home.conciergeReuse.title", "Use last {{task}} again", {
