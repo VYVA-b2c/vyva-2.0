@@ -533,6 +533,57 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getByTestId("panel-home-service-question")).toBeInTheDocument();
   });
 
+  it("restores a saved ride Canvas draft to the exact review scene", async () => {
+    const savedTask = {
+      id: savedTaskId,
+      user_id: "user-1",
+      kind: "transport",
+      entry_payload: { kind: "transport" },
+      progress_payload: {
+        canvasStep: "review",
+        requestedTime: "Friday at 10",
+        textDrafts: {
+          transportPickup: "Saved home",
+          transportDestination: "City Clinic",
+        },
+        answers: {
+          transportMobilityNeeds: "Wheelchair space\nHelp at the door",
+        },
+      },
+      stage: "review",
+      status: "active",
+      linked_pending_id: null,
+      language: "en",
+      created_at: "2026-07-18T12:00:00.000Z",
+      updated_at: "2026-07-18T12:05:00.000Z",
+      completed_at: null,
+      deleted_at: null,
+    };
+    mockConciergeLists([], [], [savedTask]);
+    const scenes: VoiceCanvasSceneEnvelope[] = [];
+    const handleScene = (event: Event) => {
+      if (event instanceof CustomEvent) scenes.push(event.detail as VoiceCanvasSceneEnvelope);
+    };
+    window.addEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+
+    renderScreen([`/concierge/task/${savedTaskId}`], "task");
+
+    const pickupInput = await screen.findByTestId("input-transport-pickup");
+    expect(pickupInput).toHaveValue("Saved home");
+    expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
+    expect(screen.getByTestId("input-transport-time")).toHaveValue("Friday at 10");
+    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "ride-review")).toBe(true));
+    const reviewScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "ride-review")!;
+    expect(reviewScene.viewModel.summaryRows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "pickup", value: "Saved home" }),
+      expect.objectContaining({ id: "destination", value: "City Clinic" }),
+      expect.objectContaining({ id: "when", value: "Friday at 10" }),
+      expect.objectContaining({ id: "mobility", value: "Wheelchair access" }),
+    ]));
+    expect(reviewScene.pendingId).toBeUndefined();
+    window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
+  });
+
   it("autosaves edited progress without confirmation state", async () => {
     const savedTask = {
       id: savedTaskId,
