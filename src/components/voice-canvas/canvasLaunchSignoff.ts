@@ -1532,6 +1532,7 @@ const copyAccessibilityResultRequirements: Record<
     resultDescription: "result must mention keyboard-only completion for each flow",
     resultWordGroups: [
       ["keyboard"],
+      ["completion", "completed", "complete", "safely exited", "safe exit"],
       ["each flow", "all flows"],
     ],
     evidenceDescription: "evidence must reference dated keyboard evidence",
@@ -1541,10 +1542,12 @@ const copyAccessibilityResultRequirements: Record<
     resultDescription: "result must mention focus movement on scene changes",
     resultWordGroups: [
       ["focus"],
+      ["moves", "moved", "movement", "move"],
       ["scene"],
+      ["heading", "control"],
     ],
-    evidenceDescription: "evidence must reference dated focus evidence",
-    evidenceWordGroups: [["focus"]],
+    evidenceDescription: "evidence must reference dated focus movement evidence",
+    evidenceWordGroups: [["focus"], ["scene", "heading", "control"]],
   },
   "Screen-reader announcements fire for waiting, blocked, and completed states": {
     resultDescription:

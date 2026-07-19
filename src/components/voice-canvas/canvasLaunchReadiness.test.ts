@@ -215,6 +215,8 @@ describe("Canvas launch readiness manifest", () => {
       "Voice",
       "Touch",
       "Keyboard",
+      "completion or safe exit",
+      "focus moved",
       "Local shopping draft",
       "Local medication refill draft",
       "Pending provider reply task",

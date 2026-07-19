@@ -309,7 +309,7 @@ function fillCopyAccessibilityRows(markdown: string): string {
     )
     .replace(
       /^\| Focus moves meaningfully when scenes change \| .* \| .* \|$/m,
-      "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus evidence reviewed on 2026-07-19 |",
+      "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus scene heading evidence reviewed on 2026-07-19 |",
     )
     .replace(
       /^\| Screen-reader announcements fire for waiting, blocked, and completed states \| .* \| .* \|$/m,
@@ -1896,8 +1896,8 @@ describe("Canvas real-device QA sign-off", () => {
         "| Keyboard-only completion works for each flow | Keyboard-only completion unavailable for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
       )
       .replace(
-        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus evidence reviewed on 2026-07-19 |",
-        "| Focus moves meaningfully when scenes change | Focus does not move to the new scene heading or control when scenes change | QA focus evidence reviewed on 2026-07-19 |",
+        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus scene heading evidence reviewed on 2026-07-19 |",
+        "| Focus moves meaningfully when scenes change | Focus does not move to the new scene heading or control when scenes change | QA focus scene heading evidence reviewed on 2026-07-19 |",
       )
       .replace(
         "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
@@ -1912,6 +1912,31 @@ describe("Canvas real-device QA sign-off", () => {
       "Keyboard-only completion works for each flow: result must mention keyboard-only completion for each flow",
       "Focus moves meaningfully when scenes change: result must mention focus movement on scene changes",
       "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects keyboard and focus rows that omit completion or movement evidence", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
+        "| Keyboard-only completion works for each flow | Keyboard verified for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
+      )
+      .replace(
+        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus scene heading evidence reviewed on 2026-07-19 |",
+        "| Focus moves meaningfully when scenes change | Focus is visible on each scene | QA focus evidence reviewed on 2026-07-19 |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Keyboard-only completion works for each flow: result must mention keyboard-only completion for each flow",
+      "Focus moves meaningfully when scenes change: result must mention focus movement on scene changes",
+      "Focus moves meaningfully when scenes change: evidence must reference dated focus movement evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
