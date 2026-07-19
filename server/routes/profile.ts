@@ -240,6 +240,7 @@ const channelPreferencesPatchSchema = z.object({
   whatsapp_available_until: channelPreferenceTimeSchema.optional(),
   max_outbound_calls_per_day: channelPreferenceLimitSchema.optional(),
   max_whatsapp_messages_per_day: channelPreferenceLimitSchema.optional(),
+  concierge_task_notifications_enabled: z.boolean().optional(),
 });
 
 const coveragePatchSchema = z.object({
@@ -262,6 +263,7 @@ const channelPreferencesDefaults = {
   whatsapp_available_until: "22:00",
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
+  concierge_task_notifications_enabled: true,
 };
 
 function normalizeContactChannel(value: unknown, fallback: ContactChannel): ContactChannel {
@@ -317,6 +319,9 @@ function serializeChannelPreferences(row?: ChannelPreferencesRow | null, consent
       row && row.max_whatsapp_messages_per_day !== undefined
         ? row.max_whatsapp_messages_per_day
         : channelPreferencesDefaults.max_whatsapp_messages_per_day,
+    concierge_task_notifications_enabled:
+      row?.concierge_task_notifications_enabled
+      ?? channelPreferencesDefaults.concierge_task_notifications_enabled,
   };
 }
 
