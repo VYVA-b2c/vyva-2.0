@@ -156,6 +156,19 @@ function isIsoDateCell(value: string): boolean {
   );
 }
 
+function todayIsoDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isNonFutureIsoDateCell(value: string): boolean {
+  const normalized = normalizeCell(value);
+  return isIsoDateCell(normalized) && normalized <= todayIsoDate();
+}
+
 function isApprovedLaunchDecisionCell(value: string): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   if (isPlaceholderCell(normalized)) return false;
@@ -253,7 +266,8 @@ function isMeaningfulEnvironmentValue(
     case "Analytics sink reviewed":
       return (
         /\breview(ed)?\b/i.test(normalized) &&
-        isIsoDateCellFromText(normalized) &&
+        hasNonFutureIsoDateCellFromText(normalized) &&
+        !hasFutureIsoDateCellFromText(normalized) &&
         !hasNegativeEvidenceLanguage(normalized)
       );
     case "Initial flag state":
@@ -323,6 +337,19 @@ function isIsoDateCellFromText(value: string): boolean {
   );
 }
 
+function hasNonFutureIsoDateCellFromText(value: string): boolean {
+  return (normalizeCell(value).match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? []).some(
+    isNonFutureIsoDateCell,
+  );
+}
+
+function hasFutureIsoDateCellFromText(value: string): boolean {
+  const today = todayIsoDate();
+  return (normalizeCell(value).match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? []).some(
+    (date) => isIsoDateCell(date) && date > today,
+  );
+}
+
 function hasAnyWord(value: string, words: readonly string[]): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   return words.some((word) => normalized.includes(word));
@@ -347,7 +374,8 @@ function hasDatedEvidenceLanguage(
   ],
 ): boolean {
   return (
-    isIsoDateCellFromText(normalizeCell(value)) &&
+    hasNonFutureIsoDateCellFromText(normalizeCell(value)) &&
+    !hasFutureIsoDateCellFromText(normalizeCell(value)) &&
     !hasNegativeEvidenceLanguage(value) &&
     hasAnyWord(value, evidenceWords) &&
     hasAnyWord(value, ["qa", "reviewer", "reviewed", "captured", "verified"])
@@ -1684,7 +1712,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
       const signoff = signoffRows.get(role);
       if (!signoff) return false;
       const date = signoff[1] ?? "";
-      return !isPlaceholderCell(date) && !isIsoDateCell(date);
+      return !isPlaceholderCell(date) && !isNonFutureIsoDateCell(date);
     });
   const unapprovedRequiredSignoffRoles =
     CANVAS_REAL_DEVICE_QA_REQUIRED_SIGNOFF_ROLES.filter((role) => {
@@ -1845,7 +1873,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     }
     if (invalidRequiredSignoffDateRoles.length > 0) {
       problems.push(
-        `Matrix has required sign-off date(s) that must use YYYY-MM-DD: ${invalidRequiredSignoffDateRoles.join(", ")}.`,
+        `Matrix has required sign-off date(s) that must use YYYY-MM-DD and cannot be in the future: ${invalidRequiredSignoffDateRoles.join(", ")}.`,
       );
     }
     if (unapprovedRequiredSignoffRoles.length > 0) {

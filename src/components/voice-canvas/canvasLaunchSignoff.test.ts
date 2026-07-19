@@ -412,6 +412,24 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.unapprovedRequiredSignoffRoles).toEqual(["Product"]);
   });
 
+  it("rejects ready-for-launch sign-offs dated in the future", () => {
+    const completed = completedMatrix().replace(
+      "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence |",
+      "| Product | Priya Product | 2099-01-01 | Approved for launch | Reviewed real-use evidence |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidRequiredSignoffDateRoles).toEqual(["Product"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("cannot be in the future"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch sign-offs with conditional approval wording", () => {
     const completed = completedMatrix().replace(
       "| Engineering | Elena Engineering | 2026-07-19 | Approved for launch | Verified rollback and stale guards |",
@@ -1026,6 +1044,25 @@ describe("Canvas real-device QA sign-off", () => {
       completedMatrix(),
       "Ride Voice Canvas",
       "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2026-99-99 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects dated evidence that is in the future", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2099-01-01 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1835,6 +1872,24 @@ describe("Canvas real-device QA sign-off", () => {
       "Voice provider/session mode",
       "Initial flag state",
     ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects environment analytics review evidence dated in the future", () => {
+    const completed = completedMatrix().replace(
+      "| Analytics sink reviewed | Reviewed aggregate launch sink on 2026-07-19 |",
+      "| Analytics sink reviewed | Reviewed aggregate launch sink on 2099-01-01 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual(["Analytics sink reviewed"]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining("environment field"),
