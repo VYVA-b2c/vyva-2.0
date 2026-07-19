@@ -12,6 +12,8 @@ This pass found and fixed one launch-blocking rollout issue: provider-reply Canv
 
 Manual execution must be recorded in `docs/audits/voice-canvas-real-device-qa-matrix.md`.
 
+The matrix is protected by `src/components/voice-canvas/canvasLaunchSignoff.test.ts`: it may stay **pending execution** while real-device QA is incomplete, but a **ready for launch** status is rejected unless all required evidence and final sign-off roles are filled.
+
 ## Requirement audit
 
 | Requirement | Evidence now in repo | Status |
@@ -25,13 +27,13 @@ Manual execution must be recorded in `docs/audits/voice-canvas-real-device-qa-ma
 | Feature flags and fallback restore old paths | `server/lib/canvasFeatureFlags.test.ts`, rollout tests, shopping/refill page tests, unified rollback runbook | Local/runtime evidence complete; deployed endpoint toggle pending |
 | Privacy-safe analytics for started, resumed, abandoned, blocked, confirmed, completed | `canvasLaunchSignalForTelemetry`, launch manifest signal map, dispatch boundary test against forbidden fields | Automated evidence complete; production analytics sink review pending |
 | Senior-friendly copy and what-happens-next clarity | Flow view model/component tests, screenshots, and launch runbook QA prompts | Browser evidence complete; senior copy read-through pending |
-| Launch checklist and rollback notes | `docs/runbooks/voice-canvas-launch-readiness.md` plus existing ride/appointment/refill rollout runbooks | Complete |
+| Launch checklist and rollback notes | `docs/runbooks/voice-canvas-launch-readiness.md`, `docs/audits/voice-canvas-real-device-qa-matrix.md`, `src/components/voice-canvas/canvasLaunchSignoff.test.ts`, plus existing ride/appointment/refill rollout runbooks | Complete; final sign-off gate pending real-device evidence |
 
 ## Verification performed
 
 - Focused readiness suite with server flag checks:
-  - `$env:DATABASE_URL='file:./dev.db'; npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx`
-  - Result: 105 tests passed.
+  - `$env:DATABASE_URL='file:./dev.db'; npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx`
+  - Result: 109 tests passed.
 - Browser readiness:
   - `npm run test:e2e -- e2e/voice-canvas-production-readiness.spec.ts e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts`
   - Result: 12 tests passed.

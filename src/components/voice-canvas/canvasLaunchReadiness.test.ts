@@ -119,8 +119,10 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("No booking, call, message");
     expect(runbook).toContain("voice-canvas-launch-readiness-audit.md");
     expect(runbook).toContain("voice-canvas-real-device-qa-matrix.md");
+    expect(runbook).toContain("canvasLaunchSignoff.test.ts");
     expect(audit).toContain("manual real-device/deployed rollback QA still required");
     expect(audit).toContain("voice-canvas-real-device-qa-matrix.md");
+    expect(audit).toContain("canvasLaunchSignoff.test.ts");
     expect(audit).toContain("provider-reply Canvas had client-side rollout wiring but no matching server feature endpoint");
   });
 
