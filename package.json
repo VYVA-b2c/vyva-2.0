@@ -29,7 +29,7 @@
     "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test": "vitest run",
+    "test": "vitest run --pool=forks",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
