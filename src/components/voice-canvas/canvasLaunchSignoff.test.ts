@@ -37,10 +37,13 @@ const TASK_HUB_EVIDENCE_ERROR =
   "Local shopping draft: evidence must include dated resume, disabled fallback, no-write, and no-external-action evidence";
 
 const BEHAVIOR_CHECKLIST_EVIDENCE =
+  "QA behavior artifact log and screenshot evidence on 2026-07-19: start/resume, app exit/reopen, refresh/reconnect, voice interruption recovery, browser back, cancel/exit, flag rollback, confirmation safety with no write, no resubmission, no external action, no booking, no call, no message, and no navigation, duplicate guard, stale response handling, recoverable failure retry, senior copy one clear decision, readable labels, what happens next, and privacy-safe aggregate analytics reviewed";
+
+const BEHAVIOR_CHECKLIST_PROSE_EVIDENCE =
   "QA behavior evidence on 2026-07-19: start/resume, app exit/reopen, refresh/reconnect, voice interruption recovery, browser back, cancel/exit, flag rollback, confirmation safety with no write, no resubmission, no external action, no booking, no call, no message, and no navigation, duplicate guard, stale response handling, recoverable failure retry, senior copy one clear decision, readable labels, what happens next, and privacy-safe aggregate analytics reviewed";
 
 const PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR =
-  "Provider Reply Voice Canvas: behavior evidence must include dated coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects";
+  "Provider Reply Voice Canvas: behavior evidence must include dated artifact coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects";
 
 function behaviorChecklistRow(
   flow: string,
@@ -1515,6 +1518,24 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects behavior evidence notes that omit concrete artifacts", () => {
+    const completed = completedMatrix().replace(
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
+      behaviorChecklistRow(
+        "Provider Reply Voice Canvas",
+        BEHAVIOR_CHECKLIST_PROSE_EVIDENCE,
+      ),
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR,
+    ]);
+  });
+
   it("rejects behavior evidence notes with contradictory safety wording", () => {
     const completed = completedMatrix().replace(
       behaviorChecklistRow("Provider Reply Voice Canvas"),
@@ -1530,6 +1551,27 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidBehaviorRows).toEqual([
       PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR,
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects behavior evidence artifacts that include sensitive details", () => {
+    const completed = completedMatrix().replace(
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
+      behaviorChecklistRow(
+        "Provider Reply Voice Canvas",
+        `${BEHAVIOR_CHECKLIST_EVIDENCE} and restore screenshot captured address details`,
+      ),
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Provider Reply Voice Canvas: behavior evidence artifacts must not include transcripts, entered text, addresses, or personal details",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("required behavior row")]),

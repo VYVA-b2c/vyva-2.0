@@ -1153,6 +1153,7 @@ const behaviorEvidenceWordGroups = [
 function hasBehaviorEvidenceLanguage(value: string): boolean {
   return (
     hasDatedEvidenceLanguage(value, ["qa", "reviewer", "evidence", "screenshot", "log"]) &&
+    hasConcreteEvidenceArtifactLanguage(value) &&
     hasAllWordGroups(value, behaviorEvidenceWordGroups)
   );
 }
@@ -1199,7 +1200,16 @@ function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
         hasNegativeBehaviorOutcomeLanguage(evidence))
     ) {
       problems.push(
-        `${flow.label}: behavior evidence must include dated coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects`,
+        `${flow.label}: behavior evidence must include dated artifact coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects`,
+      );
+    }
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      hasSensitiveDataLeakageLanguage(evidence)
+    ) {
+      problems.push(
+        `${flow.label}: behavior evidence artifacts must not include transcripts, entered text, addresses, or personal details`,
       );
     }
   }

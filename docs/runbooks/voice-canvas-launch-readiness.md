@@ -101,7 +101,7 @@ For behavior rows that require no-write evidence, explicitly state no write or w
 
 For behavior rows that require no-external-action evidence, explicitly state no external action or without external action. Sent/submitted shorthand such as `nothing sent`, `nothing submitted`, or `not submitted` does not prove the external-action boundary for launch sign-off.
 
-For required behavior rows, the evidence note must include dated coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects. Generic screenshot/log evidence does not satisfy launch sign-off.
+For required behavior rows, the evidence note must include dated artifact/log/screenshot coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects. The artifact evidence must not include transcripts, entered text, addresses, or personal details. Generic behavior-evidence prose or generic screenshot/log evidence does not satisfy launch sign-off.
 
 For copy/accessibility rows, the evidence note must explicitly name the checked outcome, not just say a screenshot was reviewed. For example, include one clear decision for each flow, Spanish long-label readability without overflow, waiting pending/no-action copy, blocked retry/exit copy, completed outcome/no-extra-action copy, keyboard completion or safe exit for each flow, focus movement, screen-reader state announcements, or calm usable reduced-motion behavior.
 
