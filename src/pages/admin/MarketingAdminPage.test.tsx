@@ -5923,6 +5923,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-tracking-link-linkedin")).toHaveTextContent("utm_source=vyva");
     expect(screen.getByTestId("marketing-campaign-studio-tracking-link-linkedin")).toHaveTextContent("utm_medium=linkedin");
     expect(screen.getByTestId("marketing-campaign-studio-tracking-link-email")).toHaveTextContent("VYVA email link");
+    expect(screen.getByTestId("marketing-campaign-studio-localization")).toHaveTextContent("Localization readiness");
+    expect(screen.getByTestId("marketing-campaign-studio-localization-en")).toHaveTextContent("English");
+    expect(screen.getByTestId("marketing-campaign-studio-localization-en")).toHaveTextContent("2/4 routes");
+    expect(screen.getByTestId("marketing-campaign-studio-localization-en")).toHaveTextContent("Needs localized WhatsApp and Facebook copy");
     expect(screen.getByTestId("marketing-campaign-studio-test-preview")).toHaveTextContent("Test preview");
     expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("Sample:");
@@ -5954,6 +5958,12 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign tracking links"));
     });
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign tracking links copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-localization"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign localization brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Language coverage:"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign localization brief copied.");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-preflight"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign preflight review"));

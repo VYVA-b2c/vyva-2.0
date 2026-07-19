@@ -963,6 +963,18 @@ type CampaignStudioReusableAssetMatch = {
   reasons: string[];
 };
 
+type CampaignStudioLocalizationItem = {
+  language: string;
+  label: string;
+  contactCount: number;
+  channelsCovered: number;
+  channelCount: number;
+  savedAssets: number;
+  starterTemplates: number;
+  missingChannels: Channel[];
+  state: CampaignReadinessState;
+};
+
 type CampaignStudioPreflightItem = CampaignReadinessItem & {
   value: string;
 };
@@ -1563,6 +1575,24 @@ function formatChannelList(channels: Channel[]) {
   if (labels.length <= 1) return labels[0] ?? "";
   if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
   return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}
+
+function normalizeMarketingLanguage(value?: string | null) {
+  const normalized = (value ?? "").trim().toLowerCase();
+  if (!normalized) return "unknown";
+  if (["english", "eng", "en-gb", "en-us", "gb", "uk", "us"].includes(normalized)) return "en";
+  if (["spanish", "espanol", "español", "castellano", "es-es", "es-mx"].includes(normalized)) return "es";
+  if (["french", "francais", "français", "fr-fr"].includes(normalized)) return "fr";
+  if (["german", "deutsch", "de-de"].includes(normalized)) return "de";
+  if (["italian", "italiano", "it-it"].includes(normalized)) return "it";
+  if (["portuguese", "portugues", "português", "pt-pt", "pt-br"].includes(normalized)) return "pt";
+  return normalized.split(/[-_]/)[0] || "unknown";
+}
+
+function marketingLanguageLabel(value?: string | null) {
+  const normalized = normalizeMarketingLanguage(value);
+  if (normalized === "unknown") return "Unknown";
+  return contentLocalizationLanguageLabel[normalized as ContentLocalizationLanguage] ?? normalized.toUpperCase();
 }
 
 const manualPublishResultLabel: Record<ManualPublishResultStatus, string> = {
@@ -15998,6 +16028,93 @@ export default function MarketingAdminPage() {
   const campaignStudioBriefScorecardItems = campaignStudioLaunchBriefItems.slice(0, 6);
   const campaignStudioBriefScorecardIssueCount = campaignStudioLaunchBriefItems.filter((item) => item.state === "blocked" || item.state === "needs_action").length;
   const campaignStudioLanguageLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.language), "Unknown", 2);
+  const campaignStudioLocalizationItems = useMemo<CampaignStudioLocalizationItem[]>(() => {
+    const languageCounts = new Map<string, number>();
+    campaignStudioAudiencePool.forEach((contact) => {
+      const language = normalizeMarketingLanguage(contact.language);
+      languageCounts.set(language, (languageCounts.get(language) ?? 0) + 1);
+    });
+    if (languageCounts.size === 0) {
+      languageCounts.set(normalizeMarketingLanguage(campaignStudioGenerated.language || "en"), 0);
+    }
+    return Array.from(languageCounts.entries())
+      .sort((a, b) => b[1] - a[1] || marketingLanguageLabel(a[0]).localeCompare(marketingLanguageLabel(b[0])))
+      .slice(0, 6)
+      .map(([language, contactCount]) => {
+        const missingChannels: Channel[] = [];
+        let savedAssets = 0;
+        let starterTemplates = 0;
+        campaignStudioSelectedChannels.forEach((channel) => {
+          const savedMatch = language !== "unknown" && content.some((asset) => (
+            asset.channel === channel
+            && normalizeMarketingLanguage(asset.language) === language
+            && asset.status !== "archived"
+          ));
+          const templateMatch = language !== "unknown" && contentTemplateGallery.some((template) => (
+            template.channel === channel
+            && normalizeMarketingLanguage(template.language) === language
+            && (template.audienceType === selectedCampaignStudioPlay.audienceType || template.audienceType === "both" || selectedCampaignStudioPlay.audienceType === "both")
+          ));
+          if (savedMatch) savedAssets += 1;
+          if (templateMatch) starterTemplates += 1;
+          if (!savedMatch && !templateMatch) missingChannels.push(channel);
+        });
+        const channelsCovered = campaignStudioSelectedChannels.length - missingChannels.length;
+        const state: CampaignReadinessState = language === "unknown"
+          ? "needs_action"
+          : missingChannels.length === 0
+            ? "ready"
+            : channelsCovered > 0 ? "needs_action" : "blocked";
+        return {
+          language,
+          label: marketingLanguageLabel(language),
+          contactCount,
+          channelsCovered,
+          channelCount: campaignStudioSelectedChannels.length,
+          savedAssets,
+          starterTemplates,
+          missingChannels,
+          state,
+        };
+      });
+  }, [
+    campaignStudioAudiencePool,
+    campaignStudioGenerated.language,
+    campaignStudioSelectedChannels,
+    content,
+    selectedCampaignStudioPlay.audienceType,
+  ]);
+  const campaignStudioLocalizationReadyCount = campaignStudioLocalizationItems.filter((item) => item.state === "ready").length;
+  const campaignStudioLocalizationMissingCount = campaignStudioLocalizationItems.reduce((total, item) => total + item.missingChannels.length, 0);
+  const campaignStudioLocalizationState: CampaignReadinessState = campaignStudioLocalizationItems.some((item) => item.state === "blocked")
+    ? "blocked"
+    : campaignStudioLocalizationItems.some((item) => item.state === "needs_action")
+      ? "needs_action"
+      : "ready";
+  const campaignStudioLocalizationBriefText = [
+    "VYVA campaign localization brief",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${selectedCampaignStudioTargetAudience?.name ?? "All eligible contacts"}`,
+    `Channels: ${formatChannelList(campaignStudioSelectedChannels) || "No channels selected"}`,
+    `Primary language: ${marketingLanguageLabel(campaignStudioGenerated.language || "en")}`,
+    `Readiness: ${campaignStudioLocalizationReadyCount}/${campaignStudioLocalizationItems.length} language group${campaignStudioLocalizationItems.length === 1 ? "" : "s"} ready`,
+    "",
+    "Language coverage:",
+    ...campaignStudioLocalizationItems.map((item) => [
+      `- ${item.label}: ${item.contactCount || "planning"} contact${item.contactCount === 1 ? "" : "s"}; ${item.channelsCovered}/${item.channelCount} route${item.channelCount === 1 ? "" : "s"} covered`,
+      item.savedAssets ? `${item.savedAssets} saved asset${item.savedAssets === 1 ? "" : "s"}` : "",
+      item.starterTemplates ? `${item.starterTemplates} starter template${item.starterTemplates === 1 ? "" : "s"}` : "",
+      item.missingChannels.length ? `missing ${formatChannelList(item.missingChannels)}` : "no missing routes",
+    ].filter(Boolean).join("; ")),
+    "",
+    "Base copy:",
+    `Subject/hook: ${campaignStudioGenerated.subject || "No subject yet"}`,
+    `Body: ${campaignStudioGenerated.body || "No body yet"}`,
+    campaignStudioGenerated.ctaLabel || campaignStudioGenerated.ctaUrl ? `CTA: ${campaignStudioGenerated.ctaLabel || "Open link"} ${campaignStudioGenerated.ctaUrl || ""}`.trim() : "CTA: none",
+    "",
+    "AI task:",
+    "Create localized, consent-safe channel copy for the missing language/route combinations above. Keep the same offer and CTA, adapt tone naturally for each language, avoid medical claims, and return subject/hook, body copy, CTA, review notes, and manual publishing notes per channel.",
+  ].join("\n");
   const campaignStudioMarketLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.market), "Unknown", 2);
   const campaignStudioAudienceTypeLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.audienceType.toUpperCase()), "Unknown", 2);
   const campaignStudioAudienceInsightItems: CampaignAudienceInsightItem[] = [
@@ -28756,6 +28873,61 @@ export default function MarketingAdminPage() {
                               {item.url || "Add CTA URL first"}
                             </p>
                             <p className="mt-2 text-xs font-bold leading-relaxed text-[#587268]">{item.detail}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/50 p-4" data-testid="marketing-campaign-studio-localization">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-fuchsia-800">Localization readiness</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Know which languages need copy before launch</h3>
+                          <p className="mt-1 text-xs font-bold text-[#72566f]">Checks the selected audience against saved assets and starter templates, then shows which channel/language combinations still need AI or human review.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Pill className={readinessPillClass(campaignStudioLocalizationState)}>
+                            {campaignStudioLocalizationReadyCount}/{campaignStudioLocalizationItems.length} ready
+                          </Pill>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign localization brief", campaignStudioLocalizationBriefText)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-fuchsia-200 bg-white px-3 text-sm font-black text-fuchsia-800 hover:bg-fuchsia-50"
+                            data-testid="button-marketing-campaign-studio-copy-localization"
+                          >
+                            <Sparkles size={14} /> Copy AI localization brief
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-localization-items">
+                        {campaignStudioLocalizationItems.map((item) => (
+                          <article key={item.language} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-localization-${item.language}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <Pill className="bg-fuchsia-50 text-fuchsia-800">{item.label}</Pill>
+                                <h4 className="mt-2 text-sm font-black text-[#241133]">
+                                  {item.contactCount ? `${item.contactCount} contact${item.contactCount === 1 ? "" : "s"}` : "Planning language"}
+                                </h4>
+                              </div>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[11px] font-black text-[#72566f]">
+                              <span className="rounded-lg bg-fuchsia-50 px-2 py-2">{item.channelsCovered}/{item.channelCount} routes</span>
+                              <span className="rounded-lg bg-fuchsia-50 px-2 py-2">{item.savedAssets} saved</span>
+                              <span className="rounded-lg bg-fuchsia-50 px-2 py-2">{item.starterTemplates} starter</span>
+                            </div>
+                            <p className="mt-3 text-xs font-bold leading-relaxed text-[#72566f]">
+                              {item.language === "unknown"
+                                ? "Some contacts do not have a usable language. Add language data before relying on localized copy."
+                                : item.missingChannels.length
+                                  ? `Needs localized ${formatChannelList(item.missingChannels)} copy.`
+                                  : "Selected routes have saved or starter copy for this language."}
+                            </p>
+                            {item.missingChannels.length ? (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {item.missingChannels.map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                              </div>
+                            ) : null}
                           </article>
                         ))}
                       </div>
