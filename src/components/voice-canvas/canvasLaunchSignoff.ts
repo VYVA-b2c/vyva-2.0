@@ -912,7 +912,8 @@ const taskHubDestinationRequirements: Record<
       ["existing", "previous", "old", "shopping experience"],
     ],
     safeWordGroups: [
-      ["no write", "no external action", "not submitted", "without submitting"],
+      ["no write", "no writes", "without write", "without writes", "or write"],
+      ["no external action", "no external actions", "not submitted", "without submitting"],
       ["confirmation"],
     ],
   },
@@ -930,7 +931,8 @@ const taskHubDestinationRequirements: Record<
       ["existing", "previous", "old", "medication refill", "shopping/support"],
     ],
     safeWordGroups: [
-      ["no write", "no external action", "not submitted", "without submitting"],
+      ["no write", "no writes", "without write", "without writes", "or write"],
+      ["no external action", "no external actions", "not submitted", "without submitting"],
       ["confirmation"],
     ],
   },
@@ -949,7 +951,8 @@ const taskHubDestinationRequirements: Record<
       ["existing", "previous", "safe concierge task path"],
     ],
     safeWordGroups: [
-      ["no write", "no external action", "not submitted", "without submitting"],
+      ["no write", "no writes", "without write", "without writes", "or write"],
+      ["no external action", "no external actions", "not submitted", "without submitting"],
       ["confirmation"],
     ],
   },
@@ -965,7 +968,8 @@ const taskHubDestinationRequirements: Record<
       ["existing", "previous", "safe concierge task path", "no canvas"],
     ],
     safeWordGroups: [
-      ["no write", "no external action", "not submitted", "without submitting"],
+      ["no write", "no writes", "without write", "without writes", "or write"],
+      ["no external action", "no external actions", "not submitted", "without submitting"],
       ["detail", "completion", "confirmation", "endpoint"],
     ],
   },
@@ -1013,7 +1017,7 @@ function invalidTaskHubDestinationRows(
       !hasAllWordGroups(safeBehavior, requirements.safeWordGroups)
     ) {
       problems.push(
-        `${rowLabel}: safety cell must mention no writes before confirmation`,
+        `${rowLabel}: safety cell must mention no writes and no external actions before confirmation`,
       );
     }
     if (
