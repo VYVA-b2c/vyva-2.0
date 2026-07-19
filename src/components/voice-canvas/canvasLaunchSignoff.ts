@@ -596,10 +596,12 @@ const behaviorChecklistRequirements = [
   {
     columnIndex: 11,
     description:
-      "senior-friendly copy cell must mention senior copy and what happens next",
+      "senior-friendly copy cell must mention senior copy, one clear decision, readable labels, and what happens next",
     wordGroups: [
       ["senior"],
       ["copy"],
+      ["one clear decision", "single decision", "one decision"],
+      ["readable", "long label", "long labels", "large touch", "touch target"],
       ["what happens next", "next"],
     ],
   },
