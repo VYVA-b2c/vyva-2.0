@@ -923,7 +923,7 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(disabledPayload) &&
-      !hasAllWordGroups(disabledPayload, [
+      !hasAffirmativeFeatureFlagEvidence(disabledPayload, [
         ["false", "enabled false", "enabled: false", "enabled=false"],
         [
           "rollout 0",
@@ -939,7 +939,7 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(enabledPayload) &&
-      !hasAllWordGroups(enabledPayload, [
+      !hasAffirmativeFeatureFlagEvidence(enabledPayload, [
         ["true", "enabled true", "enabled: true", "enabled=true"],
         [
           "rollout 100",
@@ -955,7 +955,7 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(malformedConfig) &&
-      !hasAllWordGroups(malformedConfig, [
+      !hasAffirmativeFeatureFlagEvidence(malformedConfig, [
         ["malformed", "invalid", "bad config", "bad-config"],
         ["fail closed", "failed closed", "fail-closed"],
         ["disabled", "false", "rollout 0", "0%"],
@@ -966,7 +966,7 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(missingConfig) &&
-      !hasAllWordGroups(missingConfig, [
+      !hasAffirmativeFeatureFlagEvidence(missingConfig, [
         ["missing", "absent", "unreachable", "no config"],
         ["fail closed", "failed closed", "fail-closed"],
         ["disabled", "false", "rollout 0", "0%"],
@@ -977,7 +977,7 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(rollback) &&
-      !hasAllWordGroups(rollback, [
+      !hasAffirmativeFeatureFlagEvidence(rollback, [
         ["rollback", "rolled back"],
         ["disabled", "false", "rollout 0", "0%"],
         ["fallback"],
@@ -990,7 +990,7 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(fallback) &&
-      !hasAllWordGroups(fallback, [
+      !hasAffirmativeFeatureFlagEvidence(fallback, [
         ["fallback"],
         ["existing", "previous", "old", "safe concierge", featureFlag.fallback.toLowerCase()],
       ])
@@ -1013,6 +1013,40 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
   }
 
   return problems;
+}
+
+function hasAffirmativeFeatureFlagEvidence(
+  value: string,
+  wordGroups: readonly (readonly string[])[],
+): boolean {
+  return (
+    hasAllWordGroups(value, wordGroups) &&
+    !hasNegativeFeatureFlagOutcomeLanguage(value)
+  );
+}
+
+function hasNegativeFeatureFlagOutcomeLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    /\bnot (returned|available|visible|shown|enabled|disabled)\b/.test(
+      normalized,
+    ) ||
+    /\bdid not (return|show|fall back|fallback|disable|enable|roll back|rollback)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:unable|could not) to (return|show|fall back|fallback|disable|enable|roll back|rollback)\b/.test(
+      normalized,
+    ) ||
+    /\b(payload|response|flag|rollout)\b.{0,24}\b(missing|unavailable|not returned|not available)\b/.test(
+      normalized,
+    ) ||
+    /\b(fallback|existing fallback|previous fallback|safe concierge|panel|path)\b.{0,32}\b(missing|unavailable|not visible|not shown|not available)\b/.test(
+      normalized,
+    ) ||
+    /\b(no fallback|without fallback|fallback missing|fallback unavailable|fallback not visible|fallback not shown)\b/.test(
+      normalized,
+    )
+  );
 }
 
 function hasNegativeTaskHubDestinationOutcomeLanguage(value: string): boolean {

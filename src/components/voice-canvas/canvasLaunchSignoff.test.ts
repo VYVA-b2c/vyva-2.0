@@ -659,6 +659,29 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects feature flag rows with unavailable payload or fallback wording", () => {
+    const completed = completedMatrix().replace(
+      "Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown |",
+      "Disabled false, rollout 0 payload unavailable | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback but fallback not visible | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback not visible | Existing provider reply panel fallback not shown |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: disabled payload evidence",
+      "Provider Reply Voice Canvas: malformed config fallback evidence",
+      "Provider Reply Voice Canvas: in-session rollback must show disabled rollout and existing fallback",
+      "Provider Reply Voice Canvas: existing fallback evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("feature-flag rollback row"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague task hub destination fallback evidence", () => {
     const completed = completedMatrix().replace(
       "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
