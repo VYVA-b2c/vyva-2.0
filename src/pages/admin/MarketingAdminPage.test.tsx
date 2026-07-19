@@ -1205,6 +1205,13 @@ describe("MarketingAdminPage", () => {
       configurable: true,
       value: { writeText: relationshipClipboardWriteText },
     });
+    fireEvent.click(screen.getByTestId("button-marketing-copy-contact-relationship-brief"));
+    await waitFor(() => {
+      expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA relationship brief"));
+    });
+    expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Contact: Hassan Partner"));
+    expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Turn this relationship brief into the next best contact-specific message"));
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Relationship brief copied.");
     fireEvent.click(screen.getByTestId("button-marketing-copy-contact-follow-up-kit"));
     await waitFor(() => {
       expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Relationship follow-up kit: Hassan Partner"));

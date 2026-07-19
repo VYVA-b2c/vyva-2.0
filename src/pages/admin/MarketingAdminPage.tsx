@@ -12716,6 +12716,44 @@ export default function MarketingAdminPage() {
     selectedContactRelationshipScore,
     selectedRelationshipContact,
   ]);
+  const contactRelationshipBriefText = useMemo(() => {
+    if (!selectedRelationshipContact || !contactRelationshipBrief) return "";
+    const contactName = selectedRelationshipContact.fullName || selectedRelationshipContact.email || selectedRelationshipContact.phoneNumber || "Unnamed contact";
+    const roleContext = [selectedRelationshipContact.roleLabel, selectedRelationshipContact.companyName].filter(Boolean).join(" at ");
+    const audienceContext = contactRelationshipAudiences[0]?.name ?? selectedRelationshipContact.lists[0] ?? selectedRelationshipContact.audienceType.toUpperCase();
+    const segmentContext = [selectedRelationshipContact.market, selectedRelationshipContact.vertical, selectedRelationshipContact.category, selectedRelationshipContact.language].filter(Boolean).join(" / ") || "No segment detail yet";
+    const reachableRoutes = contactRelationshipChannels
+      .filter((item) => item.state !== "blocked")
+      .map((item) => `${channelLabel[item.channel]}${item.recipient ? `: ${item.recipient}` : ""}`);
+    return [
+      "VYVA relationship brief",
+      `Contact: ${contactName}`,
+      roleContext ? `Role: ${roleContext}` : "",
+      `Audience/list: ${audienceContext}`,
+      `Readiness: ${selectedContactRelationshipScore}%`,
+      `Consent: ${selectedRelationshipContact.consentStatus}`,
+      `Segment: ${segmentContext}`,
+      `Reachable routes: ${reachableRoutes.join(" | ") || "No direct route yet"}`,
+      `Priority: ${contactRelationshipBrief.priority}`,
+      `Primary route: ${channelLabel[contactRelationshipBrief.primaryChannel]}`,
+      "",
+      "Recommended move:",
+      contactRelationshipBrief.starter,
+      contactRelationshipBrief.angle,
+      contactRelationshipBrief.opener,
+      contactRelationshipBrief.followUp,
+      "",
+      `Watch: ${contactRelationshipBrief.risk}`,
+      "",
+      "AI task: Turn this relationship brief into the next best contact-specific message, preserving consent status, channel fit, list context, and one clear follow-up owner.",
+    ].filter((line) => line !== "").join("\n");
+  }, [
+    contactRelationshipAudiences,
+    contactRelationshipBrief,
+    contactRelationshipChannels,
+    selectedContactRelationshipScore,
+    selectedRelationshipContact,
+  ]);
 
   const visibleAudiences = useMemo(() => audiences.filter((audience) => {
     return matchesSearch(search, [
@@ -18720,6 +18758,41 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = contactRelationshipFollowUpKitText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyContactRelationshipBrief() {
+    const label = "Relationship brief";
+    if (!contactRelationshipBriefText.trim()) {
+      const feedback = `${label} is empty.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contactRelationshipBriefText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contactRelationshipBriefText;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -34250,9 +34323,20 @@ export default function MarketingAdminPage() {
                                     <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Relationship brief</p>
                                     <p className="mt-1 text-sm font-black text-[#241133]">{contactRelationshipBrief.priority}</p>
                                   </div>
-                                  <Pill className={channelClass(contactRelationshipBrief.primaryChannel)}>
-                                    Primary route: {channelLabel[contactRelationshipBrief.primaryChannel]}
-                                  </Pill>
+                                  <div className="flex flex-wrap items-center justify-end gap-2">
+                                    <Pill className={channelClass(contactRelationshipBrief.primaryChannel)}>
+                                      Primary route: {channelLabel[contactRelationshipBrief.primaryChannel]}
+                                    </Pill>
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyContactRelationshipBrief()}
+                                      disabled={!contactRelationshipBriefText.trim()}
+                                      className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                      data-testid="button-marketing-copy-contact-relationship-brief"
+                                    >
+                                      <Copy size={13} /> Copy brief
+                                    </button>
+                                  </div>
                                 </div>
                                 <div className="grid gap-2 text-xs font-bold leading-relaxed text-[#5b4a46]">
                                   <p><span className="font-black text-[#241133]">Starter:</span> {contactRelationshipBrief.starter}</p>
