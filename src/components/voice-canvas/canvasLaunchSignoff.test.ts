@@ -874,6 +874,21 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects task hub safety rows that use submission wording instead of explicit no-external-action evidence", () => {
+    const completed = completedMatrix().replace(
+      "| Local medication refill draft | Medication refill draft resumes to destination when refill Canvas enabled | Medication refill destination disabled rollout 0 fallback to existing medication refill path | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Local medication refill draft | Medication refill draft resumes to destination when refill Canvas enabled | Medication refill destination disabled rollout 0 fallback to existing medication refill path | No write and not submitted before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local medication refill draft: safety cell must mention no writes and no external actions before confirmation",
+    ]);
+  });
+
   it("rejects task hub destination rows with negative resume, fallback, or safety wording", () => {
     const completed = completedMatrix().replace(
       "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
