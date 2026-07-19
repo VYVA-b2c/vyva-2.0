@@ -52,6 +52,16 @@ function replaceDeviceRow(markdown: string, flow: string, row: string): string {
   return markdown.replace(new RegExp(`^\\| ${escapedFlow} \\| .* \\|$`, "m"), row);
 }
 
+function removeFirstTableRow(markdown: string, firstCell: string): string {
+  const escapedCell = firstCell.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return markdown.replace(new RegExp(`^\\| ${escapedCell} \\| .* \\|\\r?\\n`, "m"), "");
+}
+
+function removeFeatureEndpointRow(markdown: string, endpoint: string): string {
+  const escapedEndpoint = endpoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return markdown.replace(new RegExp(`^\\| .* \\| \`${escapedEndpoint}\` \\| .* \\|\\r?\\n`, "m"), "");
+}
+
 describe("Canvas real-device QA sign-off", () => {
   it("keeps the committed matrix explicitly pending until deployed QA is recorded", () => {
     const result = evaluateCanvasRealDeviceQaMatrix(realDeviceQaMatrix());
@@ -60,6 +70,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.incompleteCellCount).toBeGreaterThan(0);
     expect(result.failingCellCount).toBe(0);
+    expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.problems).toEqual([]);
   });
 
@@ -121,6 +132,39 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.unapprovedRequiredSignoffRoles).toEqual(["Product"]);
   });
 
+  it("rejects ready-for-launch matrices missing a required real-device flow row", () => {
+    const completedMatrix = removeFirstTableRow(
+      fillRequiredSignoffs(replacePendingEvidence(markReady(realDeviceQaMatrix()))),
+      "Ride Voice Canvas",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Device coverage: Ride Voice Canvas",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("missing required QA row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices missing a feature-flag rollback row", () => {
+    const completedMatrix = removeFeatureEndpointRow(
+      fillRequiredSignoffs(replacePendingEvidence(markReady(realDeviceQaMatrix()))),
+      "/api/config/features/provider-reply-voice-canvas",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Feature endpoint and rollback checks: Provider Reply Voice Canvas",
+    ]);
+  });
+
   it("rejects ready-for-launch matrices with filled but failing QA evidence", () => {
     const completedMatrix = replaceDeviceRow(
       fillRequiredSignoffs(replacePendingEvidence(markReady(realDeviceQaMatrix()))),
@@ -134,6 +178,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.incompleteCellCount).toBe(0);
     expect(result.failingCellCount).toBe(1);
+    expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining("failing or not-ready QA cell"),
@@ -152,6 +197,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(true);
     expect(result.incompleteCellCount).toBe(0);
     expect(result.failingCellCount).toBe(0);
+    expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.missingRequiredSignoffRoles).toEqual([]);
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);
     expect(result.invalidRequiredSignoffDateRoles).toEqual([]);

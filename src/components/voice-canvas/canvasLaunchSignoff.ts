@@ -1,3 +1,5 @@
+import { canvasLaunchReadinessFlows } from "./canvasLaunchReadiness";
+
 export const CANVAS_REAL_DEVICE_QA_PENDING_STATUS = "pending execution";
 export const CANVAS_REAL_DEVICE_QA_READY_STATUS = "ready for launch";
 
@@ -6,6 +8,39 @@ export const CANVAS_REAL_DEVICE_QA_REQUIRED_SIGNOFF_ROLES = [
   "Engineering",
   "QA",
   "Operations/rollback owner",
+] as const;
+
+export const CANVAS_REAL_DEVICE_QA_REQUIRED_ENVIRONMENT_FIELDS = [
+  "Environment URL",
+  "Build or commit SHA",
+  "Test account",
+  "Browser versions",
+  "Voice provider/session mode",
+  "Analytics sink reviewed",
+  "Initial flag state",
+  "Rollback flag state",
+] as const;
+
+export const CANVAS_REAL_DEVICE_QA_REQUIRED_COPY_CHECKS = [
+  "English copy uses one clear decision at a time",
+  "Spanish copy and long labels remain readable without horizontal overflow",
+  "Waiting states explain what is happening and what is not happening",
+  "Blocked states explain what is needed and provide retry or exit",
+  "Completed states explain the outcome without implying extra action",
+  "Keyboard-only completion works for each flow",
+  "Focus moves meaningfully when scenes change",
+  "Screen-reader announcements fire for waiting, blocked, and completed states",
+  "Reduced-motion mode remains calm and usable",
+] as const;
+
+export const CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES = [
+  "Spoken transcripts",
+  "Typed free text",
+  "Addresses or saved-place labels",
+  "Medication names, strengths, quantities, or symptoms",
+  "Provider names, reply text, notes, references, phone numbers, or emails",
+  "Shopping item names, prices, fees, or retailer names",
+  "Dates, times, identities, or contact details",
 ] as const;
 
 export type CanvasRealDeviceQaSignoffRole =
@@ -19,6 +54,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   readyForLaunch: boolean;
   incompleteCellCount: number;
   failingCellCount: number;
+  missingRequiredMatrixRows: string[];
   missingRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   invalidRequiredSignoffDateRoles: CanvasRealDeviceQaSignoffRole[];
@@ -76,18 +112,35 @@ function isApprovedLaunchDecisionCell(value: string): boolean {
   );
 }
 
-function parseMarkdownRows(markdown: string): string[][] {
-  return markdown
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("|") && line.endsWith("|"))
-    .filter((line) => !/^\|\s*-/.test(line))
-    .map((line) =>
-      line
-        .split("|")
-        .slice(1, -1)
-        .map(normalizeCell),
-    );
+function parseMarkdownTableRow(line: string): string[] | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
+  if (/^\|\s*-/.test(trimmed)) return null;
+  return trimmed
+    .split("|")
+    .slice(1, -1)
+    .map(normalizeCell);
+}
+
+function parseMarkdownSections(markdown: string): Map<string, string[][]> {
+  const sections = new Map<string, string[][]>();
+  let currentSection = "";
+
+  for (const line of markdown.split(/\r?\n/)) {
+    const heading = line.match(/^##\s+(.+?)\s*$/);
+    if (heading) {
+      currentSection = normalizeCell(heading[1]);
+      if (!sections.has(currentSection)) sections.set(currentSection, []);
+      continue;
+    }
+
+    const row = parseMarkdownTableRow(line);
+    if (!row) continue;
+    if (!sections.has(currentSection)) sections.set(currentSection, []);
+    sections.get(currentSection)!.push(row);
+  }
+
+  return sections;
 }
 
 function statusFromMarkdown(markdown: string): string | null {
@@ -97,11 +150,23 @@ function statusFromMarkdown(markdown: string): string | null {
   );
 }
 
+function missingRowsInSection(
+  sections: Map<string, string[][]>,
+  section: string,
+  expectedRows: readonly string[],
+): string[] {
+  const presentRows = new Set((sections.get(section) ?? []).slice(1).map((row) => row[0]));
+  return expectedRows
+    .filter((row) => !presentRows.has(row))
+    .map((row) => `${section}: ${row}`);
+}
+
 export function evaluateCanvasRealDeviceQaMatrix(
   markdown: string,
 ): CanvasRealDeviceQaMatrixEvaluation {
   const status = statusFromMarkdown(markdown);
-  const rows = parseMarkdownRows(markdown);
+  const sections = parseMarkdownSections(markdown);
+  const rows = [...sections.values()].flat();
   const dataRows = rows.filter((row) => row.some((cell) => !/^[-:]+$/.test(cell)));
   const incompleteCellCount = dataRows
     .flat()
@@ -141,6 +206,38 @@ export function evaluateCanvasRealDeviceQaMatrix(
         !isApprovedLaunchDecisionCell(decision)
       );
     });
+  const requiredFlowLabels = canvasLaunchReadinessFlows.map((flow) => flow.label);
+  const requiredFeatureFlaggedFlowLabels = canvasLaunchReadinessFlows
+    .filter((flow) => flow.featureFlag)
+    .map((flow) => flow.label);
+  const missingRequiredMatrixRows = [
+    ...missingRowsInSection(
+      sections,
+      "Environment record",
+      CANVAS_REAL_DEVICE_QA_REQUIRED_ENVIRONMENT_FIELDS,
+    ),
+    ...missingRowsInSection(sections, "Device coverage", requiredFlowLabels),
+    ...missingRowsInSection(
+      sections,
+      "Required behavior checklist",
+      requiredFlowLabels,
+    ),
+    ...missingRowsInSection(
+      sections,
+      "Feature endpoint and rollback checks",
+      requiredFeatureFlaggedFlowLabels,
+    ),
+    ...missingRowsInSection(
+      sections,
+      "Copy and accessibility read-through",
+      CANVAS_REAL_DEVICE_QA_REQUIRED_COPY_CHECKS,
+    ),
+    ...missingRowsInSection(
+      sections,
+      "Analytics privacy review",
+      CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES,
+    ),
+  ];
 
   const problems: string[] = [];
   if (!status) {
@@ -163,6 +260,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     if (failingCellCount > 0) {
       problems.push(
         `Matrix is marked ready but still contains ${failingCellCount} failing or not-ready QA cell(s).`,
+      );
+    }
+    if (missingRequiredMatrixRows.length > 0) {
+      problems.push(
+        `Matrix is missing required QA row(s): ${missingRequiredMatrixRows.join(", ")}.`,
       );
     }
     if (missingRequiredSignoffRoles.length > 0) {
@@ -201,6 +303,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     readyForLaunch,
     incompleteCellCount,
     failingCellCount,
+    missingRequiredMatrixRows,
     missingRequiredSignoffRoles,
     incompleteRequiredSignoffRoles,
     invalidRequiredSignoffDateRoles,

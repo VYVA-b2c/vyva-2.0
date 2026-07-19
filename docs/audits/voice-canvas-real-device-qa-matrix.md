@@ -5,7 +5,7 @@ Use this file to record the deployed, real-device launch-readiness pass for ride
 
 Do not mark the Canvas launch-readiness goal complete until every required row below has a passing result, an evidence link or note, and a reviewer/date.
 
-Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every `Pending` cell is replaced with a passing result/evidence note, no row contains a failed/blocked/not-ready result, and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
+Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every required environment, device, behavior, rollback, copy/accessibility, privacy, and sign-off row remains present; every `Pending` cell is replaced with a passing result/evidence note; no row contains a failed/blocked/not-ready result; and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
 
 ```bash
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts
