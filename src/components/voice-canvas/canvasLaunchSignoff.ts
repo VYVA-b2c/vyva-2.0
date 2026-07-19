@@ -753,7 +753,10 @@ const explicitNoWriteEvidenceWords = [
   "no writes",
   "no-write",
   "without write",
+  "without a write",
+  "without any write",
   "without writes",
+  "without any writes",
 ] as const;
 
 const explicitNoExternalActionEvidenceWords = [
@@ -761,7 +764,13 @@ const explicitNoExternalActionEvidenceWords = [
   "no external actions",
   "no-external-action",
   "without external action",
+  "without an external action",
+  "without any external action",
   "without external actions",
+  "without any external actions",
+  "without a write, resubmission, or external action",
+  "without write, resubmission, or external action",
+  "without writes, resubmissions, or external actions",
 ] as const;
 
 const explicitNoResubmissionEvidenceWords = [
@@ -769,7 +778,13 @@ const explicitNoResubmissionEvidenceWords = [
   "no resubmissions",
   "no-resubmission",
   "without resubmission",
+  "without a resubmission",
+  "without any resubmission",
   "without resubmissions",
+  "without any resubmissions",
+  "without a write, resubmission",
+  "without write, resubmission",
+  "without writes, resubmissions",
   "not resubmitted",
   "not automatically resubmitted",
   "not auto-resubmitted",

@@ -1498,6 +1498,37 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("accepts checklist wording that says without a write, resubmission, or external action", () => {
+    const completed = completedMatrix()
+      .replace(
+        "Start and resume restored work with no write, no resubmission, and no external action evidence passed",
+        "Start and resume restored work without a write, resubmission, or external action evidence passed",
+      )
+      .replace(
+        "App exit and reopen restored draft with no write, no resubmission, and no external action evidence passed",
+        "App exit and reopen restored draft without a write, resubmission, or external action evidence passed",
+      )
+      .replace(
+        "Refresh and reconnect restored work with no write, no resubmission, and no external action evidence passed",
+        "Refresh and reconnect restored work without a write, resubmission, or external action evidence passed",
+      )
+      .replace(
+        "Voice interruption recovery preserved current work with no write, no resubmission, and no external action evidence passed",
+        "Voice interruption recovery preserved current work without a write, resubmission, or external action evidence passed",
+      )
+      .replace(
+        "Recoverable failure blocked state offered retry and exit with no write, no resubmission, and no external action evidence passed",
+        "Recoverable failure blocked state offered retry and exit without a write, resubmission, or external action evidence passed",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("ready");
+    expect(result.readyForLaunch).toBe(true);
+    expect(result.invalidBehaviorRows).toEqual([]);
+    expect(result.problems).toEqual([]);
+  });
+
   it("rejects ready-for-launch matrices that do not explicitly deny external action before confirmation", () => {
     const completed = completedMatrix().replace(
       "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",

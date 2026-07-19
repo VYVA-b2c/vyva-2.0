@@ -24,6 +24,8 @@ Duplicate/stale guard rows now require explicit duplicate prevention/handling la
 
 Restore, reconnect, interruption, and recoverable-failure behavior rows now require explicit no-resubmission wording in addition to no-write and no-external-action evidence; restored-work wording alone is rejected so launch evidence cannot obscure automatic retry or in-flight request replay risk.
 
+The no-write/no-resubmission/no-external-action gate now also accepts the checklist-style phrase "without a write, resubmission, or external action" so real QA evidence can use the documented wording while still proving each safety boundary.
+
 The task hub no-side-effects gate now requires explicit no-write and no-external-action wording before confirmation; softer submission-only wording is rejected so destination resume evidence cannot obscure booking, call, message, navigation, endpoint, or other external-action risk.
 
 ## Requirement audit
@@ -52,7 +54,7 @@ The task hub no-side-effects gate now requires explicit no-write and no-external
   - Result: 18 tests passed on commit `9b4a2104` after duplicate/stale scoped evidence hardening, with refreshed appointment and refill screenshots under `src/dev/voice-canvas/`.
 - Focused real-device sign-off gate after no-resubmission hardening:
   - `$env:DATABASE_URL='file:./dev.db'; npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts`
-  - Result: 104 tests passed.
+  - Result: 105 tests passed after checklist-style no-write/no-resubmission/no-external-action wording alignment.
 - Typecheck:
   - `npm run typecheck`
   - Result: passed.
