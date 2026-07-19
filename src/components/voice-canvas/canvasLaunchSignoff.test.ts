@@ -20,6 +20,33 @@ function markReady(markdown: string): string {
   );
 }
 
+function replacePendingEvidence(markdown: string): string {
+  return markdown.replace(
+    /\bPending\b/g,
+    "Passed - evidence captured by QA on 2026-07-19",
+  );
+}
+
+function fillRequiredSignoffs(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Product \| .* \| .* \| .* \| .* \|$/m,
+      "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence |",
+    )
+    .replace(
+      /^\| Engineering \| .* \| .* \| .* \| .* \|$/m,
+      "| Engineering | Elena Engineering | 2026-07-19 | Approved for launch | Verified rollback and stale guards |",
+    )
+    .replace(
+      /^\| QA \| .* \| .* \| .* \| .* \|$/m,
+      "| QA | Quentin QA | 2026-07-19 | Approved for launch | Device matrix complete |",
+    )
+    .replace(
+      /^\| Operations\/rollback owner \| .* \| .* \| .* \| .* \|$/m,
+      "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Rollback owner confirmed |",
+    );
+}
+
 describe("Canvas real-device QA sign-off", () => {
   it("keeps the committed matrix explicitly pending until deployed QA is recorded", () => {
     const result = evaluateCanvasRealDeviceQaMatrix(realDeviceQaMatrix());
@@ -43,10 +70,54 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch sign-offs with non-date cells or non-approval decisions", () => {
+    const completedWithoutRealSignoffs = replacePendingEvidence(
+      markReady(realDeviceQaMatrix()),
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completedWithoutRealSignoffs);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.incompleteCellCount).toBe(0);
+    expect(result.invalidRequiredSignoffDateRoles).toEqual([
+      "Product",
+      "Engineering",
+      "QA",
+      "Operations/rollback owner",
+    ]);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual([
+      "Product",
+      "Engineering",
+      "QA",
+      "Operations/rollback owner",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("must use YYYY-MM-DD"),
+        expect.stringContaining("without an approved-for-launch decision"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch sign-offs that explicitly decline approval", () => {
+    const completedMatrix = fillRequiredSignoffs(
+      replacePendingEvidence(markReady(realDeviceQaMatrix())),
+    ).replace(
+      "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence |",
+      "| Product | Priya Product | 2026-07-19 | Not approved | Found a launch blocker |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual(["Product"]);
+  });
+
   it("accepts the matrix only after all required evidence and sign-offs are filled", () => {
-    const completedMatrix = markReady(realDeviceQaMatrix()).replace(
-      /\bPending\b/g,
-      "Passed - evidence captured by QA on 2026-07-19",
+    const completedMatrix = fillRequiredSignoffs(
+      replacePendingEvidence(markReady(realDeviceQaMatrix())),
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
@@ -56,6 +127,8 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.incompleteCellCount).toBe(0);
     expect(result.missingRequiredSignoffRoles).toEqual([]);
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);
+    expect(result.invalidRequiredSignoffDateRoles).toEqual([]);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual([]);
     expect(result.problems).toEqual([]);
   });
 });

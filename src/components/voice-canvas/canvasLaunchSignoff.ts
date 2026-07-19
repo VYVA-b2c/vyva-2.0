@@ -20,6 +20,8 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   incompleteCellCount: number;
   missingRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
+  invalidRequiredSignoffDateRoles: CanvasRealDeviceQaSignoffRole[];
+  unapprovedRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   problems: string[];
 }
 
@@ -39,6 +41,29 @@ function isPlaceholderCell(value: string): boolean {
     normalized === "tbd" ||
     normalized === "todo" ||
     normalized === "fixme"
+  );
+}
+
+function isIsoDateCell(value: string): boolean {
+  const normalized = normalizeCell(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return false;
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === normalized
+  );
+}
+
+function isApprovedLaunchDecisionCell(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  if (isPlaceholderCell(normalized)) return false;
+  if (/\b(not approved|unapproved|rejected|hold|blocked|no[- ]?go)\b/.test(normalized))
+    return false;
+  return (
+    /\bapprove(d)?\b/.test(normalized) ||
+    normalized.includes("ready for launch") ||
+    normalized === "go" ||
+    normalized.startsWith("go ")
   );
 }
 
@@ -87,6 +112,23 @@ export function evaluateCanvasRealDeviceQaMatrix(
       const [name, date, decision] = signoff;
       return [name, date, decision].some((cell) => isPlaceholderCell(cell ?? ""));
     });
+  const invalidRequiredSignoffDateRoles =
+    CANVAS_REAL_DEVICE_QA_REQUIRED_SIGNOFF_ROLES.filter((role) => {
+      const signoff = signoffRows.get(role);
+      if (!signoff) return false;
+      const date = signoff[1] ?? "";
+      return !isPlaceholderCell(date) && !isIsoDateCell(date);
+    });
+  const unapprovedRequiredSignoffRoles =
+    CANVAS_REAL_DEVICE_QA_REQUIRED_SIGNOFF_ROLES.filter((role) => {
+      const signoff = signoffRows.get(role);
+      if (!signoff) return false;
+      const decision = signoff[2] ?? "";
+      return (
+        !isPlaceholderCell(decision) &&
+        !isApprovedLaunchDecisionCell(decision)
+      );
+    });
 
   const problems: string[] = [];
   if (!status) {
@@ -116,6 +158,16 @@ export function evaluateCanvasRealDeviceQaMatrix(
         `Matrix has incomplete required sign-off role(s): ${incompleteRequiredSignoffRoles.join(", ")}.`,
       );
     }
+    if (invalidRequiredSignoffDateRoles.length > 0) {
+      problems.push(
+        `Matrix has required sign-off date(s) that must use YYYY-MM-DD: ${invalidRequiredSignoffDateRoles.join(", ")}.`,
+      );
+    }
+    if (unapprovedRequiredSignoffRoles.length > 0) {
+      problems.push(
+        `Matrix has required sign-off role(s) without an approved-for-launch decision: ${unapprovedRequiredSignoffRoles.join(", ")}.`,
+      );
+    }
   }
 
   const readyForLaunch =
@@ -133,6 +185,8 @@ export function evaluateCanvasRealDeviceQaMatrix(
     incompleteCellCount,
     missingRequiredSignoffRoles,
     incompleteRequiredSignoffRoles,
+    invalidRequiredSignoffDateRoles,
+    unapprovedRequiredSignoffRoles,
     problems,
   };
 }
