@@ -23089,6 +23089,32 @@ export default function MarketingAdminPage() {
       ].join("\n\n");
     }),
   ].filter(Boolean).join("\n\n") : "";
+  const campaignChannelRunbookText = campaignForLaunchPacket ? [
+    "VYVA campaign channel runbook",
+    `Campaign: ${campaignForLaunchPacket.name}`,
+    `Objective: ${campaignForLaunchPacket.objective || "No objective set"}`,
+    `Audience: ${campaignForLaunchPacket.audienceType.toUpperCase()}`,
+    `Status: ${campaignForLaunchPacket.status}`,
+    `Schedule: ${formatDate(campaignForLaunchPacket.scheduleStartsAt)} (${campaignForLaunchPacket.timezone})`,
+    `Overall readiness: ${campaignReadinessSummary}`,
+    "",
+    "Working order:",
+    "1. Confirm content is linked for every channel.",
+    "2. Confirm recipient snapshot or manual audience target.",
+    "3. Send email only through VYVA after final confirmation.",
+    "4. Publish social/offline channels manually, then record the result in VYVA.",
+    "5. Use metrics and manual outcomes for relationship follow-up.",
+    "",
+    "Channel routes:",
+    ...campaignChannelWorkflowItems.map((item) => [
+      `- ${channelLabel[item.channel]}: ${readinessLabel(item.state)} - ${item.title}`,
+      `  Route: ${item.detail}`,
+      ...item.steps.map((step) => `  ${step.label}: ${readinessLabel(step.state)} - ${step.detail}`),
+      `  Next button: ${item.actionLabel}${item.secondaryLabel ? ` / ${item.secondaryLabel}` : ""}`,
+    ].join("\n")),
+    "",
+    "Operator note: keep non-email publishing manual until provider integrations are enabled, and always record outcomes so VYVA can recommend the next relationship action.",
+  ].join("\n") : "";
   const campaignChannelActionQueueItems: CampaignChannelActionQueueItem[] = campaignForLaunchPacket ? campaignPublishKitItems.map((item) => {
     const latestManualResult = manualPublishResults.find((result) => result.channel === item.channel);
     const linkedMediaAssets = item.contentAsset ? mediaAssets.filter((asset) => asset.contentAssetId === item.contentAsset?.id) : [];
@@ -30114,7 +30140,42 @@ export default function MarketingAdminPage() {
                               <h3 className="mt-1 font-serif text-2xl text-[#241133]">From draft to tracked result</h3>
                               <p className="mt-1 text-sm font-bold text-[#7d6b65]">Each channel shows the same four gates: content, audience, publish/send, then tracking.</p>
                             </div>
-                            <Pill className="bg-purple-50 text-purple-800">{campaignChannelWorkflowItems.length} route{campaignChannelWorkflowItems.length === 1 ? "" : "s"}</Pill>
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              <Pill className="bg-purple-50 text-purple-800">{campaignChannelWorkflowItems.length} route{campaignChannelWorkflowItems.length === 1 ? "" : "s"}</Pill>
+                              <button
+                                type="button"
+                                onClick={() => void copyCampaignHandoffText("Campaign channel runbook", campaignChannelRunbookText)}
+                                disabled={!campaignChannelRunbookText.trim()}
+                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:text-[#b8abb8]"
+                                data-testid="button-marketing-copy-campaign-channel-runbook"
+                              >
+                                <Copy size={15} aria-hidden="true" /> Copy runbook
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/60 p-3" data-testid="marketing-campaign-channel-runbook">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Operator runbook</p>
+                                <h4 className="mt-1 text-base font-black text-[#241133]">One copyable route plan for the sender, publisher, or tracker</h4>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">Includes each channel gate, the next button to use, and the rule that non-email channels must be tracked back into VYVA.</p>
+                              </div>
+                              <Pill className={campaignBlockedCount > 0 ? "bg-red-50 text-red-800" : campaignNeedsActionCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                                {campaignReadinessSummary}
+                              </Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                              {campaignChannelWorkflowItems.map((item) => (
+                                <div key={item.key} className="rounded-lg border border-white bg-white/90 px-3 py-2" data-testid={`marketing-campaign-channel-runbook-${item.channel}`}>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                    <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                  </div>
+                                  <p className="mt-2 text-xs font-black text-[#241133]">{item.actionLabel}{item.secondaryLabel ? ` / ${item.secondaryLabel}` : ""}</p>
+                                  <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.detail}</p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                           <div className="mt-4 grid gap-3">
                             {campaignChannelWorkflowItems.map((item) => (

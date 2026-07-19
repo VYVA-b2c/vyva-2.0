@@ -6641,6 +6641,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-channel-workflow-linkedin-content")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-campaign-channel-workflow-linkedin-publish")).toHaveTextContent("Manual publishing");
     expect(screen.getByTestId("marketing-campaign-channel-workflow-linkedin-track")).toHaveTextContent("Track outcome after handoff");
+    expect(screen.getByTestId("marketing-campaign-channel-runbook")).toHaveTextContent("One copyable route plan");
+    expect(screen.getByTestId("marketing-campaign-channel-runbook-email")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-channel-runbook-linkedin")).toHaveTextContent("Track result / Preview content");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-channel-runbook"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign channel runbook"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Working order:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn: Needs action - LinkedIn handoff workflow"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Operator note: keep non-email publishing manual"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign channel runbook copied.");
     expect(screen.getByTestId("button-marketing-campaign-channel-workflow-primary-linkedin")).toHaveTextContent("Track result");
     expect(screen.getByTestId("button-marketing-campaign-channel-workflow-secondary-linkedin")).toHaveTextContent("Preview content");
     expect(screen.getByTestId("marketing-campaign-publish-kit")).toHaveTextContent("Channel handoff plan");
