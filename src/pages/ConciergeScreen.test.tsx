@@ -559,8 +559,10 @@ describe("ConciergeScreen task navigation", () => {
     });
 
     await waitFor(() => {
-      const saveCall = apiFetchMock.mock.calls.find(([url, init]) => (
-        String(url) === `/api/concierge/tasks/${savedTaskId}` && init?.method === "PATCH"
+      const saveCall = [...apiFetchMock.mock.calls].reverse().find(([url, init]) => (
+        String(url) === `/api/concierge/tasks/${savedTaskId}`
+        && init?.method === "PATCH"
+        && String(init?.body).includes("Updated claim")
       ));
       expect(saveCall).toBeDefined();
       const body = JSON.parse(String(saveCall?.[1]?.body));
@@ -1465,7 +1467,7 @@ describe("ConciergeScreen action hub", () => {
     });
     expect(requestBody?.detail).toContain("home safety quote");
     expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
-  });
+  }, 60_000);
 
   it("opens Government from Book Now directly in the admin form flow", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));

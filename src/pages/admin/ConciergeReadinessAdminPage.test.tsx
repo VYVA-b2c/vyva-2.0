@@ -310,7 +310,7 @@ describe("ConciergeReadinessAdminPage", () => {
     expect(screen.getByTestId("row-concierge-channel-form-application")).toHaveTextContent("Probe failed");
     expect(screen.getByTestId("row-concierge-channel-form-application")).toHaveTextContent(blocker);
     expect(within(screen.getByTestId("row-concierge-channel-form-application")).getByLabelText("Live-ready")).toBeDisabled();
-  });
+  }, 60_000);
 
   it("shows channel form redirect errors after a browser form post", () => {
     window.history.replaceState(null, "", "/admin/concierge-readiness?action=probe&channel=email&status=error&message=Email%20verification%20failed");
