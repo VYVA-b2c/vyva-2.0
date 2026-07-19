@@ -5927,6 +5927,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-localization-en")).toHaveTextContent("English");
     expect(screen.getByTestId("marketing-campaign-studio-localization-en")).toHaveTextContent("2/4 routes");
     expect(screen.getByTestId("marketing-campaign-studio-localization-en")).toHaveTextContent("Needs localized WhatsApp and Facebook copy");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-follow-up")).toHaveTextContent("Relationship follow-up plan");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-follow-up-warm-reply")).toHaveTextContent("Warm reply or demo request");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-follow-up-clicked-no-reply")).toHaveTextContent("Clicked or opened, no reply");
+    expect(screen.getByTestId("marketing-campaign-studio-relationship-follow-up-silent-audience")).toHaveTextContent("No response after 5 days");
     expect(screen.getByTestId("marketing-campaign-studio-test-preview")).toHaveTextContent("Test preview");
     expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("Sample:");
@@ -5964,6 +5968,12 @@ describe("MarketingAdminPage", () => {
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Language coverage:"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign localization brief copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-relationship-follow-up"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign relationship follow-up brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Operating rule: replies, clicks, silence, opt-outs, and manual outcomes"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign relationship follow-up brief copied.");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-preflight"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign preflight review"));
@@ -6346,6 +6356,26 @@ describe("MarketingAdminPage", () => {
           generatedSource: "openai",
           selectedChannels: ["linkedin", "email"],
         },
+        relationshipFollowUpPlan: [
+          expect.objectContaining({
+            key: "warm-reply",
+            title: "Warm reply or demo request",
+            owner: "Partner/sales owner",
+          }),
+          expect.objectContaining({
+            key: "clicked-no-reply",
+            title: "Clicked or opened, no reply",
+          }),
+          expect.objectContaining({
+            key: "silent-audience",
+            title: "No response after 5 days",
+          }),
+          expect.objectContaining({
+            key: "opt-out-cleanup",
+            title: "Opt-out, wrong fit, or bad contact",
+          }),
+        ],
+        relationshipFollowUpBrief: expect.stringContaining("VYVA campaign relationship follow-up brief"),
         studioLaunchKit: {
           generatedFrom: "marketing_campaign_studio",
           playId: "b2b-partner-outreach",

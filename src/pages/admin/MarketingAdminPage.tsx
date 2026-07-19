@@ -16839,6 +16839,25 @@ export default function MarketingAdminPage() {
     : selectedCampaignStudioPlay.audienceType === "b2c"
       ? "caregiver activation, profile completion, app engagement, or care-team reply"
       : "qualified reply, useful next step, or cleaner segment for the next campaign";
+  const campaignStudioRelationshipFollowUpPlanText = [
+    "VYVA campaign relationship follow-up brief",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${campaignStudioOfflineAudienceName}`,
+    `Owner: ${campaignStudioOwnerName}`,
+    `Relationship goal: ${campaignStudioRelationshipGoal}`,
+    `Channels: ${formatChannelList(campaignStudioSelectedChannels)}`,
+    "",
+    "Follow-up plays:",
+    ...campaignStudioFollowUpPlays.map((item, index) => [
+      `${index + 1}. ${item.title}`,
+      `   Trigger: ${item.trigger}`,
+      `   Owner: ${item.owner}`,
+      `   Action: ${item.detail}`,
+      `   State: ${readinessLabel(item.state)}`,
+    ].join("\n")),
+    "",
+    "Operating rule: replies, clicks, silence, opt-outs, and manual outcomes should become contact notes, follow-up tasks, or smaller relationship lists before the next broadcast.",
+  ].join("\n");
   const campaignStudioOutcomeTrackerItems: CampaignStudioOutcomeTrackerItem[] = [
     {
       key: "human-response",
@@ -18880,6 +18899,15 @@ export default function MarketingAdminPage() {
               selectedChannels: campaignStudioSelectedChannels,
             },
             studioLaunchKit: campaignStudioLaunchKit,
+            relationshipFollowUpPlan: campaignStudioFollowUpPlays.map((item) => ({
+              key: item.key,
+              title: item.title,
+              trigger: item.trigger,
+              owner: item.owner,
+              action: item.detail,
+              state: item.state,
+            })),
+            relationshipFollowUpBrief: campaignStudioRelationshipFollowUpPlanText,
             generatedContentAssetId: primaryContent?.id ?? null,
             generatedContentAssetIds: Object.fromEntries(contentResults.map((result) => [result.content.channel, result.content.id])),
           }, targetAudience),
@@ -29035,6 +29063,47 @@ export default function MarketingAdminPage() {
                           No matching saved assets for this route pack yet. Use a template pack or AI draft first, then save it as reusable content.
                         </div>
                       )}
+                    </div>
+
+                    <div className="rounded-xl border border-rose-200 bg-rose-50/40 p-4" data-testid="marketing-campaign-studio-relationship-follow-up">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-rose-800">Relationship follow-up plan</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Decide the next human move before creating the campaign</h3>
+                          <p className="mt-1 text-xs font-bold text-[#7a5f66]">
+                            Each campaign gets a simple rule for warm replies, soft engagement, silence, and consent cleanup so audience relationships do not end at send time.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Campaign relationship follow-up brief", campaignStudioRelationshipFollowUpPlanText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 text-sm font-black text-rose-800 hover:bg-rose-50"
+                          data-testid="button-marketing-campaign-studio-copy-relationship-follow-up"
+                        >
+                          <Copy size={14} /> Copy relationship brief
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-4" data-testid="marketing-campaign-studio-relationship-follow-up-items">
+                        {campaignStudioFollowUpPlays.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-relationship-follow-up-${item.key}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-rose-700 shadow-sm">
+                                  <Icon size={15} aria-hidden="true" />
+                                </span>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                              <h4 className="mt-3 text-sm font-black text-[#241133]">{item.title}</h4>
+                              <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#7a5f66]">{item.detail}</p>
+                              <div className="mt-3 grid gap-2 rounded-lg bg-white/80 p-2 text-xs font-bold text-[#6b4f59]">
+                                <p><span className="font-black text-[#241133]">When:</span> {item.trigger}</p>
+                                <p><span className="font-black text-[#241133]">Owner:</span> {item.owner}</p>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4" data-testid="marketing-campaign-studio-preflight">
