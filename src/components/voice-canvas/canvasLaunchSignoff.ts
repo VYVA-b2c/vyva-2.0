@@ -358,6 +358,16 @@ const behaviorChecklistRequirements = [
   },
   {
     columnIndex: 2,
+    description:
+      "app exit/reopen cell must mention app exit/reopen and restored draft evidence",
+    wordGroups: [
+      ["app exit", "exit app", "app close", "close app", "leave app"],
+      ["reopen", "reopened", "return", "returned"],
+      ["restore", "restored", "resume", "resumed", "draft"],
+    ],
+  },
+  {
+    columnIndex: 3,
     description: "refresh/reconnect cell must mention refresh and reconnect evidence",
     wordGroups: [
       ["refresh"],
@@ -365,7 +375,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 3,
+    columnIndex: 4,
     description: "voice interruption cell must mention interruption and recovery evidence",
     wordGroups: [
       ["interruption", "interrupted", "interrupt"],
@@ -373,12 +383,12 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 4,
+    columnIndex: 5,
     description: "browser back cell must mention back navigation evidence",
     wordGroups: [["back"]],
   },
   {
-    columnIndex: 5,
+    columnIndex: 6,
     description: "cancel/exit cell must mention cancel and exit evidence",
     wordGroups: [
       ["cancel"],
@@ -386,7 +396,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 6,
+    columnIndex: 7,
     description: "flag rollback/fallback cell must mention flag rollback and fallback evidence",
     wordGroups: [
       ["flag"],
@@ -395,7 +405,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 7,
+    columnIndex: 8,
     description:
       "confirmation safety cell must mention no external action before explicit confirmation",
     wordGroups: [
@@ -405,7 +415,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 8,
+    columnIndex: 9,
     description: "duplicate/stale guard cell must mention duplicate and stale evidence",
     wordGroups: [
       ["duplicate"],
@@ -413,7 +423,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 9,
+    columnIndex: 10,
     description:
       "recoverable failure retry cell must mention recoverable failure, retry, and exit evidence",
     wordGroups: [
@@ -424,7 +434,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 10,
+    columnIndex: 11,
     description:
       "senior-friendly copy cell must mention senior copy and what happens next",
     wordGroups: [
@@ -434,7 +444,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 11,
+    columnIndex: 12,
     description: "privacy-safe analytics cell must mention privacy and analytics evidence",
     wordGroups: [
       ["privacy"],
@@ -463,7 +473,7 @@ function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
       }
     }
 
-    const evidence = row[12] ?? "";
+    const evidence = row[13] ?? "";
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&

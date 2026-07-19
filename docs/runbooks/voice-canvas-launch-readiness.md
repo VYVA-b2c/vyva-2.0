@@ -64,13 +64,14 @@ Run this pass for each flow: ride, appointment, refill, shopping, provider reply
 3. Use Spanish or intentionally long labels and confirm no horizontal overflow or clipped touch target.
 4. Enter partial details, go back, edit, and confirm the entered information is preserved.
 5. Refresh or simulate reconnect while in an editable scene and confirm the draft restores.
-6. Refresh or simulate reconnect while waiting/saving/completing and confirm the request is not resubmitted.
-7. Cancel or exit from each non-terminal scene and confirm no write or external action occurs.
-8. Reach review and confirm no result/reference appears before explicit final confirmation.
-9. Click or speak confirmation twice and confirm only one action attempt is accepted.
-10. Force a recoverable service failure and confirm the blocked state explains what happened and offers retry or exit.
-11. Confirm waiting, blocked, and completed states are announced to assistive technology.
-12. Turn the flow flag off or rollout to zero, focus/refresh the page, and confirm Canvas closes or disappears in favor of the existing experience.
+6. Leave or close the app/browser while in an editable scene, reopen it, and confirm the same draft restores without losing entered information.
+7. Refresh or simulate reconnect while waiting/saving/completing and confirm the request is not resubmitted.
+8. Cancel or exit from each non-terminal scene and confirm no write or external action occurs.
+9. Reach review and confirm no result/reference appears before explicit final confirmation.
+10. Click or speak confirmation twice and confirm only one action attempt is accepted.
+11. Force a recoverable service failure and confirm the blocked state explains what happened and offers retry or exit.
+12. Confirm waiting, blocked, and completed states are announced to assistive technology.
+13. Turn the flow flag off or rollout to zero, focus/refresh the page, and confirm Canvas closes or disappears in favor of the existing experience.
 
 For task hub resume, verify:
 
@@ -81,7 +82,7 @@ For task hub resume, verify:
 
 ## Sign-off gate
 
-Keep `docs/audits/voice-canvas-real-device-qa-matrix.md` marked **pending execution** while any deployed real-device row still needs evidence. Before enabling Canvas for real users, every required environment, device, behavior, rollback, copy/accessibility, analytics signal, privacy, and sign-off row must remain present; environment rows must include a real URL, commit SHA, browser/version evidence, voice session mode, dated analytics review, and concrete flag states; device rows must name the real phone, tablet, and desktop/laptop evidence; behavior rows must name the checked behavior instead of only saying that QA passed, including voice interruption/recovery and recoverable failure retry/exit; feature endpoint rows must match the launch manifest endpoint/server key and include concrete disabled, enabled, malformed-config, missing-config, rollback, and fallback evidence; malformed or missing feature config must fail closed to disabled/fallback behavior; evidence cells must include dated QA or reviewer notes; copy/accessibility rows must name the specific checked behavior and matching screenshots, keyboard/focus notes, screen-reader announcement notes, reduced-motion notes, or copy read-through evidence; analytics signal rows must name the canonical source event and aggregate count reviewed for started, resumed, abandoned, blocked, confirmed, and completed; privacy rows must state that forbidden data was absent and point to analytics/telemetry review evidence; every `Pending` cell must be replaced with a passing result/evidence note; no row may contain a failed/blocked/not-ready result; all final sign-off roles must include a name, a `YYYY-MM-DD` date, and an approved-for-launch decision; and the matrix `Status` must be changed to **ready for launch**.
+Keep `docs/audits/voice-canvas-real-device-qa-matrix.md` marked **pending execution** while any deployed real-device row still needs evidence. Before enabling Canvas for real users, every required environment, device, behavior, rollback, copy/accessibility, analytics signal, privacy, and sign-off row must remain present; environment rows must include a real URL, commit SHA, browser/version evidence, voice session mode, dated analytics review, and concrete flag states; device rows must name the real phone, tablet, and desktop/laptop evidence; behavior rows must name the checked behavior instead of only saying that QA passed, including app exit/reopen restoration, voice interruption/recovery, and recoverable failure retry/exit; feature endpoint rows must match the launch manifest endpoint/server key and include concrete disabled, enabled, malformed-config, missing-config, rollback, and fallback evidence; malformed or missing feature config must fail closed to disabled/fallback behavior; evidence cells must include dated QA or reviewer notes; copy/accessibility rows must name the specific checked behavior and matching screenshots, keyboard/focus notes, screen-reader announcement notes, reduced-motion notes, or copy read-through evidence; analytics signal rows must name the canonical source event and aggregate count reviewed for started, resumed, abandoned, blocked, confirmed, and completed; privacy rows must state that forbidden data was absent and point to analytics/telemetry review evidence; every `Pending` cell must be replaced with a passing result/evidence note; no row may contain a failed/blocked/not-ready result; all final sign-off roles must include a name, a `YYYY-MM-DD` date, and an approved-for-launch decision; and the matrix `Status` must be changed to **ready for launch**.
 
 Run the sign-off gate after filling the matrix:
 

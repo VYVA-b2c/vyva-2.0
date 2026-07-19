@@ -5,7 +5,7 @@ Use this file to record the deployed, real-device launch-readiness pass for ride
 
 Do not mark the Canvas launch-readiness goal complete until every required row below has a passing result, an evidence link or note, and a reviewer/date.
 
-Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every required environment, device, behavior, rollback, copy/accessibility, analytics signal, privacy, and sign-off row remains present; every `Pending` cell is replaced with a passing result/evidence note; device rows name the real phone, tablet, and desktop/laptop evidence; behavior rows name the checked behavior instead of only saying that QA passed; feature rows include disabled, enabled, malformed-config, missing-config, rollback, and fallback evidence; evidence cells include dated QA or reviewer notes; copy/accessibility rows name the specific checked behavior and matching evidence; analytics signal rows name the canonical source event and aggregate count reviewed; no row contains a failed/blocked/not-ready result; and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
+Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every required environment, device, behavior, rollback, copy/accessibility, analytics signal, privacy, and sign-off row remains present; every `Pending` cell is replaced with a passing result/evidence note; device rows name the real phone, tablet, and desktop/laptop evidence; behavior rows name the checked behavior instead of only saying that QA passed; feature rows include disabled, enabled, malformed-config, missing-config, rollback, and fallback evidence; evidence cells include dated QA or reviewer notes; copy/accessibility rows name the specific checked behavior and matching evidence; analytics signal rows name the canonical source event and aggregate count reviewed; no row contains a failed/blocked/not-ready result; app exit/reopen restoration is recorded separately from refresh/reconnect; and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
 
 ```bash
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts
@@ -45,16 +45,16 @@ For final sign-off, phone/tablet/desktop cells must name the real device class o
 
 Record one pass/fail line for each flow and behavior. If a behavior is not applicable, explain why and identify the substitute evidence.
 
-For final sign-off, each behavior cell must name the behavior checked, such as start/resume, refresh/reconnect, voice interruption and recovery, browser back, cancel/exit, flag rollback/fallback, confirmation safety, duplicate/stale guard, recoverable failure retry/exit, senior-friendly copy, or privacy-safe analytics. Evidence must include a dated QA or reviewer note.
+For final sign-off, each behavior cell must name the behavior checked, such as start/resume, app exit/reopen restoration, refresh/reconnect, voice interruption and recovery, browser back, cancel/exit, flag rollback/fallback, confirmation safety, duplicate/stale guard, recoverable failure retry/exit, senior-friendly copy, or privacy-safe analytics. Evidence must include a dated QA or reviewer note.
 
-| Flow | Start/resume | Refresh/reconnect | Voice interruption | Browser back | Cancel/exit | Flag rollback/fallback | No external action before explicit confirmation | Duplicate/stale guard | Recoverable failure retry | Senior-friendly copy and what happens next | Privacy-safe analytics | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Ride Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Appointment Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Medication Refill Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Shopping Delivery Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Provider Reply Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Concierge Task Hub Resume | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Flow | Start/resume | App exit/reopen | Refresh/reconnect | Voice interruption | Browser back | Cancel/exit | Flag rollback/fallback | No external action before explicit confirmation | Duplicate/stale guard | Recoverable failure retry | Senior-friendly copy and what happens next | Privacy-safe analytics | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Ride Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Appointment Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Medication Refill Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Shopping Delivery Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Provider Reply Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Concierge Task Hub Resume | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 
 ## Feature endpoint and rollback checks
 
