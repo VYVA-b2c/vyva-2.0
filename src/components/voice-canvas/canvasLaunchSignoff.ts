@@ -424,11 +424,19 @@ const behaviorChecklistRequirements = [
   {
     columnIndex: 2,
     description:
-      "app exit/reopen cell must mention app exit/reopen and restored draft evidence",
+      "app exit/reopen cell must mention app exit/reopen, restored draft, and no write evidence",
     wordGroups: [
       ["app exit", "exit app", "app close", "close app", "leave app"],
       ["reopen", "reopened", "return", "returned"],
       ["restore", "restored", "resume", "resumed", "draft"],
+      [
+        "no write",
+        "no external action",
+        "not submitted",
+        "without submitting",
+        "without resubmitting",
+        "without write",
+      ],
     ],
   },
   {

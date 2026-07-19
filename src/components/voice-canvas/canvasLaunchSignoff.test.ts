@@ -255,7 +255,7 @@ function fillBehaviorChecklistRows(markdown: string): string {
     (current, flow) =>
       current.replace(
         tableRowPattern(flow, 13),
-        `| ${flow} | Start and resume restored evidence passed | App exit and reopen restored draft evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback fallback evidence passed | No external action before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit recovery | Senior copy explains what happens next | Privacy-safe analytics telemetry evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |`,
+        `| ${flow} | Start and resume restored evidence passed | App exit and reopen restored draft with no write evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback fallback evidence passed | No external action before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit recovery | Senior copy explains what happens next | Privacy-safe analytics telemetry evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |`,
       ),
     markdown,
   );
@@ -590,7 +590,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague required behavior rows", () => {
     const completed = completedMatrix().replace(
-      "| Provider Reply Voice Canvas | Start and resume restored evidence passed | App exit and reopen restored draft evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback fallback evidence passed | No external action before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit recovery | Senior copy explains what happens next | Privacy-safe analytics telemetry evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Provider Reply Voice Canvas | Start and resume restored evidence passed | App exit and reopen restored draft with no write evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback fallback evidence passed | No external action before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit recovery | Senior copy explains what happens next | Privacy-safe analytics telemetry evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
       "| Provider Reply Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
     );
 
@@ -601,7 +601,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidBehaviorRows).toEqual(
       expect.arrayContaining([
         "Provider Reply Voice Canvas: start/resume cell must mention start and resume evidence",
-        "Provider Reply Voice Canvas: app exit/reopen cell must mention app exit/reopen and restored draft evidence",
+        "Provider Reply Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, and no write evidence",
         "Provider Reply Voice Canvas: refresh/reconnect cell must mention refresh, reconnect, restored work, and no write evidence",
         "Provider Reply Voice Canvas: voice interruption cell must mention interruption recovery, preserved work, and no write evidence",
         "Provider Reply Voice Canvas: browser back cell must mention safe back navigation with preserved work and no write",
@@ -620,7 +620,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices without explicit app exit and reopen restoration evidence", () => {
     const completed = completedMatrix().replace(
-      "App exit and reopen restored draft evidence passed",
+      "App exit and reopen restored draft with no write evidence passed",
       "Passed by QA",
     );
 
@@ -629,7 +629,25 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidBehaviorRows).toEqual([
-      "Ride Voice Canvas: app exit/reopen cell must mention app exit/reopen and restored draft evidence",
+      "Ride Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, and no write evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without safe app exit and reopen no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      "App exit and reopen restored draft with no write evidence passed",
+      "App exit and reopen restored draft evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, and no write evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("required behavior row")]),
