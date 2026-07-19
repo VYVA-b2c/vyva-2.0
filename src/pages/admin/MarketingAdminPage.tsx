@@ -31328,6 +31328,11 @@ export default function MarketingAdminPage() {
                     const playbookPrimary = heroTemplate ?? templates[0] ?? null;
                     const existingAssetCount = templates.filter((template) => content.some((item) => contentAssetMatchesTemplatePack(item, pack, template))).length;
                     const newAssetCount = Math.max(templates.length - existingAssetCount, 0);
+                    const kitReachChannels = sequenceChannels.length ? sequenceChannels : channels;
+                    const reachableContactCount = contacts.filter((contact) => (
+                      audiences.some((audience) => campaignAllowsContact(audience, contact.audienceType))
+                      && kitReachChannels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+                    )).length;
                     const emailRouteCount = sequenceChannels.filter((channel) => channel === "email").length;
                     const manualRouteCount = sequenceChannels.filter((channel) => channel !== "email").length;
                     return (
@@ -31414,7 +31419,11 @@ export default function MarketingAdminPage() {
                               </div>
                               <Pill className="bg-white text-emerald-800">{templates.length} asset{templates.length === 1 ? "" : "s"}</Pill>
                             </div>
-                            <div className="mt-3 grid gap-2 text-xs font-bold text-[#5d6b61] sm:grid-cols-3">
+                            <div className="mt-3 grid gap-2 text-xs font-bold text-[#5d6b61] sm:grid-cols-2 xl:grid-cols-4">
+                              <div className="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                                <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Reach</span>
+                                <span className="mt-1 block text-[#241133]">{reachableContactCount} contact{reachableContactCount === 1 ? "" : "s"}</span>
+                              </div>
                               <div className="rounded-lg border border-emerald-100 bg-white px-3 py-2">
                                 <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Assets</span>
                                 <span className="mt-1 block text-[#241133]">{newAssetCount} new / {existingAssetCount} reusable</span>

@@ -2513,6 +2513,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("7 steps");
     expect(screen.getByTestId("button-marketing-template-pack-copy-playbook-caregiver-invite-activation")).toHaveTextContent("Copy playbook");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Kit at a glance");
+    expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Reach");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Assets");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Email send");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Manual handoff");
