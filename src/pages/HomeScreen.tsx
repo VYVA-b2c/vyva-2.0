@@ -43,6 +43,7 @@ import {
 } from "@/lib/homeFastHelpOutcome";
 import { recordHomeFastHelpImpression } from "@/lib/homeFastHelpInsights";
 import { selectHomeResumeCandidate } from "@/lib/homeResumeOrchestrator";
+import { conciergeTaskPath } from "@/lib/conciergeTaskNavigation";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { HOME_FAST_HELP_RANKING_VERSION } from "../../shared/homeFastHelpSync";
 import {
@@ -129,6 +130,7 @@ type ConciergePendingHomeItem = {
   confirmed_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  task_path?: string | null;
 };
 
 type ConciergeCompletedHomeItem = {
@@ -1243,7 +1245,7 @@ const HomeScreen = () => {
     : "";
   const openActiveConciergeTask = (mode?: "follow_up" | "reply") => {
     if (!activeConciergeHomeTask?.id) return;
-    handleNavigate("/concierge", {
+    handleNavigate(activeConciergeHomeTask.task_path || conciergeTaskPath(activeConciergeHomeTask.id), {
       state: mode
         ? {
             focusRightNow: true,

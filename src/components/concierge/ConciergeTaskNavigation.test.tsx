@@ -21,7 +21,7 @@ describe("Concierge task navigation", () => {
         isLoading={false}
         isSpanish={false}
         onContinue={onContinue}
-        onReviewHistory={vi.fn()}
+        onOpenInbox={vi.fn()}
       />,
     );
 
@@ -29,6 +29,7 @@ describe("Concierge task navigation", () => {
     expect(screen.getByTestId("concierge-home-task-status")).toHaveTextContent("Action needed");
     expect(screen.queryByText("2 queued")).not.toBeInTheDocument();
     expect(screen.queryByText("Done recently")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All tasks" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Respond" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Respond" }));
     expect(onContinue).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }));
@@ -51,7 +52,7 @@ describe("Concierge task navigation", () => {
     expect(screen.getByText("Confirm")).toHaveAttribute("aria-current", "step");
     expect(screen.getByTestId("concierge-task-provider-update")).toHaveTextContent("Reply received");
     expect(screen.getByTestId("concierge-task-provider-update")).toHaveTextContent("Tuesday at 10 works.");
-    fireEvent.click(screen.getByRole("button", { name: "Back to Concierge" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to tasks" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
 });

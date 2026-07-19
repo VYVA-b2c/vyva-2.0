@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronRight, ClipboardCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, ClipboardCheck, ListTodo, Trash2 } from "lucide-react";
 import type { ConciergeTaskStage } from "@/lib/conciergeTaskNavigation";
 import type { ConciergeProviderTaskStatus } from "../../../shared/conciergeProviderReplies";
 
@@ -34,11 +34,10 @@ function taskActionLabel(status: ConciergeProviderTaskStatus | null | undefined,
 
 export function ConciergeHomeTaskOverview({
   activeTask,
-  completedTasks,
   isLoading,
   isSpanish,
   onContinue,
-  onReviewHistory,
+  onOpenInbox,
 }: {
   activeTask: HomeTask | null;
   queuedCount: number;
@@ -46,7 +45,7 @@ export function ConciergeHomeTaskOverview({
   isLoading: boolean;
   isSpanish: boolean;
   onContinue: (task: HomeTask) => void;
-  onReviewHistory: () => void;
+  onOpenInbox: () => void;
 }) {
   return (
     <section className="mt-5 border-t border-vyva-border pt-5" data-testid="concierge-home-task-overview">
@@ -54,11 +53,15 @@ export function ConciergeHomeTaskOverview({
         <h2 className="font-body text-[22px] font-black text-vyva-text-1">
           {isSpanish ? "Siguiente paso" : "Next step"}
         </h2>
-        {completedTasks.length > 0 ? (
-          <button type="button" onClick={onReviewHistory} className="vyva-tap font-body text-[13px] font-black text-vyva-purple">
-            {isSpanish ? "Historial" : "History"}
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={onOpenInbox}
+          className="vyva-tap inline-flex min-h-[44px] items-center gap-2 rounded-lg px-2 font-body text-[13px] font-black text-vyva-purple"
+          data-testid="button-concierge-open-task-inbox"
+        >
+          <ListTodo size={17} aria-hidden="true" />
+          {isSpanish ? "Todas las tareas" : "All tasks"}
+        </button>
       </div>
 
       {isLoading ? (
@@ -142,7 +145,7 @@ export function ConciergeTaskWorkspaceHeader({
           data-testid="button-concierge-task-back"
         >
           <ArrowLeft size={19} aria-hidden="true" />
-          {isSpanish ? "Volver a Concierge" : "Back to Concierge"}
+          {isSpanish ? "Volver a tareas" : "Back to tasks"}
         </button>
         {onDelete ? (
           <button

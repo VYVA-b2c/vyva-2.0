@@ -16718,7 +16718,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           isLoading={pendingLoading || savedTaskDraftsLoading || completedSessionsLoading}
           isSpanish={isSpanish}
           onContinue={(task) => navigate(conciergeTaskPath(task.id))}
-          onReviewHistory={() => navigate("/history")}
+          onOpenInbox={() => navigate("/concierge/tasks")}
         />
       ) : (
         <>
@@ -16732,7 +16732,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
             summary: activeActionProviderUpdate.summary,
           } : null}
           isSpanish={isSpanish}
-          onBack={() => navigate("/concierge")}
+          onBack={() => navigate("/concierge/tasks")}
           onDelete={persistedTask ? () => {
             const approved = window.confirm(isSpanish
               ? "Eliminar esta tarea guardada?"

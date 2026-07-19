@@ -420,7 +420,7 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
   });
 
   it("selects the actionable form instead of the first passive provider wait", () => {
@@ -464,7 +464,7 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/insurance-form", {
       state: { focusRightNow: true, conciergePendingId: "insurance-form" },
     });
   });
@@ -506,7 +506,7 @@ describe("Home fast service actions", () => {
 
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "provider_setup");
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/provider-setup", {
       state: { focusRightNow: true, conciergePendingId: "provider-setup" },
     });
   });
@@ -557,7 +557,7 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "show-vyva-scam-1" } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/show-vyva-scam-1", { state: { focusRightNow: true, conciergePendingId: "show-vyva-scam-1" } });
   });
 
   it("surfaces a saved provider shortlist and opens the exact Concierge task", () => {
@@ -596,7 +596,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "provider_shortlist");
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/shortlist-7", {
       state: { focusRightNow: true, conciergePendingId: "shortlist-7" },
     });
   });
@@ -793,11 +793,11 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
 
     fireEvent.click(screen.getByTestId("button-home-concierge-follow-up"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", {
       state: {
         focusRightNow: true,
         conciergeProviderAction: {
@@ -809,7 +809,7 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-got-reply"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", {
       state: {
         focusRightNow: true,
         conciergeProviderAction: {

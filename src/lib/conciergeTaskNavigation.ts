@@ -1,4 +1,18 @@
-export const NEW_CONCIERGE_TASK_ID = "new";
+import {
+  NEW_CONCIERGE_TASK_ID,
+  conciergeTaskResumePath,
+} from "../../shared/conciergeTaskLinks";
+
+export {
+  NEW_CONCIERGE_TASK_ID,
+  conciergeTaskInboxItemPath,
+  conciergeTaskInboxKey,
+  conciergeTaskInboxPath,
+  conciergeTaskNotificationPath,
+  conciergeTaskResumePath,
+  parseConciergeTaskInboxKey,
+  type ConciergeTaskInboxSource,
+} from "../../shared/conciergeTaskLinks";
 
 export type ConciergeTaskEntryKind =
   | "document"
@@ -62,8 +76,7 @@ const PROVIDER_SEARCH_MODES = new Set<NonNullable<ConciergeTaskEntry["providerSe
 ]);
 
 export function conciergeTaskPath(taskId = NEW_CONCIERGE_TASK_ID): string {
-  const normalizedId = taskId.trim() || NEW_CONCIERGE_TASK_ID;
-  return `/concierge/task/${encodeURIComponent(normalizedId)}`;
+  return conciergeTaskResumePath(taskId);
 }
 
 export function coerceConciergeTaskEntry(value: unknown): ConciergeTaskEntry | null {
