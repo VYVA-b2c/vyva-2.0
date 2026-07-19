@@ -73,7 +73,7 @@ For final sign-off, each behavior cell must name the behavior checked, such as s
 
 For each endpoint, verify disabled, enabled, malformed or missing config behavior, and an in-session rollback from Canvas to the existing path.
 
-For final sign-off, the endpoint and server key must match the launch manifest exactly. The disabled/enabled payload, malformed-config, missing-config, rollback, and fallback cells must describe the observed state, not just say that the row passed. Malformed and missing config should fail closed to disabled/fallback behavior. Evidence must include a dated QA or reviewer note.
+For final sign-off, the endpoint and server key must match the launch manifest exactly. The disabled/enabled payload, malformed-config, missing-config, rollback, and fallback cells must describe the observed state, not just say that the row passed. Malformed and missing config should fail closed to disabled/fallback behavior. Rollback cells must state that the flow was disabled or set to rollout 0 and that the existing or previous fallback path became visible in-session. Evidence must include a dated QA or reviewer note.
 
 | Flow | Endpoint | Server key | Disabled payload checked | Enabled payload checked | Malformed config checked | Missing config checked | In-session rollback checked | Existing fallback shown | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

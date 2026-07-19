@@ -827,9 +827,16 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(rollback) &&
-      !hasAnyWord(rollback, ["rollback", "disabled", "rollout 0", "0%", "fallback"])
+      !hasAllWordGroups(rollback, [
+        ["rollback", "rolled back"],
+        ["disabled", "false", "rollout 0", "0%"],
+        ["fallback"],
+        ["existing", "previous", "old", "safe concierge", featureFlag.fallback.toLowerCase()],
+      ])
     ) {
-      problems.push(`${flow.label}: in-session rollback evidence`);
+      problems.push(
+        `${flow.label}: in-session rollback must show disabled rollout and existing fallback`,
+      );
     }
     if (
       !isPlaceholderCell(fallback) &&

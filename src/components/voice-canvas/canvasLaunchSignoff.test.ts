@@ -168,23 +168,23 @@ function fillFeatureFlagRows(markdown: string): string {
   return markdown
     .replace(
       /^\| Ride Voice Canvas \| `\/api\/config\/features\/ride-voice-canvas` \| `ride` \| .* \|$/m,
-      "| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled/rollout 0 verified in-session | Existing Concierge transport panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing Concierge transport panel fallback shown | Existing Concierge transport panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     )
     .replace(
       /^\| Appointment Voice Canvas \| `\/api\/config\/features\/appointment-voice-canvas` \| `appointment` \| .* \|$/m,
-      "| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | `appointment` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled/rollout 0 verified in-session | Existing appointment panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | `appointment` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing appointment panel fallback shown | Existing appointment panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     )
     .replace(
       /^\| Medication Refill Voice Canvas \| `\/api\/config\/features\/medication-refill-voice-canvas` \| `medicationRefill` \| .* \|$/m,
-      "| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled/rollout 0 verified in-session | Existing medication refill shopping/support path fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing medication refill shopping/support path fallback shown | Existing medication refill shopping/support path fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     )
     .replace(
       /^\| Shopping Delivery Voice Canvas \| `\/api\/config\/features\/shopping-delivery-voice-canvas` \| `shoppingDelivery` \| .* \|$/m,
-      "| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled/rollout 0 verified in-session | Existing shopping guide and recommendations fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing shopping guide and recommendations fallback shown | Existing shopping guide and recommendations fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     )
     .replace(
       /^\| Provider Reply Voice Canvas \| `\/api\/config\/features\/provider-reply-voice-canvas` \| `providerReply` \| .* \|$/m,
-      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     );
 }
 
@@ -491,8 +491,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague malformed or missing config evidence", () => {
     const completed = completedMatrix().replace(
-      "Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown |",
-      "Passed by QA | Passed by QA | Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown |",
+      "Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown |",
+      "Passed by QA | Passed by QA | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -507,7 +507,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague rollback evidence", () => {
     const completed = completedMatrix().replace(
-      "Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
       "Passed by QA | Passed by QA | Evidence screenshot/log captured by QA on 2026-07-19 |",
     );
 
@@ -516,8 +516,23 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidFeatureFlagRows).toEqual([
-      "Provider Reply Voice Canvas: in-session rollback evidence",
+      "Provider Reply Voice Canvas: in-session rollback must show disabled rollout and existing fallback",
       "Provider Reply Voice Canvas: existing fallback evidence",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices when rollback evidence does not show the existing fallback", () => {
+    const completed = completedMatrix().replace(
+      "Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Rollback disabled rollout 0 verified in-session",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: in-session rollback must show disabled rollout and existing fallback",
     ]);
   });
 
