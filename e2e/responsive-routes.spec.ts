@@ -943,7 +943,6 @@ const protectedCoreRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedHealthRoutes: ResponsiveRoute[] = [
-  { name: "health", path: "/health", expectedLayout: "wide" },
   { name: "vitals", path: "/health/vitals", expectedLayout: "vitals" },
   { name: "meds", path: "/meds", expectedLayout: "wide" },
   { name: "adherence report", path: "/meds/adherence-report", expectedLayout: "wide" },
