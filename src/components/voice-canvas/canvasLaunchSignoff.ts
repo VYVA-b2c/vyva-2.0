@@ -521,10 +521,21 @@ const behaviorChecklistRequirements = [
   },
   {
     columnIndex: 9,
-    description: "duplicate/stale guard cell must mention duplicate and stale evidence",
+    description:
+      "duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
     wordGroups: [
       ["duplicate"],
+      [
+        "prevented",
+        "blocked",
+        "ignored",
+        "no duplicate",
+        "without duplicate",
+        "not submitted",
+        "not resubmitted",
+      ],
       ["stale"],
+      ["ignored", "rejected", "discarded", "not accepted"],
     ],
   },
   {
