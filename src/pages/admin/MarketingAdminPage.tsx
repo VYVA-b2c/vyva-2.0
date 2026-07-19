@@ -16240,6 +16240,29 @@ export default function MarketingAdminPage() {
           recommendedContentLaunchKit.categories.slice(0, 2).join(" + ") || "Reusable campaign starter",
         ]
     : [];
+  const recommendedContentLaunchKitPreview = useMemo(() => {
+    if (!recommendedContentLaunchKit) return null;
+    const sequenceChannels = Array.from(new Set(recommendedContentLaunchKit.pack.sequence.map((step) => step.channel)));
+    const routeChannels = sequenceChannels.length ? sequenceChannels : recommendedContentLaunchKit.channels;
+    const kitAudiences = "audiences" in recommendedContentLaunchKit
+      ? recommendedContentLaunchKit.audiences
+      : Array.from(new Set(recommendedContentLaunchKit.templates.map((template) => template.audienceType)));
+    const reachableContacts = contacts.filter((contact) => (
+      kitAudiences.some((audience) => campaignAllowsContact(audience, contact.audienceType))
+      && routeChannels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+    )).length;
+    const reusableAssets = recommendedContentLaunchKit.templates.filter((template) => (
+      content.some((item) => contentAssetMatchesTemplatePack(item, recommendedContentLaunchKit.pack, template))
+    )).length;
+
+    return {
+      reachableContacts,
+      reusableAssets,
+      newAssets: Math.max(recommendedContentLaunchKit.templates.length - reusableAssets, 0),
+      emailRoutes: routeChannels.filter((channel) => channel === "email").length,
+      manualRoutes: routeChannels.filter((channel) => channel !== "email").length,
+    };
+  }, [contacts, content, recommendedContentLaunchKit]);
   const templatePathfinderRoutes = useMemo(() => {
     const routeDefinitions = [
       {
@@ -31239,6 +31262,37 @@ export default function MarketingAdminPage() {
                       <p className="mt-3 rounded-xl border border-purple-100 bg-white px-3 py-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
                         <span className="font-black text-purple-700">AI command ready:</span> {recommendedContentLaunchKit.pack.aiPrompt}
                       </p>
+                      {recommendedContentLaunchKitPreview ? (
+                        <div className="mt-3 rounded-xl border border-emerald-100 bg-white p-3" data-testid="marketing-recommended-launch-kit-preview">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-900">Before you create</p>
+                              <p className="mt-1 text-xs font-bold leading-relaxed text-[#5d6b61]">
+                                This previews the launch kit VYVA will prepare from the recommended pack.
+                              </p>
+                            </div>
+                            <Pill className="bg-emerald-50 text-emerald-800">Launch preview</Pill>
+                          </div>
+                          <div className="mt-3 grid gap-2 text-xs font-bold text-[#5d6b61] sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+                              <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Reach</span>
+                              <span className="mt-1 block text-[#241133]">{recommendedContentLaunchKitPreview.reachableContacts} contact{recommendedContentLaunchKitPreview.reachableContacts === 1 ? "" : "s"}</span>
+                            </div>
+                            <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+                              <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Assets</span>
+                              <span className="mt-1 block text-[#241133]">{recommendedContentLaunchKitPreview.newAssets} new / {recommendedContentLaunchKitPreview.reusableAssets} reusable</span>
+                            </div>
+                            <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+                              <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Email send</span>
+                              <span className="mt-1 block text-[#241133]">{recommendedContentLaunchKitPreview.emailRoutes} route{recommendedContentLaunchKitPreview.emailRoutes === 1 ? "" : "s"}</span>
+                            </div>
+                            <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+                              <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Manual handoff</span>
+                              <span className="mt-1 block text-[#241133]">{recommendedContentLaunchKitPreview.manualRoutes} route{recommendedContentLaunchKitPreview.manualRoutes === 1 ? "" : "s"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="grid gap-2">
                       <button

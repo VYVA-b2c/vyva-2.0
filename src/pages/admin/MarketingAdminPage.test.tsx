@@ -3578,6 +3578,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("Recommended launch kit");
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("starter templates");
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("AI command ready");
+    expect(screen.getByTestId("marketing-recommended-launch-kit-preview")).toHaveTextContent("Before you create");
+    expect(screen.getByTestId("marketing-recommended-launch-kit-preview")).toHaveTextContent("Reach");
+    expect(screen.getByTestId("marketing-recommended-launch-kit-preview")).toHaveTextContent("Assets");
+    expect(screen.getByTestId("marketing-recommended-launch-kit-preview")).toHaveTextContent("Email send");
+    expect(screen.getByTestId("marketing-recommended-launch-kit-preview")).toHaveTextContent("Manual handoff");
 
     fireEvent.click(screen.getByTestId("button-marketing-recommended-launch-kit-copy-ai"));
     await waitFor(() => {
