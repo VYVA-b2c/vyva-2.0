@@ -5917,6 +5917,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-tracking-link-linkedin")).toHaveTextContent("utm_source=vyva");
     expect(screen.getByTestId("marketing-campaign-studio-tracking-link-linkedin")).toHaveTextContent("utm_medium=linkedin");
     expect(screen.getByTestId("marketing-campaign-studio-tracking-link-email")).toHaveTextContent("VYVA email link");
+    expect(screen.getByTestId("marketing-campaign-studio-test-preview")).toHaveTextContent("Test preview");
+    expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("Sample:");
+    expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("CTA:");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-map")).toHaveTextContent("Audience delivery map");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-map-counts")).toHaveTextContent("Opted in");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-map-counts")).toHaveTextContent("Needs review");
@@ -5933,6 +5937,11 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign tracking links"));
     });
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign tracking links copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-test-preview-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA channel test preview"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("LinkedIn test preview copied.");
   });
 
   it("shows a channel route board and updates campaign studio routes", async () => {

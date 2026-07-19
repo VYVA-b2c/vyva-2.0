@@ -15453,6 +15453,44 @@ export default function MarketingAdminPage() {
     "",
     ...campaignStudioTrackingLinks.map((item) => `- ${channelLabel[item.channel]}: ${item.url || "Add CTA URL first"} (${item.route})`),
   ].join("\n");
+  const campaignStudioTestPreviewItems = campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {
+    const channelRecipients = campaignStudioRecipientPreviewByChannel.get(channel) ?? [];
+    const sampleContact = channelRecipients[0] ?? campaignStudioPersonalizationContact;
+    const sampleLabel = sampleContact?.fullName || sampleContact?.email || sampleContact?.phoneNumber || "No sample contact";
+    const subject = sampleContact
+      ? personalizePreview(draft.subject || draft.contentTitle || campaignStudioGenerated.campaignName, sampleContact)
+      : draft.subject || draft.contentTitle || campaignStudioGenerated.campaignName;
+    const body = sampleContact ? personalizePreview(draft.body, sampleContact) : draft.body;
+    const trackingLink = campaignStudioTrackingLinks.find((item) => item.channel === channel)?.url ?? "";
+    const cta = draft.ctaLabel.trim()
+      ? `${draft.ctaLabel}${trackingLink ? ` - ${trackingLink}` : draft.ctaUrl.trim() ? ` - ${draft.ctaUrl.trim()}` : ""}`
+      : trackingLink || "No CTA set";
+    const previewText = [
+      "VYVA channel test preview",
+      `Campaign: ${campaignStudioGenerated.campaignName}`,
+      `Channel: ${channelLabel[channel]}`,
+      `Sample contact: ${sampleLabel}`,
+      `Planned recipients: ${recipients}`,
+      "",
+      `Subject / hook: ${subject}`,
+      "",
+      "Body:",
+      body,
+      "",
+      `CTA: ${cta}`,
+      trackingLink ? `Tracking link: ${trackingLink}` : "Tracking link: Add CTA URL first",
+    ].join("\n");
+    return {
+      channel,
+      sampleLabel,
+      subject,
+      bodyLine: firstMeaningfulPreviewLine(body),
+      cta,
+      trackingLink,
+      recipients,
+      text: previewText,
+    };
+  });
   const campaignStudioVisualStyle = campaignStudio.toneId === "expert"
     ? "clean, credible, calm, editorial"
     : campaignStudio.toneId === "direct"
@@ -28472,6 +28510,53 @@ export default function MarketingAdminPage() {
                               {item.url || "Add CTA URL first"}
                             </p>
                             <p className="mt-2 text-xs font-bold leading-relaxed text-[#587268]">{item.detail}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-4" data-testid="marketing-campaign-studio-test-preview">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-sky-800">Test preview</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">See the message before it leaves the room</h3>
+                          <p className="mt-1 text-xs font-bold text-[#526778]">Each selected route gets a sample contact, personalized hook, message line, CTA, and a copyable test pack for internal review.</p>
+                        </div>
+                        <Pill className="bg-white text-sky-800">{campaignStudioTestPreviewItems.length} route{campaignStudioTestPreviewItems.length === 1 ? "" : "s"}</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                        {campaignStudioTestPreviewItems.map((item) => (
+                          <article
+                            key={item.channel}
+                            className="rounded-xl border border-sky-200 bg-white p-3"
+                            data-testid={`marketing-campaign-studio-test-preview-${item.channel}`}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                <p className="mt-2 text-sm font-black text-[#241133]">{item.subject}</p>
+                              </div>
+                              <Pill className="bg-sky-50 text-sky-800">{item.recipients} recipient{item.recipients === 1 ? "" : "s"}</Pill>
+                            </div>
+                            <div className="mt-3 space-y-2 text-xs font-bold text-[#526778]">
+                              <p className="rounded-lg bg-sky-50/80 px-3 py-2">
+                                <span className="font-black text-[#241133]">Sample:</span> {item.sampleLabel}
+                              </p>
+                              <p className="line-clamp-3 rounded-lg bg-sky-50/80 px-3 py-2 leading-relaxed">
+                                {item.bodyLine || "No message body yet."}
+                              </p>
+                              <p className="line-clamp-2 break-all rounded-lg bg-sky-50/80 px-3 py-2">
+                                <span className="font-black text-[#241133]">CTA:</span> {item.cta}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void copyCampaignStudioOfflineHandoff(`${channelLabel[item.channel]} test preview`, item.text)}
+                              className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-3 text-xs font-black text-sky-800 hover:bg-sky-50"
+                              data-testid={`button-marketing-campaign-studio-copy-test-preview-${item.channel}`}
+                            >
+                              <Copy size={13} /> Copy test preview
+                            </button>
                           </article>
                         ))}
                       </div>
