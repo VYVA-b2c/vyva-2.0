@@ -5698,7 +5698,8 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("You approve before anything is sent, called, or booked.");
     expect(screen.getByTestId("button-concierge-change-ride-1")).toHaveTextContent("Change");
     expect(screen.getByTestId("button-concierge-cancel-ride-1")).toHaveTextContent("Cancel");
-    expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Review call script");
+    expect(screen.getByTestId("badge-concierge-canvas-state-ride-1")).toHaveTextContent("Confirm first");
+    expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm");
 
     fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
     expect(await screen.findByTestId("panel-concierge-phone-call")).toBeVisible();
@@ -5811,7 +5812,7 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("button-concierge-confirm-phone-task-1")).toHaveTextContent("Review call script");
+    expect(await screen.findByTestId("button-concierge-confirm-phone-task-1")).toHaveTextContent("Confirm");
     expect(screen.queryByTestId("panel-concierge-phone-call")).not.toBeInTheDocument();
     expect(screen.queryByTestId("link-concierge-phone-call-phone-task-1")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-concierge-confirm-phone-task-1"));
@@ -7684,7 +7685,7 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("button-concierge-confirm-email-1")).toHaveTextContent("Open email draft");
+    expect(await screen.findByTestId("button-concierge-confirm-email-1")).toHaveTextContent("Confirm");
     expect(screen.queryByTestId("link-concierge-email-email-1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-concierge-email-draft")).not.toBeInTheDocument();
 
@@ -8277,7 +8278,7 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("button-concierge-confirm-email-sent-1")).toHaveTextContent("Open email draft");
+    expect(await screen.findByTestId("button-concierge-confirm-email-sent-1")).toHaveTextContent("Confirm");
     expect(screen.queryByTestId("panel-concierge-email-draft")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-concierge-confirm-email-sent-1"));
     expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
@@ -8367,7 +8368,7 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("button-concierge-confirm-tool-email-1")).toHaveTextContent("Open email draft");
+    expect(await screen.findByTestId("button-concierge-confirm-tool-email-1")).toHaveTextContent("Confirm");
     fireEvent.click(screen.getByTestId("button-concierge-confirm-tool-email-1"));
     expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
     await waitFor(() => {
@@ -8429,7 +8430,7 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("button-concierge-confirm-whatsapp-1")).toHaveTextContent("Open WhatsApp draft");
+    expect(await screen.findByTestId("button-concierge-confirm-whatsapp-1")).toHaveTextContent("Confirm");
     expect(screen.queryByTestId("link-concierge-whatsapp-whatsapp-1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("panel-concierge-whatsapp-draft")).not.toBeInTheDocument();
 
@@ -8485,7 +8486,7 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("button-concierge-confirm-whatsapp-sent-1")).toHaveTextContent("Open WhatsApp draft");
+    expect(await screen.findByTestId("button-concierge-confirm-whatsapp-sent-1")).toHaveTextContent("Confirm");
     fireEvent.click(screen.getByTestId("button-concierge-confirm-whatsapp-sent-1"));
     expect(await screen.findByTestId("panel-concierge-whatsapp-draft")).toHaveTextContent("WhatsApp ready");
     expect(screen.getByTestId("link-concierge-whatsapp-draft-open-whatsapp-sent-1")).toHaveTextContent("Open");
@@ -8610,7 +8611,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.queryByTestId("link-booking-form-open-form-ready-1")).not.toBeInTheDocument();
     expect(screen.getByTestId("text-booking-form-confirm-first-form-ready-1")).toHaveTextContent("Confirm above before opening the form.");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Open appointment form");
-    expect(screen.getByTestId("button-concierge-confirm-form-ready-1")).toHaveTextContent("Open appointment form");
+    expect(screen.getByTestId("button-concierge-confirm-form-ready-1")).toHaveTextContent("Confirm");
 
     fireEvent.click(screen.getByTestId("button-concierge-confirm-form-ready-1"));
     expect(openMock).not.toHaveBeenCalled();
