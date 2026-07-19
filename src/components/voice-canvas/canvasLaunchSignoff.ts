@@ -229,10 +229,39 @@ function isMeaningfulEnvironmentValue(
     case "Analytics sink reviewed":
       return /\breview(ed)?\b/i.test(normalized) && isIsoDateCellFromText(normalized);
     case "Initial flag state":
+      return hasAllWordGroups(lower, [
+        ["enabled", "enable"],
+        ["true", "enabled true", "enabled: true", "enabled=true"],
+        [
+          "rollout 100",
+          "rollout: 100",
+          "rollout=100",
+          "rollout percent 100",
+          "rollout percent: 100",
+          "rollout percent=100",
+          "rolloutpercent 100",
+          "rolloutpercent: 100",
+          "rolloutpercent=100",
+          "100%",
+        ],
+      ]);
     case "Rollback flag state":
-      return /\b(enabled|disabled|rollout|percent|flag|true|false|0|100)\b/i.test(
-        lower,
-      );
+      return hasAllWordGroups(lower, [
+        ["disabled", "disable"],
+        ["false", "enabled false", "enabled: false", "enabled=false"],
+        [
+          "rollout 0",
+          "rollout: 0",
+          "rollout=0",
+          "rollout percent 0",
+          "rollout percent: 0",
+          "rollout percent=0",
+          "rolloutpercent 0",
+          "rolloutpercent: 0",
+          "rolloutpercent=0",
+          "0%",
+        ],
+      ]);
   }
 }
 

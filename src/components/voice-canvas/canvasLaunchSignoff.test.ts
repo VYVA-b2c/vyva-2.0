@@ -1379,6 +1379,32 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch matrices without concrete environment flag states", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Initial flag state | Enabled true, rollout 100 for tested flows |",
+        "| Initial flag state | Feature flags checked for QA |",
+      )
+      .replace(
+        "| Rollback flag state | Disabled false, rollout 0 verified for fallback |",
+        "| Rollback flag state | Rollback flag checked |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual([
+      "Initial flag state",
+      "Rollback flag state",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with filled but failing QA evidence", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
