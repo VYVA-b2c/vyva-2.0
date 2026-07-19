@@ -832,7 +832,9 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
       !isPlaceholderCell(malformedConfig) &&
       !hasAllWordGroups(malformedConfig, [
         ["malformed", "invalid", "bad config", "bad-config"],
-        ["fail closed", "fail-closed", "disabled", "fallback", "false", "rollout 0"],
+        ["fail closed", "failed closed", "fail-closed"],
+        ["disabled", "false", "rollout 0", "0%"],
+        ["fallback"],
       ])
     ) {
       problems.push(`${flow.label}: malformed config fallback evidence`);
@@ -841,7 +843,9 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
       !isPlaceholderCell(missingConfig) &&
       !hasAllWordGroups(missingConfig, [
         ["missing", "absent", "unreachable", "no config"],
-        ["fail closed", "fail-closed", "disabled", "fallback", "false", "rollout 0"],
+        ["fail closed", "failed closed", "fail-closed"],
+        ["disabled", "false", "rollout 0", "0%"],
+        ["fallback"],
       ])
     ) {
       problems.push(`${flow.label}: missing config fallback evidence`);

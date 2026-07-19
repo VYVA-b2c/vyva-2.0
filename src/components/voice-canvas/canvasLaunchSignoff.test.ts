@@ -565,6 +565,36 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects malformed config rows that do not prove fail-closed behavior", () => {
+    const completed = completedMatrix().replace(
+      "Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Malformed config disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: malformed config fallback evidence",
+    ]);
+  });
+
+  it("rejects missing config rows that do not prove fallback behavior", () => {
+    const completed = completedMatrix().replace(
+      "Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Malformed config failed closed to disabled fallback | Missing config failed closed to disabled | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: missing config fallback evidence",
+    ]);
+  });
+
   it("rejects ready-for-launch matrices with vague rollback evidence", () => {
     const completed = completedMatrix().replace(
       "Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
