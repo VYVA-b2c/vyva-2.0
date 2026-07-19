@@ -59,7 +59,6 @@ describe("DailyCheckinCard", () => {
     expect(screen.queryByText("You checked in today. VYVA has a fresh wellbeing signal.")).not.toBeInTheDocument();
   });
 });
-
 describe("VisualHealthScanCardContent", () => {
   it("uses the shared Show VYVA review chooser and category chips", () => {
     const onScanSource = vi.fn();
@@ -233,4 +232,3 @@ describe("VisualScanResultPanel", () => {
     expect(visualScanDoctorContext(result)).toContain("Suggested next step: Book a clinical review.");
   });
 });
-

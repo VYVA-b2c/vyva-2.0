@@ -122,6 +122,7 @@ type ShoppingRoutePrefill = {
 
 type ShoppingLocationState = {
   shoppingPrefill?: ShoppingRoutePrefill;
+  resumeCanvas?: "shopping" | boolean;
 } | null;
 
 const COPY: Record<"en" | "es", Copy> = {
@@ -829,6 +830,8 @@ const ConciergeShoppingScreen = () => {
     [profileNeeds],
   );
   const shoppingCanvasEnabled = isShoppingCanvasEnabled(shoppingCanvasConfig, String(shoppingProfile?.id ?? "anonymous"));
+  const shouldResumeShoppingCanvas = (location.state as ShoppingLocationState)?.resumeCanvas === true
+    || (location.state as ShoppingLocationState)?.resumeCanvas === "shopping";
   const canvasRetailers = useMemo<ShoppingRetailer[]>(() => (shoppingProfile?.savedProviders ?? []).filter((item) => /supermarket|grocery|food|store|retail/i.test(item.category ?? "")).map((item, index) => ({ id: String(item.id ?? `retailer-${index}`), label: item.name ?? item.providerName ?? "" })).filter((item) => item.label), [shoppingProfile]);
   const canvasAddresses = useMemo<ShoppingAddress[]>(() => { const address = [shoppingProfile?.address ?? shoppingProfile?.addressLine1, shoppingProfile?.city].filter(Boolean).join(", "); return address ? [{ id: "home", label: locale === "es" ? "Casa" : "Home", address }] : []; }, [shoppingProfile, locale]);
 
@@ -857,7 +860,9 @@ const ConciergeShoppingScreen = () => {
     return () => { active = false; window.clearInterval(interval); window.removeEventListener("focus", refresh); };
   }, []);
   useEffect(() => { if (!shoppingCanvasEnabled) setShoppingCanvasOpen(false); }, [shoppingCanvasEnabled]);
-  useEffect(() => { if (!shoppingCanvasEnabled) setShoppingCanvasOpen(false); }, [shoppingCanvasEnabled]);
+  useEffect(() => {
+    if (shoppingCanvasEnabled && shouldResumeShoppingCanvas) setShoppingCanvasOpen(true);
+  }, [shoppingCanvasEnabled, shouldResumeShoppingCanvas]);
 
   useEffect(() => {
     let active = true;

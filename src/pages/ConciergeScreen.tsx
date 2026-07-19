@@ -9715,8 +9715,13 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
       setTransportDetailsOpen(true);
       setTransportPickup((current) => current.trim() ? current : (isSpanish ? "Casa guardada" : "Saved home"));
+      if (mode === "task" && persistedTask?.progress_payload.canvasStep) {
+        setRideCanvasMode(true);
+        setRideCanvasSelectedOptionId(persistedTask.progress_payload.selectedProviderOptionId ?? null);
+        setRideCanvasStep(persistedTask.progress_payload.canvasStep as ConciergeRideCanvasStep);
+      }
     }
-  }, [effectiveTaskEntry, isSpanish, mode, t]);
+  }, [effectiveTaskEntry, isSpanish, mode, persistedTask?.progress_payload.canvasStep, persistedTask?.progress_payload.selectedProviderOptionId, t]);
 
   useEffect(() => {
     if (!persistedTask || hydratedConciergeTaskIdRef.current === persistedTask.id) return;
@@ -9775,8 +9780,34 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       setProviderSearchCriteria((progress.criteria ?? DEFAULT_PROVIDER_SEARCH_CRITERIA).filter(isProviderSearchCriterion));
       setOffersResult((progress.providerResult ?? null) as OffersSearchResponse | null);
       setProviderShortlistIds(progress.shortlistIds ?? []);
+      return;
     }
-  }, [effectiveTaskEntry, persistedTask]);
+
+    if (persistedTask.kind === "transport") {
+      const pickupFallback = isSpanish ? "Casa guardada" : "Saved home";
+      setRoutePrefill({
+        kind: "ride",
+        message: t(
+          "concierge.fastHelp.ridePrefill",
+          "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
+        ),
+        source: "home_quick_action",
+      });
+      setTransportDetailsOpen(true);
+      setTransportPickup(progress.textDrafts?.transportPickup || pickupFallback);
+      setTransportDestination(progress.textDrafts?.transportDestination ?? "");
+      setTransportTime(progress.requestedTime ?? "now");
+      setTransportMobilityNeeds(splitRoutePayloadList(progress.answers?.transportMobilityNeeds ?? ""));
+      setTransportResult(null);
+      setTransportPreparedOption(null);
+      setTransportPreparedResult(null);
+      setRideCanvasSelectedOptionId(progress.selectedProviderOptionId ?? null);
+      if (progress.canvasStep) {
+        setRideCanvasMode(true);
+        setRideCanvasStep(progress.canvasStep as ConciergeRideCanvasStep);
+      }
+    }
+  }, [effectiveTaskEntry, isSpanish, persistedTask, t]);
 
   const savedConciergeTaskProgress = useMemo<ConciergeTaskProgressPayload>(() => {
     switch (effectiveTaskEntry?.kind) {
@@ -9808,6 +9839,20 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           requestId: appointmentRequest?.id ?? null,
           selectedProviderOptionId: selectedAppointmentOptionId,
         };
+      case "transport":
+        return {
+          requestedTime: transportTime,
+          canvasStep: rideCanvasStep,
+          textDrafts: {
+            transportPickup,
+            transportDestination,
+          },
+          answers: {
+            transportMobilityNeeds: transportMobilityNeeds.join("\n"),
+          },
+          requestId: transportPreparedResult?.pendingId ?? null,
+          selectedProviderOptionId: rideCanvasSelectedOptionId,
+        };
       case "provider_contact":
         return {
           providerSearchMode,
@@ -9838,13 +9883,21 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     providerSearchCriteria,
     providerSearchMode,
     providerShortlistIds,
+    rideCanvasSelectedOptionId,
+    rideCanvasStep,
     selectedAppointmentChip?.key,
     selectedAppointmentOptionId,
     selectedInsuranceAdminKind,
+    transportDestination,
+    transportMobilityNeeds,
+    transportPickup,
+    transportPreparedResult?.pendingId,
+    transportTime,
   ]);
 
   const savedConciergeTaskStage: PersistedConciergeTaskStage = persistedTask?.stage === "review"
     || persistedTask?.linked_pending_id
+    || (effectiveTaskEntry?.kind === "transport" && Boolean(rideCanvasStep && !["destination", "pickup", "pickup_custom"].includes(rideCanvasStep)))
     || appointmentOptions.length > 0
     || offersResult
     || (effectiveTaskEntry?.kind === "document" && routePrefill)

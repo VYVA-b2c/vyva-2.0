@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AdherenceReportScreen from "./AdherenceReportScreen";
+import { emptyRefillDraft } from "@/components/voice-canvas/refillCanvasMachine";
 
 const profileMock = vi.fn();
 const queryResultMock = vi.fn();
@@ -117,9 +119,9 @@ function LocationProbe() {
   );
 }
 
-function adherenceReportUi() {
+function adherenceReportUi(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/meds/adherence-report"]) {
   return (
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/meds/adherence-report"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={initialEntries}>
       <Routes>
         <Route path="/meds/adherence-report" element={<AdherenceReportScreen />} />
         <Route path="/concierge" element={<LocationProbe />} />
@@ -130,12 +132,13 @@ function adherenceReportUi() {
   );
 }
 
-function renderAdherenceReport() {
-  return render(adherenceReportUi());
+function renderAdherenceReport(initialEntries?: ComponentProps<typeof MemoryRouter>["initialEntries"]) {
+  return render(adherenceReportUi(initialEntries));
 }
 
 describe("Adherence report service actions", () => {
   beforeEach(() => {
+    sessionStorage.clear();
     vi.clearAllMocks();
     apiFetchMock.mockResolvedValue({ok:true,json:async()=>({pendingId:"PREP-1"})});
     profileMock.mockReturnValue({
@@ -194,6 +197,37 @@ describe("Adherence report service actions", () => {
     expect(await screen.findByTestId("panel-medication-refill-voice-canvas")).toBeInTheDocument();
     expect(screen.getByTestId("refill-voice-canvas")).toHaveAttribute("data-step", "listening");
     expect(screen.queryByTestId("current-route")).not.toBeInTheDocument();
+  });
+
+  it("opens a resumed local refill Canvas draft from the task hub", async () => {
+    sessionStorage.setItem("vyva.refillCanvas.adherence.active", JSON.stringify({
+      step: "quantity",
+      draft: {
+        ...emptyRefillDraft,
+        medicationName: "Metformin",
+        strength: "500mg",
+        providerName: "Dr Garcia",
+        providerKind: "prescriber",
+        quantity: "30 days",
+      },
+      requestId: 0,
+    }));
+    queryResultMock.mockImplementation((options: { queryKey?: string[] }) => ({
+      data: options?.queryKey?.[0] === "/api/config/features/medication-refill-voice-canvas"
+        ? { enabled: true, rolloutPercent: 100 }
+        : report,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+      error: null,
+    }));
+
+    renderAdherenceReport([{ pathname: "/meds/adherence-report", state: { resumeCanvas: "refill" } }]);
+
+    expect(await screen.findByTestId("panel-medication-refill-voice-canvas")).toBeInTheDocument();
+    expect(screen.getByTestId("refill-voice-canvas")).toHaveAttribute("data-step", "quantity");
+    expect(screen.getByLabelText("Quantity or supply")).toHaveValue("30 days");
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.anything());
   });
 
   it("immediately closes the Canvas when the feature flag is disabled", async () => {

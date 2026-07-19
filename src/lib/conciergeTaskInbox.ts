@@ -15,9 +15,43 @@ import {
   conciergeTaskEntryTitle,
 } from "@/lib/conciergeTaskNavigation";
 import { apiFetch } from "@/lib/queryClient";
-import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import {
+  CONCIERGE_FLOW_REFERENCES,
+  type ConciergeFlowReference,
+} from "../../shared/conciergeFlowRegistry";
 
 export type ConciergeTaskInboxGroup = "needs_you" | "waiting" | "completed";
+
+export type ConciergeTaskContinuationFlow =
+  | "ride"
+  | "appointment"
+  | "home_service"
+  | "refill"
+  | "shopping"
+  | "provider_reply"
+  | "provider_contact"
+  | "document"
+  | "safety_check"
+  | "future";
+
+export type ConciergeTaskContinuationState =
+  | "draft"
+  | "waiting"
+  | "needs_info"
+  | "ready_to_confirm"
+  | "completed"
+  | "blocked";
+
+export type ConciergeTaskContinuation = {
+  flow: ConciergeTaskContinuationFlow;
+  flowLabel: string;
+  state: ConciergeTaskContinuationState;
+  stateLabel: string;
+  sceneLabel: string;
+  helperText: string;
+  actionLabel: string;
+  stale: boolean;
+};
 
 export type ConciergeTaskPendingItem = {
   id: string;
@@ -72,6 +106,7 @@ export type ConciergeTaskInboxItem = {
   actionPayload: Record<string, unknown> | null;
   details: ConciergeTaskInboxDetail[];
   completedTemplate: ConciergeTaskCompletedSession | null;
+  continuation: ConciergeTaskContinuation;
 };
 
 export type ConciergeTaskInbox = Record<ConciergeTaskInboxGroup, ConciergeTaskInboxItem[]>;
@@ -100,6 +135,382 @@ function payloadText(payload: Record<string, unknown> | null | undefined, keys: 
 function timestamp(value: string | null | undefined): number {
   const parsed = value ? Date.parse(value) : 0;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isExpired(value: string | null | undefined, nowMs: number): boolean {
+  const expiresAt = timestamp(value);
+  return expiresAt > 0 && expiresAt <= nowMs;
+}
+
+function localized(pair: [string, string], isSpanish: boolean): string {
+  return pair[isSpanish ? 1 : 0];
+}
+
+function humanizeStep(value: string): string {
+  const words = value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : "Details";
+}
+
+function flowReferenceFromPayload(
+  payload: Record<string, unknown> | null | undefined,
+): ConciergeFlowReference | null {
+  const flowReference = payloadText(payload, ["flow_reference"]);
+  return Object.values(CONCIERGE_FLOW_REFERENCES).includes(flowReference as ConciergeFlowReference)
+    ? flowReference as ConciergeFlowReference
+    : null;
+}
+
+function continuationFlowFor(input: {
+  draft: ConciergeTaskDraft | null;
+  pending: ConciergeTaskPendingItem | null;
+  completed?: ConciergeTaskCompletedSession | null;
+  payload: Record<string, unknown> | null | undefined;
+}): ConciergeTaskContinuationFlow {
+  const { draft, pending, completed, payload } = input;
+  const snapshot = conciergeProviderReplySnapshot(payload);
+  if (
+    snapshot?.reply
+    || payload?.provider_reply_resolution
+    || payload?.provider_reply_decisions
+    || payloadText(payload, ["provider_reply_status", "provider_task_status"])
+  ) {
+    return "provider_reply";
+  }
+
+  const flowReference = flowReferenceFromPayload(payload);
+  if (flowReference === CONCIERGE_FLOW_REFERENCES.transportBooking) return "ride";
+  if (flowReference === CONCIERGE_FLOW_REFERENCES.medicalAppointment) return "appointment";
+  if (flowReference === CONCIERGE_FLOW_REFERENCES.homeService) return "home_service";
+  if (flowReference === CONCIERGE_FLOW_REFERENCES.otcPharmacy) return "refill";
+  if (flowReference === CONCIERGE_FLOW_REFERENCES.shoppingSupport) return "shopping";
+  if (flowReference === CONCIERGE_FLOW_REFERENCES.careNavigation) return "provider_contact";
+  if (flowReference === CONCIERGE_FLOW_REFERENCES.insuranceAdmin) return "document";
+  if (
+    flowReference === CONCIERGE_FLOW_REFERENCES.scamCheck
+    || flowReference === CONCIERGE_FLOW_REFERENCES.safeHomeSupport
+  ) return "safety_check";
+
+  const useCase = pending?.use_case ?? completed?.use_case ?? "";
+  const appointmentType = payloadText(payload, ["appointment_type"]);
+  if (draft?.kind === "transport" || useCase === "book_ride") return "ride";
+  if (draft?.kind === "appointment" || useCase === "book_appointment") return "appointment";
+  if (draft?.kind === "home_service" || useCase === "home_service" || appointmentType === "home-service") return "home_service";
+  if (draft?.kind === "otc_pharmacy" || useCase === "order_medicine") return "refill";
+  if (useCase === "shopping_request" || useCase === "find_offers") return "shopping";
+  if (draft?.kind === "provider_contact" || useCase === "find_provider") return "provider_contact";
+  if (draft?.kind === "document" || ["admin_task", "paperwork", "send_message"].includes(useCase)) return "document";
+  if (draft?.kind === "scam_review" || useCase === "scam_check") return "safety_check";
+  return "future";
+}
+
+function flowLabel(flow: ConciergeTaskContinuationFlow, isSpanish: boolean): string {
+  const labels: Record<ConciergeTaskContinuationFlow, [string, string]> = {
+    ride: ["Ride Canvas", "Canvas de transporte"],
+    appointment: ["Appointment Canvas", "Canvas de citas"],
+    home_service: ["Home service Canvas", "Canvas del hogar"],
+    refill: ["Refill Canvas", "Canvas de farmacia"],
+    shopping: ["Shopping Canvas", "Canvas de compras"],
+    provider_reply: ["Provider reply", "Respuesta del proveedor"],
+    provider_contact: ["Provider search", "Busqueda de proveedor"],
+    document: ["Document task", "Tarea de documentos"],
+    safety_check: ["Safety check", "Revision de seguridad"],
+    future: ["Concierge task", "Tarea de Concierge"],
+  };
+  return localized(labels[flow], isSpanish);
+}
+
+function continuationStateLabel(
+  state: ConciergeTaskContinuationState,
+  isSpanish: boolean,
+  stale: boolean,
+): string {
+  if (stale) return isSpanish ? "Necesita actualizarse" : "Needs refresh";
+  const labels: Record<ConciergeTaskContinuationState, [string, string]> = {
+    draft: ["Draft", "Borrador"],
+    waiting: ["Waiting", "Esperando"],
+    needs_info: ["Needs information", "Necesita datos"],
+    ready_to_confirm: ["Ready to confirm", "Lista para confirmar"],
+    completed: ["Completed", "Completada"],
+    blocked: ["Needs review", "Necesita revision"],
+  };
+  return localized(labels[state], isSpanish);
+}
+
+function continuationActionLabel(input: {
+  state: ConciergeTaskContinuationState;
+  providerStatus: ConciergeProviderTaskStatus | null;
+  stale: boolean;
+  isSpanish: boolean;
+}): string {
+  const { state, providerStatus, stale, isSpanish } = input;
+  if (stale) return isSpanish ? "Revisar con cuidado" : "Review safely";
+  if (providerStatus === "action_needed") return isSpanish ? "Responder" : "Respond";
+  if (providerStatus === "reply_received") return isSpanish ? "Revisar respuesta" : "Review reply";
+  if (state === "completed") return isSpanish ? "Usar de nuevo" : "Use again";
+  if (state === "waiting") return isSpanish ? "Ver estado" : "View status";
+  if (state === "needs_info") return isSpanish ? "Agregar datos" : "Add information";
+  if (state === "ready_to_confirm") return isSpanish ? "Revisar y confirmar" : "Review and confirm";
+  if (state === "blocked") return isSpanish ? "Revisar tarea" : "Review task";
+  return isSpanish ? "Continuar" : "Continue";
+}
+
+function continuationHelperText(input: {
+  state: ConciergeTaskContinuationState;
+  flow: ConciergeTaskContinuationFlow;
+  stale: boolean;
+  isSpanish: boolean;
+}): string {
+  const { state, flow, stale, isSpanish } = input;
+  if (stale) {
+    return isSpanish
+      ? "Revisa los datos antes de continuar. Nada se hara sin una confirmacion nueva."
+      : "Review the details before continuing. Nothing happens without a fresh confirmation.";
+  }
+  if (state === "waiting") {
+    return isSpanish
+      ? "VYVA esta esperando el siguiente estado o respuesta."
+      : "VYVA is waiting for the next status or reply.";
+  }
+  if (state === "needs_info") {
+    return flow === "provider_reply"
+      ? (isSpanish ? "El proveedor necesita una respuesta antes de seguir." : "The provider needs a reply before this can continue.")
+      : (isSpanish ? "Agrega los datos que faltan antes de revisar." : "Add the missing details before review.");
+  }
+  if (state === "ready_to_confirm") {
+    return isSpanish
+      ? "Revisa el resumen. La accion externa sigue bloqueada hasta que confirmes."
+      : "Review the summary. The external action stays blocked until you confirm.";
+  }
+  if (state === "completed") {
+    return isSpanish
+      ? "El resultado quedo guardado en el historial."
+      : "The result is saved in history.";
+  }
+  if (state === "blocked") {
+    return isSpanish
+      ? "Esta tarea necesita revision antes de continuar."
+      : "This task needs review before it can continue.";
+  }
+  return isSpanish
+    ? "Puedes continuar desde donde lo dejaste."
+    : "You can continue from where you left off.";
+}
+
+function sceneLabelForStep(
+  step: string | null | undefined,
+  stage: string | null | undefined,
+  isSpanish: boolean,
+): string {
+  const normalized = (step || stage || "details").trim();
+  const labels: Record<string, [string, string]> = {
+    listening: ["Start", "Inicio"],
+    details: ["Details", "Detalles"],
+    place: ["Saved place or new address", "Lugar guardado o nueva direccion"],
+    pickup: ["Pickup place", "Lugar de recogida"],
+    pickup_custom: ["Pickup address", "Direccion de recogida"],
+    address: ["Address", "Direccion"],
+    location: ["Saved place or new address", "Lugar guardado o nueva direccion"],
+    location_custom: ["Address", "Direccion"],
+    locationEntry: ["Address", "Direccion"],
+    dateTime: ["Date and time", "Fecha y hora"],
+    time: ["Date and time", "Fecha y hora"],
+    time_custom: ["Custom time", "Hora personalizada"],
+    provider: ["Provider", "Proveedor"],
+    providerEntry: ["New provider", "Nuevo proveedor"],
+    reason: ["Reason", "Motivo"],
+    coverage: ["Coverage", "Cobertura"],
+    service: ["Service", "Servicio"],
+    description: ["Description", "Descripcion"],
+    urgency: ["Urgency", "Urgencia"],
+    access: ["Access notes", "Notas de acceso"],
+    retailer: ["Saved store or new store", "Tienda guardada o nueva tienda"],
+    retailerEntry: ["New store", "Nueva tienda"],
+    itemName: ["Item", "Producto"],
+    itemQuantity: ["Quantity", "Cantidad"],
+    moreItems: ["More items", "Mas productos"],
+    fulfillment: ["Delivery or pickup", "Entrega o recogida"],
+    substitutions: ["Substitutions", "Sustituciones"],
+    estimate: ["Estimate", "Estimacion"],
+    cost: ["Cost", "Costo"],
+    fees: ["Fees", "Comisiones"],
+    medication: ["Medication", "Medicamento"],
+    medicationEntry: ["Medication name", "Nombre del medicamento"],
+    strength: ["Strength", "Dosis"],
+    safety: ["Safety check", "Revision de seguridad"],
+    quantity: ["Quantity", "Cantidad"],
+    notes: ["Notes", "Notas"],
+    contact: ["Contact method", "Metodo de contacto"],
+    context: ["Context", "Contexto"],
+    reply: ["Reply", "Respuesta"],
+    scheduledFor: ["Date and time", "Fecha y hora"],
+    review: ["Review", "Revisar"],
+    option_review: ["Review choice", "Revisar opcion"],
+    pending_confirm: ["Final confirmation", "Confirmacion final"],
+    waiting: ["Waiting", "Esperando"],
+    searching: ["Searching", "Buscando"],
+    contacting: ["Contacting", "Contactando"],
+    saving: ["Saving", "Guardando"],
+    saved: ["Saved result", "Resultado guardado"],
+    completed: ["Completed", "Completada"],
+    blocked: ["Blocked", "Bloqueada"],
+    error: ["Needs attention", "Necesita atencion"],
+    cancelled: ["Cancelled", "Cancelada"],
+  };
+  return localized(labels[normalized] ?? [humanizeStep(normalized), humanizeStep(normalized)], isSpanish);
+}
+
+function continuationStateFromDraft(
+  draft: ConciergeTaskDraft,
+  stale: boolean,
+): ConciergeTaskContinuationState {
+  if (stale || draft.status === "deleted") return "blocked";
+  if (draft.status === "completed") return "completed";
+  const step = text(draft.progress_payload.canvasStep);
+  const normalized = step || draft.stage;
+  if (["review", "option_review", "pending_confirm"].includes(normalized)) return "ready_to_confirm";
+  if (["waiting", "searching", "contacting", "saving", "completing"].includes(normalized)) return "waiting";
+  if (["blocked", "error", "emergency", "urgent", "cancelled"].includes(normalized)) return "blocked";
+  return "draft";
+}
+
+function continuationStateFromPending(input: {
+  item: ConciergeTaskPendingItem;
+  providerStatus: ConciergeProviderTaskStatus | null;
+  stale: boolean;
+}): ConciergeTaskContinuationState {
+  const { item, providerStatus, stale } = input;
+  if (stale) return "blocked";
+  const status = item.status.toLowerCase();
+  const providerReplyStatus = payloadText(item.action_payload, ["provider_reply_status"]).toLowerCase();
+  const providerTaskStatus = payloadText(item.action_payload, ["provider_task_status"]).toLowerCase();
+  const missionStatus = payloadText(item.action_payload, ["mission_status", "current_step", "status"]).toLowerCase();
+  const handoffStatus = payloadText(item.action_payload, ["live_handoff_status", "provider_follow_up_status"]).toLowerCase();
+  const lifecycleStatus = payloadText(item.action_payload, ["lifecycle_status"]).toLowerCase();
+
+  if (
+    status === "completed"
+    || providerStatus === "done"
+    || providerTaskStatus === "done"
+    || providerReplyStatus === "confirmed"
+    || missionStatus === "completed"
+    || handoffStatus === "completed"
+    || lifecycleStatus === "done"
+  ) return "completed";
+
+  if (
+    status === "failed"
+    || status === "cancelled"
+    || missionStatus === "failed"
+    || missionStatus === "cancelled"
+    || handoffStatus === "failed"
+    || handoffStatus === "cancelled"
+    || lifecycleStatus === "failed"
+    || lifecycleStatus === "cancelled"
+  ) return "blocked";
+
+  if (
+    providerStatus === "action_needed"
+    || providerTaskStatus === "action_needed"
+    || providerReplyStatus === "needs_more_info"
+    || handoffStatus === "needs_human_help"
+    || lifecycleStatus === "needs_info"
+  ) return "needs_info";
+
+  if (
+    providerStatus === "waiting"
+    || status === "calling"
+    || item.action_payload?.waiting_for_provider === true
+    || missionStatus.includes("awaiting_provider")
+    || handoffStatus === "waiting"
+    || handoffStatus === "sent_or_called"
+    || lifecycleStatus === "in_progress"
+    || lifecycleStatus === "confirmed"
+  ) return "waiting";
+
+  if (
+    providerStatus === "reply_received"
+    || handoffStatus === "ready"
+    || item.action_payload?.confirmation_required_before_contact === true
+  ) return "ready_to_confirm";
+
+  return "ready_to_confirm";
+}
+
+function continuationStateFromStep(step: string, stale: boolean): ConciergeTaskContinuationState {
+  if (stale) return "blocked";
+  const normalized = text(step);
+  if (["review", "option_review", "pending_confirm"].includes(normalized)) return "ready_to_confirm";
+  if (["waiting", "searching", "contacting", "saving", "completing"].includes(normalized)) return "waiting";
+  if (["blocked", "error", "emergency", "urgent", "cancelled"].includes(normalized)) return "blocked";
+  return "draft";
+}
+
+export function buildLocalConciergeTaskContinuation(input: {
+  flow: ConciergeTaskContinuationFlow;
+  step: string;
+  isSpanish: boolean;
+  stale?: boolean;
+}): ConciergeTaskContinuation {
+  const stale = input.stale ?? false;
+  const state = continuationStateFromStep(input.step, stale);
+  return {
+    flow: input.flow,
+    flowLabel: flowLabel(input.flow, input.isSpanish),
+    state,
+    stateLabel: continuationStateLabel(state, input.isSpanish, stale),
+    sceneLabel: sceneLabelForStep(input.step, null, input.isSpanish),
+    helperText: continuationHelperText({ state, flow: input.flow, stale, isSpanish: input.isSpanish }),
+    actionLabel: continuationActionLabel({ state, providerStatus: null, stale, isSpanish: input.isSpanish }),
+    stale,
+  };
+}
+
+function buildContinuation(input: {
+  draft: ConciergeTaskDraft | null;
+  pending: ConciergeTaskPendingItem | null;
+  completed?: ConciergeTaskCompletedSession | null;
+  payload: Record<string, unknown> | null | undefined;
+  providerStatus: ConciergeProviderTaskStatus | null;
+  stale: boolean;
+  isSpanish: boolean;
+}): ConciergeTaskContinuation {
+  const { draft, pending, completed, payload, providerStatus, stale, isSpanish } = input;
+  const flow = continuationFlowFor({ draft, pending, completed, payload });
+  const state = completed
+    ? "completed"
+    : pending
+      ? continuationStateFromPending({ item: pending, providerStatus, stale })
+      : draft
+        ? continuationStateFromDraft(draft, stale)
+        : "draft";
+  const canvasStep = draft ? text(draft.progress_payload.canvasStep) : "";
+  const sceneLabel = completed
+    ? sceneLabelForStep("completed", null, isSpanish)
+    : pending
+      ? sceneLabelForStep(
+        providerStatus === "action_needed"
+          ? "reply"
+          : providerStatus === "reply_received"
+            ? "review"
+            : state,
+        null,
+        isSpanish,
+      )
+      : sceneLabelForStep(canvasStep, draft?.stage ?? null, isSpanish);
+
+  return {
+    flow,
+    flowLabel: flowLabel(flow, isSpanish),
+    state,
+    stateLabel: continuationStateLabel(state, isSpanish, stale),
+    sceneLabel,
+    helperText: continuationHelperText({ state, flow, stale, isSpanish }),
+    actionLabel: continuationActionLabel({ state, providerStatus, stale, isSpanish }),
+    stale,
+  };
 }
 
 function titleForUseCase(
@@ -230,11 +641,28 @@ function activeItem(input: {
   draft: ConciergeTaskDraft | null;
   pending: ConciergeTaskPendingItem | null;
   isSpanish: boolean;
+  nowMs: number;
 }): ConciergeTaskInboxItem {
-  const { draft, pending, isSpanish } = input;
+  const { draft, pending, isSpanish, nowMs } = input;
   const payload = pending?.action_payload ?? null;
   const snapshot = conciergeProviderReplySnapshot(payload);
-  const group = pending ? groupForPending(pending, snapshot?.status ?? null) : "needs_you";
+  const stale = isExpired(pending?.expires_at, nowMs);
+  const continuation = buildContinuation({
+    draft,
+    pending,
+    payload,
+    providerStatus: snapshot?.status ?? null,
+    stale,
+    isSpanish,
+  });
+  const legacyGroup = pending ? groupForPending(pending, snapshot?.status ?? null) : "needs_you";
+  const group = continuation.state === "waiting"
+    ? "waiting"
+    : continuation.state === "completed"
+      ? "completed"
+      : continuation.stale
+        ? "needs_you"
+        : legacyGroup;
   const entry = coerceConciergeTaskEntry(draft?.entry_payload);
   const source: ConciergeTaskInboxSource = pending ? "pending" : "draft";
   const id = pending?.id ?? draft!.id;
@@ -268,7 +696,7 @@ function activeItem(input: {
     updatedAt,
     detailPath: conciergeTaskInboxItemPath(source, id),
     resumePath: conciergeTaskResumePath(draft?.id ?? pending!.id),
-    primaryActionLabel: primaryActionCopy(group, snapshot?.status ?? null, isSpanish),
+    primaryActionLabel: continuation.actionLabel || primaryActionCopy(group, snapshot?.status ?? null, isSpanish),
     reply: snapshot?.reply || null,
     decisionSummary: decisionCopy(payload, isSpanish),
     outcomeSummary: null,
@@ -276,6 +704,7 @@ function activeItem(input: {
     actionPayload: payload,
     details: detailsFor(providerName, payload, updatedAt, isSpanish),
     completedTemplate: null,
+    continuation,
   };
 }
 
@@ -285,6 +714,15 @@ function completedItem(
 ): ConciergeTaskInboxItem {
   const payload = session.outcome_payload;
   const snapshot = conciergeProviderReplySnapshot(payload, { completed: true });
+  const continuation = buildContinuation({
+    draft: null,
+    pending: null,
+    completed: session,
+    payload,
+    providerStatus: snapshot?.status ?? "done",
+    stale: false,
+    isSpanish,
+  });
   const providerName = session.provider_name?.trim()
     || payloadText(payload, ["provider_name", "pharmacy_name"])
     || null;
@@ -306,7 +744,7 @@ function completedItem(
     updatedAt: session.completed_at,
     detailPath: conciergeTaskInboxItemPath("completed", session.id),
     resumePath: "/concierge",
-    primaryActionLabel: primaryActionCopy("completed", "done", isSpanish),
+    primaryActionLabel: continuation.actionLabel || primaryActionCopy("completed", "done", isSpanish),
     reply: snapshot?.reply || null,
     decisionSummary: decisionCopy(payload, isSpanish),
     outcomeSummary,
@@ -314,6 +752,7 @@ function completedItem(
     actionPayload: payload,
     details: detailsFor(providerName, payload, session.completed_at, isSpanish),
     completedTemplate: session,
+    continuation,
   };
 }
 
@@ -326,26 +765,37 @@ export function buildConciergeTaskInbox(input: {
   pending: ConciergeTaskPendingItem[];
   completed: ConciergeTaskCompletedSession[];
   isSpanish?: boolean;
+  now?: Date | number | string;
 }): ConciergeTaskInbox {
   const isSpanish = input.isSpanish ?? false;
+  const nowMs = input.now instanceof Date
+    ? input.now.getTime()
+    : typeof input.now === "number"
+      ? input.now
+      : typeof input.now === "string"
+        ? Date.parse(input.now)
+        : Date.now();
+  const safeNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
   const pendingById = new Map(input.pending.map((item) => [item.id, item]));
   const linkedPendingIds = new Set<string>();
   const activeItems = input.drafts.map((draft) => {
     const pending = draft.linked_pending_id ? pendingById.get(draft.linked_pending_id) ?? null : null;
     if (pending) linkedPendingIds.add(pending.id);
-    return activeItem({ draft, pending, isSpanish });
+    return activeItem({ draft, pending, isSpanish, nowMs: safeNowMs });
   });
   for (const pending of input.pending) {
-    if (!linkedPendingIds.has(pending.id)) activeItems.push(activeItem({ draft: null, pending, isSpanish }));
+    if (!linkedPendingIds.has(pending.id)) activeItems.push(activeItem({ draft: null, pending, isSpanish, nowMs: safeNowMs }));
   }
 
   return {
     needs_you: activeItems.filter((item) => item.group === "needs_you").sort(sortNewest),
     waiting: activeItems.filter((item) => item.group === "waiting").sort(sortNewest),
-    completed: input.completed
-      .filter((session) => session.outcome === "completed" || Boolean(session.completed_at))
-      .map((session) => completedItem(session, isSpanish))
-      .sort(sortNewest),
+    completed: [
+      ...activeItems.filter((item) => item.group === "completed"),
+      ...input.completed
+        .filter((session) => session.outcome === "completed" || Boolean(session.completed_at))
+        .map((session) => completedItem(session, isSpanish)),
+    ].sort(sortNewest),
   };
 }
 

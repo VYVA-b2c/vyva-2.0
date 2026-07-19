@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ConciergeTaskInboxPage from "./ConciergeTaskInboxPage";
 import { apiFetch } from "@/lib/queryClient";
+import { emptyRefillDraft } from "@/components/voice-canvas/refillCanvasMachine";
+import { emptyShoppingDraft } from "@/components/voice-canvas/shoppingCanvasMachine";
 import { buildConciergeProviderReplyResolution } from "../../shared/conciergeProviderReplyResolution";
 
 vi.mock("@/i18n", () => ({
@@ -51,6 +53,7 @@ function renderPage(initialEntry = "/concierge/tasks") {
 
 describe("ConciergeTaskInboxPage", () => {
   beforeEach(() => {
+    sessionStorage.clear();
     apiFetchMock.mockReset();
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
@@ -127,6 +130,8 @@ describe("ConciergeTaskInboxPage", () => {
     expect(screen.queryByTestId("concierge-inbox-group-completed")).not.toBeInTheDocument();
     expect(screen.getAllByText("Prepare an appointment")).toHaveLength(1);
     expect(screen.getByText("Harbour Clinic needs your insurance plan.")).toBeInTheDocument();
+    expect(screen.getByTestId("concierge-inbox-task-state-pending:reply-1")).toHaveTextContent("Needs information");
+    expect(screen.getByTestId("concierge-inbox-task-scene-pending:reply-1")).toHaveTextContent("Reply");
 
     fireEvent.click(screen.getByTestId("concierge-task-view-completed"));
     expect(screen.getByTestId("concierge-inbox-group-completed")).toHaveTextContent("Completed1");
@@ -145,11 +150,71 @@ describe("ConciergeTaskInboxPage", () => {
     expect(screen.queryByTestId("button-concierge-task-primary-action")).not.toBeInTheDocument();
   });
 
+  it("shows a local shopping Canvas draft and resumes it on the Shopping screen", async () => {
+    sessionStorage.setItem("vyva.shoppingDelivery.v1", JSON.stringify({
+      step: "review",
+      draft: {
+        ...emptyShoppingDraft,
+        items: [{ id: "item-1", name: "Soup", quantity: "4 cans" }],
+        fulfillment: "delivery",
+        location: "Home",
+        preferredTime: "Tomorrow morning",
+        substitutions: "ask",
+        estimateStatus: "unverified",
+      },
+      requestId: 0,
+      revision: 3,
+    }));
+
+    renderPage("/concierge/tasks/draft%3Alocal-canvas-shopping");
+
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Shopping Canvas");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Ready to confirm");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Review");
+    expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Review and confirm");
+
+    apiFetchMock.mockClear();
+    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping");
+    expect(screen.getByTestId("location-state")).toHaveTextContent('"resumeCanvas":"shopping"');
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a local refill Canvas draft and resumes it on the medication report", async () => {
+    sessionStorage.setItem("vyva.refillCanvas.adherence.active", JSON.stringify({
+      step: "quantity",
+      draft: {
+        ...emptyRefillDraft,
+        medicationName: "Metformin",
+        strength: "500 mg",
+        providerName: "Saved pharmacy",
+      },
+      requestId: 0,
+    }));
+
+    renderPage("/concierge/tasks/draft%3Alocal-canvas-refill-active");
+
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Refill Canvas");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Draft");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Quantity");
+
+    apiFetchMock.mockClear();
+    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/meds/adherence-report");
+    expect(screen.getByTestId("location-state")).toHaveTextContent('"resumeCanvas":"refill"');
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
   it("opens a focused detail, keeps More details closed, and resumes the exact saved task", async () => {
     renderPage();
     fireEvent.click(await screen.findByTestId("concierge-inbox-task-pending:reply-1"));
 
     expect(await screen.findByTestId("concierge-task-detail")).toBeInTheDocument();
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Provider reply");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Needs information");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Reply");
     expect(screen.getByTestId("concierge-task-provider-reply")).toHaveTextContent("Please confirm your insurance plan.");
     expect(screen.getByTestId("concierge-task-decision")).toHaveTextContent("Prepared an answer for the clinic.");
     expect(screen.getByTestId("concierge-task-more-details")).not.toHaveAttribute("open");
@@ -158,6 +223,88 @@ describe("ConciergeTaskInboxPage", () => {
     fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
     expect(screen.getByTestId("location-path")).toHaveTextContent(`/concierge/task/${draftId}`);
     expect(screen.getByTestId("location-state")).toHaveTextContent('"conciergePendingId":"reply-1"');
+  });
+
+  it("keeps long Canvas labels keyboard-focusable at mobile width", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/concierge/tasks" || target === "/api/concierge/actions/sessions") {
+        return jsonResponse({ items: [] });
+      }
+      if (target === "/api/concierge/actions/pending") {
+        return jsonResponse({ items: [{
+          id: "long-shopping-1",
+          use_case: "shopping_request",
+          provider_name: "A very patient neighborhood grocery and prepared meals shop",
+          action_summary: "Waiting for a very long translated shopping request label that should remain readable and not force a broken layout.",
+          action_payload: {
+            flow_reference: "FLOW_SHOPPING_SUPPORT",
+            live_handoff_status: "sent_or_called",
+          },
+          status: "calling",
+          updated_at: "2026-07-19T10:00:00.000Z",
+        }] });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderPage();
+    const task = await screen.findByTestId("concierge-inbox-task-pending:long-shopping-1");
+    expect(task).toHaveAccessibleName(/Waiting/);
+    expect(screen.getByTestId("concierge-inbox-task-state-pending:long-shopping-1")).toHaveTextContent("Waiting");
+    expect(screen.getByTestId("concierge-inbox-task-scene-pending:long-shopping-1")).toHaveTextContent("Waiting");
+
+    task.focus();
+    expect(task).toHaveFocus();
+    fireEvent.click(task);
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Shopping Canvas");
+  });
+
+  it("surfaces stale blocked tasks and resumes through the safe Concierge path", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/concierge/tasks" || target === "/api/concierge/actions/sessions") {
+        return jsonResponse({ items: [] });
+      }
+      if (target === "/api/concierge/actions/pending") {
+        return jsonResponse({ items: [{
+          id: "expired-ride",
+          use_case: "book_ride",
+          provider_name: "Radio Taxi",
+          action_summary: "Waiting for Radio Taxi.",
+          action_payload: {
+            flow_reference: "FLOW_TRANSPORT_BOOKING",
+            live_handoff_status: "sent_or_called",
+          },
+          status: "calling",
+          expires_at: "2000-01-01T00:00:00.000Z",
+          updated_at: "2026-07-19T10:00:00.000Z",
+        }] });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderPage("/concierge/tasks/pending%3Aexpired-ride");
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Needs refresh");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Nothing happens without a fresh confirmation.");
+    expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Review safely");
+
+    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/expired-ride");
+    expect(screen.getByTestId("location-state")).toHaveTextContent('"conciergePendingId":"expired-ride"');
+  });
+
+  it("lets users exit a detail card without writing or losing the task", async () => {
+    renderPage("/concierge/tasks/pending%3Areply-1");
+
+    expect(await screen.findByTestId("concierge-task-detail")).toBeInTheDocument();
+    apiFetchMock.mockClear();
+    fireEvent.click(screen.getByTestId("button-concierge-task-exit"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks");
+    expect(await screen.findByTestId("concierge-task-inbox")).toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalledWith(expect.stringMatching(/details|complete|review-confirm/), expect.anything());
   });
 
   it("keeps the completed outcome and reuses it as a saved template", async () => {
