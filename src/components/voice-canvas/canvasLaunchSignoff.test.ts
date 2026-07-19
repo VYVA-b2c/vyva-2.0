@@ -1418,6 +1418,24 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects privacy review rows that also state sensitive data was logged", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent, but typed free text logged in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: result must state sensitive data was absent",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices without allowed-envelope privacy evidence", () => {
     const completed = completedMatrix().replace(
       "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",

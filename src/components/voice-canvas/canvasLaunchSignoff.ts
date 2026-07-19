@@ -1319,6 +1319,30 @@ function hasNoSensitiveDataLanguage(value: string): boolean {
   );
 }
 
+const sensitiveDataNounPattern =
+  "(?:transcripts?|spoken transcripts?|typed free text|free text|text|addresses?|saved-place labels?|saved-place contents?|labels?|medications?|medicine|strengths?|quantities?|symptoms?|providers?|provider names?|reply text|replies|notes?|references?|phone numbers?|phones?|emails?|items?|prices?|fees?|retailers?|dates?|times?|identities|contacts?|sensitive|forbidden|personal|pii|data|details?)";
+
+function hasSensitiveDataLeakageLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  const sensitiveNoun = sensitiveDataNounPattern;
+  const leakVerb = "(?:recorded|logged|sent|captured|included|stored|retained|present)";
+  const safeAbsenceLanguage = [
+    new RegExp(`\\b(?:no|none|zero|without)\\b.{0,32}\\b${sensitiveNoun}\\b.{0,32}\\b${leakVerb}\\b`, "g"),
+    new RegExp(`\\b${sensitiveNoun}\\b.{0,24}\\b(?:absent|omitted|excluded|redacted)\\b`, "g"),
+    new RegExp(`\\b${sensitiveNoun}\\b.{0,24}\\b(?:not|never)\\b.{0,16}\\b${leakVerb}\\b`, "g"),
+    new RegExp(`\\b(?:not|never)\\b.{0,16}\\b${leakVerb}\\b.{0,32}\\b${sensitiveNoun}\\b`, "g"),
+  ].reduce((current, pattern) => current.replace(pattern, " "), normalized);
+
+  return (
+    new RegExp(`\\b${sensitiveNoun}\\b.{0,32}\\b${leakVerb}\\b`).test(
+      safeAbsenceLanguage,
+    ) ||
+    new RegExp(`\\b${leakVerb}\\b.{0,32}\\b${sensitiveNoun}\\b`).test(
+      safeAbsenceLanguage,
+    )
+  );
+}
+
 function hasAnalyticsEvidenceLanguage(value: string): boolean {
   return hasAnyWord(value, [
     "analytics",
@@ -1472,7 +1496,10 @@ function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
     if (!row) continue;
     const [, result = "", evidence = ""] = row;
     if (isPlaceholderCell(result) || isPlaceholderCell(evidence)) continue;
-    if (!hasNoSensitiveDataLanguage(result)) {
+    if (
+      !hasNoSensitiveDataLanguage(result) ||
+      hasSensitiveDataLeakageLanguage(result)
+    ) {
       problems.push(`${privacyClass}: result must state sensitive data was absent`);
     }
     if (
