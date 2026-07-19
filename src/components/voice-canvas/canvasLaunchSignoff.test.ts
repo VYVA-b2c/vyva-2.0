@@ -474,6 +474,24 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch sign-offs with vague notes", () => {
+    const completed = completedMatrix().replace(
+      "| QA | Quentin QA | 2026-07-19 | Approved for launch | Device matrix complete |",
+      "| QA | Quentin QA | 2026-07-19 | Approved for launch | Looks good |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidRequiredSignoffNoteRoles).toEqual(["QA"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without concrete launch evidence"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices missing a required real-device flow row", () => {
     const completed = removeFirstTableRow(
       completedMatrix(),
@@ -2006,6 +2024,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidRequiredSignoffDateRoles).toEqual([]);
     expect(result.unapprovedRequiredSignoffRoles).toEqual([]);
     expect(result.blockedRequiredSignoffNoteRoles).toEqual([]);
+    expect(result.invalidRequiredSignoffNoteRoles).toEqual([]);
     expect(result.problems).toEqual([]);
   });
 });

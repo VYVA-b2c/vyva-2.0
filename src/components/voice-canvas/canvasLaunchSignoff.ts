@@ -98,6 +98,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   invalidRequiredSignoffDateRoles: CanvasRealDeviceQaSignoffRole[];
   unapprovedRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   blockedRequiredSignoffNoteRoles: CanvasRealDeviceQaSignoffRole[];
+  invalidRequiredSignoffNoteRoles: CanvasRealDeviceQaSignoffRole[];
   problems: string[];
 }
 
@@ -203,6 +204,47 @@ function hasBlockedLaunchSignoffNoteLanguage(value: string): boolean {
       normalized,
     )
   );
+}
+
+function hasMeaningfulLaunchSignoffNoteLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  if (isPlaceholderCell(normalized)) return false;
+  if (
+    /^(n\/?a|none|no notes?|ok|okay|approved|looks good|good|done|complete|-|—)$/.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
+
+  return hasAllWordGroups(normalized, [
+    [
+      "reviewed",
+      "verified",
+      "confirmed",
+      "complete",
+      "completed",
+      "validated",
+      "signed off",
+      "sign-off",
+    ],
+    [
+      "real-use",
+      "real use",
+      "device",
+      "matrix",
+      "evidence",
+      "rollback",
+      "stale",
+      "guard",
+      "analytics",
+      "privacy",
+      "feature flag",
+      "fallback",
+      "qa",
+      "launch",
+    ],
+  ]);
 }
 
 function isDeployedEnvironmentUrl(value: string): boolean {
@@ -1756,6 +1798,16 @@ export function evaluateCanvasRealDeviceQaMatrix(
       const notes = signoff[3] ?? "";
       return hasBlockedLaunchSignoffNoteLanguage(notes);
     });
+  const invalidRequiredSignoffNoteRoles =
+    CANVAS_REAL_DEVICE_QA_REQUIRED_SIGNOFF_ROLES.filter((role) => {
+      const signoff = signoffRows.get(role);
+      if (!signoff) return false;
+      const notes = signoff[3] ?? "";
+      return (
+        !isPlaceholderCell(notes) &&
+        !hasMeaningfulLaunchSignoffNoteLanguage(notes)
+      );
+    });
   const requiredFlowLabels = canvasLaunchReadinessFlows.map((flow) => flow.label);
   const requiredFeatureFlaggedFlowLabels = canvasLaunchReadinessFlows
     .filter((flow) => flow.featureFlag)
@@ -1911,6 +1963,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
         `Matrix has required sign-off note(s) with pending fixes, conditions, or blockers: ${blockedRequiredSignoffNoteRoles.join(", ")}.`,
       );
     }
+    if (invalidRequiredSignoffNoteRoles.length > 0) {
+      problems.push(
+        `Matrix has required sign-off note(s) without concrete launch evidence: ${invalidRequiredSignoffNoteRoles.join(", ")}.`,
+      );
+    }
   }
 
   const readyForLaunch =
@@ -1942,6 +1999,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     invalidRequiredSignoffDateRoles,
     unapprovedRequiredSignoffRoles,
     blockedRequiredSignoffNoteRoles,
+    invalidRequiredSignoffNoteRoles,
     problems,
   };
 }
