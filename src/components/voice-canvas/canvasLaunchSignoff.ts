@@ -359,21 +359,47 @@ function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] 
   return problems;
 }
 
+const interactionOutcomeWordGroups = [
+  [
+    "completed",
+    "completion",
+    "complete flow",
+    "completed flow",
+    "safely exited",
+    "safe exit",
+    "exited safely",
+    "cancelled safely",
+    "canceled safely",
+  ],
+] as const;
+
 const interactionModeRequirements = [
   {
     columnIndex: 1,
-    description: "voice cell must mention voice or spoken-command evidence",
-    wordGroups: [["voice", "spoken", "speech", "dictation"]],
+    description:
+      "voice cell must mention voice or spoken-command evidence and completion or safe exit",
+    wordGroups: [
+      ["voice", "spoken", "speech", "dictation"],
+      ...interactionOutcomeWordGroups,
+    ],
   },
   {
     columnIndex: 2,
-    description: "touch cell must mention touch or tap evidence",
-    wordGroups: [["touch", "tap", "tapped"]],
+    description:
+      "touch cell must mention touch or tap evidence and completion or safe exit",
+    wordGroups: [
+      ["touch", "tap", "tapped"],
+      ...interactionOutcomeWordGroups,
+    ],
   },
   {
     columnIndex: 3,
-    description: "keyboard cell must mention keyboard navigation evidence",
-    wordGroups: [["keyboard", "tab", "enter"]],
+    description:
+      "keyboard cell must mention keyboard navigation evidence and completion or safe exit",
+    wordGroups: [
+      ["keyboard", "tab", "enter"],
+      ...interactionOutcomeWordGroups,
+    ],
   },
 ] as const;
 

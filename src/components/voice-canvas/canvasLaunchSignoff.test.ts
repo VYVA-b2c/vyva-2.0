@@ -555,10 +555,32 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidInteractionModeRows).toEqual([
-      "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence",
-      "Ride Voice Canvas: touch cell must mention touch or tap evidence",
-      "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence",
+      "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence and completion or safe exit",
+      "Ride Voice Canvas: touch cell must mention touch or tap evidence and completion or safe exit",
+      "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence and completion or safe exit",
       "Ride Voice Canvas: interaction-mode evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without completion or safe-exit interaction evidence", () => {
+    const completed = completedMatrix().replace(
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands were tested | Touch taps were tested | Keyboard navigation was tested | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence and completion or safe exit",
+      "Ride Voice Canvas: touch cell must mention touch or tap evidence and completion or safe exit",
+      "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence and completion or safe exit",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
