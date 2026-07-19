@@ -415,6 +415,17 @@ const behaviorChecklistRequirements = [
   {
     columnIndex: 9,
     description:
+      "recoverable failure retry cell must mention recoverable failure, retry, and exit evidence",
+    wordGroups: [
+      ["recoverable"],
+      ["failure", "failed", "blocked"],
+      ["retry"],
+      ["exit", "cancel", "recover", "recovery"],
+    ],
+  },
+  {
+    columnIndex: 10,
+    description:
       "senior-friendly copy cell must mention senior copy and what happens next",
     wordGroups: [
       ["senior"],
@@ -423,7 +434,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 10,
+    columnIndex: 11,
     description: "privacy-safe analytics cell must mention privacy and analytics evidence",
     wordGroups: [
       ["privacy"],
@@ -452,7 +463,7 @@ function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
       }
     }
 
-    const evidence = row[11] ?? "";
+    const evidence = row[12] ?? "";
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&

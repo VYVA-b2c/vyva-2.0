@@ -45,16 +45,16 @@ For final sign-off, phone/tablet/desktop cells must name the real device class o
 
 Record one pass/fail line for each flow and behavior. If a behavior is not applicable, explain why and identify the substitute evidence.
 
-For final sign-off, each behavior cell must name the behavior checked, such as start/resume, refresh/reconnect, voice interruption and recovery, browser back, cancel/exit, flag rollback/fallback, confirmation safety, duplicate/stale guard, senior-friendly copy, or privacy-safe analytics. Evidence must include a dated QA or reviewer note.
+For final sign-off, each behavior cell must name the behavior checked, such as start/resume, refresh/reconnect, voice interruption and recovery, browser back, cancel/exit, flag rollback/fallback, confirmation safety, duplicate/stale guard, recoverable failure retry/exit, senior-friendly copy, or privacy-safe analytics. Evidence must include a dated QA or reviewer note.
 
-| Flow | Start/resume | Refresh/reconnect | Voice interruption | Browser back | Cancel/exit | Flag rollback/fallback | No external action before explicit confirmation | Duplicate/stale guard | Senior-friendly copy and what happens next | Privacy-safe analytics | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Ride Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Appointment Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Medication Refill Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Shopping Delivery Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Provider Reply Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| Concierge Task Hub Resume | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Flow | Start/resume | Refresh/reconnect | Voice interruption | Browser back | Cancel/exit | Flag rollback/fallback | No external action before explicit confirmation | Duplicate/stale guard | Recoverable failure retry | Senior-friendly copy and what happens next | Privacy-safe analytics | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Ride Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Appointment Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Medication Refill Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Shopping Delivery Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Provider Reply Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Concierge Task Hub Resume | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 
 ## Feature endpoint and rollback checks
 
