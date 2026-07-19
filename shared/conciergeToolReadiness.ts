@@ -8,6 +8,9 @@ export interface ConciergeToolProviderSnapshot {
   whatsapp?: unknown;
   booking_url?: unknown;
   url?: unknown;
+  website?: unknown;
+  websiteUrl?: unknown;
+  website_uri?: unknown;
   availableChannels?: unknown;
   actions?: unknown;
   providerName?: unknown;
@@ -72,7 +75,13 @@ function providerHasTool(provider: ConciergeToolProviderSnapshot | null | undefi
     case "whatsapp":
       return Boolean(cleanText(provider.whatsapp));
     case "booking_link":
-      return Boolean(cleanText(provider.booking_url) || cleanText(provider.url));
+      return Boolean(
+        cleanText(provider.booking_url)
+        || cleanText(provider.url)
+        || cleanText(provider.website)
+        || cleanText(provider.websiteUrl)
+        || cleanText(provider.website_uri)
+      );
     case "operator_review":
       return true;
     case "camera_or_upload":

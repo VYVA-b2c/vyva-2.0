@@ -367,6 +367,7 @@ type ConciergeProfileSummary = {
     preferred_channel?: string | null;
     address?: string | null;
     websiteUrl?: string | null;
+    website_uri?: string | null;
     notes?: string | null;
     isTrusted?: boolean | null;
     isDefault?: boolean | null;
@@ -3663,7 +3664,6 @@ function savedPharmacyName(profile: ConciergeProfileSummary | null | undefined):
 }
 
 function profileHasSavedPharmacy(profile: ConciergeProfileSummary | null | undefined): boolean {
-  if (profile?.serviceReadiness?.hasSavedPharmacy) return true;
   return Boolean(savedPharmacyName(profile));
 }
 
@@ -3677,7 +3677,6 @@ function savedMedicalProviderName(profile: ConciergeProfileSummary | null | unde
 }
 
 function profileHasSavedMedicalProvider(profile: ConciergeProfileSummary | null | undefined): boolean {
-  if (profile?.serviceReadiness?.hasSavedDoctor) return true;
   return Boolean(savedMedicalProviderName(profile));
 }
 
@@ -3691,7 +3690,6 @@ function savedTransportProviderName(profile: ConciergeProfileSummary | null | un
 }
 
 function profileHasSavedTransportProvider(profile: ConciergeProfileSummary | null | undefined): boolean {
-  if (profile?.serviceReadiness?.hasSavedTransportProvider) return true;
   return Boolean(savedTransportProviderName(profile));
 }
 
@@ -3735,6 +3733,7 @@ function preferredToolForSavedProvider(
   if (preferredChannel === "whatsapp") return "whatsapp";
   if (preferredChannel === "email") return "email";
   if (provider?.bookingUrl?.trim() || provider?.booking_url?.trim()) return "booking_link";
+  if (provider?.websiteUrl?.trim()) return "booking_link";
   if (provider?.phone?.trim()) return "phone_call";
   if (provider?.whatsapp?.trim()) return "whatsapp";
   if (provider?.email?.trim()) return "email";
@@ -10383,6 +10382,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           email: savedPharmacyProviderDetailsValue.email,
           whatsapp: savedPharmacyProviderDetailsValue.whatsapp,
           booking_url: savedPharmacyProviderDetailsValue.bookingUrl || savedPharmacyProviderDetailsValue.booking_url,
+          websiteUrl: savedPharmacyProviderDetailsValue.websiteUrl,
+          website_uri: savedPharmacyProviderDetailsValue.website_uri,
         }
       : {
           name: savedPharmacy || "pharmacy",
@@ -10401,6 +10402,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           email: savedTransportProviderDetailsValue.email,
           whatsapp: savedTransportProviderDetailsValue.whatsapp,
           booking_url: savedTransportProviderDetailsValue.bookingUrl || savedTransportProviderDetailsValue.booking_url,
+          websiteUrl: savedTransportProviderDetailsValue.websiteUrl,
+          website_uri: savedTransportProviderDetailsValue.website_uri,
         }
       : {
           name: savedTransportProvider || "transport",
@@ -10419,6 +10422,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           email: savedHomeServiceProviderDetailsValue.email,
           whatsapp: savedHomeServiceProviderDetailsValue.whatsapp,
           booking_url: savedHomeServiceProviderDetailsValue.bookingUrl || savedHomeServiceProviderDetailsValue.booking_url,
+          websiteUrl: savedHomeServiceProviderDetailsValue.websiteUrl,
+          website_uri: savedHomeServiceProviderDetailsValue.website_uri,
         }
       : {
           name: savedHomeServiceProvider || "home service",

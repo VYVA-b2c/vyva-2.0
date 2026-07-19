@@ -181,7 +181,7 @@ function toolFromPayload(
   if (channel === "web_search") return "web_search";
   if (channel === "camera_or_upload") return "camera_or_upload";
   if (channel === "operator_review" || channel === "manual" || channel === "manual_review") return "operator_review";
-  if (clean(payload.booking_url || payload.provider_booking_url)) return "booking_link";
+  if (clean(payload.booking_url || payload.provider_booking_url || payload.website || payload.website_url || payload.website_uri)) return "booking_link";
   if (clean(payload.email || payload.provider_email || payload.email_draft_subject)) return "email";
   if (clean(payload.whatsapp || payload.provider_whatsapp || payload.whatsapp_message)) return "whatsapp";
   if (providerPhone || clean(payload.phone || payload.provider_phone || payload.contact_phone)) return "phone_call";
@@ -255,8 +255,8 @@ function toolSpecificMissingRequirement(
   if (tool === "whatsapp" && !payloadHasCleanString(payload, ["recipient_whatsapp", "provider_whatsapp", "to_whatsapp", "whatsapp_to", "whatsapp_number", "whatsapp"])) {
     return missingToolRequirement("WhatsApp number", "Numero de WhatsApp");
   }
-  if (tool === "booking_link" && !payloadHasCleanString(payload, ["form_automation_prefilled_url", "booking_url", "provider_booking_url", "website", "url"])) {
-    return missingToolRequirement("Form or booking link", "Formulario o enlace");
+  if (tool === "booking_link" && !payloadHasCleanString(payload, ["form_automation_prefilled_url", "booking_url", "provider_booking_url", "website", "website_url", "website_uri", "url"])) {
+    return missingToolRequirement("Website or booking link", "Web o enlace");
   }
   return null;
 }
