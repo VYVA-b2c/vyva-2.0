@@ -18,6 +18,8 @@ The recoverable-failure gate now requires explicit retry plus exit or cancel evi
 
 Behavior rows that require no-write evidence now require explicit no-write wording; submission-only wording and no-external-action wording alone are rejected so launch evidence cannot blur local writes, endpoint writes, and external side effects.
 
+Behavior rows that require no-external-action evidence now require explicit no-external-action wording; sent/submitted shorthand alone is rejected so launch evidence cannot blur UI submission state with booking, call, message, navigation, endpoint, or other external-action safety.
+
 The task hub no-side-effects gate now requires explicit no-write and no-external-action wording before confirmation; softer submission-only wording is rejected so destination resume evidence cannot obscure booking, call, message, navigation, endpoint, or other external-action risk.
 
 ## Requirement audit
@@ -40,7 +42,7 @@ The task hub no-side-effects gate now requires explicit no-write and no-external
 
 - Focused readiness suite with server flag checks:
   - `$env:DATABASE_URL='file:./dev.db'; npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx`
-  - Result: 219 tests passed after behavior no-write evidence hardening.
+  - Result: 221 tests passed after behavior no-external-action evidence hardening.
 - Browser readiness:
   - `npm run test:e2e -- e2e/voice-canvas-production-readiness.spec.ts e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts e2e/canvas-launch-readiness.spec.ts e2e/task-hub-resume-launch-readiness.spec.ts`
   - Result: 18 tests passed on the current launch-readiness branch after the latest sign-off gate hardening, with refreshed appointment and refill screenshots under `src/dev/voice-canvas/`.

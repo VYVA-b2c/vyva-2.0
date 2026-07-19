@@ -756,6 +756,14 @@ const explicitNoWriteEvidenceWords = [
   "without writes",
 ] as const;
 
+const explicitNoExternalActionEvidenceWords = [
+  "no external action",
+  "no external actions",
+  "no-external-action",
+  "without external action",
+  "without external actions",
+] as const;
+
 const behaviorChecklistRequirements = [
   {
     columnIndex: 1,
@@ -766,6 +774,7 @@ const behaviorChecklistRequirements = [
       ["resume", "resumed", "restore", "restored"],
       ["preserve", "preserved", "restore", "restored", "same scene", "current scene", "draft"],
       explicitNoWriteEvidenceWords,
+      explicitNoExternalActionEvidenceWords,
     ],
   },
   {
@@ -777,6 +786,7 @@ const behaviorChecklistRequirements = [
       ["reopen", "reopened", "return", "returned"],
       ["restore", "restored", "resume", "resumed", "draft"],
       explicitNoWriteEvidenceWords,
+      explicitNoExternalActionEvidenceWords,
     ],
   },
   {
@@ -788,6 +798,7 @@ const behaviorChecklistRequirements = [
       ["reconnect", "reconnected", "network"],
       ["preserve", "preserved", "restore", "restored", "resume", "resumed", "draft"],
       explicitNoWriteEvidenceWords,
+      explicitNoExternalActionEvidenceWords,
     ],
   },
   {
@@ -799,6 +810,7 @@ const behaviorChecklistRequirements = [
       ["recover", "recovery", "resume", "continued", "restored"],
       ["preserve", "preserved", "restore", "restored", "same scene", "current scene", "draft"],
       explicitNoWriteEvidenceWords,
+      explicitNoExternalActionEvidenceWords,
     ],
   },
   {
@@ -809,6 +821,7 @@ const behaviorChecklistRequirements = [
       ["back"],
       ["preserve", "preserved", "restore", "restored", "return", "returned"],
       explicitNoWriteEvidenceWords,
+      explicitNoExternalActionEvidenceWords,
     ],
   },
   {
@@ -818,6 +831,7 @@ const behaviorChecklistRequirements = [
       ["cancel"],
       ["exit", "leave"],
       explicitNoWriteEvidenceWords,
+      explicitNoExternalActionEvidenceWords,
     ],
   },
   {
@@ -830,6 +844,7 @@ const behaviorChecklistRequirements = [
       ["fallback"],
       ["existing", "previous", "old", "safe concierge"],
       explicitNoWriteEvidenceWords,
+      explicitNoExternalActionEvidenceWords,
     ],
   },
   {
@@ -837,13 +852,7 @@ const behaviorChecklistRequirements = [
     description:
       "confirmation safety cell must mention no external action, write, booking, call, message, and navigation before explicit confirmation",
     wordGroups: [
-      [
-        "no external action",
-        "without external action",
-        "no action",
-        "nothing sent",
-        "nothing submitted",
-      ],
+      explicitNoExternalActionEvidenceWords,
       explicitNoWriteEvidenceWords,
       [
         "no booking",
@@ -906,6 +915,7 @@ const behaviorChecklistRequirements = [
       ["retry"],
       ["exit", "cancel"],
       explicitNoWriteEvidenceWords,
+      explicitNoExternalActionEvidenceWords,
     ],
   },
   {
