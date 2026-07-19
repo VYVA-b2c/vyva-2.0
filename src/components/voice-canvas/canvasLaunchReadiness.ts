@@ -126,6 +126,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
         "docs/runbooks/ride-voice-canvas-rollout.md",
       ],
       feature_flag_fallback: [
+        "server/lib/canvasFeatureFlags.test.ts",
         "src/components/voice-canvas/rideCanvasRollout.test.ts",
         "docs/runbooks/ride-voice-canvas-rollout.md",
       ],
@@ -182,6 +183,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
         "docs/runbooks/appointment-voice-canvas-rollout.md",
       ],
       feature_flag_fallback: [
+        "server/lib/canvasFeatureFlags.test.ts",
         "src/components/voice-canvas/appointmentCanvasRollout.test.ts",
         "docs/runbooks/appointment-voice-canvas-rollout.md",
       ],
@@ -238,6 +240,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
         "docs/runbooks/medication-refill-voice-canvas-rollout.md",
       ],
       feature_flag_fallback: [
+        "server/lib/canvasFeatureFlags.test.ts",
         "src/components/voice-canvas/refillCanvasRollout.test.ts",
         "src/pages/AdherenceReportScreen.actions.test.tsx",
         "docs/runbooks/medication-refill-voice-canvas-rollout.md",
@@ -303,6 +306,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
         sharedLaunchRunbook,
       ],
       feature_flag_fallback: [
+        "server/lib/canvasFeatureFlags.test.ts",
         "src/components/voice-canvas/shoppingCanvasRollout.test.ts",
         "src/pages/ConciergeShoppingScreen.test.tsx",
       ],
@@ -363,6 +367,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
         "src/pages/ConciergeTaskInboxPage.test.tsx",
       ],
       feature_flag_fallback: [
+        "server/lib/canvasFeatureFlags.test.ts",
         "src/components/voice-canvas/providerReplyCanvasRollout.test.ts",
         "src/pages/ConciergeScreen.test.tsx",
       ],

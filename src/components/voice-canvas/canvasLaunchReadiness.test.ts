@@ -51,6 +51,10 @@ describe("Canvas launch readiness manifest", () => {
       path.resolve(process.cwd(), "server/index.ts"),
       "utf8",
     );
+    const serverFeatureFlags = readFileSync(
+      path.resolve(process.cwd(), "server/lib/canvasFeatureFlags.ts"),
+      "utf8",
+    );
 
     for (const flow of canvasLaunchReadinessFlows) {
       if (!flow.featureFlag) continue;
@@ -58,8 +62,8 @@ describe("Canvas launch readiness manifest", () => {
         serverIndex.includes(`app.get("${flow.featureFlag.endpoint}"`),
         flow.featureFlag.endpoint,
       ).toBe(true);
-      expect(serverIndex).toContain(flow.featureFlag.enableEnv);
-      expect(serverIndex).toContain(flow.featureFlag.rolloutEnv);
+      expect(serverFeatureFlags).toContain(flow.featureFlag.enableEnv);
+      expect(serverFeatureFlags).toContain(flow.featureFlag.rolloutEnv);
     }
   });
 
