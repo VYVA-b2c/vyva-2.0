@@ -987,6 +987,24 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects Spanish long-label rows that mention overflow without proving no overflow", () => {
+    const completed = completedMatrix().replace(
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 |",
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Spanish copy and long labels remain readable without horizontal overflow: result must mention Spanish long-label readability without horizontal overflow",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague privacy review rows", () => {
     const completed = completedMatrix().replace(
       "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",

@@ -1022,7 +1022,15 @@ const copyAccessibilityResultRequirements: Record<
     resultWordGroups: [
       ["spanish"],
       ["long label", "long labels"],
-      ["readable", "overflow", "horizontal overflow", "no horizontal overflow"],
+      ["readable", "legible"],
+      [
+        "no horizontal overflow",
+        "without horizontal overflow",
+        "no overflow",
+        "without overflow",
+        "not clipped",
+        "not truncated",
+      ],
     ],
     evidenceDescription:
       "evidence must reference dated Spanish, long-label, overflow, or screenshot review",
