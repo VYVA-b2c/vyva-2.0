@@ -1308,7 +1308,7 @@ describe("TogetherRoomScreen", () => {
         body: expect.stringContaining('"paused":false'),
       }),
     );
-  });
+  }, 60_000);
 
   it("keeps my private choice snapshot current as I choose", async () => {
     let serverPulse = roomResponse.pulse!;

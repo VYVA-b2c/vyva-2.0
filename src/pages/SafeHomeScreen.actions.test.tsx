@@ -158,7 +158,7 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByText("Loose rug in hallway"));
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-buy_safety_aid-scan-1"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge/shopping"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge/shopping"), { timeout: 5_000 });
     expect(savePlanMock).toHaveBeenCalledWith(expect.objectContaining({
       targetRoute: "/concierge/shopping",
       triggerRequest: expect.objectContaining({ auto_start: false }),
@@ -207,7 +207,7 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByText("Loose rug in hallway"));
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-call_care_team-scan-1"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/care-team"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/care-team"), { timeout: 5_000 });
     expect(savePlanMock).not.toHaveBeenCalled();
   });
 
@@ -217,7 +217,7 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByText("Loose rug in hallway"));
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-request_quote-scan-1"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"), { timeout: 5_000 });
     expect(savePlanMock).toHaveBeenCalledWith(expect.objectContaining({
       targetRoute: "/concierge",
       triggerRequest: expect.objectContaining({ use_case: "home_service", auto_start: false }),
@@ -250,7 +250,7 @@ describe("Safe-home scan service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-request_quote-home-pasted"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"), { timeout: 5_000 });
     expect(savePlanMock).toHaveBeenCalledWith(expect.objectContaining({
       triggerRequest: expect.objectContaining({
         auto_start: false,

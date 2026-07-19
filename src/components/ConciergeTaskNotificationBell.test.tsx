@@ -74,4 +74,17 @@ describe("ConciergeTaskNotificationBell", () => {
       { method: "POST" },
     ));
   });
+
+  it("treats a malformed notification response as empty instead of crashing the shell", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (url === "/api/concierge/notifications") return jsonResponse({});
+      return jsonResponse({ ok: true });
+    });
+
+    renderBell();
+
+    await waitFor(() => expect(screen.queryByTestId("concierge-task-notification-count")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("button-concierge-task-notifications"));
+    expect(await screen.findByText("You are up to date")).toBeInTheDocument();
+  });
 });

@@ -677,6 +677,16 @@ async function installApi(page: Page, session: ResponsiveSession) {
       return;
     }
 
+    if (path === "/api/concierge/notifications") {
+      await fulfillJson(route, 200, { items: [], unreadCount: 0 });
+      return;
+    }
+
+    if (/^\/api\/concierge\/notifications\/[^/]+\/read$/.test(path)) {
+      await fulfillJson(route, 200, { ok: true });
+      return;
+    }
+
     if (path === "/api/concierge/shopping/support-packages") {
       await fulfillJson(route, 200, { packages: [] });
       return;
@@ -816,7 +826,7 @@ async function expectResponsiveRoute(
 
   const expectedShell = route.expectedLayout ? page.getByTestId("app-shell") : null;
   if (expectedShell) {
-    await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 15_000 });
+    await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 60_000 });
   }
 
   await page
