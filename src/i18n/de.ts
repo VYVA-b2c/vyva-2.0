@@ -1509,6 +1509,11 @@ const de = {
       later: "Spater",
       dismiss: "Ausblenden",
     },
+    showVyvaReviewResume: {
+      kicker: "Aktuelle Show VYVA",
+      title: "Diese Prufung fortsetzen",
+      action: "Offnen",
+    },
   },
   concierge: {
     fastHelp: {

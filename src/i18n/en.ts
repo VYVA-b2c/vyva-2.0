@@ -1939,6 +1939,11 @@
       later: "Later",
       dismiss: "Dismiss",
     },
+    showVyvaReviewResume: {
+      kicker: "Recent Show VYVA",
+      title: "Continue this review",
+      action: "Open",
+    },
     nudge: {
       text: "Not sure where to start?",
       action: "Ask VYVA",

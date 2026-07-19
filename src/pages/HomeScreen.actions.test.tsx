@@ -8,6 +8,7 @@ import {
   mergeSyncedHomeFastHelpJourneys,
   startHomeFastHelpJourney,
 } from "@/lib/homeFastHelpOutcome";
+import { SHOW_VYVA_REVIEW_HISTORY_KEY } from "@/lib/showVyvaReviewHistory";
 
 const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
@@ -558,6 +559,57 @@ describe("Home fast service actions", () => {
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/show-vyva-scam-1", { state: { focusRightNow: true, conciergePendingId: "show-vyva-scam-1" } });
+  });
+
+  it("surfaces the latest unresolved Show VYVA review from Home without exposing raw reviewed content", () => {
+    window.localStorage.setItem(SHOW_VYVA_REVIEW_HISTORY_KEY, JSON.stringify([
+      {
+        id: "review-unresolved",
+        reviewedAt: "2026-07-19T10:00:00.000Z",
+        useCaseId: "provider_or_deal",
+        followUpContext: "provider_deal",
+        inputType: "company_name",
+        source: "paste_text",
+        summary: "Possible overcharging in a service quote.",
+        decision: "Check before agreeing",
+        confidenceLabel: "Needs review",
+        actionSaved: false,
+        savedActionLabel: null,
+        resumeRoute: "/scam-guard",
+      },
+      {
+        id: "review-saved",
+        reviewedAt: "2026-07-18T10:00:00.000Z",
+        useCaseId: "scam_check",
+        followUpContext: "scam",
+        inputType: "phone_number",
+        source: "paste_text",
+        summary: "Suspicious phone number.",
+        decision: "Do not call back yet",
+        confidenceLabel: "Clear risk",
+        actionSaved: true,
+        savedActionLabel: "Block or report",
+        resumeRoute: "/scam-guard",
+      },
+    ]));
+
+    render(<HomeScreen />);
+
+    const nudge = screen.getByTestId("card-home-show-vyva-review-resume");
+    expect(nudge).toHaveTextContent("Recent Show VYVA");
+    expect(nudge).toHaveTextContent("Continue this review");
+    expect(nudge).toHaveTextContent("Check before agreeing");
+    expect(nudge).toHaveTextContent("Possible overcharging in a service quote.");
+    expect(nudge).not.toHaveTextContent("+34 600 111 222");
+
+    fireEvent.click(nudge);
+
+    expect(guardPathMock).toHaveBeenCalledWith("/scam-guard", {
+      state: {
+        showVyvaReviewHistoryId: "review-unresolved",
+        showVyvaResume: true,
+      },
+    });
   });
 
   it("surfaces a saved provider shortlist and opens the exact Concierge task", () => {

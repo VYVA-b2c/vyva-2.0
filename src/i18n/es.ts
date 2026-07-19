@@ -1639,6 +1639,11 @@ const es = {
       later: "Mas tarde",
       dismiss: "Descartar",
     },
+    showVyvaReviewResume: {
+      kicker: "Show VYVA reciente",
+      title: "Continuar esta revision",
+      action: "Abrir",
+    },
   },
   concierge: {
     fastHelp: {
