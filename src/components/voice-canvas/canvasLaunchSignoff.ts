@@ -55,6 +55,7 @@ export const CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES = [
   "Spoken transcripts",
   "Typed free text",
   "Addresses or saved-place labels",
+  "Ride pickup, dropoff, destination, or route details",
   "Medication names, strengths, quantities, or symptoms",
   "Provider names, reply text, notes, references, phone numbers, or emails",
   "Shopping item names, prices, fees, or retailer names",
@@ -1434,7 +1435,7 @@ function invalidCopyAccessibilityRows(sections: Map<string, string[][]>): string
 function hasNoSensitiveDataLanguage(value: string): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   const noSensitiveNounPattern =
-    /\b(no|none|zero)\b\W{0,24}\b(transcript|transcripts|text|address|addresses|label|labels|medication|medications|medicine|strength|strengths|quantity|quantities|symptom|symptoms|provider|providers|reply|notes?|reference|references|phone|phones|email|emails|item|items|price|prices|fee|fees|retailer|retailers|date|dates|time|times|identity|identities|contact|contacts|sensitive|forbidden|personal|pii|data|details?)\b/;
+    /\b(no|none|zero)\b\W{0,24}\b(transcript|transcripts|text|address|addresses|saved-place|saved place|place|places|label|labels|pickup|pick-up|dropoff|drop-off|destination|destinations|route|routes|location|locations|coordinate|coordinates|ride detail|ride details|medication|medications|medicine|strength|strengths|quantity|quantities|symptom|symptoms|provider|providers|reply|notes?|reference|references|phone|phones|email|emails|item|items|price|prices|fee|fees|retailer|retailers|date|dates|time|times|identity|identities|contact|contacts|sensitive|forbidden|personal|pii|data|details?)\b/;
 
   return (
     /\bnot (recorded|logged|present|sent|captured|included|stored|retained)\b/.test(
@@ -1446,7 +1447,7 @@ function hasNoSensitiveDataLanguage(value: string): boolean {
 }
 
 const sensitiveDataNounPattern =
-  "(?:transcripts?|spoken transcripts?|typed free text|free text|text|addresses?|saved-place labels?|saved-place contents?|labels?|medications?|medicine|strengths?|quantities?|symptoms?|providers?|provider names?|reply text|replies|notes?|references?|phone numbers?|phones?|emails?|items?|prices?|fees?|retailers?|dates?|times?|identities|contacts?|sensitive|forbidden|personal|pii|data|details?)";
+  "(?:transcripts?|spoken transcripts?|typed free text|free text|text|addresses?|saved-place labels?|saved-place contents?|saved places?|saved-place names?|place labels?|place names?|labels?|pickups?|pick-ups?|dropoffs?|drop-offs?|destinations?|routes?|locations?|coordinates?|ride details?|medications?|medicine|strengths?|quantities?|symptoms?|providers?|provider names?|reply text|replies|notes?|references?|phone numbers?|phones?|emails?|items?|prices?|fees?|retailers?|dates?|times?|identities|contacts?|sensitive|forbidden|personal|pii|data|details?)";
 
 function hasSensitiveDataLeakageLanguage(value: string): boolean {
   const normalized = normalizeCell(value).toLowerCase();
@@ -1553,7 +1554,8 @@ function hasAnalyticsSignalEvidenceLanguage(value: string): boolean {
       "counter",
     ]) &&
     hasAnyWord(value, ["aggregate", "signal", "count"]) &&
-    hasAnyWord(value, ["allowed envelope", "envelope", "privacy-safe"])
+    hasAnyWord(value, ["allowed envelope", "envelope", "privacy-safe"]) &&
+    !hasSensitiveDataLeakageLanguage(value)
   );
 }
 
@@ -1631,7 +1633,8 @@ function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
     if (
       !hasAnalyticsEvidenceLanguage(evidence) ||
       !hasDatedEvidenceLanguage(evidence) ||
-      !hasAllowedEnvelopeFieldsLanguage(evidence)
+      !hasAllowedEnvelopeFieldsLanguage(evidence) ||
+      hasSensitiveDataLeakageLanguage(evidence)
     ) {
       problems.push(
         `${privacyClass}: evidence must reference dated analytics or telemetry review with only allowed envelope fields`,

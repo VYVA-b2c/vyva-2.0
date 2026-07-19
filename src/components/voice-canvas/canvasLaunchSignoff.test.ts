@@ -266,6 +266,7 @@ function fillPrivacyReviewRows(markdown: string): string {
     "Spoken transcripts",
     "Typed free text",
     "Addresses or saved-place labels",
+    "Ride pickup, dropoff, destination, or route details",
     "Medication names, strengths, quantities, or symptoms",
     "Provider names, reply text, notes, references, phone numbers, or emails",
     "Shopping item names, prices, fees, or retailer names",
@@ -1528,6 +1529,24 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects privacy evidence that also states sensitive ride details were logged", () => {
+    const completed = completedMatrix().replace(
+      "| Ride pickup, dropoff, destination, or route details | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Ride pickup, dropoff, destination, or route details | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields, but pickup destination logged in the sample |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Ride pickup, dropoff, destination, or route details: evidence must reference dated analytics or telemetry review with only allowed envelope fields",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices without allowed-envelope privacy evidence", () => {
     const completed = completedMatrix().replace(
       "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
@@ -1560,6 +1579,24 @@ describe("Canvas real-device QA sign-off", () => {
       "Resumed: source event must match the canonical launch signal",
       "Resumed: result must mention the aggregate signal/count reviewed with a positive numeric count",
       "Resumed: evidence must reference dated aggregate telemetry with allowed envelope fields",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
+  it("rejects analytics signal evidence that includes sensitive data leakage", () => {
+    const completed = completedMatrix().replace(
+      "| Confirmed | confirmation_submitted source event verified | Confirmed aggregate signal count 4 observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+      "| Confirmed | confirmation_submitted source event verified | Confirmed aggregate signal count 4 observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields and route details captured in the sample |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Confirmed: evidence must reference dated aggregate telemetry with allowed envelope fields",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics signal row")]),
