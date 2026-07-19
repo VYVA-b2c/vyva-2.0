@@ -43,7 +43,7 @@ For final sign-off, phone/tablet/desktop cells must affirmatively name the real 
 
 ## Interaction mode coverage
 
-Each flow must be completed or safely exited using voice, touch, and keyboard. For final sign-off, each cell must name the interaction mode tested and affirmatively state that the flow was completed or safely exited rather than only saying that QA passed. Negative wording such as not completed, not safely exited, or not tested is rejected in both result and evidence notes. Evidence must include a dated QA or reviewer note with a valid non-future `YYYY-MM-DD` date.
+Each flow must be completed or safely exited using voice, touch, and keyboard. For final sign-off, each cell must name the interaction mode tested and affirmatively state that the flow was completed or safely exited rather than only saying that QA passed. Negative wording such as not completed, not safely exited, or not tested is rejected in both result and evidence notes. Evidence must include a dated QA or reviewer note with a valid non-future `YYYY-MM-DD` date that names voice, touch, keyboard, and completion or safe exit.
 
 | Flow | Voice | Touch | Keyboard | Evidence |
 | --- | --- | --- | --- | --- |

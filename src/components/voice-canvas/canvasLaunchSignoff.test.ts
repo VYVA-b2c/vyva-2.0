@@ -244,7 +244,7 @@ function fillInteractionModeRows(markdown: string): string {
         "Interaction mode coverage",
         flow,
         4,
-        `| ${flow} | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |`,
+        `| ${flow} | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |`,
       ),
     markdown,
   );
@@ -527,7 +527,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices missing an interaction-mode row", () => {
     const completed = completedMatrix().replace(
-      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |\n",
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |\n",
       "",
     );
 
@@ -933,7 +933,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague interaction-mode evidence", () => {
     const completed = completedMatrix().replace(
-      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |",
       "| Ride Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
     );
 
@@ -945,7 +945,27 @@ describe("Canvas real-device QA sign-off", () => {
       "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence and completion or safe exit",
       "Ride Voice Canvas: touch cell must mention touch or tap evidence and completion or safe exit",
       "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence and completion or safe exit",
-      "Ride Voice Canvas: interaction-mode evidence must include dated QA or reviewer evidence",
+      "Ride Voice Canvas: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects interaction evidence notes that omit voice, touch, and keyboard coverage", () => {
+    const completed = completedMatrix().replace(
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
@@ -956,8 +976,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects interaction evidence notes with contradictory completion wording", () => {
     const completed = completedMatrix().replace(
-      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
-      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 but keyboard path not completed |",
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 but keyboard path not completed |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -965,7 +985,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidInteractionModeRows).toEqual([
-      "Ride Voice Canvas: interaction-mode evidence must include dated QA or reviewer evidence",
+      "Ride Voice Canvas: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
@@ -976,8 +996,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices without completion or safe-exit interaction evidence", () => {
     const completed = completedMatrix().replace(
-      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
-      "| Ride Voice Canvas | Voice commands were tested | Touch taps were tested | Keyboard navigation was tested | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands were tested | Touch taps were tested | Keyboard navigation was tested | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -998,8 +1018,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects interaction-mode rows with negative completion wording", () => {
     const completed = completedMatrix().replace(
-      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
-      "| Ride Voice Canvas | Voice commands not completed flow evidence | Touch tap path not completed flow evidence | Keyboard-only not completed flow evidence | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands not completed flow evidence | Touch tap path not completed flow evidence | Keyboard-only not completed flow evidence | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);

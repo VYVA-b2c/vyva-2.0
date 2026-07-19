@@ -87,6 +87,8 @@ Keep `docs/audits/voice-canvas-real-device-qa-matrix.md` marked **pending execut
 
 For privacy rows, the result and evidence must name the specific forbidden data class being reviewed. Generic no-sensitive-data wording does not satisfy launch sign-off.
 
+For interaction-mode rows, the evidence note must name voice, touch, keyboard, and completion or safe exit. Generic screenshot/log evidence does not satisfy launch sign-off.
+
 For recoverable failures, the behavior row must explicitly prove both retry and an exit or cancel path. Generic recovery wording without a clear exit/cancel path does not satisfy launch sign-off.
 
 For behavior rows that require no-write evidence, explicitly state no write or without write. Submission-only wording such as `not submitted`, `nothing submitted`, or `without submitting`, and no-external-action wording by itself, does not prove the write boundary for launch sign-off.

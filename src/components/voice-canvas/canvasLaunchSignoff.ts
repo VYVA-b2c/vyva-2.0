@@ -739,16 +739,28 @@ function invalidInteractionModeRows(sections: Map<string, string[][]>): string[]
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&
-      (!hasDatedEvidenceLanguage(evidence) ||
+      (!hasInteractionModeEvidenceLanguage(evidence) ||
         hasNegativeInteractionOutcomeLanguage(evidence))
     ) {
       problems.push(
-        `${flow.label}: interaction-mode evidence must include dated QA or reviewer evidence`,
+        `${flow.label}: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit evidence`,
       );
     }
   }
 
   return problems;
+}
+
+function hasInteractionModeEvidenceLanguage(value: string): boolean {
+  return (
+    hasDatedEvidenceLanguage(value, ["qa", "reviewer", "evidence", "screenshot", "log"]) &&
+    hasAllWordGroups(value, [
+      ["voice", "spoken"],
+      ["touch", "tap"],
+      ["keyboard", "tab", "enter"],
+      ...interactionOutcomeWordGroups,
+    ])
+  );
 }
 
 const explicitNoWriteEvidenceWords = [
