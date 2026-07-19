@@ -1573,8 +1573,13 @@ const copyAccessibilityResultRequirements: Record<
       ["one clear decision", "single decision", "one decision"],
     ],
     evidenceDescription:
-      "evidence must reference dated English copy or screenshot review",
-    evidenceWordGroups: [["english", "copy", "screenshot", "read-through"]],
+      "evidence must reference dated English one-clear-decision copy review for each flow",
+    evidenceWordGroups: [
+      ["english"],
+      ["copy", "screenshot", "read-through"],
+      ["one clear decision", "single decision", "one decision"],
+      ["each flow", "all flows"],
+    ],
   },
   "Spanish copy and long labels remain readable without horizontal overflow": {
     resultDescription:
@@ -1593,8 +1598,21 @@ const copyAccessibilityResultRequirements: Record<
       ],
     ],
     evidenceDescription:
-      "evidence must reference dated Spanish, long-label, overflow, or screenshot review",
-    evidenceWordGroups: [["spanish", "long label", "long labels", "overflow", "screenshot"]],
+      "evidence must reference dated Spanish long-label readability without horizontal overflow",
+    evidenceWordGroups: [
+      ["spanish"],
+      ["long label", "long labels", "long-label", "long-labels"],
+      ["readable", "legible"],
+      [
+        "no horizontal overflow",
+        "without horizontal overflow",
+        "no overflow",
+        "without overflow",
+        "not clipped",
+        "not truncated",
+      ],
+      ["screenshot", "read-through"],
+    ],
   },
   "Waiting states explain what is happening and what is not happening": {
     resultDescription:
@@ -1612,8 +1630,22 @@ const copyAccessibilityResultRequirements: Record<
       ],
       ["not happening", "no action", "not sent", "not submitted", "no external action"],
     ],
-    evidenceDescription: "evidence must reference dated waiting-state review",
-    evidenceWordGroups: [["waiting", "screenshot"]],
+    evidenceDescription:
+      "evidence must reference dated waiting-state pending and no-action review",
+    evidenceWordGroups: [
+      ["waiting"],
+      [
+        "pending",
+        "processing",
+        "in progress",
+        "still working",
+        "continues",
+        "what is happening",
+        "waiting for",
+      ],
+      ["not happening", "no action", "not sent", "not submitted", "no external action"],
+      ["screenshot", "read-through"],
+    ],
   },
   "Blocked states explain what is needed and provide retry or exit": {
     resultDescription:
@@ -1624,8 +1656,15 @@ const copyAccessibilityResultRequirements: Record<
       ["retry"],
       ["exit", "cancel"],
     ],
-    evidenceDescription: "evidence must reference dated blocked-state review",
-    evidenceWordGroups: [["blocked", "screenshot"]],
+    evidenceDescription:
+      "evidence must reference dated blocked-state needs, retry, and exit review",
+    evidenceWordGroups: [
+      ["blocked"],
+      ["needed", "needs", "what is needed", "information"],
+      ["retry"],
+      ["exit", "cancel"],
+      ["screenshot", "read-through"],
+    ],
   },
   "Completed states explain the outcome without implying extra action": {
     resultDescription:
@@ -1635,8 +1674,14 @@ const copyAccessibilityResultRequirements: Record<
       ["outcome", "result"],
       ["no extra action", "without extra action", "not implying extra action"],
     ],
-    evidenceDescription: "evidence must reference dated completed-state review",
-    evidenceWordGroups: [["completed", "screenshot"]],
+    evidenceDescription:
+      "evidence must reference dated completed-state outcome and no-extra-action review",
+    evidenceWordGroups: [
+      ["completed"],
+      ["outcome", "result"],
+      ["no extra action", "without extra action", "not implying extra action"],
+      ["screenshot", "read-through"],
+    ],
   },
   "Keyboard-only completion works for each flow": {
     resultDescription: "result must mention keyboard-only completion for each flow",
@@ -1645,8 +1690,13 @@ const copyAccessibilityResultRequirements: Record<
       ["completion", "completed", "complete", "safely exited", "safe exit"],
       ["each flow", "all flows"],
     ],
-    evidenceDescription: "evidence must reference dated keyboard evidence",
-    evidenceWordGroups: [["keyboard"]],
+    evidenceDescription:
+      "evidence must reference dated keyboard completion or safe-exit evidence for each flow",
+    evidenceWordGroups: [
+      ["keyboard"],
+      ["completion", "completed", "complete", "safely exited", "safe exit"],
+      ["each flow", "all flows"],
+    ],
   },
   "Focus moves meaningfully when scenes change": {
     resultDescription: "result must mention focus movement on scene changes",
@@ -1656,8 +1706,14 @@ const copyAccessibilityResultRequirements: Record<
       ["scene"],
       ["heading", "control"],
     ],
-    evidenceDescription: "evidence must reference dated focus movement evidence",
-    evidenceWordGroups: [["focus"], ["scene", "heading", "control"]],
+    evidenceDescription:
+      "evidence must reference dated focus movement to a new scene heading or control",
+    evidenceWordGroups: [
+      ["focus"],
+      ["moves", "moved", "movement", "move"],
+      ["scene"],
+      ["heading", "control"],
+    ],
   },
   "Screen-reader announcements fire for waiting, blocked, and completed states": {
     resultDescription:
@@ -1686,8 +1742,13 @@ const copyAccessibilityResultRequirements: Record<
       ["calm"],
       ["usable"],
     ],
-    evidenceDescription: "evidence must reference dated reduced-motion evidence",
-    evidenceWordGroups: [["reduced-motion", "reduced motion", "motion"]],
+    evidenceDescription:
+      "evidence must reference dated calm and usable reduced-motion evidence",
+    evidenceWordGroups: [
+      ["reduced-motion", "reduced motion", "motion"],
+      ["calm"],
+      ["usable"],
+    ],
   },
 };
 

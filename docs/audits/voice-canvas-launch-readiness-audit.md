@@ -38,6 +38,8 @@ Keyboard and focus copy/accessibility rows now require keyboard-only completion 
 
 Screen-reader copy/accessibility evidence now requires waiting, blocked, and completed announcement coverage; generic screen-reader evidence wording is rejected.
 
+Copy/accessibility evidence now requires the evidence note to name the checked outcome, such as one clear decision for each flow, Spanish long-label readability without overflow, waiting pending/no-action copy, blocked retry/exit copy, completed outcome/no-extra-action copy, keyboard completion or safe exit for each flow, focus movement, or calm usable reduced-motion behavior; generic screenshot-only evidence is rejected.
+
 Privacy review rows now require the result and evidence to name the specific forbidden data class; generic no-sensitive-data wording is rejected.
 
 Device coverage evidence now requires dated real phone, tablet, and desktop/laptop coverage; generic screenshot evidence is rejected.
@@ -76,7 +78,7 @@ Task hub destination evidence now requires dated resume, disabled fallback, no-w
   - Result: 18 tests passed on commit `9b4a2104` after duplicate/stale scoped evidence hardening, with refreshed appointment and refill screenshots under `src/dev/voice-canvas/`.
 - Focused real-device sign-off gate after no-resubmission hardening:
   - `$env:DATABASE_URL='file:./dev.db'; npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts`
-  - Result: 116 tests passed after feature endpoint evidence hardening, device coverage evidence hardening, interaction-mode evidence hardening, privacy forbidden-data-class hardening, screen-reader announcement evidence hardening, keyboard/focus accessibility hardening, waiting-state pending-copy hardening, open-session rollback visibility hardening, entered-information preservation hardening, checklist-style no-write/no-resubmission/no-external-action wording alignment, task-hub evidence note hardening, and behavior evidence note hardening.
+  - Result: 117 tests passed after feature endpoint evidence hardening, device coverage evidence hardening, interaction-mode evidence hardening, privacy forbidden-data-class hardening, screen-reader announcement evidence hardening, keyboard/focus accessibility hardening, copy/accessibility evidence hardening, waiting-state pending-copy hardening, open-session rollback visibility hardening, entered-information preservation hardening, checklist-style no-write/no-resubmission/no-external-action wording alignment, task-hub evidence note hardening, and behavior evidence note hardening.
 - Typecheck:
   - `npm run typecheck`
   - Result: passed.

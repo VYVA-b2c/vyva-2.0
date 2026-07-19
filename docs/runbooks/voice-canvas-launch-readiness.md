@@ -101,6 +101,8 @@ For behavior rows that require no-external-action evidence, explicitly state no 
 
 For required behavior rows, the evidence note must include dated coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects. Generic screenshot/log evidence does not satisfy launch sign-off.
 
+For copy/accessibility rows, the evidence note must explicitly name the checked outcome, not just say a screenshot was reviewed. For example, include one clear decision for each flow, Spanish long-label readability without overflow, waiting pending/no-action copy, blocked retry/exit copy, completed outcome/no-extra-action copy, keyboard completion or safe exit for each flow, focus movement, screen-reader state announcements, or calm usable reduced-motion behavior.
+
 For duplicate/stale guard behavior, explicitly state that duplicate confirmation or action attempts were prevented, blocked, ignored, rejected, or discarded, and that stale responses were ignored, rejected, or discarded. Submission-only wording such as `not submitted` or `not resubmitted` is not enough for launch sign-off.
 
 For task hub destination rows, the no-side-effects cell must explicitly prove both no writes and no external actions before confirmation. Submission-only wording such as `not submitted` or `without submitting` is not enough for launch sign-off. The evidence note must include dated resume, disabled fallback, no-write, and no-external-action coverage for that task hub path. Generic screenshot/log evidence does not satisfy launch sign-off.

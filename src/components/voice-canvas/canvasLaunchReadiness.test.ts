@@ -238,6 +238,7 @@ describe("Canvas launch readiness manifest", () => {
       "Privacy-safe analytics",
       "Screen-reader announcements",
       "waiting, blocked, and completed announcements",
+      "evidence note must explicitly name the checked outcome",
       "Reduced-motion",
       "Spoken transcripts",
       "Typed free text",

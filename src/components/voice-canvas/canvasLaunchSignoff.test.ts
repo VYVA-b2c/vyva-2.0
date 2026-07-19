@@ -326,31 +326,31 @@ function fillCopyAccessibilityRows(markdown: string): string {
   return markdown
     .replace(
       /^\| English copy uses one clear decision at a time \| .* \| .* \|$/m,
-      "| English copy uses one clear decision at a time | English copy confirms one clear decision for each flow | QA English copy screenshot evidence reviewed on 2026-07-19 |",
+      "| English copy uses one clear decision at a time | English copy confirms one clear decision for each flow | QA English one clear decision copy screenshot/read-through evidence reviewed for each flow on 2026-07-19 |",
     )
     .replace(
       /^\| Spanish copy and long labels remain readable without horizontal overflow \| .* \| .* \|$/m,
-      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 |",
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 |",
     )
     .replace(
       /^\| Waiting states explain what is happening and what is not happening \| .* \| .* \|$/m,
-      "| Waiting states explain what is happening and what is not happening | Waiting copy says processing continues and no external action is sent yet | QA waiting-state screenshot evidence reviewed on 2026-07-19 |",
+      "| Waiting states explain what is happening and what is not happening | Waiting copy says processing continues and no external action is sent yet | QA waiting-state screenshot/read-through evidence reviewed on 2026-07-19: processing remains pending and no external action is sent yet |",
     )
     .replace(
       /^\| Blocked states explain what is needed and provide retry or exit \| .* \| .* \|$/m,
-      "| Blocked states explain what is needed and provide retry or exit | Blocked copy explains what is needed and offers retry or cancel exit | QA blocked-state screenshot evidence reviewed on 2026-07-19 |",
+      "| Blocked states explain what is needed and provide retry or exit | Blocked copy explains what is needed and offers retry or cancel exit | QA blocked-state screenshot/read-through evidence reviewed on 2026-07-19: blocked information needed with retry and cancel exit |",
     )
     .replace(
       /^\| Completed states explain the outcome without implying extra action \| .* \| .* \|$/m,
-      "| Completed states explain the outcome without implying extra action | Completed copy explains the outcome with no extra action implied | QA completed-state screenshot evidence reviewed on 2026-07-19 |",
+      "| Completed states explain the outcome without implying extra action | Completed copy explains the outcome with no extra action implied | QA completed-state screenshot/read-through evidence reviewed on 2026-07-19: completed outcome with no extra action implied |",
     )
     .replace(
       /^\| Keyboard-only completion works for each flow \| .* \| .* \|$/m,
-      "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
+      "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
     )
     .replace(
       /^\| Focus moves meaningfully when scenes change \| .* \| .* \|$/m,
-      "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus scene heading evidence reviewed on 2026-07-19 |",
+      "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus moved to new scene heading or control evidence reviewed on 2026-07-19 |",
     )
     .replace(
       /^\| Screen-reader announcements fire for waiting, blocked, and completed states \| .* \| .* \|$/m,
@@ -358,7 +358,7 @@ function fillCopyAccessibilityRows(markdown: string): string {
     )
     .replace(
       /^\| Reduced-motion mode remains calm and usable \| .* \| .* \|$/m,
-      "| Reduced-motion mode remains calm and usable | Reduced-motion mode verified calm and usable | QA reduced-motion evidence reviewed on 2026-07-19 |",
+      "| Reduced-motion mode remains calm and usable | Reduced-motion mode verified calm and usable | QA reduced-motion calm usable evidence reviewed on 2026-07-19 |",
     );
 }
 
@@ -1971,10 +1971,25 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects copy/accessibility evidence notes that omit specific coverage details", () => {
+    const completed = completedMatrix().replace(
+      "| English copy uses one clear decision at a time | English copy confirms one clear decision for each flow | QA English one clear decision copy screenshot/read-through evidence reviewed for each flow on 2026-07-19 |",
+      "| English copy uses one clear decision at a time | English copy confirms one clear decision for each flow | QA English copy screenshot evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "English copy uses one clear decision at a time: evidence must reference dated English one-clear-decision copy review for each flow",
+    ]);
+  });
+
   it("rejects waiting copy rows that omit what is pending or in progress", () => {
     const completed = completedMatrix().replace(
-      "| Waiting states explain what is happening and what is not happening | Waiting copy says processing continues and no external action is sent yet | QA waiting-state screenshot evidence reviewed on 2026-07-19 |",
-      "| Waiting states explain what is happening and what is not happening | Waiting copy says no external action is sent yet | QA waiting-state screenshot evidence reviewed on 2026-07-19 |",
+      "| Waiting states explain what is happening and what is not happening | Waiting copy says processing continues and no external action is sent yet | QA waiting-state screenshot/read-through evidence reviewed on 2026-07-19: processing remains pending and no external action is sent yet |",
+      "| Waiting states explain what is happening and what is not happening | Waiting copy says no external action is sent yet | QA waiting-state screenshot/read-through evidence reviewed on 2026-07-19: processing remains pending and no external action is sent yet |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1991,8 +2006,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects Spanish long-label rows that mention overflow without proving no overflow", () => {
     const completed = completedMatrix().replace(
-      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 |",
-      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 |",
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 |",
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2014,8 +2029,8 @@ describe("Canvas real-device QA sign-off", () => {
         "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements not verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
       )
       .replace(
-        "| Reduced-motion mode remains calm and usable | Reduced-motion mode verified calm and usable | QA reduced-motion evidence reviewed on 2026-07-19 |",
-        "| Reduced-motion mode remains calm and usable | Reduced-motion mode remains calm but not usable | QA reduced-motion evidence reviewed on 2026-07-19 |",
+        "| Reduced-motion mode remains calm and usable | Reduced-motion mode verified calm and usable | QA reduced-motion calm usable evidence reviewed on 2026-07-19 |",
+        "| Reduced-motion mode remains calm and usable | Reduced-motion mode remains calm but not usable | QA reduced-motion calm usable evidence reviewed on 2026-07-19 |",
       );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2033,8 +2048,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects copy/accessibility evidence notes with contradictory outcome wording", () => {
     const completed = completedMatrix().replace(
-      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 |",
-      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 but labels clipped |",
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 |",
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 but labels clipped |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2042,7 +2057,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidCopyAccessibilityRows).toEqual([
-      "Spanish copy and long labels remain readable without horizontal overflow: evidence must reference dated Spanish, long-label, overflow, or screenshot review",
+      "Spanish copy and long labels remain readable without horizontal overflow: evidence must reference dated Spanish long-label readability without horizontal overflow",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
@@ -2052,12 +2067,12 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects copy/accessibility rows with missing or unavailable outcome wording", () => {
     const completed = completedMatrix()
       .replace(
-        "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
-        "| Keyboard-only completion works for each flow | Keyboard-only completion unavailable for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
+        "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
+        "| Keyboard-only completion works for each flow | Keyboard-only completion unavailable for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
       )
       .replace(
-        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus scene heading evidence reviewed on 2026-07-19 |",
-        "| Focus moves meaningfully when scenes change | Focus does not move to the new scene heading or control when scenes change | QA focus scene heading evidence reviewed on 2026-07-19 |",
+        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus moved to new scene heading or control evidence reviewed on 2026-07-19 |",
+        "| Focus moves meaningfully when scenes change | Focus does not move to the new scene heading or control when scenes change | QA focus moved to new scene heading or control evidence reviewed on 2026-07-19 |",
       )
       .replace(
         "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
@@ -2081,11 +2096,11 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects keyboard and focus rows that omit completion or movement evidence", () => {
     const completed = completedMatrix()
       .replace(
-        "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
-        "| Keyboard-only completion works for each flow | Keyboard verified for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
+        "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
+        "| Keyboard-only completion works for each flow | Keyboard verified for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
       )
       .replace(
-        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus scene heading evidence reviewed on 2026-07-19 |",
+        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus moved to new scene heading or control evidence reviewed on 2026-07-19 |",
         "| Focus moves meaningfully when scenes change | Focus is visible on each scene | QA focus evidence reviewed on 2026-07-19 |",
       );
 
@@ -2096,7 +2111,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidCopyAccessibilityRows).toEqual([
       "Keyboard-only completion works for each flow: result must mention keyboard-only completion for each flow",
       "Focus moves meaningfully when scenes change: result must mention focus movement on scene changes",
-      "Focus moves meaningfully when scenes change: evidence must reference dated focus movement evidence",
+      "Focus moves meaningfully when scenes change: evidence must reference dated focus movement to a new scene heading or control",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
