@@ -2556,6 +2556,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Pack playbook");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Use Caregiver invite acceptance email first");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("7 steps");
+    expect(screen.getByTestId("marketing-template-pack-community-partner-launch")).toHaveTextContent("Community partner launch");
+    expect(screen.getByTestId("marketing-template-pack-community-partner-launch")).toHaveTextContent("6 channels");
+    expect(screen.getByTestId("marketing-template-pack-playbook-community-partner-launch")).toHaveTextContent("Use Community partner introduction email first");
+    expect(screen.getByTestId("button-marketing-template-pack-copy-visual-kit-community-partner-launch")).toHaveTextContent("Copy visual kit");
     expect(screen.getByTestId("button-marketing-template-pack-copy-playbook-caregiver-invite-activation")).toHaveTextContent("Copy playbook");
     expect(screen.getByTestId("button-marketing-template-pack-copy-visual-kit-caregiver-invite-activation")).toHaveTextContent("Copy visual kit");
     expect(screen.getByTestId("marketing-template-pack-controls")).toHaveTextContent("Pack chooser");
@@ -2608,6 +2612,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("SMS local event reminder");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Phone partner follow-up script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Community flyer copy");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Community partner introduction email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Community partner one-pager");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Community partner phone check-in");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event host handoff brief");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Neighbourhood event run sheet");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Partner event follow-up SMS");
@@ -2639,7 +2646,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro call script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence intro email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence director call script");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("153 templates");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("159 templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -3245,9 +3252,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Campaign starter applied from Partner growth");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("23");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("25");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("Local event");
-    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("9");
+    expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("10");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("marketing-template-coverage")).toHaveTextContent("9");
     expect(screen.getByTestId("marketing-template-coverage-matrix")).toHaveTextContent("Channel x audience matrix");
