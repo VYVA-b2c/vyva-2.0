@@ -348,10 +348,16 @@ function hasNegativeCopyAccessibilityOutcomeLanguage(value: string): boolean {
     /\bdid not (announce|fire|verify|work|focus|move|explain|provide|offer|complete)\b/.test(
       normalized,
     ) ||
-    /\b(?:unable|failed|fails|could not) to (announce|fire|verify|work|focus|move|explain|provide|offer|complete)\b/.test(
+    /\bdoes not (announce|fire|verify|work|focus|move|explain|provide|offer|complete|remain)\b/.test(
       normalized,
     ) ||
-    /\b(no announcement|no announcements|no retry|no exit|no focus|no focus movement|overflowed|overflowing|clipped|truncated|unreadable|illegible|unusable|uncalm)\b/.test(
+    /\b(?:unable|failed|fails|could not) to (announce|fire|verify|work|focus|move|explain|provide|offer|complete|remain)\b/.test(
+      normalized,
+    ) ||
+    /\b(no announcement|no announcements|no retry|no exit|no focus|no focus movement|missing announcement|missing announcements|missing focus|missing retry|missing exit|unavailable|overflowed|overflowing|clipped|truncated|unreadable|illegible|unusable|uncalm)\b/.test(
+      normalized,
+    ) ||
+    /\b(announcement|announcements|focus|retry|exit)\b.{0,16}\b(missing|unavailable)\b/.test(
       normalized,
     )
   );

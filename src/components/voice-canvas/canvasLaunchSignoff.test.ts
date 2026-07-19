@@ -1352,6 +1352,35 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects copy/accessibility rows with missing or unavailable outcome wording", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
+        "| Keyboard-only completion works for each flow | Keyboard-only completion unavailable for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
+      )
+      .replace(
+        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus evidence reviewed on 2026-07-19 |",
+        "| Focus moves meaningfully when scenes change | Focus does not move to the new scene heading or control when scenes change | QA focus evidence reviewed on 2026-07-19 |",
+      )
+      .replace(
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements missing for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Keyboard-only completion works for each flow: result must mention keyboard-only completion for each flow",
+      "Focus moves meaningfully when scenes change: result must mention focus movement on scene changes",
+      "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague privacy review rows", () => {
     const completed = completedMatrix().replace(
       "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
