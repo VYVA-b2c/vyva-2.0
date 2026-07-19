@@ -465,10 +465,17 @@ const behaviorChecklistRequirements = [
   },
   {
     columnIndex: 6,
-    description: "cancel/exit cell must mention cancel and exit evidence",
+    description: "cancel/exit cell must mention cancel, exit, and no write evidence",
     wordGroups: [
       ["cancel"],
       ["exit", "leave"],
+      [
+        "no write",
+        "no external action",
+        "not submitted",
+        "without submitting",
+        "without write",
+      ],
     ],
   },
   {
