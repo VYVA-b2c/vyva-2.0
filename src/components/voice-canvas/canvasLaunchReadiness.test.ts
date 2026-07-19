@@ -232,6 +232,7 @@ describe("Canvas launch readiness manifest", () => {
       "Senior-friendly copy and what happens next",
       "Privacy-safe analytics",
       "Screen-reader announcements",
+      "waiting, blocked, and completed announcements",
       "Reduced-motion",
       "Spoken transcripts",
       "Typed free text",

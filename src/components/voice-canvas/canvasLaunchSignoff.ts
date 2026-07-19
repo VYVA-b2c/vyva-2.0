@@ -1559,8 +1559,15 @@ const copyAccessibilityResultRequirements: Record<
       ["blocked"],
       ["completed"],
     ],
-    evidenceDescription: "evidence must reference dated screen-reader announcement evidence",
-    evidenceWordGroups: [["screen-reader", "screen reader", "announcement"]],
+    evidenceDescription:
+      "evidence must reference dated screen-reader announcement evidence for waiting, blocked, and completed states",
+    evidenceWordGroups: [
+      ["screen-reader", "screen reader"],
+      ["announcement", "announcements"],
+      ["waiting"],
+      ["blocked"],
+      ["completed"],
+    ],
   },
   "Reduced-motion mode remains calm and usable": {
     resultDescription: "result must mention reduced-motion mode as calm and usable",

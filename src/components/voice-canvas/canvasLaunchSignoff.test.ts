@@ -313,7 +313,7 @@ function fillCopyAccessibilityRows(markdown: string): string {
     )
     .replace(
       /^\| Screen-reader announcements fire for waiting, blocked, and completed states \| .* \| .* \|$/m,
-      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
     )
     .replace(
       /^\| Reduced-motion mode remains calm and usable \| .* \| .* \|$/m,
@@ -1794,7 +1794,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague copy/accessibility rows", () => {
     const completed = completedMatrix().replace(
-      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
       "| Screen-reader announcements fire for waiting, blocked, and completed states | Passed by QA | Evidence captured by QA |",
     );
 
@@ -1804,7 +1804,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidCopyAccessibilityRows).toEqual([
       "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
-      "Screen-reader announcements fire for waiting, blocked, and completed states: evidence must reference dated screen-reader announcement evidence",
+      "Screen-reader announcements fire for waiting, blocked, and completed states: evidence must reference dated screen-reader announcement evidence for waiting, blocked, and completed states",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
@@ -1850,8 +1850,8 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects copy/accessibility rows with negative required-outcome wording", () => {
     const completed = completedMatrix()
       .replace(
-        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
-        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements not verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements not verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
       )
       .replace(
         "| Reduced-motion mode remains calm and usable | Reduced-motion mode verified calm and usable | QA reduced-motion evidence reviewed on 2026-07-19 |",
@@ -1900,8 +1900,8 @@ describe("Canvas real-device QA sign-off", () => {
         "| Focus moves meaningfully when scenes change | Focus does not move to the new scene heading or control when scenes change | QA focus scene heading evidence reviewed on 2026-07-19 |",
       )
       .replace(
-        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
-        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements missing for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements missing for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
       );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1937,6 +1937,24 @@ describe("Canvas real-device QA sign-off", () => {
       "Keyboard-only completion works for each flow: result must mention keyboard-only completion for each flow",
       "Focus moves meaningfully when scenes change: result must mention focus movement on scene changes",
       "Focus moves meaningfully when scenes change: evidence must reference dated focus movement evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects screen-reader evidence that omits announced state coverage", () => {
+    const completed = completedMatrix().replace(
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Screen-reader announcements fire for waiting, blocked, and completed states: evidence must reference dated screen-reader announcement evidence for waiting, blocked, and completed states",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
