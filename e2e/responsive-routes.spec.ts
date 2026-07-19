@@ -824,7 +824,7 @@ async function expectResponsiveRoute(
   await page.waitForLoadState("networkidle", { timeout: 500 }).catch(() => undefined);
   await page.locator("#vyva-launch").waitFor({ state: "detached", timeout: 15_000 });
 
-  const expectedShell = route.expectedLayout ? page.getByTestId("app-shell") : null;
+  let expectedShell = route.expectedLayout ? page.getByTestId("app-shell") : null;
   if (expectedShell) {
     await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 60_000 });
   }
