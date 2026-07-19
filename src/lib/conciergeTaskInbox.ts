@@ -69,6 +69,7 @@ export type ConciergeTaskInboxItem = {
   decisionSummary: string | null;
   outcomeSummary: string | null;
   missingInformation: string[];
+  actionPayload: Record<string, unknown> | null;
   details: ConciergeTaskInboxDetail[];
   completedTemplate: ConciergeTaskCompletedSession | null;
 };
@@ -185,11 +186,15 @@ function decisionCopy(
   const action = latest?.action;
   if (action === "confirm") return isSpanish ? "Elegiste confirmar la propuesta." : "You chose to confirm the offer.";
   if (action === "answer_provider") return isSpanish ? "Elegiste responder al proveedor." : "You chose to answer the provider.";
+  if (action === "decline") return isSpanish ? "Elegiste rechazar la propuesta." : "You chose to decline the offer.";
+  if (action === "request_alternatives") return isSpanish ? "Pediste otra opcion." : "You asked for another option.";
   if (action === "mark_complete") return isSpanish ? "Marcaste esta tarea como completada." : "You marked this task complete.";
 
   const resolution = conciergeProviderReplySnapshot(payload)?.resolution;
   if (resolution?.decision?.action === "confirm") return isSpanish ? "Elegiste confirmar la propuesta." : "You chose to confirm the offer.";
   if (resolution?.decision?.action === "answer_provider") return isSpanish ? "Elegiste responder al proveedor." : "You chose to answer the provider.";
+  if (resolution?.decision?.action === "decline") return isSpanish ? "Elegiste rechazar la propuesta." : "You chose to decline the offer.";
+  if (resolution?.decision?.action === "request_alternatives") return isSpanish ? "Pediste otra opcion." : "You asked for another option.";
   if (resolution?.decision?.action === "mark_complete") return isSpanish ? "Marcaste esta tarea como completada." : "You marked this task complete.";
   return null;
 }
@@ -268,6 +273,7 @@ function activeItem(input: {
     decisionSummary: decisionCopy(payload, isSpanish),
     outcomeSummary: null,
     missingInformation: snapshot?.resolution?.missingInformation ?? [],
+    actionPayload: payload,
     details: detailsFor(providerName, payload, updatedAt, isSpanish),
     completedTemplate: null,
   };
@@ -305,6 +311,7 @@ function completedItem(
     decisionSummary: decisionCopy(payload, isSpanish),
     outcomeSummary,
     missingInformation: [],
+    actionPayload: payload,
     details: detailsFor(providerName, payload, session.completed_at, isSpanish),
     completedTemplate: session,
   };
