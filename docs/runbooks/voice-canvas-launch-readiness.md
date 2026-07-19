@@ -81,7 +81,7 @@ For task hub resume, verify:
 
 ## Sign-off gate
 
-Keep `docs/audits/voice-canvas-real-device-qa-matrix.md` marked **pending execution** while any deployed real-device row still needs evidence. Before enabling Canvas for real users, every `Pending` cell in that matrix must be replaced with a result/evidence note, all final sign-off roles must include a name, a `YYYY-MM-DD` date, and an approved-for-launch decision, and the matrix `Status` must be changed to **ready for launch**.
+Keep `docs/audits/voice-canvas-real-device-qa-matrix.md` marked **pending execution** while any deployed real-device row still needs evidence. Before enabling Canvas for real users, every `Pending` cell in that matrix must be replaced with a passing result/evidence note, no row may contain a failed/blocked/not-ready result, all final sign-off roles must include a name, a `YYYY-MM-DD` date, and an approved-for-launch decision, and the matrix `Status` must be changed to **ready for launch**.
 
 Run the sign-off gate after filling the matrix:
 

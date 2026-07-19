@@ -18,6 +18,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   state: CanvasRealDeviceQaMatrixState;
   readyForLaunch: boolean;
   incompleteCellCount: number;
+  failingCellCount: number;
   missingRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   invalidRequiredSignoffDateRoles: CanvasRealDeviceQaSignoffRole[];
@@ -41,6 +42,14 @@ function isPlaceholderCell(value: string): boolean {
     normalized === "tbd" ||
     normalized === "todo" ||
     normalized === "fixme"
+  );
+}
+
+function isFailingQaCell(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  if (isPlaceholderCell(normalized)) return false;
+  return /^(fail(ed|ure)?|blocked|unsafe|not ready|not passed|not passing|rejected|hold|no[- ]?go)\b/.test(
+    normalized,
   );
 }
 
@@ -97,6 +106,9 @@ export function evaluateCanvasRealDeviceQaMatrix(
   const incompleteCellCount = dataRows
     .flat()
     .filter((cell) => isPlaceholderCell(cell)).length;
+  const failingCellCount = dataRows
+    .flatMap((row) => row.slice(1))
+    .filter((cell) => isFailingQaCell(cell)).length;
 
   const signoffRows = new Map(
     dataRows.map((row) => [row[0], row.slice(1)] as const),
@@ -148,6 +160,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
         `Matrix is marked ready but still contains ${incompleteCellCount} incomplete placeholder cell(s).`,
       );
     }
+    if (failingCellCount > 0) {
+      problems.push(
+        `Matrix is marked ready but still contains ${failingCellCount} failing or not-ready QA cell(s).`,
+      );
+    }
     if (missingRequiredSignoffRoles.length > 0) {
       problems.push(
         `Matrix is missing required sign-off role(s): ${missingRequiredSignoffRoles.join(", ")}.`,
@@ -183,6 +200,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     state,
     readyForLaunch,
     incompleteCellCount,
+    failingCellCount,
     missingRequiredSignoffRoles,
     incompleteRequiredSignoffRoles,
     invalidRequiredSignoffDateRoles,

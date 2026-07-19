@@ -47,6 +47,11 @@ function fillRequiredSignoffs(markdown: string): string {
     );
 }
 
+function replaceDeviceRow(markdown: string, flow: string, row: string): string {
+  const escapedFlow = flow.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return markdown.replace(new RegExp(`^\\| ${escapedFlow} \\| .* \\|$`, "m"), row);
+}
+
 describe("Canvas real-device QA sign-off", () => {
   it("keeps the committed matrix explicitly pending until deployed QA is recorded", () => {
     const result = evaluateCanvasRealDeviceQaMatrix(realDeviceQaMatrix());
@@ -54,6 +59,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("pending");
     expect(result.readyForLaunch).toBe(false);
     expect(result.incompleteCellCount).toBeGreaterThan(0);
+    expect(result.failingCellCount).toBe(0);
     expect(result.problems).toEqual([]);
   });
 
@@ -115,6 +121,26 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.unapprovedRequiredSignoffRoles).toEqual(["Product"]);
   });
 
+  it("rejects ready-for-launch matrices with filled but failing QA evidence", () => {
+    const completedMatrix = replaceDeviceRow(
+      fillRequiredSignoffs(replacePendingEvidence(markReady(realDeviceQaMatrix()))),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Failed - phone lost restored draft | Passed - evidence captured by QA on 2026-07-19 | Passed - evidence captured by QA on 2026-07-19 | Screenshot and replay attached |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.incompleteCellCount).toBe(0);
+    expect(result.failingCellCount).toBe(1);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("failing or not-ready QA cell"),
+      ]),
+    );
+  });
+
   it("accepts the matrix only after all required evidence and sign-offs are filled", () => {
     const completedMatrix = fillRequiredSignoffs(
       replacePendingEvidence(markReady(realDeviceQaMatrix())),
@@ -125,6 +151,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("ready");
     expect(result.readyForLaunch).toBe(true);
     expect(result.incompleteCellCount).toBe(0);
+    expect(result.failingCellCount).toBe(0);
     expect(result.missingRequiredSignoffRoles).toEqual([]);
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);
     expect(result.invalidRequiredSignoffDateRoles).toEqual([]);

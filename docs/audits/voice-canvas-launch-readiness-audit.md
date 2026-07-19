@@ -12,7 +12,7 @@ This pass found and fixed one launch-blocking rollout issue: provider-reply Canv
 
 Manual execution must be recorded in `docs/audits/voice-canvas-real-device-qa-matrix.md`.
 
-The matrix is protected by `src/components/voice-canvas/canvasLaunchSignoff.test.ts`: it may stay **pending execution** while real-device QA is incomplete, but a **ready for launch** status is rejected unless all required evidence is filled and every final sign-off role has a name, a `YYYY-MM-DD` date, and an approved-for-launch decision.
+The matrix is protected by `src/components/voice-canvas/canvasLaunchSignoff.test.ts`: it may stay **pending execution** while real-device QA is incomplete, but a **ready for launch** status is rejected unless all required evidence is filled with passing results, no row contains a failed/blocked/not-ready result, and every final sign-off role has a name, a `YYYY-MM-DD` date, and an approved-for-launch decision.
 
 ## Requirement audit
 
@@ -33,7 +33,7 @@ The matrix is protected by `src/components/voice-canvas/canvasLaunchSignoff.test
 
 - Focused readiness suite with server flag checks:
   - `$env:DATABASE_URL='file:./dev.db'; npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx`
-  - Result: 131 tests passed.
+  - Result: 132 tests passed.
 - Browser readiness:
   - `npm run test:e2e -- e2e/voice-canvas-production-readiness.spec.ts e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts e2e/canvas-launch-readiness.spec.ts e2e/task-hub-resume-launch-readiness.spec.ts`
   - Result: 18 tests passed.
