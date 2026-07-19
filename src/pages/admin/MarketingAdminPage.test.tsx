@@ -5558,6 +5558,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("linkedin");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Primary route switched to LinkedIn for better reach (1 reachable contact).");
     expect(screen.queryByTestId("marketing-campaign-studio-channel-copy-tiktok")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-studio-production-controls")).toHaveTextContent("Owner and metric are set before launch");
+    expect(screen.getByTestId("marketing-campaign-studio-production-owner")).toHaveTextContent("Partner owner");
+    expect(screen.getByTestId("marketing-campaign-studio-production-metric")).toHaveTextContent("Partner replies, pathway review calls, and warm introductions");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-studio-owner"), { target: { value: "Karim campaign owner" } });
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-studio-success-metric"), { target: { value: "10 partner review calls booked" } });
+    expect(screen.getByTestId("marketing-campaign-studio-production-owner")).toHaveTextContent("Karim campaign owner");
+    expect(screen.getByTestId("marketing-campaign-studio-production-metric")).toHaveTextContent("10 partner review calls booked");
     fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
     expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Pick a practical publish window");
     expect(screen.getByTestId("marketing-campaign-studio-smart-schedule")).toHaveTextContent("Partner morning");
@@ -5658,6 +5665,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-ai-command-brief")).toHaveTextContent("AI launch brief");
     const studioAiBrief = screen.getByTestId("textarea-marketing-campaign-studio-ai-command-brief") as HTMLTextAreaElement;
     expect(studioAiBrief.value).toContain("VYVA campaign studio AI command brief");
+    expect(studioAiBrief.value).toContain("Owner: Karim campaign owner");
+    expect(studioAiBrief.value).toContain("Success metric: 10 partner review calls booked");
     expect(studioAiBrief.value).toContain("Recommended next step: Improve with AI if you want a more tailored draft, or create the campaign now.");
     expect(studioAiBrief.value).toContain("Channel execution:");
     expect(studioAiBrief.value).toContain("AI task:");
@@ -5704,6 +5713,8 @@ describe("MarketingAdminPage", () => {
     const launchPacket = screen.getByTestId("textarea-marketing-campaign-studio-launch-packet") as HTMLTextAreaElement;
     expect(launchPacket.value).toContain("VYVA campaign launch packet");
     expect(launchPacket.value).toContain("Campaign: B2B partner introduction");
+    expect(launchPacket.value).toContain("Owner: Karim campaign owner");
+    expect(launchPacket.value).toContain("Success metric: 10 partner review calls booked");
     expect(launchPacket.value).toContain("Hook: A gentle invite: Partner outreach: proof point");
     expect(launchPacket.value).toContain("Audience: Partners (B2B)");
     expect(launchPacket.value).toContain("Channel plan:");
@@ -5808,6 +5819,8 @@ describe("MarketingAdminPage", () => {
     const approvalBrief = screen.getByTestId("textarea-marketing-campaign-studio-approval-approval-brief") as HTMLTextAreaElement;
     expect(approvalBrief.value).toContain("Campaign approval brief");
     expect(approvalBrief.value).toContain("Audience: Partners");
+    expect(approvalBrief.value).toContain("Owner: Karim campaign owner");
+    expect(approvalBrief.value).toContain("Success metric: 10 partner review calls booked");
     expect(approvalBrief.value).toContain("CTA: I want the details");
     expect(approvalBrief.value).toContain("Channel execution:");
     const publishingChecklist = screen.getByTestId("textarea-marketing-campaign-studio-approval-publishing-checklist") as HTMLTextAreaElement;
@@ -5828,6 +5841,8 @@ describe("MarketingAdminPage", () => {
     expect(JSON.parse(String(aiDraftCall?.[1]?.body ?? "{}"))).toMatchObject({
       angle: "proof",
       angleGuidance: expect.stringContaining("Lead with proof"),
+      ownerName: "Karim campaign owner",
+      successMetric: "10 partner review calls booked",
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI draft generated");

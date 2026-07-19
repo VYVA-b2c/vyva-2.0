@@ -527,6 +527,8 @@ type CampaignStudioState = {
   selectedChannels: Channel[];
   scheduleStartsAt: string;
   targetAudienceId: string;
+  ownerName: string;
+  successMetric: string;
 };
 
 type CampaignIntentMatch = {
@@ -2407,6 +2409,20 @@ const campaignLaunchModes: CampaignLaunchMode[] = [
     channels: ["email", "whatsapp", "sms", "phone", "print", "event", "facebook", "instagram", "linkedin", "tiktok"],
   },
 ];
+
+function defaultCampaignStudioOwner(channels: Channel[]) {
+  const primaryChannel = channels[0] ?? "email";
+  return campaignStudioLaunchTimingByChannel[primaryChannel]?.owner ?? "Campaign owner";
+}
+
+function defaultCampaignStudioSuccessMetric(play: Pick<CampaignStudioPlay, "audienceType" | "categoryId" | "defaultChannel">) {
+  if (play.categoryId === "partner") return "Partner replies, pathway review calls, and warm introductions";
+  if (play.categoryId === "community") return "Event RSVPs, local handoffs, and follow-up owners captured";
+  if (play.categoryId === "social") return "Engagement, profile visits, replies, and reusable proof";
+  if (play.categoryId === "retention") return "Reactivated contacts, completed profiles, and reply rate";
+  if (play.audienceType === "b2c") return "Completed next steps, profile updates, and caregiver replies";
+  return play.defaultChannel === "email" ? "Opens, clicks, replies, and created follow-up tasks" : "Replies, manual outcomes, and next relationship actions";
+}
 
 const campaignGoalPresets: CampaignGoalPreset[] = [
   {
@@ -11764,6 +11780,8 @@ export default function MarketingAdminPage() {
     selectedChannels: ["email"],
     scheduleStartsAt: "",
     targetAudienceId: "",
+    ownerName: "Campaign owner",
+    successMetric: "Opens, clicks, replies, and created follow-up tasks",
   }));
   const [campaignStudioCategory, setCampaignStudioCategory] = useState<CampaignStudioCategoryId>("all");
   const [campaignStudioAiDrafts, setCampaignStudioAiDrafts] = useState<Partial<Record<Channel, CampaignStudioGeneratedDraft>>>({});
@@ -15332,6 +15350,8 @@ export default function MarketingAdminPage() {
   const campaignStudioOfflineScheduleLabel = campaignStudioSchedule
     ? formatDate(fromDateTimeLocal(campaignStudioSchedule))
     : "No schedule selected";
+  const campaignStudioOwnerName = campaignStudio.ownerName.trim() || defaultCampaignStudioOwner(campaignStudioSelectedChannels);
+  const campaignStudioSuccessMetric = campaignStudio.successMetric.trim() || defaultCampaignStudioSuccessMetric(selectedCampaignStudioPlay);
   const campaignStudioOfflineCta = campaignStudioGenerated.ctaLabel.trim()
     ? `${campaignStudioGenerated.ctaLabel}${campaignStudioGenerated.ctaUrl.trim() ? ` - ${campaignStudioGenerated.ctaUrl.trim()}` : ""}`
     : "Ask whether they want the next step or more details";
@@ -15355,6 +15375,8 @@ export default function MarketingAdminPage() {
         `Campaign: ${campaignStudioGenerated.campaignName}`,
         `Audience: ${campaignStudioOfflineAudienceName}`,
         `Suggested timing: ${campaignStudioOfflineScheduleLabel}`,
+        `Owner: ${campaignStudioOwnerName}`,
+        `Success metric: ${campaignStudioSuccessMetric}`,
         `Sample contact: ${campaignStudioOfflineSampleLabel}`,
         "",
         `Opening: Hi ${campaignStudioOfflineFirstName}, this is VYVA. I wanted to quickly share ${campaignStudioPersonalizedSubject}.`,
@@ -15373,6 +15395,8 @@ export default function MarketingAdminPage() {
         "Event talking points",
         `Campaign: ${campaignStudioGenerated.campaignName}`,
         `Audience: ${campaignStudioOfflineAudienceName}`,
+        `Owner: ${campaignStudioOwnerName}`,
+        `Success metric: ${campaignStudioSuccessMetric}`,
         `Main hook: ${campaignStudioPersonalizedSubject}`,
         "",
         `1. Start with the need: ${selectedCampaignStudioPlay.brief}`,
@@ -15409,6 +15433,8 @@ export default function MarketingAdminPage() {
         `Audience/list: ${campaignStudioOfflineAudienceName}`,
         `Channels planned in VYVA: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
         `Timing: ${campaignStudioOfflineScheduleLabel}`,
+        `Owner: ${campaignStudioOwnerName}`,
+        `Success metric: ${campaignStudioSuccessMetric}`,
         "",
         `What to say: ${campaignStudioOfflineMessageLine}`,
         `Primary action: ${campaignStudioOfflineCta}`,
@@ -15983,6 +16009,8 @@ export default function MarketingAdminPage() {
     `Primary route: ${channelLabel[campaignStudio.channel]}`,
     `Channel pack: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
     `Schedule: ${campaignStudioOfflineScheduleLabel}`,
+    `Owner: ${campaignStudioOwnerName}`,
+    `Success metric: ${campaignStudioSuccessMetric}`,
     `Readiness: ${campaignStudioReadinessSummary}`,
     `Recommended next step: ${campaignStudioNextStep}`,
     "",
@@ -16020,6 +16048,8 @@ export default function MarketingAdminPage() {
     `Audience type: ${selectedCampaignStudioPlay.audienceType.toUpperCase()}`,
     `Channels: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
     `Schedule: ${campaignStudioOfflineScheduleLabel}`,
+    `Owner: ${campaignStudioOwnerName}`,
+    `Success metric: ${campaignStudioSuccessMetric}`,
     `Objective: ${campaignStudioGenerated.objective || selectedCampaignStudioPlay.objective}`,
     `Hook: ${campaignStudioPersonalizedSubject}`,
     `CTA: ${campaignStudioOfflineCta}`,
@@ -16045,6 +16075,8 @@ export default function MarketingAdminPage() {
     "Campaign publishing checklist",
     `Campaign: ${campaignStudioGenerated.campaignName}`,
     `Prepared in VYVA: ${new Date().toISOString().slice(0, 10)}`,
+    `Owner: ${campaignStudioOwnerName}`,
+    `Success metric: ${campaignStudioSuccessMetric}`,
     "",
     "Before publishing:",
     "1. Confirm the audience/list and remove any contacts without consent.",
@@ -16441,6 +16473,8 @@ export default function MarketingAdminPage() {
     `Primary channel: ${channelLabel[campaignStudio.channel]}`,
     `Channel pack: ${campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(", ")}`,
     `Schedule: ${campaignStudioOfflineScheduleLabel}`,
+    `Owner: ${campaignStudioOwnerName}`,
+    `Success metric: ${campaignStudioSuccessMetric}`,
     `Recommended next step: ${campaignStudioNextStep}`,
     "",
     "At a glance:",
@@ -16481,7 +16515,8 @@ export default function MarketingAdminPage() {
     "- Final audience approved:",
     "- Final copy approved:",
     "- Visuals/assets approved:",
-    "- Publishing owner:",
+    `- Publishing owner: ${campaignStudioOwnerName}`,
+    `- Success metric to track: ${campaignStudioSuccessMetric}`,
     "- Notes:",
   ].join("\n");
   const campaignStudioLaunchKit = {
@@ -17429,6 +17464,8 @@ export default function MarketingAdminPage() {
       selectedChannels: channels,
       scheduleStartsAt: "",
       targetAudienceId: "",
+      ownerName: defaultCampaignStudioOwner(channels),
+      successMetric: defaultCampaignStudioSuccessMetric(play),
     });
     setCampaignIntentBrief(play.brief);
     setCampaignDraft((draft) => ({
@@ -17566,6 +17603,8 @@ export default function MarketingAdminPage() {
       selectedChannels,
       scheduleStartsAt,
       targetAudienceId,
+      ownerName: defaultCampaignStudioOwner(selectedChannels),
+      successMetric: defaultCampaignStudioSuccessMetric(match.play),
     });
     setCampaignDraft((draft) => ({
       ...draft,
@@ -18093,6 +18132,8 @@ export default function MarketingAdminPage() {
       selectedChannels: channels,
       scheduleStartsAt: campaignStudioDefaultSchedule(nextPlay),
       targetAudienceId: suggestedAudience?.id ?? "",
+      ownerName: defaultCampaignStudioOwner(channels),
+      successMetric: defaultCampaignStudioSuccessMetric(nextPlay),
     });
   }
 
@@ -18106,6 +18147,8 @@ export default function MarketingAdminPage() {
       selectedChannels: channels,
       scheduleStartsAt: campaignStudioDefaultSchedule(play),
       targetAudienceId: suggestedAudience?.id ?? "",
+      ownerName: defaultCampaignStudioOwner(channels),
+      successMetric: defaultCampaignStudioSuccessMetric(play),
     });
     setCampaignStudioAiDrafts({});
     setCampaignStudioFeedback(`Campaign play loaded: ${play.label} with ${formatChannelList(channels)}.`);
@@ -18132,6 +18175,8 @@ export default function MarketingAdminPage() {
             targetAudienceName: selectedCampaignStudioTargetAudience?.name ?? "",
             targetAudienceSize: selectedCampaignStudioTargetAudience?.mappedMemberCount ?? recipientsForChannel,
             campaignBrief: campaignIntentBrief.trim(),
+            ownerName: campaignStudioOwnerName,
+            successMetric: campaignStudioSuccessMetric,
             campaignName: seed.campaignName,
             contentTitle: seed.contentTitle,
             objective: seed.objective,
@@ -20223,6 +20268,8 @@ export default function MarketingAdminPage() {
       selectedChannels,
       scheduleStartsAt: campaignStudioDefaultSchedule(play),
       targetAudienceId: targetAudience?.id ?? "",
+      ownerName: defaultCampaignStudioOwner(selectedChannels),
+      successMetric: defaultCampaignStudioSuccessMetric(play),
     });
     setCampaignStudioFeedback(`Template gap loaded: ${suggestion.title}. Use AI to create a stronger ${channelLabel[suggestion.channel]} pack, then create the campaign and content.`);
     setContentActionFeedback(`Studio loaded from gap: ${suggestion.title}.`);
@@ -20250,6 +20297,8 @@ export default function MarketingAdminPage() {
       selectedChannels,
       scheduleStartsAt: campaignStudioDefaultSchedule(play),
       targetAudienceId: targetAudience?.id ?? "",
+      ownerName: defaultCampaignStudioOwner(selectedChannels),
+      successMetric: defaultCampaignStudioSuccessMetric(play),
     });
     setCampaignIntentBrief(intentBrief);
     setSelectedContentId(null);
@@ -20278,6 +20327,8 @@ export default function MarketingAdminPage() {
       selectedChannels: uniqueChannels([contentAsset.channel, ...recommendedCampaignStudioChannels(play)]),
       scheduleStartsAt: "",
       targetAudienceId: targetAudience?.id ?? "",
+      ownerName: defaultCampaignStudioOwner(uniqueChannels([contentAsset.channel, ...recommendedCampaignStudioChannels(play)])),
+      successMetric: defaultCampaignStudioSuccessMetric(play),
     });
     setSelectedContentId(contentAsset.id);
     setEditingContentId(null);
@@ -20313,6 +20364,8 @@ export default function MarketingAdminPage() {
       selectedChannels,
       scheduleStartsAt: campaignStudioDefaultSchedule(play),
       targetAudienceId: targetAudience?.id ?? "",
+      ownerName: defaultCampaignStudioOwner(selectedChannels),
+      successMetric: defaultCampaignStudioSuccessMetric(play),
     });
     setCampaignStudioAiDrafts({});
     setContentTemplatePackFilter(pack.id);
@@ -23279,6 +23332,8 @@ export default function MarketingAdminPage() {
       selectedChannels,
       scheduleStartsAt,
       targetAudienceId: targetAudience?.id ?? "",
+      ownerName: defaultCampaignStudioOwner(selectedChannels),
+      successMetric: defaultCampaignStudioSuccessMetric(play),
     });
     setCampaignIntentBrief(intentBrief);
     setCampaignDraft({
@@ -27860,6 +27915,45 @@ export default function MarketingAdminPage() {
                           data-testid="input-marketing-campaign-studio-schedule"
                         />
                       </Field>
+                      <Field label="Campaign owner">
+                        <input
+                          className={inputClass}
+                          value={campaignStudio.ownerName}
+                          onChange={(event) => setCampaignStudio((current) => ({ ...current, ownerName: event.target.value }))}
+                          placeholder={defaultCampaignStudioOwner(campaignStudioSelectedChannels)}
+                          data-testid="input-marketing-campaign-studio-owner"
+                        />
+                      </Field>
+                      <Field label="Success metric">
+                        <input
+                          className={inputClass}
+                          value={campaignStudio.successMetric}
+                          onChange={(event) => setCampaignStudio((current) => ({ ...current, successMetric: event.target.value }))}
+                          placeholder={defaultCampaignStudioSuccessMetric(selectedCampaignStudioPlay)}
+                          data-testid="input-marketing-campaign-studio-success-metric"
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4" data-testid="marketing-campaign-studio-production-controls">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Production controls</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Owner and metric are set before launch</h3>
+                          <p className="mt-1 text-xs font-bold text-[#61736b]">These values flow into the AI launch brief, approval pack, publishing guide, offline handoffs, and one-page launch packet.</p>
+                        </div>
+                        <Pill className="bg-white text-emerald-800">Tracked</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2">
+                        <div className="rounded-xl border border-emerald-100 bg-white p-3" data-testid="marketing-campaign-studio-production-owner">
+                          <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Owner</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">{campaignStudioOwnerName}</p>
+                        </div>
+                        <div className="rounded-xl border border-emerald-100 bg-white p-3" data-testid="marketing-campaign-studio-production-metric">
+                          <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Success metric</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">{campaignStudioSuccessMetric}</p>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-smart-schedule">
