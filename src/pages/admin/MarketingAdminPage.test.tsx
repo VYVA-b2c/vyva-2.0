@@ -5949,10 +5949,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-route-linkedin")).toHaveTextContent("Primary");
     expect(screen.getByTestId("marketing-campaign-studio-channel-route-email")).toHaveTextContent("VYVA send");
     expect(screen.getByTestId("marketing-campaign-studio-channel-route-email")).toHaveTextContent("Selected");
+    expect(screen.getByTestId("marketing-campaign-studio-optimized-pack-preview")).toHaveTextContent("Smart route optimizer");
+    expect(screen.getByTestId("marketing-campaign-studio-optimized-pack-preview")).toHaveTextContent("Best pack now");
+    expect(screen.getByTestId("marketing-campaign-studio-optimized-pack-route-linkedin")).toHaveTextContent("Primary");
     expect(screen.getByTestId("marketing-campaign-studio-launch-kit-coverage")).toHaveTextContent("Launch kit coverage");
     expect(screen.getByTestId("marketing-campaign-studio-launch-kit-coverage-social")).toHaveTextContent("Covered");
     expect(screen.getByTestId("marketing-campaign-studio-launch-kit-coverage-email")).toHaveTextContent("Covered");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-optimized-pack"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Optimized channel pack applied");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-route-primary-email"));
 

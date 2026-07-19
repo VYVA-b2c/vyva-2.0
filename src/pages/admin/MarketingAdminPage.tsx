@@ -15249,6 +15249,32 @@ export default function MarketingAdminPage() {
       };
     })
   ), [campaignStudioChannelRouteBoard]);
+  const campaignStudioOptimizedChannelPack = useMemo(() => {
+    const candidates = campaignStudioChannelRouteBoard
+      .filter((route) => route.reachableContacts > 0)
+      .sort((a, b) => {
+        const recommendedDelta = Number(b.recommended) - Number(a.recommended);
+        if (recommendedDelta) return recommendedDelta;
+        if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
+        const assetDelta = (b.starterTemplates + b.savedAssets) - (a.starterTemplates + a.savedAssets);
+        if (assetDelta) return assetDelta;
+        return CHANNELS.indexOf(a.channel) - CHANNELS.indexOf(b.channel);
+      });
+    const strongestRoutes = candidates.filter((route) => route.recommended || route.starterTemplates + route.savedAssets > 0);
+    const selectedRoutes = (strongestRoutes.length ? strongestRoutes : candidates).slice(0, 4);
+    const selectedChannels = selectedRoutes.map((route) => route.channel);
+    const primaryChannel = selectedChannels[0] ?? campaignStudio.channel;
+    const currentMatches = selectedChannels.length === campaignStudioSelectedChannels.length
+      && selectedChannels.every((channel) => campaignStudioSelectedChannels.includes(channel))
+      && campaignStudio.channel === primaryChannel;
+    return {
+      channels: selectedChannels,
+      primaryChannel,
+      routes: selectedRoutes,
+      canApply: selectedChannels.length > 0 && !currentMatches,
+      totalReach: selectedRoutes.reduce((total, route) => total + route.reachableContacts, 0),
+    };
+  }, [campaignStudio.channel, campaignStudioChannelRouteBoard, campaignStudioSelectedChannels]);
   const campaignDraftLaunchPreviewItems = useMemo(() => campaignDraftSelectedChannels.map((channel) => {
     const contentAsset = selectedCampaignDraftContentByChannel.get(channel) ?? null;
     const capability = sendCapabilityByChannel.get(channel);
@@ -17641,6 +17667,20 @@ export default function MarketingAdminPage() {
     updateCampaignStudio({ channel, selectedChannels: [channel] });
     setCampaignStudioFeedback(
       `Primary route switched to ${channelLabel[channel]} for better reach (${campaignStudioBestChannelReach.count} reachable contact${campaignStudioBestChannelReach.count === 1 ? "" : "s"}).`,
+    );
+  }
+
+  function applyCampaignStudioOptimizedChannelPack() {
+    if (!campaignStudioOptimizedChannelPack.channels.length) {
+      setCampaignStudioFeedback("No reachable routes are available for this audience yet.");
+      return;
+    }
+    updateCampaignStudio({
+      channel: campaignStudioOptimizedChannelPack.primaryChannel,
+      selectedChannels: campaignStudioOptimizedChannelPack.channels,
+    });
+    setCampaignStudioFeedback(
+      `Optimized channel pack applied: ${formatChannelList(campaignStudioOptimizedChannelPack.channels)} (${campaignStudioOptimizedChannelPack.totalReach} total reachable route${campaignStudioOptimizedChannelPack.totalReach === 1 ? "" : "s"}).`,
     );
   }
 
@@ -28134,14 +28174,58 @@ export default function MarketingAdminPage() {
                           <h3 className="mt-1 text-lg font-black text-[#241133]">Plan once, adapt by channel</h3>
                           <p className="mt-1 text-xs font-bold text-[#7d6b65]">Create linked content assets and planned recipient snapshots for every selected channel.</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={applyCampaignStudioRecommendedPack}
-                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50"
-                          data-testid="button-marketing-campaign-studio-recommended-pack"
-                        >
-                          <Sparkles size={14} /> Use recommended pack
-                        </button>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={applyCampaignStudioOptimizedChannelPack}
+                            disabled={!campaignStudioOptimizedChannelPack.canApply}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                            data-testid="button-marketing-campaign-studio-optimized-pack"
+                          >
+                            <Waypoints size={14} /> Optimize by reach
+                          </button>
+                          <button
+                            type="button"
+                            onClick={applyCampaignStudioRecommendedPack}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50"
+                            data-testid="button-marketing-campaign-studio-recommended-pack"
+                          >
+                            <Sparkles size={14} /> Use recommended pack
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-optimized-pack-preview">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-purple-800">Smart route optimizer</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                              Best pack now: {campaignStudioOptimizedChannelPack.channels.length ? formatChannelList(campaignStudioOptimizedChannelPack.channels) : "no reachable routes yet"}.
+                            </p>
+                          </div>
+                          <Pill className={campaignStudioOptimizedChannelPack.canApply ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                            {campaignStudioOptimizedChannelPack.canApply ? "Can improve" : "Current pack"}
+                          </Pill>
+                        </div>
+                        {campaignStudioOptimizedChannelPack.routes.length ? (
+                          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4" data-testid="marketing-campaign-studio-optimized-pack-routes">
+                            {campaignStudioOptimizedChannelPack.routes.map((route) => (
+                              <div key={route.channel} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2" data-testid={`marketing-campaign-studio-optimized-pack-route-${route.channel}`}>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <Pill className={channelClass(route.channel)}>{channelLabel[route.channel]}</Pill>
+                                  {route.channel === campaignStudioOptimizedChannelPack.primaryChannel ? <Pill className="bg-purple-700 text-white">Primary</Pill> : null}
+                                </div>
+                                <p className="mt-2 text-sm font-black text-[#241133]">{route.reachableContacts} reachable</p>
+                                <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                                  {route.recommended ? "Recommended route" : "Strong available route"}; {route.starterTemplates + route.savedAssets} reusable asset{route.starterTemplates + route.savedAssets === 1 ? "" : "s"}.
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] px-3 py-3 text-sm font-bold text-[#7d6b65]">
+                            Add contacts or switch audience before optimizing routes.
+                          </p>
+                        )}
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2" data-testid="marketing-campaign-studio-channel-pack-buttons">
                         {CHANNELS.map((channel) => {
