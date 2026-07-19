@@ -68,21 +68,27 @@ import {
 } from "@/components/concierge/ConciergeTaskNavigation";
 import {
   AppointmentVoiceCanvas,
+  ProviderReplyVoiceCanvas,
   RideVoiceCanvas,
   type AppointmentCanvasCopy,
   type AppointmentCanvasDraft,
   type AppointmentCanvasState,
+  type ProviderReplyCanvasCopy,
+  type ProviderReplyCanvasDraft,
   type RideCanvasCopy,
   type RideCanvasDraft,
   type RideCanvasState,
   isAppointmentCanvasEnabled,
   isHomeServiceCanvasEnabled,
+  isProviderReplyCanvasEnabled,
   isRestorableHomeServiceRequestStatus,
   isRideCanvasEnabled,
   parseAppointmentCanvasRolloutConfig,
   parseHomeServiceCanvasRolloutConfig,
+  parseProviderReplyCanvasRolloutConfig,
   parseRideCanvasRolloutConfig,
   trackAppointmentCanvasEvent,
+  trackProviderReplyCanvasEvent,
   trackRideCanvasEvent,
   useCanvasExternalActionGate,
 } from "@/components/voice-canvas";
@@ -14707,6 +14713,227 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     ? buildConciergeLiveHandoffSummary(activeAction, isSpanish)
     : null;
   const activeActionCanRecordProviderReply = canRecordProviderReply(activeActionTimeline);
+  const providerReplyCanvasRolloutQuery = useQuery({
+    queryKey: ["/api/config/features/provider-reply-voice-canvas"],
+    queryFn: async () => {
+      const response = await apiFetch("/api/config/features/provider-reply-voice-canvas");
+      return response.ok
+        ? parseProviderReplyCanvasRolloutConfig(await response.json())
+        : { enabled: false, rolloutPercent: 0 };
+    },
+    enabled: Boolean(activeActionCanRecordProviderReply && activeAction),
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: "always",
+    retry: false,
+  });
+  const usesProviderReplyVoiceCanvas = Boolean(
+    activeAction &&
+      activeActionCanRecordProviderReply &&
+      isProviderReplyCanvasEnabled(
+        providerReplyCanvasRolloutQuery.data,
+        activeAction.id,
+      ),
+  );
+  const providerReplyCanvasCopy = useMemo<ProviderReplyCanvasCopy>(() => ({
+    listening: {
+      status: isSpanish ? "Escuchando" : "Listening",
+      title: isSpanish ? "Revisemos la respuesta" : "Review the provider reply",
+      helper: isSpanish ? "Usa voz, pantalla o teclado." : "Use voice, touch, or keyboard.",
+      start: isSpanish ? "Empezar" : "Start",
+      cancel: isSpanish ? "Ahora no" : "Not now",
+    },
+    context: {
+      title: isSpanish ? "Contexto del proveedor" : "Provider context",
+      helper: isSpanish
+        ? "Comprueba la tarea antes de guardar nada."
+        : "Check the task before saving anything.",
+      provider: isSpanish ? "Proveedor" : "Provider",
+      action: isSpanish ? "Tarea" : "Task",
+      waiting: isSpanish ? "Espera" : "Waiting",
+      continue: isSpanish ? "Continuar" : "Continue",
+      back: isSpanish ? "Volver" : "Back",
+    },
+    reply: {
+      title: isSpanish ? "Que dijeron?" : "What did they say?",
+      helper: isSpanish
+        ? "Guarda solo la respuesta del proveedor."
+        : "Record only the provider reply.",
+      label: isSpanish ? "Respuesta del proveedor" : "Provider reply",
+      placeholder: isSpanish ? "El proveedor confirmo..." : "The provider confirmed...",
+      continue: isSpanish ? "Continuar" : "Continue",
+      back: isSpanish ? "Volver" : "Back",
+    },
+    scheduledFor: {
+      title: isSpanish ? "Cuando esta programado?" : "When is it scheduled?",
+      helper: isSpanish
+        ? "Hace falta fecha y hora para guardar esto en Scheduled Support."
+        : "A date and time is needed for Scheduled Support.",
+      label: isSpanish ? "Fecha y hora confirmadas" : "Confirmed date and time",
+      continue: isSpanish ? "Continuar" : "Continue",
+      back: isSpanish ? "Volver" : "Back",
+    },
+    details: {
+      title: isSpanish ? "Alguna nota para VYVA?" : "Any note for VYVA?",
+      helper: isSpanish ? "Opcional." : "Optional.",
+      label: isSpanish ? "Notas" : "Notes",
+      placeholder: isSpanish ? "Nota opcional" : "Optional note",
+      continue: isSpanish ? "Revisar" : "Review",
+      back: isSpanish ? "Volver" : "Back",
+    },
+    review: {
+      title: isSpanish ? "Revisa antes de guardar" : "Review before saving",
+      helper: isSpanish
+        ? "Esto guarda la respuesta, pero no completa la tarea."
+        : "This saves the reply, but does not complete the task.",
+      provider: isSpanish ? "Proveedor" : "Provider",
+      action: isSpanish ? "Tarea" : "Task",
+      reply: isSpanish ? "Respuesta" : "Reply",
+      scheduledFor: isSpanish ? "Programado para" : "Scheduled for",
+      notes: isSpanish ? "Notas" : "Notes",
+      noNotes: isSpanish ? "Ninguna" : "None",
+      save: isSpanish ? "Guardar respuesta" : "Save reply",
+      back: isSpanish ? "Volver" : "Back",
+    },
+    saving: {
+      status: isSpanish ? "Guardando" : "Saving",
+      title: isSpanish ? "Guardando la respuesta" : "Saving the reply",
+      helper: isSpanish ? "No se envia ningun mensaje externo." : "No external message is sent.",
+      action: isSpanish ? "Guardando..." : "Saving...",
+    },
+    saved: {
+      status: isSpanish ? "Guardada" : "Saved",
+      title: isSpanish ? "Respuesta guardada" : "Reply saved",
+      helper: isSpanish
+        ? "Ahora puedes marcar la tarea como hecha."
+        : "Now you can mark the task complete.",
+      reference: isSpanish ? "Referencia" : "Reference",
+      markComplete: isSpanish ? "Marcar completado" : "Mark complete",
+      edit: isSpanish ? "Editar respuesta" : "Edit reply",
+    },
+    completing: {
+      status: isSpanish ? "Completando" : "Completing",
+      title: isSpanish ? "Completando la tarea" : "Completing the task",
+      helper: isSpanish ? "Espera un momento." : "Please wait.",
+      action: isSpanish ? "Completando..." : "Completing...",
+    },
+    completed: {
+      status: isSpanish ? "Completado" : "Completed",
+      title: isSpanish ? "Tarea completada" : "Task complete",
+      helper: isSpanish
+        ? "La respuesta guardada queda en el historial."
+        : "The saved reply is in history.",
+      reference: isSpanish ? "Referencia" : "Reference",
+      done: isSpanish ? "Terminar" : "Done",
+    },
+    blocked: {
+      status: isSpanish ? "Necesita atencion" : "Needs attention",
+      title: isSpanish ? "Necesita atencion" : "Needs attention",
+      helper: isSpanish ? "Revisa e intentalo otra vez." : "Review and try again.",
+      missingContextHelper: isSpanish
+        ? "Falta el contexto del proveedor."
+        : "Provider context is missing.",
+      incompleteReplyHelper: isSpanish
+        ? "Anade la respuesta del proveedor antes de continuar."
+        : "Add the provider reply before continuing.",
+      incompleteScheduledForHelper: isSpanish
+        ? "Anade una fecha y hora validas antes de continuar."
+        : "Add a valid date and time before continuing.",
+      retry: isSpanish ? "Reintentar" : "Retry",
+      cancel: isSpanish ? "Cancelar" : "Cancel",
+    },
+    cancelled: {
+      status: isSpanish ? "Cancelado" : "Cancelled",
+      title: isSpanish ? "No se guardo nada" : "Nothing saved",
+      helper: isSpanish ? "La respuesta no se guardo." : "The reply was not saved.",
+      restart: isSpanish ? "Empezar otra vez" : "Start again",
+    },
+    progress: (current, total) => isSpanish ? `Paso ${current} de ${total}` : `Step ${current} of ${total}`,
+  }), [isSpanish]);
+  const providerReplyCanvasContext = useMemo(() => {
+    if (!activeAction) return {};
+    const providerName = providerSearchProviderName(activeAction, isSpanish)
+      || activeAction.provider_name?.trim()
+      || payloadString(activeAction.action_payload, ["provider_name", "pharmacy_name", "selected_provider_name"]);
+    const actionLabel = getPendingActionUseCaseLabel(activeAction, locale);
+    const existingReply = conciergeProviderReplySnapshot(activeAction.action_payload);
+    const summary = existingReply?.summary || existingReply?.reply || activeAction.action_summary;
+    return {
+      providerName,
+      actionLabel,
+      waitingSinceLabel: formatProviderWaitingSince(activeAction, locale, isSpanish, providerWaitingClockMs),
+      requiresScheduledFor: isMedicalAppointmentPendingAction(activeAction) || isHomeServicePendingAction(activeAction),
+      rows: summary ? [{
+        id: "summary",
+        label: isSpanish ? "Resumen" : "Summary",
+        value: summary,
+      }] : [],
+    };
+  }, [activeAction, isSpanish, locale, providerWaitingClockMs]);
+  const providerReplyCanvasInitialDraft = useMemo(() => {
+    if (!activeAction) return undefined;
+    const form = providerReplyInitialForm(activeAction, isSpanish);
+    return {
+      providerReply: form.providerReply,
+      scheduledFor: form.scheduledFor,
+      notes: form.notes,
+    };
+  }, [activeAction, isSpanish]);
+  const providerReplyCanvasCommands = useMemo(() => ({
+    start: isSpanish ? ["empezar", "revisar respuesta"] : ["start", "review reply"],
+    back: isSpanish ? ["volver", "atras"] : ["back", "go back"],
+    cancel: isSpanish ? ["cancelar", "ahora no"] : ["cancel", "not now"],
+    continue: isSpanish ? ["continuar"] : ["continue"],
+    save: isSpanish ? ["guardar respuesta", "guardar"] : ["save reply", "save"],
+    complete: isSpanish ? ["marcar completado", "completar"] : ["mark complete", "complete"],
+    retry: isSpanish ? ["reintentar", "intentar otra vez"] : ["retry", "try again"],
+    skip: isSpanish ? ["omitir", "sin notas"] : ["skip", "no notes"],
+  }), [isSpanish]);
+  const saveProviderReplyFromCanvas = useCallback(async (
+    draft: Readonly<ProviderReplyCanvasDraft>,
+    { signal }: { requestId: number; revision: number; signal: AbortSignal },
+  ) => {
+    if (!activeAction) {
+      throw new Error(isSpanish ? "No hay tarea activa." : "No active task.");
+    }
+    const initialForm = providerReplyInitialForm(activeAction, isSpanish);
+    const form: ProviderReplyForm = {
+      ...initialForm,
+      providerReply: draft.providerReply,
+      scheduledFor: draft.scheduledFor || initialForm.scheduledFor,
+      notes: draft.notes,
+    };
+    const result = await providerReplyCompletionMutation.mutateAsync({ item: activeAction, form });
+    if (signal.aborted) throw new DOMException("Provider reply save cancelled", "AbortError");
+    const completionStatus = isRecord(result) && typeof result.completionStatus === "string"
+      ? result.completionStatus
+      : "reply_received";
+    return {
+      summary: completionStatus === "review_pending"
+        ? (isSpanish
+            ? "Respuesta guardada. Revisa antes de completar la tarea."
+            : "Reply saved. Review before completing the task.")
+        : (isSpanish
+            ? "Respuesta guardada. Marca la tarea como hecha cuando termines."
+            : "Reply saved. Mark the task done when you are finished."),
+      reference: payloadString(activeAction.action_payload, ["reference", "booking_reference"]) || activeAction.id,
+    };
+  }, [activeAction, isSpanish, providerReplyCompletionMutation]);
+  const markProviderReplyCompleteFromCanvas = useCallback(async (
+    _draft: Readonly<ProviderReplyCanvasDraft>,
+    { signal }: { requestId: number; revision: number; signal: AbortSignal },
+  ) => {
+    if (!activeAction) {
+      throw new Error(isSpanish ? "No hay tarea activa." : "No active task.");
+    }
+    const result = await providerMarkCompleteMutation.mutateAsync({ item: activeAction });
+    if (signal.aborted) throw new DOMException("Provider reply completion cancelled", "AbortError");
+    return {
+      reference: isRecord(result) && typeof result.sessionId === "string"
+        ? result.sessionId
+        : activeAction.id,
+    };
+  }, [activeAction, isSpanish, providerMarkCompleteMutation]);
   const activeActionProviderSearchDetails = !activeActionProviderShortlist && isProviderSearchPendingAction(activeAction)
     ? providerSearchActionDetails(activeAction, isSpanish)
     : null;
@@ -18234,29 +18461,46 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
             ) : null}
 
             {activeActionCanRecordProviderReply || providerReplyMode ? (
-              <ProviderReplyPanel
-                item={activeAction}
-                mode={providerReplyMode}
-                form={providerReplyForm}
-                waitingSinceLabel={formatProviderWaitingSince(activeAction, locale, isSpanish, providerWaitingClockMs)}
-                notice={providerReplyNotice}
-                error={providerReplyError}
-                isSaving={providerReplyCompletionMutation.isPending}
-                isUpdating={providerNoAnswerMutation.isPending
-                  || providerMarkCompleteMutation.isPending
-                  || providerReplyResolutionMutation.isPending
-                  || reviewConfirmMutation.isPending}
-                isSpanish={isSpanish}
-                onMode={(mode) => openProviderReplyMode(activeAction, mode)}
-                onFormChange={updateProviderReplyForm}
-                onNoAnswer={() => handleProviderNoAnswer(activeAction)}
-                onSaveConfirmed={() => handleSaveProviderReply(activeAction)}
-                onUnavailable={() => handleProviderUnavailable(activeAction)}
-                onNeedMoreInfo={() => handleProviderNeedMoreInfo(activeAction)}
-                onResolve={(resolution, answers) => handleProviderReplyResolution(activeAction, resolution, answers)}
-                onReviewDraft={(resolution) => handleProviderReplyDraftReview(activeAction, resolution)}
-                onMarkComplete={() => handleProviderMarkComplete(activeAction)}
-              />
+              usesProviderReplyVoiceCanvas && !providerReplyMode ? (
+                <div className="mt-3" data-testid="panel-concierge-provider-reply-canvas">
+                  <ProviderReplyVoiceCanvas
+                    copy={providerReplyCanvasCopy}
+                    context={providerReplyCanvasContext}
+                    voiceCommands={providerReplyCanvasCommands}
+                    initialDraft={providerReplyCanvasInitialDraft}
+                    storageKey={`vyva.providerReplyCanvas.concierge.${activeAction.id}`}
+                    onSaveReply={saveProviderReplyFromCanvas}
+                    onMarkComplete={markProviderReplyCompleteFromCanvas}
+                    onDone={showNextQueuedAction}
+                    onCancel={() => setProviderReplyNotice(isSpanish ? "Respuesta no guardada." : "Reply not saved.")}
+                    onTelemetry={trackProviderReplyCanvasEvent}
+                  />
+                </div>
+              ) : (
+                <ProviderReplyPanel
+                  item={activeAction}
+                  mode={providerReplyMode}
+                  form={providerReplyForm}
+                  waitingSinceLabel={formatProviderWaitingSince(activeAction, locale, isSpanish, providerWaitingClockMs)}
+                  notice={providerReplyNotice}
+                  error={providerReplyError}
+                  isSaving={providerReplyCompletionMutation.isPending}
+                  isUpdating={providerNoAnswerMutation.isPending
+                    || providerMarkCompleteMutation.isPending
+                    || providerReplyResolutionMutation.isPending
+                    || reviewConfirmMutation.isPending}
+                  isSpanish={isSpanish}
+                  onMode={(mode) => openProviderReplyMode(activeAction, mode)}
+                  onFormChange={updateProviderReplyForm}
+                  onNoAnswer={() => handleProviderNoAnswer(activeAction)}
+                  onSaveConfirmed={() => handleSaveProviderReply(activeAction)}
+                  onUnavailable={() => handleProviderUnavailable(activeAction)}
+                  onNeedMoreInfo={() => handleProviderNeedMoreInfo(activeAction)}
+                  onResolve={(resolution, answers) => handleProviderReplyResolution(activeAction, resolution, answers)}
+                  onReviewDraft={(resolution) => handleProviderReplyDraftReview(activeAction, resolution)}
+                  onMarkComplete={() => handleProviderMarkComplete(activeAction)}
+                />
+              )
             ) : null}
 
             {activeActionIsAppointment && (

@@ -123,18 +123,27 @@ function RoutedConciergeRoutes() {
   );
 }
 
-function jsonResponse(body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
+function cloneJsonBody(body: unknown) {
+  return JSON.parse(JSON.stringify(body)) as unknown;
+}
+
+function jsonResponse(body: unknown, init: ResponseInit = {}) {
+  const status = init.status ?? 200;
+  const headers = new Headers(init.headers ?? { "Content-Type": "application/json" });
+  const response = {
+    ok: status >= 200 && status < 300,
+    status,
+    headers,
+    bodyUsed: false,
+    json: vi.fn(async () => cloneJsonBody(body)),
+    text: vi.fn(async () => JSON.stringify(body)),
+    clone: () => jsonResponse(body, init),
+  };
+  return response as unknown as Response;
 }
 
 function errorResponse(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
+  return jsonResponse(body, { status });
 }
 
 function liveReadyExecutionTask(
@@ -6539,6 +6548,83 @@ describe("ConciergeScreen route prefill", () => {
             status: "completed",
           }),
         }),
+      }),
+    }));
+  });
+
+  it("runs provider reply save and completion through the Canvas when enabled", async () => {
+    let pendingPayload: Record<string, unknown> = {
+      pickup_address: "Saved home",
+      destination_address: "City Clinic",
+      requested_time: "tomorrow 09:00",
+      mission_status: "awaiting_provider_reply",
+    };
+    let detailsBody: { action_payload?: Record<string, unknown> } | null = null;
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target === "/api/config/features/provider-reply-voice-canvas") {
+        return jsonResponse({ enabled: true, rolloutPercent: 100 });
+      }
+      if (target.endsWith("/api/concierge/actions/reply-canvas-1/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-reply-canvas-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/reply-canvas-1/details")) {
+        detailsBody = JSON.parse(String(init?.body));
+        pendingPayload = detailsBody?.action_payload ?? pendingPayload;
+        return jsonResponse({ ok: true, item: { id: "reply-canvas-1", action_payload: pendingPayload } });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-canvas-1",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "VYVA is waiting for the taxi provider reply.",
+            action_payload: pendingPayload,
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const canvas = await screen.findByTestId("panel-concierge-provider-reply-canvas");
+    expect(canvas).toHaveTextContent("Review the provider reply");
+    fireEvent.click(within(canvas).getByRole("button", { name: "Start" }));
+    fireEvent.click(within(canvas).getByRole("button", { name: "Continue" }));
+    fireEvent.change(screen.getByLabelText("Provider reply"), {
+      target: { value: "Driver will wait outside the main door." },
+    });
+    fireEvent.click(within(canvas).getByRole("button", { name: "Continue" }));
+    fireEvent.click(within(canvas).getByRole("button", { name: "Review" }));
+    fireEvent.click(within(canvas).getByRole("button", { name: "Save reply" }));
+
+    expect(await screen.findByRole("heading", { name: "Reply saved" })).toBeInTheDocument();
+    expect(completeBody).toBeNull();
+    expect(detailsBody).toMatchObject({
+      action_payload: expect.objectContaining({
+        provider_name: "Radio Taxi",
+        provider_reply_status: "confirmed",
+        provider_reply: "Driver will wait outside the main door.",
+        provider_task_status: "reply_received",
+        live_handoff_status: "ready",
+        provider_follow_up_confirmed: false,
+      }),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete" }));
+
+    await waitFor(() => expect(completeBody).toMatchObject({
+      outcome_payload: expect.objectContaining({
+        provider_task_status: "done",
+        provider_reply: "Driver will wait outside the main door.",
+        completed_from: "provider_follow_up_panel",
       }),
     }));
   });
