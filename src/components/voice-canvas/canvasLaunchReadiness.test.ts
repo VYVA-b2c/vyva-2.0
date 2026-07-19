@@ -226,7 +226,7 @@ describe("Canvas launch readiness manifest", () => {
       "Local medication refill draft",
       "Pending provider reply task",
       "Stale or blocked task",
-      "dated resume, disabled fallback, no-write, and no-external-action",
+      "dated artifact resume, disabled fallback, no-write, and no-external-action",
       "Browser back",
       "Cancel/exit",
       "Flag rollback/fallback",

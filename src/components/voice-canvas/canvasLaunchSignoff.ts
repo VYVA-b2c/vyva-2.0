@@ -1578,6 +1578,7 @@ function hasTaskHubDestinationEvidenceLanguage(
 
   return (
     hasDatedEvidenceLanguage(value, ["qa", "reviewer", "evidence", "screenshot", "log"]) &&
+    hasConcreteEvidenceArtifactLanguage(value) &&
     hasAllWordGroups(value, [
       ...requirements.routeWordGroups,
       ...requirements.fallbackWordGroups,
@@ -1641,7 +1642,16 @@ function invalidTaskHubDestinationRows(
         hasNegativeTaskHubDestinationOutcomeLanguage(evidence))
     ) {
       problems.push(
-        `${rowLabel}: evidence must include dated resume, disabled fallback, no-write, and no-external-action evidence`,
+        `${rowLabel}: evidence must include dated artifact resume, disabled fallback, no-write, and no-external-action evidence`,
+      );
+    }
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      hasSensitiveDataLeakageLanguage(evidence)
+    ) {
+      problems.push(
+        `${rowLabel}: evidence artifacts must not include transcripts, entered text, addresses, or personal details`,
       );
     }
   }
