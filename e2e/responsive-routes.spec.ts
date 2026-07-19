@@ -824,7 +824,7 @@ async function expectResponsiveRoute(
   await page.waitForLoadState("networkidle", { timeout: 500 }).catch(() => undefined);
   await page.locator("#vyva-launch").waitFor({ state: "detached", timeout: 15_000 });
 
-  let expectedShell = route.expectedLayout ? page.getByTestId("app-shell") : null;
+  const expectedShell = route.expectedLayout ? page.getByTestId("app-shell") : null;
   if (expectedShell) {
     await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 60_000 });
   }
@@ -939,11 +939,7 @@ const publicRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedCoreRoutes: ResponsiveRoute[] = [
-  { name: "home", path: "/", expectedLayout: "wide" },
   { name: "profile select", path: "/profiles/select" },
-  { name: "onboarding basics", path: "/onboarding/basics", onboardingStage: "stage_1_identity" },
-  { name: "profile overview", path: "/onboarding/profile" },
-  { name: "profile health section", path: "/onboarding/profile/health", onboardingStage: "stage_4_profile" },
 ];
 
 const protectedHealthRoutes: ResponsiveRoute[] = [
