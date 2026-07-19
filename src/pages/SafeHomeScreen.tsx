@@ -24,7 +24,9 @@ import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
+import ShowVyvaReviewHistory from "@/components/ShowVyvaReviewHistory";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
 import {
   prepareShowVyvaEvidenceFile,
   reviewShowVyvaVisualEvidence,
@@ -502,6 +504,7 @@ const SafeHomeScreen = () => {
 
     void saveShowVyvaActionExecutionPlan(plan)
       .then(async () => {
+        markShowVyvaReviewHistoryActionSaved(reviewContract, action, plan.targetRoute);
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
         toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
         setResult(null);
@@ -572,6 +575,7 @@ const SafeHomeScreen = () => {
             });
             void saveShowVyvaActionExecutionPlan(plan)
               .then(async () => {
+                markShowVyvaReviewHistoryActionSaved(reviewContract, action, plan.targetRoute);
                 await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
                 toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
                 if (testIdSuffix === "current") setResult(null);
@@ -763,6 +767,10 @@ const SafeHomeScreen = () => {
               busy={analyzing || homeCapturePreparing}
               onChooseFileSource={(source, useCase, question) => openHomeScanFilePicker(source, useCase.id, question)}
               onPaste={(payload) => openPastedHomeReview(payload)}
+            />
+            <ShowVyvaReviewHistory
+              className="mt-[14px]"
+              onResume={(item) => navigate(item.resumeRoute)}
             />
 
             {/* Analyzing state */}

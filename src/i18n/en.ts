@@ -2149,6 +2149,7 @@
     },
         handoff: { kicker: "Best next step", explain: "Explain", hideExplain: "Hide explanation", actionsTitle: "Choose a safe action", title: { scam: "This looks risky", document: "This needs checking", medicine: "Check before using", health_visual: "Check before acting", home_safety: "Make this safer", provider_deal: "Compare before deciding" } },
         evidence: { kicker: "Why VYVA thinks this", factsFound: "Facts found", stillUncertain: "Still uncertain", noFacts: "No solid fact found yet.", noUncertainty: "Nothing else flagged from this item.", confidence: { clear_risk: "Clear risk", needs_checking: "Needs checking", not_enough_information: "Not enough information" } },
+        history: { kicker: "Recent Show VYVA", title: "Come back to a review", actionSaved: "Action saved", noActionSaved: "No action saved", context: { scam: "Scam check", document: "Document", medicine: "Medicine label", provider_deal: "Provider or deal", home_safety: "Home photo", health_visual: "Health photo" } },
     contract: {
       finalConfirmation: "VYVA prepares first. You confirm before anything is sent, bought, booked, called, uploaded, submitted, or shared.",
       sections: {

@@ -1,10 +1,11 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, CheckCircle2, ChevronDown, HelpCircle, SearchCheck, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { ShowVyvaReviewContract, ShowVyvaReviewRiskLevel } from "../../shared/showVyvaReviewContract";
 import type { ShowVyvaFollowUpAction } from "../../shared/showVyvaFollowUp";
 import { buildShowVyvaDecisionHandoff, type ShowVyvaDecisionTone } from "../../shared/showVyvaDecisionHandoff";
 import { buildShowVyvaConfidenceEvidence, type ShowVyvaConfidenceEvidenceTone } from "../../shared/showVyvaConfidenceEvidence";
+import { upsertShowVyvaReviewHistory } from "@/lib/showVyvaReviewHistory";
 import ShowVyvaFollowUpPanel from "./ShowVyvaFollowUpPanel";
 
 type ShowVyvaResultCardProps = {
@@ -142,6 +143,10 @@ export default function ShowVyvaResultCard({
     : [t("showVyva.contract.unknownFallback", "VYVA cannot confirm details that are not visible in this item.")];
   const nextSteps = contract.safeNextSteps.length ? contract.safeNextSteps : [contract.concernSummary];
   const followUpActions = actions ?? handoff.actions;
+
+  useEffect(() => {
+    upsertShowVyvaReviewHistory(contract);
+  }, [contract]);
 
   return (
     <section
