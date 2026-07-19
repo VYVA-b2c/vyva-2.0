@@ -244,6 +244,7 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByTestId("button-show-vyva-submit-paste"));
 
     expect(screen.getByTestId("show-vyva-pasted-review-home-pasted")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-show-vyva-explain-home-pasted"));
     expect(screen.getByTestId("show-vyva-result-reviewed-home-pasted")).toHaveTextContent("Loose rug near the stairs");
     expect(savePlanMock).not.toHaveBeenCalled();
 
