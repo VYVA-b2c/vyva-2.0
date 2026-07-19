@@ -311,20 +311,44 @@ function invalidEnvironmentRows(sections: Map<string, string[][]>): string[] {
 const deviceCoverageRequirements = [
   {
     columnIndex: 1,
-    description: "phone cell must name real phone or mobile evidence",
-    wordGroups: [["phone", "mobile", "iphone", "ios", "android"]],
+    description: "phone cell must name real physical phone or mobile evidence",
+    wordGroups: [
+      ["phone", "mobile", "iphone", "ios", "android"],
+      ["real", "physical", "actual", "hardware", "device"],
+    ],
   },
   {
     columnIndex: 2,
-    description: "tablet cell must name real tablet evidence",
-    wordGroups: [["tablet", "ipad", "android tablet"]],
+    description: "tablet cell must name real physical tablet evidence",
+    wordGroups: [
+      ["tablet", "ipad", "android tablet"],
+      ["real", "physical", "actual", "hardware", "device"],
+    ],
   },
   {
     columnIndex: 3,
     description: "desktop/laptop cell must name real desktop or laptop evidence",
-    wordGroups: [["desktop", "laptop", "windows", "mac", "chrome", "edge", "firefox"]],
+    wordGroups: [
+      ["desktop", "laptop", "windows", "mac", "chrome", "edge", "firefox"],
+      ["real", "physical", "actual", "hardware", "device"],
+    ],
   },
 ] as const;
+
+function hasEmulatedDeviceEvidenceLanguage(value: string): boolean {
+  return hasAnyWord(value, [
+    "browser emulation",
+    "device emulation",
+    "emulated",
+    "emulator",
+    "simulated device",
+    "simulator",
+    "viewport",
+    "responsive mode",
+    "device toolbar",
+    "devtools",
+  ]);
+}
 
 function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] {
   const rows = new Map(
@@ -343,6 +367,10 @@ function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] 
       if (isPlaceholderCell(cell) || isFailingQaCell(cell)) continue;
       if (!hasAllWordGroups(cell, requirement.wordGroups)) {
         problems.push(`${flow.label}: ${requirement.description}`);
+      } else if (hasEmulatedDeviceEvidenceLanguage(cell)) {
+        problems.push(
+          `${flow.label}: ${requirement.description} and must not be viewport or emulator evidence`,
+        );
       }
     }
 
@@ -353,6 +381,8 @@ function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] 
       !hasDatedEvidenceLanguage(evidence)
     ) {
       problems.push(`${flow.label}: evidence must include dated QA or reviewer evidence`);
+    } else if (hasEmulatedDeviceEvidenceLanguage(evidence)) {
+      problems.push(`${flow.label}: evidence must not rely on viewport or emulator evidence`);
     }
   }
 

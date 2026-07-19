@@ -600,10 +600,32 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidDeviceCoverageRows).toEqual([
-      "Ride Voice Canvas: phone cell must name real phone or mobile evidence",
-      "Ride Voice Canvas: tablet cell must name real tablet evidence",
+      "Ride Voice Canvas: phone cell must name real physical phone or mobile evidence",
+      "Ride Voice Canvas: tablet cell must name real physical tablet evidence",
       "Ride Voice Canvas: desktop/laptop cell must name real desktop or laptop evidence",
       "Ride Voice Canvas: evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices that substitute viewport or emulator evidence for real devices", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real mobile browser emulation for iOS phone viewport passed | Real iPad tablet device toolbar viewport passed | Real desktop Chrome responsive viewport passed | QA screenshot evidence reviewed on 2026-07-19 from responsive mode |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: phone cell must name real physical phone or mobile evidence and must not be viewport or emulator evidence",
+      "Ride Voice Canvas: tablet cell must name real physical tablet evidence and must not be viewport or emulator evidence",
+      "Ride Voice Canvas: desktop/laptop cell must name real desktop or laptop evidence and must not be viewport or emulator evidence",
+      "Ride Voice Canvas: evidence must not rely on viewport or emulator evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
