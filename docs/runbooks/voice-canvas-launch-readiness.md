@@ -38,7 +38,7 @@ Allowed Canvas telemetry fields are only:
 - `restored`
 - `revision`
 
-Never record addresses, saved-place labels, spoken transcripts, typed free text, medication names, provider names, reply bodies, notes, references, dates, times, item names, prices, phone numbers, or personal identifiers in Canvas telemetry.
+Never record addresses, saved-place labels, spoken transcripts, typed free text, medication names or strengths, symptoms, provider names or contact details, reply bodies, notes, references, dates, times, shopping item names, retailer names, prices, fees, phone numbers, email addresses, account IDs, profile IDs, patient IDs, or personal identifiers in Canvas telemetry.
 
 Canonical launch signals are derived from the closed event shape:
 

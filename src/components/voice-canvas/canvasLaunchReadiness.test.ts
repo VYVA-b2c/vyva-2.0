@@ -96,6 +96,41 @@ describe("Canvas launch readiness manifest", () => {
     for (const forbiddenField of CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS) {
       expect(serializedAllowedFields).not.toContain(forbiddenField);
     }
+
+    expect(CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS).toEqual(
+      expect.arrayContaining([
+        "pickupAddress",
+        "destinationAddress",
+        "savedPlaceLabel",
+        "transcript",
+        "typedText",
+        "draftMessage",
+        "date",
+        "time",
+        "scheduledAt",
+        "appointmentReason",
+        "medicationName",
+        "medicationStrength",
+        "symptoms",
+        "providerName",
+        "providerPhone",
+        "providerEmail",
+        "replyText",
+        "notes",
+        "reference",
+        "itemName",
+        "retailerName",
+        "price",
+        "estimatedCost",
+        "fees",
+        "phoneNumber",
+        "email",
+        "fullName",
+        "userId",
+        "profileId",
+        "patientId",
+      ]),
+    );
   });
 
   it("documents a rollback path for every Canvas launch surface", () => {
@@ -164,6 +199,7 @@ describe("Canvas launch readiness manifest", () => {
       "Medication names, strengths, quantities, or symptoms",
       "Provider names, reply text, notes, references, phone numbers, or emails",
       "Shopping item names, prices, fees, or retailer names",
+      "Dates, times, identities, or contact details",
       "Operations/rollback owner",
     ]) {
       expect(matrix).toContain(requiredCheck);

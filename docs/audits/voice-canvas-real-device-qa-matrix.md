@@ -88,6 +88,7 @@ Confirm production or staging analytics receives only the allowed Canvas telemet
 | Medication names, strengths, quantities, or symptoms | Pending | Pending |
 | Provider names, reply text, notes, references, phone numbers, or emails | Pending | Pending |
 | Shopping item names, prices, fees, or retailer names | Pending | Pending |
+| Dates, times, identities, or contact details | Pending | Pending |
 
 ## Final sign-off
 
