@@ -433,10 +433,20 @@ const behaviorChecklistRequirements = [
   },
   {
     columnIndex: 3,
-    description: "refresh/reconnect cell must mention refresh and reconnect evidence",
+    description:
+      "refresh/reconnect cell must mention refresh, reconnect, restored work, and no write evidence",
     wordGroups: [
       ["refresh"],
       ["reconnect", "reconnected", "network"],
+      ["preserve", "preserved", "restore", "restored", "resume", "resumed", "draft"],
+      [
+        "no write",
+        "no external action",
+        "not submitted",
+        "without submitting",
+        "without resubmitting",
+        "without write",
+      ],
     ],
   },
   {
