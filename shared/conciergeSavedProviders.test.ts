@@ -56,6 +56,24 @@ describe("Concierge saved provider selection", () => {
     });
   });
 
+  it("treats a trusted provider website as a Concierge-ready contact route", () => {
+    const provider = {
+      name: "Trusted Repair",
+      category: "home_service",
+      website_uri: "https://repair.example",
+      is_trusted: true,
+      can_contact_after_confirmation: true,
+    };
+
+    expect(savedProviderContactReadiness(provider)).toMatchObject({
+      channels: ["website"],
+      preferredChannel: "website",
+      conciergeUsable: true,
+      label: "Website",
+    });
+    expect(selectConciergeSavedProvider([provider], "home_service")?.name).toBe("Trusted Repair");
+  });
+
   it("keeps exactly one default per category and supports legacy saved providers", () => {
     const normalized = normalizeSavedProviderDefaults([
       { name: "Local Pharmacy", role: "pharmacy" },

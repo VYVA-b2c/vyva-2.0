@@ -362,6 +362,7 @@ type ConciergeProfileSummary = {
     preferred_channel?: string | null;
     address?: string | null;
     websiteUrl?: string | null;
+    website_uri?: string | null;
     notes?: string | null;
     isTrusted?: boolean | null;
     isDefault?: boolean | null;
@@ -10376,6 +10377,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           email: savedPharmacyProviderDetailsValue.email,
           whatsapp: savedPharmacyProviderDetailsValue.whatsapp,
           booking_url: savedPharmacyProviderDetailsValue.bookingUrl || savedPharmacyProviderDetailsValue.booking_url,
+          websiteUrl: savedPharmacyProviderDetailsValue.websiteUrl,
+          website_uri: savedPharmacyProviderDetailsValue.website_uri,
         }
       : {
           name: savedPharmacy || "pharmacy",
@@ -10394,6 +10397,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           email: savedTransportProviderDetailsValue.email,
           whatsapp: savedTransportProviderDetailsValue.whatsapp,
           booking_url: savedTransportProviderDetailsValue.bookingUrl || savedTransportProviderDetailsValue.booking_url,
+          websiteUrl: savedTransportProviderDetailsValue.websiteUrl,
+          website_uri: savedTransportProviderDetailsValue.website_uri,
         }
       : {
           name: savedTransportProvider || "transport",
@@ -10412,6 +10417,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           email: savedHomeServiceProviderDetailsValue.email,
           whatsapp: savedHomeServiceProviderDetailsValue.whatsapp,
           booking_url: savedHomeServiceProviderDetailsValue.bookingUrl || savedHomeServiceProviderDetailsValue.booking_url,
+          websiteUrl: savedHomeServiceProviderDetailsValue.websiteUrl,
+          website_uri: savedHomeServiceProviderDetailsValue.website_uri,
         }
       : {
           name: savedHomeServiceProvider || "home service",
