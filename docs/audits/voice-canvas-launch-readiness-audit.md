@@ -10,6 +10,8 @@ Status: **automated readiness strengthened; manual real-device/deployed rollback
 
 This pass found and fixed one launch-blocking rollout issue: provider-reply Canvas had client-side rollout wiring but no matching server feature endpoint. The endpoint now exists and all Canvas feature flags share the same server-side fail-closed resolver.
 
+Manual execution must be recorded in `docs/audits/voice-canvas-real-device-qa-matrix.md`.
+
 ## Requirement audit
 
 | Requirement | Evidence now in repo | Status |
@@ -49,7 +51,7 @@ Complete these on a staging or production-like deployment before enabling the fe
    - `/api/config/features/medication-refill-voice-canvas`
    - `/api/config/features/shopping-delivery-voice-canvas`
    - `/api/config/features/provider-reply-voice-canvas`
-2. On a real phone, tablet, and desktop, run ride, appointment, refill, shopping, provider reply, and task hub resume.
+2. On a real phone, tablet, and desktop, run ride, appointment, refill, shopping, provider reply, and task hub resume. Record results in `docs/audits/voice-canvas-real-device-qa-matrix.md`.
 3. For each flow, verify refresh, browser back, app exit/reopen, and network reconnect.
 4. Toggle the relevant flag off during an open Canvas session and confirm the existing flow is restored without submitting work.
 5. Review English and Spanish copy with long labels and confirm the user always understands what happens next.

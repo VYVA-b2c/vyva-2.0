@@ -2,7 +2,7 @@
 
 This checklist is the final preflight before enabling Canvas-powered Concierge flows for real users. It covers ride, appointment, medication refill, shopping or delivery, provider reply, and task hub resume.
 
-Current audit status is tracked in `docs/audits/voice-canvas-launch-readiness-audit.md`. Do not treat the feature as launch-signed-off until that audit shows the deployed/manual checklist is complete.
+Current audit status is tracked in `docs/audits/voice-canvas-launch-readiness-audit.md`. Record deployed real-device results in `docs/audits/voice-canvas-real-device-qa-matrix.md`. Do not treat the feature as launch-signed-off until that audit shows the deployed/manual checklist is complete.
 
 ## Launch invariants
 
