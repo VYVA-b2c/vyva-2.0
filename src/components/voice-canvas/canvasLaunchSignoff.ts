@@ -1434,6 +1434,22 @@ const taskHubDestinationRequirements: Record<
   },
 };
 
+function hasTaskHubDestinationEvidenceLanguage(
+  rowLabel: CanvasRealDeviceQaTaskHubDestinationRow,
+  value: string,
+): boolean {
+  const requirements = taskHubDestinationRequirements[rowLabel];
+
+  return (
+    hasDatedEvidenceLanguage(value, ["qa", "reviewer", "evidence", "screenshot", "log"]) &&
+    hasAllWordGroups(value, [
+      ...requirements.routeWordGroups,
+      ...requirements.fallbackWordGroups,
+      ...requirements.safeWordGroups,
+    ])
+  );
+}
+
 function invalidTaskHubDestinationRows(
   sections: Map<string, string[][]>,
 ): string[] {
@@ -1485,10 +1501,12 @@ function invalidTaskHubDestinationRows(
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&
-      (!hasDatedEvidenceLanguage(evidence) ||
+      (!hasTaskHubDestinationEvidenceLanguage(rowLabel, evidence) ||
         hasNegativeTaskHubDestinationOutcomeLanguage(evidence))
     ) {
-      problems.push(`${rowLabel}: evidence must include dated QA or reviewer evidence`);
+      problems.push(
+        `${rowLabel}: evidence must include dated resume, disabled fallback, no-write, and no-external-action evidence`,
+      );
     }
   }
 
