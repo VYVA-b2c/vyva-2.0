@@ -85,6 +85,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   missingRequiredMatrixRows: string[];
   invalidEnvironmentFields: string[];
   invalidDeviceCoverageRows: string[];
+  invalidInteractionModeRows: string[];
   invalidBehaviorRows: string[];
   invalidFeatureFlagRows: string[];
   invalidTaskHubDestinationRows: string[];
@@ -352,6 +353,59 @@ function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] 
       !hasDatedEvidenceLanguage(evidence)
     ) {
       problems.push(`${flow.label}: evidence must include dated QA or reviewer evidence`);
+    }
+  }
+
+  return problems;
+}
+
+const interactionModeRequirements = [
+  {
+    columnIndex: 1,
+    description: "voice cell must mention voice or spoken-command evidence",
+    wordGroups: [["voice", "spoken", "speech", "dictation"]],
+  },
+  {
+    columnIndex: 2,
+    description: "touch cell must mention touch or tap evidence",
+    wordGroups: [["touch", "tap", "tapped"]],
+  },
+  {
+    columnIndex: 3,
+    description: "keyboard cell must mention keyboard navigation evidence",
+    wordGroups: [["keyboard", "tab", "enter"]],
+  },
+] as const;
+
+function invalidInteractionModeRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Interaction mode coverage") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const flow of canvasLaunchReadinessFlows) {
+    const row = rows.get(flow.label);
+    if (!row) continue;
+
+    for (const requirement of interactionModeRequirements) {
+      const cell = row[requirement.columnIndex] ?? "";
+      if (isPlaceholderCell(cell) || isFailingQaCell(cell)) continue;
+      if (!hasAllWordGroups(cell, requirement.wordGroups)) {
+        problems.push(`${flow.label}: ${requirement.description}`);
+      }
+    }
+
+    const evidence = row[4] ?? "";
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      !hasDatedEvidenceLanguage(evidence)
+    ) {
+      problems.push(
+        `${flow.label}: interaction-mode evidence must include dated QA or reviewer evidence`,
+      );
     }
   }
 
@@ -1069,6 +1123,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     ...missingRowsInSection(sections, "Device coverage", requiredFlowLabels),
     ...missingRowsInSection(
       sections,
+      "Interaction mode coverage",
+      requiredFlowLabels,
+    ),
+    ...missingRowsInSection(
+      sections,
       "Required behavior checklist",
       requiredFlowLabels,
     ),
@@ -1100,6 +1159,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
   ];
   const invalidEnvironmentFields = invalidEnvironmentRows(sections);
   const invalidDeviceCoverageChecks = invalidDeviceCoverageRows(sections);
+  const invalidInteractionModeChecks = invalidInteractionModeRows(sections);
   const invalidBehaviorChecks = invalidBehaviorRows(sections);
   const invalidFeatureFlagChecks = invalidFeatureFlagRows(sections);
   const invalidTaskHubDestinationChecks = invalidTaskHubDestinationRows(sections);
@@ -1143,6 +1203,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     if (invalidDeviceCoverageChecks.length > 0) {
       problems.push(
         `Matrix has real-device coverage row issue(s): ${invalidDeviceCoverageChecks.join(", ")}.`,
+      );
+    }
+    if (invalidInteractionModeChecks.length > 0) {
+      problems.push(
+        `Matrix has interaction-mode coverage row issue(s): ${invalidInteractionModeChecks.join(", ")}.`,
       );
     }
     if (invalidBehaviorChecks.length > 0) {
@@ -1214,6 +1279,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     missingRequiredMatrixRows,
     invalidEnvironmentFields,
     invalidDeviceCoverageRows: invalidDeviceCoverageChecks,
+    invalidInteractionModeRows: invalidInteractionModeChecks,
     invalidBehaviorRows: invalidBehaviorChecks,
     invalidFeatureFlagRows: invalidFeatureFlagChecks,
     invalidTaskHubDestinationRows: invalidTaskHubDestinationChecks,

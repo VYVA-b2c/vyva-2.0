@@ -101,9 +101,11 @@ function completedMatrix(markdown = realDeviceQaMatrix()): string {
         fillTaskHubDestinationRows(
           fillCopyAccessibilityRows(
             fillBehaviorChecklistRows(
-              fillDeviceCoverageRows(
-                fillEnvironmentRecord(
-                  fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+              fillInteractionModeRows(
+                fillDeviceCoverageRows(
+                  fillEnvironmentRecord(
+                    fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+                  ),
                 ),
               ),
             ),
@@ -197,6 +199,20 @@ function tableRowPattern(firstCell: string, remainingCellCount: number): RegExp 
   );
 }
 
+function replaceSectionTableRow(
+  markdown: string,
+  section: string,
+  firstCell: string,
+  remainingCellCount: number,
+  row: string,
+): string {
+  const pattern = new RegExp(
+    `(^##\\s+${escapeRegExp(section)}\\s*$[\\s\\S]*?)^\\| ${escapeRegExp(firstCell)}${" \\| [^|]*".repeat(remainingCellCount)} \\|$`,
+    "m",
+  );
+  return markdown.replace(pattern, (_match, prefix: string) => `${prefix}${row}`);
+}
+
 const launchFlowLabels = [
   "Ride Voice Canvas",
   "Appointment Voice Canvas",
@@ -209,9 +225,26 @@ const launchFlowLabels = [
 function fillDeviceCoverageRows(markdown: string): string {
   return launchFlowLabels.reduce(
     (current, flow) =>
-      current.replace(
-        tableRowPattern(flow, 4),
+      replaceSectionTableRow(
+        current,
+        "Device coverage",
+        flow,
+        4,
         `| ${flow} | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2026-07-19 |`,
+      ),
+    markdown,
+  );
+}
+
+function fillInteractionModeRows(markdown: string): string {
+  return launchFlowLabels.reduce(
+    (current, flow) =>
+      replaceSectionTableRow(
+        current,
+        "Interaction mode coverage",
+        flow,
+        4,
+        `| ${flow} | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |`,
       ),
     markdown,
   );
@@ -288,7 +321,7 @@ function fillCopyAccessibilityRows(markdown: string): string {
 }
 
 function replaceDeviceRow(markdown: string, flow: string, row: string): string {
-  return markdown.replace(tableRowPattern(flow, 4), row);
+  return replaceSectionTableRow(markdown, "Device coverage", flow, 4, row);
 }
 
 function removeFirstTableRow(markdown: string, firstCell: string): string {
@@ -312,6 +345,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.invalidDeviceCoverageRows).toEqual([]);
+    expect(result.invalidInteractionModeRows).toEqual([]);
     expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.invalidTaskHubDestinationRows).toEqual([]);
@@ -410,6 +444,21 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects ready-for-launch matrices missing an interaction-mode row", () => {
+    const completed = completedMatrix().replace(
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |\n",
+      "",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Interaction mode coverage: Ride Voice Canvas",
+    ]);
+  });
+
   it("rejects ready-for-launch matrices missing a task hub destination fallback row", () => {
     const completed = removeFirstTableRow(
       completedMatrix(),
@@ -491,6 +540,29 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining("task-hub destination fallback row"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with vague interaction-mode evidence", () => {
+    const completed = completedMatrix().replace(
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence",
+      "Ride Voice Canvas: touch cell must mention touch or tap evidence",
+      "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence",
+      "Ride Voice Canvas: interaction-mode evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
       ]),
     );
   });
@@ -689,6 +761,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.invalidDeviceCoverageRows).toEqual([]);
+    expect(result.invalidInteractionModeRows).toEqual([]);
     expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.invalidTaskHubDestinationRows).toEqual([]);
@@ -712,6 +785,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.invalidDeviceCoverageRows).toEqual([]);
+    expect(result.invalidInteractionModeRows).toEqual([]);
     expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.invalidTaskHubDestinationRows).toEqual([]);

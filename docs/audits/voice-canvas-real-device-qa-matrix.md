@@ -5,7 +5,7 @@ Use this file to record the deployed, real-device launch-readiness pass for ride
 
 Do not mark the Canvas launch-readiness goal complete until every required row below has a passing result, an evidence link or note, and a reviewer/date.
 
-Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every required environment, device, behavior, rollback, task hub destination fallback, copy/accessibility, analytics signal, privacy, and sign-off row remains present; every `Pending` cell is replaced with a passing result/evidence note; device rows name the real phone, tablet, and desktop/laptop evidence; behavior rows name the checked behavior instead of only saying that QA passed; feature rows include disabled, enabled, malformed-config, missing-config, rollback, and fallback evidence; task hub destination rows prove enabled resume, disabled fallback, and no writes before confirmation; evidence cells include dated QA or reviewer notes; copy/accessibility rows name the specific checked behavior and matching evidence; analytics signal rows name the canonical source event and aggregate count reviewed; no row contains a failed/blocked/not-ready result; app exit/reopen restoration is recorded separately from refresh/reconnect; and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
+Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every required environment, device, interaction mode, behavior, rollback, task hub destination fallback, copy/accessibility, analytics signal, privacy, and sign-off row remains present; every `Pending` cell is replaced with a passing result/evidence note; device rows name the real phone, tablet, and desktop/laptop evidence; interaction rows name voice, touch, and keyboard evidence for each flow; behavior rows name the checked behavior instead of only saying that QA passed; feature rows include disabled, enabled, malformed-config, missing-config, rollback, and fallback evidence; task hub destination rows prove enabled resume, disabled fallback, and no writes before confirmation; evidence cells include dated QA or reviewer notes; copy/accessibility rows name the specific checked behavior and matching evidence; analytics signal rows name the canonical source event and aggregate count reviewed; no row contains a failed/blocked/not-ready result; app exit/reopen restoration is recorded separately from refresh/reconnect; and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
 
 ```bash
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts
@@ -33,6 +33,19 @@ Each flow must pass on a real phone, tablet, and desktop/laptop. Browser emulati
 For final sign-off, phone/tablet/desktop cells must name the real device class or browser used. Evidence must include a dated QA or reviewer note.
 
 | Flow | Phone | Tablet | Desktop/laptop | Evidence |
+| --- | --- | --- | --- | --- |
+| Ride Voice Canvas | Pending | Pending | Pending | Pending |
+| Appointment Voice Canvas | Pending | Pending | Pending | Pending |
+| Medication Refill Voice Canvas | Pending | Pending | Pending | Pending |
+| Shopping Delivery Voice Canvas | Pending | Pending | Pending | Pending |
+| Provider Reply Voice Canvas | Pending | Pending | Pending | Pending |
+| Concierge Task Hub Resume | Pending | Pending | Pending | Pending |
+
+## Interaction mode coverage
+
+Each flow must be completed or safely exited using voice, touch, and keyboard. For final sign-off, each cell must name the interaction mode tested rather than only saying that QA passed. Evidence must include a dated QA or reviewer note.
+
+| Flow | Voice | Touch | Keyboard | Evidence |
 | --- | --- | --- | --- | --- |
 | Ride Voice Canvas | Pending | Pending | Pending | Pending |
 | Appointment Voice Canvas | Pending | Pending | Pending | Pending |

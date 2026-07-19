@@ -210,6 +210,10 @@ describe("Canvas launch readiness manifest", () => {
     for (const requiredCheck of [
       "Refresh/reconnect",
       "Task hub destination fallback checks",
+      "Interaction mode coverage",
+      "Voice",
+      "Touch",
+      "Keyboard",
       "Local shopping draft",
       "Local medication refill draft",
       "Pending provider reply task",
