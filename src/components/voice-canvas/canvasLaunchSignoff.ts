@@ -1208,12 +1208,16 @@ function analyticsSignalResultIsSpecific(
   signal: CanvasRealDeviceQaAnalyticsSignal,
   value: string,
 ): boolean {
+  const normalized = normalizeCell(value);
+  const positiveCountPattern =
+    /\b(?:aggregate\s+)?(?:signal\s+)?count(?:ed|s)?\b\D{0,12}\b[1-9]\d*\b|\b[1-9]\d*\b\D{0,12}\b(?:aggregate\s+)?(?:signal\s+)?count(?:ed|s)?\b/i;
+
   return (
     hasAllWordGroups(value, [
       [signal.toLowerCase()],
       ["aggregate", "count", "signal"],
       ["observed", "reviewed", "verified", "counted"],
-    ]) && /\b\d+\b/.test(normalizeCell(value))
+    ]) && positiveCountPattern.test(normalized)
   );
 }
 
@@ -1273,7 +1277,7 @@ function invalidAnalyticsSignalRows(sections: Map<string, string[][]>): string[]
     }
     if (!analyticsSignalResultIsSpecific(signal, aggregateResult)) {
       problems.push(
-        `${signal}: result must mention the aggregate signal/count reviewed with a numeric count`,
+        `${signal}: result must mention the aggregate signal/count reviewed with a positive numeric count`,
       );
     }
     if (!hasAnalyticsSignalEvidenceLanguage(evidence)) {

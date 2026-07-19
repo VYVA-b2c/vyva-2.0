@@ -1072,7 +1072,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidAnalyticsSignalRows).toEqual([
       "Resumed: source event must match the canonical launch signal",
-      "Resumed: result must mention the aggregate signal/count reviewed with a numeric count",
+      "Resumed: result must mention the aggregate signal/count reviewed with a positive numeric count",
       "Resumed: evidence must reference dated aggregate telemetry with allowed envelope fields",
     ]);
     expect(result.problems).toEqual(
@@ -1091,7 +1091,43 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidAnalyticsSignalRows).toEqual([
-      "Resumed: result must mention the aggregate signal/count reviewed with a numeric count",
+      "Resumed: result must mention the aggregate signal/count reviewed with a positive numeric count",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with zero aggregate signal counts", () => {
+    const completed = completedMatrix().replace(
+      "Resumed aggregate signal count 5 observed",
+      "Resumed aggregate signal count 0 observed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: result must mention the aggregate signal/count reviewed with a positive numeric count",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
+  it("rejects analytics rows when a positive number is unrelated to a zero signal count", () => {
+    const completed = completedMatrix().replace(
+      "Resumed aggregate signal count 5 observed",
+      "Resumed aggregate signal reviewed 1 sample with signal count 0 observed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: result must mention the aggregate signal/count reviewed with a positive numeric count",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics signal row")]),
