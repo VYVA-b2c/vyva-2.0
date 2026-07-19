@@ -5948,6 +5948,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-intent-brief")).toHaveTextContent("Tell VYVA what you want to run");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Grow partner pipeline");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Build clinic referral path");
+    expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Launch community partner path");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Support care transition");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Grow family referrals");
     expect(screen.getByTestId("marketing-campaign-goal-presets")).toHaveTextContent("Run seasonal wellbeing check");
@@ -5962,6 +5963,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-campaign-goal-reactivate-quiet-families")).toHaveTextContent("1 reachable contact");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Monthly care digest");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Partner webinar");
+    expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Community partner launch");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Clinic referral");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Care transition");
     expect(screen.getByTestId("marketing-campaign-intent-quick-starts")).toHaveTextContent("Family referral");
@@ -6017,6 +6019,23 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Clinic referral pathway");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-intent-quick-community-partner-launch"));
+
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Quick idea matched to Community partner launch");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-recommendations")).toHaveTextContent("Community partner launch");
+    expect((screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value).toContain("community partner launch");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Phone call");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Community partner launch");
     expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2b");
     expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
 

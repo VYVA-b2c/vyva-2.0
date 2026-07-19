@@ -1770,6 +1770,23 @@ const campaignStudioPlays: CampaignStudioPlay[] = [
     ctaUrl: "https://v2.vyva.life",
   },
   {
+    id: "community-partner-launch",
+    categoryId: "partner",
+    label: "Community partner launch",
+    brief: "Launch VYVA with pharmacies, clinics, venues, associations, agencies, and residences using one practical local handoff.",
+    audienceType: "b2b",
+    defaultChannel: "email",
+    targetListHints: ["community partner", "pharmacy", "clinic", "venue", "association", "agency", "residence", "local partner", "handoff", "partner"],
+    scheduleDaysFromNow: 3,
+    campaignName: "Community partner launch",
+    contentTitle: "Community partner introduction",
+    objective: "Create a local partner pathway that makes VYVA easy to share when a family asks what support step they should take next.",
+    subject: "A simple VYVA handoff for families in {{area_name}}",
+    body: "Hi {{first_name}},\n\nFamilies often ask trusted local teams what they should do next after a care conversation. VYVA can help make that handoff simple: one profile route, one care-team view, and one practical next step for the family.\n\nWe are preparing a small local partner pathway for pharmacies, clinics, community venues, associations, care agencies, and residences. Would it be useful to review the one-page handoff and see whether it fits your audience?",
+    ctaLabel: "Review partner handoff",
+    ctaUrl: "https://v2.vyva.life/demo",
+  },
+  {
     id: "home-care-agency-outreach",
     categoryId: "partner",
     label: "Home care agency outreach",
@@ -2212,6 +2229,13 @@ const campaignIntentQuickStarts: CampaignIntentQuickStart[] = [
     channels: ["email", "linkedin"],
   },
   {
+    id: "community-partner-launch",
+    title: "Community partner launch",
+    detail: "Local handoff pack for pharmacies, clinics, venues, associations, agencies, and residences.",
+    brief: "Create a community partner launch for pharmacies, clinics, community venues, associations, care agencies, and residences by email, LinkedIn, WhatsApp, phone, print, and event briefing. Make VYVA easy to share as one practical local family handoff with a named follow-up owner.",
+    channels: ["email", "linkedin", "whatsapp", "phone", "print", "event"],
+  },
+  {
     id: "press-partner-announcement",
     title: "Press and partner announcement",
     detail: "Credibility launch for media, partners, and public proof.",
@@ -2406,6 +2430,17 @@ const campaignGoalPresets: CampaignGoalPreset[] = [
     toneId: "expert",
     angleId: "proof",
     templatePackId: "clinic-pharmacy-referral",
+  },
+  {
+    id: "community-partner-launch",
+    title: "Launch community partner path",
+    outcome: "Local partner handoffs",
+    detail: "Turn trusted local organizations into a simple route for families who ask what to do next.",
+    brief: "Create a community partner launch for pharmacies, clinics, community venues, associations, care agencies, and residences by email, LinkedIn, WhatsApp, phone, print, and event briefing. Lead with the practical local family handoff, use proof without medical claims, and assign one follow-up owner.",
+    channels: ["email", "linkedin", "whatsapp", "phone", "print", "event"],
+    toneId: "expert",
+    angleId: "proof",
+    templatePackId: "community-partner-launch",
   },
   {
     id: "home-care-agency-pathway",
@@ -6814,7 +6849,7 @@ const contentTemplatePacks: ContentTemplatePack[] = [
       "event-community-partner-briefing",
     ],
     heroTemplateId: "email-community-partner-introduction",
-    studioPlayId: "local-event",
+    studioPlayId: "community-partner-launch",
     toneId: "expert",
     angleId: "proof",
     sequence: [
@@ -9583,6 +9618,10 @@ function campaignStudioPlayById(id: CampaignStudioPlayId) {
 function campaignIntentPlay(brief: string) {
   const text = lower(brief);
   if (campaignIntentHasAny(text, ["monthly", "newsletter", "digest", "roundup", "report", "summary"])) return campaignStudioPlayById("monthly-care-digest");
+  if (
+    campaignIntentHasAny(text, ["community partner", "local partner", "partner launch", "community launch", "association", "community venue", "local venue", "partner handoff"])
+    || (campaignIntentHasAny(text, ["venue", "association", "community venue", "local venue"]) && campaignIntentHasAny(text, ["handoff", "one-page", "one page", "briefing", "partner"]))
+  ) return campaignStudioPlayById("community-partner-launch");
   if (
     campaignIntentHasAny(text, ["home care agency", "homecare agency", "home care provider", "domiciliary care", "domiciliary", "care agency", "agency pathway", "agency outreach"])
     || (campaignIntentHasAny(text, ["home care", "agency"]) && campaignIntentHasAny(text, ["family update", "after visit", "after-visit", "referral", "handoff", "partner", "outreach"]))
