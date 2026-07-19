@@ -85,18 +85,48 @@ function fillEnvironmentRecord(markdown: string): string {
 
 function completedMatrix(markdown = realDeviceQaMatrix()): string {
   return fillPrivacyReviewRows(
-    fillFeatureFlagRows(
-      fillCopyAccessibilityRows(
-        fillBehaviorChecklistRows(
-          fillDeviceCoverageRows(
-            fillEnvironmentRecord(
-              fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+    fillAnalyticsSignalRows(
+      fillFeatureFlagRows(
+        fillCopyAccessibilityRows(
+          fillBehaviorChecklistRows(
+            fillDeviceCoverageRows(
+              fillEnvironmentRecord(
+                fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+              ),
             ),
           ),
         ),
       ),
     ),
   );
+}
+
+function fillAnalyticsSignalRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Started \| .* \| .* \| .* \|$/m,
+      "| Started | scene_viewed with restored false verified | Started aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+    )
+    .replace(
+      /^\| Resumed \| .* \| .* \| .* \|$/m,
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+    )
+    .replace(
+      /^\| Abandoned \| .* \| .* \| .* \|$/m,
+      "| Abandoned | abandoned source event verified | Abandoned aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+    )
+    .replace(
+      /^\| Blocked \| .* \| .* \| .* \|$/m,
+      "| Blocked | failed or urgent_help_shown or blocked scene view verified | Blocked aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+    )
+    .replace(
+      /^\| Confirmed \| .* \| .* \| .* \|$/m,
+      "| Confirmed | confirmation_submitted source event verified | Confirmed aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+    )
+    .replace(
+      /^\| Completed \| .* \| .* \| .* \|$/m,
+      "| Completed | completed source event verified | Completed aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+    );
 }
 
 function fillFeatureFlagRows(markdown: string): string {
@@ -252,6 +282,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
+    expect(result.invalidAnalyticsSignalRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
     expect(result.problems).toEqual([]);
   });
@@ -475,6 +506,26 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch matrices with vague analytics signal rows", () => {
+    const completed = completedMatrix().replace(
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+      "| Resumed | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: source event must match the canonical launch signal",
+      "Resumed: result must mention the aggregate signal/count reviewed",
+      "Resumed: evidence must reference dated aggregate telemetry with allowed envelope fields",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague environment records", () => {
     const completed = completedMatrix().replace(
       "| Environment URL | https://staging.vyva.example/canvas-qa |",
@@ -512,6 +563,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
+    expect(result.invalidAnalyticsSignalRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
@@ -533,6 +585,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
+    expect(result.invalidAnalyticsSignalRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
     expect(result.missingRequiredSignoffRoles).toEqual([]);
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);

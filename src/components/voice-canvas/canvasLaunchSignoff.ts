@@ -39,6 +39,18 @@ export const CANVAS_REAL_DEVICE_QA_REQUIRED_COPY_CHECKS = [
 export type CanvasRealDeviceQaCopyAccessibilityCheck =
   (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_COPY_CHECKS)[number];
 
+export const CANVAS_REAL_DEVICE_QA_REQUIRED_ANALYTICS_SIGNALS = [
+  "Started",
+  "Resumed",
+  "Abandoned",
+  "Blocked",
+  "Confirmed",
+  "Completed",
+] as const;
+
+export type CanvasRealDeviceQaAnalyticsSignal =
+  (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_ANALYTICS_SIGNALS)[number];
+
 export const CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES = [
   "Spoken transcripts",
   "Typed free text",
@@ -66,6 +78,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   invalidBehaviorRows: string[];
   invalidFeatureFlagRows: string[];
   invalidCopyAccessibilityRows: string[];
+  invalidAnalyticsSignalRows: string[];
   invalidPrivacyRows: string[];
   missingRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
@@ -99,6 +112,16 @@ function isFailingQaCell(value: string): boolean {
   if (
     /^blocked[- ]?(copy|state|states|scene)\b/.test(normalized) &&
     /\b(explain|explains|verified|offers|provides|retry|exit|evidence)\b/.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
+  if (
+    /^(blocked aggregate signal|blocked launch signal|blocked signal|failed or urgent_help_shown|failed, urgent_help_shown)\b/.test(
+      normalized,
+    ) &&
+    /\b(signal|count|observed|verified|source event|scene view|urgent_help_shown)\b/.test(
       normalized,
     )
   ) {
@@ -684,6 +707,110 @@ function hasAnalyticsEvidenceLanguage(value: string): boolean {
   ]);
 }
 
+function analyticsSignalSourceIsSpecific(
+  signal: CanvasRealDeviceQaAnalyticsSignal,
+  value: string,
+): boolean {
+  switch (signal) {
+    case "Started":
+      return (
+        hasAnyWord(value, ["scene_viewed"]) &&
+        hasAnyWord(value, [
+          "restored false",
+          "restored: false",
+          "restored=false",
+          "not restored",
+        ])
+      );
+    case "Resumed":
+      return (
+        hasAnyWord(value, ["draft_restored"]) ||
+        (hasAnyWord(value, ["scene_viewed"]) &&
+          hasAnyWord(value, [
+            "restored true",
+            "restored: true",
+            "restored=true",
+          ]))
+      );
+    case "Abandoned":
+      return hasAnyWord(value, ["abandoned"]);
+    case "Blocked":
+      return hasAnyWord(value, [
+        "failed",
+        "urgent_help_shown",
+        "blocked scene",
+        "blocked scene view",
+      ]);
+    case "Confirmed":
+      return hasAnyWord(value, ["confirmation_submitted"]);
+    case "Completed":
+      return hasAnyWord(value, ["completed"]);
+  }
+}
+
+function analyticsSignalResultIsSpecific(
+  signal: CanvasRealDeviceQaAnalyticsSignal,
+  value: string,
+): boolean {
+  return hasAllWordGroups(value, [
+    [signal.toLowerCase()],
+    ["aggregate", "count", "signal"],
+    ["observed", "reviewed", "verified", "counted"],
+  ]);
+}
+
+function hasAnalyticsSignalEvidenceLanguage(value: string): boolean {
+  return (
+    hasDatedEvidenceLanguage(value, [
+      "analytics",
+      "telemetry",
+      "sink",
+      "event",
+      "sample",
+      "log",
+      "evidence",
+      "counter",
+    ]) &&
+    hasAnyWord(value, ["aggregate", "signal", "count"]) &&
+    hasAnyWord(value, ["allowed envelope", "envelope", "privacy-safe"])
+  );
+}
+
+function invalidAnalyticsSignalRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Analytics signal review") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const signal of CANVAS_REAL_DEVICE_QA_REQUIRED_ANALYTICS_SIGNALS) {
+    const row = rows.get(signal);
+    if (!row) continue;
+    const [, sourceEvent = "", aggregateResult = "", evidence = ""] = row;
+    if (
+      isPlaceholderCell(sourceEvent) ||
+      isPlaceholderCell(aggregateResult) ||
+      isPlaceholderCell(evidence)
+    ) {
+      continue;
+    }
+    if (!analyticsSignalSourceIsSpecific(signal, sourceEvent)) {
+      problems.push(`${signal}: source event must match the canonical launch signal`);
+    }
+    if (!analyticsSignalResultIsSpecific(signal, aggregateResult)) {
+      problems.push(`${signal}: result must mention the aggregate signal/count reviewed`);
+    }
+    if (!hasAnalyticsSignalEvidenceLanguage(evidence)) {
+      problems.push(
+        `${signal}: evidence must reference dated aggregate telemetry with allowed envelope fields`,
+      );
+    }
+  }
+
+  return problems;
+}
+
 function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
   const rows = new Map(
     (sections.get("Analytics privacy review") ?? [])
@@ -783,6 +910,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     ),
     ...missingRowsInSection(
       sections,
+      "Analytics signal review",
+      CANVAS_REAL_DEVICE_QA_REQUIRED_ANALYTICS_SIGNALS,
+    ),
+    ...missingRowsInSection(
+      sections,
       "Analytics privacy review",
       CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES,
     ),
@@ -792,6 +924,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
   const invalidBehaviorChecks = invalidBehaviorRows(sections);
   const invalidFeatureFlagChecks = invalidFeatureFlagRows(sections);
   const invalidCopyAccessibilityChecks = invalidCopyAccessibilityRows(sections);
+  const invalidAnalyticsSignalChecks = invalidAnalyticsSignalRows(sections);
   const invalidPrivacyChecks = invalidPrivacyReviewRows(sections);
 
   const problems: string[] = [];
@@ -847,6 +980,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
         `Matrix has copy/accessibility row issue(s): ${invalidCopyAccessibilityChecks.join(", ")}.`,
       );
     }
+    if (invalidAnalyticsSignalChecks.length > 0) {
+      problems.push(
+        `Matrix has analytics signal row issue(s): ${invalidAnalyticsSignalChecks.join(", ")}.`,
+      );
+    }
     if (invalidPrivacyChecks.length > 0) {
       problems.push(
         `Matrix has analytics privacy row issue(s): ${invalidPrivacyChecks.join(", ")}.`,
@@ -894,6 +1032,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     invalidBehaviorRows: invalidBehaviorChecks,
     invalidFeatureFlagRows: invalidFeatureFlagChecks,
     invalidCopyAccessibilityRows: invalidCopyAccessibilityChecks,
+    invalidAnalyticsSignalRows: invalidAnalyticsSignalChecks,
     invalidPrivacyRows: invalidPrivacyChecks,
     missingRequiredSignoffRoles,
     incompleteRequiredSignoffRoles,
