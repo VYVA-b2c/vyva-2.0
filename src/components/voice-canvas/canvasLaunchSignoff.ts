@@ -449,8 +449,19 @@ const behaviorChecklistRequirements = [
   },
   {
     columnIndex: 5,
-    description: "browser back cell must mention back navigation evidence",
-    wordGroups: [["back"]],
+    description:
+      "browser back cell must mention safe back navigation with preserved work and no write",
+    wordGroups: [
+      ["back"],
+      ["preserve", "preserved", "restore", "restored", "return", "returned"],
+      [
+        "no write",
+        "no external action",
+        "not submitted",
+        "without submitting",
+        "without write",
+      ],
+    ],
   },
   {
     columnIndex: 6,
