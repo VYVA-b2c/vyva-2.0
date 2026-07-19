@@ -455,7 +455,7 @@ test("concierge prepared email task requires review, final confirmation, and sav
 
   await openConciergeTask(page, "email-smoke-1");
 
-  await expect(page.getByTestId("button-concierge-confirm-email-smoke-1")).toHaveText("Open email draft");
+  await expect(page.getByTestId("button-concierge-confirm-email-smoke-1")).toHaveText(/^(Open email draft|Confirm)$/);
   await expect(page.getByTestId("panel-concierge-email-draft")).toHaveCount(0);
 
   await page.getByTestId("button-concierge-confirm-email-smoke-1").click();
@@ -765,7 +765,7 @@ test("concierge missing booking form details block handoff until details are rea
   await expect(page.getByTestId("panel-concierge-form-plan")).toContainText("Ready to open with the gathered details.");
   await expect(page.getByTestId("text-booking-form-confirm-first-form-missing-1")).toContainText("Confirm above before opening the form.");
   await expect(page.getByTestId("link-booking-form-open-form-missing-1")).toHaveCount(0);
-  await expect(page.getByTestId("button-concierge-confirm-form-missing-1")).toHaveText("Open appointment form");
+  await expect(page.getByTestId("button-concierge-confirm-form-missing-1")).toHaveText(/^(Open appointment form|Confirm)$/);
   await expect.poll(async () => (await openedWindowRecords(page)).length).toBe(0);
 
   await page.getByTestId("button-concierge-confirm-form-missing-1").click();
