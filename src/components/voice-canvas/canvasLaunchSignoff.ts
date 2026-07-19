@@ -764,6 +764,34 @@ const explicitNoExternalActionEvidenceWords = [
   "without external actions",
 ] as const;
 
+const duplicateStaleGuardDescription =
+  "duplicate/stale guard cell must mention duplicate prevention and stale response ignoring";
+
+function hasDuplicateAttemptHandlingLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    /\b(no duplicate|without duplicate)\b/.test(normalized) ||
+    /\bduplicate(?: confirmation| action| attempt| attempts| submission| submissions)?\b.{0,24}\b(prevented|blocked|ignored|rejected|discarded)\b/.test(
+      normalized,
+    ) ||
+    /\b(prevented|blocked|ignored|rejected|discarded)\b.{0,24}\bduplicate(?: confirmation| action| attempt| attempts| submission| submissions)?\b/.test(
+      normalized,
+    )
+  );
+}
+
+function hasStaleResponseHandlingLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    /\bstale(?: response| responses)?\b.{0,36}\b(ignored|rejected|discarded|not accepted)\b/.test(
+      normalized,
+    ) ||
+    /\b(ignored|rejected|discarded|not accepted)\b.{0,36}\bstale(?: response| responses)?\b/.test(
+      normalized,
+    )
+  );
+}
+
 const behaviorChecklistRequirements = [
   {
     columnIndex: 1,
@@ -887,25 +915,6 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 9,
-    description:
-      "duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
-    wordGroups: [
-      ["duplicate"],
-      [
-        "prevented",
-        "blocked",
-        "ignored",
-        "no duplicate",
-        "without duplicate",
-        "not submitted",
-        "not resubmitted",
-      ],
-      ["stale"],
-      ["ignored", "rejected", "discarded", "not accepted"],
-    ],
-  },
-  {
     columnIndex: 10,
     description:
       "recoverable failure retry cell must mention recoverable failure, retry, exit, and no write evidence",
@@ -972,6 +981,17 @@ function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
       ) {
         problems.push(`${flow.label}: ${requirement.description}`);
       }
+    }
+
+    const duplicateStaleGuard = row[9] ?? "";
+    if (
+      !isPlaceholderCell(duplicateStaleGuard) &&
+      !isFailingQaCell(duplicateStaleGuard) &&
+      (!hasDuplicateAttemptHandlingLanguage(duplicateStaleGuard) ||
+        !hasStaleResponseHandlingLanguage(duplicateStaleGuard) ||
+        hasNegativeBehaviorOutcomeLanguage(duplicateStaleGuard))
+    ) {
+      problems.push(`${flow.label}: ${duplicateStaleGuardDescription}`);
     }
 
     const evidence = row[13] ?? "";

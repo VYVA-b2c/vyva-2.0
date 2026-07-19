@@ -1280,9 +1280,9 @@ describe("Canvas real-device QA sign-off", () => {
       "Ride Voice Canvas: start/resume cell must mention start, resumed work, and no write evidence",
       "Ride Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, and no write evidence",
       "Ride Voice Canvas: voice interruption cell must mention interruption recovery, preserved work, and no write evidence",
-      "Ride Voice Canvas: duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
       "Ride Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, and no write evidence",
       "Ride Voice Canvas: senior-friendly copy cell must mention senior copy, one clear decision, readable labels, and what happens next",
+      "Ride Voice Canvas: duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("required behavior row")]),
@@ -1545,6 +1545,24 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = completedMatrix().replace(
       "Duplicate confirmation prevented and stale response ignored evidence passed",
       "Duplicate and stale response guard evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects duplicate guard rows that use submission wording instead of explicit prevention evidence", () => {
+    const completed = completedMatrix().replace(
+      "Duplicate confirmation prevented and stale response ignored evidence passed",
+      "Duplicate confirmation not resubmitted and stale response ignored evidence passed",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
