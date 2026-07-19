@@ -465,10 +465,12 @@ describe("ConciergeTaskInboxPage", () => {
     } | null = null;
     const pendingPayload: Record<string, unknown> = {
       provider_task_status: "reply_received",
+      provider_reply_status: "confirmed",
       provider_reply: "Your appointment is confirmed for Tuesday at 10:00. Reference AP-77.",
       provider_response_summary: "Appointment confirmed for Tuesday at 10:00.",
       provider_inbound_channel: "email",
       provider_inbound_sender: "frontdesk@clinic.example",
+      mission_status: "awaiting_provider_reply",
     };
     pendingPayload.provider_reply_resolution = buildConciergeProviderReplyResolution({
       reply: String(pendingPayload.provider_reply),
@@ -487,7 +489,7 @@ describe("ConciergeTaskInboxPage", () => {
           provider_name: "Harbour Clinic",
           action_summary: "Waiting for Harbour Clinic.",
           action_payload: pendingPayload,
-          status: "pending",
+          status: "calling",
           updated_at: "2026-07-19T09:00:00.000Z",
         }] });
       }
@@ -500,6 +502,7 @@ describe("ConciergeTaskInboxPage", () => {
 
     renderPage("/concierge/tasks/pending%3Aconfirmed-reply-1");
     expect(await screen.findByTestId("button-concierge-task-complete-reply")).toBeInTheDocument();
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Ready to confirm");
     expect(completionBody).toBeNull();
 
     fireEvent.click(screen.getByTestId("button-concierge-task-complete-reply"));
