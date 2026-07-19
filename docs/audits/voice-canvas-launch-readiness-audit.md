@@ -47,7 +47,7 @@ The task hub no-side-effects gate now requires explicit no-write and no-external
   - Result: 222 tests passed after duplicate/stale scoped evidence hardening.
 - Browser readiness:
   - `npm run test:e2e -- e2e/voice-canvas-production-readiness.spec.ts e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts e2e/canvas-launch-readiness.spec.ts e2e/task-hub-resume-launch-readiness.spec.ts`
-  - Result: 18 tests passed on the current launch-readiness branch after the latest sign-off gate hardening, with refreshed appointment and refill screenshots under `src/dev/voice-canvas/`.
+  - Result: 18 tests passed on commit `9b4a2104` after duplicate/stale scoped evidence hardening, with refreshed appointment and refill screenshots under `src/dev/voice-canvas/`.
 - Typecheck:
   - `npm run typecheck`
   - Result: passed.
