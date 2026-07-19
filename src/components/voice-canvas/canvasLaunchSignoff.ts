@@ -415,10 +415,19 @@ function invalidInteractionModeRows(sections: Map<string, string[][]>): string[]
 const behaviorChecklistRequirements = [
   {
     columnIndex: 1,
-    description: "start/resume cell must mention start and resume evidence",
+    description:
+      "start/resume cell must mention start, resumed work, and no write evidence",
     wordGroups: [
       ["start", "started"],
       ["resume", "resumed", "restore", "restored"],
+      ["preserve", "preserved", "restore", "restored", "same scene", "current scene", "draft"],
+      [
+        "no write",
+        "no external action",
+        "not submitted",
+        "without submitting",
+        "without write",
+      ],
     ],
   },
   {
