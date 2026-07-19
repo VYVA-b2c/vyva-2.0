@@ -1617,6 +1617,37 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch matrices with unavailable environment evidence", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Test account | qa-senior-canvas@example.test |",
+        "| Test account | qa-senior-canvas@example.test unavailable |",
+      )
+      .replace(
+        "| Voice provider/session mode | Live voice session on staging browser |",
+        "| Voice provider/session mode | Live voice session on staging browser unavailable |",
+      )
+      .replace(
+        "| Initial flag state | Enabled true, rollout 100 for tested flows |",
+        "| Initial flag state | Enabled true, rollout 100 for tested flows but rollout not returned |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual([
+      "Test account",
+      "Voice provider/session mode",
+      "Initial flag state",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices without concrete environment flag states", () => {
     const completed = completedMatrix()
       .replace(

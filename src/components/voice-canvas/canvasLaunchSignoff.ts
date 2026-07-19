@@ -206,7 +206,13 @@ function isMeaningfulEnvironmentValue(
 ): boolean {
   const normalized = normalizeCell(value);
   const lower = normalized.toLowerCase();
-  if (isPlaceholderCell(normalized) || isFailingQaCell(normalized)) return false;
+  if (
+    isPlaceholderCell(normalized) ||
+    isFailingQaCell(normalized) ||
+    hasNegativeEnvironmentValueLanguage(normalized)
+  ) {
+    return false;
+  }
 
   switch (field) {
     case "Environment URL":
@@ -267,6 +273,30 @@ function isMeaningfulEnvironmentValue(
         ],
       ]);
   }
+}
+
+function hasNegativeEnvironmentValueLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    /\bnot (available|ready|deployed|reachable|returned|enabled|disabled|reviewed|verified|working|live)\b/.test(
+      normalized,
+    ) ||
+    /\bdid not (deploy|return|review|verify|enable|disable|work)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:unable|failed|fails|could not) to (deploy|return|review|verify|enable|disable|work|reach|connect)\b/.test(
+      normalized,
+    ) ||
+    /\b(missing|unavailable|not available|not reachable|not returned|not reviewed|not verified|not working|unreviewed|unverified)\b/.test(
+      normalized,
+    ) ||
+    /\b(test account|account|browser|voice|session|provider|environment|url|commit|build|analytics|sink|flag|rollout|payload)\b.{0,32}\b(missing|unavailable|not available|not reachable|not returned|not reviewed|not verified|not working|unreviewed|unverified)\b/.test(
+      normalized,
+    ) ||
+    /\b(missing|unavailable|not available|not reachable|not returned|not reviewed|not verified|not working|unreviewed|unverified)\b.{0,32}\b(test account|account|browser|voice|session|provider|environment|url|commit|build|analytics|sink|flag|rollout|payload)\b/.test(
+      normalized,
+    )
+  );
 }
 
 function isIsoDateCellFromText(value: string): boolean {
