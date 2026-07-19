@@ -596,6 +596,21 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects fallback rows that do not name the existing fallback path", () => {
+    const completed = completedMatrix().replace(
+      "Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "Fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: existing fallback evidence",
+    ]);
+  });
+
   it("rejects ready-for-launch matrices with vague task hub destination fallback evidence", () => {
     const completed = completedMatrix().replace(
       "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action or write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",

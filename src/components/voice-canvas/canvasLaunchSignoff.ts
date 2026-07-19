@@ -861,7 +861,10 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(fallback) &&
-      !hasAnyWord(fallback, ["fallback", "existing", featureFlag.fallback.toLowerCase()])
+      !hasAllWordGroups(fallback, [
+        ["fallback"],
+        ["existing", "previous", "old", "safe concierge", featureFlag.fallback.toLowerCase()],
+      ])
     ) {
       problems.push(`${flow.label}: existing fallback evidence`);
     }
