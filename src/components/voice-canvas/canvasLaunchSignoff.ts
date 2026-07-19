@@ -1971,6 +1971,28 @@ function hasAnalyticsEvidenceLanguage(value: string): boolean {
   ]);
 }
 
+function hasConcreteAnalyticsArtifactLanguage(value: string): boolean {
+  return hasAnyWord(value, [
+    "artifact",
+    "artifacts",
+    "dashboard",
+    "query",
+    "queries",
+    "export",
+    "exports",
+    "report",
+    "reports",
+    "log",
+    "logs",
+    "trace",
+    "traces",
+    "screenshot",
+    "screen shot",
+    "link",
+    "url",
+  ]);
+}
+
 function analyticsSignalSourceIsSpecific(
   signal: CanvasRealDeviceQaAnalyticsSignal,
   value: string,
@@ -2047,6 +2069,7 @@ function hasAnalyticsSignalEvidenceLanguage(
     analyticsSignalSourceIsSpecific(signal, value) &&
     analyticsSignalResultIsSpecific(signal, value) &&
     hasAllowedEnvelopeFieldsLanguage(value) &&
+    hasConcreteAnalyticsArtifactLanguage(value) &&
     !hasSensitiveDataLeakageLanguage(value)
   );
 }
@@ -2177,6 +2200,7 @@ function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
       !hasAnalyticsEvidenceLanguage(evidence) ||
       !hasDatedEvidenceLanguage(evidence) ||
       !hasAllowedEnvelopeFieldsLanguage(evidence) ||
+      !hasConcreteAnalyticsArtifactLanguage(evidence) ||
       hasSensitiveDataLeakageLanguage(evidence)
     ) {
       problems.push(
