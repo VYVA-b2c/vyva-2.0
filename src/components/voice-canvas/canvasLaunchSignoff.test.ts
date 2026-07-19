@@ -1811,6 +1811,24 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects waiting copy rows that omit what is pending or in progress", () => {
+    const completed = completedMatrix().replace(
+      "| Waiting states explain what is happening and what is not happening | Waiting copy says processing continues and no external action is sent yet | QA waiting-state screenshot evidence reviewed on 2026-07-19 |",
+      "| Waiting states explain what is happening and what is not happening | Waiting copy says no external action is sent yet | QA waiting-state screenshot evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Waiting states explain what is happening and what is not happening: result must mention waiting copy, what is pending, and what is not happening",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
   it("rejects Spanish long-label rows that mention overflow without proving no overflow", () => {
     const completed = completedMatrix().replace(
       "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 |",

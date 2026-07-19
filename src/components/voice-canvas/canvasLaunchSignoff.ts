@@ -1488,9 +1488,18 @@ const copyAccessibilityResultRequirements: Record<
   },
   "Waiting states explain what is happening and what is not happening": {
     resultDescription:
-      "result must mention waiting copy and what is not happening",
+      "result must mention waiting copy, what is pending, and what is not happening",
     resultWordGroups: [
       ["waiting"],
+      [
+        "pending",
+        "processing",
+        "in progress",
+        "still working",
+        "continues",
+        "what is happening",
+        "waiting for",
+      ],
       ["not happening", "no action", "not sent", "not submitted", "no external action"],
     ],
     evidenceDescription: "evidence must reference dated waiting-state review",

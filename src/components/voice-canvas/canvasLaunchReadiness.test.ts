@@ -223,6 +223,7 @@ describe("Canvas launch readiness manifest", () => {
       "Cancel/exit",
       "Flag rollback/fallback",
       "Canvas closed or disappeared",
+      "what is pending",
       "No external action before explicit confirmation",
       "Duplicate/stale guard",
       "resubmission",
