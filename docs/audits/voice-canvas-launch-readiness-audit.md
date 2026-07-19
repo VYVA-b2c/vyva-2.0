@@ -82,7 +82,7 @@ Task hub destination evidence now requires dated artifact resume, disabled fallb
 
 - Focused readiness suite with server flag checks:
   - `$env:DATABASE_URL='file:./dev.db'; npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx`
-  - Result: 222 tests passed after duplicate/stale scoped evidence hardening.
+  - Result: 253 tests passed after environment artifact evidence hardening, duplicate/stale scoped evidence hardening, and the latest server flag, platform, telemetry, rollout, shopping, provider reply, task hub, and refill entry-point checks.
 - Browser readiness:
   - `npm run test:e2e -- e2e/voice-canvas-production-readiness.spec.ts e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts e2e/canvas-launch-readiness.spec.ts e2e/task-hub-resume-launch-readiness.spec.ts`
   - Result: 18 tests passed on commit `9b4a2104` after duplicate/stale scoped evidence hardening, with refreshed appointment and refill screenshots under `src/dev/voice-canvas/`.
