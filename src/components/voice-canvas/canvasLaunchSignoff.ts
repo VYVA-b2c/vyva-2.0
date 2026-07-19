@@ -583,7 +583,8 @@ function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] 
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&
-      !hasDatedEvidenceLanguage(evidence)
+      (!hasDatedEvidenceLanguage(evidence) ||
+        hasNegativeDeviceCoverageLanguage(evidence))
     ) {
       problems.push(`${flow.label}: evidence must include dated QA or reviewer evidence`);
     } else if (hasEmulatedDeviceEvidenceLanguage(evidence)) {
@@ -665,7 +666,8 @@ function invalidInteractionModeRows(sections: Map<string, string[][]>): string[]
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&
-      !hasDatedEvidenceLanguage(evidence)
+      (!hasDatedEvidenceLanguage(evidence) ||
+        hasNegativeInteractionOutcomeLanguage(evidence))
     ) {
       problems.push(
         `${flow.label}: interaction-mode evidence must include dated QA or reviewer evidence`,
@@ -947,7 +949,8 @@ function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&
-      !hasDatedEvidenceLanguage(evidence)
+      (!hasDatedEvidenceLanguage(evidence) ||
+        hasNegativeBehaviorOutcomeLanguage(evidence))
     ) {
       problems.push(`${flow.label}: behavior evidence must include dated QA or reviewer evidence`);
     }
@@ -1066,14 +1069,15 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(evidence) &&
-      !hasDatedEvidenceLanguage(evidence, [
+      (!hasDatedEvidenceLanguage(evidence, [
         "evidence",
         "screenshot",
         "log",
         "trace",
         "recording",
         "qa",
-      ])
+      ]) ||
+        hasNegativeFeatureFlagOutcomeLanguage(evidence))
     ) {
       problems.push(`${flow.label}: rollout evidence note`);
     }
@@ -1275,7 +1279,8 @@ function invalidTaskHubDestinationRows(
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&
-      !hasDatedEvidenceLanguage(evidence)
+      (!hasDatedEvidenceLanguage(evidence) ||
+        hasNegativeTaskHubDestinationOutcomeLanguage(evidence))
     ) {
       problems.push(`${rowLabel}: evidence must include dated QA or reviewer evidence`);
     }
@@ -1423,7 +1428,8 @@ function invalidCopyAccessibilityRows(sections: Map<string, string[][]>): string
     }
     if (
       !hasAllWordGroups(evidence, requirements.evidenceWordGroups) ||
-      !hasDatedEvidenceLanguage(evidence)
+      !hasDatedEvidenceLanguage(evidence) ||
+      hasNegativeCopyAccessibilityOutcomeLanguage(evidence)
     ) {
       problems.push(`${check}: ${requirements.evidenceDescription}`);
     }

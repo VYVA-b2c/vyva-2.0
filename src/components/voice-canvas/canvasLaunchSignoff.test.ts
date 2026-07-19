@@ -686,6 +686,21 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects feature flag evidence notes with contradictory fallback wording", () => {
+    const completed = completedMatrix().replace(
+      "Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 but fallback not visible |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
+  });
+
   it("rejects feature flag rows with unavailable payload or fallback wording", () => {
     const completed = completedMatrix().replace(
       "Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown |",
@@ -814,6 +829,26 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects task hub evidence notes with contradictory resume or fallback wording", () => {
+    const completed = completedMatrix().replace(
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 but fallback unavailable |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("task-hub destination fallback row"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague interaction-mode evidence", () => {
     const completed = completedMatrix().replace(
       "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
@@ -828,6 +863,26 @@ describe("Canvas real-device QA sign-off", () => {
       "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence and completion or safe exit",
       "Ride Voice Canvas: touch cell must mention touch or tap evidence and completion or safe exit",
       "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence and completion or safe exit",
+      "Ride Voice Canvas: interaction-mode evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects interaction evidence notes with contradictory completion wording", () => {
+    const completed = completedMatrix().replace(
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 but keyboard path not completed |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
       "Ride Voice Canvas: interaction-mode evidence must include dated QA or reviewer evidence",
     ]);
     expect(result.problems).toEqual(
@@ -1004,6 +1059,25 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects device evidence notes with contradictory broken-device wording", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2026-07-19 but real phone failed to render |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
   it("rejects negative analytics sink review evidence", () => {
     const completed = completedMatrix().replace(
       "| Analytics sink reviewed | Reviewed aggregate launch sink on 2026-07-19 |",
@@ -1050,6 +1124,24 @@ describe("Canvas real-device QA sign-off", () => {
       ]),
     );
     expect(result.invalidBehaviorRows.length).toBeGreaterThan(4);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects behavior evidence notes with contradictory safety wording", () => {
+    const completed = completedMatrix().replace(
+      "| Provider Reply Voice Canvas | Start and resume restored work with no write evidence passed | App exit and reopen restored draft with no write evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback restored existing fallback with no write evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with no write evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Provider Reply Voice Canvas | Start and resume restored work with no write evidence passed | App exit and reopen restored draft with no write evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback restored existing fallback with no write evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with no write evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 but external action triggered |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Provider Reply Voice Canvas: behavior evidence must include dated QA or reviewer evidence",
+    ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("required behavior row")]),
     );
@@ -1439,6 +1531,24 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidCopyAccessibilityRows).toEqual([
       "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
       "Reduced-motion mode remains calm and usable: result must mention reduced-motion mode as calm and usable",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects copy/accessibility evidence notes with contradictory outcome wording", () => {
+    const completed = completedMatrix().replace(
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 |",
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 but labels clipped |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Spanish copy and long labels remain readable without horizontal overflow: evidence must reference dated Spanish, long-label, overflow, or screenshot review",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
