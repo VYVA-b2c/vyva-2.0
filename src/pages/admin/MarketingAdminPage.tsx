@@ -31326,6 +31326,10 @@ export default function MarketingAdminPage() {
                     const selected = selectedContentTemplatePack?.id === pack.id;
                     const sequenceChannels = Array.from(new Set(pack.sequence.map((step) => step.channel)));
                     const playbookPrimary = heroTemplate ?? templates[0] ?? null;
+                    const existingAssetCount = templates.filter((template) => content.some((item) => contentAssetMatchesTemplatePack(item, pack, template))).length;
+                    const newAssetCount = Math.max(templates.length - existingAssetCount, 0);
+                    const emailRouteCount = sequenceChannels.filter((channel) => channel === "email").length;
+                    const manualRouteCount = sequenceChannels.filter((channel) => channel !== "email").length;
                     return (
                       <article
                         key={pack.id}
@@ -31398,6 +31402,31 @@ export default function MarketingAdminPage() {
                                   <p className="mt-0.5 text-xs font-semibold leading-relaxed text-[#7d6b65]">{step.detail}</p>
                                 </div>
                               ))}
+                            </div>
+                          </div>
+                          <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3" data-testid={`marketing-template-pack-kit-glance-${pack.id}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-900">Kit at a glance</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#5d6b61]">
+                                  Create a campaign record, reusable assets, route plan, launch packet, and recipient snapshots from this pack.
+                                </p>
+                              </div>
+                              <Pill className="bg-white text-emerald-800">{templates.length} asset{templates.length === 1 ? "" : "s"}</Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-xs font-bold text-[#5d6b61] sm:grid-cols-3">
+                              <div className="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                                <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Assets</span>
+                                <span className="mt-1 block text-[#241133]">{newAssetCount} new / {existingAssetCount} reusable</span>
+                              </div>
+                              <div className="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                                <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Email send</span>
+                                <span className="mt-1 block text-[#241133]">{emailRouteCount} reviewed route{emailRouteCount === 1 ? "" : "s"}</span>
+                              </div>
+                              <div className="rounded-lg border border-emerald-100 bg-white px-3 py-2">
+                                <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Manual handoff</span>
+                                <span className="mt-1 block text-[#241133]">{manualRouteCount} route{manualRouteCount === 1 ? "" : "s"}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
