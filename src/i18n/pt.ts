@@ -1419,6 +1419,11 @@ const pt = {
       later: "Mais tarde",
       dismiss: "Ocultar",
     },
+    showVyvaReviewResume: {
+      kicker: "Show VYVA recente",
+      title: "Continuar esta revisao",
+      action: "Abrir",
+    },
   },
   concierge: {
     fastHelp: {

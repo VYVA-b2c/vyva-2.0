@@ -44,6 +44,11 @@ import {
 import { recordHomeFastHelpImpression } from "@/lib/homeFastHelpInsights";
 import { selectHomeResumeCandidate } from "@/lib/homeResumeOrchestrator";
 import { conciergeTaskPath } from "@/lib/conciergeTaskNavigation";
+import {
+  readShowVyvaReviewHistory,
+  SHOW_VYVA_REVIEW_HISTORY_EVENT,
+  type ShowVyvaReviewHistoryItem,
+} from "@/lib/showVyvaReviewHistory";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { HOME_FAST_HELP_RANKING_VERSION } from "../../shared/homeFastHelpSync";
 import {
@@ -654,6 +659,9 @@ const HomeScreen = () => {
   const [homeFastHelpJourneys, setHomeFastHelpJourneys] = useState<HomeFastHelpJourney[]>(() => (
     readHomeFastHelpJourneys(homeFastHelpJourneyKey)
   ));
+  const [showVyvaReviewHistory, setShowVyvaReviewHistory] = useState<ShowVyvaReviewHistoryItem[]>(() => (
+    readShowVyvaReviewHistory()
+  ));
 
   useEffect(() => {
     const timer = window.setInterval(() => setConciergeClockMs(Date.now()), 60_000);
@@ -690,6 +698,16 @@ const HomeScreen = () => {
       window.removeEventListener("storage", handleStorage);
     };
   }, [homeFastHelpJourneyKey]);
+
+  useEffect(() => {
+    const refresh = () => setShowVyvaReviewHistory(readShowVyvaReviewHistory());
+    window.addEventListener(SHOW_VYVA_REVIEW_HISTORY_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(SHOW_VYVA_REVIEW_HISTORY_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
 
   const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
@@ -1421,6 +1439,43 @@ const HomeScreen = () => {
       <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
     </button>
   ) : null;
+  const latestPendingShowVyvaReview = showVyvaReviewHistory.find((item) => !item.actionSaved) ?? null;
+  const showVyvaReviewNudge = latestPendingShowVyvaReview ? (
+    <button
+      type="button"
+      data-testid="card-home-show-vyva-review-resume"
+      onClick={() => handleNavigate(latestPendingShowVyvaReview.resumeRoute, {
+        state: {
+          showVyvaReviewHistoryId: latestPendingShowVyvaReview.id,
+          showVyvaResume: true,
+        },
+      })}
+      className="vyva-tap flex w-full min-w-0 items-center gap-3 rounded-[22px] border border-[#BFE7E1] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_58%,#F7FBFF_100%)] p-3 text-left shadow-[0_12px_28px_rgba(15,118,110,0.08)] transition-transform hover:-translate-y-0.5 min-[390px]:gap-4 min-[390px]:p-4"
+      aria-label={`${t("home.showVyvaReviewResume.kicker", "Recent Show VYVA")}: ${latestPendingShowVyvaReview.decision}`}
+    >
+      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F0FDFA] text-[#0F766E] min-[390px]:h-[54px] min-[390px]:w-[54px]">
+        <ShieldCheck size={24} strokeWidth={2.45} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-[#0F766E]">
+          {t("home.showVyvaReviewResume.kicker", "Recent Show VYVA")}
+        </span>
+        <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+          {t("home.showVyvaReviewResume.title", "Continue this review")}
+        </span>
+        <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
+          {latestPendingShowVyvaReview.decision}
+        </span>
+        <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-vyva-text-3">
+          {latestPendingShowVyvaReview.summary}
+        </span>
+      </span>
+      <span className="hidden flex-shrink-0 rounded-full bg-white px-3 py-2 font-body text-[12px] font-black text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)] min-[390px]:inline-flex">
+        {t("home.showVyvaReviewResume.action", "Open")}
+      </span>
+      <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-[#0F766E]" aria-hidden="true" />
+    </button>
+  ) : null;
   const recoveryAction = recoveryNudge
     ? homeMasterFastHelpActionById.get(recoveryNudge.journey.actionId)
     : null;
@@ -1539,7 +1594,7 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
-  const homeNudge = conciergeRightNowNudge ?? fastHelpRecoveryNudge ?? conciergeReuseNudge;
+  const homeNudge = conciergeRightNowNudge ?? fastHelpRecoveryNudge ?? showVyvaReviewNudge ?? conciergeReuseNudge;
 
   return (
     <MasterDashboardLayout

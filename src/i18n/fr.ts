@@ -1477,6 +1477,11 @@ const fr = {
       later: "Plus tard",
       dismiss: "Masquer",
     },
+    showVyvaReviewResume: {
+      kicker: "Show VYVA recent",
+      title: "Continuer cette verification",
+      action: "Ouvrir",
+    },
   },
   concierge: {
     fastHelp: {
