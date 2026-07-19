@@ -2621,6 +2621,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn family event recap");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Daily routine activation email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok monthly care snapshot script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable monthly care summary card");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Routine reminder SMS");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Family referral ask email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Family referral call script");
@@ -2710,7 +2712,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
 
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("Monthly care digest");
-    expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("5 templates");
+    expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("7 templates");
     expect(screen.getByTestId("marketing-template-pack-monthly-care-digest")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-ai-monthly-care-digest"));
     await waitFor(() => {
@@ -2725,9 +2727,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care digest email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Monthly care check-in WhatsApp");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("LinkedIn monthly care operations note");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("TikTok monthly care snapshot script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Printable monthly care summary card");
     expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
     expect(screen.getByTestId("marketing-template-pack-sequence-monthly-care-digest")).toHaveTextContent("Family digest");
     expect(screen.getByTestId("marketing-template-pack-sequence-monthly-care-digest")).toHaveTextContent("Partner operations note");
+    expect(screen.getByTestId("marketing-template-pack-sequence-monthly-care-digest")).toHaveTextContent("Short care snapshot");
+    expect(screen.getByTestId("marketing-template-pack-sequence-monthly-care-digest")).toHaveTextContent("Family review card");
 
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-monthly-care-digest"));
     expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
