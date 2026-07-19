@@ -968,6 +968,24 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects senior copy behavior rows that mention labels without proving readability", () => {
+    const completed = completedMatrix().replace(
+      "Senior copy uses one clear decision, readable long labels, and explains what happens next",
+      "Senior copy uses one clear decision, long labels, and explains what happens next",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: senior-friendly copy cell must mention senior copy, one clear decision, readable labels, and what happens next",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague copy/accessibility rows", () => {
     const completed = completedMatrix().replace(
       "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
