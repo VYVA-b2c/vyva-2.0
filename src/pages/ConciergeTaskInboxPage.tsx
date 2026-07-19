@@ -23,6 +23,7 @@ import {
   type ConciergeTaskInboxGroup,
   type ConciergeTaskInboxItem,
 } from "@/lib/conciergeTaskInbox";
+import { readLocalConciergeCanvasTaskItems } from "@/lib/conciergeLocalCanvasTasks";
 import {
   conciergeTaskInboxPath,
   parseConciergeTaskInboxKey,
@@ -724,9 +725,18 @@ export default function ConciergeTaskInboxPage() {
     completed: completedQuery.data ?? [],
     isSpanish,
   }), [completedQuery.data, draftsQuery.data, isSpanish, pendingQuery.data]);
+  const localCanvasItems = useMemo(() => readLocalConciergeCanvasTaskItems(isSpanish), [isSpanish]);
+  const combinedInbox = useMemo(() => {
+    if (localCanvasItems.length === 0) return inbox;
+    return {
+      needs_you: [...localCanvasItems.filter((item) => item.group === "needs_you"), ...inbox.needs_you],
+      waiting: [...localCanvasItems.filter((item) => item.group === "waiting"), ...inbox.waiting],
+      completed: [...localCanvasItems.filter((item) => item.group === "completed"), ...inbox.completed],
+    };
+  }, [inbox, localCanvasItems]);
   const parsedKey = useMemo(() => parseConciergeTaskInboxKey(taskKey), [taskKey]);
   const selectedItem = parsedKey
-    ? findConciergeTaskInboxItem(inbox, parsedKey.source, parsedKey.id)
+    ? findConciergeTaskInboxItem(combinedInbox, parsedKey.source, parsedKey.id)
     : null;
   const isLoading = draftsQuery.isLoading || pendingQuery.isLoading || completedQuery.isLoading;
   const hasError = draftsQuery.isError || pendingQuery.isError || completedQuery.isError;
@@ -797,6 +807,12 @@ export default function ConciergeTaskInboxPage() {
             });
             return;
           }
+          if (selectedItem.actionPayload?.local_canvas_resume === true) {
+            navigate(selectedItem.resumePath, {
+              state: { resumeCanvas: selectedItem.actionPayload.resume_canvas },
+            });
+            return;
+          }
           navigate(selectedItem.resumePath, {
             state: selectedItem.pendingId ? {
               focusRightNow: true,
@@ -810,7 +826,7 @@ export default function ConciergeTaskInboxPage() {
 
   return (
     <InboxList
-      inbox={inbox}
+      inbox={combinedInbox}
       language={language}
       isSpanish={isSpanish}
       onBack={() => navigate("/concierge")}

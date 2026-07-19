@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BarChart2, Copy, AlertCircle, RefreshCw, ClipboardCheck, Flame, ShieldCheck, TriangleAlert, Sparkles, Clock3, Target, LockKeyhole, LogIn, ShoppingCart, PhoneCall, Mail, Stethoscope, Calendar, Car, type LucideIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +48,10 @@ type AdherenceServiceAction = {
   href?: string;
   onClick?: () => void;
 };
+
+type AdherenceReportLocationState = {
+  resumeCanvas?: "refill" | boolean;
+} | null;
 
 function AdherenceDot({ status, title }: { status: DailyStatus; title: string }) {
   if (status === "taken") {
@@ -131,6 +135,7 @@ const AdherenceReportScreen = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { profile } = useProfile();
 
@@ -147,9 +152,11 @@ const AdherenceReportScreen = () => {
   const [prescriptionFollowUpSource,setPrescriptionFollowUpSource]=useState<PrescriptionFollowUpSource|null>(null);
   const refillCanvasRolloutQuery=useQuery({queryKey:["/api/config/features/medication-refill-voice-canvas"],queryFn:async()=>{const response=await apiFetch("/api/config/features/medication-refill-voice-canvas");return response.ok?parseRefillCanvasRolloutConfig(await response.json()):{enabled:false,rolloutPercent:0}},staleTime:0,refetchInterval:10_000,refetchOnWindowFocus:"always",retry:false});
   const refillCanvasEnabled=isRefillCanvasEnabled(refillCanvasRolloutQuery.data,profile?.profileId??"anonymous");
+  const shouldResumeRefillCanvas=(location.state as AdherenceReportLocationState)?.resumeCanvas===true||(location.state as AdherenceReportLocationState)?.resumeCanvas==="refill";
   const prescriptionFollowUpRolloutQuery=useQuery({queryKey:["/api/config/features/prescription-follow-up-voice-canvas"],queryFn:async()=>{const response=await apiFetch("/api/config/features/prescription-follow-up-voice-canvas");return response.ok?parsePrescriptionFollowUpRolloutConfig(await response.json()):{enabled:false,rolloutPercent:0}},staleTime:0,refetchInterval:10_000,refetchOnWindowFocus:"always",retry:false});
   const prescriptionFollowUpEnabled=isPrescriptionFollowUpEnabled(prescriptionFollowUpRolloutQuery.data,profile?.profileId??"anonymous");
   useEffect(()=>{if(!refillCanvasEnabled)setRefillCanvasOpen(false)},[refillCanvasEnabled]);
+  useEffect(()=>{if(refillCanvasEnabled&&shouldResumeRefillCanvas&&!refillCanvasDismissed)setRefillCanvasOpen(true)},[refillCanvasEnabled,refillCanvasDismissed,shouldResumeRefillCanvas]);
   useEffect(()=>{if(!prescriptionFollowUpEnabled)setPrescriptionFollowUpSource(null)},[prescriptionFollowUpEnabled]);
   useEffect(()=>{if(voiceAction?.actionType==="meds.refill_request"&&refillCanvasEnabled&&!refillCanvasDismissed)setRefillCanvasOpen(true)},[voiceAction?.actionType,refillCanvasEnabled,refillCanvasDismissed]);
 

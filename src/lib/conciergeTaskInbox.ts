@@ -439,6 +439,35 @@ function continuationStateFromPending(input: {
   return "ready_to_confirm";
 }
 
+function continuationStateFromStep(step: string, stale: boolean): ConciergeTaskContinuationState {
+  if (stale) return "blocked";
+  const normalized = text(step);
+  if (["review", "option_review", "pending_confirm"].includes(normalized)) return "ready_to_confirm";
+  if (["waiting", "searching", "contacting", "saving", "completing"].includes(normalized)) return "waiting";
+  if (["blocked", "error", "emergency", "urgent", "cancelled"].includes(normalized)) return "blocked";
+  return "draft";
+}
+
+export function buildLocalConciergeTaskContinuation(input: {
+  flow: ConciergeTaskContinuationFlow;
+  step: string;
+  isSpanish: boolean;
+  stale?: boolean;
+}): ConciergeTaskContinuation {
+  const stale = input.stale ?? false;
+  const state = continuationStateFromStep(input.step, stale);
+  return {
+    flow: input.flow,
+    flowLabel: flowLabel(input.flow, input.isSpanish),
+    state,
+    stateLabel: continuationStateLabel(state, input.isSpanish, stale),
+    sceneLabel: sceneLabelForStep(input.step, null, input.isSpanish),
+    helperText: continuationHelperText({ state, flow: input.flow, stale, isSpanish: input.isSpanish }),
+    actionLabel: continuationActionLabel({ state, providerStatus: null, stale, isSpanish: input.isSpanish }),
+    stale,
+  };
+}
+
 function buildContinuation(input: {
   draft: ConciergeTaskDraft | null;
   pending: ConciergeTaskPendingItem | null;

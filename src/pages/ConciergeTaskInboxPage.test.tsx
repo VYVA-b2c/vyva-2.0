@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ConciergeTaskInboxPage from "./ConciergeTaskInboxPage";
 import { apiFetch } from "@/lib/queryClient";
+import { emptyRefillDraft } from "@/components/voice-canvas/refillCanvasMachine";
+import { emptyShoppingDraft } from "@/components/voice-canvas/shoppingCanvasMachine";
 import { buildConciergeProviderReplyResolution } from "../../shared/conciergeProviderReplyResolution";
 
 vi.mock("@/i18n", () => ({
@@ -51,6 +53,7 @@ function renderPage(initialEntry = "/concierge/tasks") {
 
 describe("ConciergeTaskInboxPage", () => {
   beforeEach(() => {
+    sessionStorage.clear();
     apiFetchMock.mockReset();
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
@@ -129,6 +132,63 @@ describe("ConciergeTaskInboxPage", () => {
     expect(screen.getByText("Harbour Clinic needs your insurance plan.")).toBeInTheDocument();
     expect(screen.getByTestId("concierge-inbox-task-state-pending:reply-1")).toHaveTextContent("Needs information");
     expect(screen.getByTestId("concierge-inbox-task-scene-pending:reply-1")).toHaveTextContent("Reply");
+  });
+
+  it("shows a local shopping Canvas draft and resumes it on the Shopping screen", async () => {
+    sessionStorage.setItem("vyva.shoppingDelivery.v1", JSON.stringify({
+      step: "review",
+      draft: {
+        ...emptyShoppingDraft,
+        items: [{ id: "item-1", name: "Soup", quantity: "4 cans" }],
+        fulfillment: "delivery",
+        location: "Home",
+        preferredTime: "Tomorrow morning",
+        substitutions: "ask",
+        estimateStatus: "unverified",
+      },
+      requestId: 0,
+      revision: 3,
+    }));
+
+    renderPage("/concierge/tasks/draft%3Alocal-canvas-shopping");
+
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Shopping Canvas");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Ready to confirm");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Review");
+    expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Review and confirm");
+
+    apiFetchMock.mockClear();
+    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping");
+    expect(screen.getByTestId("location-state")).toHaveTextContent('"resumeCanvas":"shopping"');
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a local refill Canvas draft and resumes it on the medication report", async () => {
+    sessionStorage.setItem("vyva.refillCanvas.adherence.active", JSON.stringify({
+      step: "quantity",
+      draft: {
+        ...emptyRefillDraft,
+        medicationName: "Metformin",
+        strength: "500 mg",
+        providerName: "Saved pharmacy",
+      },
+      requestId: 0,
+    }));
+
+    renderPage("/concierge/tasks/draft%3Alocal-canvas-refill-active");
+
+    expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Refill Canvas");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Draft");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Quantity");
+
+    apiFetchMock.mockClear();
+    fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/meds/adherence-report");
+    expect(screen.getByTestId("location-state")).toHaveTextContent('"resumeCanvas":"refill"');
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("opens a focused detail, keeps More details closed, and resumes the exact saved task", async () => {
