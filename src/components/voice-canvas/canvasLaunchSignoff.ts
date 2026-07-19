@@ -948,7 +948,7 @@ const behaviorChecklistRequirements = [
       ["recoverable"],
       ["failure", "failed", "blocked"],
       ["retry"],
-      ["exit", "cancel", "recover", "recovery"],
+      ["exit", "cancel"],
       [
         "no write",
         "no external action",

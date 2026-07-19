@@ -1490,6 +1490,24 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch matrices without explicit recoverable failure exit evidence", () => {
+    const completed = completedMatrix().replace(
+      "Recoverable failure blocked state offered retry and exit with no write evidence passed",
+      "Recoverable failure blocked state offered retry and recovery with no write evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, and no write evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices without safe recoverable failure no-write evidence", () => {
     const completed = completedMatrix().replace(
       "Recoverable failure blocked state offered retry and exit with no write evidence passed",
