@@ -5,7 +5,7 @@ Use this file to record the deployed, real-device launch-readiness pass for ride
 
 Do not mark the Canvas launch-readiness goal complete until every required row below has a passing result, an evidence link or note, and a reviewer/date.
 
-Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every required environment, device, behavior, rollback, copy/accessibility, privacy, and sign-off row remains present; every `Pending` cell is replaced with a passing result/evidence note; copy/accessibility rows name the specific checked behavior and matching evidence; no row contains a failed/blocked/not-ready result; and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
+Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every required environment, device, behavior, rollback, copy/accessibility, privacy, and sign-off row remains present; every `Pending` cell is replaced with a passing result/evidence note; device rows name the real phone, tablet, and desktop/laptop evidence; behavior rows name the checked behavior instead of only saying that QA passed; evidence cells include dated QA or reviewer notes; copy/accessibility rows name the specific checked behavior and matching evidence; no row contains a failed/blocked/not-ready result; and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
 
 ```bash
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts
@@ -30,6 +30,8 @@ For final sign-off, use launch-specific values here: a real `http` or `https` en
 
 Each flow must pass on a real phone, tablet, and desktop/laptop. Browser emulation is useful preflight evidence, but it does not replace this table.
 
+For final sign-off, phone/tablet/desktop cells must name the real device class or browser used. Evidence must include a dated QA or reviewer note.
+
 | Flow | Phone | Tablet | Desktop/laptop | Evidence |
 | --- | --- | --- | --- | --- |
 | Ride Voice Canvas | Pending | Pending | Pending | Pending |
@@ -42,6 +44,8 @@ Each flow must pass on a real phone, tablet, and desktop/laptop. Browser emulati
 ## Required behavior checklist
 
 Record one pass/fail line for each flow and behavior. If a behavior is not applicable, explain why and identify the substitute evidence.
+
+For final sign-off, each behavior cell must name the behavior checked, such as start/resume, refresh/reconnect, browser back, cancel/exit, flag rollback/fallback, confirmation safety, duplicate/stale guard, senior-friendly copy, or privacy-safe analytics. Evidence must include a dated QA or reviewer note.
 
 | Flow | Start/resume | Refresh/reconnect | Browser back | Cancel/exit | Flag rollback/fallback | No external action before explicit confirmation | Duplicate/stale guard | Senior-friendly copy and what happens next | Privacy-safe analytics | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -56,7 +60,7 @@ Record one pass/fail line for each flow and behavior. If a behavior is not appli
 
 For each endpoint, verify disabled, enabled, malformed or missing config behavior, and an in-session rollback from Canvas to the existing path.
 
-For final sign-off, the endpoint and server key must match the launch manifest exactly. The disabled/enabled payload, rollback, and fallback cells must describe the observed state, not just say that the row passed.
+For final sign-off, the endpoint and server key must match the launch manifest exactly. The disabled/enabled payload, rollback, and fallback cells must describe the observed state, not just say that the row passed. Evidence must include a dated QA or reviewer note.
 
 | Flow | Endpoint | Server key | Disabled payload checked | Enabled payload checked | In-session rollback checked | Existing fallback shown | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |

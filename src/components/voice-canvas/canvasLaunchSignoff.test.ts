@@ -87,8 +87,12 @@ function completedMatrix(markdown = realDeviceQaMatrix()): string {
   return fillPrivacyReviewRows(
     fillFeatureFlagRows(
       fillCopyAccessibilityRows(
-        fillEnvironmentRecord(
-          fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+        fillBehaviorChecklistRows(
+          fillDeviceCoverageRows(
+            fillEnvironmentRecord(
+              fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+            ),
+          ),
         ),
       ),
     ),
@@ -99,28 +103,66 @@ function fillFeatureFlagRows(markdown: string): string {
   return markdown
     .replace(
       /^\| Ride Voice Canvas \| `\/api\/config\/features\/ride-voice-canvas` \| `ride` \| .* \| .* \| .* \| .* \| .* \|$/m,
-      "| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing Concierge transport panel fallback shown | Evidence screenshot/log captured by QA |",
+      "| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing Concierge transport panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     )
     .replace(
       /^\| Appointment Voice Canvas \| `\/api\/config\/features\/appointment-voice-canvas` \| `appointment` \| .* \| .* \| .* \| .* \| .* \|$/m,
-      "| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | `appointment` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing appointment panel fallback shown | Evidence screenshot/log captured by QA |",
+      "| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | `appointment` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing appointment panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     )
     .replace(
       /^\| Medication Refill Voice Canvas \| `\/api\/config\/features\/medication-refill-voice-canvas` \| `medicationRefill` \| .* \| .* \| .* \| .* \| .* \|$/m,
-      "| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing medication refill shopping/support path fallback shown | Evidence screenshot/log captured by QA |",
+      "| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing medication refill shopping/support path fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     )
     .replace(
       /^\| Shopping Delivery Voice Canvas \| `\/api\/config\/features\/shopping-delivery-voice-canvas` \| `shoppingDelivery` \| .* \| .* \| .* \| .* \| .* \|$/m,
-      "| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing shopping guide and recommendations fallback shown | Evidence screenshot/log captured by QA |",
+      "| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing shopping guide and recommendations fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     )
     .replace(
       /^\| Provider Reply Voice Canvas \| `\/api\/config\/features\/provider-reply-voice-canvas` \| `providerReply` \| .* \| .* \| .* \| .* \| .* \|$/m,
-      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA |",
+      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
     );
 }
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function tableRowPattern(firstCell: string, remainingCellCount: number): RegExp {
+  return new RegExp(
+    `^\\| ${escapeRegExp(firstCell)}${" \\| [^|]*".repeat(remainingCellCount)} \\|$`,
+    "m",
+  );
+}
+
+const launchFlowLabels = [
+  "Ride Voice Canvas",
+  "Appointment Voice Canvas",
+  "Medication Refill Voice Canvas",
+  "Shopping Delivery Voice Canvas",
+  "Provider Reply Voice Canvas",
+  "Concierge Task Hub Resume",
+] as const;
+
+function fillDeviceCoverageRows(markdown: string): string {
+  return launchFlowLabels.reduce(
+    (current, flow) =>
+      current.replace(
+        tableRowPattern(flow, 4),
+        `| ${flow} | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2026-07-19 |`,
+      ),
+    markdown,
+  );
+}
+
+function fillBehaviorChecklistRows(markdown: string): string {
+  return launchFlowLabels.reduce(
+    (current, flow) =>
+      current.replace(
+        tableRowPattern(flow, 10),
+        `| ${flow} | Start and resume restored evidence passed | Refresh and reconnect network evidence passed | Browser back navigation evidence passed | Cancel and exit evidence passed | Feature flag rollback fallback evidence passed | No external action before explicit confirmation evidence passed | Duplicate and stale response guard evidence passed | Senior copy explains what happens next | Privacy-safe analytics telemetry evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |`,
+      ),
+    markdown,
+  );
 }
 
 function fillPrivacyReviewRows(markdown: string): string {
@@ -183,8 +225,7 @@ function fillCopyAccessibilityRows(markdown: string): string {
 }
 
 function replaceDeviceRow(markdown: string, flow: string, row: string): string {
-  const escapedFlow = escapeRegExp(flow);
-  return markdown.replace(new RegExp(`^\\| ${escapedFlow} \\| .* \\|$`, "m"), row);
+  return markdown.replace(tableRowPattern(flow, 4), row);
 }
 
 function removeFirstTableRow(markdown: string, firstCell: string): string {
@@ -207,6 +248,8 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.failingCellCount).toBe(0);
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidDeviceCoverageRows).toEqual([]);
+    expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
@@ -319,8 +362,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague rollback evidence", () => {
     const completed = completedMatrix().replace(
-      "Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA |",
-      "Passed by QA | Passed by QA | Evidence screenshot/log captured by QA |",
+      "Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "Passed by QA | Passed by QA | Evidence screenshot/log captured by QA on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -331,6 +374,51 @@ describe("Canvas real-device QA sign-off", () => {
       "Provider Reply Voice Canvas: in-session rollback evidence",
       "Provider Reply Voice Canvas: existing fallback evidence",
     ]);
+  });
+
+  it("rejects ready-for-launch matrices with vague real-device coverage rows", () => {
+    const completed = completedMatrix().replace(
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: phone cell must name real phone or mobile evidence",
+      "Ride Voice Canvas: tablet cell must name real tablet evidence",
+      "Ride Voice Canvas: desktop/laptop cell must name real desktop or laptop evidence",
+      "Ride Voice Canvas: evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with vague required behavior rows", () => {
+    const completed = completedMatrix().replace(
+      "| Provider Reply Voice Canvas | Start and resume restored evidence passed | Refresh and reconnect network evidence passed | Browser back navigation evidence passed | Cancel and exit evidence passed | Feature flag rollback fallback evidence passed | No external action before explicit confirmation evidence passed | Duplicate and stale response guard evidence passed | Senior copy explains what happens next | Privacy-safe analytics telemetry evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Provider Reply Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual(
+      expect.arrayContaining([
+        "Provider Reply Voice Canvas: start/resume cell must mention start and resume evidence",
+        "Provider Reply Voice Canvas: refresh/reconnect cell must mention refresh and reconnect evidence",
+        "Provider Reply Voice Canvas: confirmation safety cell must mention no external action before explicit confirmation",
+        "Provider Reply Voice Canvas: behavior evidence must include dated QA or reviewer evidence",
+      ]),
+    );
+    expect(result.invalidBehaviorRows.length).toBeGreaterThan(4);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
   });
 
   it("rejects ready-for-launch matrices with vague copy/accessibility rows", () => {
@@ -345,7 +433,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidCopyAccessibilityRows).toEqual([
       "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
-      "Screen-reader announcements fire for waiting, blocked, and completed states: evidence must reference screen-reader announcement evidence",
+      "Screen-reader announcements fire for waiting, blocked, and completed states: evidence must reference dated screen-reader announcement evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
@@ -364,7 +452,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
       "Typed free text: result must state sensitive data was absent",
-      "Typed free text: evidence must reference analytics or telemetry review",
+      "Typed free text: evidence must reference dated analytics or telemetry review",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
@@ -393,7 +481,7 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
       "Ride Voice Canvas",
-      "| Ride Voice Canvas | Failed - phone lost restored draft | Passed - evidence captured by QA on 2026-07-19 | Passed - evidence captured by QA on 2026-07-19 | Screenshot and replay attached |",
+      "| Ride Voice Canvas | Failed - phone lost restored draft | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -404,6 +492,8 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.failingCellCount).toBe(1);
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidDeviceCoverageRows).toEqual([]);
+    expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
@@ -423,6 +513,8 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.failingCellCount).toBe(0);
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidDeviceCoverageRows).toEqual([]);
+    expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);

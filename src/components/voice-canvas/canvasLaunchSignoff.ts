@@ -62,6 +62,8 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   failingCellCount: number;
   missingRequiredMatrixRows: string[];
   invalidEnvironmentFields: string[];
+  invalidDeviceCoverageRows: string[];
+  invalidBehaviorRows: string[];
   invalidFeatureFlagRows: string[];
   invalidCopyAccessibilityRows: string[];
   invalidPrivacyRows: string[];
@@ -189,6 +191,24 @@ function hasAllWordGroups(
   return wordGroups.every((words) => hasAnyWord(value, words));
 }
 
+function hasDatedEvidenceLanguage(
+  value: string,
+  evidenceWords: readonly string[] = [
+    "evidence",
+    "screenshot",
+    "log",
+    "trace",
+    "recording",
+    "reviewed",
+  ],
+): boolean {
+  return (
+    isIsoDateCellFromText(normalizeCell(value)) &&
+    hasAnyWord(value, evidenceWords) &&
+    hasAnyWord(value, ["qa", "reviewer", "reviewed", "captured", "verified"])
+  );
+}
+
 function parseMarkdownTableRow(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
@@ -253,6 +273,167 @@ function invalidEnvironmentRows(sections: Map<string, string[][]>): string[] {
   });
 }
 
+const deviceCoverageRequirements = [
+  {
+    columnIndex: 1,
+    description: "phone cell must name real phone or mobile evidence",
+    wordGroups: [["phone", "mobile", "iphone", "ios", "android"]],
+  },
+  {
+    columnIndex: 2,
+    description: "tablet cell must name real tablet evidence",
+    wordGroups: [["tablet", "ipad", "android tablet"]],
+  },
+  {
+    columnIndex: 3,
+    description: "desktop/laptop cell must name real desktop or laptop evidence",
+    wordGroups: [["desktop", "laptop", "windows", "mac", "chrome", "edge", "firefox"]],
+  },
+] as const;
+
+function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Device coverage") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const flow of canvasLaunchReadinessFlows) {
+    const row = rows.get(flow.label);
+    if (!row) continue;
+
+    for (const requirement of deviceCoverageRequirements) {
+      const cell = row[requirement.columnIndex] ?? "";
+      if (isPlaceholderCell(cell) || isFailingQaCell(cell)) continue;
+      if (!hasAllWordGroups(cell, requirement.wordGroups)) {
+        problems.push(`${flow.label}: ${requirement.description}`);
+      }
+    }
+
+    const evidence = row[4] ?? "";
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      !hasDatedEvidenceLanguage(evidence)
+    ) {
+      problems.push(`${flow.label}: evidence must include dated QA or reviewer evidence`);
+    }
+  }
+
+  return problems;
+}
+
+const behaviorChecklistRequirements = [
+  {
+    columnIndex: 1,
+    description: "start/resume cell must mention start and resume evidence",
+    wordGroups: [
+      ["start", "started"],
+      ["resume", "resumed", "restore", "restored"],
+    ],
+  },
+  {
+    columnIndex: 2,
+    description: "refresh/reconnect cell must mention refresh and reconnect evidence",
+    wordGroups: [
+      ["refresh"],
+      ["reconnect", "reconnected", "network"],
+    ],
+  },
+  {
+    columnIndex: 3,
+    description: "browser back cell must mention back navigation evidence",
+    wordGroups: [["back"]],
+  },
+  {
+    columnIndex: 4,
+    description: "cancel/exit cell must mention cancel and exit evidence",
+    wordGroups: [
+      ["cancel"],
+      ["exit", "leave"],
+    ],
+  },
+  {
+    columnIndex: 5,
+    description: "flag rollback/fallback cell must mention flag rollback and fallback evidence",
+    wordGroups: [
+      ["flag"],
+      ["rollback"],
+      ["fallback"],
+    ],
+  },
+  {
+    columnIndex: 6,
+    description:
+      "confirmation safety cell must mention no external action before explicit confirmation",
+    wordGroups: [
+      ["no external action", "without external action", "external action"],
+      ["before"],
+      ["explicit confirmation", "confirmation"],
+    ],
+  },
+  {
+    columnIndex: 7,
+    description: "duplicate/stale guard cell must mention duplicate and stale evidence",
+    wordGroups: [
+      ["duplicate"],
+      ["stale"],
+    ],
+  },
+  {
+    columnIndex: 8,
+    description:
+      "senior-friendly copy cell must mention senior copy and what happens next",
+    wordGroups: [
+      ["senior"],
+      ["copy"],
+      ["what happens next", "next"],
+    ],
+  },
+  {
+    columnIndex: 9,
+    description: "privacy-safe analytics cell must mention privacy and analytics evidence",
+    wordGroups: [
+      ["privacy"],
+      ["analytics", "telemetry"],
+    ],
+  },
+] as const;
+
+function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Required behavior checklist") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const flow of canvasLaunchReadinessFlows) {
+    const row = rows.get(flow.label);
+    if (!row) continue;
+
+    for (const requirement of behaviorChecklistRequirements) {
+      const cell = row[requirement.columnIndex] ?? "";
+      if (isPlaceholderCell(cell) || isFailingQaCell(cell)) continue;
+      if (!hasAllWordGroups(cell, requirement.wordGroups)) {
+        problems.push(`${flow.label}: ${requirement.description}`);
+      }
+    }
+
+    const evidence = row[10] ?? "";
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      !hasDatedEvidenceLanguage(evidence)
+    ) {
+      problems.push(`${flow.label}: behavior evidence must include dated QA or reviewer evidence`);
+    }
+  }
+
+  return problems;
+}
+
 function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
   const rows = new Map(
     (sections.get("Feature endpoint and rollback checks") ?? [])
@@ -309,7 +490,14 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(evidence) &&
-      !hasAnyWord(evidence, ["evidence", "screenshot", "log", "trace", "recording", "qa"])
+      !hasDatedEvidenceLanguage(evidence, [
+        "evidence",
+        "screenshot",
+        "log",
+        "trace",
+        "recording",
+        "qa",
+      ])
     ) {
       problems.push(`${flow.label}: rollout evidence note`);
     }
@@ -334,7 +522,8 @@ const copyAccessibilityResultRequirements: Record<
       ["copy", "label", "labels"],
       ["one clear decision", "single decision", "one decision"],
     ],
-    evidenceDescription: "evidence must reference English copy or screenshot review",
+    evidenceDescription:
+      "evidence must reference dated English copy or screenshot review",
     evidenceWordGroups: [["english", "copy", "screenshot", "read-through"]],
   },
   "Spanish copy and long labels remain readable without horizontal overflow": {
@@ -346,7 +535,7 @@ const copyAccessibilityResultRequirements: Record<
       ["readable", "overflow", "horizontal overflow", "no horizontal overflow"],
     ],
     evidenceDescription:
-      "evidence must reference Spanish, long-label, overflow, or screenshot review",
+      "evidence must reference dated Spanish, long-label, overflow, or screenshot review",
     evidenceWordGroups: [["spanish", "long label", "long labels", "overflow", "screenshot"]],
   },
   "Waiting states explain what is happening and what is not happening": {
@@ -356,7 +545,7 @@ const copyAccessibilityResultRequirements: Record<
       ["waiting"],
       ["not happening", "no action", "not sent", "not submitted", "no external action"],
     ],
-    evidenceDescription: "evidence must reference waiting-state review",
+    evidenceDescription: "evidence must reference dated waiting-state review",
     evidenceWordGroups: [["waiting", "screenshot"]],
   },
   "Blocked states explain what is needed and provide retry or exit": {
@@ -368,7 +557,7 @@ const copyAccessibilityResultRequirements: Record<
       ["retry"],
       ["exit", "cancel"],
     ],
-    evidenceDescription: "evidence must reference blocked-state review",
+    evidenceDescription: "evidence must reference dated blocked-state review",
     evidenceWordGroups: [["blocked", "screenshot"]],
   },
   "Completed states explain the outcome without implying extra action": {
@@ -379,7 +568,7 @@ const copyAccessibilityResultRequirements: Record<
       ["outcome", "result"],
       ["no extra action", "without extra action", "not implying extra action"],
     ],
-    evidenceDescription: "evidence must reference completed-state review",
+    evidenceDescription: "evidence must reference dated completed-state review",
     evidenceWordGroups: [["completed", "screenshot"]],
   },
   "Keyboard-only completion works for each flow": {
@@ -388,7 +577,7 @@ const copyAccessibilityResultRequirements: Record<
       ["keyboard"],
       ["each flow", "all flows"],
     ],
-    evidenceDescription: "evidence must reference keyboard evidence",
+    evidenceDescription: "evidence must reference dated keyboard evidence",
     evidenceWordGroups: [["keyboard"]],
   },
   "Focus moves meaningfully when scenes change": {
@@ -397,7 +586,7 @@ const copyAccessibilityResultRequirements: Record<
       ["focus"],
       ["scene"],
     ],
-    evidenceDescription: "evidence must reference focus evidence",
+    evidenceDescription: "evidence must reference dated focus evidence",
     evidenceWordGroups: [["focus"]],
   },
   "Screen-reader announcements fire for waiting, blocked, and completed states": {
@@ -410,7 +599,7 @@ const copyAccessibilityResultRequirements: Record<
       ["blocked"],
       ["completed"],
     ],
-    evidenceDescription: "evidence must reference screen-reader announcement evidence",
+    evidenceDescription: "evidence must reference dated screen-reader announcement evidence",
     evidenceWordGroups: [["screen-reader", "screen reader", "announcement"]],
   },
   "Reduced-motion mode remains calm and usable": {
@@ -420,7 +609,7 @@ const copyAccessibilityResultRequirements: Record<
       ["calm"],
       ["usable"],
     ],
-    evidenceDescription: "evidence must reference reduced-motion evidence",
+    evidenceDescription: "evidence must reference dated reduced-motion evidence",
     evidenceWordGroups: [["reduced-motion", "reduced motion", "motion"]],
   },
 };
@@ -443,7 +632,10 @@ function invalidCopyAccessibilityRows(sections: Map<string, string[][]>): string
     if (!hasAllWordGroups(result, requirements.resultWordGroups)) {
       problems.push(`${check}: ${requirements.resultDescription}`);
     }
-    if (!hasAllWordGroups(evidence, requirements.evidenceWordGroups)) {
+    if (
+      !hasAllWordGroups(evidence, requirements.evidenceWordGroups) ||
+      !hasDatedEvidenceLanguage(evidence)
+    ) {
       problems.push(`${check}: ${requirements.evidenceDescription}`);
     }
   }
@@ -488,8 +680,10 @@ function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
     if (!hasNoSensitiveDataLanguage(result)) {
       problems.push(`${privacyClass}: result must state sensitive data was absent`);
     }
-    if (!hasAnalyticsEvidenceLanguage(evidence)) {
-      problems.push(`${privacyClass}: evidence must reference analytics or telemetry review`);
+    if (!hasAnalyticsEvidenceLanguage(evidence) || !hasDatedEvidenceLanguage(evidence)) {
+      problems.push(
+        `${privacyClass}: evidence must reference dated analytics or telemetry review`,
+      );
     }
   }
 
@@ -574,6 +768,8 @@ export function evaluateCanvasRealDeviceQaMatrix(
     ),
   ];
   const invalidEnvironmentFields = invalidEnvironmentRows(sections);
+  const invalidDeviceCoverageChecks = invalidDeviceCoverageRows(sections);
+  const invalidBehaviorChecks = invalidBehaviorRows(sections);
   const invalidFeatureFlagChecks = invalidFeatureFlagRows(sections);
   const invalidCopyAccessibilityChecks = invalidCopyAccessibilityRows(sections);
   const invalidPrivacyChecks = invalidPrivacyReviewRows(sections);
@@ -609,6 +805,16 @@ export function evaluateCanvasRealDeviceQaMatrix(
     if (invalidEnvironmentFields.length > 0) {
       problems.push(
         `Matrix has environment field(s) without launch-specific evidence: ${invalidEnvironmentFields.join(", ")}.`,
+      );
+    }
+    if (invalidDeviceCoverageChecks.length > 0) {
+      problems.push(
+        `Matrix has real-device coverage row issue(s): ${invalidDeviceCoverageChecks.join(", ")}.`,
+      );
+    }
+    if (invalidBehaviorChecks.length > 0) {
+      problems.push(
+        `Matrix has required behavior row issue(s): ${invalidBehaviorChecks.join(", ")}.`,
       );
     }
     if (invalidFeatureFlagChecks.length > 0) {
@@ -664,6 +870,8 @@ export function evaluateCanvasRealDeviceQaMatrix(
     failingCellCount,
     missingRequiredMatrixRows,
     invalidEnvironmentFields,
+    invalidDeviceCoverageRows: invalidDeviceCoverageChecks,
+    invalidBehaviorRows: invalidBehaviorChecks,
     invalidFeatureFlagRows: invalidFeatureFlagChecks,
     invalidCopyAccessibilityRows: invalidCopyAccessibilityChecks,
     invalidPrivacyRows: invalidPrivacyChecks,
