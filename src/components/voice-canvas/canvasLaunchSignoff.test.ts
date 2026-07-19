@@ -140,27 +140,27 @@ function fillAnalyticsSignalRows(markdown: string): string {
   return markdown
     .replace(
       /^\| Started \| .* \| .* \| .* \|$/m,
-      "| Started | scene_viewed with restored false verified | Started aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+      "| Started | scene_viewed with restored false verified | Started aggregate signal count 6 observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
     )
     .replace(
       /^\| Resumed \| .* \| .* \| .* \|$/m,
-      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed aggregate signal count 5 observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
     )
     .replace(
       /^\| Abandoned \| .* \| .* \| .* \|$/m,
-      "| Abandoned | abandoned source event verified | Abandoned aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+      "| Abandoned | abandoned source event verified | Abandoned aggregate signal count 2 observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
     )
     .replace(
       /^\| Blocked \| .* \| .* \| .* \|$/m,
-      "| Blocked | failed or urgent_help_shown or blocked scene view verified | Blocked aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+      "| Blocked | failed or urgent_help_shown or blocked scene view verified | Blocked aggregate signal count 1 observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
     )
     .replace(
       /^\| Confirmed \| .* \| .* \| .* \|$/m,
-      "| Confirmed | confirmation_submitted source event verified | Confirmed aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+      "| Confirmed | confirmation_submitted source event verified | Confirmed aggregate signal count 4 observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
     )
     .replace(
       /^\| Completed \| .* \| .* \| .* \|$/m,
-      "| Completed | completed source event verified | Completed aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+      "| Completed | completed source event verified | Completed aggregate signal count 4 observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
     );
 }
 
@@ -1026,7 +1026,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague analytics signal rows", () => {
     const completed = completedMatrix().replace(
-      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed aggregate signal count observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed aggregate signal count 5 observed | Analytics telemetry aggregate signal sample reviewed on 2026-07-19 with allowed envelope fields |",
       "| Resumed | Passed by QA | Passed by QA | Evidence captured by QA |",
     );
 
@@ -1036,8 +1036,26 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidAnalyticsSignalRows).toEqual([
       "Resumed: source event must match the canonical launch signal",
-      "Resumed: result must mention the aggregate signal/count reviewed",
+      "Resumed: result must mention the aggregate signal/count reviewed with a numeric count",
       "Resumed: evidence must reference dated aggregate telemetry with allowed envelope fields",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without numeric aggregate signal counts", () => {
+    const completed = completedMatrix().replace(
+      "Resumed aggregate signal count 5 observed",
+      "Resumed aggregate signal count observed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: result must mention the aggregate signal/count reviewed with a numeric count",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics signal row")]),

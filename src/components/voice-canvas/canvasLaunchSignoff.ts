@@ -1199,11 +1199,13 @@ function analyticsSignalResultIsSpecific(
   signal: CanvasRealDeviceQaAnalyticsSignal,
   value: string,
 ): boolean {
-  return hasAllWordGroups(value, [
-    [signal.toLowerCase()],
-    ["aggregate", "count", "signal"],
-    ["observed", "reviewed", "verified", "counted"],
-  ]);
+  return (
+    hasAllWordGroups(value, [
+      [signal.toLowerCase()],
+      ["aggregate", "count", "signal"],
+      ["observed", "reviewed", "verified", "counted"],
+    ]) && /\b\d+\b/.test(normalizeCell(value))
+  );
 }
 
 function hasAnalyticsSignalEvidenceLanguage(value: string): boolean {
@@ -1261,7 +1263,9 @@ function invalidAnalyticsSignalRows(sections: Map<string, string[][]>): string[]
       problems.push(`${signal}: source event must match the canonical launch signal`);
     }
     if (!analyticsSignalResultIsSpecific(signal, aggregateResult)) {
-      problems.push(`${signal}: result must mention the aggregate signal/count reviewed`);
+      problems.push(
+        `${signal}: result must mention the aggregate signal/count reviewed with a numeric count`,
+      );
     }
     if (!hasAnalyticsSignalEvidenceLanguage(evidence)) {
       problems.push(
