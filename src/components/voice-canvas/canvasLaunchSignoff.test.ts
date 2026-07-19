@@ -62,7 +62,7 @@ function fillEnvironmentRecord(markdown: string): string {
   return markdown
     .replace(
       /^\| Environment URL \| .* \|$/m,
-      "| Environment URL | https://staging.vyva.example/canvas-qa |",
+      "| Environment URL | https://staging.vyva.app/canvas-qa |",
     )
     .replace(
       /^\| Build or commit SHA \| .* \|$/m,
@@ -1013,7 +1013,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague environment records", () => {
     const completed = completedMatrix().replace(
-      "| Environment URL | https://staging.vyva.example/canvas-qa |",
+      "| Environment URL | https://staging.vyva.app/canvas-qa |",
       "| Environment URL | Passed - evidence captured by QA on 2026-07-19 |",
     );
 
@@ -1022,6 +1022,32 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidEnvironmentFields).toEqual(["Environment URL"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with local or mock environment evidence", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Environment URL | https://staging.vyva.app/canvas-qa |",
+        "| Environment URL | http://localhost:5173/canvas-qa |",
+      )
+      .replace(
+        "| Voice provider/session mode | Live voice session on staging browser |",
+        "| Voice provider/session mode | Mock voice session on local browser |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual([
+      "Environment URL",
+      "Voice provider/session mode",
+    ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining("environment field"),

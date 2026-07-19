@@ -167,10 +167,27 @@ function isApprovedLaunchDecisionCell(value: string): boolean {
   );
 }
 
-function isHttpUrl(value: string): boolean {
+function isDeployedEnvironmentUrl(value: string): boolean {
   try {
     const url = new URL(normalizeCell(value));
-    return url.protocol === "https:" || url.protocol === "http:";
+    if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+    const host = url.hostname.toLowerCase();
+    return !(
+      host === "localhost" ||
+      host === "0.0.0.0" ||
+      host === "::1" ||
+      /^127(?:\.\d{1,3}){3}$/.test(host) ||
+      /^10(?:\.\d{1,3}){3}$/.test(host) ||
+      /^192\.168(?:\.\d{1,3}){2}$/.test(host) ||
+      /^172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}$/.test(host) ||
+      host.endsWith(".local") ||
+      host.endsWith(".localhost") ||
+      host.endsWith(".test") ||
+      host.endsWith(".example") ||
+      host === "example.com" ||
+      host.endsWith(".example.com") ||
+      host.includes("mock")
+    );
   } catch {
     return false;
   }
@@ -186,7 +203,7 @@ function isMeaningfulEnvironmentValue(
 
   switch (field) {
     case "Environment URL":
-      return isHttpUrl(normalized);
+      return isDeployedEnvironmentUrl(normalized);
     case "Build or commit SHA":
       return /\b[0-9a-f]{7,40}\b/i.test(normalized);
     case "Test account":
@@ -197,8 +214,10 @@ function isMeaningfulEnvironmentValue(
         /\d/.test(normalized)
       );
     case "Voice provider/session mode":
-      return /\b(voice|session|provider|browser|live|staging|mock)\b/i.test(
-        normalized,
+      return (
+        /\b(voice|session|provider|browser|live|staging|production|deployed)\b/i.test(
+          normalized,
+        ) && !/\b(mock|stub|fake|simulated|local)\b/i.test(normalized)
       );
     case "Analytics sink reviewed":
       return /\breview(ed)?\b/i.test(normalized) && isIsoDateCellFromText(normalized);
