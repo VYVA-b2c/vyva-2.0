@@ -1100,6 +1100,17 @@ type CampaignLaunchControlItem = CampaignReadinessItem & {
   onSelect?: () => void;
 };
 
+type CampaignLaunchDecision = CampaignReadinessItem & {
+  eyebrow: string;
+  value: string;
+  actionLabel: string;
+  buttonType?: "button" | "submit";
+  disabled?: boolean;
+  icon: LucideIcon;
+  copyText: string;
+  onSelect?: () => void;
+};
+
 type CampaignWorkspaceMapItem = CampaignLaunchControlItem & {
   eyebrow: string;
 };
@@ -23896,6 +23907,66 @@ export default function MarketingAdminPage() {
     "",
     "AI task: Recommend the safest next admin move, rewrite or improve any weak channel copy, keep claims non-clinical, preserve consent requirements, and return a publish-ready action list for email, social, WhatsApp, phone, print, or local event channels.",
   ].join("\n") : "";
+  const campaignLaunchDecisionAction = campaignDetailCopilotActions[0] ?? null;
+  const campaignLaunchDecision: CampaignLaunchDecision | null = editingCampaign && campaignForLaunchPacket ? (() => {
+    const title = campaignCopilotState === "blocked"
+      ? "Do not launch yet"
+      : campaignCopilotState === "needs_action"
+        ? "Review before launch"
+        : draftEmailChannel && !campaignEmailDisabled
+          ? "Ready for email send"
+          : firstManualPublishKitItem
+            ? "Ready for manual handoff"
+            : "Ready for owner approval";
+    const value = campaignCopilotState === "blocked"
+      ? "Blocked"
+      : campaignCopilotState === "needs_action"
+        ? "Review"
+        : "Ready";
+    const detail = campaignCopilotState === "ready"
+      ? draftEmailChannel && !campaignEmailDisabled
+        ? `${savedCampaignRecipientCount} saved recipient${savedCampaignRecipientCount === 1 ? "" : "s"} can receive this email after final confirmation.`
+        : firstManualPublishKitItem
+          ? `${channelLabel[firstManualPublishKitItem.channel]} can move to manual publishing and outcome tracking.`
+          : "Approval checks are clear. Keep the final owner review explicit before publishing."
+      : campaignCopilotDetail;
+    const actionLabel = campaignLaunchDecisionAction?.actionLabel
+      ?? (campaignCopilotState === "ready" ? "Copy decision" : "Review blockers");
+    const copyText = [
+      "VYVA launch decision",
+      `Campaign: ${campaignForLaunchPacket.name}`,
+      `Decision: ${title}`,
+      `Status: ${value}`,
+      `Reason: ${detail}`,
+      `Approval: ${campaignApprovalSummary}`,
+      `Readiness: ${campaignReadinessSummary}`,
+      `Channels: ${campaignOperatorChannelLabels.join(", ") || "None"}`,
+      `Recipients: ${savedCampaignRecipientCount > 0 ? `${savedCampaignRecipientCount} saved` : pendingCampaignSnapshotCount > 0 ? `${pendingCampaignSnapshotCount} preview` : "No saved snapshot"}`,
+      "",
+      "Recommended next action:",
+      campaignLaunchDecisionAction
+        ? `${campaignLaunchDecisionAction.title}: ${campaignLaunchDecisionAction.detail}`
+        : "Copy the approval note and complete final owner review.",
+      "",
+      "Approval note:",
+      campaignApprovalNote,
+    ].join("\n");
+
+    return {
+      key: "campaign-launch-decision",
+      eyebrow: "Launch decision",
+      title,
+      value,
+      detail,
+      state: campaignCopilotState,
+      actionLabel,
+      buttonType: campaignLaunchDecisionAction?.buttonType,
+      disabled: campaignLaunchDecisionAction?.disabled,
+      icon: campaignLaunchDecisionAction?.icon ?? ShieldCheck,
+      onSelect: campaignLaunchDecisionAction?.onSelect,
+      copyText,
+    };
+  })() : null;
   const unmappedAudienceMemberCount = latestSyncRun
     ? syncUnmappedCount(latestSyncRun.summary)
     : audiences.reduce((total, audience) => total + audience.unmappedContactExternalIds.length, 0);
@@ -28908,6 +28979,43 @@ export default function MarketingAdminPage() {
                                 <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.detail}</p>
                               </div>
                             ))}
+                          </div>
+                        ) : null}
+                        {campaignLaunchDecision ? (
+                          <div className={`mt-3 rounded-xl border p-3 ${readinessClass(campaignLaunchDecision.state)}`} data-testid="marketing-campaign-launch-decision">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs font-black uppercase tracking-[0.12em] opacity-75">{campaignLaunchDecision.eyebrow}</p>
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                  <h4 className="text-lg font-black">{campaignLaunchDecision.title}</h4>
+                                  <Pill className={readinessPillClass(campaignLaunchDecision.state)}>{campaignLaunchDecision.value}</Pill>
+                                </div>
+                                <p className="mt-1 max-w-3xl text-sm font-bold leading-relaxed opacity-85">{campaignLaunchDecision.detail}</p>
+                              </div>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void copyCampaignHandoffText("Launch decision", campaignLaunchDecision.copyText)}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 hover:bg-purple-50"
+                                  data-testid="button-marketing-copy-launch-decision"
+                                >
+                                  <Copy size={14} aria-hidden="true" /> Copy decision
+                                </button>
+                                <button
+                                  type={campaignLaunchDecision.buttonType ?? "button"}
+                                  disabled={campaignLaunchDecision.disabled}
+                                  onClick={campaignLaunchDecision.buttonType === "submit" ? undefined : campaignLaunchDecision.onSelect}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-[#241133] px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                  data-testid="button-marketing-launch-decision-primary"
+                                >
+                                  {(() => {
+                                    const DecisionIcon = campaignLaunchDecision.icon;
+                                    return <DecisionIcon size={14} aria-hidden="true" />;
+                                  })()}
+                                  {campaignLaunchDecision.actionLabel}
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         ) : null}
                         {campaignDetailCopilotActions.length ? (

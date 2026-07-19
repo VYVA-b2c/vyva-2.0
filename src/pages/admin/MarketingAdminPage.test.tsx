@@ -6503,6 +6503,16 @@ describe("MarketingAdminPage", () => {
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Risk gate: 1 saved email recipient needs opted-in consent before sending."));
     expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign operator sheet copied.");
+    expect(screen.getByTestId("marketing-campaign-launch-decision")).toHaveTextContent("Launch decision");
+    expect(screen.getByTestId("marketing-campaign-launch-decision")).toHaveTextContent("Review before launch");
+    expect(screen.getByTestId("marketing-campaign-launch-decision")).toHaveTextContent("consent review");
+    expect(screen.getByTestId("button-marketing-launch-decision-primary")).toHaveTextContent("Open contact");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-launch-decision"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA launch decision"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Decision: Review before launch"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Launch decision copied.");
     expect(screen.getByTestId("marketing-campaign-workspace-map")).toHaveTextContent("Campaign workspace");
     expect(screen.getByTestId("marketing-campaign-workspace-map-setup")).toHaveTextContent("Campaign setup");
     expect(screen.getByTestId("marketing-campaign-workspace-map-creative")).toHaveTextContent("2/2 linked");
