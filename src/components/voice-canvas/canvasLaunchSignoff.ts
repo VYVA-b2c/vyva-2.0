@@ -1015,6 +1015,29 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
   return problems;
 }
 
+function hasNegativeTaskHubDestinationOutcomeLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    /\bnot (resumed|routed|available|visible|shown|safe)\b/.test(normalized) ||
+    /\bdid not (resume|route|open|show|fall back|fallback)\b/.test(normalized) ||
+    /\b(?:unable|failed|fails|could not) to (resume|route|open|show|fall back|fallback)\b/.test(
+      normalized,
+    ) ||
+    /\b(no fallback|without fallback|fallback unavailable|fallback missing|missing fallback|resume unavailable|route unavailable|destination unavailable)\b/.test(
+      normalized,
+    ) ||
+    /\b(no write|no external action|no external actions)\b.{0,24}\b(failed|missing|unavailable)\b/.test(
+      normalized,
+    ) ||
+    /\b(write|writes|external action|external actions|submission|submitted|endpoint|booking|call|message|navigation)\b.{0,32}\b(happened|occurred|triggered|fired|ran|sent|submitted|created|wrote)\b/.test(
+      normalized,
+    ) ||
+    /\b(happened|occurred|triggered|fired|ran|sent|submitted|created|wrote)\b.{0,32}\b(write|writes|external action|external actions|submission|endpoint|booking|call|message|navigation)\b/.test(
+      normalized,
+    )
+  );
+}
+
 const taskHubDestinationRequirements: Record<
   CanvasRealDeviceQaTaskHubDestinationRow,
   {
@@ -1121,7 +1144,8 @@ function invalidTaskHubDestinationRows(
     if (
       !isPlaceholderCell(routeBehavior) &&
       !isFailingQaCell(routeBehavior) &&
-      !hasAllWordGroups(routeBehavior, requirements.routeWordGroups)
+      (!hasAllWordGroups(routeBehavior, requirements.routeWordGroups) ||
+        hasNegativeTaskHubDestinationOutcomeLanguage(routeBehavior))
     ) {
       problems.push(
         `${rowLabel}: resume route must name the task hub destination behavior`,
@@ -1130,7 +1154,8 @@ function invalidTaskHubDestinationRows(
     if (
       !isPlaceholderCell(fallbackBehavior) &&
       !isFailingQaCell(fallbackBehavior) &&
-      !hasAllWordGroups(fallbackBehavior, requirements.fallbackWordGroups)
+      (!hasAllWordGroups(fallbackBehavior, requirements.fallbackWordGroups) ||
+        hasNegativeTaskHubDestinationOutcomeLanguage(fallbackBehavior))
     ) {
       problems.push(
         `${rowLabel}: fallback must name the disabled destination path`,
@@ -1139,7 +1164,8 @@ function invalidTaskHubDestinationRows(
     if (
       !isPlaceholderCell(safeBehavior) &&
       !isFailingQaCell(safeBehavior) &&
-      !hasAllWordGroups(safeBehavior, requirements.safeWordGroups)
+      (!hasAllWordGroups(safeBehavior, requirements.safeWordGroups) ||
+        hasNegativeTaskHubDestinationOutcomeLanguage(safeBehavior))
     ) {
       problems.push(
         `${rowLabel}: safety cell must mention no writes and no external actions before confirmation`,

@@ -742,6 +742,28 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects task hub destination rows with negative resume, fallback, or safety wording", () => {
+    const completed = completedMatrix().replace(
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Local shopping draft | Shopping draft did not resume to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback unavailable for existing shopping experience | No external action and no write before confirmation, but external action triggered | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: resume route must name the task hub destination behavior",
+      "Local shopping draft: fallback must name the disabled destination path",
+      "Local shopping draft: safety cell must mention no writes and no external actions before confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("task-hub destination fallback row"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague interaction-mode evidence", () => {
     const completed = completedMatrix().replace(
       "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
