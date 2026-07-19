@@ -704,6 +704,22 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects feature flag fallback rows with only generic existing-fallback wording", () => {
+    const completed = completedMatrix().replace(
+      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing fallback shown | Existing fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: in-session rollback must show disabled rollout and existing fallback",
+      "Provider Reply Voice Canvas: existing fallback evidence",
+    ]);
+  });
+
   it("rejects feature flag evidence notes with contradictory fallback wording", () => {
     const completed = completedMatrix().replace(
       "Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
@@ -769,6 +785,21 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = completedMatrix().replace(
       "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
       "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: fallback must name the disabled destination path",
+    ]);
+  });
+
+  it("rejects task hub destination fallback rows with only generic existing-fallback wording", () => {
+    const completed = completedMatrix().replace(
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 existing fallback | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);

@@ -1075,12 +1075,12 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(rollback) &&
-      !hasAffirmativeFeatureFlagEvidence(rollback, [
+      (!hasAffirmativeFeatureFlagEvidence(rollback, [
         ["rollback", "rolled back"],
         ["disabled", "false", "rollout 0", "0%"],
         ["fallback"],
-        ["existing", "previous", "old", "safe concierge", featureFlag.fallback.toLowerCase()],
-      ])
+      ]) ||
+        !hasNamedFeatureFallbackPath(rollback, featureFlag.fallback))
     ) {
       problems.push(
         `${flow.label}: in-session rollback must show disabled rollout and existing fallback`,
@@ -1088,10 +1088,8 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(fallback) &&
-      !hasAffirmativeFeatureFlagEvidence(fallback, [
-        ["fallback"],
-        ["existing", "previous", "old", "safe concierge", featureFlag.fallback.toLowerCase()],
-      ])
+      (!hasAffirmativeFeatureFlagEvidence(fallback, [["fallback"]]) ||
+        !hasNamedFeatureFallbackPath(fallback, featureFlag.fallback))
     ) {
       problems.push(`${flow.label}: existing fallback evidence`);
     }
@@ -1121,6 +1119,33 @@ function hasAffirmativeFeatureFlagEvidence(
   return (
     hasAllWordGroups(value, wordGroups) &&
     !hasNegativeFeatureFlagOutcomeLanguage(value)
+  );
+}
+
+function hasNamedFeatureFallbackPath(value: string, fallback: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase().replace(/[/_-]+/g, " ");
+  const fallbackWords = normalizeCell(fallback)
+    .toLowerCase()
+    .replace(/[/_-]+/g, " ")
+    .split(/\s+/)
+    .filter(
+      (word) =>
+        word.length > 2 &&
+        ![
+          "and",
+          "the",
+          "old",
+          "safe",
+          "path",
+          "shown",
+          "existing",
+          "previous",
+        ].includes(word),
+    );
+
+  return (
+    fallbackWords.length > 0 &&
+    fallbackWords.every((word) => normalized.includes(word))
   );
 }
 
@@ -1190,7 +1215,7 @@ const taskHubDestinationRequirements: Record<
       ["shopping"],
       ["disabled", "rollout 0", "0%"],
       ["fallback"],
-      ["existing", "previous", "old", "shopping experience"],
+      ["shopping experience"],
     ],
     safeWordGroups: [
       ["no write", "no writes", "without write", "without writes", "or write"],
@@ -1209,7 +1234,7 @@ const taskHubDestinationRequirements: Record<
       ["medication", "refill"],
       ["disabled", "rollout 0", "0%"],
       ["fallback"],
-      ["existing", "previous", "old", "medication refill", "shopping/support"],
+      ["medication refill", "shopping/support"],
     ],
     safeWordGroups: [
       ["no write", "no writes", "without write", "without writes", "or write"],
@@ -1229,7 +1254,7 @@ const taskHubDestinationRequirements: Record<
       ["reply"],
       ["disabled", "rollout 0", "0%"],
       ["fallback"],
-      ["existing", "previous", "safe concierge task path"],
+      ["safe concierge task path"],
     ],
     safeWordGroups: [
       ["no write", "no writes", "without write", "without writes", "or write"],
@@ -1246,7 +1271,7 @@ const taskHubDestinationRequirements: Record<
     fallbackWordGroups: [
       ["fallback", "no canvas", "safe concierge task path"],
       ["stale", "blocked", "disabled", "rollout 0", "safe"],
-      ["existing", "previous", "safe concierge task path", "no canvas"],
+      ["safe concierge task path", "no canvas"],
     ],
     safeWordGroups: [
       ["no write", "no writes", "without write", "without writes", "or write"],
