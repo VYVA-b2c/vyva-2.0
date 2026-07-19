@@ -41,6 +41,21 @@ describe("concierge tool readiness", () => {
     });
   });
 
+  it("treats a provider website as a usable handoff route", () => {
+    const readiness = evaluateConciergeToolReadiness({
+      flowReference: CONCIERGE_FLOW_REFERENCES.homeService,
+      requestedTool: "booking_link",
+      provider: { name: "Home Repair", websiteUrl: "https://repair.example" },
+    });
+
+    expect(readiness).toMatchObject({
+      status: "ready",
+      activeTool: "booking_link",
+      canProceed: true,
+      missing: [],
+    });
+  });
+
   it("falls back to manual review when a direct capability is disabled", () => {
     const readiness = evaluateConciergeToolReadiness({
       flowReference: CONCIERGE_FLOW_REFERENCES.transportBooking,

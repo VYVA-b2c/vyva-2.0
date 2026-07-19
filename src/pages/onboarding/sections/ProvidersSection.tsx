@@ -30,7 +30,10 @@ import {
   normalizeConciergeProviderCategory,
   type ConciergeProviderCategoryId,
 } from "../../../../shared/conciergeFlowRegistry";
-import { normalizeSavedProviderDefaults } from "../../../../shared/conciergeSavedProviders";
+import {
+  normalizeSavedProviderDefaults,
+  savedProviderContactReadiness,
+} from "../../../../shared/conciergeSavedProviders";
 import { useTranslation } from "react-i18next";
 
 interface ProviderCategory {
@@ -1210,7 +1213,7 @@ const ProvidersSection = () => {
           >
             {visibleProviders.map((p) => {
               const catLabel = PROVIDER_CATEGORIES.find((c) => c.id === p.category)?.label ?? p.category;
-              const hasContact = p.phone || p.email || p.whatsapp || p.booking_url || p.online_order_url;
+              const readiness = savedProviderContactReadiness(p);
               return (
                 <div
                   key={p.id}
@@ -1224,11 +1227,13 @@ const ProvidersSection = () => {
                       <p className="font-body text-[12px] text-vyva-text-2 truncate">{p.address}</p>
                     )}
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      {hasContact && (
-                        <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 font-body text-[11px] font-black text-[#047857]">
-                          Contact ready
-                        </span>
-                      )}
+                      <span className={`rounded-full px-2 py-0.5 font-body text-[11px] font-black ${
+                        readiness.conciergeUsable
+                          ? "bg-[#ECFDF5] text-[#047857]"
+                          : "bg-[#FFF7ED] text-[#9A3412]"
+                      }`}>
+                        {readiness.label}
+                      </span>
                       {p.is_trusted !== false ? (
                         <span className="rounded-full bg-[#F5F3FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple">
                           Trusted
@@ -1244,7 +1249,7 @@ const ProvidersSection = () => {
                         </span>
                       )}
                     </div>
-                    {setupReturnTo && p.is_trusted !== false ? (
+                    {setupReturnTo && readiness.conciergeUsable ? (
                       <button
                         type="button"
                         data-testid={`button-provider-use-${p.id}`}
@@ -1253,6 +1258,15 @@ const ProvidersSection = () => {
                         className="mt-2 rounded-full border border-vyva-purple px-3 py-1.5 font-body text-[12px] font-black text-vyva-purple disabled:opacity-40"
                       >
                         Use this provider
+                      </button>
+                    ) : setupReturnTo && p.is_trusted !== false ? (
+                      <button
+                        type="button"
+                        data-testid={`button-provider-edit-contact-${p.id}`}
+                        onClick={() => setEditingProvider(p)}
+                        className="mt-2 rounded-full border border-[#FDBA74] px-3 py-1.5 font-body text-[12px] font-black text-[#9A3412]"
+                      >
+                        Add contact
                       </button>
                     ) : p.is_trusted !== false && !p.is_default ? (
                       <button

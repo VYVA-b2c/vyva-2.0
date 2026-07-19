@@ -157,7 +157,7 @@ describe("ProvidersSection trusted provider setup", () => {
       returnTo: "/concierge",
       conciergeResume: { kind: "medical_appointment" },
     }, [
-      { name: "Trusted Clinic", role: "doctor_clinic", is_trusted: true, is_default: true },
+      { name: "Trusted Clinic", role: "doctor_clinic", email: "frontdesk@example.com", is_trusted: true, is_default: true },
     ]);
 
     fireEvent.click(await screen.findByTestId("button-provider-use-provider-1"));
@@ -170,6 +170,22 @@ describe("ProvidersSection trusted provider setup", () => {
         }),
       }),
     })));
+  });
+
+  it("asks for contact details before Concierge can use a saved provider", async () => {
+    renderProvidersSection({
+      setupFocus: "doctor_clinic",
+      returnTo: "/concierge",
+      conciergeResume: { kind: "medical_appointment" },
+    }, [
+      { name: "Clinic without contact", role: "doctor_clinic", is_trusted: true, is_default: true },
+    ]);
+
+    await screen.findByTestId("button-provider-edit-contact-provider-1");
+    expect(screen.getAllByText("Add contact").length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("button-provider-use-provider-1")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-provider-edit-contact-provider-1"));
+    expect(screen.getByTestId("sheet-merchant-detail")).toBeInTheDocument();
   });
 
   it("edits provider identity, service type, website, and notes", async () => {
