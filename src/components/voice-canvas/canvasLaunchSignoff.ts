@@ -508,11 +508,20 @@ const behaviorChecklistRequirements = [
   },
   {
     columnIndex: 7,
-    description: "flag rollback/fallback cell must mention flag rollback and fallback evidence",
+    description:
+      "flag rollback/fallback cell must mention flag rollback, existing fallback, and no write evidence",
     wordGroups: [
       ["flag"],
       ["rollback"],
       ["fallback"],
+      ["existing", "previous", "old", "safe concierge"],
+      [
+        "no write",
+        "no external action",
+        "not submitted",
+        "without submitting",
+        "without write",
+      ],
     ],
   },
   {
