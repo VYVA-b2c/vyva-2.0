@@ -787,6 +787,28 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects interaction-mode rows with negative completion wording", () => {
+    const completed = completedMatrix().replace(
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Voice commands not completed flow evidence | Touch tap path not completed flow evidence | Keyboard-only not completed flow evidence | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence and completion or safe exit",
+      "Ride Voice Canvas: touch cell must mention touch or tap evidence and completion or safe exit",
+      "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence and completion or safe exit",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague real-device coverage rows", () => {
     const completed = completedMatrix().replace(
       "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2026-07-19 |",

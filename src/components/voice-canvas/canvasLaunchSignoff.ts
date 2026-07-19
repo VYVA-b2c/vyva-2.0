@@ -313,6 +313,13 @@ function hasNegativeEvidenceLanguage(value: string): boolean {
   );
 }
 
+function hasNegativeInteractionOutcomeLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return /\b(not completed|not complete|did not complete|failed to complete|unable to complete|could not complete|not safely exited|not safe exit|not exited safely|not tested|not run|not executed|untested)\b/.test(
+    normalized,
+  );
+}
+
 function parseMarkdownTableRow(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
@@ -517,7 +524,10 @@ function invalidInteractionModeRows(sections: Map<string, string[][]>): string[]
     for (const requirement of interactionModeRequirements) {
       const cell = row[requirement.columnIndex] ?? "";
       if (isPlaceholderCell(cell) || isFailingQaCell(cell)) continue;
-      if (!hasAllWordGroups(cell, requirement.wordGroups)) {
+      if (
+        !hasAllWordGroups(cell, requirement.wordGroups) ||
+        hasNegativeInteractionOutcomeLanguage(cell)
+      ) {
         problems.push(`${flow.label}: ${requirement.description}`);
       }
     }
