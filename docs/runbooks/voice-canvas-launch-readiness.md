@@ -91,7 +91,7 @@ For privacy rows, the result and evidence must name the specific forbidden data 
 
 For device coverage rows, the evidence note must name real phone, tablet, and desktop/laptop coverage plus a real-device screenshot, photo, or artifact reference. Generic device-evidence prose or generic screenshot evidence does not satisfy launch sign-off.
 
-For interaction-mode rows, the evidence note must name voice, touch, keyboard, and completion or safe exit. Generic screenshot/log evidence does not satisfy launch sign-off.
+For interaction-mode rows, the evidence note must name voice, touch, keyboard, completion or safe exit, and a concrete screenshot, recording, log, or artifact reference that does not include spoken transcripts, entered text, addresses, or other personal details. Generic interaction-evidence prose or generic screenshot/log evidence does not satisfy launch sign-off.
 
 For feature endpoint rows, the evidence note must name the exact endpoint, server key, named fallback path, and endpoint payload evidence for malformed config, missing config, disabled false/rollout 0, enabled true/rollout 100, rollback, and fallback. Generic screenshot/log evidence does not satisfy launch sign-off.
 

@@ -661,7 +661,7 @@ function hasNegativeDeviceCoverageLanguage(value: string): boolean {
 function hasDeviceCoverageEvidenceLanguage(value: string): boolean {
   return (
     hasDatedEvidenceLanguage(value, ["qa", "reviewer", "evidence", "screenshot", "log"]) &&
-    hasConcreteDeviceArtifactLanguage(value) &&
+    hasConcreteEvidenceArtifactLanguage(value) &&
     hasAllWordGroups(value, [
       ["real", "physical", "actual", "hardware", "device"],
       ["phone", "mobile", "iphone", "ios", "android"],
@@ -671,7 +671,7 @@ function hasDeviceCoverageEvidenceLanguage(value: string): boolean {
   );
 }
 
-function hasConcreteDeviceArtifactLanguage(value: string): boolean {
+function hasConcreteEvidenceArtifactLanguage(value: string): boolean {
   return hasAnyWord(value, [
     "screenshot",
     "screen shot",
@@ -806,7 +806,7 @@ function invalidInteractionModeRows(sections: Map<string, string[][]>): string[]
         hasNegativeInteractionOutcomeLanguage(evidence))
     ) {
       problems.push(
-        `${flow.label}: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit evidence`,
+        `${flow.label}: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit artifact evidence`,
       );
     }
   }
@@ -817,6 +817,7 @@ function invalidInteractionModeRows(sections: Map<string, string[][]>): string[]
 function hasInteractionModeEvidenceLanguage(value: string): boolean {
   return (
     hasDatedEvidenceLanguage(value, ["qa", "reviewer", "evidence", "screenshot", "log"]) &&
+    hasConcreteEvidenceArtifactLanguage(value) &&
     hasAllWordGroups(value, [
       ["voice", "spoken"],
       ["touch", "tap"],
