@@ -137,16 +137,29 @@ function TaskRow({
     <button
       type="button"
       onClick={onOpen}
-      className="vyva-tap flex min-h-[96px] w-full items-center gap-3 border-b border-vyva-border bg-white px-4 py-4 text-left last:border-b-0 hover:bg-[#FCFAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-vyva-purple"
+      aria-label={`${item.title}. ${item.continuation.stateLabel}. ${item.summary}`}
+      className="vyva-tap flex min-h-[104px] w-full items-center gap-3 border-b border-vyva-border bg-white px-4 py-4 text-left last:border-b-0 hover:bg-[#FCFAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-vyva-purple"
       data-testid={`concierge-inbox-task-${item.key}`}
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="font-body text-[16px] font-black text-vyva-text-1">{item.title}</p>
-          <span className="font-body text-[11px] font-black text-vyva-purple">{item.statusLabel}</span>
+          <p className="min-w-0 break-words font-body text-[16px] font-black text-vyva-text-1">{item.title}</p>
+          <span
+            className="rounded-full bg-[#F4F0FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple"
+            data-testid={`concierge-inbox-task-state-${item.key}`}
+          >
+            {item.continuation.stateLabel}
+          </span>
+          <span className="font-body text-[11px] font-black text-vyva-text-3">{item.continuation.flowLabel}</span>
         </div>
         <p className="mt-1 line-clamp-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
           {item.summary}
+        </p>
+        <p
+          className="mt-2 break-words font-body text-[12px] font-black text-vyva-text-2"
+          data-testid={`concierge-inbox-task-scene-${item.key}`}
+        >
+          {item.continuation.sceneLabel}
         </p>
         {(item.providerName || date) ? (
           <p className="mt-2 truncate font-body text-[12px] font-semibold text-vyva-text-3">
@@ -542,6 +555,50 @@ function TaskDetail({
         <p className="mt-2 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">{item.summary}</p>
       </header>
 
+      <section
+        className="border-b border-vyva-border py-5"
+        data-testid="concierge-task-continuation"
+        aria-label={isSpanish ? "Progreso del Canvas" : "Canvas progress"}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-body text-[16px] font-black text-vyva-text-1">
+            {isSpanish ? "Continuar Canvas" : "Continue Canvas"}
+          </h2>
+          <span className="rounded-full bg-[#F4F0FF] px-2 py-1 font-body text-[11px] font-black text-vyva-purple">
+            {item.continuation.stateLabel}
+          </span>
+        </div>
+        <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="min-w-0">
+            <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
+              {isSpanish ? "Flujo" : "Flow"}
+            </dt>
+            <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
+              {item.continuation.flowLabel}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
+              {isSpanish ? "Estado" : "State"}
+            </dt>
+            <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
+              {item.continuation.stateLabel}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
+              {isSpanish ? "Escena" : "Scene"}
+            </dt>
+            <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
+              {item.continuation.sceneLabel}
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+          {item.continuation.helperText}
+        </p>
+      </section>
+
       {item.reply ? (
         <section className="border-b border-vyva-border py-5" data-testid="concierge-task-provider-reply">
           <div className="flex items-center gap-2 text-[#047857]">
@@ -629,6 +686,14 @@ function TaskDetail({
           <ChevronRight size={19} aria-hidden="true" />
         </button>
       ) : null}
+      <button
+        type="button"
+        onClick={onBack}
+        className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center rounded-lg border border-vyva-border bg-white px-5 font-body text-[15px] font-black text-vyva-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vyva-purple focus-visible:ring-offset-2"
+        data-testid="button-concierge-task-exit"
+      >
+        {isSpanish ? "Volver a tareas" : "Back to tasks"}
+      </button>
     </div>
   );
 }
