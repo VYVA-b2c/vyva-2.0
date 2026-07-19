@@ -15104,6 +15104,8 @@ export default function MarketingAdminPage() {
       state: campaignStudioCreativeIssueCount > 0 ? "needs_action" : campaignStudioHasFullAiPack ? "ready" : "planning",
     },
   ];
+  const campaignStudioBriefScorecardItems = campaignStudioLaunchBriefItems.slice(0, 6);
+  const campaignStudioBriefScorecardIssueCount = campaignStudioLaunchBriefItems.filter((item) => item.state === "blocked" || item.state === "needs_action").length;
   const campaignStudioLanguageLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.language), "Unknown", 2);
   const campaignStudioMarketLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.market), "Unknown", 2);
   const campaignStudioAudienceTypeLabels = topCountLabels(campaignStudioAudiencePool.map((contact) => contact.audienceType.toUpperCase()), "Unknown", 2);
@@ -15261,6 +15263,20 @@ export default function MarketingAdminPage() {
       : campaignStudio.channel === "email"
         ? "Create the campaign and review it before sending email."
         : `Create the ${channelLabel[campaignStudio.channel]} planning campaign, then track execution manually until sending is enabled.`;
+  const campaignStudioBriefScorecardText = [
+    "VYVA campaign brief scorecard",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Overall readiness: ${campaignStudioReadinessSummary}`,
+    `Recommended next step: ${campaignStudioNextStep}`,
+    "",
+    "Scorecard:",
+    ...campaignStudioLaunchBriefItems.map((item) => `- ${item.title}: ${item.value} (${readinessLabel(item.state)}) - ${item.detail}`),
+    "",
+    "Decision:",
+    campaignStudioBriefScorecardIssueCount > 0
+      ? `Resolve ${campaignStudioBriefScorecardIssueCount} issue${campaignStudioBriefScorecardIssueCount === 1 ? "" : "s"} before publishing. Creating a draft is still useful if the team needs to review copy, list quality, or route choice.`
+      : "This brief is ready to create as campaign records, then review final content, recipients, schedule, and send/handoff controls.",
+  ].join("\n");
   const campaignStudioCreateDisabled = campaignStudioSaving || campaignStudioAiRunning || campaignStudioBlockedCount > 0;
   const campaignStudioManualChannels = campaignStudioSelectedChannels.filter((channel) => channel !== "email");
   const campaignStudioLaunchSteps: CampaignStudioLaunchStep[] = [
@@ -26387,6 +26403,41 @@ export default function MarketingAdminPage() {
                             <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-brief-scorecard">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Brief scorecard</p>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">
+                              Checks whether the campaign idea, audience, route, schedule, and creative are clear before records are created.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill className={campaignStudioBriefScorecardIssueCount ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                              {campaignStudioBriefScorecardIssueCount ? `${campaignStudioBriefScorecardIssueCount} issue${campaignStudioBriefScorecardIssueCount === 1 ? "" : "s"}` : "Ready"}
+                            </Pill>
+                            <button
+                              type="button"
+                              onClick={() => void copyCampaignStudioOfflineHandoff("Campaign brief scorecard", campaignStudioBriefScorecardText)}
+                              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                              data-testid="button-marketing-campaign-studio-copy-brief-scorecard"
+                            >
+                              <Copy size={13} aria-hidden="true" /> Copy scorecard
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-campaign-studio-brief-scorecard-items">
+                          {campaignStudioBriefScorecardItems.map((item) => (
+                            <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-brief-scorecard-${item.key}`}>
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-75">{item.title}</p>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                              <p className="mt-2 line-clamp-1 text-sm font-black text-[#241133]">{item.value}</p>
+                              <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-launch-kit-coverage">
                         <div className="flex flex-wrap items-start justify-between gap-3">
