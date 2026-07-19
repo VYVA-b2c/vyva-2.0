@@ -1110,6 +1110,15 @@ type CampaignApprovalItem = CampaignReadinessItem & {
   icon: LucideIcon;
 };
 
+type CampaignCreativeVariantPrompt = {
+  key: "subject" | "cta" | "follow-up";
+  label: string;
+  title: string;
+  detail: string;
+  prompt: string;
+  icon: LucideIcon;
+};
+
 type CampaignOperatorSheetItem = {
   key: string;
   label: string;
@@ -23291,6 +23300,85 @@ export default function MarketingAdminPage() {
     .map((channelDraft) => channelDraft.contentAssetId ? contentById.get(channelDraft.contentAssetId) ?? null : null)
     .filter((item): item is ContentAsset => Boolean(item))
     .map((item) => [item.id, item])).values());
+  const campaignCreativeVariantPrompts: CampaignCreativeVariantPrompt[] = editingCampaign && campaignForLaunchPacket && campaignLinkedContentAssets.length ? [
+    {
+      key: "subject",
+      label: "Subject/hook test",
+      title: "Make the opening sharper",
+      detail: "Generate lower-risk subject lines, hooks, and first lines from the linked campaign copy.",
+      icon: Sparkles,
+      prompt: [
+        "VYVA campaign subject/hook variant prompt",
+        `Campaign: ${campaignForLaunchPacket.name}`,
+        `Audience: ${campaignForLaunchPacket.audienceType.toUpperCase()}`,
+        `Objective: ${campaignForLaunchPacket.objective || "No objective yet."}`,
+        `Channels: ${campaignReadinessChannels.map((channelDraft) => channelLabel[channelDraft.channel]).join(", ") || "None"}`,
+        `Risk gate: ${campaignOperatorRiskDetail}`,
+        "",
+        "Current openings:",
+        ...campaignLinkedContentAssets.map((asset) => {
+          const previewLine = firstMeaningfulPreviewLine(asset.body || asset.htmlBody || "");
+          return `- ${asset.title}: ${asset.subject || previewLine || "No opening copy yet."}`;
+        }),
+        "",
+        "Task:",
+        "Return 3 subject/hook variants per relevant channel. Keep them clear, consent-aware, non-clinical, and practical for older adults, families, caregivers, or partners. Include one sentence explaining the intent of each variant.",
+      ].filter(Boolean).join("\n"),
+    },
+    {
+      key: "cta",
+      label: "CTA test",
+      title: "Clarify the next action",
+      detail: "Create CTA alternatives that match the audience, offer, and current channel route.",
+      icon: Send,
+      prompt: [
+        "VYVA campaign CTA variant prompt",
+        `Campaign: ${campaignForLaunchPacket.name}`,
+        `Audience: ${campaignForLaunchPacket.audienceType.toUpperCase()}`,
+        selectedCampaignTargetAudience
+          ? `Target list: ${selectedCampaignTargetAudience.name} - ${selectedCampaignTargetAudience.mappedMemberCount}/${selectedCampaignTargetAudience.memberCount} mapped contacts.`
+          : "Target list: all eligible contacts for this audience.",
+        `Saved recipients: ${savedCampaignRecipientCount}`,
+        "",
+        "Current CTAs:",
+        ...campaignLinkedContentAssets.map((asset) => [
+          `- ${asset.title}`,
+          asset.ctaLabel ? `Label: ${asset.ctaLabel}` : "Label: none",
+          asset.ctaUrl ? `URL: ${asset.ctaUrl}` : "URL: none",
+          `Body cue: ${firstMeaningfulPreviewLine(asset.body || asset.htmlBody || "") || "No body cue yet."}`,
+        ].join(" | ")),
+        "",
+        "Task:",
+        "Return 3 CTA options with one supporting sentence for each. Make the action specific, low-friction, and honest about what happens next. Do not invent offers or medical claims.",
+      ].filter(Boolean).join("\n"),
+    },
+    {
+      key: "follow-up",
+      label: "Follow-up touch",
+      title: "Prepare the next relationship step",
+      detail: "Draft the next message after send, manual publish, reply, or low engagement.",
+      icon: Waypoints,
+      prompt: [
+        "VYVA campaign follow-up variant prompt",
+        `Campaign: ${campaignForLaunchPacket.name}`,
+        `Audience: ${campaignForLaunchPacket.audienceType.toUpperCase()}`,
+        `Schedule: ${campaignForLaunchPacket.scheduleStartsAt ? formatDate(campaignForLaunchPacket.scheduleStartsAt) : "Not scheduled"} (${campaignForLaunchPacket.timezone})`,
+        `Recipient snapshot: ${savedCampaignRecipientCount > 0 ? `${savedCampaignRecipientCount} saved` : `${pendingCampaignSnapshotCount} preview if saved now`}`,
+        `Manual outcomes recorded: ${manualPublishResults.length}`,
+        "",
+        "Performance signals:",
+        selectedCampaignMetrics.length
+          ? `Sent ${selectedCampaignMetricTotals.sent}, delivered ${selectedCampaignMetricTotals.delivered}, opened ${selectedCampaignMetricTotals.opened}, clicked ${selectedCampaignMetricTotals.clicked}, replied ${selectedCampaignMetricTotals.replied}, failed ${selectedCampaignMetricTotals.failed}.`
+          : "No imported performance metrics yet.",
+        "",
+        "Linked copy context:",
+        ...campaignLinkedContentAssets.map((asset) => `- ${asset.title}: ${firstMeaningfulPreviewLine(asset.body || asset.htmlBody || "") || asset.subject || "No body copy."}`),
+        "",
+        "Task:",
+        "Return a practical follow-up plan with copy for 3 situations: interested response, no response, and manual/social engagement. Keep it warm, concise, and suitable for the active campaign channels.",
+      ].filter(Boolean).join("\n"),
+    },
+  ] : [];
   const campaignPotentialClaimMatches = Array.from(new Set(campaignLinkedContentAssets.flatMap((asset) => {
     const reviewText = [
       asset.title,
@@ -28842,6 +28930,46 @@ export default function MarketingAdminPage() {
                                 </button>
                               ) : null}
                             </div>
+                            {campaignCreativeVariantPrompts.length ? (
+                              <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3" data-testid="marketing-campaign-creative-variant-prompts">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">AI variant prompts</p>
+                                    <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">
+                                      Copy a focused prompt to improve the selected campaign without changing its audience, consent state, or launch route.
+                                    </p>
+                                  </div>
+                                  <Pill className="bg-white text-violet-900">{campaignCreativeVariantPrompts.length} prompts</Pill>
+                                </div>
+                                <div className="mt-3 grid gap-2 xl:grid-cols-3">
+                                  {campaignCreativeVariantPrompts.map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                      <article key={item.key} className="rounded-lg border border-violet-100 bg-white p-3" data-testid={`marketing-campaign-creative-variant-prompt-${item.key}`}>
+                                        <div className="flex items-start gap-2">
+                                          <span className="mt-0.5 inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-violet-100 text-violet-800">
+                                            <Icon size={15} aria-hidden="true" />
+                                          </span>
+                                          <div className="min-w-0">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-violet-700">{item.label}</p>
+                                            <p className="mt-1 text-sm font-black text-[#241133]">{item.title}</p>
+                                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.detail}</p>
+                                          </div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => void copyCampaignHandoffText(item.label, item.prompt)}
+                                          className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-800 hover:bg-violet-50"
+                                          data-testid={`button-marketing-campaign-copy-creative-variant-${item.key}`}
+                                        >
+                                          <Copy size={13} aria-hidden="true" /> Copy prompt
+                                        </button>
+                                      </article>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : null}
                             {campaignContentMatchSuggestions.length ? (
                               <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3" data-testid="marketing-campaign-content-match-panel">
                                 <div className="flex flex-wrap items-start justify-between gap-3">

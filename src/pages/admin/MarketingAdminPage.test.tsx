@@ -6474,6 +6474,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-creative-accelerator")).toHaveTextContent("No creative gaps");
     expect(screen.getByTestId("button-marketing-campaign-preview-first-content")).toHaveTextContent("Preview first content");
     expect(screen.getByTestId("button-marketing-campaign-copy-ai-creative-brief")).toHaveTextContent("Copy AI brief");
+    expect(screen.getByTestId("marketing-campaign-creative-variant-prompts")).toHaveTextContent("AI variant prompts");
+    expect(screen.getByTestId("marketing-campaign-creative-variant-prompt-subject")).toHaveTextContent("Subject/hook test");
+    expect(screen.getByTestId("marketing-campaign-creative-variant-prompt-cta")).toHaveTextContent("CTA test");
+    expect(screen.getByTestId("marketing-campaign-creative-variant-prompt-follow-up")).toHaveTextContent("Follow-up touch");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-copy-creative-variant-subject"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign subject/hook variant prompt"));
+    });
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Subject/hook test copied.");
     expect(screen.getByTestId("marketing-campaign-ai-command-brief")).toHaveTextContent("AI command brief");
     const aiCommandBrief = screen.getByTestId("textarea-marketing-campaign-ai-command-brief") as HTMLTextAreaElement;
     expect(aiCommandBrief.value).toContain("VYVA campaign AI command brief");
