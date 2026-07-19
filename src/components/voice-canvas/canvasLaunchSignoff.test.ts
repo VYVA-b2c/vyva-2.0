@@ -1328,6 +1328,30 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects copy/accessibility rows with negative required-outcome wording", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements not verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+      )
+      .replace(
+        "| Reduced-motion mode remains calm and usable | Reduced-motion mode verified calm and usable | QA reduced-motion evidence reviewed on 2026-07-19 |",
+        "| Reduced-motion mode remains calm and usable | Reduced-motion mode remains calm but not usable | QA reduced-motion evidence reviewed on 2026-07-19 |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
+      "Reduced-motion mode remains calm and usable: result must mention reduced-motion mode as calm and usable",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague privacy review rows", () => {
     const completed = completedMatrix().replace(
       "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",

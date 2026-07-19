@@ -339,6 +339,24 @@ function hasNegativeBehaviorOutcomeLanguage(value: string): boolean {
   );
 }
 
+function hasNegativeCopyAccessibilityOutcomeLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    /\bnot (announced|verified|readable|legible|usable|calm|working|focused|moved|explained|provided|offered|completed)\b/.test(
+      normalized,
+    ) ||
+    /\bdid not (announce|fire|verify|work|focus|move|explain|provide|offer|complete)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:unable|failed|fails|could not) to (announce|fire|verify|work|focus|move|explain|provide|offer|complete)\b/.test(
+      normalized,
+    ) ||
+    /\b(no announcement|no announcements|no retry|no exit|no focus|no focus movement|overflowed|overflowing|clipped|truncated|unreadable|illegible|unusable|uncalm)\b/.test(
+      normalized,
+    )
+  );
+}
+
 function parseMarkdownTableRow(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
@@ -1264,7 +1282,10 @@ function invalidCopyAccessibilityRows(sections: Map<string, string[][]>): string
     if (isPlaceholderCell(result) || isPlaceholderCell(evidence)) continue;
 
     const requirements = copyAccessibilityResultRequirements[check];
-    if (!hasAllWordGroups(result, requirements.resultWordGroups)) {
+    if (
+      !hasAllWordGroups(result, requirements.resultWordGroups) ||
+      hasNegativeCopyAccessibilityOutcomeLanguage(result)
+    ) {
       problems.push(`${check}: ${requirements.resultDescription}`);
     }
     if (
