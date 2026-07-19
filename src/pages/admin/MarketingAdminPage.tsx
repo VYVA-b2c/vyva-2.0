@@ -11552,6 +11552,7 @@ export default function MarketingAdminPage() {
   const [contentSaving, setContentSaving] = useState(false);
   const [contentFeedback, setContentFeedback] = useState("");
   const [contentActionFeedback, setContentActionFeedback] = useState("");
+  const [contentReuseBriefFeedback, setContentReuseBriefFeedback] = useState("");
   const [contentPolishTone, setContentPolishTone] = useState<CampaignStudioToneId>("warm");
   const [contentStarterRunning, setContentStarterRunning] = useState(false);
   const [contentPolishRunning, setContentPolishRunning] = useState(false);
@@ -14142,6 +14143,49 @@ export default function MarketingAdminPage() {
   }, [mediaAssets, selectedContent]);
   const selectedContentDesignSummary = useMemo(() => selectedContent ? designShapeSummary(selectedContent.designJson) : null, [selectedContent]);
   const selectedContentMediaPreviewUrls = useMemo(() => selectedContent ? contentMediaPreviewUrls(selectedContent, selectedContentMediaAssets) : [], [selectedContent, selectedContentMediaAssets]);
+  const selectedContentReuseTokens = useMemo(() => {
+    if (!selectedContent) return [];
+    return extractPersonalizationTokens([
+      selectedContent.subject,
+      selectedContent.body,
+      selectedContent.htmlBody,
+      selectedContent.ctaLabel,
+      selectedContent.ctaUrl,
+    ].filter(Boolean).join("\n"));
+  }, [selectedContent]);
+  const selectedContentReuseChannelSuggestions = useMemo(() => {
+    if (!selectedContent) return [];
+    const preferredOrder: Channel[] = selectedContent.channel === "email"
+      ? ["whatsapp", "linkedin", "facebook", "phone", "print", "event"]
+      : selectedContent.channel === "linkedin"
+        ? ["email", "whatsapp", "phone", "facebook", "print", "event"]
+        : ["email", "whatsapp", "linkedin", "facebook", "phone", "print"];
+    return preferredOrder.filter((channel) => channel !== selectedContent.channel).slice(0, 4);
+  }, [selectedContent]);
+  const selectedContentReuseBriefText = selectedContent ? [
+    "VYVA content reuse brief",
+    `Asset: ${selectedContent.title}`,
+    `Channel: ${channelLabel[selectedContent.channel]}`,
+    `Language: ${selectedContent.language}`,
+    `Status: ${selectedContent.status}`,
+    `Source: ${contentOriginLabel(selectedContent)}${selectedContent.lovableExternalId ? ` / ${selectedContent.lovableExternalId}` : ""}`,
+    "",
+    "Current copy:",
+    `Subject/hook: ${selectedContent.subject || selectedContent.title}`,
+    `Body: ${selectedContent.body || plainTextFromHtml(selectedContent.htmlBody) || "No body copy yet."}`,
+    `CTA: ${selectedContent.ctaLabel || "No CTA label"}${selectedContent.ctaUrl ? ` -> ${selectedContent.ctaUrl}` : ""}`,
+    "",
+    "Reuse context:",
+    `- Used in: ${selectedContentUsage.length ? selectedContentUsage.map((usage) => usage.label).join("; ") : "Not linked to campaigns or journeys yet"}`,
+    `- Design: ${selectedContent.hasDesign ? "Design JSON present" : "No design JSON"}`,
+    `- Media references: ${selectedContentMediaPreviewUrls.length}`,
+    `- Personalization tokens: ${selectedContentReuseTokens.length ? selectedContentReuseTokens.map((token) => `{{${token}}}`).join(", ") : "none"}`,
+    "",
+    "Suggested adaptations:",
+    ...selectedContentReuseChannelSuggestions.map((channel) => `- ${channelLabel[channel]}: adapt the same message spine for ${channel === "email" ? "VYVA send review" : "manual handoff/tracking"}.`),
+    "",
+    "AI task: Reuse this content asset across the suggested channels and/or audience segment. Preserve the message spine, make each version native to the channel, keep consent-safe wording, include one clear CTA or handoff action, and return copy plus any visual/media notes.",
+  ].join("\n") : "";
   const latestSyncRun = syncState.runs[0] ?? null;
   const missingSourceReferenceContent = useMemo(
     () => content.filter((item) => contentOriginKey(item) === "missing_lovable_reference"),
@@ -19539,6 +19583,40 @@ export default function MarketingAdminPage() {
       setContentFeedback("Content quality AI brief copied.");
     } catch (error) {
       setContentFeedback(error instanceof Error ? error.message : "Content quality brief could not be copied.");
+    }
+  }
+
+  async function copySelectedContentReuseBrief() {
+    const label = "Content reuse brief";
+    if (!selectedContentReuseBriefText.trim()) {
+      const feedback = `${label} is empty.`;
+      setContentReuseBriefFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(selectedContentReuseBriefText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = selectedContentReuseBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard copy failed.");
+      }
+      const feedback = `${label} copied.`;
+      setContentReuseBriefFeedback(feedback);
+      setMessage(feedback);
+    } catch (error) {
+      const feedback = error instanceof Error ? error.message : "Content reuse brief could not be copied.";
+      setContentReuseBriefFeedback(feedback);
+      setMessage(feedback);
     }
   }
 
@@ -33601,6 +33679,42 @@ export default function MarketingAdminPage() {
                         onOpenCampaign={openContentUsageCampaign}
                         onOpenJourney={openContentUsageJourney}
                       />
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3" data-testid="marketing-content-reuse-brief">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Reuse brief</p>
+                            <h4 className="mt-1 font-black text-[#241133]">Adapt this asset into the next channel</h4>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#5f6f62]">
+                              Copy an AI-ready plan with usage, design/media, CTA, tokens, and suggested channel variants.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copySelectedContentReuseBrief()}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                            data-testid="button-marketing-copy-content-reuse-brief"
+                          >
+                            <Copy size={14} aria-hidden="true" /> Copy reuse brief
+                          </button>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-content-reuse-brief-channels">
+                          {selectedContentReuseChannelSuggestions.map((channel) => (
+                            <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                          ))}
+                          {selectedContentReuseTokens.length ? (
+                            <Pill className="bg-white text-emerald-800">
+                              {selectedContentReuseTokens.length} merge token{selectedContentReuseTokens.length === 1 ? "" : "s"}
+                            </Pill>
+                          ) : (
+                            <Pill className="bg-white text-[#7d6b65]">No merge tokens</Pill>
+                          )}
+                        </div>
+                        {contentReuseBriefFeedback ? (
+                          <p className={`mt-3 rounded-xl px-3 py-2 text-xs font-black ${contentReuseBriefFeedback.includes("Could not") || contentReuseBriefFeedback.includes("empty") || contentReuseBriefFeedback.includes("failed") ? "bg-red-50 text-red-800" : "bg-emerald-100 text-emerald-900"}`} role="status" aria-live="polite" data-testid="marketing-content-reuse-brief-feedback">
+                            {contentReuseBriefFeedback}
+                          </p>
+                        ) : null}
+                      </div>
                       {selectedContent.htmlBody ? (
                         <iframe
                           title={`Preview ${selectedContent.title}`}

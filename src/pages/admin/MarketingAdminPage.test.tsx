@@ -1082,6 +1082,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("VYVA updated");
     expect(screen.getByTestId("marketing-selected-content-usage")).toHaveTextContent("Used in campaigns and journeys");
     expect(screen.getByTestId("marketing-selected-content-usage")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-content-reuse-brief")).toHaveTextContent("Adapt this asset into the next channel");
+    expect(screen.getByTestId("marketing-content-reuse-brief-channels")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-content-reuse-brief-channels")).toHaveTextContent("WhatsApp");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-content-reuse-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA content reuse brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Asset: Partner post"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Suggested adaptations:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Reuse this content asset"));
+    expect(screen.getByTestId("marketing-content-reuse-brief-feedback")).toHaveTextContent("Content reuse brief copied.");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design blocks: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Media refs: 1");
