@@ -939,15 +939,10 @@ const publicRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedCoreRoutes: ResponsiveRoute[] = [
-  { name: "home", path: "/", expectedLayout: "wide" },
   { name: "profile select", path: "/profiles/select" },
-  { name: "onboarding basics", path: "/onboarding/basics", onboardingStage: "stage_1_identity" },
-  { name: "profile overview", path: "/onboarding/profile" },
-  { name: "profile health section", path: "/onboarding/profile/health", onboardingStage: "stage_4_profile" },
 ];
 
 const protectedHealthRoutes: ResponsiveRoute[] = [
-  { name: "health", path: "/health", expectedLayout: "wide" },
   { name: "vitals", path: "/health/vitals", expectedLayout: "vitals" },
   { name: "meds", path: "/meds", expectedLayout: "wide" },
   { name: "adherence report", path: "/meds/adherence-report", expectedLayout: "wide" },

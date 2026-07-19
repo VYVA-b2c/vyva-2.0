@@ -41,8 +41,12 @@ describe("ShowVyvaResultCard", () => {
     expect(screen.getByTestId("show-vyva-decision-handoff-phone")).toBeInTheDocument();
     expect(screen.getByTestId("show-vyva-decision-title-phone")).toHaveTextContent("This looks risky");
     expect(screen.getByTestId("show-vyva-decision-subtitle-phone")).toHaveTextContent("Do not call back yet.");
+    expect(screen.getByTestId("show-vyva-confidence-evidence-phone")).toHaveTextContent("Why VYVA thinks this");
+    expect(screen.getByTestId("show-vyva-confidence-label-phone")).toHaveTextContent("Clear risk");
+    expect(screen.getByTestId("show-vyva-confidence-evidence-phone")).toHaveTextContent("The number asks for fast action.");
+    expect(screen.getByTestId("show-vyva-facts-found-phone")).toHaveTextContent("The message includes a phone number.");
+    expect(screen.getByTestId("show-vyva-uncertain-points-phone")).toHaveTextContent("The sender's identity cannot be confirmed from this message.");
     expect(screen.queryByText("What VYVA reviewed")).not.toBeInTheDocument();
-    expect(screen.queryByText("The number asks for fast action.")).not.toBeInTheDocument();
     expect(screen.getByText("Choose a safe action")).toBeInTheDocument();
     expect(screen.getByTestId("show-vyva-result-input-phone")).toHaveTextContent("Phone number");
     expect(screen.getByTestId("show-vyva-result-risk-phone")).toHaveTextContent("High risk");

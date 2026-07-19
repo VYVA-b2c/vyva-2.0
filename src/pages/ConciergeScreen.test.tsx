@@ -347,7 +347,7 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getByTestId("concierge-master-hero")).toBeInTheDocument();
 
     fireEvent.click(await screen.findByTestId("button-concierge-continue-task"));
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/task/task-1");
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Atask-1");
   });
 
   it("shows only the provider task that needs the user's next action", async () => {
@@ -398,7 +398,7 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.getByTestId("concierge-home-active-task")).toHaveTextContent("Please confirm your insurance plan.");
     expect(screen.getAllByTestId("concierge-home-active-task")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Respond" }));
-    expect(screen.getByTestId("location-path")).toHaveTextContent(`/concierge/task/${replyTaskId}`);
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Apending-reply");
   });
 
   it("opens a selected home workflow after the route changes without requiring a remount", async () => {
@@ -445,7 +445,7 @@ describe("ConciergeScreen task navigation", () => {
     expect(screen.queryByTestId("concierge-master-hero")).not.toBeInTheDocument();
   });
 
-  it("continues the newest saved task at its saved stage", async () => {
+  it("opens the newest saved task in My Tasks before continuing", async () => {
     const savedTask = {
       id: savedTaskId,
       user_id: "user-1",
@@ -468,12 +468,7 @@ describe("ConciergeScreen task navigation", () => {
     renderScreen(["/concierge"], "route");
 
     fireEvent.click(await screen.findByTestId("button-concierge-continue-task"));
-    expect(screen.getByTestId("location-path")).toHaveTextContent(`/concierge/task/${savedTaskId}`);
-    await waitFor(() => {
-      expect(screen.getByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "review");
-      expect(screen.getByTestId("input-insurance-admin-subject")).toHaveValue("Roof claim");
-    });
-    expect(screen.getByTestId("input-insurance-admin-recipient")).toHaveValue("Insurer");
+    expect(screen.getByTestId("location-path")).toHaveTextContent(`/concierge/tasks/draft%3A${savedTaskId}`);
   });
 
   it.each([

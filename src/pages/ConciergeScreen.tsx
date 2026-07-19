@@ -107,6 +107,7 @@ import {
   coerceConciergeTaskEntry,
   conciergeTaskEntrySummary,
   conciergeTaskEntryTitle,
+  conciergeTaskInboxItemPath,
   conciergeTaskPath,
   type ConciergeTaskEntry,
   type ConciergeTaskStage,
@@ -16792,6 +16793,9 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const homeActiveTask = activeSavedTask
     ? {
         id: activeSavedTask.task.id,
+        detailPath: activeSavedTask.action
+          ? conciergeTaskInboxItemPath("pending", activeSavedTask.action.id)
+          : conciergeTaskInboxItemPath("draft", activeSavedTask.task.id),
         title: conciergeTaskEntryTitle(activeSavedTaskEntry, isSpanish),
         summary: activeSavedTask.providerUpdate?.summary
           || conciergeTaskEntrySummary(activeSavedTaskEntry, isSpanish),
@@ -16800,6 +16804,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     : activeAction
     ? {
         id: activeAction.id,
+        detailPath: conciergeTaskInboxItemPath("pending", activeAction.id),
         title: getPendingActionUseCaseLabel(activeAction, locale),
         summary: activeActionProviderUpdate?.summary
           || activeAction.action_summary
@@ -16807,15 +16812,6 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         providerStatus: activeActionProviderUpdate?.status ?? null,
       }
     : null;
-  const savedTaskPendingIds = new Set(savedTaskDrafts.map((task) => task.linked_pending_id).filter(Boolean));
-  const homeQueuedTaskCount = Math.max(0, savedTaskDrafts.length - (activeSavedTask ? 1 : 0))
-    + pendingActions.filter((action) => !savedTaskPendingIds.has(action.id) && action.id !== homeActiveTask?.id).length;
-  const homeCompletedTasks = recentCompletedSessions.map((session) => ({
-    id: session.id,
-    title: completedSessionFlowLabel(session, locale),
-    summary: session.outcome_summary || (isSpanish ? "Tarea completada por VYVA." : "Task completed by VYVA."),
-  }));
-
   return (
     <MasterDashboardLayout
       testId="concierge-master-layout"
@@ -16851,11 +16847,9 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       {mode === "home" ? (
         <ConciergeHomeTaskOverview
           activeTask={homeActiveTask}
-          queuedCount={homeQueuedTaskCount}
-          completedTasks={homeCompletedTasks}
           isLoading={pendingLoading || savedTaskDraftsLoading || completedSessionsLoading}
           isSpanish={isSpanish}
-          onContinue={(task) => navigate(conciergeTaskPath(task.id))}
+          onContinue={(task) => navigate(task.detailPath)}
           onOpenInbox={() => navigate("/concierge/tasks")}
         />
       ) : (

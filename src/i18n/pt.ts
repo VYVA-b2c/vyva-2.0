@@ -1419,6 +1419,11 @@ const pt = {
       later: "Mais tarde",
       dismiss: "Ocultar",
     },
+    showVyvaReviewResume: {
+      kicker: "Show VYVA recente",
+      title: "Continuar esta revisao",
+      action: "Abrir",
+    },
   },
   concierge: {
     fastHelp: {
@@ -1502,6 +1507,8 @@ const pt = {
       error: "Nao consegui guardar esse passo. Tente novamente.",
     },
         handoff: { kicker: "Melhor proximo passo", explain: "Explicar", hideExplain: "Ocultar explicacao", actionsTitle: "Escolha uma acao segura", title: { scam: "Isto parece arriscado", document: "Isto precisa de verificacao", medicine: "Verifique antes de usar", health_visual: "Verifique antes de agir", home_safety: "Tornar isto mais seguro", provider_deal: "Compare antes de decidir" } },
+        evidence: { kicker: "Por que VYVA pensa isto", factsFound: "Factos encontrados", stillUncertain: "Ainda incerto", noFacts: "Ainda sem facto solido.", noUncertainty: "Nada mais assinalado neste item.", confidence: { clear_risk: "Risco claro", needs_checking: "Precisa de verificacao", not_enough_information: "Informacao insuficiente" } },
+        history: { kicker: "Show VYVA recente", title: "Voltar a uma revisao", actionSaved: "Acao guardada", noActionSaved: "Sem acao guardada", context: { scam: "Verificacao de burla", document: "Documento", medicine: "Rotulo de medicamento", provider_deal: "Fornecedor ou oferta", home_safety: "Foto da casa", health_visual: "Foto de saude" } },
     contract: {
       finalConfirmation: "VYVA prepara primeiro. Confirma antes de algo ser enviado, comprado, reservado, chamado, carregado, submetido ou partilhado.",
       sections: {
