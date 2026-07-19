@@ -136,6 +136,20 @@ describe("Concierge task inbox", () => {
       status: "failed",
       updated_at: "2026-07-18T13:00:00.000Z",
     });
+    const providerReplyReady = pending({
+      id: "provider-reply-ready",
+      use_case: "book_appointment",
+      provider_name: "Harbour Clinic",
+      action_payload: {
+        flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+        provider_task_status: "reply_received",
+        provider_reply_status: "confirmed",
+        provider_reply: "Appointment is confirmed for Tuesday at 10:00.",
+        mission_status: "awaiting_provider_reply",
+      },
+      status: "calling",
+      updated_at: "2026-07-18T13:30:00.000Z",
+    });
     const futureCompleted: ConciergeTaskCompletedSession = {
       id: "future-session",
       pending_id: "future-pending",
@@ -149,7 +163,7 @@ describe("Concierge task inbox", () => {
 
     const inbox = buildConciergeTaskInbox({
       drafts: [rideReady, appointmentDraft],
-      pending: [shoppingWaiting, refillBlocked],
+      pending: [shoppingWaiting, refillBlocked, providerReplyReady],
       completed: [futureCompleted],
       now: "2026-07-19T09:00:00.000Z",
     });
@@ -162,6 +176,9 @@ describe("Concierge task inbox", () => {
       .toMatchObject({ flow: "shopping", state: "waiting", sceneLabel: "Waiting", actionLabel: "View status" });
     expect(findConciergeTaskInboxItem(inbox, "pending", "refill-blocked")?.continuation)
       .toMatchObject({ flow: "refill", state: "blocked", sceneLabel: "Blocked", actionLabel: "Review task" });
+    expect(findConciergeTaskInboxItem(inbox, "pending", "provider-reply-ready")?.continuation)
+      .toMatchObject({ flow: "provider_reply", state: "ready_to_confirm", sceneLabel: "Review", actionLabel: "Review reply" });
+    expect(inbox.needs_you.map((item) => item.id)).toContain("provider-reply-ready");
     expect(findConciergeTaskInboxItem(inbox, "completed", "future-session")?.continuation)
       .toMatchObject({ flow: "future", state: "completed", sceneLabel: "Completed", actionLabel: "Use again" });
   });

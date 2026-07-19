@@ -394,7 +394,6 @@ function continuationStateFromPending(input: {
     status === "completed"
     || providerStatus === "done"
     || providerTaskStatus === "done"
-    || providerReplyStatus === "confirmed"
     || missionStatus === "completed"
     || handoffStatus === "completed"
     || lifecycleStatus === "done"
@@ -420,6 +419,15 @@ function continuationStateFromPending(input: {
   ) return "needs_info";
 
   if (
+    providerStatus === "reply_received"
+    || providerTaskStatus === "reply_received"
+    || providerReplyStatus === "confirmed"
+    || providerReplyStatus === "unavailable"
+    || handoffStatus === "ready"
+    || item.action_payload?.confirmation_required_before_contact === true
+  ) return "ready_to_confirm";
+
+  if (
     providerStatus === "waiting"
     || status === "calling"
     || item.action_payload?.waiting_for_provider === true
@@ -429,12 +437,6 @@ function continuationStateFromPending(input: {
     || lifecycleStatus === "in_progress"
     || lifecycleStatus === "confirmed"
   ) return "waiting";
-
-  if (
-    providerStatus === "reply_received"
-    || handoffStatus === "ready"
-    || item.action_payload?.confirmation_required_before_contact === true
-  ) return "ready_to_confirm";
 
   return "ready_to_confirm";
 }
