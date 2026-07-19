@@ -320,6 +320,25 @@ function hasNegativeInteractionOutcomeLanguage(value: string): boolean {
   );
 }
 
+function hasNegativeBehaviorOutcomeLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    /\bnot (restored|preserved|recovered|returned|available|visible|offered|provided|prevented|blocked|ignored|rejected|discarded|readable|legible|calm|usable)\b/.test(
+      normalized,
+    ) ||
+    /\bdid not (restore|preserve|recover|return|offer|provide|prevent|block|ignore|reject|discard|explain)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:unable|failed|fails|could not) to (restore|preserve|recover|return|offer|provide|prevent|block|ignore|reject|discard|explain)\b/.test(
+      normalized,
+    ) ||
+    /\b(no retry|no exit|no fallback)\b/.test(normalized) ||
+    /\b(external action|write|booking|call|message|navigation)s?\b.{0,24}\b(happened|occurred|sent|submitted|triggered|fired|ran)\b/.test(
+      normalized,
+    )
+  );
+}
+
 function parseMarkdownTableRow(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
@@ -825,7 +844,10 @@ function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
     for (const requirement of behaviorChecklistRequirements) {
       const cell = row[requirement.columnIndex] ?? "";
       if (isPlaceholderCell(cell) || isFailingQaCell(cell)) continue;
-      if (!hasAllWordGroups(cell, requirement.wordGroups)) {
+      if (
+        !hasAllWordGroups(cell, requirement.wordGroups) ||
+        hasNegativeBehaviorOutcomeLanguage(cell)
+      ) {
         problems.push(`${flow.label}: ${requirement.description}`);
       }
     }
