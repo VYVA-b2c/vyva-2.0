@@ -119,14 +119,30 @@ describe("ConciergeTaskInboxPage", () => {
     });
   });
 
-  it("groups active and completed tasks without duplicating a linked draft", async () => {
+  it("keeps active work focused and completed history searchable", async () => {
     renderPage();
 
     expect(await screen.findByTestId("concierge-inbox-group-needs_you")).toHaveTextContent("Needs you1");
     expect(screen.getByTestId("concierge-inbox-group-waiting")).toHaveTextContent("Waiting1");
-    expect(screen.getByTestId("concierge-inbox-group-completed")).toHaveTextContent("Completed1");
+    expect(screen.queryByTestId("concierge-inbox-group-completed")).not.toBeInTheDocument();
     expect(screen.getAllByText("Prepare an appointment")).toHaveLength(1);
     expect(screen.getByText("Harbour Clinic needs your insurance plan.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("concierge-task-view-completed"));
+    expect(screen.getByTestId("concierge-inbox-group-completed")).toHaveTextContent("Completed1");
+    expect(screen.queryByText("Harbour Clinic needs your insurance plan.")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("concierge-completed-search"), { target: { value: "Radio Taxi" } });
+    expect(screen.getByText("Ride completed with Radio Taxi.")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("concierge-completed-search"), { target: { value: "plumber" } });
+    expect(screen.getByTestId("concierge-inbox-group-completed")).toHaveTextContent("No completed tasks yet.");
+  });
+
+  it("shows waiting state without an unrelated continuation control", async () => {
+    renderPage("/concierge/tasks/pending%3Awaiting-1");
+
+    expect(await screen.findByTestId("concierge-task-waiting-message")).toHaveTextContent("let you know");
+    expect(screen.queryByTestId("button-concierge-task-primary-action")).not.toBeInTheDocument();
   });
 
   it("opens a focused detail, keeps More details closed, and resumes the exact saved task", async () => {
