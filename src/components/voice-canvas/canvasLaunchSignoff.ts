@@ -366,11 +366,19 @@ const behaviorChecklistRequirements = [
   },
   {
     columnIndex: 3,
+    description: "voice interruption cell must mention interruption and recovery evidence",
+    wordGroups: [
+      ["interruption", "interrupted", "interrupt"],
+      ["recover", "recovery", "resume", "continued", "preserved"],
+    ],
+  },
+  {
+    columnIndex: 4,
     description: "browser back cell must mention back navigation evidence",
     wordGroups: [["back"]],
   },
   {
-    columnIndex: 4,
+    columnIndex: 5,
     description: "cancel/exit cell must mention cancel and exit evidence",
     wordGroups: [
       ["cancel"],
@@ -378,7 +386,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 5,
+    columnIndex: 6,
     description: "flag rollback/fallback cell must mention flag rollback and fallback evidence",
     wordGroups: [
       ["flag"],
@@ -387,7 +395,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 6,
+    columnIndex: 7,
     description:
       "confirmation safety cell must mention no external action before explicit confirmation",
     wordGroups: [
@@ -397,7 +405,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 7,
+    columnIndex: 8,
     description: "duplicate/stale guard cell must mention duplicate and stale evidence",
     wordGroups: [
       ["duplicate"],
@@ -405,7 +413,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 8,
+    columnIndex: 9,
     description:
       "senior-friendly copy cell must mention senior copy and what happens next",
     wordGroups: [
@@ -415,7 +423,7 @@ const behaviorChecklistRequirements = [
     ],
   },
   {
-    columnIndex: 9,
+    columnIndex: 10,
     description: "privacy-safe analytics cell must mention privacy and analytics evidence",
     wordGroups: [
       ["privacy"],
@@ -444,7 +452,7 @@ function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
       }
     }
 
-    const evidence = row[10] ?? "";
+    const evidence = row[11] ?? "";
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&
