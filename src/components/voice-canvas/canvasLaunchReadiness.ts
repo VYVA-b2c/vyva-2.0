@@ -93,6 +93,7 @@ export const CANVAS_LAUNCH_SIGNAL_EVENTS: Record<
 
 export interface CanvasLaunchFeatureFlag {
   endpoint: string;
+  serverFeatureKey: string;
   enableEnv: string;
   rolloutEnv: string;
   fallback: string;
@@ -117,6 +118,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
     surfaces: ["voice handoff", "/concierge", "task hub pending resume"],
     featureFlag: {
       endpoint: "/api/config/features/ride-voice-canvas",
+      serverFeatureKey: "ride",
       enableEnv: "VYVA_ENABLE_RIDE_VOICE_CANVAS",
       rolloutEnv: "VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT",
       fallback: "Existing Concierge transport panel",
@@ -178,6 +180,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
     surfaces: ["voice handoff", "/concierge", "task hub provider setup resume"],
     featureFlag: {
       endpoint: "/api/config/features/appointment-voice-canvas",
+      serverFeatureKey: "appointment",
       enableEnv: "VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS",
       rolloutEnv: "VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT",
       fallback: "Existing appointment panel",
@@ -236,6 +239,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
     surfaces: ["/meds/adherence-report", "voice refill action", "task hub local resume"],
     featureFlag: {
       endpoint: "/api/config/features/medication-refill-voice-canvas",
+      serverFeatureKey: "medicationRefill",
       enableEnv: "VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS",
       rolloutEnv: "VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT",
       fallback: "Existing medication refill shopping/support path",
@@ -295,6 +299,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
     surfaces: ["/concierge/shopping", "shopping voice capture", "task hub local resume"],
     featureFlag: {
       endpoint: "/api/config/features/shopping-delivery-voice-canvas",
+      serverFeatureKey: "shoppingDelivery",
       enableEnv: "VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS",
       rolloutEnv: "VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT",
       fallback: "Existing shopping guide and recommendations",
@@ -357,6 +362,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
     surfaces: ["/concierge task detail", "provider reply panel", "task hub pending resume"],
     featureFlag: {
       endpoint: "/api/config/features/provider-reply-voice-canvas",
+      serverFeatureKey: "providerReply",
       enableEnv: "VYVA_ENABLE_PROVIDER_REPLY_VOICE_CANVAS",
       rolloutEnv: "VYVA_PROVIDER_REPLY_VOICE_CANVAS_ROLLOUT_PERCENT",
       fallback: "Existing provider reply panel",

@@ -54,13 +54,13 @@ Record one pass/fail line for each flow and behavior. If a behavior is not appli
 
 For each endpoint, verify disabled, enabled, malformed or missing config behavior, and an in-session rollback from Canvas to the existing path.
 
-| Flow | Endpoint | Disabled payload checked | Enabled payload checked | In-session rollback checked | Existing fallback shown | Evidence |
-| --- | --- | --- | --- | --- | --- | --- |
-| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | Pending | Pending | Pending | Pending | Pending |
-| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | Pending | Pending | Pending | Pending | Pending |
-| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | Pending | Pending | Pending | Pending | Pending |
-| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | Pending | Pending | Pending | Pending | Pending |
-| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | Pending | Pending | Pending | Pending | Pending |
+| Flow | Endpoint | Server key | Disabled payload checked | Enabled payload checked | In-session rollback checked | Existing fallback shown | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Pending | Pending | Pending | Pending | Pending |
+| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | `appointment` | Pending | Pending | Pending | Pending | Pending |
+| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | Pending | Pending | Pending | Pending | Pending |
+| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | Pending | Pending | Pending | Pending | Pending |
+| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Pending | Pending | Pending | Pending | Pending |
 
 ## Copy and accessibility read-through
 

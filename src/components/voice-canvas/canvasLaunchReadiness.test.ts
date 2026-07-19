@@ -67,9 +67,20 @@ describe("Canvas launch readiness manifest", () => {
         serverIndex.includes(`app.get("${flow.featureFlag.endpoint}"`),
         flow.featureFlag.endpoint,
       ).toBe(true);
+      expect(
+        serverIndex.includes(
+          `sendCanvasFeatureFlag(res, "${flow.featureFlag.serverFeatureKey}")`,
+        ),
+        `${flow.featureFlag.endpoint}:${flow.featureFlag.serverFeatureKey}`,
+      ).toBe(true);
+      expect(
+        serverFeatureFlags.includes(`${flow.featureFlag.serverFeatureKey}: {`),
+        flow.featureFlag.serverFeatureKey,
+      ).toBe(true);
       expect(serverFeatureFlags).toContain(flow.featureFlag.enableEnv);
       expect(serverFeatureFlags).toContain(flow.featureFlag.rolloutEnv);
     }
+    expect(serverIndex).toContain('res.setHeader("cache-control", "no-store")');
   });
 
   it("keeps launch analytics mapped to closed, privacy-safe fields", () => {
@@ -147,6 +158,7 @@ describe("Canvas launch readiness manifest", () => {
       expect(runbook, flow.label).toContain(flow.label.split(" ")[0]);
       if (flow.featureFlag) {
         expect(runbook).toContain(flow.featureFlag.endpoint);
+        expect(runbook).toContain(flow.featureFlag.serverFeatureKey);
         expect(runbook).toContain(flow.featureFlag.fallback);
       }
     }
@@ -179,6 +191,7 @@ describe("Canvas launch readiness manifest", () => {
       expect(matrix, flow.label).toContain(flow.label);
       if (flow.featureFlag) {
         expect(matrix).toContain(flow.featureFlag.endpoint);
+        expect(matrix).toContain(flow.featureFlag.serverFeatureKey);
       }
     }
 

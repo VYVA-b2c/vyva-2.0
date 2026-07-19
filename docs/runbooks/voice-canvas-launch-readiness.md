@@ -16,14 +16,14 @@ Current audit status is tracked in `docs/audits/voice-canvas-launch-readiness-au
 
 ## Runtime controls
 
-| Flow | Endpoint | Enable flag | Rollout flag | Fallback |
-| --- | --- | --- | --- | --- |
-| Ride | `/api/config/features/ride-voice-canvas` | `VYVA_ENABLE_RIDE_VOICE_CANVAS` | `VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing Concierge transport panel |
-| Appointment | `/api/config/features/appointment-voice-canvas` | `VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS` | `VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing appointment panel |
-| Medication refill | `/api/config/features/medication-refill-voice-canvas` | `VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS` | `VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing medication refill shopping/support path |
-| Shopping or delivery | `/api/config/features/shopping-delivery-voice-canvas` | `VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS` | `VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing shopping guide and recommendations |
-| Provider reply | `/api/config/features/provider-reply-voice-canvas` | `VYVA_ENABLE_PROVIDER_REPLY_VOICE_CANVAS` | `VYVA_PROVIDER_REPLY_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing provider reply panel |
-| Task hub resume | Inherits the destination flow controls | No separate flag | No separate rollout | The task hub opens the safe existing destination when a destination Canvas is off |
+| Flow | Endpoint | Server key | Enable flag | Rollout flag | Fallback |
+| --- | --- | --- | --- | --- | --- |
+| Ride | `/api/config/features/ride-voice-canvas` | `ride` | `VYVA_ENABLE_RIDE_VOICE_CANVAS` | `VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing Concierge transport panel |
+| Appointment | `/api/config/features/appointment-voice-canvas` | `appointment` | `VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS` | `VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing appointment panel |
+| Medication refill | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | `VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS` | `VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing medication refill shopping/support path |
+| Shopping or delivery | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | `VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS` | `VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing shopping guide and recommendations |
+| Provider reply | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | `VYVA_ENABLE_PROVIDER_REPLY_VOICE_CANVAS` | `VYVA_PROVIDER_REPLY_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing provider reply panel |
+| Task hub resume | Inherits the destination flow controls | No separate key | No separate flag | No separate rollout | The task hub opens the safe existing destination when a destination Canvas is off |
 
 Start at internal-only, then 5%, 25%, 50%, and 100% only after reviewing scene-only completion, abandonment, retry, blocked, and failure counts.
 
