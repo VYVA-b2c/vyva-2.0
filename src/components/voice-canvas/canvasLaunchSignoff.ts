@@ -36,6 +36,9 @@ export const CANVAS_REAL_DEVICE_QA_REQUIRED_COPY_CHECKS = [
   "Reduced-motion mode remains calm and usable",
 ] as const;
 
+export type CanvasRealDeviceQaCopyAccessibilityCheck =
+  (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_COPY_CHECKS)[number];
+
 export const CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES = [
   "Spoken transcripts",
   "Typed free text",
@@ -60,6 +63,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   missingRequiredMatrixRows: string[];
   invalidEnvironmentFields: string[];
   invalidFeatureFlagRows: string[];
+  invalidCopyAccessibilityRows: string[];
   invalidPrivacyRows: string[];
   missingRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
@@ -90,6 +94,14 @@ function isPlaceholderCell(value: string): boolean {
 function isFailingQaCell(value: string): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   if (isPlaceholderCell(normalized)) return false;
+  if (
+    /^blocked[- ]?(copy|state|states|scene)\b/.test(normalized) &&
+    /\b(explain|explains|verified|offers|provides|retry|exit|evidence)\b/.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
   return /^(fail(ed|ure)?|blocked|unsafe|not ready|not passed|not passing|rejected|hold|no[- ]?go)\b/.test(
     normalized,
   );
@@ -168,6 +180,13 @@ function isIsoDateCellFromText(value: string): boolean {
 function hasAnyWord(value: string, words: readonly string[]): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   return words.some((word) => normalized.includes(word));
+}
+
+function hasAllWordGroups(
+  value: string,
+  wordGroups: readonly (readonly string[])[],
+): boolean {
+  return wordGroups.every((words) => hasAnyWord(value, words));
 }
 
 function parseMarkdownTableRow(line: string): string[] | null {
@@ -299,6 +318,139 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
   return problems;
 }
 
+const copyAccessibilityResultRequirements: Record<
+  CanvasRealDeviceQaCopyAccessibilityCheck,
+  {
+    resultDescription: string;
+    resultWordGroups: readonly (readonly string[])[];
+    evidenceDescription: string;
+    evidenceWordGroups: readonly (readonly string[])[];
+  }
+> = {
+  "English copy uses one clear decision at a time": {
+    resultDescription: "result must mention English copy with one clear decision",
+    resultWordGroups: [
+      ["english"],
+      ["copy", "label", "labels"],
+      ["one clear decision", "single decision", "one decision"],
+    ],
+    evidenceDescription: "evidence must reference English copy or screenshot review",
+    evidenceWordGroups: [["english", "copy", "screenshot", "read-through"]],
+  },
+  "Spanish copy and long labels remain readable without horizontal overflow": {
+    resultDescription:
+      "result must mention Spanish long-label readability without horizontal overflow",
+    resultWordGroups: [
+      ["spanish"],
+      ["long label", "long labels"],
+      ["readable", "overflow", "horizontal overflow", "no horizontal overflow"],
+    ],
+    evidenceDescription:
+      "evidence must reference Spanish, long-label, overflow, or screenshot review",
+    evidenceWordGroups: [["spanish", "long label", "long labels", "overflow", "screenshot"]],
+  },
+  "Waiting states explain what is happening and what is not happening": {
+    resultDescription:
+      "result must mention waiting copy and what is not happening",
+    resultWordGroups: [
+      ["waiting"],
+      ["not happening", "no action", "not sent", "not submitted", "no external action"],
+    ],
+    evidenceDescription: "evidence must reference waiting-state review",
+    evidenceWordGroups: [["waiting", "screenshot"]],
+  },
+  "Blocked states explain what is needed and provide retry or exit": {
+    resultDescription:
+      "result must mention blocked-state needs plus retry and exit",
+    resultWordGroups: [
+      ["blocked"],
+      ["needed", "needs", "what is needed", "information"],
+      ["retry"],
+      ["exit", "cancel"],
+    ],
+    evidenceDescription: "evidence must reference blocked-state review",
+    evidenceWordGroups: [["blocked", "screenshot"]],
+  },
+  "Completed states explain the outcome without implying extra action": {
+    resultDescription:
+      "result must mention completed outcome and no extra action",
+    resultWordGroups: [
+      ["completed"],
+      ["outcome", "result"],
+      ["no extra action", "without extra action", "not implying extra action"],
+    ],
+    evidenceDescription: "evidence must reference completed-state review",
+    evidenceWordGroups: [["completed", "screenshot"]],
+  },
+  "Keyboard-only completion works for each flow": {
+    resultDescription: "result must mention keyboard-only completion for each flow",
+    resultWordGroups: [
+      ["keyboard"],
+      ["each flow", "all flows"],
+    ],
+    evidenceDescription: "evidence must reference keyboard evidence",
+    evidenceWordGroups: [["keyboard"]],
+  },
+  "Focus moves meaningfully when scenes change": {
+    resultDescription: "result must mention focus movement on scene changes",
+    resultWordGroups: [
+      ["focus"],
+      ["scene"],
+    ],
+    evidenceDescription: "evidence must reference focus evidence",
+    evidenceWordGroups: [["focus"]],
+  },
+  "Screen-reader announcements fire for waiting, blocked, and completed states": {
+    resultDescription:
+      "result must mention screen-reader announcements for waiting, blocked, and completed states",
+    resultWordGroups: [
+      ["screen-reader", "screen reader"],
+      ["announcement", "announcements"],
+      ["waiting"],
+      ["blocked"],
+      ["completed"],
+    ],
+    evidenceDescription: "evidence must reference screen-reader announcement evidence",
+    evidenceWordGroups: [["screen-reader", "screen reader", "announcement"]],
+  },
+  "Reduced-motion mode remains calm and usable": {
+    resultDescription: "result must mention reduced-motion mode as calm and usable",
+    resultWordGroups: [
+      ["reduced-motion", "reduced motion"],
+      ["calm"],
+      ["usable"],
+    ],
+    evidenceDescription: "evidence must reference reduced-motion evidence",
+    evidenceWordGroups: [["reduced-motion", "reduced motion", "motion"]],
+  },
+};
+
+function invalidCopyAccessibilityRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Copy and accessibility read-through") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const check of CANVAS_REAL_DEVICE_QA_REQUIRED_COPY_CHECKS) {
+    const row = rows.get(check);
+    if (!row) continue;
+    const [, result = "", evidence = ""] = row;
+    if (isPlaceholderCell(result) || isPlaceholderCell(evidence)) continue;
+
+    const requirements = copyAccessibilityResultRequirements[check];
+    if (!hasAllWordGroups(result, requirements.resultWordGroups)) {
+      problems.push(`${check}: ${requirements.resultDescription}`);
+    }
+    if (!hasAllWordGroups(evidence, requirements.evidenceWordGroups)) {
+      problems.push(`${check}: ${requirements.evidenceDescription}`);
+    }
+  }
+
+  return problems;
+}
+
 function hasNoSensitiveDataLanguage(value: string): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   return (
@@ -423,6 +575,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
   ];
   const invalidEnvironmentFields = invalidEnvironmentRows(sections);
   const invalidFeatureFlagChecks = invalidFeatureFlagRows(sections);
+  const invalidCopyAccessibilityChecks = invalidCopyAccessibilityRows(sections);
   const invalidPrivacyChecks = invalidPrivacyReviewRows(sections);
 
   const problems: string[] = [];
@@ -461,6 +614,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     if (invalidFeatureFlagChecks.length > 0) {
       problems.push(
         `Matrix has feature-flag rollback row issue(s): ${invalidFeatureFlagChecks.join(", ")}.`,
+      );
+    }
+    if (invalidCopyAccessibilityChecks.length > 0) {
+      problems.push(
+        `Matrix has copy/accessibility row issue(s): ${invalidCopyAccessibilityChecks.join(", ")}.`,
       );
     }
     if (invalidPrivacyChecks.length > 0) {
@@ -507,6 +665,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     missingRequiredMatrixRows,
     invalidEnvironmentFields,
     invalidFeatureFlagRows: invalidFeatureFlagChecks,
+    invalidCopyAccessibilityRows: invalidCopyAccessibilityChecks,
     invalidPrivacyRows: invalidPrivacyChecks,
     missingRequiredSignoffRoles,
     incompleteRequiredSignoffRoles,

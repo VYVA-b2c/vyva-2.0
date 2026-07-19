@@ -86,8 +86,10 @@ function fillEnvironmentRecord(markdown: string): string {
 function completedMatrix(markdown = realDeviceQaMatrix()): string {
   return fillPrivacyReviewRows(
     fillFeatureFlagRows(
-      fillEnvironmentRecord(
-        fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+      fillCopyAccessibilityRows(
+        fillEnvironmentRecord(
+          fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+        ),
       ),
     ),
   );
@@ -140,6 +142,46 @@ function fillPrivacyReviewRows(markdown: string): string {
   );
 }
 
+function fillCopyAccessibilityRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| English copy uses one clear decision at a time \| .* \| .* \|$/m,
+      "| English copy uses one clear decision at a time | English copy confirms one clear decision for each flow | QA English copy screenshot evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Spanish copy and long labels remain readable without horizontal overflow \| .* \| .* \|$/m,
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Waiting states explain what is happening and what is not happening \| .* \| .* \|$/m,
+      "| Waiting states explain what is happening and what is not happening | Waiting copy says processing continues and no external action is sent yet | QA waiting-state screenshot evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Blocked states explain what is needed and provide retry or exit \| .* \| .* \|$/m,
+      "| Blocked states explain what is needed and provide retry or exit | Blocked copy explains what is needed and offers retry or cancel exit | QA blocked-state screenshot evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Completed states explain the outcome without implying extra action \| .* \| .* \|$/m,
+      "| Completed states explain the outcome without implying extra action | Completed copy explains the outcome with no extra action implied | QA completed-state screenshot evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Keyboard-only completion works for each flow \| .* \| .* \|$/m,
+      "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Focus moves meaningfully when scenes change \| .* \| .* \|$/m,
+      "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Screen-reader announcements fire for waiting, blocked, and completed states \| .* \| .* \|$/m,
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Reduced-motion mode remains calm and usable \| .* \| .* \|$/m,
+      "| Reduced-motion mode remains calm and usable | Reduced-motion mode verified calm and usable | QA reduced-motion evidence reviewed on 2026-07-19 |",
+    );
+}
+
 function replaceDeviceRow(markdown: string, flow: string, row: string): string {
   const escapedFlow = escapeRegExp(flow);
   return markdown.replace(new RegExp(`^\\| ${escapedFlow} \\| .* \\|$`, "m"), row);
@@ -166,6 +208,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
     expect(result.problems).toEqual([]);
   });
@@ -290,6 +333,25 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects ready-for-launch matrices with vague copy/accessibility rows", () => {
+    const completed = completedMatrix().replace(
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
+      "Screen-reader announcements fire for waiting, blocked, and completed states: evidence must reference screen-reader announcement evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague privacy review rows", () => {
     const completed = completedMatrix().replace(
       "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
@@ -343,6 +405,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
@@ -361,6 +424,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
     expect(result.missingRequiredSignoffRoles).toEqual([]);
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);
