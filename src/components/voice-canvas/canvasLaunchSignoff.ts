@@ -453,6 +453,8 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
       serverKey = "",
       disabledPayload = "",
       enabledPayload = "",
+      malformedConfig = "",
+      missingConfig = "",
       rollback = "",
       fallback = "",
       evidence = "",
@@ -475,6 +477,24 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
       !hasAnyWord(enabledPayload, ["enabled", "true", "rollout", "100", "%"])
     ) {
       problems.push(`${flow.label}: enabled payload evidence`);
+    }
+    if (
+      !isPlaceholderCell(malformedConfig) &&
+      !hasAllWordGroups(malformedConfig, [
+        ["malformed", "invalid", "bad config", "bad-config"],
+        ["fail closed", "fail-closed", "disabled", "fallback", "false", "rollout 0"],
+      ])
+    ) {
+      problems.push(`${flow.label}: malformed config fallback evidence`);
+    }
+    if (
+      !isPlaceholderCell(missingConfig) &&
+      !hasAllWordGroups(missingConfig, [
+        ["missing", "absent", "unreachable", "no config"],
+        ["fail closed", "fail-closed", "disabled", "fallback", "false", "rollout 0"],
+      ])
+    ) {
+      problems.push(`${flow.label}: missing config fallback evidence`);
     }
     if (
       !isPlaceholderCell(rollback) &&

@@ -5,7 +5,7 @@ Use this file to record the deployed, real-device launch-readiness pass for ride
 
 Do not mark the Canvas launch-readiness goal complete until every required row below has a passing result, an evidence link or note, and a reviewer/date.
 
-Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every required environment, device, behavior, rollback, copy/accessibility, privacy, and sign-off row remains present; every `Pending` cell is replaced with a passing result/evidence note; device rows name the real phone, tablet, and desktop/laptop evidence; behavior rows name the checked behavior instead of only saying that QA passed; evidence cells include dated QA or reviewer notes; copy/accessibility rows name the specific checked behavior and matching evidence; no row contains a failed/blocked/not-ready result; and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
+Keep `Status` as **pending execution** until this matrix is fully filled. For final launch sign-off, change it to **ready for launch** only after every required environment, device, behavior, rollback, copy/accessibility, privacy, and sign-off row remains present; every `Pending` cell is replaced with a passing result/evidence note; device rows name the real phone, tablet, and desktop/laptop evidence; behavior rows name the checked behavior instead of only saying that QA passed; feature rows include disabled, enabled, malformed-config, missing-config, rollback, and fallback evidence; evidence cells include dated QA or reviewer notes; copy/accessibility rows name the specific checked behavior and matching evidence; no row contains a failed/blocked/not-ready result; and all final sign-off roles have a name, a `YYYY-MM-DD` date, and an approved-for-launch decision. Then run:
 
 ```bash
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts
@@ -60,15 +60,15 @@ For final sign-off, each behavior cell must name the behavior checked, such as s
 
 For each endpoint, verify disabled, enabled, malformed or missing config behavior, and an in-session rollback from Canvas to the existing path.
 
-For final sign-off, the endpoint and server key must match the launch manifest exactly. The disabled/enabled payload, rollback, and fallback cells must describe the observed state, not just say that the row passed. Evidence must include a dated QA or reviewer note.
+For final sign-off, the endpoint and server key must match the launch manifest exactly. The disabled/enabled payload, malformed-config, missing-config, rollback, and fallback cells must describe the observed state, not just say that the row passed. Malformed and missing config should fail closed to disabled/fallback behavior. Evidence must include a dated QA or reviewer note.
 
-| Flow | Endpoint | Server key | Disabled payload checked | Enabled payload checked | In-session rollback checked | Existing fallback shown | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Pending | Pending | Pending | Pending | Pending |
-| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | `appointment` | Pending | Pending | Pending | Pending | Pending |
-| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | Pending | Pending | Pending | Pending | Pending |
-| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | Pending | Pending | Pending | Pending | Pending |
-| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Pending | Pending | Pending | Pending | Pending |
+| Flow | Endpoint | Server key | Disabled payload checked | Enabled payload checked | Malformed config checked | Missing config checked | In-session rollback checked | Existing fallback shown | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | `appointment` | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 
 ## Copy and accessibility read-through
 
