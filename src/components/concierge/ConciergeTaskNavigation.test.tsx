@@ -12,12 +12,11 @@ describe("Concierge task navigation", () => {
       <ConciergeHomeTaskOverview
         activeTask={{
           id: "task-1",
+          detailPath: "/concierge/tasks/pending%3Atask-1",
           title: "Call the clinic",
           summary: "The clinic needs your insurance plan.",
           providerStatus: "action_needed",
         }}
-        queuedCount={2}
-        completedTasks={[{ id: "done-1", title: "Home service", summary: "Visit arranged." }]}
         isLoading={false}
         isSpanish={false}
         onContinue={onContinue}

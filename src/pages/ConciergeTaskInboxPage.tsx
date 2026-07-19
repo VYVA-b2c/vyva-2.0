@@ -10,13 +10,13 @@ import {
   Inbox,
   MessageSquareText,
   RefreshCw,
+  Search,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { listConciergeTaskDrafts } from "@/lib/conciergeTaskDrafts";
 import {
   buildConciergeTaskInbox,
-  conciergeTaskInboxItems,
   fetchConciergeTaskCompletedSessions,
   fetchConciergeTaskPendingItems,
   findConciergeTaskInboxItem,
@@ -35,7 +35,7 @@ import {
   type ConciergeProviderReplyResolution,
 } from "../../shared/conciergeProviderReplyResolution";
 
-const GROUP_ORDER: ConciergeTaskInboxGroup[] = ["needs_you", "waiting", "completed"];
+const ACTIVE_GROUPS: ConciergeTaskInboxGroup[] = ["needs_you", "waiting"];
 
 function payloadText(payload: Record<string, unknown> | null, keys: string[]): string {
   if (!payload) return "";
@@ -172,7 +172,16 @@ function InboxList({
   onBack: () => void;
   onOpen: (item: ConciergeTaskInboxItem) => void;
 }) {
-  const total = conciergeTaskInboxItems(inbox).length;
+  const [view, setView] = useState<"active" | "completed">("active");
+  const [search, setSearch] = useState("");
+  const activeCount = inbox.needs_you.length + inbox.waiting.length;
+  const normalizedSearch = search.trim().toLowerCase();
+  const completedItems = normalizedSearch
+    ? inbox.completed.filter((item) => [item.title, item.summary, item.providerName]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(normalizedSearch)))
+    : inbox.completed;
+  const groups = view === "active" ? ACTIVE_GROUPS : ["completed" as const];
   return (
     <div className="mx-auto min-h-screen w-full max-w-[720px] bg-vyva-background px-4 pb-10 pt-4 sm:px-6" data-testid="concierge-task-inbox">
       <header className="border-b border-vyva-border pb-4">
@@ -193,17 +202,57 @@ function InboxList({
               {isSpanish ? "Mis tareas" : "My tasks"}
             </h1>
             <p className="font-body text-[13px] font-semibold text-vyva-text-2">
-              {isSpanish ? `${total} en total` : `${total} total`}
+              {activeCount > 0
+                ? (isSpanish ? `${activeCount} activas` : `${activeCount} active`)
+                : (isSpanish ? "Todo al dia" : "All caught up")}
             </p>
           </div>
         </div>
       </header>
 
+      <div className="mt-5 grid grid-cols-2 border-b border-vyva-border" role="tablist" aria-label={isSpanish ? "Vistas de tareas" : "Task views"}>
+        {(["active", "completed"] as const).map((option) => {
+          const selected = view === option;
+          const label = option === "active"
+            ? (isSpanish ? "Activas" : "Active")
+            : (isSpanish ? "Completadas" : "Completed");
+          const count = option === "active" ? activeCount : inbox.completed.length;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => setView(option)}
+              className={`vyva-tap min-h-[48px] border-b-2 px-3 font-body text-[14px] font-black ${selected ? "border-vyva-purple text-vyva-purple" : "border-transparent text-vyva-text-2"}`}
+              data-testid={`concierge-task-view-${option}`}
+            >
+              {label} {count}
+            </button>
+          );
+        })}
+      </div>
+
+      {view === "completed" && inbox.completed.length > 0 ? (
+        <label className="mt-4 flex min-h-[48px] items-center gap-2 rounded-lg border border-vyva-border bg-white px-3">
+          <Search size={18} className="text-vyva-text-3" aria-hidden="true" />
+          <span className="sr-only">{isSpanish ? "Buscar tareas completadas" : "Search completed tasks"}</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={isSpanish ? "Buscar tareas completadas" : "Search completed tasks"}
+            className="min-w-0 flex-1 bg-transparent font-body text-[14px] font-semibold text-vyva-text-1 outline-none placeholder:text-vyva-text-3"
+            data-testid="concierge-completed-search"
+          />
+        </label>
+      ) : null}
+
       <div className="mt-5 space-y-6">
-        {GROUP_ORDER.map((group) => {
+        {groups.map((group) => {
           const copy = groupCopy(group, isSpanish);
           const Icon = copy.icon;
-          const items = inbox[group];
+          const items = group === "completed" ? completedItems : inbox[group];
           return (
             <section key={group} aria-labelledby={`concierge-inbox-${group}-title`} data-testid={`concierge-inbox-group-${group}`}>
               <div className="mb-2 flex items-center gap-2 px-1">
@@ -619,15 +668,21 @@ function TaskDetail({
       ) : null}
 
       {!hasDirectReplyActions ? (
-        <button
-          type="button"
-          onClick={onPrimaryAction}
-          className="vyva-tap mt-6 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-[#047857] px-5 font-body text-[16px] font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047857] focus-visible:ring-offset-2"
-          data-testid="button-concierge-task-primary-action"
-        >
-          {item.primaryActionLabel}
-          <ChevronRight size={19} aria-hidden="true" />
-        </button>
+        item.group === "waiting" ? (
+          <p className="mt-6 border-y border-vyva-border py-4 font-body text-[14px] font-black text-[#2F66D0]" data-testid="concierge-task-waiting-message">
+            {isSpanish ? "Te avisaremos cuando llegue una respuesta." : "We will let you know when a reply arrives."}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={onPrimaryAction}
+            className="vyva-tap mt-6 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-[#047857] px-5 font-body text-[16px] font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047857] focus-visible:ring-offset-2"
+            data-testid="button-concierge-task-primary-action"
+          >
+            {item.primaryActionLabel}
+            <ChevronRight size={19} aria-hidden="true" />
+          </button>
+        )
       ) : null}
     </div>
   );
