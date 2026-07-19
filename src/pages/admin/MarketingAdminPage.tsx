@@ -11531,6 +11531,7 @@ export default function MarketingAdminPage() {
   const [contentTemplateAudienceFilter, setContentTemplateAudienceFilter] = useState<Audience | "all">("all");
   const [contentTemplateCategoryFilter, setContentTemplateCategoryFilter] = useState("all");
   const [contentTemplatePackFilter, setContentTemplatePackFilter] = useState("all");
+  const [contentTemplatePackSort, setContentTemplatePackSort] = useState<"recommended" | "reach" | "assets" | "routes">("recommended");
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [editingContentId, setEditingContentId] = useState<string | null>(null);
   const [contentEditDraft, setContentEditDraft] = useState<ContentEditDraft | null>(null);
@@ -12118,6 +12119,47 @@ export default function MarketingAdminPage() {
       state: templates.length >= 6 ? "ready" as CampaignReadinessState : templates.length >= 4 ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
     };
   }), []);
+  const sortedContentTemplatePacksWithStats = useMemo(() => {
+    const stateRank: Record<CampaignReadinessState, number> = {
+      ready: 3,
+      planning: 2,
+      needs_action: 1,
+      blocked: 0,
+    };
+
+    return contentTemplatePacksWithStats.map((packStats) => {
+      const sequenceChannels = Array.from(new Set(packStats.pack.sequence.map((step) => step.channel)));
+      const kitReachChannels = sequenceChannels.length ? sequenceChannels : packStats.channels;
+      const reachableContactCount = contacts.filter((contact) => (
+        packStats.audiences.some((audience) => campaignAllowsContact(audience, contact.audienceType))
+        && kitReachChannels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+      )).length;
+      const existingAssetCount = packStats.templates.filter((template) => (
+        content.some((item) => contentAssetMatchesTemplatePack(item, packStats.pack, template))
+      )).length;
+      const newAssetCount = Math.max(packStats.templates.length - existingAssetCount, 0);
+
+      return {
+        ...packStats,
+        sequenceChannels,
+        reachableContactCount,
+        existingAssetCount,
+        newAssetCount,
+        routeCount: kitReachChannels.length,
+      };
+    }).sort((a, b) => {
+      const selectedDelta = Number(b.pack.id === selectedContentTemplatePack?.id) - Number(a.pack.id === selectedContentTemplatePack?.id);
+      if (selectedDelta !== 0) return selectedDelta;
+      if (contentTemplatePackSort === "reach" && b.reachableContactCount !== a.reachableContactCount) return b.reachableContactCount - a.reachableContactCount;
+      if (contentTemplatePackSort === "assets" && b.templates.length !== a.templates.length) return b.templates.length - a.templates.length;
+      if (contentTemplatePackSort === "routes" && b.routeCount !== a.routeCount) return b.routeCount - a.routeCount;
+      if (stateRank[b.state] !== stateRank[a.state]) return stateRank[b.state] - stateRank[a.state];
+      if (b.reachableContactCount !== a.reachableContactCount) return b.reachableContactCount - a.reachableContactCount;
+      if (b.templates.length !== a.templates.length) return b.templates.length - a.templates.length;
+      if (b.routeCount !== a.routeCount) return b.routeCount - a.routeCount;
+      return a.pack.title.localeCompare(b.pack.title);
+    });
+  }, [content, contacts, contentTemplatePackSort, contentTemplatePacksWithStats, selectedContentTemplatePack?.id]);
   const templatePackRecommendationsForPlay = useCallback((play: CampaignStudioPlay, primaryChannel: Channel, selectedChannels: Channel[]) => {
     const selectedChannelSet = new Set(selectedChannels);
     const preferredPackIdByPlay: Record<string, string> = {
@@ -31321,18 +31363,31 @@ export default function MarketingAdminPage() {
                 subtitle="Task-led campaign starter packs for families, partners, community, retention, and social launches."
                 action={<Pill className="bg-purple-50 text-purple-800">{contentTemplatePacks.length} packs</Pill>}
               >
+                <div className="mb-4 grid gap-3 rounded-2xl border border-purple-100 bg-purple-50/50 p-3 xl:grid-cols-[1fr_220px]" data-testid="marketing-template-pack-controls">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Pack chooser</p>
+                    <p className="mt-1 text-sm font-bold leading-relaxed text-[#6f5f59]">
+                      Sort the long library by what matters now: best overall fit, reachable audience, richest asset set, or widest route coverage.
+                    </p>
+                  </div>
+                  <Field label="Order packs by">
+                    <select
+                      className={inputClass}
+                      value={contentTemplatePackSort}
+                      onChange={(event) => setContentTemplatePackSort(event.target.value as typeof contentTemplatePackSort)}
+                      data-testid="select-marketing-template-pack-sort"
+                    >
+                      <option value="recommended">Recommended first</option>
+                      <option value="reach">Most reachable contacts</option>
+                      <option value="assets">Most starter assets</option>
+                      <option value="routes">Most channel routes</option>
+                    </select>
+                  </Field>
+                </div>
                 <div className="grid gap-3 xl:grid-cols-5" data-testid="marketing-template-packs">
-                  {contentTemplatePacksWithStats.map(({ pack, templates, heroTemplate, channels, audiences, categories, state }) => {
+                  {sortedContentTemplatePacksWithStats.map(({ pack, templates, heroTemplate, channels, audiences, categories, state, sequenceChannels, reachableContactCount, existingAssetCount, newAssetCount }) => {
                     const selected = selectedContentTemplatePack?.id === pack.id;
-                    const sequenceChannels = Array.from(new Set(pack.sequence.map((step) => step.channel)));
                     const playbookPrimary = heroTemplate ?? templates[0] ?? null;
-                    const existingAssetCount = templates.filter((template) => content.some((item) => contentAssetMatchesTemplatePack(item, pack, template))).length;
-                    const newAssetCount = Math.max(templates.length - existingAssetCount, 0);
-                    const kitReachChannels = sequenceChannels.length ? sequenceChannels : channels;
-                    const reachableContactCount = contacts.filter((contact) => (
-                      audiences.some((audience) => campaignAllowsContact(audience, contact.audienceType))
-                      && kitReachChannels.some((channel) => Boolean(recipientForChannel(contact, channel)))
-                    )).length;
                     const emailRouteCount = sequenceChannels.filter((channel) => channel === "email").length;
                     const manualRouteCount = sequenceChannels.filter((channel) => channel !== "email").length;
                     return (

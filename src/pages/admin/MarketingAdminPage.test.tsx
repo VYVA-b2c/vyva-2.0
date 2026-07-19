@@ -2512,6 +2512,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Use Caregiver invite acceptance email first");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("7 steps");
     expect(screen.getByTestId("button-marketing-template-pack-copy-playbook-caregiver-invite-activation")).toHaveTextContent("Copy playbook");
+    expect(screen.getByTestId("marketing-template-pack-controls")).toHaveTextContent("Pack chooser");
+    expect(screen.getByTestId("select-marketing-template-pack-sort")).toHaveValue("recommended");
+    fireEvent.change(screen.getByTestId("select-marketing-template-pack-sort"), { target: { value: "reach" } });
+    expect(screen.getByTestId("select-marketing-template-pack-sort")).toHaveValue("reach");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Kit at a glance");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Reach");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Assets");
