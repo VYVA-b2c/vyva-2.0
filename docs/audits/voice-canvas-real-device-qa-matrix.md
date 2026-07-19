@@ -84,6 +84,8 @@ For final sign-off, the endpoint and server key must match the launch manifest e
 
 Confirm production or staging analytics receives only the allowed Canvas telemetry envelope fields: `name`, `step`, `input`, `attempt`, `restored`, and `revision`.
 
+For final sign-off, each result must state that the forbidden data class was not recorded, logged, sent, captured, or included. Each evidence cell must point to analytics or telemetry review evidence.
+
 | Forbidden data class | Result | Evidence |
 | --- | --- | --- |
 | Spoken transcripts | Pending | Pending |

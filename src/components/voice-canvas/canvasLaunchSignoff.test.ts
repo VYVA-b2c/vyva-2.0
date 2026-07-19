@@ -84,9 +84,13 @@ function fillEnvironmentRecord(markdown: string): string {
 }
 
 function completedMatrix(markdown = realDeviceQaMatrix()): string {
-  return fillFeatureFlagRows(fillEnvironmentRecord(
-    fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
-  ));
+  return fillPrivacyReviewRows(
+    fillFeatureFlagRows(
+      fillEnvironmentRecord(
+        fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+      ),
+    ),
+  );
 }
 
 function fillFeatureFlagRows(markdown: string): string {
@@ -113,18 +117,41 @@ function fillFeatureFlagRows(markdown: string): string {
     );
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function fillPrivacyReviewRows(markdown: string): string {
+  return [
+    "Spoken transcripts",
+    "Typed free text",
+    "Addresses or saved-place labels",
+    "Medication names, strengths, quantities, or symptoms",
+    "Provider names, reply text, notes, references, phone numbers, or emails",
+    "Shopping item names, prices, fees, or retailer names",
+    "Dates, times, identities, or contact details",
+  ].reduce(
+    (current, privacyClass) =>
+      current.replace(
+        new RegExp(`^\\| ${escapeRegExp(privacyClass)} \\| .* \\| .* \\|$`, "m"),
+        `| ${privacyClass} | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |`,
+      ),
+    markdown,
+  );
+}
+
 function replaceDeviceRow(markdown: string, flow: string, row: string): string {
-  const escapedFlow = flow.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedFlow = escapeRegExp(flow);
   return markdown.replace(new RegExp(`^\\| ${escapedFlow} \\| .* \\|$`, "m"), row);
 }
 
 function removeFirstTableRow(markdown: string, firstCell: string): string {
-  const escapedCell = firstCell.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedCell = escapeRegExp(firstCell);
   return markdown.replace(new RegExp(`^\\| ${escapedCell} \\| .* \\|\\r?\\n`, "m"), "");
 }
 
 function removeFeatureEndpointRow(markdown: string, endpoint: string): string {
-  const escapedEndpoint = endpoint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedEndpoint = escapeRegExp(endpoint);
   return markdown.replace(new RegExp(`^\\| .* \\| \`${escapedEndpoint}\` \\| .* \\|\\r?\\n`, "m"), "");
 }
 
@@ -139,6 +166,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidPrivacyRows).toEqual([]);
     expect(result.problems).toEqual([]);
   });
 
@@ -262,6 +290,25 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects ready-for-launch matrices with vague privacy review rows", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: result must state sensitive data was absent",
+      "Typed free text: evidence must reference analytics or telemetry review",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague environment records", () => {
     const completed = completedMatrix().replace(
       "| Environment URL | https://staging.vyva.example/canvas-qa |",
@@ -296,6 +343,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidPrivacyRows).toEqual([]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining("failing or not-ready QA cell"),
@@ -313,6 +361,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidPrivacyRows).toEqual([]);
     expect(result.missingRequiredSignoffRoles).toEqual([]);
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);
     expect(result.invalidRequiredSignoffDateRoles).toEqual([]);

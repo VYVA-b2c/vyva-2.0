@@ -60,6 +60,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   missingRequiredMatrixRows: string[];
   invalidEnvironmentFields: string[];
   invalidFeatureFlagRows: string[];
+  invalidPrivacyRows: string[];
   missingRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   invalidRequiredSignoffDateRoles: CanvasRealDeviceQaSignoffRole[];
@@ -298,6 +299,51 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
   return problems;
 }
 
+function hasNoSensitiveDataLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    /\b(no|none|zero|absent|omitted|excluded|redacted)\b/.test(normalized) ||
+    /\bnot (recorded|logged|present|sent|captured|included)\b/.test(normalized)
+  );
+}
+
+function hasAnalyticsEvidenceLanguage(value: string): boolean {
+  return hasAnyWord(value, [
+    "analytics",
+    "telemetry",
+    "sink",
+    "event",
+    "envelope",
+    "log",
+    "sample",
+    "reviewed",
+  ]);
+}
+
+function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Analytics privacy review") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const privacyClass of CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES) {
+    const row = rows.get(privacyClass);
+    if (!row) continue;
+    const [, result = "", evidence = ""] = row;
+    if (isPlaceholderCell(result) || isPlaceholderCell(evidence)) continue;
+    if (!hasNoSensitiveDataLanguage(result)) {
+      problems.push(`${privacyClass}: result must state sensitive data was absent`);
+    }
+    if (!hasAnalyticsEvidenceLanguage(evidence)) {
+      problems.push(`${privacyClass}: evidence must reference analytics or telemetry review`);
+    }
+  }
+
+  return problems;
+}
+
 export function evaluateCanvasRealDeviceQaMatrix(
   markdown: string,
 ): CanvasRealDeviceQaMatrixEvaluation {
@@ -377,6 +423,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
   ];
   const invalidEnvironmentFields = invalidEnvironmentRows(sections);
   const invalidFeatureFlagChecks = invalidFeatureFlagRows(sections);
+  const invalidPrivacyChecks = invalidPrivacyReviewRows(sections);
 
   const problems: string[] = [];
   if (!status) {
@@ -414,6 +461,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     if (invalidFeatureFlagChecks.length > 0) {
       problems.push(
         `Matrix has feature-flag rollback row issue(s): ${invalidFeatureFlagChecks.join(", ")}.`,
+      );
+    }
+    if (invalidPrivacyChecks.length > 0) {
+      problems.push(
+        `Matrix has analytics privacy row issue(s): ${invalidPrivacyChecks.join(", ")}.`,
       );
     }
     if (missingRequiredSignoffRoles.length > 0) {
@@ -455,6 +507,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     missingRequiredMatrixRows,
     invalidEnvironmentFields,
     invalidFeatureFlagRows: invalidFeatureFlagChecks,
+    invalidPrivacyRows: invalidPrivacyChecks,
     missingRequiredSignoffRoles,
     incompleteRequiredSignoffRoles,
     invalidRequiredSignoffDateRoles,
