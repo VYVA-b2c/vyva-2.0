@@ -559,12 +559,20 @@ const behaviorChecklistRequirements = [
   {
     columnIndex: 10,
     description:
-      "recoverable failure retry cell must mention recoverable failure, retry, and exit evidence",
+      "recoverable failure retry cell must mention recoverable failure, retry, exit, and no write evidence",
     wordGroups: [
       ["recoverable"],
       ["failure", "failed", "blocked"],
       ["retry"],
       ["exit", "cancel", "recover", "recovery"],
+      [
+        "no write",
+        "no external action",
+        "not submitted",
+        "without submitting",
+        "without resubmitting",
+        "without write",
+      ],
     ],
   },
   {
