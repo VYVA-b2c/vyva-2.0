@@ -5619,6 +5619,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Creative variant applied: Soft invite.");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("A gentle invite:");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("CTA: I want the details");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-direction")).toHaveTextContent("Creative direction board");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-direction-linkedin")).toHaveTextContent("LinkedIn creative direction");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-direction-linkedin")).toHaveTextContent("Visual:");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-direction-linkedin")).toHaveTextContent("Social square image prompt");
+    expect(screen.getByTestId("marketing-campaign-studio-creative-direction-linkedin")).toHaveTextContent("Publish manually in the platform");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-creative-direction"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign creative direction board"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn creative direction"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign creative direction board copied.");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality")).toHaveTextContent("Copy checks before create");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-subject")).toHaveTextContent("Opening hook");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-cta")).toHaveTextContent("Ready");
@@ -6406,6 +6417,20 @@ describe("MarketingAdminPage", () => {
             expect.objectContaining({
               channel: "email",
               text: expect.stringContaining("Email publishing run sheet"),
+            }),
+          ],
+          creativeDirections: [
+            expect.objectContaining({
+              channel: "linkedin",
+              title: "LinkedIn creative direction",
+              assetTitle: "Social square image prompt",
+              text: expect.stringContaining("LinkedIn creative direction"),
+            }),
+            expect.objectContaining({
+              channel: "email",
+              title: "Email creative direction",
+              assetTitle: "Email hero image prompt",
+              text: expect.stringContaining("Email creative direction"),
             }),
           ],
         },

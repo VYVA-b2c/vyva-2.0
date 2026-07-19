@@ -932,6 +932,17 @@ type CampaignStudioVisualAssetItem = {
   icon: LucideIcon;
 };
 
+type CampaignStudioCreativeDirectionItem = {
+  channel: Channel;
+  title: string;
+  hook: string;
+  style: string;
+  assetTitle: string;
+  productionNote: string;
+  state: CampaignReadinessState;
+  text: string;
+};
+
 type CampaignStudioApprovalPackItem = {
   key: string;
   title: string;
@@ -15892,6 +15903,67 @@ export default function MarketingAdminPage() {
     },
   ];
   const campaignStudioVisualAssetPacket = campaignStudioVisualAssets.map((item) => item.text).join("\n\n---\n\n");
+  const campaignStudioCreativeDirections: CampaignStudioCreativeDirectionItem[] = campaignStudioSelectedChannels.map((channel) => {
+    const draft = campaignStudioChannelDrafts.find((candidate) => candidate.channel === channel)?.draft ?? campaignStudioGenerated;
+    const asset = channel === "email"
+      ? campaignStudioVisualAssets.find((item) => item.key === "email-hero")
+      : channel === "print"
+        ? campaignStudioVisualAssets.find((item) => item.key === "print-layout")
+        : channel === "sms" || channel === "whatsapp" || channel === "phone"
+          ? campaignStudioVisualAssets.find((item) => item.key === "print-layout")
+          : campaignStudioVisualAssets.find((item) => item.key === "social-square");
+    const productionNote = channel === "email"
+      ? "Use the approved subject, hero image, CTA link, and final send review in VYVA."
+      : channel === "whatsapp"
+        ? "Keep the copy short, relationship-led, and ready for manual WhatsApp handoff."
+        : channel === "sms"
+          ? "Reduce to one sentence plus CTA before manual SMS tracking."
+          : channel === "phone"
+            ? "Turn the hook into a short call opener and capture the next owner."
+            : channel === "print"
+              ? "Use high contrast, a large QR/link, and one short paragraph for readability."
+              : channel === "event"
+                ? "Use as a host/partner talking point with attendance and follow-up capture."
+                : "Publish manually in the platform, then record URL, engagement, and warm replies.";
+    const state: CampaignReadinessState = !draft.subject && !draft.body
+      ? "blocked"
+      : draft.source === "openai" || campaignStudioHasFullAiPack
+        ? "ready"
+        : "planning";
+    const text = [
+      `${channelLabel[channel]} creative direction`,
+      `Campaign: ${draft.campaignName}`,
+      `Audience: ${campaignStudioOfflineAudienceName}`,
+      `Hook: ${draft.subject || campaignStudioPersonalizedSubject}`,
+      `CTA: ${draft.ctaLabel || campaignStudioOfflineCta}`,
+      `Visual/style: ${campaignStudioVisualStyle}`,
+      `Asset to prepare: ${asset?.title ?? "Channel creative asset"}`,
+      `Production note: ${productionNote}`,
+      "",
+      "AI/design task:",
+      `Create a polished ${channelLabel[channel]} creative route that keeps the same offer, audience, CTA, consent-safe tone, and relationship follow-up.`,
+      "Return final copy, visual direction, handoff notes, and what should be tracked after publish.",
+    ].join("\n");
+
+    return {
+      channel,
+      title: `${channelLabel[channel]} creative direction`,
+      hook: draft.subject || campaignStudioPersonalizedSubject,
+      style: campaignStudioVisualStyle,
+      assetTitle: asset?.title ?? "Channel creative asset",
+      productionNote,
+      state,
+      text,
+    };
+  });
+  const campaignStudioCreativeDirectionText = [
+    "VYVA campaign creative direction board",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${campaignStudioOfflineAudienceName}`,
+    `Style: ${campaignStudioVisualStyle}`,
+    "",
+    ...campaignStudioCreativeDirections.map((item) => item.text),
+  ].join("\n\n---\n\n");
   const campaignStudioCreativeQualityItems: CampaignCreativeQualityItem[] = [
     {
       key: "subject",
@@ -17078,6 +17150,17 @@ export default function MarketingAdminPage() {
       title: item.title,
       format: item.format,
       detail: item.detail,
+      text: item.text,
+    })),
+    creativeDirections: campaignStudioCreativeDirections.map((item) => ({
+      channel: item.channel,
+      channelLabel: channelLabel[item.channel],
+      title: item.title,
+      hook: item.hook,
+      style: item.style,
+      assetTitle: item.assetTitle,
+      productionNote: item.productionNote,
+      state: item.state,
       text: item.text,
     })),
     followUpPlays: campaignStudioFollowUpPlays.map((item) => ({
@@ -29443,6 +29526,49 @@ export default function MarketingAdminPage() {
                               CTA: {variant.ctaLabel}
                             </span>
                           </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4" data-testid="marketing-campaign-studio-creative-direction">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-indigo-800">Creative direction board</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Know what each channel should look and feel like</h3>
+                          <p className="mt-1 text-xs font-bold text-[#5d5773]">
+                            Converts the selected campaign plan into channel-specific creative notes: hook, visual asset, style, production handoff, and AI/design prompt.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Campaign creative direction board", campaignStudioCreativeDirectionText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 text-sm font-black text-indigo-800 hover:bg-indigo-50"
+                          data-testid="button-marketing-campaign-studio-copy-creative-direction"
+                        >
+                          <Copy size={14} /> Copy creative board
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-creative-direction-items">
+                        {campaignStudioCreativeDirections.map((item) => (
+                          <article
+                            key={item.channel}
+                            className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`}
+                            data-testid={`marketing-campaign-studio-creative-direction-${item.channel}`}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <h4 className="mt-3 text-sm font-black text-[#241133]">{item.title}</h4>
+                            <p className="mt-2 line-clamp-2 text-xs font-bold leading-relaxed text-[#5d5773]">
+                              <span className="font-black text-[#241133]">Hook:</span> {item.hook}
+                            </p>
+                            <div className="mt-3 grid gap-2 rounded-lg bg-indigo-50/70 p-2 text-xs font-bold text-[#50496a]">
+                              <p><span className="font-black text-[#241133]">Visual:</span> {item.assetTitle}</p>
+                              <p><span className="font-black text-[#241133]">Style:</span> {item.style}</p>
+                              <p><span className="font-black text-[#241133]">Handoff:</span> {item.productionNote}</p>
+                            </div>
+                          </article>
                         ))}
                       </div>
                     </div>
