@@ -56,6 +56,8 @@ Record one pass/fail line for each flow and behavior. If a behavior is not appli
 
 For each endpoint, verify disabled, enabled, malformed or missing config behavior, and an in-session rollback from Canvas to the existing path.
 
+For final sign-off, the endpoint and server key must match the launch manifest exactly. The disabled/enabled payload, rollback, and fallback cells must describe the observed state, not just say that the row passed.
+
 | Flow | Endpoint | Server key | Disabled payload checked | Enabled payload checked | In-session rollback checked | Existing fallback shown | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Pending | Pending | Pending | Pending | Pending |

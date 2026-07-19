@@ -59,6 +59,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   failingCellCount: number;
   missingRequiredMatrixRows: string[];
   invalidEnvironmentFields: string[];
+  invalidFeatureFlagRows: string[];
   missingRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   invalidRequiredSignoffDateRoles: CanvasRealDeviceQaSignoffRole[];
@@ -163,6 +164,11 @@ function isIsoDateCellFromText(value: string): boolean {
   return /\b\d{4}-\d{2}-\d{2}\b/.test(value);
 }
 
+function hasAnyWord(value: string, words: readonly string[]): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return words.some((word) => normalized.includes(word));
+}
+
 function parseMarkdownTableRow(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
@@ -225,6 +231,71 @@ function invalidEnvironmentRows(sections: Map<string, string[][]>): string[] {
       !isMeaningfulEnvironmentValue(field, value)
     );
   });
+}
+
+function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Feature endpoint and rollback checks") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const flow of canvasLaunchReadinessFlows.filter((candidate) => candidate.featureFlag)) {
+    const featureFlag = flow.featureFlag!;
+    const row = rows.get(flow.label);
+    if (!row) continue;
+
+    const [
+      ,
+      endpoint = "",
+      serverKey = "",
+      disabledPayload = "",
+      enabledPayload = "",
+      rollback = "",
+      fallback = "",
+      evidence = "",
+    ] = row;
+
+    if (normalizeCell(endpoint) !== featureFlag.endpoint) {
+      problems.push(`${flow.label}: endpoint must be ${featureFlag.endpoint}`);
+    }
+    if (normalizeCell(serverKey) !== featureFlag.serverFeatureKey) {
+      problems.push(`${flow.label}: server key must be ${featureFlag.serverFeatureKey}`);
+    }
+    if (
+      !isPlaceholderCell(disabledPayload) &&
+      !hasAnyWord(disabledPayload, ["disabled", "false", "rollout 0", "0%"])
+    ) {
+      problems.push(`${flow.label}: disabled payload evidence`);
+    }
+    if (
+      !isPlaceholderCell(enabledPayload) &&
+      !hasAnyWord(enabledPayload, ["enabled", "true", "rollout", "100", "%"])
+    ) {
+      problems.push(`${flow.label}: enabled payload evidence`);
+    }
+    if (
+      !isPlaceholderCell(rollback) &&
+      !hasAnyWord(rollback, ["rollback", "disabled", "rollout 0", "0%", "fallback"])
+    ) {
+      problems.push(`${flow.label}: in-session rollback evidence`);
+    }
+    if (
+      !isPlaceholderCell(fallback) &&
+      !hasAnyWord(fallback, ["fallback", "existing", featureFlag.fallback.toLowerCase()])
+    ) {
+      problems.push(`${flow.label}: existing fallback evidence`);
+    }
+    if (
+      !isPlaceholderCell(evidence) &&
+      !hasAnyWord(evidence, ["evidence", "screenshot", "log", "trace", "recording", "qa"])
+    ) {
+      problems.push(`${flow.label}: rollout evidence note`);
+    }
+  }
+
+  return problems;
 }
 
 export function evaluateCanvasRealDeviceQaMatrix(
@@ -305,6 +376,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     ),
   ];
   const invalidEnvironmentFields = invalidEnvironmentRows(sections);
+  const invalidFeatureFlagChecks = invalidFeatureFlagRows(sections);
 
   const problems: string[] = [];
   if (!status) {
@@ -337,6 +409,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     if (invalidEnvironmentFields.length > 0) {
       problems.push(
         `Matrix has environment field(s) without launch-specific evidence: ${invalidEnvironmentFields.join(", ")}.`,
+      );
+    }
+    if (invalidFeatureFlagChecks.length > 0) {
+      problems.push(
+        `Matrix has feature-flag rollback row issue(s): ${invalidFeatureFlagChecks.join(", ")}.`,
       );
     }
     if (missingRequiredSignoffRoles.length > 0) {
@@ -377,6 +454,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     failingCellCount,
     missingRequiredMatrixRows,
     invalidEnvironmentFields,
+    invalidFeatureFlagRows: invalidFeatureFlagChecks,
     missingRequiredSignoffRoles,
     incompleteRequiredSignoffRoles,
     invalidRequiredSignoffDateRoles,

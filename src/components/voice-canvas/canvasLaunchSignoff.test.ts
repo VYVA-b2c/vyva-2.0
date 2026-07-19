@@ -84,9 +84,33 @@ function fillEnvironmentRecord(markdown: string): string {
 }
 
 function completedMatrix(markdown = realDeviceQaMatrix()): string {
-  return fillEnvironmentRecord(
+  return fillFeatureFlagRows(fillEnvironmentRecord(
     fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
-  );
+  ));
+}
+
+function fillFeatureFlagRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Ride Voice Canvas \| `\/api\/config\/features\/ride-voice-canvas` \| `ride` \| .* \| .* \| .* \| .* \| .* \|$/m,
+      "| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing Concierge transport panel fallback shown | Evidence screenshot/log captured by QA |",
+    )
+    .replace(
+      /^\| Appointment Voice Canvas \| `\/api\/config\/features\/appointment-voice-canvas` \| `appointment` \| .* \| .* \| .* \| .* \| .* \|$/m,
+      "| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | `appointment` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing appointment panel fallback shown | Evidence screenshot/log captured by QA |",
+    )
+    .replace(
+      /^\| Medication Refill Voice Canvas \| `\/api\/config\/features\/medication-refill-voice-canvas` \| `medicationRefill` \| .* \| .* \| .* \| .* \| .* \|$/m,
+      "| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing medication refill shopping/support path fallback shown | Evidence screenshot/log captured by QA |",
+    )
+    .replace(
+      /^\| Shopping Delivery Voice Canvas \| `\/api\/config\/features\/shopping-delivery-voice-canvas` \| `shoppingDelivery` \| .* \| .* \| .* \| .* \| .* \|$/m,
+      "| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing shopping guide and recommendations fallback shown | Evidence screenshot/log captured by QA |",
+    )
+    .replace(
+      /^\| Provider Reply Voice Canvas \| `\/api\/config\/features\/provider-reply-voice-canvas` \| `providerReply` \| .* \| .* \| .* \| .* \| .* \|$/m,
+      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA |",
+    );
 }
 
 function replaceDeviceRow(markdown: string, flow: string, row: string): string {
@@ -114,6 +138,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.failingCellCount).toBe(0);
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.problems).toEqual([]);
   });
 
@@ -206,6 +231,37 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects ready-for-launch matrices with feature endpoint drift", () => {
+    const completed = completedMatrix().replace(
+      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` |",
+      "| Provider Reply Voice Canvas | `/api/config/features/wrong-provider-reply` | `providerReply` |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: endpoint must be /api/config/features/provider-reply-voice-canvas",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices with vague rollback evidence", () => {
+    const completed = completedMatrix().replace(
+      "Rollback disabled/rollout 0 verified in-session | Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA |",
+      "Passed by QA | Passed by QA | Evidence screenshot/log captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: in-session rollback evidence",
+      "Provider Reply Voice Canvas: existing fallback evidence",
+    ]);
+  });
+
   it("rejects ready-for-launch matrices with vague environment records", () => {
     const completed = completedMatrix().replace(
       "| Environment URL | https://staging.vyva.example/canvas-qa |",
@@ -239,6 +295,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.failingCellCount).toBe(1);
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining("failing or not-ready QA cell"),
@@ -255,6 +312,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.failingCellCount).toBe(0);
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidFeatureFlagRows).toEqual([]);
     expect(result.missingRequiredSignoffRoles).toEqual([]);
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);
     expect(result.invalidRequiredSignoffDateRoles).toEqual([]);
