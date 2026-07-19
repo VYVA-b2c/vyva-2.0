@@ -865,7 +865,7 @@ test("concierge provider reply saves confirmed medical appointment outcome", asy
   await page.getByTestId("input-provider-reply-time-reply-appointment-smoke-1").fill("2026-07-22T10:30");
   await expect(saveButton).toBeDisabled();
   await page.getByTestId("input-provider-reply-reference-reply-appointment-smoke-1").fill("AP-77");
-  await page.getByTestId("input-provider-reply-text-reply-appointment-smoke-1").fill("Appointment is confirmed for Wednesday at 10:30. Bring insurance card.");
+  await page.getByTestId("input-provider-reply-text-reply-appointment-smoke-1").fill("Appointment confirmed for Wednesday at 10:30. Bring insurance card.");
   await expect(saveButton).toBeEnabled();
   await saveButton.click();
 
@@ -882,16 +882,16 @@ test("concierge provider reply saves confirmed medical appointment outcome", asy
       appointment_type: "medical",
       provider_name: "Clinica Lopez",
       provider_phone: "+34 600 111 222",
-      provider_reply: "Appointment is confirmed for Wednesday at 10:30. Bring insurance card.",
+      provider_reply: "Appointment confirmed for Wednesday at 10:30. Bring insurance card.",
       reference: "AP-77",
       location: "Marbella",
     }),
   });
   expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
   await expect.poll(() => detailsBody?.action_payload?.provider_reply_status ?? null).toBe("confirmed");
-  const markCompleteButton = page.getByTestId("button-provider-reply-mark-complete-reply-appointment-smoke-1");
-  await expect(markCompleteButton).toBeEnabled({ timeout: 30_000 });
-  await markCompleteButton.click();
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Reply and appointment saved.");
+  await expect(page.getByTestId("button-provider-reply-mark-complete-reply-appointment-smoke-1")).toBeEnabled();
+  await page.getByTestId("button-provider-reply-mark-complete-reply-appointment-smoke-1").click();
   await expect.poll(() => completeBody?.outcome_payload?.provider_reply_status ?? null).toBe("confirmed");
   expect(completeBody).toMatchObject({
     outcome_summary: "Provider confirmed: Clinica Lopez. Time: 2026-07-22T10:30. Reference: AP-77.",
@@ -900,7 +900,7 @@ test("concierge provider reply saves confirmed medical appointment outcome", asy
       appointment_type: "medical",
       provider_name: "Clinica Lopez",
       provider_reply_status: "confirmed",
-      provider_reply: "Appointment is confirmed for Wednesday at 10:30. Bring insurance card.",
+      provider_reply: "Appointment confirmed for Wednesday at 10:30. Bring insurance card.",
       reference: "AP-77",
       location: "Marbella",
       scheduled_event_id: "scheduled-appointment-smoke",
@@ -1047,14 +1047,14 @@ test("concierge home-service provider reply keeps pending paths and saves confir
   const saveButton = page.getByTestId("button-provider-reply-save-reply-home-service-smoke-1");
   await expect(saveButton).toBeDisabled();
   const replyInput = page.getByTestId("input-provider-reply-text-reply-home-service-smoke-1");
-  await replyInput.fill("Visit is confirmed for Friday at 09:15. Estimated cost EUR110.");
+  await replyInput.fill("Visit confirmed for Friday at 09:15. Estimated cost EUR110.");
   await expect(saveButton).toBeDisabled();
   await page.getByTestId("input-provider-reply-time-reply-home-service-smoke-1").fill("2026-07-24T09:15");
   await expect(saveButton).toBeEnabled();
   await replyInput.fill("");
   await expect(saveButton).toBeDisabled();
   await page.getByTestId("input-provider-reply-reference-reply-home-service-smoke-1").fill("PL-42");
-  await replyInput.fill("Visit is confirmed for Friday at 09:15. Estimated cost EUR110.");
+  await replyInput.fill("Visit confirmed for Friday at 09:15. Estimated cost EUR110.");
   await page.getByTestId("input-provider-reply-notes-reply-home-service-smoke-1").fill("Caregiver will be home during the visit.");
   await expect(saveButton).toBeEnabled();
   await saveButton.click();
@@ -1077,7 +1077,7 @@ test("concierge home-service provider reply keeps pending paths and saves confir
       problem_summary: "Leak under kitchen sink",
       urgency: "tomorrow",
       estimated_cost: "EUR110",
-      provider_reply: "Visit is confirmed for Friday at 09:15. Estimated cost EUR110.",
+      provider_reply: "Visit confirmed for Friday at 09:15. Estimated cost EUR110.",
       reference: "PL-42",
       location: "Home kitchen",
       notes: "Caregiver will be home during the visit.",
@@ -1087,9 +1087,9 @@ test("concierge home-service provider reply keeps pending paths and saves confir
   expect(String(scheduledBody?.description)).toContain("Notes: Caregiver will be home during the visit.");
   expect(new Date(String(scheduledBody?.scheduled_for)).toString()).not.toBe("Invalid Date");
   await expect.poll(() => noAnswerBody?.action_payload?.provider_reply_status ?? null).toBe("confirmed");
-  const markCompleteButton = page.getByTestId("button-provider-reply-mark-complete-reply-home-service-smoke-1");
-  await expect(markCompleteButton).toBeEnabled({ timeout: 30_000 });
-  await markCompleteButton.click();
+  await expect(page.getByTestId("provider-reply-notice")).toContainText("Reply and visit saved.");
+  await expect(page.getByTestId("button-provider-reply-mark-complete-reply-home-service-smoke-1")).toBeEnabled();
+  await page.getByTestId("button-provider-reply-mark-complete-reply-home-service-smoke-1").click();
   await expect.poll(() => completeBody?.outcome_payload?.provider_reply_status ?? null).toBe("confirmed");
   expect(completeCount).toBe(1);
   expect(completeBody).toMatchObject({
@@ -1105,7 +1105,7 @@ test("concierge home-service provider reply keeps pending paths and saves confir
       urgency: "tomorrow",
       estimated_cost: "EUR110",
       provider_reply_status: "confirmed",
-      provider_reply: "Visit is confirmed for Friday at 09:15. Estimated cost EUR110.",
+      provider_reply: "Visit confirmed for Friday at 09:15. Estimated cost EUR110.",
       reference: "PL-42",
       location: "Home kitchen",
       notes: "Caregiver will be home during the visit.",

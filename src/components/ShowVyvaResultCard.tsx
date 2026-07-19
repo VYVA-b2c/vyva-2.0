@@ -1,9 +1,11 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CheckCircle2, ChevronDown, HelpCircle, ShieldCheck, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, HelpCircle, SearchCheck, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { ShowVyvaReviewContract, ShowVyvaReviewRiskLevel } from "../../shared/showVyvaReviewContract";
 import type { ShowVyvaFollowUpAction } from "../../shared/showVyvaFollowUp";
 import { buildShowVyvaDecisionHandoff, type ShowVyvaDecisionTone } from "../../shared/showVyvaDecisionHandoff";
+import { buildShowVyvaConfidenceEvidence, type ShowVyvaConfidenceEvidenceTone } from "../../shared/showVyvaConfidenceEvidence";
+import { upsertShowVyvaReviewHistory } from "@/lib/showVyvaReviewHistory";
 import ShowVyvaFollowUpPanel from "./ShowVyvaFollowUpPanel";
 
 type ShowVyvaResultCardProps = {
@@ -63,6 +65,12 @@ const DECISION_TONES: Record<ShowVyvaDecisionTone, { bg: string; border: string;
   neutral: { bg: "#F8FAFC", border: "#E2E8F0", text: "#475569" },
 };
 
+const CONFIDENCE_EVIDENCE_TONES: Record<ShowVyvaConfidenceEvidenceTone, { bg: string; border: string; text: string; chip: string }> = {
+  clear_risk: { bg: "#FEF2F2", border: "#FECACA", text: "#991B1B", chip: "#FEE2E2" },
+  needs_checking: { bg: "#FFFBEB", border: "#FDE68A", text: "#92400E", chip: "#FEF3C7" },
+  not_enough_information: { bg: "#F8FAFC", border: "#E2E8F0", text: "#475569", chip: "#E2E8F0" },
+};
+
 function fallbackRiskLabel(riskLevel: ShowVyvaReviewRiskLevel): string {
   if (riskLevel === "low") return "Low";
   if (riskLevel === "medium") return "Needs care";
@@ -116,6 +124,8 @@ export default function ShowVyvaResultCard({
   const tone = RISK_TONES[contract.riskLevel];
   const handoff = buildShowVyvaDecisionHandoff(contract);
   const handoffTone = DECISION_TONES[handoff.tone];
+  const confidenceEvidence = buildShowVyvaConfidenceEvidence(contract);
+  const confidenceEvidenceTone = CONFIDENCE_EVIDENCE_TONES[confidenceEvidence.tone];
   const RiskIcon = tone.icon;
   const inputLabel = t(`showVyva.contract.input.${contract.inputType}`, fallbackInputLabel(contract.inputType));
   const riskLabel = t(`showVyva.contract.risk.${contract.riskLevel}`, fallbackRiskLabel(contract.riskLevel));
@@ -133,6 +143,10 @@ export default function ShowVyvaResultCard({
     : [t("showVyva.contract.unknownFallback", "VYVA cannot confirm details that are not visible in this item.")];
   const nextSteps = contract.safeNextSteps.length ? contract.safeNextSteps : [contract.concernSummary];
   const followUpActions = actions ?? handoff.actions;
+
+  useEffect(() => {
+    upsertShowVyvaReviewHistory(contract);
+  }, [contract]);
 
   return (
     <section
@@ -199,6 +213,51 @@ export default function ShowVyvaResultCard({
         >
           {handoff.subtitle}
         </p>
+      </section>
+
+      <section
+        data-testid={`show-vyva-confidence-evidence-${testIdSuffix}`}
+        className="mt-3 rounded-[18px] border p-3"
+        style={{ background: confidenceEvidenceTone.bg, borderColor: confidenceEvidenceTone.border }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="inline-flex items-center gap-2 font-body text-[11px] font-black uppercase tracking-[0.09em]" style={{ color: confidenceEvidenceTone.text }}>
+            <SearchCheck size={14} aria-hidden="true" />
+            {t("showVyva.evidence.kicker", "Why VYVA thinks this")}
+          </p>
+          <span
+            data-testid={`show-vyva-confidence-label-${testIdSuffix}`}
+            className="rounded-full px-3 py-1 font-body text-[12px] font-black"
+            style={{ background: confidenceEvidenceTone.chip, color: confidenceEvidenceTone.text }}
+          >
+            {t(`showVyva.evidence.confidence.${confidenceEvidence.tone}`, confidenceEvidence.label)}
+          </span>
+        </div>
+        <ul className="mt-2 grid gap-1.5">
+          {confidenceEvidence.evidencePoints.map((item, index) => (
+            <li key={`${item}-${index}`} className="font-body text-[13px] font-bold leading-snug" style={{ color: confidenceEvidenceTone.text }}>
+              {item}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-[14px] bg-white/75 p-2.5" data-testid={`show-vyva-facts-found-${testIdSuffix}`}>
+            <p className="font-body text-[10px] font-black uppercase tracking-[0.09em]" style={{ color: confidenceEvidenceTone.text }}>
+              {t("showVyva.evidence.factsFound", "Facts found")}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-1">
+              {confidenceEvidence.factsFound[0] ?? t("showVyva.evidence.noFacts", "No solid fact found yet.")}
+            </p>
+          </div>
+          <div className="rounded-[14px] bg-white/75 p-2.5" data-testid={`show-vyva-uncertain-points-${testIdSuffix}`}>
+            <p className="font-body text-[10px] font-black uppercase tracking-[0.09em]" style={{ color: confidenceEvidenceTone.text }}>
+              {t("showVyva.evidence.stillUncertain", "Still uncertain")}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-1">
+              {confidenceEvidence.uncertainPoints[0] ?? t("showVyva.evidence.noUncertainty", "Nothing else flagged from this item.")}
+            </p>
+          </div>
+        </div>
       </section>
 
       <button

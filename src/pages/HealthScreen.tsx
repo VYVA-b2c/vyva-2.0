@@ -49,12 +49,14 @@ import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
+import ShowVyvaReviewHistory from "@/components/ShowVyvaReviewHistory";
 import type { ShowVyvaFollowUpAction } from "@/components/ShowVyvaFollowUpPanel";
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
 import {
   prepareShowVyvaEvidenceFile,
   reviewShowVyvaVisualEvidence,
@@ -679,6 +681,8 @@ export function VisualHealthScanCardContent({
   onScanSource: (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">, useCaseId: ShowVyvaUseCaseId, question: string) => void;
   onPasteReview?: (payload: ShowVyvaPastePayload) => void;
 }) {
+  const navigate = useNavigate();
+
   return (
     <>
       <div className="px-[18px] py-[18px]">
@@ -694,6 +698,10 @@ export function VisualHealthScanCardContent({
           busy={analyzing}
           onChooseFileSource={(source, useCase, question) => onScanSource(source, useCase.id, question)}
           onPaste={onPasteReview ? (payload) => onPasteReview(payload) : undefined}
+        />
+        <ShowVyvaReviewHistory
+          className="mt-[14px]"
+          onResume={(item) => navigate(item.resumeRoute)}
         />
       </div>
       <div className="flex flex-wrap gap-2 px-[18px] pb-[16px]">
@@ -1963,6 +1971,7 @@ const HealthScreen = () => {
 
     void saveShowVyvaActionExecutionPlan(plan)
       .then(async () => {
+        markShowVyvaReviewHistoryActionSaved(contract, action, plan.targetRoute);
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
         toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
         navigate(plan.targetRoute);
