@@ -31,7 +31,9 @@ import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
+import ShowVyvaReviewHistory from "@/components/ShowVyvaReviewHistory";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
 import {
   prepareShowVyvaEvidenceFile,
   reviewShowVyvaVisualEvidence,
@@ -639,6 +641,7 @@ const ScamGuardScreen = () => {
     });
     void saveShowVyvaActionExecutionPlan(plan)
       .then(async () => {
+        markShowVyvaReviewHistoryActionSaved(reviewContract, action, plan.targetRoute);
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
         toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
         setShowVyvaPasteReview(null);
@@ -875,6 +878,10 @@ const ScamGuardScreen = () => {
               busy={analyzing || scamCapturePreparing}
               onChooseFileSource={(source, useCase, question) => openScamFilePicker(source, useCase.id, question)}
               onPaste={(payload) => openPastedScamReview(payload)}
+            />
+            <ShowVyvaReviewHistory
+              className="mt-[14px]"
+              onResume={(item) => navigate(item.resumeRoute)}
             />
 
             {analyzing && (
