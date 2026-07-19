@@ -250,6 +250,7 @@ describe("Canvas launch readiness manifest", () => {
       "Shopping item names, prices, fees, or retailer names",
       "Dates, times, identities, or contact details",
       "Operations/rollback owner",
+      "concrete and role-specific",
     ]) {
       expect(matrix).toContain(requiredCheck);
     }

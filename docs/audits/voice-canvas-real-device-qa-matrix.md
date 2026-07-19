@@ -142,7 +142,7 @@ For final sign-off, each result and evidence cell must name the specific forbidd
 
 ## Final sign-off
 
-Final sign-off notes must name concrete launch evidence that was reviewed, verified, confirmed, or completed, such as real-use evidence, device matrix completion, rollback/stale guard verification, analytics/privacy review, feature-flag fallback review, or rollback-owner confirmation. Vague approval-only notes such as `OK`, `N/A`, `looks good`, or `no notes` are rejected by the sign-off gate.
+Final sign-off notes must name concrete and role-specific launch evidence that was reviewed, verified, confirmed, or completed. Product notes must cover real-use evidence, senior copy, what happens next, and privacy or analytics readiness. Engineering notes must cover rollback, stale or duplicate guards, and feature-flag fallback safety. QA notes must cover the real-device matrix plus voice, touch, and keyboard coverage. Operations/rollback owner notes must cover rollback ownership, disabled or rollout-0 behavior, and fallback readiness. Vague approval-only notes such as `OK`, `N/A`, `looks good`, or `no notes` are rejected by the sign-off gate.
 
 | Role | Name | Date | Decision | Notes |
 | --- | --- | --- | --- | --- |

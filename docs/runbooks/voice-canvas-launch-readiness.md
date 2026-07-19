@@ -109,6 +109,8 @@ For duplicate/stale guard behavior, explicitly state that duplicate confirmation
 
 For task hub destination rows, the no-side-effects cell must explicitly prove both no writes and no external actions before confirmation. Submission-only wording such as `not submitted` or `without submitting` is not enough for launch sign-off. The evidence note must include dated resume, disabled fallback, no-write, and no-external-action coverage for that task hub path. Generic screenshot/log evidence does not satisfy launch sign-off.
 
+For final sign-off rows, notes must be concrete and role-specific: Product covers real-use evidence, senior copy, what happens next, and privacy/analytics readiness; Engineering covers rollback, stale/duplicate guards, and feature-flag fallback safety; QA covers the real-device matrix plus voice/touch/keyboard coverage; Operations covers rollback ownership, disabled or rollout-0 behavior, and fallback readiness.
+
 Run the sign-off gate after filling the matrix:
 
 ```bash

@@ -9,6 +9,18 @@ import {
 const realDeviceQaMatrixPath =
   "docs/audits/voice-canvas-real-device-qa-matrix.md";
 
+const PRODUCT_SIGNOFF_ROW =
+  "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence, senior copy, what happens next, and privacy analytics launch readiness |";
+
+const ENGINEERING_SIGNOFF_ROW =
+  "| Engineering | Elena Engineering | 2026-07-19 | Approved for launch | Verified rollback, stale and duplicate guards, feature flag fallback launch evidence |";
+
+const QA_SIGNOFF_ROW =
+  "| QA | Quentin QA | 2026-07-19 | Approved for launch | Completed QA real-device matrix for voice, touch, and keyboard launch evidence |";
+
+const OPS_SIGNOFF_ROW =
+  "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner disabled rollout 0 fallback launch evidence |";
+
 const TASK_HUB_SHOPPING_ROW =
   "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation |";
 
@@ -70,19 +82,19 @@ function fillRequiredSignoffs(markdown: string): string {
   return markdown
     .replace(
       /^\| Product \| .* \| .* \| .* \| .* \|$/m,
-      "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence |",
+      PRODUCT_SIGNOFF_ROW,
     )
     .replace(
       /^\| Engineering \| .* \| .* \| .* \| .* \|$/m,
-      "| Engineering | Elena Engineering | 2026-07-19 | Approved for launch | Verified rollback and stale guards |",
+      ENGINEERING_SIGNOFF_ROW,
     )
     .replace(
       /^\| QA \| .* \| .* \| .* \| .* \|$/m,
-      "| QA | Quentin QA | 2026-07-19 | Approved for launch | Device matrix complete |",
+      QA_SIGNOFF_ROW,
     )
     .replace(
       /^\| Operations\/rollback owner \| .* \| .* \| .* \| .* \|$/m,
-      "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Rollback owner confirmed |",
+      OPS_SIGNOFF_ROW,
     );
 }
 
@@ -442,7 +454,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch sign-offs that explicitly decline approval", () => {
     const completed = completedMatrix().replace(
-      "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence |",
+      PRODUCT_SIGNOFF_ROW,
       "| Product | Priya Product | 2026-07-19 | Not approved | Found a launch blocker |",
     );
 
@@ -455,8 +467,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch sign-offs dated in the future", () => {
     const completed = completedMatrix().replace(
-      "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence |",
-      "| Product | Priya Product | 2099-01-01 | Approved for launch | Reviewed real-use evidence |",
+      PRODUCT_SIGNOFF_ROW,
+      "| Product | Priya Product | 2099-01-01 | Approved for launch | Reviewed real-use evidence, senior copy, what happens next, and privacy analytics launch readiness |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -473,7 +485,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch sign-offs with conditional approval wording", () => {
     const completed = completedMatrix().replace(
-      "| Engineering | Elena Engineering | 2026-07-19 | Approved for launch | Verified rollback and stale guards |",
+      ENGINEERING_SIGNOFF_ROW,
       "| Engineering | Elena Engineering | 2026-07-19 | Approved after fallback fixes | Waiting on final rollback evidence |",
     );
 
@@ -492,12 +504,12 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects ready-for-launch sign-offs with pending fixes in notes", () => {
     const completed = completedMatrix()
       .replace(
-        "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence |",
+        PRODUCT_SIGNOFF_ROW,
         "| Product | Priya Product | 2026-07-19 | Approved for launch | Pending Spanish copy follow-up before launch |",
       )
       .replace(
-        "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Rollback owner confirmed |",
-        "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Rollback owner confirmed unless endpoint fallback blocker appears |",
+        OPS_SIGNOFF_ROW,
+        "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner disabled rollout 0 fallback launch evidence unless endpoint fallback blocker appears |",
       );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -517,7 +529,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch sign-offs with vague notes", () => {
     const completed = completedMatrix().replace(
-      "| QA | Quentin QA | 2026-07-19 | Approved for launch | Device matrix complete |",
+      QA_SIGNOFF_ROW,
       "| QA | Quentin QA | 2026-07-19 | Approved for launch | Looks good |",
     );
 
@@ -528,7 +540,25 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidRequiredSignoffNoteRoles).toEqual(["QA"]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("without concrete launch evidence"),
+        expect.stringContaining("without concrete, role-specific launch evidence"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch sign-offs with non-role-specific notes", () => {
+    const completed = completedMatrix().replace(
+      PRODUCT_SIGNOFF_ROW,
+      "| Product | Priya Product | 2026-07-19 | Approved for launch | Completed QA real-device matrix for voice, touch, and keyboard launch evidence |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidRequiredSignoffNoteRoles).toEqual(["Product"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without concrete, role-specific launch evidence"),
       ]),
     );
   });

@@ -209,7 +209,40 @@ function hasBlockedLaunchSignoffNoteLanguage(value: string): boolean {
   );
 }
 
-function hasMeaningfulLaunchSignoffNoteLanguage(value: string): boolean {
+const launchSignoffRoleNoteRequirements: Record<
+  CanvasRealDeviceQaSignoffRole,
+  readonly (readonly string[])[]
+> = {
+  Product: [
+    ["real-use", "real use"],
+    ["senior", "copy"],
+    ["what happens next", "next"],
+    ["privacy", "analytics"],
+  ],
+  Engineering: [
+    ["rollback"],
+    ["stale", "duplicate"],
+    ["guard", "guards"],
+    ["feature flag", "fallback"],
+  ],
+  QA: [
+    ["qa"],
+    ["real-device", "real device", "device"],
+    ["matrix"],
+    ["voice", "touch", "keyboard"],
+  ],
+  "Operations/rollback owner": [
+    ["rollback"],
+    ["owner"],
+    ["disable", "disabled", "rollout 0", "0%"],
+    ["fallback"],
+  ],
+};
+
+function hasMeaningfulLaunchSignoffNoteLanguage(
+  role: CanvasRealDeviceQaSignoffRole,
+  value: string,
+): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   if (isPlaceholderCell(normalized)) return false;
   if (
@@ -247,7 +280,7 @@ function hasMeaningfulLaunchSignoffNoteLanguage(value: string): boolean {
       "qa",
       "launch",
     ],
-  ]);
+  ]) && hasAllWordGroups(normalized, launchSignoffRoleNoteRequirements[role]);
 }
 
 function isDeployedEnvironmentUrl(value: string): boolean {
@@ -2112,7 +2145,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
       const notes = signoff[3] ?? "";
       return (
         !isPlaceholderCell(notes) &&
-        !hasMeaningfulLaunchSignoffNoteLanguage(notes)
+        !hasMeaningfulLaunchSignoffNoteLanguage(role, notes)
       );
     });
   const requiredFlowLabels = canvasLaunchReadinessFlows.map((flow) => flow.label);
@@ -2272,7 +2305,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     }
     if (invalidRequiredSignoffNoteRoles.length > 0) {
       problems.push(
-        `Matrix has required sign-off note(s) without concrete launch evidence: ${invalidRequiredSignoffNoteRoles.join(", ")}.`,
+        `Matrix has required sign-off note(s) without concrete, role-specific launch evidence: ${invalidRequiredSignoffNoteRoles.join(", ")}.`,
       );
     }
   }
