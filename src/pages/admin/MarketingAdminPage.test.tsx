@@ -876,6 +876,12 @@ afterEach(() => {
 
 describe("MarketingAdminPage", () => {
   it("shows the marketing admin nav, tabs, filters, and email send readiness", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Marketing" })).toBeInTheDocument();
@@ -995,6 +1001,19 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-journey-ai-command-brief") as HTMLTextAreaElement).value).toEqual(
       expect.stringContaining("B2B nurture: draft; B2B"),
     );
+    expect(screen.getByTestId("marketing-journey-activation-packet")).toHaveTextContent("Can this journey safely move toward active?");
+    expect(screen.getByTestId("marketing-journey-activation-packet")).toHaveTextContent("B2B nurture");
+    expect(screen.getByTestId("marketing-journey-activation-checklist")).toHaveTextContent("Visible steps");
+    expect(screen.getByTestId("marketing-journey-activation-checklist")).toHaveTextContent("Linked content");
+    expect(screen.getByTestId("marketing-journey-activation-checklist")).toHaveTextContent("Trigger and goal");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-journey-activation-packet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA journey activation packet"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Target journey: B2B nurture"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Activation checklist:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Review this journey activation packet"));
+    expect(screen.getByTestId("marketing-journey-activation-packet-feedback")).toHaveTextContent("Journey activation packet copied.");
     fireEvent.click(screen.getByTestId("button-marketing-journey-command-launch-ready"));
     expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-journey-name")).toHaveValue("B2B nurture");

@@ -11534,6 +11534,7 @@ export default function MarketingAdminPage() {
   const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>(() => emptyJourneyEditDraft());
   const [journeySaving, setJourneySaving] = useState(false);
   const [journeyFeedback, setJourneyFeedback] = useState("");
+  const [journeyActivationPacketFeedback, setJourneyActivationPacketFeedback] = useState("");
   const [journeyStepContentRunning, setJourneyStepContentRunning] = useState(false);
   const [journeyStepTranslationContentRunningKey, setJourneyStepTranslationContentRunningKey] = useState<string | null>(null);
   const [confirmingJourneyDeleteId, setConfirmingJourneyDeleteId] = useState<string | null>(null);
@@ -14441,6 +14442,100 @@ export default function MarketingAdminPage() {
   ].slice(0, 6);
   const primaryJourneyCommand = journeyCommandItems[0] ?? null;
   const PrimaryJourneyCommandIcon = primaryJourneyCommand?.icon ?? Waypoints;
+  const journeyActivationTarget = journeyReadyDraft
+    ?? journeyMissingContent
+    ?? journeyWithoutSteps
+    ?? activeJourneyWithoutActivity
+    ?? visibleJourneys[0]
+    ?? journeys[0]
+    ?? null;
+  const journeyActivationChecklist = [
+    {
+      key: "steps",
+      title: "Visible steps",
+      state: journeyActivationTarget && (journeyActivationTarget.steps ?? []).length > 0 ? "ready" as CampaignReadinessState : "blocked" as CampaignReadinessState,
+      detail: journeyActivationTarget
+        ? `${journeyActivationTarget.steps.length} step${journeyActivationTarget.steps.length === 1 ? "" : "s"} in the sequence.`
+        : "Create a journey before activation review.",
+    },
+    {
+      key: "content",
+      title: "Linked content",
+      state: journeyActivationTarget
+        ? (journeyActivationTarget.steps ?? []).every((step) => contentAssetByReference(content, step.contentAssetId) || contentAssetByReference(content, step.templateRef))
+          ? "ready" as CampaignReadinessState
+          : "needs_action" as CampaignReadinessState
+        : "blocked" as CampaignReadinessState,
+      detail: journeyActivationTarget
+        ? `${(journeyActivationTarget.steps ?? []).filter((step) => contentAssetByReference(content, step.contentAssetId) || contentAssetByReference(content, step.templateRef)).length}/${journeyActivationTarget.steps.length || 1} steps have linked content or template references.`
+        : "No journey content to inspect yet.",
+    },
+    {
+      key: "logic",
+      title: "Trigger and goal",
+      state: journeyActivationTarget && journeyActivationTarget.triggerType && journeyActivationTarget.goalType ? "ready" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      detail: journeyActivationTarget
+        ? `Trigger: ${journeyActivationTarget.triggerType || "not set"}; goal: ${journeyActivationTarget.goalType || "not set"}.`
+        : "Trigger and goal are not set.",
+    },
+    {
+      key: "audience",
+      title: "Audience/list",
+      state: journeyActivationTarget && (journeyTargetAudience(journeyActivationTarget, audiences) || journeyActivationTarget.audienceType) ? "ready" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      detail: journeyActivationTarget
+        ? `Audience: ${journeyActivationTarget.audienceType.toUpperCase()}${journeyTargetAudience(journeyActivationTarget, audiences) ? ` / ${journeyTargetAudience(journeyActivationTarget, audiences)?.name}` : ""}.`
+        : "No audience selected.",
+    },
+    {
+      key: "activity",
+      title: "Activity feedback",
+      state: journeyActivationTarget && normalizeJourneyStatus(journeyActivationTarget.status) === "active"
+        ? enrollmentsByJourneyId.get(journeyActivationTarget.id)
+          ? "ready" as CampaignReadinessState
+          : "needs_action" as CampaignReadinessState
+        : "planning" as CampaignReadinessState,
+      detail: journeyActivationTarget
+        ? `${enrollmentsByJourneyId.get(journeyActivationTarget.id) ?? 0} imported enrollment${(enrollmentsByJourneyId.get(journeyActivationTarget.id) ?? 0) === 1 ? "" : "s"} for this journey.`
+        : "Activity appears after journeys are active and synced.",
+    },
+  ];
+  const journeyActivationReadyCount = journeyActivationChecklist.filter((item) => item.state === "ready").length;
+  const journeyActivationBlockedCount = journeyActivationChecklist.filter((item) => item.state === "blocked").length;
+  const journeyActivationNeedsActionCount = journeyActivationChecklist.filter((item) => item.state === "needs_action").length;
+  const journeyActivationState: CampaignReadinessState = journeyActivationBlockedCount
+    ? "blocked"
+    : journeyActivationNeedsActionCount
+      ? "needs_action"
+      : journeyActivationReadyCount >= 4
+        ? "ready"
+        : "planning";
+  const journeyActivationPacketText = [
+    "VYVA journey activation packet",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    `Decision: ${readinessLabel(journeyActivationState)}`,
+    `Target journey: ${journeyActivationTarget?.name ?? "No journey selected"}`,
+    `Recommended next action: ${primaryJourneyCommand?.title ?? "Create a journey"} - ${primaryJourneyCommand?.detail ?? "Start from a journey starter or blank journey."}`,
+    "",
+    "Activation checklist:",
+    ...journeyActivationChecklist.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Sequence:",
+    ...(journeyActivationTarget?.steps.length
+      ? journeyActivationTarget.steps.map((step, index) => {
+        const linkedContent = contentAssetByReference(content, step.contentAssetId) ?? contentAssetByReference(content, step.templateRef);
+        return `- Step ${index + 1}: ${step.kind || "message"} / ${channelLabel[step.channel]} / day ${step.dayOffset}; content ${linkedContent?.title ?? step.templateRef ?? step.contentAssetId ?? "missing"}; status ${step.status}.`;
+      })
+      : ["- No steps yet. Add at least one timed channel step before activation."]),
+    "",
+    "Operating rules:",
+    "- Keep journeys as planning/automation records until provider controls and compliance are explicitly enabled.",
+    "- Email steps need linked content, target audience logic, and consent-safe copy before activation.",
+    "- WhatsApp, social, phone, print, and event steps remain manual/provider handoffs unless enabled.",
+    "- Use imported enrollments and events to confirm whether an active journey is actually moving people.",
+    "",
+    "AI task: Review this journey activation packet. Return a concise activation decision, the exact fixes needed before going active, suggested step copy/content changes, and the safest next admin action.",
+  ].join("\n");
   const journeyAiCommandBrief = [
     "VYVA journey AI command brief",
     `Overall state: ${readinessLabel(journeyCommandState)}`,
@@ -18880,6 +18975,41 @@ export default function MarketingAdminPage() {
     } catch {
       const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
       setJourneyFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyJourneyActivationPacket() {
+    const label = "Journey activation packet";
+    if (!journeyActivationPacketText.trim()) {
+      const feedback = `${label} is empty.`;
+      setJourneyActivationPacketFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(journeyActivationPacketText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = journeyActivationPacketText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setJourneyActivationPacketFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setJourneyActivationPacketFeedback(feedback);
       setMessage(feedback);
     }
   }
@@ -30905,6 +31035,47 @@ export default function MarketingAdminPage() {
                         </button>
                       );
                     })}
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3" data-testid="marketing-journey-activation-packet">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Activation packet</p>
+                        <h4 className="mt-1 text-lg font-black text-[#241133]">Can this journey safely move toward active?</h4>
+                        <p className="mt-1 text-xs font-bold leading-relaxed text-[#5f6f62]">
+                          {journeyActivationTarget
+                            ? `${journeyActivationTarget.name}: ${journeyActivationReadyCount}/${journeyActivationChecklist.length} readiness checks are clear.`
+                            : "Create or import a journey before activation review."}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill className={readinessPillClass(journeyActivationState)}>{readinessLabel(journeyActivationState)}</Pill>
+                        <button
+                          type="button"
+                          onClick={() => void copyJourneyActivationPacket()}
+                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                          data-testid="button-marketing-copy-journey-activation-packet"
+                        >
+                          <Copy size={14} aria-hidden="true" /> Copy packet
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 md:grid-cols-5" data-testid="marketing-journey-activation-checklist">
+                      {journeyActivationChecklist.map((item) => (
+                        <div key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-journey-activation-check-${item.key}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</p>
+                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                          </div>
+                          <p className="mt-2 text-xs font-bold leading-relaxed text-[#5f6f62]">{item.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {journeyActivationPacketFeedback ? (
+                      <p className={`mt-3 rounded-xl px-3 py-2 text-xs font-black ${journeyActivationPacketFeedback.includes("Could not") || journeyActivationPacketFeedback.includes("empty") ? "bg-red-50 text-red-800" : "bg-emerald-100 text-emerald-900"}`} role="status" aria-live="polite" data-testid="marketing-journey-activation-packet-feedback">
+                        {journeyActivationPacketFeedback}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="mt-4 rounded-xl border border-purple-200 bg-white p-3" data-testid="marketing-journey-ai-command-brief">
