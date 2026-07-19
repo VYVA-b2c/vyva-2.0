@@ -426,6 +426,22 @@ function hasEmulatedDeviceEvidenceLanguage(value: string): boolean {
   ]);
 }
 
+function hasNegativeDeviceCoverageLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    hasNegativeEvidenceLanguage(normalized) ||
+    /\b(not|no|without)\s+(?:a\s+|an\s+)?(?:real|physical|actual|hardware)\b/.test(
+      normalized,
+    ) ||
+    /\bnot\s+(?:a\s+|an\s+)?(?:phone|mobile|tablet|ipad|desktop|laptop|device)\b/.test(
+      normalized,
+    ) ||
+    /\b(real|physical|actual|hardware|phone|mobile|tablet|ipad|desktop|laptop|device)\b.{0,30}\b(not available|unavailable|missing|absent)\b/.test(
+      normalized,
+    )
+  );
+}
+
 function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] {
   const rows = new Map(
     (sections.get("Device coverage") ?? [])
@@ -441,7 +457,10 @@ function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] 
     for (const requirement of deviceCoverageRequirements) {
       const cell = row[requirement.columnIndex] ?? "";
       if (isPlaceholderCell(cell) || isFailingQaCell(cell)) continue;
-      if (!hasAllWordGroups(cell, requirement.wordGroups)) {
+      if (
+        !hasAllWordGroups(cell, requirement.wordGroups) ||
+        hasNegativeDeviceCoverageLanguage(cell)
+      ) {
         problems.push(`${flow.label}: ${requirement.description}`);
       } else if (hasEmulatedDeviceEvidenceLanguage(cell)) {
         problems.push(

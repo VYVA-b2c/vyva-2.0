@@ -852,6 +852,27 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects real-device coverage rows with negative device-test wording", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real physical phone not tested | Real physical tablet not tested | Real desktop/laptop not tested | QA screenshot evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: phone cell must name real physical phone or mobile evidence",
+      "Ride Voice Canvas: tablet cell must name real physical tablet evidence",
+      "Ride Voice Canvas: desktop/laptop cell must name real desktop or laptop evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
   it("rejects dated evidence that does not contain a valid calendar date", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
