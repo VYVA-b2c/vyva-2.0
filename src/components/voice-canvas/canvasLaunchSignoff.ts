@@ -62,6 +62,9 @@ export const CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES = [
   "Dates, times, identities, or contact details",
 ] as const;
 
+export type CanvasRealDeviceQaPrivacyClass =
+  (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES)[number];
+
 export type CanvasRealDeviceQaSignoffRole =
   (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_SIGNOFF_ROLES)[number];
 
@@ -1756,6 +1759,52 @@ function hasAllowedEnvelopeFieldsLanguage(value: string): boolean {
   ]);
 }
 
+const privacyClassWordGroups: Record<
+  CanvasRealDeviceQaPrivacyClass,
+  readonly (readonly string[])[]
+> = {
+  "Spoken transcripts": [["spoken"], ["transcript", "transcripts"]],
+  "Typed free text": [["typed"], ["free text", "text"]],
+  "Addresses or saved-place labels": [
+    ["address", "addresses"],
+    ["saved-place", "saved place"],
+    ["label", "labels"],
+  ],
+  "Ride pickup, dropoff, destination, or route details": [
+    ["ride"],
+    ["pickup", "pick-up"],
+    ["dropoff", "drop-off"],
+    ["destination", "route"],
+  ],
+  "Medication names, strengths, quantities, or symptoms": [
+    ["medication", "medications"],
+    ["name", "names"],
+    ["strength", "strengths"],
+    ["quantity", "quantities"],
+    ["symptom", "symptoms"],
+  ],
+  "Provider names, reply text, notes, references, phone numbers, or emails": [
+    ["provider", "providers"],
+    ["name", "names"],
+    ["reply"],
+    ["note", "notes", "reference", "references"],
+    ["phone", "phones", "email", "emails"],
+  ],
+  "Shopping item names, prices, fees, or retailer names": [
+    ["shopping"],
+    ["item", "items"],
+    ["name", "names"],
+    ["price", "prices", "fee", "fees"],
+    ["retailer", "retailers"],
+  ],
+  "Dates, times, identities, or contact details": [
+    ["date", "dates"],
+    ["time", "times"],
+    ["identity", "identities"],
+    ["contact", "contacts"],
+  ],
+};
+
 function invalidAnalyticsSignalRows(sections: Map<string, string[][]>): string[] {
   const rows = new Map(
     (sections.get("Analytics signal review") ?? [])
@@ -1806,20 +1855,25 @@ function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
     if (!row) continue;
     const [, result = "", evidence = ""] = row;
     if (isPlaceholderCell(result) || isPlaceholderCell(evidence)) continue;
+    const privacyClassGroups = privacyClassWordGroups[privacyClass];
     if (
+      !hasAllWordGroups(result, privacyClassGroups) ||
       !hasNoSensitiveDataLanguage(result) ||
       hasSensitiveDataLeakageLanguage(result)
     ) {
-      problems.push(`${privacyClass}: result must state sensitive data was absent`);
+      problems.push(
+        `${privacyClass}: result must name the forbidden data class and state it was absent`,
+      );
     }
     if (
+      !hasAllWordGroups(evidence, privacyClassGroups) ||
       !hasAnalyticsEvidenceLanguage(evidence) ||
       !hasDatedEvidenceLanguage(evidence) ||
       !hasAllowedEnvelopeFieldsLanguage(evidence) ||
       hasSensitiveDataLeakageLanguage(evidence)
     ) {
       problems.push(
-        `${privacyClass}: evidence must reference dated analytics or telemetry review with only allowed envelope fields`,
+        `${privacyClass}: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields`,
       );
     }
   }

@@ -275,7 +275,7 @@ function fillPrivacyReviewRows(markdown: string): string {
     (current, privacyClass) =>
       current.replace(
         new RegExp(`^\\| ${escapeRegExp(privacyClass)} \\| .* \\| .* \\|$`, "m"),
-        `| ${privacyClass} | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |`,
+        `| ${privacyClass} | ${privacyClass} absent from analytics sink | Analytics telemetry sample for ${privacyClass} reviewed on 2026-07-19 with only allowed envelope fields |`,
       ),
     markdown,
   );
@@ -1963,7 +1963,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague privacy review rows", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
       "| Typed free text | Passed by QA | Evidence captured by QA |",
     );
 
@@ -1972,8 +1972,8 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
-      "Typed free text: result must state sensitive data was absent",
-      "Typed free text: evidence must reference dated analytics or telemetry review with only allowed envelope fields",
+      "Typed free text: result must name the forbidden data class and state it was absent",
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
@@ -1982,8 +1982,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects privacy review rows with vague no-issue wording", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
-      "| Typed free text | No issue found | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | No issue found | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1991,7 +1991,26 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
-      "Typed free text: result must state sensitive data was absent",
+      "Typed free text: result must name the forbidden data class and state it was absent",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
+  it("rejects privacy review rows that omit the forbidden data class", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | No sensitive data recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: result must name the forbidden data class and state it was absent",
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
@@ -2000,8 +2019,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects privacy review rows that also state sensitive data was logged", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
-      "| Typed free text | Typed free text absent, but typed free text logged in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent, but typed free text logged in analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2009,7 +2028,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
-      "Typed free text: result must state sensitive data was absent",
+      "Typed free text: result must name the forbidden data class and state it was absent",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
@@ -2018,8 +2037,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects privacy evidence that also states sensitive ride details were logged", () => {
     const completed = completedMatrix().replace(
-      "| Ride pickup, dropoff, destination, or route details | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
-      "| Ride pickup, dropoff, destination, or route details | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields, but pickup destination logged in the sample |",
+      "| Ride pickup, dropoff, destination, or route details | Ride pickup, dropoff, destination, or route details absent from analytics sink | Analytics telemetry sample for Ride pickup, dropoff, destination, or route details reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Ride pickup, dropoff, destination, or route details | Ride pickup, dropoff, destination, or route details absent from analytics sink | Analytics telemetry sample for Ride pickup, dropoff, destination, or route details reviewed on 2026-07-19 with only allowed envelope fields, but pickup destination logged in the sample |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2027,7 +2046,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
-      "Ride pickup, dropoff, destination, or route details: evidence must reference dated analytics or telemetry review with only allowed envelope fields",
+      "Ride pickup, dropoff, destination, or route details: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
@@ -2036,8 +2055,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices without allowed-envelope privacy evidence", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 with only allowed envelope fields |",
-      "| Typed free text | Not recorded in analytics sink | Analytics telemetry sample reviewed on 2026-07-19 |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2045,7 +2064,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
-      "Typed free text: evidence must reference dated analytics or telemetry review with only allowed envelope fields",
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
