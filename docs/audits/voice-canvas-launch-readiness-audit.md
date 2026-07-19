@@ -50,7 +50,7 @@ Analytics signal evidence now requires dated source-event, positive aggregate co
 
 Final sign-off notes now require concrete, role-specific launch evidence for Product, Engineering, QA, and Operations/rollback ownership; generic or role-swapped approval notes are rejected.
 
-Feature endpoint evidence now requires endpoint payload coverage for malformed config, missing config, disabled false/rollout 0, enabled true/rollout 100, rollback, and fallback; generic screenshot/log evidence is rejected.
+Feature endpoint evidence now requires the exact endpoint, server key, named fallback path, and endpoint payload coverage for malformed config, missing config, disabled false/rollout 0, enabled true/rollout 100, rollback, and fallback; generic screenshot/log evidence is rejected.
 
 The task hub no-side-effects gate now requires explicit no-write and no-external-action wording before confirmation; softer submission-only wording is rejected so destination resume evidence cannot obscure booking, call, message, navigation, endpoint, or other external-action risk.
 
@@ -82,7 +82,7 @@ Task hub destination evidence now requires dated resume, disabled fallback, no-w
   - Result: 18 tests passed on commit `9b4a2104` after duplicate/stale scoped evidence hardening, with refreshed appointment and refill screenshots under `src/dev/voice-canvas/`.
 - Focused real-device sign-off gate after no-resubmission hardening:
   - `$env:DATABASE_URL='file:./dev.db'; npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts`
-  - Result: 119 tests passed after feature endpoint evidence hardening, device coverage evidence hardening, interaction-mode evidence hardening, analytics signal evidence hardening, privacy forbidden-data-class hardening, screen-reader announcement evidence hardening, keyboard/focus accessibility hardening, copy/accessibility evidence hardening, final sign-off role-specific evidence hardening, waiting-state pending-copy hardening, open-session rollback visibility hardening, entered-information preservation hardening, checklist-style no-write/no-resubmission/no-external-action wording alignment, task-hub evidence note hardening, and behavior evidence note hardening.
+  - Result: 120 tests passed after feature endpoint path/key/fallback evidence hardening, device coverage evidence hardening, interaction-mode evidence hardening, analytics signal evidence hardening, privacy forbidden-data-class hardening, screen-reader announcement evidence hardening, keyboard/focus accessibility hardening, copy/accessibility evidence hardening, final sign-off role-specific evidence hardening, waiting-state pending-copy hardening, open-session rollback visibility hardening, entered-information preservation hardening, checklist-style no-write/no-resubmission/no-external-action wording alignment, task-hub evidence note hardening, and behavior evidence note hardening.
 - Typecheck:
   - `npm run typecheck`
   - Result: passed.

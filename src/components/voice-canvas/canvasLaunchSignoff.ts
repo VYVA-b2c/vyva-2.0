@@ -1280,7 +1280,12 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(evidence) &&
-      (!hasFeatureFlagEvidenceNoteLanguage(evidence) ||
+      (!hasFeatureFlagEvidenceNoteLanguage(
+        evidence,
+        featureFlag.endpoint,
+        featureFlag.serverFeatureKey,
+        featureFlag.fallback,
+      ) ||
         hasNegativeFeatureFlagOutcomeLanguage(evidence))
     ) {
       problems.push(`${flow.label}: rollout evidence note`);
@@ -1290,7 +1295,13 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
   return problems;
 }
 
-function hasFeatureFlagEvidenceNoteLanguage(value: string): boolean {
+function hasFeatureFlagEvidenceNoteLanguage(
+  value: string,
+  endpoint: string,
+  serverFeatureKey: string,
+  fallback: string,
+): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
   return (
     hasDatedEvidenceLanguage(value, [
       "evidence",
@@ -1304,8 +1315,12 @@ function hasFeatureFlagEvidenceNoteLanguage(value: string): boolean {
       "rollback",
       "fallback",
     ]) &&
+    normalized.includes(endpoint.toLowerCase()) &&
+    normalized.includes(serverFeatureKey.toLowerCase()) &&
+    hasNamedFeatureFallbackPath(value, fallback) &&
     hasAllWordGroups(value, [
       ["endpoint"],
+      ["server key", "server feature key", "feature key"],
       ["payload"],
       ["disabled", "false", "rollout 0", "0%"],
       ["enabled", "true", "rollout 100", "100%"],

@@ -229,6 +229,7 @@ describe("Canvas launch readiness manifest", () => {
       "Flag rollback/fallback",
       "Canvas closed or disappeared",
       "endpoint payload evidence",
+      "exact endpoint, server key, named fallback path",
       "what is pending",
       "No external action before explicit confirmation",
       "Duplicate/stale guard",
