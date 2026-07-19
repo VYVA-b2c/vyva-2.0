@@ -1,6 +1,11 @@
 import { ArrowLeft, ChevronRight, ClipboardCheck, ListTodo, Trash2 } from "lucide-react";
 import type { ConciergeTaskStage } from "@/lib/conciergeTaskNavigation";
 import type { ConciergeProviderTaskStatus } from "../../../shared/conciergeProviderReplies";
+import type { ConciergeCanvasState } from "../../../shared/conciergeCanvasState";
+import {
+  conciergeCanvasPrimaryActionDisplayLabel,
+  conciergeCanvasStateLabel,
+} from "../../../shared/conciergeCanvasState";
 
 type HomeTask = {
   id: string;
@@ -8,6 +13,7 @@ type HomeTask = {
   title: string;
   summary: string;
   providerStatus?: ConciergeProviderTaskStatus | null;
+  canvasState?: ConciergeCanvasState | null;
 };
 
 function providerStatusLabel(status: ConciergeProviderTaskStatus, isSpanish: boolean): string {
@@ -40,6 +46,15 @@ export function ConciergeHomeTaskOverview({
   onContinue: (task: HomeTask) => void;
   onOpenInbox: () => void;
 }) {
+  const stateLabel = activeTask?.canvasState
+    ? conciergeCanvasStateLabel(activeTask.canvasState, isSpanish)
+    : activeTask?.providerStatus
+      ? providerStatusLabel(activeTask.providerStatus, isSpanish)
+      : "";
+  const actionLabel = activeTask?.canvasState
+    ? conciergeCanvasPrimaryActionDisplayLabel(activeTask.canvasState, isSpanish)
+    : taskActionLabel(activeTask?.providerStatus, isSpanish);
+
   return (
     <section className="mt-5 border-t border-vyva-border pt-5" data-testid="concierge-home-task-overview">
       <div className="flex items-center justify-between gap-3">
@@ -68,9 +83,9 @@ export function ConciergeHomeTaskOverview({
               <ClipboardCheck size={20} aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              {activeTask.providerStatus ? (
+              {stateLabel ? (
                 <p className="mb-1 font-body text-[11px] font-black uppercase text-[#047857]" data-testid="concierge-home-task-status">
-                  {providerStatusLabel(activeTask.providerStatus, isSpanish)}
+                  {stateLabel}
                 </p>
               ) : null}
               <p className="font-body text-[16px] font-black text-vyva-text-1">{activeTask.title}</p>
@@ -85,7 +100,7 @@ export function ConciergeHomeTaskOverview({
             className="vyva-tap mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg bg-[#047857] px-4 font-body text-[15px] font-black text-white"
             data-testid="button-concierge-continue-task"
           >
-            {taskActionLabel(activeTask.providerStatus, isSpanish)}
+            {actionLabel}
             <ChevronRight size={18} aria-hidden="true" />
           </button>
         </div>
@@ -108,6 +123,7 @@ export function ConciergeTaskWorkspaceHeader({
   onDelete,
   isDeleting = false,
   providerUpdate,
+  canvasState,
 }: {
   title: string;
   summary: string;
@@ -120,6 +136,7 @@ export function ConciergeTaskWorkspaceHeader({
     status: ConciergeProviderTaskStatus;
     summary: string;
   } | null;
+  canvasState?: ConciergeCanvasState | null;
 }) {
   const stages: Array<{ id: ConciergeTaskStage; label: string }> = [
     { id: "details", label: isSpanish ? "Detalles" : "Details" },
@@ -155,6 +172,18 @@ export function ConciergeTaskWorkspaceHeader({
       </div>
       <h1 className="mt-3 font-body text-[28px] font-black leading-tight text-vyva-text-1">{title}</h1>
       <p className="mt-2 max-w-2xl font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">{summary}</p>
+      {canvasState ? (
+        <div className="mt-4 rounded-[18px] border border-[#BFE7E1] bg-[#F0FDFA] px-3 py-2" data-testid="concierge-task-canvas-state">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
+            {conciergeCanvasStateLabel(canvasState, isSpanish)}
+          </p>
+          <p className="mt-1 font-body text-[13px] font-bold leading-snug text-[#115E59]">
+            {isSpanish
+              ? "Nada se llama, envia, reserva ni comparte antes de tu confirmacion."
+              : "Nothing is called, sent, booked, or shared before you confirm."}
+          </p>
+        </div>
+      ) : null}
       {providerUpdate ? (
         <div className="mt-4 border-l-4 border-[#10B981] pl-3" data-testid="concierge-task-provider-update">
           <p className="font-body text-[12px] font-black uppercase text-[#047857]">

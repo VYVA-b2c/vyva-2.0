@@ -16,6 +16,7 @@ describe("Concierge task navigation", () => {
           title: "Call the clinic",
           summary: "The clinic needs your insurance plan.",
           providerStatus: "action_needed",
+          canvasState: "needs_user_input",
         }}
         isLoading={false}
         isSpanish={false}
@@ -25,12 +26,12 @@ describe("Concierge task navigation", () => {
     );
 
     expect(screen.getByText("Next step")).toBeInTheDocument();
-    expect(screen.getByTestId("concierge-home-task-status")).toHaveTextContent("Action needed");
+    expect(screen.getByTestId("concierge-home-task-status")).toHaveTextContent("Needs input");
     expect(screen.queryByText("2 queued")).not.toBeInTheDocument();
     expect(screen.queryByText("Done recently")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "All tasks" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Respond" })).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Respond" }));
+    expect(screen.getAllByRole("button", { name: "Continue" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(onContinue).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }));
   });
 
@@ -42,6 +43,7 @@ describe("Concierge task navigation", () => {
         summary="Review what will be shared."
         stage="confirmation"
         isSpanish={false}
+        canvasState="awaiting_confirmation"
         providerUpdate={{ status: "reply_received", summary: "Tuesday at 10 works." }}
         onBack={onBack}
       />,
@@ -49,6 +51,8 @@ describe("Concierge task navigation", () => {
 
     expect(screen.getByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "confirmation");
     expect(screen.getByText("Confirm")).toHaveAttribute("aria-current", "step");
+    expect(screen.getByTestId("concierge-task-canvas-state")).toHaveTextContent("Confirm first");
+    expect(screen.getByTestId("concierge-task-canvas-state")).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(screen.getByTestId("concierge-task-provider-update")).toHaveTextContent("Reply received");
     expect(screen.getByTestId("concierge-task-provider-update")).toHaveTextContent("Tuesday at 10 works.");
     fireEvent.click(screen.getByRole("button", { name: "Back to tasks" }));

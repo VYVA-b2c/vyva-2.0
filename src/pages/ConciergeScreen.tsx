@@ -16794,6 +16794,31 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       || left.index - right.index
     ))[0] ?? null;
   const activeSavedTaskEntry = coerceConciergeTaskEntry(activeSavedTask?.task.entry_payload);
+  const activeSavedTaskExecutionTask = activeSavedTask?.action
+    ? getConciergeExecutionTask(activeSavedTask.action)
+    : null;
+  const activeSavedTaskMissingRequirements = Array.isArray(activeSavedTaskExecutionTask?.missing_requirements)
+    ? activeSavedTaskExecutionTask.missing_requirements
+    : [];
+  const activeSavedTaskCanvasState = activeSavedTask?.action
+    ? deriveConciergeCanvasState({
+        status: activeSavedTask.action.status,
+        useCase: activeSavedTask.action.use_case,
+        flowReference: activeSavedTaskExecutionTask?.flow_reference
+          ?? payloadString(activeSavedTask.action.action_payload, ["flow_reference"]),
+        actionType: activeSavedTaskExecutionTask?.action_type
+          ?? payloadString(activeSavedTask.action.action_payload, ["action_type", "task_type"]),
+        executionTask: activeSavedTaskExecutionTask,
+        hasMissingDetails: activeSavedTaskMissingRequirements.length > 0
+          || activeSavedTaskExecutionTask?.lifecycle_status === "needs_info",
+        hasReviewSummary: true,
+        reviewPresented: activeSavedTask.action.status === "pending"
+          && activeSavedTaskExecutionTask?.lifecycle_status !== "needs_info",
+        providerReply: activeSavedTask.providerUpdate,
+        waitingForProvider: activeSavedTask.action.status === "calling",
+        missionStatus: payloadString(activeSavedTask.action.action_payload, ["mission_status", "status"]),
+      })
+    : null;
   const activeActionProviderUpdate = conciergeProviderReplySnapshot(activeAction?.action_payload);
   const activeActionCanvasState = activeAction
     ? deriveConciergeCanvasState({
@@ -16827,6 +16852,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         summary: activeSavedTask.providerUpdate?.summary
           || conciergeTaskEntrySummary(activeSavedTaskEntry, isSpanish),
         providerStatus: activeSavedTask.providerUpdate?.status ?? null,
+        canvasState: activeSavedTaskCanvasState?.state ?? null,
       }
     : activeAction
     ? {
@@ -16837,6 +16863,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           || activeAction.action_summary
           || activeTaskProviderLabel(activeAction, isSpanish),
         providerStatus: activeActionProviderUpdate?.status ?? null,
+        canvasState: activeActionCanvasState?.state ?? null,
       }
     : null;
   return (
@@ -16890,6 +16917,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
             status: activeActionProviderUpdate.status,
             summary: activeActionProviderUpdate.summary,
           } : null}
+          canvasState={activeActionCanvasState?.state ?? null}
           isSpanish={isSpanish}
           onBack={() => navigate("/concierge/tasks")}
           onDelete={persistedTask ? () => {
@@ -18896,6 +18924,12 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#047857]">
                             {completedSessionFlowLabel(session, locale)}
+                          </span>
+                          <span
+                            className="rounded-full bg-white px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#047857]"
+                            data-testid={`badge-concierge-completed-state-${session.id}`}
+                          >
+                            {conciergeCanvasStateLabel("completed", isSpanish)}
                           </span>
                           {completedAt && (
                             <span className="font-body text-[11px] font-bold text-vyva-text-3">
