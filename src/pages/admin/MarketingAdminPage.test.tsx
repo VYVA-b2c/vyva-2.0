@@ -5721,6 +5721,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-template-pack-preview-partner-growth")).toHaveTextContent("new assets if saved from this pack");
     expect(screen.getByTestId("marketing-campaign-studio-template-pack-preview-partner-growth")).toHaveTextContent("Covers selected route pack");
 
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-template-pack-ai-partner-growth"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template pack AI command"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Partner growth AI command copied.");
+
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-template-pack-partner-growth"));
 
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Partner growth");

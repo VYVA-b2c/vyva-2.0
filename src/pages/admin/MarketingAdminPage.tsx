@@ -6,6 +6,7 @@ import {
   BarChart3,
   CalendarDays,
   CheckCircle2,
+  ClipboardList,
   Clock,
   Copy,
   Eye,
@@ -19186,7 +19187,7 @@ export default function MarketingAdminPage() {
     setMessage(`Template applied: ${template.title}.`);
   }
 
-  async function copyTemplatePackAiCommand(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+  async function copyTemplatePackAiCommand(pack: ContentTemplatePack, templates: ContentTemplate[], source: "content" | "campaign_studio" = "content") {
     const label = `${pack.title} AI command`;
     const text = templatePackAiCommandText(pack, templates);
 
@@ -19209,11 +19210,13 @@ export default function MarketingAdminPage() {
       const feedback = `${label} copied.`;
       setContentActionFeedback(feedback);
       setContentFeedback(feedback);
+      if (source === "campaign_studio") setCampaignStudioFeedback(feedback);
       setMessage(feedback);
     } catch {
       const feedback = `Could not copy ${label}. Select the prompt and copy it manually.`;
       setContentActionFeedback(feedback);
       setContentFeedback(feedback);
+      if (source === "campaign_studio") setCampaignStudioFeedback(feedback);
       setMessage(feedback);
     }
   }
@@ -26569,6 +26572,14 @@ export default function MarketingAdminPage() {
                                 data-testid={`button-marketing-campaign-studio-template-pack-${pack.id}`}
                               >
                                 <Sparkles size={14} /> Customize kit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void copyTemplatePackAiCommand(pack, templates, "campaign_studio")}
+                                className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:border-purple-300 hover:bg-purple-50"
+                                data-testid={`button-marketing-campaign-studio-template-pack-ai-${pack.id}`}
+                              >
+                                <ClipboardList size={14} /> Copy AI prompt
                               </button>
                             </div>
                           </article>
