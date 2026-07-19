@@ -100,7 +100,7 @@ npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canva
 Run the browser readiness specs:
 
 ```bash
-npm run test:e2e -- e2e/voice-canvas-production-readiness.spec.ts e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts e2e/canvas-launch-readiness.spec.ts
+npm run test:e2e -- e2e/voice-canvas-production-readiness.spec.ts e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts e2e/canvas-launch-readiness.spec.ts e2e/task-hub-resume-launch-readiness.spec.ts
 ```
 
 Run typecheck before PR:

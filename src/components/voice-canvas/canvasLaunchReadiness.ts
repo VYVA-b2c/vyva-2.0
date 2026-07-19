@@ -431,20 +431,28 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       mobile_tablet_desktop: [
         "src/pages/ConciergeTaskInboxPage.test.tsx",
+        "e2e/task-hub-resume-launch-readiness.spec.ts",
         sharedLaunchRunbook,
       ],
-      long_translated_labels: ["src/pages/ConciergeTaskInboxPage.test.tsx"],
+      long_translated_labels: [
+        "src/pages/ConciergeTaskInboxPage.test.tsx",
+        "e2e/task-hub-resume-launch-readiness.spec.ts",
+      ],
       refresh_restore: [
         "src/pages/ConciergeTaskInboxPage.test.tsx",
         "src/lib/conciergeLocalCanvasTasks.test.ts",
       ],
-      back_cancel_exit: ["src/pages/ConciergeTaskInboxPage.test.tsx"],
+      back_cancel_exit: [
+        "src/pages/ConciergeTaskInboxPage.test.tsx",
+        "e2e/task-hub-resume-launch-readiness.spec.ts",
+      ],
       reconnect_interruption: [
         "src/pages/ConciergeTaskInboxPage.test.tsx",
         "src/lib/conciergeLocalCanvasTasks.test.ts",
       ],
       no_pre_confirmation_external_action: [
         "src/pages/ConciergeTaskInboxPage.test.tsx",
+        "e2e/task-hub-resume-launch-readiness.spec.ts",
         "src/lib/conciergeLocalCanvasTasks.test.ts",
       ],
       duplicate_or_stale_submission_guard: [
