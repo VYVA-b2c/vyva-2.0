@@ -798,13 +798,33 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(disabledPayload) &&
-      !hasAnyWord(disabledPayload, ["disabled", "false", "rollout 0", "0%"])
+      !hasAllWordGroups(disabledPayload, [
+        ["false", "enabled false", "enabled: false", "enabled=false"],
+        [
+          "rollout 0",
+          "rollout: 0",
+          "rollout=0",
+          "rollout percent 0",
+          "rolloutpercent 0",
+          "0%",
+        ],
+      ])
     ) {
       problems.push(`${flow.label}: disabled payload evidence`);
     }
     if (
       !isPlaceholderCell(enabledPayload) &&
-      !hasAnyWord(enabledPayload, ["enabled", "true", "rollout", "100", "%"])
+      !hasAllWordGroups(enabledPayload, [
+        ["true", "enabled true", "enabled: true", "enabled=true"],
+        [
+          "rollout 100",
+          "rollout: 100",
+          "rollout=100",
+          "rollout percent 100",
+          "rolloutpercent 100",
+          "100%",
+        ],
+      ])
     ) {
       problems.push(`${flow.label}: enabled payload evidence`);
     }
