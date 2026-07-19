@@ -1204,14 +1204,7 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
     }
     if (
       !isPlaceholderCell(evidence) &&
-      (!hasDatedEvidenceLanguage(evidence, [
-        "evidence",
-        "screenshot",
-        "log",
-        "trace",
-        "recording",
-        "qa",
-      ]) ||
+      (!hasFeatureFlagEvidenceNoteLanguage(evidence) ||
         hasNegativeFeatureFlagOutcomeLanguage(evidence))
     ) {
       problems.push(`${flow.label}: rollout evidence note`);
@@ -1219,6 +1212,33 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
   }
 
   return problems;
+}
+
+function hasFeatureFlagEvidenceNoteLanguage(value: string): boolean {
+  return (
+    hasDatedEvidenceLanguage(value, [
+      "evidence",
+      "screenshot",
+      "log",
+      "trace",
+      "recording",
+      "qa",
+      "endpoint",
+      "payload",
+      "rollback",
+      "fallback",
+    ]) &&
+    hasAllWordGroups(value, [
+      ["endpoint"],
+      ["payload"],
+      ["disabled", "false", "rollout 0", "0%"],
+      ["enabled", "true", "rollout 100", "100%"],
+      ["malformed"],
+      ["missing"],
+      ["rollback"],
+      ["fallback"],
+    ])
+  );
 }
 
 function hasAffirmativeFeatureFlagEvidence(

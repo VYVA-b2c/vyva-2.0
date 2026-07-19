@@ -42,6 +42,8 @@ Device coverage evidence now requires dated real phone, tablet, and desktop/lapt
 
 Interaction-mode evidence now requires dated voice, touch, and keyboard completion or safe-exit coverage; generic screenshot/log evidence is rejected.
 
+Feature endpoint evidence now requires endpoint payload coverage for malformed config, missing config, disabled false/rollout 0, enabled true/rollout 100, rollback, and fallback; generic screenshot/log evidence is rejected.
+
 The task hub no-side-effects gate now requires explicit no-write and no-external-action wording before confirmation; softer submission-only wording is rejected so destination resume evidence cannot obscure booking, call, message, navigation, endpoint, or other external-action risk.
 
 ## Requirement audit
@@ -70,7 +72,7 @@ The task hub no-side-effects gate now requires explicit no-write and no-external
   - Result: 18 tests passed on commit `9b4a2104` after duplicate/stale scoped evidence hardening, with refreshed appointment and refill screenshots under `src/dev/voice-canvas/`.
 - Focused real-device sign-off gate after no-resubmission hardening:
   - `$env:DATABASE_URL='file:./dev.db'; npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts`
-  - Result: 113 tests passed after device coverage evidence hardening, interaction-mode evidence hardening, privacy forbidden-data-class hardening, screen-reader announcement evidence hardening, keyboard/focus accessibility hardening, waiting-state pending-copy hardening, open-session rollback visibility hardening, entered-information preservation hardening, and checklist-style no-write/no-resubmission/no-external-action wording alignment.
+  - Result: 114 tests passed after feature endpoint evidence hardening, device coverage evidence hardening, interaction-mode evidence hardening, privacy forbidden-data-class hardening, screen-reader announcement evidence hardening, keyboard/focus accessibility hardening, waiting-state pending-copy hardening, open-session rollback visibility hardening, entered-information preservation hardening, and checklist-style no-write/no-resubmission/no-external-action wording alignment.
 - Typecheck:
   - `npm run typecheck`
   - Result: passed.
