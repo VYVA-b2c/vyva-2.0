@@ -78,6 +78,7 @@ export interface CanvasLaunchReadinessFlow {
 }
 
 const sharedLaunchRunbook = "docs/runbooks/voice-canvas-launch-readiness.md";
+const sharedLaunchAudit = "docs/audits/voice-canvas-launch-readiness-audit.md";
 
 export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = [
   {
@@ -137,6 +138,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       rollback_notes: [
         "docs/runbooks/ride-voice-canvas-rollout.md",
         sharedLaunchRunbook,
+        sharedLaunchAudit,
       ],
     },
   },
@@ -194,6 +196,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       rollback_notes: [
         "docs/runbooks/appointment-voice-canvas-rollout.md",
         sharedLaunchRunbook,
+        sharedLaunchAudit,
       ],
     },
   },
@@ -252,6 +255,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       rollback_notes: [
         "docs/runbooks/medication-refill-voice-canvas-rollout.md",
         sharedLaunchRunbook,
+        sharedLaunchAudit,
       ],
     },
   },
@@ -314,7 +318,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
         "src/components/voice-canvas/shoppingCanvasTelemetry.ts",
         "src/components/voice-canvas/canvasPlatform.test.tsx",
       ],
-      rollback_notes: [sharedLaunchRunbook],
+      rollback_notes: [sharedLaunchRunbook, sharedLaunchAudit],
     },
   },
   {
@@ -375,7 +379,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
         "src/components/voice-canvas/providerReplyCanvasTelemetry.ts",
         "src/components/voice-canvas/canvasPlatform.test.tsx",
       ],
-      rollback_notes: [sharedLaunchRunbook],
+      rollback_notes: [sharedLaunchRunbook, sharedLaunchAudit],
     },
   },
   {
@@ -423,7 +427,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
         "src/pages/ConciergeTaskInboxPage.test.tsx",
         sharedLaunchRunbook,
       ],
-      rollback_notes: [sharedLaunchRunbook],
+      rollback_notes: [sharedLaunchRunbook, sharedLaunchAudit],
     },
   },
 ] as const;

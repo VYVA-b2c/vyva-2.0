@@ -9,6 +9,7 @@ import {
   parseCanvasRolloutConfig,
   type CanvasTelemetryEnvelope,
 } from "./canvasPlatform";
+import { CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS } from "./canvasLaunchReadiness";
 import { useCanvasExternalActionGate } from "./useVoiceCanvasPlatform";
 
 describe("Canvas platform outcomes", () => {
@@ -60,15 +61,20 @@ describe("Canvas platform safety primitives", () => {
     window.addEventListener("canvas-test", (event) => {
       detail = (event as CustomEvent).detail;
     }, { once: true });
+    const forbiddenPayload = Object.fromEntries(
+      CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS.map((field) => [
+        field,
+        `private-${field}`,
+      ]),
+    );
     dispatchCanvasTelemetryEvent("canvas-test", {
       name: "completed",
       step: "completed",
       input: "system",
       attempt: 1,
       restored: false,
-      address: "private address",
-      transcript: "private transcript",
-    } as CanvasTelemetryEnvelope & { address: string; transcript: string });
+      ...forbiddenPayload,
+    } as CanvasTelemetryEnvelope & Record<string, string>);
     expect(detail).toEqual({
       name: "completed",
       step: "completed",

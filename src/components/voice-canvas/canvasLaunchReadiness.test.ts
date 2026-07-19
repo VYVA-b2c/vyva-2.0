@@ -98,6 +98,10 @@ describe("Canvas launch readiness manifest", () => {
       path.resolve(process.cwd(), "docs/runbooks/voice-canvas-launch-readiness.md"),
       "utf8",
     );
+    const audit = readFileSync(
+      path.resolve(process.cwd(), "docs/audits/voice-canvas-launch-readiness-audit.md"),
+      "utf8",
+    );
 
     for (const flow of canvasLaunchReadinessFlows) {
       expect(runbook, flow.label).toContain(flow.label.split(" ")[0]);
@@ -108,5 +112,8 @@ describe("Canvas launch readiness manifest", () => {
     }
     expect(runbook).toContain("Immediate rollback");
     expect(runbook).toContain("No booking, call, message");
+    expect(runbook).toContain("voice-canvas-launch-readiness-audit.md");
+    expect(audit).toContain("manual real-device/deployed rollback QA still required");
+    expect(audit).toContain("provider-reply Canvas had client-side rollout wiring but no matching server feature endpoint");
   });
 });
