@@ -39,6 +39,7 @@ import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminConciergeQueueRouter from "./routes/adminConciergeQueue.js";
 import adminConciergeChannelReadinessRouter from "./routes/adminConciergeChannelReadiness.js";
 import adminConciergeInboundRepliesRouter from "./routes/adminConciergeInboundReplies.js";
+import adminProviderDirectoryRouter from "./routes/adminProviderDirectory.js";
 import adminCuriousMindsRouter from "./routes/adminCuriousMinds.js";
 import adminCognitiveAssessmentRouter from "./routes/adminCognitiveAssessment.js";
 import adminLearningRouter from "./routes/adminLearning.js";
@@ -226,6 +227,7 @@ app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, admin
 app.use("/api/admin/concierge/queue", authMiddleware, requireAdminUser, adminConciergeQueueRouter);
 app.use("/api/admin/concierge/channel-readiness", authMiddleware, requireAdminUser, adminConciergeChannelReadinessRouter);
 app.use("/api/admin/concierge/inbound-replies", authMiddleware, requireAdminUser, adminConciergeInboundRepliesRouter);
+app.use("/api/admin/providers", authMiddleware, requireAdminUser, adminProviderDirectoryRouter);
 app.use("/api/admin/curious-minds", authMiddleware, requireAdminUser, adminCuriousMindsRouter);
 app.use("/api/admin/cognitive-assessment", authMiddleware, requireAdminUser, adminCognitiveAssessmentRouter);
 app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRouter);
