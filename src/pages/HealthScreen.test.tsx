@@ -127,6 +127,7 @@ describe("VisualScanResultPanel", () => {
       />,
     );
 
+    fireEvent.click(screen.getByTestId("button-show-vyva-explain-health-current"));
     expect(screen.getByText("X-ray")).toBeInTheDocument();
     expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
     expect(screen.getByText("What is visible")).toBeInTheDocument();
@@ -192,7 +193,7 @@ describe("VisualScanResultPanel", () => {
     );
 
     expect(screen.getByTestId("show-vyva-follow-up-health-current")).toBeInTheDocument();
-    expect(screen.getByText("Ask VYVA to help or save for later")).toBeInTheDocument();
+    expect(screen.getByText("Choose a safe action")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-doctor_help-health-current"));
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-schedule_appointment-health-current"));

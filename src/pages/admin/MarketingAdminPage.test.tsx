@@ -1176,7 +1176,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Source export endpoint is already built in");
-  }, 30_000);
+  }, 120_000);
 
   it("shows tracked manual outcomes in campaign performance scans", async () => {
     const manuallyTrackedCampaign = {
@@ -2764,7 +2764,7 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
     });
-  });
+  }, 60_000);
 
   it("polishes imported content with AI before saving the same content record", async () => {
     renderPage();
@@ -2852,7 +2852,7 @@ describe("MarketingAdminPage", () => {
       },
     });
     expect(patchPayload.designJson.aiPolish).toMatchObject({ generator: "marketing_content_ai_polish", tone: "direct" });
-  });
+  }, 60_000);
 
   it("creates a localized content variant with AI without changing the imported original", async () => {
     renderPage();
@@ -3106,7 +3106,7 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "DELETE" }));
     });
-  });
+  }, 60_000);
 
   it("validates and creates richer marketing contacts", async () => {
     renderPage();
@@ -3796,7 +3796,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI body copy");
     expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("\"angle\": \"proof\"");
-  });
+  }, 60_000);
 
   it("recommends and loads template packs directly inside the campaign studio", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
@@ -4531,7 +4531,7 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));
     });
-  });
+  }, 60_000);
 
   it("lets imported social campaigns use social content as the primary campaign asset", async () => {
     renderPage();

@@ -27,16 +27,18 @@ describe("ShowVyvaPastedReviewResult", () => {
     );
 
     expect(screen.getByTestId("show-vyva-pasted-review-phone")).toBeInTheDocument();
+    expect(screen.queryByText("What VYVA reviewed")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-show-vyva-explain-phone"));
     expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
     expect(screen.getByTestId("show-vyva-result-input-phone")).toHaveTextContent("Phone number");
     expect(screen.getByTestId("show-vyva-result-reviewed-phone")).toHaveTextContent("+34 600 111 222");
-    expect(screen.getByText("Ask VYVA to help or save for later")).toBeInTheDocument();
+    expect(screen.getByText("Choose a safe action")).toBeInTheDocument();
     expect(screen.getByText(/must confirm before anything/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-scam_concierge-phone"));
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-block_or_report-phone"));
 
     expect(onActionSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "scam_concierge" }),
+      expect.objectContaining({ id: "block_or_report" }),
       expect.objectContaining({
         inputType: "phone_number",
         reviewedValue: "+34 600 111 222",
@@ -55,7 +57,7 @@ describe("ShowVyvaPastedReviewResult", () => {
           value: "https://example.com/offer",
         },
         input: "Pasted link",
-        action: "button-show-vyva-follow-up-compare_price-link",
+        action: "button-show-vyva-follow-up-find_alternatives-link",
       },
       {
         suffix: "document",
@@ -65,7 +67,7 @@ describe("ShowVyvaPastedReviewResult", () => {
           value: "Insurance claim deadline: Friday",
         },
         input: "Document text",
-        action: "button-show-vyva-follow-up-summarize_document-document",
+        action: "button-show-vyva-follow-up-save_note-document",
       },
       {
         suffix: "company",
@@ -75,7 +77,7 @@ describe("ShowVyvaPastedReviewResult", () => {
           value: "Example Energy SL",
         },
         input: "Company name",
-        action: "button-show-vyva-follow-up-check_company-company",
+        action: "button-show-vyva-follow-up-do_not_reply-company",
       },
     ];
 
@@ -90,6 +92,7 @@ describe("ShowVyvaPastedReviewResult", () => {
       );
 
       expect(screen.getByTestId(`show-vyva-result-${item.suffix}`)).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId(`button-show-vyva-explain-${item.suffix}`));
       expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
       expect(screen.getByText("What is visible")).toBeInTheDocument();
       expect(screen.getByText("Risk or urgency")).toBeInTheDocument();

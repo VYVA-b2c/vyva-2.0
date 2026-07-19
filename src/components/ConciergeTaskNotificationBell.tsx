@@ -31,7 +31,11 @@ export default function ConciergeTaskNotificationBell() {
     queryFn: async () => {
       const response = await apiFetch(notificationQueryKey[0]);
       if (!response.ok) throw new Error("Could not load task updates");
-      return response.json();
+      const data = await response.json() as Partial<ConciergeTaskNotificationResponse>;
+      return {
+        items: Array.isArray(data.items) ? data.items : [],
+        unreadCount: typeof data.unreadCount === "number" ? data.unreadCount : 0,
+      };
     },
     retry: false,
     refetchInterval: 30_000,
