@@ -21,10 +21,21 @@ function markReady(markdown: string): string {
 }
 
 function replacePendingEvidence(markdown: string): string {
-  return markdown.replace(
-    /\bPending\b/g,
-    "Passed - evidence captured by QA on 2026-07-19",
-  );
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => {
+      if (!line.trim().startsWith("|")) return line;
+      return line
+        .split("|")
+        .map((cell, index, cells) => {
+          if (index === 0 || index === cells.length - 1) return cell;
+          return cell.trim() === "Pending"
+            ? " Passed - evidence captured by QA on 2026-07-19 "
+            : cell;
+        })
+        .join("|");
+    })
+    .join("\n");
 }
 
 function fillRequiredSignoffs(markdown: string): string {
@@ -87,11 +98,13 @@ function completedMatrix(markdown = realDeviceQaMatrix()): string {
   return fillPrivacyReviewRows(
     fillAnalyticsSignalRows(
       fillFeatureFlagRows(
-        fillCopyAccessibilityRows(
-          fillBehaviorChecklistRows(
-            fillDeviceCoverageRows(
-              fillEnvironmentRecord(
-                fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+        fillTaskHubDestinationRows(
+          fillCopyAccessibilityRows(
+            fillBehaviorChecklistRows(
+              fillDeviceCoverageRows(
+                fillEnvironmentRecord(
+                  fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+                ),
               ),
             ),
           ),
@@ -99,6 +112,26 @@ function completedMatrix(markdown = realDeviceQaMatrix()): string {
       ),
     ),
   );
+}
+
+function fillTaskHubDestinationRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Local shopping draft \| .* \| .* \| .* \| .* \|$/m,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action or write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Local medication refill draft \| .* \| .* \| .* \| .* \|$/m,
+      "| Local medication refill draft | Medication refill draft resumes to destination when refill Canvas enabled | Medication refill destination disabled rollout 0 fallback to existing medication refill path | No external action or write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Pending provider reply task \| .* \| .* \| .* \| .* \|$/m,
+      "| Pending provider reply task | Pending provider reply resumes to provider reply task path | Provider reply disabled rollout 0 fallback to existing safe Concierge task path | No external action or write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Stale or blocked task \| .* \| .* \| .* \| .* \|$/m,
+      "| Stale or blocked task | Stale or blocked task resumes through safe Concierge task path | Stale or blocked task uses safe fallback with no Canvas rewrite | No write to detail, completion, or confirmation endpoint before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
 }
 
 function fillAnalyticsSignalRows(markdown: string): string {
@@ -281,6 +314,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidDeviceCoverageRows).toEqual([]);
     expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidTaskHubDestinationRows).toEqual([]);
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidAnalyticsSignalRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
@@ -376,6 +410,21 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects ready-for-launch matrices missing a task hub destination fallback row", () => {
+    const completed = removeFirstTableRow(
+      completedMatrix(),
+      "Local shopping draft",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Task hub destination fallback checks: Local shopping draft",
+    ]);
+  });
+
   it("rejects ready-for-launch matrices with feature endpoint drift", () => {
     const completed = completedMatrix().replace(
       "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` |",
@@ -421,6 +470,29 @@ describe("Canvas real-device QA sign-off", () => {
       "Provider Reply Voice Canvas: in-session rollback evidence",
       "Provider Reply Voice Canvas: existing fallback evidence",
     ]);
+  });
+
+  it("rejects ready-for-launch matrices with vague task hub destination fallback evidence", () => {
+    const completed = completedMatrix().replace(
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action or write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Local shopping draft | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: resume route must name the task hub destination behavior",
+      "Local shopping draft: fallback must name the disabled destination path",
+      "Local shopping draft: safety cell must mention no writes before confirmation",
+      "Local shopping draft: evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("task-hub destination fallback row"),
+      ]),
+    );
   });
 
   it("rejects ready-for-launch matrices with vague real-device coverage rows", () => {
@@ -619,6 +691,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidDeviceCoverageRows).toEqual([]);
     expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidTaskHubDestinationRows).toEqual([]);
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidAnalyticsSignalRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
@@ -641,6 +714,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidDeviceCoverageRows).toEqual([]);
     expect(result.invalidBehaviorRows).toEqual([]);
     expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidTaskHubDestinationRows).toEqual([]);
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidAnalyticsSignalRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);

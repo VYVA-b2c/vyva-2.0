@@ -64,6 +64,16 @@ export const CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES = [
 export type CanvasRealDeviceQaSignoffRole =
   (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_SIGNOFF_ROLES)[number];
 
+export const CANVAS_REAL_DEVICE_QA_REQUIRED_TASK_HUB_DESTINATION_ROWS = [
+  "Local shopping draft",
+  "Local medication refill draft",
+  "Pending provider reply task",
+  "Stale or blocked task",
+] as const;
+
+export type CanvasRealDeviceQaTaskHubDestinationRow =
+  (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_TASK_HUB_DESTINATION_ROWS)[number];
+
 export type CanvasRealDeviceQaMatrixState = "pending" | "ready" | "invalid";
 
 export interface CanvasRealDeviceQaMatrixEvaluation {
@@ -77,6 +87,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   invalidDeviceCoverageRows: string[];
   invalidBehaviorRows: string[];
   invalidFeatureFlagRows: string[];
+  invalidTaskHubDestinationRows: string[];
   invalidCopyAccessibilityRows: string[];
   invalidAnalyticsSignalRows: string[];
   invalidPrivacyRows: string[];
@@ -578,6 +589,140 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
   return problems;
 }
 
+const taskHubDestinationRequirements: Record<
+  CanvasRealDeviceQaTaskHubDestinationRow,
+  {
+    routeWordGroups: readonly (readonly string[])[];
+    fallbackWordGroups: readonly (readonly string[])[];
+    safeWordGroups: readonly (readonly string[])[];
+  }
+> = {
+  "Local shopping draft": {
+    routeWordGroups: [
+      ["shopping"],
+      ["draft"],
+      ["resume", "resumed"],
+      ["enabled"],
+    ],
+    fallbackWordGroups: [
+      ["shopping"],
+      ["disabled", "rollout 0", "0%"],
+      ["fallback", "existing"],
+    ],
+    safeWordGroups: [
+      ["no write", "no external action", "not submitted", "without submitting"],
+      ["confirmation"],
+    ],
+  },
+  "Local medication refill draft": {
+    routeWordGroups: [
+      ["medication", "refill"],
+      ["draft"],
+      ["resume", "resumed"],
+      ["enabled"],
+    ],
+    fallbackWordGroups: [
+      ["medication", "refill"],
+      ["disabled", "rollout 0", "0%"],
+      ["fallback", "existing"],
+    ],
+    safeWordGroups: [
+      ["no write", "no external action", "not submitted", "without submitting"],
+      ["confirmation"],
+    ],
+  },
+  "Pending provider reply task": {
+    routeWordGroups: [
+      ["provider"],
+      ["reply"],
+      ["pending"],
+      ["resume", "resumed"],
+    ],
+    fallbackWordGroups: [
+      ["provider"],
+      ["reply"],
+      ["disabled", "rollout 0", "0%"],
+      ["fallback", "existing", "safe concierge task path"],
+    ],
+    safeWordGroups: [
+      ["no write", "no external action", "not submitted", "without submitting"],
+      ["confirmation"],
+    ],
+  },
+  "Stale or blocked task": {
+    routeWordGroups: [
+      ["stale", "blocked"],
+      ["safe concierge task path", "concierge task path"],
+      ["resume", "resumed"],
+    ],
+    fallbackWordGroups: [
+      ["fallback", "existing", "safe concierge task path", "no canvas"],
+      ["stale", "blocked", "disabled", "rollout 0", "safe"],
+    ],
+    safeWordGroups: [
+      ["no write", "no external action", "not submitted", "without submitting"],
+      ["detail", "completion", "confirmation", "endpoint"],
+    ],
+  },
+};
+
+function invalidTaskHubDestinationRows(
+  sections: Map<string, string[][]>,
+): string[] {
+  const rows = new Map(
+    (sections.get("Task hub destination fallback checks") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const rowLabel of CANVAS_REAL_DEVICE_QA_REQUIRED_TASK_HUB_DESTINATION_ROWS) {
+    const row = rows.get(rowLabel);
+    if (!row) continue;
+
+    const [, routeBehavior = "", fallbackBehavior = "", safeBehavior = "", evidence = ""] =
+      row;
+    const requirements = taskHubDestinationRequirements[rowLabel];
+
+    if (
+      !isPlaceholderCell(routeBehavior) &&
+      !isFailingQaCell(routeBehavior) &&
+      !hasAllWordGroups(routeBehavior, requirements.routeWordGroups)
+    ) {
+      problems.push(
+        `${rowLabel}: resume route must name the task hub destination behavior`,
+      );
+    }
+    if (
+      !isPlaceholderCell(fallbackBehavior) &&
+      !isFailingQaCell(fallbackBehavior) &&
+      !hasAllWordGroups(fallbackBehavior, requirements.fallbackWordGroups)
+    ) {
+      problems.push(
+        `${rowLabel}: fallback must name the disabled destination path`,
+      );
+    }
+    if (
+      !isPlaceholderCell(safeBehavior) &&
+      !isFailingQaCell(safeBehavior) &&
+      !hasAllWordGroups(safeBehavior, requirements.safeWordGroups)
+    ) {
+      problems.push(
+        `${rowLabel}: safety cell must mention no writes before confirmation`,
+      );
+    }
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      !hasDatedEvidenceLanguage(evidence)
+    ) {
+      problems.push(`${rowLabel}: evidence must include dated QA or reviewer evidence`);
+    }
+  }
+
+  return problems;
+}
+
 const copyAccessibilityResultRequirements: Record<
   CanvasRealDeviceQaCopyAccessibilityCheck,
   {
@@ -934,6 +1079,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     ),
     ...missingRowsInSection(
       sections,
+      "Task hub destination fallback checks",
+      CANVAS_REAL_DEVICE_QA_REQUIRED_TASK_HUB_DESTINATION_ROWS,
+    ),
+    ...missingRowsInSection(
+      sections,
       "Copy and accessibility read-through",
       CANVAS_REAL_DEVICE_QA_REQUIRED_COPY_CHECKS,
     ),
@@ -952,6 +1102,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
   const invalidDeviceCoverageChecks = invalidDeviceCoverageRows(sections);
   const invalidBehaviorChecks = invalidBehaviorRows(sections);
   const invalidFeatureFlagChecks = invalidFeatureFlagRows(sections);
+  const invalidTaskHubDestinationChecks = invalidTaskHubDestinationRows(sections);
   const invalidCopyAccessibilityChecks = invalidCopyAccessibilityRows(sections);
   const invalidAnalyticsSignalChecks = invalidAnalyticsSignalRows(sections);
   const invalidPrivacyChecks = invalidPrivacyReviewRows(sections);
@@ -1002,6 +1153,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     if (invalidFeatureFlagChecks.length > 0) {
       problems.push(
         `Matrix has feature-flag rollback row issue(s): ${invalidFeatureFlagChecks.join(", ")}.`,
+      );
+    }
+    if (invalidTaskHubDestinationChecks.length > 0) {
+      problems.push(
+        `Matrix has task-hub destination fallback row issue(s): ${invalidTaskHubDestinationChecks.join(", ")}.`,
       );
     }
     if (invalidCopyAccessibilityChecks.length > 0) {
@@ -1060,6 +1216,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     invalidDeviceCoverageRows: invalidDeviceCoverageChecks,
     invalidBehaviorRows: invalidBehaviorChecks,
     invalidFeatureFlagRows: invalidFeatureFlagChecks,
+    invalidTaskHubDestinationRows: invalidTaskHubDestinationChecks,
     invalidCopyAccessibilityRows: invalidCopyAccessibilityChecks,
     invalidAnalyticsSignalRows: invalidAnalyticsSignalChecks,
     invalidPrivacyRows: invalidPrivacyChecks,
