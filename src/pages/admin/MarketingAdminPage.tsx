@@ -2374,6 +2374,17 @@ const campaignLaunchModes: CampaignLaunchMode[] = [
     channels: ["email", "linkedin", "whatsapp"],
   },
   {
+    id: "community-partner-launch",
+    title: "Community partner launch",
+    detail: "Turn local organizations into a practical family handoff route.",
+    bestFor: "Pharmacies, clinics, community venues, associations, agencies, residences, and trusted local teams.",
+    creates: "Email intro, LinkedIn proof, WhatsApp follow-up, phone check-in, print one-pager, event briefing, and recipient snapshots.",
+    nextStep: "Review the partner owner, copy manual handoffs, then track replies and follow-ups from campaign detail.",
+    quickStartId: "community-partner-launch",
+    templatePackId: "community-partner-launch",
+    channels: ["email", "linkedin", "whatsapp", "phone", "print", "event"],
+  },
+  {
     id: "press-partner-announcement",
     title: "Press / partner announcement",
     detail: "Package a launch story for media, partner, and local credibility.",

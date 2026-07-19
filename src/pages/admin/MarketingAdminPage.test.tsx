@@ -5491,13 +5491,27 @@ describe("MarketingAdminPage", () => {
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("All plays");
-    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("30");
+    expect(screen.getByTestId("marketing-campaign-studio-categories")).toHaveTextContent("31");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Best next campaigns from your data");
     expect(screen.getByTestId("marketing-campaign-studio-playbook-recommendations")).toHaveTextContent("Event reminder");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Choose launch mode");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Sendable email campaign");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Local / offline event");
+    expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Community partner launch");
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Press / partner announcement");
+    expect(screen.getByTestId("marketing-campaign-launch-mode-pack-community-partner-launch")).toHaveTextContent("Template pack: Community partner launch");
+    expect(screen.getByTestId("marketing-campaign-launch-mode-pack-community-partner-launch")).toHaveTextContent("6 starter templates");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-mode-community-partner-launch"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Community partner launch with Community partner launch template pack.");
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("expert");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Phone call");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
+    expect(screen.getByTestId("marketing-campaign-studio-template-pack-recommendations")).toHaveTextContent("Community partner launch");
     expect(screen.getByTestId("marketing-campaign-launch-mode-pack-press-partner-announcement")).toHaveTextContent("Template pack: Press and partner announcement");
     expect(screen.getByTestId("marketing-campaign-launch-mode-pack-press-partner-announcement")).toHaveTextContent("6 starter templates");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-mode-press-partner-announcement"));
