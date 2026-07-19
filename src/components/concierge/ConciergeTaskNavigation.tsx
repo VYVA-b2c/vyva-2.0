@@ -4,15 +4,10 @@ import type { ConciergeProviderTaskStatus } from "../../../shared/conciergeProvi
 
 type HomeTask = {
   id: string;
+  detailPath: string;
   title: string;
   summary: string;
   providerStatus?: ConciergeProviderTaskStatus | null;
-};
-
-type CompletedTask = {
-  id: string;
-  title: string;
-  summary: string;
 };
 
 function providerStatusLabel(status: ConciergeProviderTaskStatus, isSpanish: boolean): string {
@@ -40,8 +35,6 @@ export function ConciergeHomeTaskOverview({
   onOpenInbox,
 }: {
   activeTask: HomeTask | null;
-  queuedCount: number;
-  completedTasks: CompletedTask[];
   isLoading: boolean;
   isSpanish: boolean;
   onContinue: (task: HomeTask) => void;

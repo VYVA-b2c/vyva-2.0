@@ -130,6 +130,7 @@ describe("VisualScanResultPanel", () => {
       />,
     );
 
+    expect(screen.queryByText("What VYVA reviewed")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-show-vyva-explain-health-current"));
     expect(screen.getByText("X-ray")).toBeInTheDocument();
     expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();

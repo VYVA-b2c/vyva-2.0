@@ -27,10 +27,10 @@ describe("ShowVyvaPastedReviewResult", () => {
     );
 
     expect(screen.getByTestId("show-vyva-pasted-review-phone")).toBeInTheDocument();
+    expect(screen.getByTestId("show-vyva-result-input-phone")).toHaveTextContent("Phone number");
     expect(screen.queryByText("What VYVA reviewed")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-show-vyva-explain-phone"));
     expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
-    expect(screen.getByTestId("show-vyva-result-input-phone")).toHaveTextContent("Phone number");
     expect(screen.getByTestId("show-vyva-result-reviewed-phone")).toHaveTextContent("+34 600 111 222");
     expect(screen.getByText("Choose a safe action")).toBeInTheDocument();
     expect(screen.getByText(/must confirm before anything/i)).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe("ShowVyvaPastedReviewResult", () => {
           value: "Example Energy SL",
         },
         input: "Company name",
-        action: "button-show-vyva-follow-up-do_not_reply-company",
+        action: "button-show-vyva-follow-up-block_or_report-company",
       },
     ];
 
