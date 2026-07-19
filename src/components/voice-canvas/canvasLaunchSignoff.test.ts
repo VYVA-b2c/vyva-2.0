@@ -280,15 +280,15 @@ const genericFeatureEndpointEvidence =
 
 const featureEndpointEvidenceByFlow = {
   ride:
-    "QA endpoint /api/config/features/ride-voice-canvas server key ride payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing Concierge transport panel fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/ride-voice-canvas server key ride payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing Concierge transport panel fallback shown",
   appointment:
-    "QA endpoint /api/config/features/appointment-voice-canvas server key appointment payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing appointment panel fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/appointment-voice-canvas server key appointment payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing appointment panel fallback shown",
   medicationRefill:
-    "QA endpoint /api/config/features/medication-refill-voice-canvas server key medicationRefill payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing medication refill shopping/support path fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/medication-refill-voice-canvas server key medicationRefill payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing medication refill shopping/support path fallback shown",
   shoppingDelivery:
-    "QA endpoint /api/config/features/shopping-delivery-voice-canvas server key shoppingDelivery payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing shopping guide and recommendations fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/shopping-delivery-voice-canvas server key shoppingDelivery payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing shopping guide and recommendations fallback shown",
   providerReply:
-    "QA endpoint /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown",
 } as const;
 
 const providerReplyFeatureEndpointEvidence =
@@ -889,6 +889,36 @@ describe("Canvas real-device QA sign-off", () => {
         expect.stringContaining("feature-flag rollback row"),
       ]),
     );
+  });
+
+  it("rejects feature flag evidence notes that omit concrete endpoint artifacts", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      "Existing provider reply panel fallback shown | QA endpoint /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
+  });
+
+  it("rejects feature flag evidence artifacts that include sensitive details", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} and endpoint trace captured address details |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
   });
 
   it("rejects feature flag rows with unavailable payload or fallback wording", () => {

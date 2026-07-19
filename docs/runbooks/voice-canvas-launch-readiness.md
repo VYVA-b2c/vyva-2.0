@@ -93,7 +93,7 @@ For device coverage rows, the evidence note must name real phone, tablet, and de
 
 For interaction-mode rows, the evidence note must name voice, touch, keyboard, completion or safe exit, and a concrete screenshot, recording, log, or artifact reference that does not include spoken transcripts, entered text, addresses, or other personal details. Generic interaction-evidence prose or generic screenshot/log evidence does not satisfy launch sign-off.
 
-For feature endpoint rows, the evidence note must name the exact endpoint, server key, named fallback path, and endpoint payload evidence for malformed config, missing config, disabled false/rollout 0, enabled true/rollout 100, rollback, and fallback. Generic screenshot/log evidence does not satisfy launch sign-off.
+For feature endpoint rows, the evidence note must name the exact endpoint, server key, named fallback path, endpoint artifact/log/trace evidence, and endpoint payload evidence for malformed config, missing config, disabled false/rollout 0, enabled true/rollout 100, rollback, and fallback. The endpoint artifact must not include transcripts, entered text, addresses, or personal details. Generic prose-only payload evidence or generic screenshot/log evidence does not satisfy launch sign-off.
 
 For recoverable failures, the behavior row must explicitly prove both retry and an exit or cancel path. Generic recovery wording without a clear exit/cancel path does not satisfy launch sign-off.
 

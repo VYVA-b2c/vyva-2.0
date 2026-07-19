@@ -673,12 +673,19 @@ function hasDeviceCoverageEvidenceLanguage(value: string): boolean {
 
 function hasConcreteEvidenceArtifactLanguage(value: string): boolean {
   return hasAnyWord(value, [
+    "log",
+    "logs",
+    "trace",
+    "traces",
     "screenshot",
     "screen shot",
     "photo",
     "image",
     "recording",
     "video",
+    "network capture",
+    "endpoint capture",
+    "payload capture",
     "artifact",
     "artifacts",
     "link",
@@ -1331,6 +1338,7 @@ function invalidFeatureFlagRows(sections: Map<string, string[][]>): string[] {
         featureFlag.serverFeatureKey,
         featureFlag.fallback,
       ) ||
+        hasFeatureEndpointSensitiveArtifactLeakageLanguage(evidence) ||
         hasNegativeFeatureFlagOutcomeLanguage(evidence))
     ) {
       problems.push(`${flow.label}: rollout evidence note`);
@@ -1360,6 +1368,7 @@ function hasFeatureFlagEvidenceNoteLanguage(
       "rollback",
       "fallback",
     ]) &&
+    hasConcreteEvidenceArtifactLanguage(value) &&
     normalized.includes(endpoint.toLowerCase()) &&
     normalized.includes(serverFeatureKey.toLowerCase()) &&
     hasNamedFeatureFallbackPath(value, fallback) &&
@@ -1375,6 +1384,28 @@ function hasFeatureFlagEvidenceNoteLanguage(
       ["fallback"],
     ])
   );
+}
+
+function hasFeatureEndpointSensitiveArtifactLeakageLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  const artifactPattern =
+    "(?:endpoint\\s+)?(?:log|logs|trace|traces|artifact|artifacts|capture|captures|network|payload|recording|recordings|screenshot|screenshots|link|links|url|urls)";
+  const leakVerbPattern =
+    "(?:recorded|logged|sent|captured|include|includes|included|containing|contains|stored|retained|present|shown|shows|displayed|displays|visible|exposed|exposes)";
+  const sensitiveNounPattern =
+    "(?:transcript|transcripts|spoken transcript|spoken transcripts|entered text|typed free text|free text|address|addresses|address details|saved-place content|saved-place contents|saved-place label|saved-place labels|saved place|saved places|pickup|pick-up|dropoff|drop-off|destination|destinations|route|routes|location|locations|coordinate|coordinates|ride detail|ride details|medication name|medication names|medication|medications|medicine|strength|strengths|quantity|quantities|symptom|symptoms|provider name|provider names|reply text|note|notes|reference|references|phone number|phone numbers|phone|phones|email|emails|item name|item names|price|prices|fee|fees|retailer name|retailer names|date|dates|time|times|identity|identities|contact|contacts|personal detail|personal details|pii|sensitive data|forbidden data)";
+
+  return [
+    new RegExp(
+      `\\b${artifactPattern}\\b.{0,96}\\b${leakVerbPattern}\\b.{0,96}\\b${sensitiveNounPattern}\\b`,
+    ),
+    new RegExp(
+      `\\b${leakVerbPattern}\\b.{0,96}\\b${sensitiveNounPattern}\\b.{0,96}\\b${artifactPattern}\\b`,
+    ),
+    new RegExp(
+      `\\b${sensitiveNounPattern}\\b.{0,96}\\b${leakVerbPattern}\\b.{0,96}\\b${artifactPattern}\\b`,
+    ),
+  ].some((pattern) => pattern.test(normalized));
 }
 
 function hasAffirmativeFeatureFlagEvidence(
