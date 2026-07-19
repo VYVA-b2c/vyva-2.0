@@ -605,10 +605,20 @@ const behaviorChecklistRequirements = [
   },
   {
     columnIndex: 12,
-    description: "privacy-safe analytics cell must mention privacy and analytics evidence",
+    description:
+      "privacy-safe analytics cell must mention aggregate analytics and no sensitive data evidence",
     wordGroups: [
       ["privacy"],
       ["analytics", "telemetry"],
+      ["aggregate", "count", "signal"],
+      [
+        "no sensitive",
+        "without sensitive",
+        "not recorded",
+        "forbidden absent",
+        "only allowed envelope",
+        "allowed envelope",
+      ],
     ],
   },
 ] as const;

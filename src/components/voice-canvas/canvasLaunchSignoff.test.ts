@@ -255,7 +255,7 @@ function fillBehaviorChecklistRows(markdown: string): string {
     (current, flow) =>
       current.replace(
         tableRowPattern(flow, 13),
-        `| ${flow} | Start and resume restored work with no write evidence passed | App exit and reopen restored draft with no write evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback restored existing fallback with no write evidence passed | No external action before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with no write evidence passed | Senior copy explains what happens next | Privacy-safe analytics telemetry evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |`,
+        `| ${flow} | Start and resume restored work with no write evidence passed | App exit and reopen restored draft with no write evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback restored existing fallback with no write evidence passed | No external action before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with no write evidence passed | Senior copy explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |`,
       ),
     markdown,
   );
@@ -590,7 +590,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague required behavior rows", () => {
     const completed = completedMatrix().replace(
-      "| Provider Reply Voice Canvas | Start and resume restored work with no write evidence passed | App exit and reopen restored draft with no write evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback restored existing fallback with no write evidence passed | No external action before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with no write evidence passed | Senior copy explains what happens next | Privacy-safe analytics telemetry evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Provider Reply Voice Canvas | Start and resume restored work with no write evidence passed | App exit and reopen restored draft with no write evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback restored existing fallback with no write evidence passed | No external action before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with no write evidence passed | Senior copy explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
       "| Provider Reply Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
     );
 
@@ -610,6 +610,7 @@ describe("Canvas real-device QA sign-off", () => {
         "Provider Reply Voice Canvas: confirmation safety cell must mention no external action before explicit confirmation",
         "Provider Reply Voice Canvas: duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
         "Provider Reply Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, and no write evidence",
+        "Provider Reply Voice Canvas: privacy-safe analytics cell must mention aggregate analytics and no sensitive data evidence",
         "Provider Reply Voice Canvas: behavior evidence must include dated QA or reviewer evidence",
       ]),
     );
@@ -847,6 +848,24 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidBehaviorRows).toEqual([
       "Ride Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, and no write evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without aggregate no-sensitive analytics behavior evidence", () => {
+    const completed = completedMatrix().replace(
+      "Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed",
+      "Privacy-safe analytics telemetry evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: privacy-safe analytics cell must mention aggregate analytics and no sensitive data evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("required behavior row")]),
