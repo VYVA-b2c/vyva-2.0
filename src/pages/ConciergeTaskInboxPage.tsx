@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
+import { apiFetch } from "@/lib/queryClient";
 import { listConciergeTaskDrafts } from "@/lib/conciergeTaskDrafts";
 import {
   buildConciergeTaskInbox,
@@ -26,8 +27,59 @@ import {
   conciergeTaskInboxPath,
   parseConciergeTaskInboxKey,
 } from "@/lib/conciergeTaskNavigation";
+import {
+  buildConciergeProviderReplyCompletionPayload,
+  buildConciergeProviderReplyDecisionPatch,
+  parseConciergeProviderReplyResolution,
+  type ConciergeProviderReplyPrimaryAction,
+  type ConciergeProviderReplyResolution,
+} from "../../shared/conciergeProviderReplyResolution";
 
 const GROUP_ORDER: ConciergeTaskInboxGroup[] = ["needs_you", "waiting", "completed"];
+
+function payloadText(payload: Record<string, unknown> | null, keys: string[]): string {
+  if (!payload) return "";
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+async function updateProviderReplyTask(pendingId: string, actionPayload: Record<string, unknown>) {
+  const response = await apiFetch(`/api/concierge/actions/${pendingId}/details`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action_payload: actionPayload }),
+  });
+  if (!response.ok) throw new Error("Could not save your reply.");
+  return response.json();
+}
+
+async function sendProviderReplyTask(pendingId: string) {
+  const response = await apiFetch(`/api/concierge/actions/${pendingId}/review-confirm`, {
+    method: "POST",
+  });
+  if (!response.ok) throw new Error("Could not send your reply.");
+  return response.json();
+}
+
+async function completeProviderReplyTask(input: {
+  pendingId: string;
+  outcomeSummary: string;
+  outcomePayload: Record<string, unknown>;
+}) {
+  const response = await apiFetch(`/api/concierge/actions/${input.pendingId}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      outcome_summary: input.outcomeSummary,
+      outcome_payload: input.outcomePayload,
+    }),
+  });
+  if (!response.ok) throw new Error("Could not close this task.");
+  return response.json();
+}
 
 function formatDate(value: string | null, language: string): string {
   if (!value) return "";
@@ -182,6 +234,268 @@ function InboxList({
   );
 }
 
+function ProviderReplyTaskActions({
+  item,
+  resolution,
+  isSpanish,
+}: {
+  item: ConciergeTaskInboxItem;
+  resolution: ConciergeProviderReplyResolution;
+  isSpanish: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [reviewing, setReviewing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const payload = item.actionPayload ?? {};
+  const pendingId = item.pendingId;
+  const missingRequests = resolution.requestedInformation.filter((request) => request.missing);
+  const answersComplete = missingRequests.every((request) => Boolean(answers[request.key]?.trim()));
+  const draftReady = resolution.decision?.status === "draft_ready" && Boolean(resolution.draftFollowUp);
+  const recipient = resolution.channel === "whatsapp"
+    ? payloadText(payload, ["recipient_whatsapp", "provider_whatsapp", "provider_inbound_sender"])
+    : payloadText(payload, ["recipient_email", "provider_email", "provider_inbound_sender"]);
+  const executionAdapter = payload.execution_adapter && typeof payload.execution_adapter === "object"
+    ? payload.execution_adapter as Record<string, unknown>
+    : {};
+  const followUpSent = payload.provider_follow_up_confirmed === true
+    || executionAdapter.status === "sent"
+    || payload.email_outcome === "sent";
+
+  useEffect(() => {
+    setAnswers({});
+    setReviewing(false);
+    setNotice(null);
+  }, [item.key, resolution.decision?.recordedAt]);
+
+  const refreshTask = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+      queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+    ]);
+  };
+
+  const prepareMutation = useMutation({
+    mutationFn: ({ action }: { action: ConciergeProviderReplyPrimaryAction }) => {
+      if (!pendingId) throw new Error("This task is no longer active.");
+      return updateProviderReplyTask(pendingId, buildConciergeProviderReplyDecisionPatch({
+        payload,
+        resolution,
+        action,
+        answers,
+      }));
+    },
+    onSuccess: async () => {
+      setNotice(isSpanish ? "Mensaje preparado. Revisalo antes de enviarlo." : "Message prepared. Review it before sending.");
+      await refreshTask();
+    },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: () => {
+      if (!pendingId) throw new Error("This task is no longer active.");
+      return sendProviderReplyTask(pendingId);
+    },
+    onSuccess: async () => {
+      setReviewing(false);
+      setNotice(isSpanish ? "Mensaje enviado. Esperando al proveedor." : "Message sent. Waiting for the provider.");
+      await refreshTask();
+    },
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: () => {
+      if (!pendingId) throw new Error("This task is no longer active.");
+      const outcomeSummary = resolution.summary || (isSpanish ? "Tarea completada." : "Task completed.");
+      return completeProviderReplyTask({
+        pendingId,
+        outcomeSummary,
+        outcomePayload: buildConciergeProviderReplyCompletionPayload({
+          payload,
+          resolution,
+          outcomeSummary,
+        }),
+      });
+    },
+    onSuccess: refreshTask,
+  });
+
+  const busy = prepareMutation.isPending || sendMutation.isPending || completeMutation.isPending;
+  const error = prepareMutation.error || sendMutation.error || completeMutation.error;
+
+  if (followUpSent) {
+    return (
+      <section className="border-b border-vyva-border py-5" data-testid="concierge-task-provider-reply-actions">
+        <p className="font-body text-[15px] font-black text-[#047857]">
+          {isSpanish ? "Mensaje enviado. Esperando al proveedor." : "Message sent. Waiting for the provider."}
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="border-b border-vyva-border py-5" data-testid="concierge-task-provider-reply-actions">
+      <h2 className="font-body text-[16px] font-black text-vyva-text-1">
+        {isSpanish ? "Que quieres hacer?" : "What would you like to do?"}
+      </h2>
+
+      {resolution.primaryAction === "answer_provider" && !draftReady ? (
+        <div className="mt-3 grid gap-3">
+          {missingRequests.map((request) => (
+            <label key={request.key} className="grid gap-1 font-body text-[13px] font-black text-vyva-text-2">
+              {request.label}
+              <input
+                value={answers[request.key] ?? ""}
+                onChange={(event) => setAnswers((current) => ({ ...current, [request.key]: event.target.value }))}
+                className="min-h-[46px] rounded-lg border border-vyva-border bg-white px-3 font-body text-[14px] font-semibold text-vyva-text-1"
+                data-testid={`concierge-task-reply-answer-${request.key}`}
+              />
+            </label>
+          ))}
+          <button
+            type="button"
+            onClick={() => prepareMutation.mutate({ action: "answer_provider" })}
+            disabled={busy || !answersComplete}
+            className="vyva-tap min-h-[50px] rounded-lg bg-[#047857] px-4 font-body text-[15px] font-black text-white disabled:opacity-50"
+            data-testid="button-concierge-task-prepare-reply"
+          >
+            {isSpanish ? "Preparar respuesta" : "Prepare reply"}
+          </button>
+        </div>
+      ) : draftReady && resolution.draftFollowUp ? (
+        <div className="mt-3" data-testid="concierge-task-reply-draft">
+          <dl className="grid gap-2 border-y border-vyva-border py-3">
+            <div>
+              <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">{isSpanish ? "Para" : "To"}</dt>
+              <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1" data-testid="concierge-task-reply-recipient">
+                {recipient || (isSpanish ? "Falta el contacto" : "Contact missing")}
+              </dd>
+            </div>
+            {resolution.channel === "email" ? (
+              <div>
+                <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">{isSpanish ? "Asunto" : "Subject"}</dt>
+                <dd className="mt-1 font-body text-[14px] font-bold text-vyva-text-1">{resolution.draftFollowUp.subject}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">{isSpanish ? "Mensaje" : "Message"}</dt>
+              <dd className="mt-1 whitespace-pre-wrap font-body text-[14px] font-semibold leading-relaxed text-vyva-text-1">
+                {resolution.draftFollowUp.body}
+              </dd>
+            </div>
+          </dl>
+          {reviewing ? (
+            <div className="mt-3" data-testid="concierge-task-reply-final-confirmation">
+              <p className="font-body text-[14px] font-black text-vyva-text-1">
+                {isSpanish ? "Enviar este mensaje?" : "Send this message?"}
+              </p>
+              <p className="mt-1 font-body text-[12px] font-semibold text-vyva-text-2">
+                {isSpanish ? "Esta es la confirmacion final." : "This is the final confirmation."}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReviewing(false)}
+                  disabled={busy}
+                  className="vyva-tap min-h-[48px] rounded-lg border border-vyva-border bg-white px-3 font-body text-[14px] font-black text-vyva-text-2"
+                >
+                  {isSpanish ? "Volver" : "Back"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => sendMutation.mutate()}
+                  disabled={busy || !recipient}
+                  className="vyva-tap min-h-[48px] rounded-lg bg-[#047857] px-3 font-body text-[14px] font-black text-white disabled:opacity-50"
+                  data-testid="button-concierge-task-send-reply"
+                >
+                  {resolution.channel === "whatsapp"
+                    ? (isSpanish ? "Enviar WhatsApp" : "Send WhatsApp")
+                    : (isSpanish ? "Enviar email" : "Send email")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setReviewing(true)}
+              disabled={busy || !recipient}
+              className="vyva-tap mt-3 min-h-[50px] w-full rounded-lg bg-[#047857] px-4 font-body text-[15px] font-black text-white disabled:opacity-50"
+              data-testid="button-concierge-task-review-reply"
+            >
+              {isSpanish ? "Revisar y enviar" : "Review and send"}
+            </button>
+          )}
+        </div>
+      ) : resolution.primaryAction === "mark_complete" ? (
+        <button
+          type="button"
+          onClick={() => completeMutation.mutate()}
+          disabled={busy}
+          className="vyva-tap mt-3 min-h-[50px] w-full rounded-lg bg-[#047857] px-4 font-body text-[15px] font-black text-white"
+          data-testid="button-concierge-task-complete-reply"
+        >
+          {isSpanish ? "Marcar como hecho" : "Mark complete"}
+        </button>
+      ) : (
+        <div className="mt-3 grid gap-2 sm:grid-cols-3" data-testid="concierge-task-reply-choices">
+          {resolution.primaryAction !== "request_alternatives" ? (
+            <button
+              type="button"
+              onClick={() => prepareMutation.mutate({ action: "confirm" })}
+              disabled={busy}
+              className="vyva-tap min-h-[48px] rounded-lg bg-[#047857] px-3 font-body text-[14px] font-black text-white"
+              data-testid="button-concierge-task-accept-offer"
+            >
+              {isSpanish ? "Aceptar" : "Accept"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => prepareMutation.mutate({ action: "request_alternatives" })}
+            disabled={busy}
+            className="vyva-tap min-h-[48px] rounded-lg border border-vyva-border bg-white px-3 font-body text-[14px] font-black text-vyva-text-1"
+            data-testid="button-concierge-task-request-alternatives"
+          >
+            {isSpanish ? "Pedir otra opcion" : "Ask for another option"}
+          </button>
+          <button
+            type="button"
+            onClick={() => prepareMutation.mutate({ action: "decline" })}
+            disabled={busy}
+            className="vyva-tap min-h-[48px] rounded-lg border border-vyva-border bg-white px-3 font-body text-[14px] font-black text-vyva-text-1"
+            data-testid="button-concierge-task-decline-offer"
+          >
+            {isSpanish ? "Rechazar" : "Decline"}
+          </button>
+          {resolution.primaryAction === "request_alternatives" ? (
+            <button
+              type="button"
+              onClick={() => completeMutation.mutate()}
+              disabled={busy}
+              className="vyva-tap min-h-[48px] rounded-lg border border-vyva-border bg-white px-3 font-body text-[14px] font-black text-vyva-text-1"
+              data-testid="button-concierge-task-close-unavailable"
+            >
+              {isSpanish ? "Cerrar tarea" : "Close task"}
+            </button>
+          ) : null}
+        </div>
+      )}
+
+      {!draftReady && resolution.primaryAction !== "mark_complete" ? (
+        <p className="mt-2 font-body text-[12px] font-semibold text-vyva-text-2">
+          {isSpanish ? "Primero prepararemos el mensaje. Nada se enviara todavia." : "We will prepare the message first. Nothing is sent yet."}
+        </p>
+      ) : null}
+      {notice ? <p className="mt-3 font-body text-[13px] font-black text-[#047857]">{notice}</p> : null}
+      {error ? (
+        <p className="mt-3 font-body text-[13px] font-black text-[#B91C1C]" role="alert">
+          {error instanceof Error ? error.message : (isSpanish ? "Algo salio mal." : "Something went wrong.")}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function TaskDetail({
   item,
   language,
@@ -196,6 +510,15 @@ function TaskDetail({
   onPrimaryAction: () => void;
 }) {
   const date = formatDate(item.updatedAt, language);
+  const providerReplyResolution = parseConciergeProviderReplyResolution(
+    item.actionPayload?.provider_reply_resolution,
+  );
+  const hasDirectReplyActions = Boolean(
+    item.pendingId
+      && item.group === "needs_you"
+      && item.reply
+      && providerReplyResolution,
+  );
   const details = item.details.map((detail) => (
     detail.label === "Last updated" || detail.label === "Ultima actualizacion"
       ? { ...detail, value: date || detail.value }
@@ -233,7 +556,7 @@ function TaskDetail({
         </section>
       ) : null}
 
-      {item.missingInformation.length > 0 ? (
+      {item.missingInformation.length > 0 && !hasDirectReplyActions ? (
         <section className="border-b border-vyva-border py-5" data-testid="concierge-task-missing-information">
           <h2 className="font-body text-[16px] font-black text-vyva-text-1">
             {isSpanish ? "El proveedor necesita" : "The provider needs"}
@@ -247,6 +570,14 @@ function TaskDetail({
             ))}
           </ul>
         </section>
+      ) : null}
+
+      {hasDirectReplyActions && providerReplyResolution ? (
+        <ProviderReplyTaskActions
+          item={item}
+          resolution={providerReplyResolution}
+          isSpanish={isSpanish}
+        />
       ) : null}
 
       {item.decisionSummary ? (
@@ -287,15 +618,17 @@ function TaskDetail({
         </details>
       ) : null}
 
-      <button
-        type="button"
-        onClick={onPrimaryAction}
-        className="vyva-tap mt-6 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-[#047857] px-5 font-body text-[16px] font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047857] focus-visible:ring-offset-2"
-        data-testid="button-concierge-task-primary-action"
-      >
-        {item.primaryActionLabel}
-        <ChevronRight size={19} aria-hidden="true" />
-      </button>
+      {!hasDirectReplyActions ? (
+        <button
+          type="button"
+          onClick={onPrimaryAction}
+          className="vyva-tap mt-6 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-[#047857] px-5 font-body text-[16px] font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047857] focus-visible:ring-offset-2"
+          data-testid="button-concierge-task-primary-action"
+        >
+          {item.primaryActionLabel}
+          <ChevronRight size={19} aria-hidden="true" />
+        </button>
+      ) : null}
     </div>
   );
 }

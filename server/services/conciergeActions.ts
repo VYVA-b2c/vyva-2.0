@@ -566,9 +566,18 @@ async function recordSuccessfulLiveEmailReceipt(
   const providerReplyResolution = parseConciergeProviderReplyResolution(
     actionPayload.provider_reply_resolution,
   );
-  const providerReplyDecisions = parseConciergeProviderReplyDecisionHistory(
+  const parsedProviderReplyDecisions = parseConciergeProviderReplyDecisionHistory(
     actionPayload.provider_reply_decisions,
   );
+  const providerReplyDecisions = parsedProviderReplyDecisions.map((decision, index) => (
+    index === parsedProviderReplyDecisions.length - 1 && decision.status === "draft_ready"
+      ? {
+          ...decision,
+          status: "sent" as const,
+          sentAt: adapterResult.attempted_at,
+        }
+      : decision
+  ));
   const providerName = pending.provider_name?.trim()
     || adapterResult.provider_name?.trim()
     || adapterResult.provider_contact?.trim()
@@ -612,7 +621,9 @@ async function recordSuccessfulLiveEmailReceipt(
     sent_at: adapterResult.attempted_at,
     ...(providerReplyResolution ? {
       provider_reply_resolution: providerReplyResolution,
-      provider_reply_resolution_action: providerReplyResolution.primaryAction,
+      provider_reply_resolution_action: providerReplyResolution.decision?.action
+        ?? providerReplyResolution.primaryAction,
+      provider_reply_user_decision: providerReplyResolution.decision?.action ?? null,
       provider_reply_resolution_at: providerReplyResolution.decision?.recordedAt ?? null,
       provider_response_summary: asString(actionPayload.provider_response_summary)
         ?? providerReplyResolution.summary,

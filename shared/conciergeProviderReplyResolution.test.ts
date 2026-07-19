@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildConciergeProviderReplyCompletionPayload,
   buildConciergeProviderReplyDecisionPatch,
   buildConciergeProviderReplyResolution,
 } from "./conciergeProviderReplyResolution";
@@ -146,5 +147,90 @@ describe("Concierge provider reply resolution", () => {
     });
     expect(patch.whatsapp_message).toContain("Friday at 09:00 works for me");
     expect(patch.email_body).toBeUndefined();
+  });
+
+  it("keeps an unavailable reply open and prepares a request for another option", () => {
+    const resolution = buildConciergeProviderReplyResolution({
+      reply: "We are fully booked this week and cannot offer the requested visit.",
+      subject: "Home visit",
+      channel: "email",
+    });
+
+    expect(resolution).toMatchObject({
+      availability: "unavailable",
+      primaryAction: "request_alternatives",
+      decision: null,
+    });
+    expect(resolution.draftFollowUp?.body).toContain("another available option");
+  });
+
+  it("records a decline as a fresh unsent decision with the exact message", () => {
+    const resolution = buildConciergeProviderReplyResolution({
+      reply: "We can visit Friday at 15:00 for EUR 120.",
+      subject: "Repair quote",
+      channel: "email",
+    });
+    const patch = buildConciergeProviderReplyDecisionPatch({
+      payload: {
+        provider_email: "repairs@example.com",
+        user_confirmed: true,
+        provider_follow_up_confirmed: true,
+      },
+      resolution,
+      action: "decline",
+      recordedAt: "2026-07-19T09:00:00.000Z",
+    });
+
+    expect(patch).toMatchObject({
+      provider_reply_user_decision: "decline",
+      provider_follow_up_status: "draft_ready",
+      provider_follow_up_confirmed: false,
+      user_confirmed: false,
+      recipient_email: "repairs@example.com",
+      provider_reply_resolution: expect.objectContaining({
+        primaryAction: "confirm",
+        decision: expect.objectContaining({ action: "decline", status: "draft_ready" }),
+      }),
+      provider_reply_decisions: [expect.objectContaining({
+        action: "decline",
+        status: "draft_ready",
+        recipient: "repairs@example.com",
+        message: expect.stringContaining("will not proceed"),
+        sentAt: null,
+      })],
+    });
+  });
+
+  it("records the final outcome without losing the reply decision history", () => {
+    const resolution = buildConciergeProviderReplyResolution({
+      reply: "Your appointment is confirmed for Tuesday at 10:00. Reference AP-77.",
+    });
+    const payload = buildConciergeProviderReplyCompletionPayload({
+      payload: {
+        provider_reply: "Your appointment is confirmed for Tuesday at 10:00. Reference AP-77.",
+        provider_reply_decisions: [{
+          action: "confirm",
+          status: "sent",
+          recordedAt: "2026-07-19T08:00:00.000Z",
+          sentAt: "2026-07-19T08:01:00.000Z",
+          channel: "email",
+          summary: "Accepted the provider's offer.",
+          requiresFreshConfirmation: true,
+        }],
+      },
+      resolution,
+      outcomeSummary: "Appointment confirmed for Tuesday at 10:00.",
+      recordedAt: "2026-07-19T09:00:00.000Z",
+    });
+
+    expect(payload).toMatchObject({
+      provider_task_status: "done",
+      live_handoff_status: "completed",
+      final_outcome_summary: "Appointment confirmed for Tuesday at 10:00.",
+      provider_reply_decisions: [
+        expect.objectContaining({ action: "confirm", status: "sent" }),
+        expect.objectContaining({ action: "mark_complete", status: "completed" }),
+      ],
+    });
   });
 });

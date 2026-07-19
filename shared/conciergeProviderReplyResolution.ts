@@ -1,6 +1,8 @@
 export const CONCIERGE_PROVIDER_REPLY_PRIMARY_ACTIONS = [
   "confirm",
   "answer_provider",
+  "decline",
+  "request_alternatives",
   "mark_complete",
 ] as const;
 
@@ -28,7 +30,7 @@ export type ConciergeProviderReplyDraft = {
 
 export type ConciergeProviderReplyDecision = {
   action: ConciergeProviderReplyPrimaryAction;
-  status: "needs_information" | "draft_ready" | "completed";
+  status: "needs_information" | "draft_ready" | "sent" | "completed";
   recordedAt: string;
 };
 
@@ -36,6 +38,10 @@ export type ConciergeProviderReplyDecisionHistoryEntry = ConciergeProviderReplyD
   channel: string;
   summary: string;
   requiresFreshConfirmation: true;
+  recipient?: string | null;
+  subject?: string | null;
+  message?: string | null;
+  sentAt?: string | null;
 };
 
 export type ConciergeProviderReplyResolution = {
@@ -198,7 +204,7 @@ export function parseConciergeProviderReplyDecisionHistory(
     const status = cleanText(entry.status) as ConciergeProviderReplyDecision["status"];
     if (
       !CONCIERGE_PROVIDER_REPLY_PRIMARY_ACTIONS.includes(action)
-      || !["needs_information", "draft_ready", "completed"].includes(status)
+      || !["needs_information", "draft_ready", "sent", "completed"].includes(status)
     ) {
       return [];
     }
@@ -209,6 +215,10 @@ export function parseConciergeProviderReplyDecisionHistory(
       channel: cleanText(entry.channel) || "unknown",
       summary: cleanText(entry.summary),
       requiresFreshConfirmation: true as const,
+      recipient: cleanText(entry.recipient) || null,
+      subject: cleanText(entry.subject) || null,
+      message: cleanText(entry.message) || null,
+      sentAt: cleanText(entry.sentAt) || null,
     }];
   }).slice(-20);
 }
@@ -346,6 +356,23 @@ function draftForResolution(input: {
     };
   }
 
+  if (input.primaryAction === "decline") {
+    return {
+      subject: replySubject(input.subject),
+      body: "Thank you for letting me know. I will not proceed with this option.",
+    };
+  }
+
+  if (input.primaryAction === "request_alternatives") {
+    const offeredOption = input.dateTime || input.price
+      ? "This option does not work for me. "
+      : "";
+    return {
+      subject: replySubject(input.subject),
+      body: `Thank you. ${offeredOption}Please share another available option.`,
+    };
+  }
+
   const details = input.requestedInformation
     .map((item) => `- ${item.label}: ${item.value}`)
     .join("\n");
@@ -353,6 +380,17 @@ function draftForResolution(input: {
     subject: replySubject(input.subject),
     body: `Thank you. Here is the requested information:\n\n${details}\n\nPlease let me know if anything else is needed.`,
   };
+}
+
+function decisionSummary(
+  action: ConciergeProviderReplyPrimaryAction,
+  resolution: ConciergeProviderReplyResolution,
+): string {
+  if (action === "confirm") return "Accepted the provider's offer.";
+  if (action === "answer_provider") return `Prepared the requested information for the provider.`;
+  if (action === "decline") return "Declined the provider's offer.";
+  if (action === "request_alternatives") return "Asked the provider for another option.";
+  return resolution.summary || "Marked the task complete.";
 }
 
 function summaryForResolution(input: {
@@ -398,8 +436,10 @@ export function buildConciergeProviderReplyResolution(input: {
   const bookingConfirmed = CONFIRMED_PATTERN.test(reply) && !REQUEST_PATTERN.test(reply);
   const primaryAction: ConciergeProviderReplyPrimaryAction = requestedInformation.length > 0
     ? "answer_provider"
-    : bookingConfirmed || availability === "unavailable"
+    : bookingConfirmed
       ? "mark_complete"
+      : availability === "unavailable"
+        ? "request_alternatives"
       : availability !== "unknown" || Boolean(dateTime || price)
         ? "confirm"
         : "mark_complete";
@@ -481,6 +521,8 @@ export function parseConciergeProviderReplyResolution(value: unknown): Concierge
           action: cleanText(decision.action) as ConciergeProviderReplyPrimaryAction,
           status: decision.status === "completed"
             ? "completed"
+            : decision.status === "sent"
+              ? "sent"
             : decision.status === "draft_ready"
               ? "draft_ready"
               : "needs_information",
@@ -493,10 +535,12 @@ export function parseConciergeProviderReplyResolution(value: unknown): Concierge
 export function buildConciergeProviderReplyDecisionPatch(input: {
   payload: Record<string, unknown> | null | undefined;
   resolution: ConciergeProviderReplyResolution;
+  action?: ConciergeProviderReplyPrimaryAction;
   answers?: Record<string, string>;
   recordedAt?: string;
 }): Record<string, unknown> {
   const originalPayload = record(input.payload);
+  const action = input.action ?? input.resolution.primaryAction;
   const answers = input.answers ?? {};
   const requestedInformation = input.resolution.requestedInformation.map((item) => {
     const answer = answers[item.key]?.trim() || item.value;
@@ -504,7 +548,7 @@ export function buildConciergeProviderReplyDecisionPatch(input: {
   });
   const missingInformation = requestedInformation.filter((item) => item.missing).map((item) => item.label);
   const draftFollowUp = draftForResolution({
-    primaryAction: input.resolution.primaryAction,
+    primaryAction: action,
     dateTime: input.resolution.dateTime,
     price: input.resolution.price,
     requestedInformation,
@@ -517,7 +561,7 @@ export function buildConciergeProviderReplyDecisionPatch(input: {
     missingInformation,
     draftFollowUp,
     decision: {
-      action: input.resolution.primaryAction,
+      action,
       status: draftFollowUp ? "draft_ready" : "needs_information",
       recordedAt,
     },
@@ -528,8 +572,14 @@ export function buildConciergeProviderReplyDecisionPatch(input: {
     {
       ...resolution.decision!,
       channel: resolution.channel,
-      summary: resolution.summary,
+      summary: decisionSummary(action, resolution),
       requiresFreshConfirmation: true as const,
+      recipient: resolution.channel === "email"
+        ? cleanText(originalPayload.provider_email) || cleanText(originalPayload.provider_inbound_sender) || null
+        : cleanText(originalPayload.provider_whatsapp) || cleanText(originalPayload.provider_inbound_sender) || null,
+      subject: draftFollowUp?.subject ?? null,
+      message: draftFollowUp?.body ?? null,
+      sentAt: null,
     },
   ].slice(-20);
   const channel = resolution.channel;
@@ -538,7 +588,8 @@ export function buildConciergeProviderReplyDecisionPatch(input: {
   return {
     ...payload,
     provider_reply_resolution: resolution,
-    provider_reply_resolution_action: resolution.primaryAction,
+    provider_reply_resolution_action: action,
+    provider_reply_user_decision: action,
     provider_reply_resolution_at: recordedAt,
     provider_reply_decisions: providerReplyDecisions,
     provider_follow_up_status: draftFollowUp ? "draft_ready" : "needs_info",
@@ -560,5 +611,56 @@ export function buildConciergeProviderReplyDecisionPatch(input: {
       recipient_whatsapp: providerWhatsApp || null,
       whatsapp_message: draftFollowUp.body,
     } : {}),
+  };
+}
+
+export function buildConciergeProviderReplyCompletionPayload(input: {
+  payload: Record<string, unknown> | null | undefined;
+  resolution: ConciergeProviderReplyResolution | null;
+  outcomeSummary?: string | null;
+  recordedAt?: string;
+}): Record<string, unknown> {
+  const payload = record(input.payload);
+  const recordedAt = input.recordedAt ?? new Date().toISOString();
+  const summary = input.outcomeSummary?.trim()
+    || input.resolution?.summary
+    || "Task marked complete.";
+  const providerReplyDecisions = [
+    ...parseConciergeProviderReplyDecisionHistory(payload.provider_reply_decisions),
+    {
+      action: "mark_complete" as const,
+      status: "completed" as const,
+      recordedAt,
+      channel: input.resolution?.channel ?? "unknown",
+      summary,
+      requiresFreshConfirmation: true as const,
+      recipient: null,
+      subject: null,
+      message: null,
+      sentAt: null,
+    },
+  ].slice(-20);
+
+  return {
+    ...payload,
+    ...(input.resolution ? {
+      provider_reply_resolution: {
+        ...input.resolution,
+        decision: {
+          action: "mark_complete",
+          status: "completed",
+          recordedAt,
+        },
+      },
+    } : {}),
+    provider_reply_resolution_action: "mark_complete",
+    provider_reply_user_decision: "mark_complete",
+    provider_reply_decisions: providerReplyDecisions,
+    provider_task_status: "done",
+    live_handoff_status: "completed",
+    live_handoff_outcome: "user_marked_complete",
+    final_outcome_summary: summary,
+    final_outcome_at: recordedAt,
+    no_external_action_without_confirmation: true,
   };
 }

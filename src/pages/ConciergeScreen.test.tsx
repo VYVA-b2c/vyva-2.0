@@ -7078,6 +7078,11 @@ describe("ConciergeScreen route prefill", () => {
     expect(reviewConfirmCalls).toBe(0);
     expect(await screen.findByTestId("panel-provider-reply-draft")).toHaveTextContent("Policy or member number: POL-4455");
 
+    expect(screen.getByTestId("provider-reply-draft-recipient")).toHaveTextContent("frontdesk@clinic.example");
+    expect(screen.queryByTestId("button-provider-reply-send-reply-resolution")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-provider-reply-review-reply-resolution"));
+    expect(screen.getByTestId("panel-provider-reply-final-confirmation")).toHaveTextContent("Nothing is sent until you confirm here");
+    expect(reviewConfirmCalls).toBe(0);
     fireEvent.click(screen.getByTestId("button-provider-reply-send-reply-resolution"));
     await waitFor(() => expect(reviewConfirmCalls).toBe(1));
     expect(await screen.findByTestId("status-provider-reply-sent")).toHaveTextContent("Waiting for the provider");
