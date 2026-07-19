@@ -159,6 +159,13 @@ function isApprovedLaunchDecisionCell(value: string): boolean {
   if (isPlaceholderCell(normalized)) return false;
   if (/\b(not approved|unapproved|rejected|hold|blocked|no[- ]?go)\b/.test(normalized))
     return false;
+  if (
+    /\b(if|when|once|after|pending|contingent|conditional(?:ly)?|conditioned|provided|assuming|unless|except|needs?|requires?|required|todo|fix(?:es|ed)?|follow[- ]?up|blocker)\b/.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
   return (
     /\bapprove(d)?\b/.test(normalized) ||
     normalized.includes("ready for launch") ||

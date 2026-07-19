@@ -411,6 +411,24 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.unapprovedRequiredSignoffRoles).toEqual(["Product"]);
   });
 
+  it("rejects ready-for-launch sign-offs with conditional approval wording", () => {
+    const completed = completedMatrix().replace(
+      "| Engineering | Elena Engineering | 2026-07-19 | Approved for launch | Verified rollback and stale guards |",
+      "| Engineering | Elena Engineering | 2026-07-19 | Approved after fallback fixes | Waiting on final rollback evidence |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual(["Engineering"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without an approved-for-launch decision"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices missing a required real-device flow row", () => {
     const completed = removeFirstTableRow(
       completedMatrix(),
