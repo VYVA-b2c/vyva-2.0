@@ -139,6 +139,7 @@ export {
 } from "./providerReplyCanvasRollout";
 export type * from "./providerReplyCanvasRollout";
 export * from "./canvasPlatform";
+export * from "./canvasLaunchTelemetry";
 export * from "./canvasLaunchReadiness";
 export * from "./useVoiceCanvasPlatform";
 export * from "./homeServiceCanvasRollout";

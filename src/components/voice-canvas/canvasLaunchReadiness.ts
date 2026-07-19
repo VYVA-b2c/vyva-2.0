@@ -110,6 +110,14 @@ export interface CanvasLaunchReadinessFlow {
 
 const sharedLaunchRunbook = "docs/runbooks/voice-canvas-launch-readiness.md";
 const sharedLaunchAudit = "docs/audits/voice-canvas-launch-readiness-audit.md";
+const sharedLaunchTelemetry = "src/components/voice-canvas/canvasLaunchTelemetry.ts";
+const sharedLaunchTelemetryTest =
+  "src/components/voice-canvas/canvasLaunchTelemetry.test.ts";
+const sharedPrivacyTelemetryEvidence = [
+  sharedLaunchTelemetry,
+  sharedLaunchTelemetryTest,
+  "src/components/voice-canvas/canvasPlatform.test.tsx",
+] as const;
 
 export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = [
   {
@@ -165,7 +173,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/rideCanvasTelemetry.ts",
-        "src/components/voice-canvas/canvasPlatform.test.tsx",
+        ...sharedPrivacyTelemetryEvidence,
       ],
       rollback_notes: [
         "docs/runbooks/ride-voice-canvas-rollout.md",
@@ -224,7 +232,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/appointmentCanvasTelemetry.ts",
-        "src/components/voice-canvas/canvasPlatform.test.tsx",
+        ...sharedPrivacyTelemetryEvidence,
       ],
       rollback_notes: [
         "docs/runbooks/appointment-voice-canvas-rollout.md",
@@ -284,7 +292,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/refillCanvasTelemetry.ts",
-        "src/components/voice-canvas/canvasPlatform.test.tsx",
+        ...sharedPrivacyTelemetryEvidence,
       ],
       rollback_notes: [
         "docs/runbooks/medication-refill-voice-canvas-rollout.md",
@@ -351,7 +359,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/shoppingCanvasTelemetry.ts",
-        "src/components/voice-canvas/canvasPlatform.test.tsx",
+        ...sharedPrivacyTelemetryEvidence,
       ],
       rollback_notes: [sharedLaunchRunbook, sharedLaunchAudit],
     },
@@ -413,7 +421,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/providerReplyCanvasTelemetry.ts",
-        "src/components/voice-canvas/canvasPlatform.test.tsx",
+        ...sharedPrivacyTelemetryEvidence,
       ],
       rollback_notes: [sharedLaunchRunbook, sharedLaunchAudit],
     },
@@ -469,6 +477,8 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       privacy_safe_analytics: [
         "src/pages/ConciergeTaskInboxPage.test.tsx",
+        sharedLaunchTelemetry,
+        sharedLaunchTelemetryTest,
         sharedLaunchRunbook,
       ],
       rollback_notes: [sharedLaunchRunbook, sharedLaunchAudit],

@@ -53,6 +53,8 @@ Canonical launch signals are derived from the closed event shape:
 
 `saved` is intentionally not treated as completed. Provider reply uses one confirmation to save the reply and a separate confirmation to mark the task complete.
 
+Use the shared launch telemetry counter/listener only as an aggregate monitor. It may count `started`, `resumed`, `abandoned`, `blocked`, `confirmed`, and `completed`, and its samples must stay limited to the allowed envelope fields above.
+
 ## Real-device QA pass
 
 Run this pass for each flow: ride, appointment, refill, shopping, provider reply, and task hub resume.
@@ -94,7 +96,7 @@ If this gate fails, do not enable the feature.
 Run the focused component/readiness suite:
 
 ```bash
-npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx
+npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx
 ```
 
 Run the browser readiness specs:
@@ -116,6 +118,6 @@ npm run typecheck
 3. Verify the feature endpoint returns `{ "enabled": false, "rolloutPercent": 0 }`.
 4. Open the affected Concierge entry point and confirm the old interface appears.
 5. Focus or refresh any open session and confirm Canvas closes without submitting in-flight work.
-6. Monitor only privacy-safe aggregate counts: started, resumed, abandoned, blocked, confirmed, completed, retried, and failed.
+6. Monitor only privacy-safe aggregate counts: started, resumed, abandoned, blocked, confirmed, completed, retried, and failed. Do not attach addresses, transcripts, entered text, dates, names, references, or task details to launch telemetry.
 
 Rollback immediately for any pre-confirmation external action, duplicate submission, sensitive telemetry field, stale response acceptance, unsafe restore, inaccessible blocked state, or broken fallback.

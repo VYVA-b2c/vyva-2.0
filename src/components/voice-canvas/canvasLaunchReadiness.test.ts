@@ -111,6 +111,15 @@ describe("Canvas launch readiness manifest", () => {
       expect(serializedAllowedFields).not.toContain(forbiddenField);
     }
 
+    for (const flow of canvasLaunchReadinessFlows) {
+      expect(flow.qaEvidence.privacy_safe_analytics, flow.label).toEqual(
+        expect.arrayContaining([
+          "src/components/voice-canvas/canvasLaunchTelemetry.ts",
+          "src/components/voice-canvas/canvasLaunchTelemetry.test.ts",
+        ]),
+      );
+    }
+
     expect(CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS).toEqual(
       expect.arrayContaining([
         "pickupAddress",
