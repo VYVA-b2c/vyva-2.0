@@ -266,7 +266,9 @@ function isMeaningfulEnvironmentValue(
 }
 
 function isIsoDateCellFromText(value: string): boolean {
-  return /\b\d{4}-\d{2}-\d{2}\b/.test(value);
+  return (normalizeCell(value).match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? []).some(
+    isIsoDateCell,
+  );
 }
 
 function hasAnyWord(value: string, words: readonly string[]): boolean {

@@ -830,6 +830,25 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects dated evidence that does not contain a valid calendar date", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2026-99-99 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated QA or reviewer evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with vague required behavior rows", () => {
     const completed = completedMatrix().replace(
       "| Provider Reply Voice Canvas | Start and resume restored work with no write evidence passed | App exit and reopen restored draft with no write evidence passed | Refresh and reconnect restored work with no write evidence passed | Voice interruption recovery preserved current work with no write evidence passed | Browser back returned safely with preserved work and no write evidence passed | Cancel and exit with no write evidence passed | Feature flag rollback restored existing fallback with no write evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with no write evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
