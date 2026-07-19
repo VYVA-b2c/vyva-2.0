@@ -1048,6 +1048,47 @@ const behaviorChecklistRequirements = [
   },
 ] as const;
 
+const behaviorEvidenceWordGroups = [
+  ["start"],
+  ["resume", "resumed"],
+  ["app exit", "exit app", "app close", "close app", "leave app"],
+  ["reopen", "reopened", "return", "returned"],
+  ["refresh"],
+  ["reconnect", "reconnected", "network"],
+  ["interruption", "interrupted", "interrupt"],
+  ["browser back", "back"],
+  ["cancel"],
+  ["exit"],
+  ["flag"],
+  ["rollback"],
+  ["confirmation"],
+  ["duplicate"],
+  ["stale"],
+  ["recoverable"],
+  ["retry"],
+  ["senior"],
+  ["one clear decision", "single decision", "one decision"],
+  ["readable", "legible"],
+  ["label", "labels", "touch target", "touch targets"],
+  ["what happens next", "next"],
+  ["privacy"],
+  ["aggregate", "count", "signal"],
+  explicitNoWriteEvidenceWords,
+  explicitNoResubmissionEvidenceWords,
+  explicitNoExternalActionEvidenceWords,
+  ["no booking", "without booking", "not booked"],
+  ["no call", "without call", "not called"],
+  ["no message", "without message", "not messaged"],
+  ["no navigation", "without navigation", "not navigated"],
+] as const;
+
+function hasBehaviorEvidenceLanguage(value: string): boolean {
+  return (
+    hasDatedEvidenceLanguage(value, ["qa", "reviewer", "evidence", "screenshot", "log"]) &&
+    hasAllWordGroups(value, behaviorEvidenceWordGroups)
+  );
+}
+
 function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
   const rows = new Map(
     (sections.get("Required behavior checklist") ?? [])
@@ -1086,10 +1127,12 @@ function invalidBehaviorRows(sections: Map<string, string[][]>): string[] {
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&
-      (!hasDatedEvidenceLanguage(evidence) ||
+      (!hasBehaviorEvidenceLanguage(evidence) ||
         hasNegativeBehaviorOutcomeLanguage(evidence))
     ) {
-      problems.push(`${flow.label}: behavior evidence must include dated QA or reviewer evidence`);
+      problems.push(
+        `${flow.label}: behavior evidence must include dated coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects`,
+      );
     }
   }
 

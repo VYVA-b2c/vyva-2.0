@@ -233,6 +233,7 @@ describe("Canvas launch readiness manifest", () => {
       "No external action before explicit confirmation",
       "Duplicate/stale guard",
       "resubmission",
+      "dated coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects",
       "Senior-friendly copy and what happens next",
       "Privacy-safe analytics",
       "Screen-reader announcements",

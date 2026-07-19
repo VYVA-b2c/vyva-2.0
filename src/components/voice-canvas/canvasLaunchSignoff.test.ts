@@ -24,6 +24,19 @@ const TASK_HUB_STALE_BLOCKED_ROW =
 const TASK_HUB_EVIDENCE_ERROR =
   "Local shopping draft: evidence must include dated resume, disabled fallback, no-write, and no-external-action evidence";
 
+const BEHAVIOR_CHECKLIST_EVIDENCE =
+  "QA behavior evidence on 2026-07-19: start/resume, app exit/reopen, refresh/reconnect, voice interruption recovery, browser back, cancel/exit, flag rollback, confirmation safety with no write, no resubmission, no external action, no booking, no call, no message, and no navigation, duplicate guard, stale response handling, recoverable failure retry, senior copy one clear decision, readable labels, what happens next, and privacy-safe aggregate analytics reviewed";
+
+const PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR =
+  "Provider Reply Voice Canvas: behavior evidence must include dated coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects";
+
+function behaviorChecklistRow(
+  flow: string,
+  evidence = BEHAVIOR_CHECKLIST_EVIDENCE,
+): string {
+  return `| ${flow} | Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed | Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed | Browser back returned safely with entered information preserved, no write, and no external action evidence passed | Cancel and exit with no write and no external action evidence passed | Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | ${evidence} |`;
+}
+
 function realDeviceQaMatrix(): string {
   return readFileSync(path.resolve(process.cwd(), realDeviceQaMatrixPath), "utf8");
 }
@@ -283,7 +296,7 @@ function fillBehaviorChecklistRows(markdown: string): string {
     (current, flow) =>
       current.replace(
         tableRowPattern(flow, 13),
-        `| ${flow} | Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed | Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed | Browser back returned safely with entered information preserved, no write, and no external action evidence passed | Cancel and exit with no write and no external action evidence passed | Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |`,
+        behaviorChecklistRow(flow),
       ),
     markdown,
   );
@@ -1301,7 +1314,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague required behavior rows", () => {
     const completed = completedMatrix().replace(
-      "| Provider Reply Voice Canvas | Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed | Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed | Browser back returned safely with entered information preserved, no write, and no external action evidence passed | Cancel and exit with no write and no external action evidence passed | Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
       "| Provider Reply Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
     );
 
@@ -1323,7 +1336,7 @@ describe("Canvas real-device QA sign-off", () => {
         "Provider Reply Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, entered information preservation, no write, and no resubmission evidence",
         "Provider Reply Voice Canvas: senior-friendly copy cell must mention senior copy, one clear decision, readable labels, and what happens next",
         "Provider Reply Voice Canvas: privacy-safe analytics cell must mention aggregate analytics and no sensitive data evidence",
-        "Provider Reply Voice Canvas: behavior evidence must include dated QA or reviewer evidence",
+        PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR,
       ]),
     );
     expect(result.invalidBehaviorRows.length).toBeGreaterThan(4);
@@ -1332,10 +1345,13 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
-  it("rejects behavior evidence notes with contradictory safety wording", () => {
+  it("rejects behavior evidence notes that omit behavior coverage details", () => {
     const completed = completedMatrix().replace(
-      "| Provider Reply Voice Canvas | Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed | Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed | Browser back returned safely with entered information preserved, no write, and no external action evidence passed | Cancel and exit with no write and no external action evidence passed | Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
-      "| Provider Reply Voice Canvas | Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed | Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed | Browser back returned safely with entered information preserved, no write, and no external action evidence passed | Cancel and exit with no write and no external action evidence passed | Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 but external action triggered |",
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
+      behaviorChecklistRow(
+        "Provider Reply Voice Canvas",
+        "QA screenshot/log evidence reviewed on 2026-07-19",
+      ),
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1343,7 +1359,25 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidBehaviorRows).toEqual([
-      "Provider Reply Voice Canvas: behavior evidence must include dated QA or reviewer evidence",
+      PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR,
+    ]);
+  });
+
+  it("rejects behavior evidence notes with contradictory safety wording", () => {
+    const completed = completedMatrix().replace(
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
+      behaviorChecklistRow(
+        "Provider Reply Voice Canvas",
+        `${BEHAVIOR_CHECKLIST_EVIDENCE} but external action triggered`,
+      ),
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR,
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("required behavior row")]),
@@ -1370,8 +1404,32 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects behavior rows with negative required-outcome wording", () => {
     const completed = completedMatrix().replace(
-      "| Ride Voice Canvas | Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed | Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed | Browser back returned safely with entered information preserved, no write, and no external action evidence passed | Cancel and exit with no write and no external action evidence passed | Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
-      "| Ride Voice Canvas | Start and resume not restored work with no write evidence | App exit and reopen draft not restored with no write evidence | Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | Voice interruption recovery not preserved current work with no write evidence | Browser back returned safely with entered information preserved, no write, and no external action evidence passed | Cancel and exit with no write and no external action evidence passed | Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation not prevented and stale response not ignored evidence | Recoverable failure blocked state not offered retry and exit with no write evidence | Senior copy uses one clear decision, not readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      behaviorChecklistRow("Ride Voice Canvas"),
+      behaviorChecklistRow("Ride Voice Canvas")
+        .replace(
+          "Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+          "Start and resume not restored work with no write evidence",
+        )
+        .replace(
+          "App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed",
+          "App exit and reopen draft not restored with no write evidence",
+        )
+        .replace(
+          "Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+          "Voice interruption recovery not preserved current work with no write evidence",
+        )
+        .replace(
+          "Duplicate confirmation prevented and stale response ignored evidence passed",
+          "Duplicate confirmation not prevented and stale response not ignored evidence",
+        )
+        .replace(
+          "Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed",
+          "Recoverable failure blocked state not offered retry and exit with no write evidence",
+        )
+        .replace(
+          "Senior copy uses one clear decision, readable long labels, and explains what happens next",
+          "Senior copy uses one clear decision, not readable long labels, and explains what happens next",
+        ),
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);

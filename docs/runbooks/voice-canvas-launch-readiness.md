@@ -99,6 +99,8 @@ For behavior rows that require no-write evidence, explicitly state no write or w
 
 For behavior rows that require no-external-action evidence, explicitly state no external action or without external action. Sent/submitted shorthand such as `nothing sent`, `nothing submitted`, or `not submitted` does not prove the external-action boundary for launch sign-off.
 
+For required behavior rows, the evidence note must include dated coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects. Generic screenshot/log evidence does not satisfy launch sign-off.
+
 For duplicate/stale guard behavior, explicitly state that duplicate confirmation or action attempts were prevented, blocked, ignored, rejected, or discarded, and that stale responses were ignored, rejected, or discarded. Submission-only wording such as `not submitted` or `not resubmitted` is not enough for launch sign-off.
 
 For task hub destination rows, the no-side-effects cell must explicitly prove both no writes and no external actions before confirmation. Submission-only wording such as `not submitted` or `without submitting` is not enough for launch sign-off. The evidence note must include dated resume, disabled fallback, no-write, and no-external-action coverage for that task hub path. Generic screenshot/log evidence does not satisfy launch sign-off.
