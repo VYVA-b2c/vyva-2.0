@@ -625,6 +625,18 @@ function hasNegativeDeviceCoverageLanguage(value: string): boolean {
   );
 }
 
+function hasDeviceCoverageEvidenceLanguage(value: string): boolean {
+  return (
+    hasDatedEvidenceLanguage(value, ["qa", "reviewer", "evidence", "screenshot", "log"]) &&
+    hasAllWordGroups(value, [
+      ["real", "physical", "actual", "hardware", "device"],
+      ["phone", "mobile", "iphone", "ios", "android"],
+      ["tablet", "ipad", "android tablet"],
+      ["desktop", "laptop", "windows", "mac", "chrome", "edge", "firefox"],
+    ])
+  );
+}
+
 function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] {
   const rows = new Map(
     (sections.get("Device coverage") ?? [])
@@ -656,10 +668,12 @@ function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] 
     if (
       !isPlaceholderCell(evidence) &&
       !isFailingQaCell(evidence) &&
-      (!hasDatedEvidenceLanguage(evidence) ||
+      (!hasDeviceCoverageEvidenceLanguage(evidence) ||
         hasNegativeDeviceCoverageLanguage(evidence))
     ) {
-      problems.push(`${flow.label}: evidence must include dated QA or reviewer evidence`);
+      problems.push(
+        `${flow.label}: evidence must include dated real phone, tablet, and desktop/laptop evidence`,
+      );
     } else if (hasEmulatedDeviceEvidenceLanguage(evidence)) {
       problems.push(`${flow.label}: evidence must not rely on viewport or emulator evidence`);
     }

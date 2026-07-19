@@ -30,7 +30,7 @@ For final sign-off, use launch-specific values here: a deployed non-local `http`
 
 Each flow must pass on a real phone, tablet, and desktop/laptop. Browser emulation is useful preflight evidence, but it does not replace this table.
 
-For final sign-off, phone/tablet/desktop cells must affirmatively name the real physical device class or browser used. Device cells and evidence notes must not use negative wording such as not tested, not real, unavailable, missing, failed to load/render/open/work/display/run, unable to test/use/verify, broken, crashed, blank screen, white screen, or unusable. Evidence must include a dated QA or reviewer note with a valid non-future `YYYY-MM-DD` date and must not rely on viewport, emulator, simulator, responsive-mode, device-toolbar, or DevTools evidence.
+For final sign-off, phone/tablet/desktop cells must affirmatively name the real physical device class or browser used. Device cells and evidence notes must not use negative wording such as not tested, not real, unavailable, missing, failed to load/render/open/work/display/run, unable to test/use/verify, broken, crashed, blank screen, white screen, or unusable. Evidence must include a dated QA or reviewer note with a valid non-future `YYYY-MM-DD` date that names real phone, tablet, and desktop/laptop coverage, and must not rely on viewport, emulator, simulator, responsive-mode, device-toolbar, or DevTools evidence.
 
 | Flow | Phone | Tablet | Desktop/laptop | Evidence |
 | --- | --- | --- | --- | --- |
