@@ -21,6 +21,9 @@ export const CANVAS_REAL_DEVICE_QA_REQUIRED_ENVIRONMENT_FIELDS = [
   "Rollback flag state",
 ] as const;
 
+export type CanvasRealDeviceQaEnvironmentField =
+  (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_ENVIRONMENT_FIELDS)[number];
+
 export const CANVAS_REAL_DEVICE_QA_REQUIRED_COPY_CHECKS = [
   "English copy uses one clear decision at a time",
   "Spanish copy and long labels remain readable without horizontal overflow",
@@ -55,6 +58,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   incompleteCellCount: number;
   failingCellCount: number;
   missingRequiredMatrixRows: string[];
+  invalidEnvironmentFields: string[];
   missingRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   invalidRequiredSignoffDateRoles: CanvasRealDeviceQaSignoffRole[];
@@ -112,6 +116,53 @@ function isApprovedLaunchDecisionCell(value: string): boolean {
   );
 }
 
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(normalizeCell(value));
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function isMeaningfulEnvironmentValue(
+  field: CanvasRealDeviceQaEnvironmentField,
+  value: string,
+): boolean {
+  const normalized = normalizeCell(value);
+  const lower = normalized.toLowerCase();
+  if (isPlaceholderCell(normalized) || isFailingQaCell(normalized)) return false;
+
+  switch (field) {
+    case "Environment URL":
+      return isHttpUrl(normalized);
+    case "Build or commit SHA":
+      return /\b[0-9a-f]{7,40}\b/i.test(normalized);
+    case "Test account":
+      return !/^passed\b/i.test(normalized) && normalized.length >= 4;
+    case "Browser versions":
+      return (
+        /\b(chrome|safari|firefox|edge|ios|android)\b/i.test(normalized) &&
+        /\d/.test(normalized)
+      );
+    case "Voice provider/session mode":
+      return /\b(voice|session|provider|browser|live|staging|mock)\b/i.test(
+        normalized,
+      );
+    case "Analytics sink reviewed":
+      return /\breview(ed)?\b/i.test(normalized) && isIsoDateCellFromText(normalized);
+    case "Initial flag state":
+    case "Rollback flag state":
+      return /\b(enabled|disabled|rollout|percent|flag|true|false|0|100)\b/i.test(
+        lower,
+      );
+  }
+}
+
+function isIsoDateCellFromText(value: string): boolean {
+  return /\b\d{4}-\d{2}-\d{2}\b/.test(value);
+}
+
 function parseMarkdownTableRow(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
@@ -159,6 +210,21 @@ function missingRowsInSection(
   return expectedRows
     .filter((row) => !presentRows.has(row))
     .map((row) => `${section}: ${row}`);
+}
+
+function invalidEnvironmentRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Environment record") ?? []).slice(1).map((row) => [row[0], row[1] ?? ""]),
+  );
+
+  return CANVAS_REAL_DEVICE_QA_REQUIRED_ENVIRONMENT_FIELDS.filter((field) => {
+    const value = rows.get(field);
+    return (
+      value !== undefined &&
+      !isPlaceholderCell(value) &&
+      !isMeaningfulEnvironmentValue(field, value)
+    );
+  });
 }
 
 export function evaluateCanvasRealDeviceQaMatrix(
@@ -238,6 +304,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
       CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES,
     ),
   ];
+  const invalidEnvironmentFields = invalidEnvironmentRows(sections);
 
   const problems: string[] = [];
   if (!status) {
@@ -265,6 +332,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     if (missingRequiredMatrixRows.length > 0) {
       problems.push(
         `Matrix is missing required QA row(s): ${missingRequiredMatrixRows.join(", ")}.`,
+      );
+    }
+    if (invalidEnvironmentFields.length > 0) {
+      problems.push(
+        `Matrix has environment field(s) without launch-specific evidence: ${invalidEnvironmentFields.join(", ")}.`,
       );
     }
     if (missingRequiredSignoffRoles.length > 0) {
@@ -304,6 +376,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     incompleteCellCount,
     failingCellCount,
     missingRequiredMatrixRows,
+    invalidEnvironmentFields,
     missingRequiredSignoffRoles,
     incompleteRequiredSignoffRoles,
     invalidRequiredSignoffDateRoles,

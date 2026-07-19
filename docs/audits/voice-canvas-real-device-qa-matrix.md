@@ -13,6 +13,8 @@ npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/comp
 
 ## Environment record
 
+For final sign-off, use launch-specific values here: a real `http` or `https` environment URL, a build or commit SHA, named browser versions, the voice session mode, the analytics review date, and concrete enabled/disabled rollout states.
+
 | Field | Value |
 | --- | --- |
 | Environment URL | Pending |

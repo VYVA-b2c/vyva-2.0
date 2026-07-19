@@ -47,6 +47,48 @@ function fillRequiredSignoffs(markdown: string): string {
     );
 }
 
+function fillEnvironmentRecord(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Environment URL \| .* \|$/m,
+      "| Environment URL | https://staging.vyva.example/canvas-qa |",
+    )
+    .replace(
+      /^\| Build or commit SHA \| .* \|$/m,
+      "| Build or commit SHA | a48879ed |",
+    )
+    .replace(
+      /^\| Test account \| .* \|$/m,
+      "| Test account | qa-senior-canvas@example.test |",
+    )
+    .replace(
+      /^\| Browser versions \| .* \|$/m,
+      "| Browser versions | Chrome 126 desktop; Safari 18 iOS; Chrome 126 Android tablet |",
+    )
+    .replace(
+      /^\| Voice provider\/session mode \| .* \|$/m,
+      "| Voice provider/session mode | Live voice session on staging browser |",
+    )
+    .replace(
+      /^\| Analytics sink reviewed \| .* \|$/m,
+      "| Analytics sink reviewed | Reviewed aggregate launch sink on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Initial flag state \| .* \|$/m,
+      "| Initial flag state | Enabled true, rollout 100 for tested flows |",
+    )
+    .replace(
+      /^\| Rollback flag state \| .* \|$/m,
+      "| Rollback flag state | Disabled false, rollout 0 verified for fallback |",
+    );
+}
+
+function completedMatrix(markdown = realDeviceQaMatrix()): string {
+  return fillEnvironmentRecord(
+    fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+  );
+}
+
 function replaceDeviceRow(markdown: string, flow: string, row: string): string {
   const escapedFlow = flow.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return markdown.replace(new RegExp(`^\\| ${escapedFlow} \\| .* \\|$`, "m"), row);
@@ -71,6 +113,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.incompleteCellCount).toBeGreaterThan(0);
     expect(result.failingCellCount).toBe(0);
     expect(result.missingRequiredMatrixRows).toEqual([]);
+    expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.problems).toEqual([]);
   });
 
@@ -88,9 +131,9 @@ describe("Canvas real-device QA sign-off", () => {
   });
 
   it("rejects ready-for-launch sign-offs with non-date cells or non-approval decisions", () => {
-    const completedWithoutRealSignoffs = replacePendingEvidence(
+    const completedWithoutRealSignoffs = fillEnvironmentRecord(replacePendingEvidence(
       markReady(realDeviceQaMatrix()),
-    );
+    ));
 
     const result = evaluateCanvasRealDeviceQaMatrix(completedWithoutRealSignoffs);
 
@@ -118,14 +161,12 @@ describe("Canvas real-device QA sign-off", () => {
   });
 
   it("rejects ready-for-launch sign-offs that explicitly decline approval", () => {
-    const completedMatrix = fillRequiredSignoffs(
-      replacePendingEvidence(markReady(realDeviceQaMatrix())),
-    ).replace(
+    const completed = completedMatrix().replace(
       "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence |",
       "| Product | Priya Product | 2026-07-19 | Not approved | Found a launch blocker |",
     );
 
-    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
 
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
@@ -133,12 +174,12 @@ describe("Canvas real-device QA sign-off", () => {
   });
 
   it("rejects ready-for-launch matrices missing a required real-device flow row", () => {
-    const completedMatrix = removeFirstTableRow(
-      fillRequiredSignoffs(replacePendingEvidence(markReady(realDeviceQaMatrix()))),
+    const completed = removeFirstTableRow(
+      completedMatrix(),
       "Ride Voice Canvas",
     );
 
-    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
 
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
@@ -151,12 +192,12 @@ describe("Canvas real-device QA sign-off", () => {
   });
 
   it("rejects ready-for-launch matrices missing a feature-flag rollback row", () => {
-    const completedMatrix = removeFeatureEndpointRow(
-      fillRequiredSignoffs(replacePendingEvidence(markReady(realDeviceQaMatrix()))),
+    const completed = removeFeatureEndpointRow(
+      completedMatrix(),
       "/api/config/features/provider-reply-voice-canvas",
     );
 
-    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
 
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
@@ -165,20 +206,39 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("rejects ready-for-launch matrices with vague environment records", () => {
+    const completed = completedMatrix().replace(
+      "| Environment URL | https://staging.vyva.example/canvas-qa |",
+      "| Environment URL | Passed - evidence captured by QA on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual(["Environment URL"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with filled but failing QA evidence", () => {
-    const completedMatrix = replaceDeviceRow(
-      fillRequiredSignoffs(replacePendingEvidence(markReady(realDeviceQaMatrix()))),
+    const completed = replaceDeviceRow(
+      completedMatrix(),
       "Ride Voice Canvas",
       "| Ride Voice Canvas | Failed - phone lost restored draft | Passed - evidence captured by QA on 2026-07-19 | Passed - evidence captured by QA on 2026-07-19 | Screenshot and replay attached |",
     );
 
-    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
 
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.incompleteCellCount).toBe(0);
     expect(result.failingCellCount).toBe(1);
     expect(result.missingRequiredMatrixRows).toEqual([]);
+    expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining("failing or not-ready QA cell"),
@@ -187,17 +247,14 @@ describe("Canvas real-device QA sign-off", () => {
   });
 
   it("accepts the matrix only after all required evidence and sign-offs are filled", () => {
-    const completedMatrix = fillRequiredSignoffs(
-      replacePendingEvidence(markReady(realDeviceQaMatrix())),
-    );
-
-    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix);
+    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix());
 
     expect(result.state).toBe("ready");
     expect(result.readyForLaunch).toBe(true);
     expect(result.incompleteCellCount).toBe(0);
     expect(result.failingCellCount).toBe(0);
     expect(result.missingRequiredMatrixRows).toEqual([]);
+    expect(result.invalidEnvironmentFields).toEqual([]);
     expect(result.missingRequiredSignoffRoles).toEqual([]);
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);
     expect(result.invalidRequiredSignoffDateRoles).toEqual([]);
