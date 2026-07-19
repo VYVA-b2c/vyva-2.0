@@ -429,6 +429,32 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch sign-offs with pending fixes in notes", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence |",
+        "| Product | Priya Product | 2026-07-19 | Approved for launch | Pending Spanish copy follow-up before launch |",
+      )
+      .replace(
+        "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Rollback owner confirmed |",
+        "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Rollback owner confirmed unless endpoint fallback blocker appears |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.blockedRequiredSignoffNoteRoles).toEqual([
+      "Product",
+      "Operations/rollback owner",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("pending fixes, conditions, or blockers"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices missing a required real-device flow row", () => {
     const completed = removeFirstTableRow(
       completedMatrix(),
@@ -1725,6 +1751,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);
     expect(result.invalidRequiredSignoffDateRoles).toEqual([]);
     expect(result.unapprovedRequiredSignoffRoles).toEqual([]);
+    expect(result.blockedRequiredSignoffNoteRoles).toEqual([]);
     expect(result.problems).toEqual([]);
   });
 });

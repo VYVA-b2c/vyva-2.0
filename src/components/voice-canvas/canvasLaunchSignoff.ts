@@ -96,6 +96,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   invalidRequiredSignoffDateRoles: CanvasRealDeviceQaSignoffRole[];
   unapprovedRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
+  blockedRequiredSignoffNoteRoles: CanvasRealDeviceQaSignoffRole[];
   problems: string[];
 }
 
@@ -171,6 +172,22 @@ function isApprovedLaunchDecisionCell(value: string): boolean {
     normalized.includes("ready for launch") ||
     normalized === "go" ||
     normalized.startsWith("go ")
+  );
+}
+
+function hasBlockedLaunchSignoffNoteLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  if (isPlaceholderCell(normalized)) return false;
+  return (
+    /\b(not ready|not approved|unapproved|rejected|hold|blocked|no[- ]?go|blocker|launch blocker)\b/.test(
+      normalized,
+    ) ||
+    /\b(if|when|once|after|pending|contingent|conditional(?:ly)?|conditioned|provided|assuming|unless|except)\b/.test(
+      normalized,
+    ) ||
+    /\b(needs?|requires?|required|todo|fix(?:es|ed)?|follow[- ]?up|retest|rerun|re-run|waiting|open issue|open bug)\b/.test(
+      normalized,
+    )
   );
 }
 
@@ -1651,6 +1668,13 @@ export function evaluateCanvasRealDeviceQaMatrix(
         !isApprovedLaunchDecisionCell(decision)
       );
     });
+  const blockedRequiredSignoffNoteRoles =
+    CANVAS_REAL_DEVICE_QA_REQUIRED_SIGNOFF_ROLES.filter((role) => {
+      const signoff = signoffRows.get(role);
+      if (!signoff) return false;
+      const notes = signoff[3] ?? "";
+      return hasBlockedLaunchSignoffNoteLanguage(notes);
+    });
   const requiredFlowLabels = canvasLaunchReadinessFlows.map((flow) => flow.label);
   const requiredFeatureFlaggedFlowLabels = canvasLaunchReadinessFlows
     .filter((flow) => flow.featureFlag)
@@ -1801,6 +1825,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
         `Matrix has required sign-off role(s) without an approved-for-launch decision: ${unapprovedRequiredSignoffRoles.join(", ")}.`,
       );
     }
+    if (blockedRequiredSignoffNoteRoles.length > 0) {
+      problems.push(
+        `Matrix has required sign-off note(s) with pending fixes, conditions, or blockers: ${blockedRequiredSignoffNoteRoles.join(", ")}.`,
+      );
+    }
   }
 
   const readyForLaunch =
@@ -1831,6 +1860,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     incompleteRequiredSignoffRoles,
     invalidRequiredSignoffDateRoles,
     unapprovedRequiredSignoffRoles,
+    blockedRequiredSignoffNoteRoles,
     problems,
   };
 }
