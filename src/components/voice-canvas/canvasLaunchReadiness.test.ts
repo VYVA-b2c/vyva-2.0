@@ -199,6 +199,7 @@ describe("Canvas launch readiness manifest", () => {
     expect(matrix).toContain("Tablet");
     expect(matrix).toContain("Desktop/laptop");
     expect(matrix).toContain("real phone, tablet, and desktop/laptop coverage");
+    expect(matrix).toContain("screenshot, photo, or artifact evidence");
 
     for (const flow of canvasLaunchReadinessFlows) {
       expect(matrix, flow.label).toContain(flow.label);

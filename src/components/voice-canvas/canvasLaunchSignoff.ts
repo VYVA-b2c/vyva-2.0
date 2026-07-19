@@ -661,6 +661,7 @@ function hasNegativeDeviceCoverageLanguage(value: string): boolean {
 function hasDeviceCoverageEvidenceLanguage(value: string): boolean {
   return (
     hasDatedEvidenceLanguage(value, ["qa", "reviewer", "evidence", "screenshot", "log"]) &&
+    hasConcreteDeviceArtifactLanguage(value) &&
     hasAllWordGroups(value, [
       ["real", "physical", "actual", "hardware", "device"],
       ["phone", "mobile", "iphone", "ios", "android"],
@@ -668,6 +669,21 @@ function hasDeviceCoverageEvidenceLanguage(value: string): boolean {
       ["desktop", "laptop", "windows", "mac", "chrome", "edge", "firefox"],
     ])
   );
+}
+
+function hasConcreteDeviceArtifactLanguage(value: string): boolean {
+  return hasAnyWord(value, [
+    "screenshot",
+    "screen shot",
+    "photo",
+    "image",
+    "recording",
+    "video",
+    "artifact",
+    "artifacts",
+    "link",
+    "url",
+  ]);
 }
 
 function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] {
@@ -705,7 +721,7 @@ function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] 
         hasNegativeDeviceCoverageLanguage(evidence))
     ) {
       problems.push(
-        `${flow.label}: evidence must include dated real phone, tablet, and desktop/laptop evidence`,
+        `${flow.label}: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence`,
       );
     } else if (hasEmulatedDeviceEvidenceLanguage(evidence)) {
       problems.push(`${flow.label}: evidence must not rely on viewport or emulator evidence`);

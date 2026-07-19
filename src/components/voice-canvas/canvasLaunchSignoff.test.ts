@@ -291,6 +291,9 @@ const featureEndpointEvidenceByFlow = {
 const providerReplyFeatureEndpointEvidence =
   featureEndpointEvidenceByFlow.providerReply;
 
+const realDeviceArtifactEvidence =
+  "QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19";
+
 function fillDeviceCoverageRows(markdown: string): string {
   return launchFlowLabels.reduce(
     (current, flow) =>
@@ -299,7 +302,7 @@ function fillDeviceCoverageRows(markdown: string): string {
         "Device coverage",
         flow,
         4,
-        `| ${flow} | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-07-19 |`,
+        `| ${flow} | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | ${realDeviceArtifactEvidence} |`,
       ),
     markdown,
   );
@@ -1182,7 +1185,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague real-device coverage rows", () => {
     const completed = completedMatrix().replace(
-      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 |",
       "| Ride Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
     );
 
@@ -1194,7 +1197,7 @@ describe("Canvas real-device QA sign-off", () => {
       "Ride Voice Canvas: phone cell must name real physical phone or mobile evidence",
       "Ride Voice Canvas: tablet cell must name real physical tablet evidence",
       "Ride Voice Canvas: desktop/laptop cell must name real desktop or laptop evidence",
-      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop evidence",
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
@@ -1213,7 +1216,26 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidDeviceCoverageRows).toEqual([
-      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop evidence",
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects real-device evidence notes that omit screenshot or photo artifacts", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
@@ -1224,7 +1246,7 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
       "Ride Voice Canvas",
-      "| Ride Voice Canvas | Real mobile browser emulation for iOS phone viewport passed | Real iPad tablet device toolbar viewport passed | Real desktop Chrome responsive viewport passed | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-07-19 from responsive mode |",
+      "| Ride Voice Canvas | Real mobile browser emulation for iOS phone viewport passed | Real iPad tablet device toolbar viewport passed | Real desktop Chrome responsive viewport passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 from responsive mode |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1246,7 +1268,7 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
       "Ride Voice Canvas",
-      "| Ride Voice Canvas | Real physical phone not tested | Real physical tablet not tested | Real desktop/laptop not tested | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Real physical phone not tested | Real physical tablet not tested | Real desktop/laptop not tested | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1267,7 +1289,7 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
       "Ride Voice Canvas",
-      "| Ride Voice Canvas | Real phone iOS Safari 18 failed to render | Real tablet iPad Safari 18 shows a blank screen | Real desktop/laptop Chrome 126 not working | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 failed to render | Real tablet iPad Safari 18 shows a blank screen | Real desktop/laptop Chrome 126 not working | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1288,7 +1310,7 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
       "Ride Voice Canvas",
-      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-99-99 |",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-99-99 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1296,7 +1318,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidDeviceCoverageRows).toEqual([
-      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop evidence",
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
@@ -1307,7 +1329,7 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
       "Ride Voice Canvas",
-      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2099-01-01 |",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2099-01-01 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1315,7 +1337,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidDeviceCoverageRows).toEqual([
-      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop evidence",
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
@@ -1326,7 +1348,7 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
       "Ride Voice Canvas",
-      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone, tablet, and desktop/laptop device evidence not reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts not reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1334,7 +1356,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidDeviceCoverageRows).toEqual([
-      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop evidence",
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
@@ -1345,7 +1367,7 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
       "Ride Voice Canvas",
-      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-07-19 but real phone failed to render |",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 but real phone failed to render |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1353,7 +1375,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidDeviceCoverageRows).toEqual([
-      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop evidence",
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
@@ -2542,7 +2564,7 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = replaceDeviceRow(
       completedMatrix(),
       "Ride Voice Canvas",
-      "| Ride Voice Canvas | Failed - phone lost restored draft | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Failed - phone lost restored draft | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
