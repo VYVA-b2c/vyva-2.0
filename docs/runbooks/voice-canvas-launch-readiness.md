@@ -87,6 +87,8 @@ Keep `docs/audits/voice-canvas-real-device-qa-matrix.md` marked **pending execut
 
 For recoverable failures, the behavior row must explicitly prove both retry and an exit or cancel path. Generic recovery wording without a clear exit/cancel path does not satisfy launch sign-off.
 
+For behavior rows that require no-write evidence, explicitly state no write or without write. Submission-only wording such as `not submitted`, `nothing submitted`, or `without submitting`, and no-external-action wording by itself, does not prove the write boundary for launch sign-off.
+
 For task hub destination rows, the no-side-effects cell must explicitly prove both no writes and no external actions before confirmation. Submission-only wording such as `not submitted` or `without submitting` is not enough for launch sign-off.
 
 Run the sign-off gate after filling the matrix:

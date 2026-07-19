@@ -748,6 +748,14 @@ function invalidInteractionModeRows(sections: Map<string, string[][]>): string[]
   return problems;
 }
 
+const explicitNoWriteEvidenceWords = [
+  "no write",
+  "no writes",
+  "no-write",
+  "without write",
+  "without writes",
+] as const;
+
 const behaviorChecklistRequirements = [
   {
     columnIndex: 1,
@@ -757,13 +765,7 @@ const behaviorChecklistRequirements = [
       ["start", "started"],
       ["resume", "resumed", "restore", "restored"],
       ["preserve", "preserved", "restore", "restored", "same scene", "current scene", "draft"],
-      [
-        "no write",
-        "no external action",
-        "not submitted",
-        "without submitting",
-        "without write",
-      ],
+      explicitNoWriteEvidenceWords,
     ],
   },
   {
@@ -774,14 +776,7 @@ const behaviorChecklistRequirements = [
       ["app exit", "exit app", "app close", "close app", "leave app"],
       ["reopen", "reopened", "return", "returned"],
       ["restore", "restored", "resume", "resumed", "draft"],
-      [
-        "no write",
-        "no external action",
-        "not submitted",
-        "without submitting",
-        "without resubmitting",
-        "without write",
-      ],
+      explicitNoWriteEvidenceWords,
     ],
   },
   {
@@ -792,14 +787,7 @@ const behaviorChecklistRequirements = [
       ["refresh"],
       ["reconnect", "reconnected", "network"],
       ["preserve", "preserved", "restore", "restored", "resume", "resumed", "draft"],
-      [
-        "no write",
-        "no external action",
-        "not submitted",
-        "without submitting",
-        "without resubmitting",
-        "without write",
-      ],
+      explicitNoWriteEvidenceWords,
     ],
   },
   {
@@ -810,14 +798,7 @@ const behaviorChecklistRequirements = [
       ["interruption", "interrupted", "interrupt"],
       ["recover", "recovery", "resume", "continued", "restored"],
       ["preserve", "preserved", "restore", "restored", "same scene", "current scene", "draft"],
-      [
-        "no write",
-        "no external action",
-        "not submitted",
-        "without submitting",
-        "without resubmitting",
-        "without write",
-      ],
+      explicitNoWriteEvidenceWords,
     ],
   },
   {
@@ -827,13 +808,7 @@ const behaviorChecklistRequirements = [
     wordGroups: [
       ["back"],
       ["preserve", "preserved", "restore", "restored", "return", "returned"],
-      [
-        "no write",
-        "no external action",
-        "not submitted",
-        "without submitting",
-        "without write",
-      ],
+      explicitNoWriteEvidenceWords,
     ],
   },
   {
@@ -842,13 +817,7 @@ const behaviorChecklistRequirements = [
     wordGroups: [
       ["cancel"],
       ["exit", "leave"],
-      [
-        "no write",
-        "no external action",
-        "not submitted",
-        "without submitting",
-        "without write",
-      ],
+      explicitNoWriteEvidenceWords,
     ],
   },
   {
@@ -860,13 +829,7 @@ const behaviorChecklistRequirements = [
       ["rollback"],
       ["fallback"],
       ["existing", "previous", "old", "safe concierge"],
-      [
-        "no write",
-        "no external action",
-        "not submitted",
-        "without submitting",
-        "without write",
-      ],
+      explicitNoWriteEvidenceWords,
     ],
   },
   {
@@ -881,14 +844,7 @@ const behaviorChecklistRequirements = [
         "nothing sent",
         "nothing submitted",
       ],
-      [
-        "no write",
-        "no writes",
-        "without write",
-        "without writes",
-        "not submitted",
-        "nothing submitted",
-      ],
+      explicitNoWriteEvidenceWords,
       [
         "no booking",
         "no bookings",
@@ -949,14 +905,7 @@ const behaviorChecklistRequirements = [
       ["failure", "failed", "blocked"],
       ["retry"],
       ["exit", "cancel"],
-      [
-        "no write",
-        "no external action",
-        "not submitted",
-        "without submitting",
-        "without resubmitting",
-        "without write",
-      ],
+      explicitNoWriteEvidenceWords,
     ],
   },
   {

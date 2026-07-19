@@ -1433,6 +1433,24 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects behavior rows that use no-external-action wording instead of explicit no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      "App exit and reopen restored draft with no write evidence passed",
+      "App exit and reopen restored draft with no external action evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, and no write evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices that do not explicitly deny external action before confirmation", () => {
     const completed = completedMatrix().replace(
       "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
@@ -1455,6 +1473,24 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = completedMatrix().replace(
       "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
       "No external action before explicit confirmation evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: confirmation safety cell must mention no external action, write, booking, call, message, and navigation before explicit confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects confirmation safety rows that use submission wording instead of explicit no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
+      "No external action, nothing submitted, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
