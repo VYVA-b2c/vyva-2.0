@@ -89,7 +89,7 @@ Keep `docs/audits/voice-canvas-real-device-qa-matrix.md` marked **pending execut
 
 For privacy rows, the result and evidence must name the specific forbidden data class being reviewed. Generic no-sensitive-data wording does not satisfy launch sign-off.
 
-For device coverage rows, the evidence note must name real phone, tablet, and desktop/laptop coverage plus a real-device screenshot, photo, or artifact reference. Generic device-evidence prose or generic screenshot evidence does not satisfy launch sign-off.
+For device coverage rows, the evidence note must name real phone, tablet, and desktop/laptop coverage plus a real-device screenshot, photo, or artifact reference that does not include transcripts, entered text, addresses, or personal details. Generic device-evidence prose or generic screenshot evidence does not satisfy launch sign-off.
 
 For interaction-mode rows, the evidence note must name voice, touch, keyboard, completion or safe exit, and a concrete screenshot, recording, log, or artifact reference that does not include spoken transcripts, entered text, addresses, or other personal details. Generic interaction-evidence prose or generic screenshot/log evidence does not satisfy launch sign-off.
 

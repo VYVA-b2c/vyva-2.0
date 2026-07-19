@@ -726,6 +726,15 @@ function invalidDeviceCoverageRows(sections: Map<string, string[][]>): string[] 
     } else if (hasEmulatedDeviceEvidenceLanguage(evidence)) {
       problems.push(`${flow.label}: evidence must not rely on viewport or emulator evidence`);
     }
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      hasSensitiveDataLeakageLanguage(evidence)
+    ) {
+      problems.push(
+        `${flow.label}: device evidence artifacts must not include transcripts, entered text, addresses, or personal details`,
+      );
+    }
   }
 
   return problems;
@@ -807,6 +816,15 @@ function invalidInteractionModeRows(sections: Map<string, string[][]>): string[]
     ) {
       problems.push(
         `${flow.label}: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit artifact evidence`,
+      );
+    }
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      hasSensitiveDataLeakageLanguage(evidence)
+    ) {
+      problems.push(
+        `${flow.label}: interaction-mode evidence artifacts must not include transcripts, entered text, addresses, or personal details`,
       );
     }
   }
@@ -1870,7 +1888,8 @@ const sensitiveDataNounPattern =
 function hasSensitiveDataLeakageLanguage(value: string): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   const sensitiveNoun = sensitiveDataNounPattern;
-  const leakVerb = "(?:recorded|logged|sent|captured|included|stored|retained|present)";
+  const leakVerb =
+    "(?:recorded|logged|sent|captured|include|includes|included|containing|contains|stored|retained|present|shown|shows|displayed|displays|visible|exposed|exposes)";
   const safeAbsenceLanguage = [
     new RegExp(`\\b(?:no|none|zero|without)\\b.{0,32}\\b${sensitiveNoun}\\b.{0,32}\\b${leakVerb}\\b`, "g"),
     new RegExp(`\\b${sensitiveNoun}\\b.{0,24}\\b(?:absent|omitted|excluded|redacted)\\b`, "g"),

@@ -1164,6 +1164,26 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects interaction evidence artifacts that include sensitive spoken or entered details", () => {
+    const completed = completedMatrix().replace(
+      rideInteractionModeRow,
+      `| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | ${interactionModeArtifactEvidence} and voice recording captured spoken transcript |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: interaction-mode evidence artifacts must not include transcripts, entered text, addresses, or personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices without completion or safe-exit interaction evidence", () => {
     const completed = completedMatrix().replace(
       rideInteractionModeRow,
@@ -1261,6 +1281,25 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidDeviceCoverageRows).toEqual([
       "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects real-device artifacts that include sensitive visible details", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      `| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | ${realDeviceArtifactEvidence} and phone screenshot captured address |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: device evidence artifacts must not include transcripts, entered text, addresses, or personal details",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("real-device coverage row")]),

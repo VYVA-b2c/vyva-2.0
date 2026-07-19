@@ -220,6 +220,7 @@ describe("Canvas launch readiness manifest", () => {
       "voice, touch, keyboard",
       "completion or safe exit",
       "screenshot, recording, log, or artifact reference",
+      "transcripts, entered text, addresses, or personal details",
       "focus moved",
       "Local shopping draft",
       "Local medication refill draft",
