@@ -227,7 +227,11 @@ function isMeaningfulEnvironmentValue(
         ) && !/\b(mock|stub|fake|simulated|local)\b/i.test(normalized)
       );
     case "Analytics sink reviewed":
-      return /\breview(ed)?\b/i.test(normalized) && isIsoDateCellFromText(normalized);
+      return (
+        /\breview(ed)?\b/i.test(normalized) &&
+        isIsoDateCellFromText(normalized) &&
+        !hasNegativeEvidenceLanguage(normalized)
+      );
     case "Initial flag state":
       return hasAllWordGroups(lower, [
         ["enabled", "enable"],
@@ -296,8 +300,16 @@ function hasDatedEvidenceLanguage(
 ): boolean {
   return (
     isIsoDateCellFromText(normalizeCell(value)) &&
+    !hasNegativeEvidenceLanguage(value) &&
     hasAnyWord(value, evidenceWords) &&
     hasAnyWord(value, ["qa", "reviewer", "reviewed", "captured", "verified"])
+  );
+}
+
+function hasNegativeEvidenceLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return /\b(no evidence|without evidence|missing evidence|evidence missing|not reviewed|not captured|not verified|not tested|not run|not executed|not checked|unable to review|unable to verify|could not review|could not verify|unreviewed|unverified|untested)\b/.test(
+    normalized,
   );
 }
 
