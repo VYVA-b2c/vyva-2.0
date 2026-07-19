@@ -3422,6 +3422,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner growth campaign plan");
     expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("Saved launch packet");
     expect(screen.getByTestId("marketing-campaign-saved-launch-packet")).toHaveTextContent("Partner growth");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-checklist")).toHaveTextContent("Launch checklist");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-checklist")).toHaveTextContent("Email send");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-checklist")).toHaveTextContent("Manual handoff");
+    expect(screen.getByTestId("marketing-campaign-saved-launch-checklist")).toHaveTextContent("Follow-up");
+    expect(screen.getByTestId("button-marketing-copy-saved-launch-checklist")).toHaveTextContent("Copy checklist");
     expect(screen.getByTestId("marketing-campaign-saved-launch-packet-routes")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-saved-launch-packet-routes")).toHaveTextContent("VYVA email review/send");
     expect((screen.getByTestId("textarea-marketing-campaign-saved-launch-packet") as HTMLTextAreaElement).value).toContain("VYVA saved launch packet");

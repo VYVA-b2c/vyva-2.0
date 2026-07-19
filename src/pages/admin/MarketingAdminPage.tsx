@@ -22151,6 +22151,61 @@ export default function MarketingAdminPage() {
   const campaignSavedLaunchPacketText = Object.keys(campaignSavedLaunchPacket).length
     ? launchPacketTextFromMetadata(campaignSavedLaunchPacket)
     : displayText(campaignStudioSavedLaunchKit.launchPacketText);
+  const campaignSavedLaunchChecklist = useMemo(() => {
+    if (!campaignSavedLaunchPacketText) return null;
+    const reviewChecklist = hasTemplatePackLaunchPacket && Array.isArray(campaignSavedLaunchPacket.reviewChecklist)
+      ? campaignSavedLaunchPacket.reviewChecklist.map(displayText).filter(Boolean)
+      : [];
+    const emailRoutes = campaignSavedLaunchPacketRoutes.filter((route) => displayText(route.channel) === "email");
+    const manualRoutes = campaignSavedLaunchPacketRoutes.filter((route) => displayText(route.channel) !== "email");
+    const routeLines = campaignSavedLaunchPacketRoutes.map((route, index) => {
+      const label = displayText(route.channelLabel) || displayText(route.channel) || `Route ${index + 1}`;
+      const nextAction = displayText(route.nextAction) || "Review before launch.";
+      const recipients = displayText(route.recipientCount) || "0";
+      return `${index + 1}. ${label}: ${nextAction} (${recipients} recipient${recipients === "1" ? "" : "s"})`;
+    });
+    const checklist = [
+      ...(reviewChecklist.length ? reviewChecklist : [
+        "Review every linked content asset before launch.",
+        "Confirm recipient snapshots and consent before sending.",
+        "Copy manual channel handoffs for non-email routes.",
+        "Log outcomes so follow-up campaigns use real relationship signals.",
+      ]),
+      ...manualRoutes.map((route) => `Prepare manual handoff for ${displayText(route.channelLabel) || displayText(route.channel) || "channel"}.`),
+      ...(emailRoutes.length ? ["Send a test email before any live email send."] : []),
+    ];
+    const text = [
+      "VYVA launch checklist",
+      `Campaign: ${editingCampaign?.name ?? "Campaign"}`,
+      `Launch kit: ${displayText(campaignSavedLaunchPacketSource.packTitle) || displayText(campaignSavedLaunchPacketSource.playTitle) || "Saved launch packet"}`,
+      "",
+      "Checklist:",
+      ...checklist.map((item) => `- ${item}`),
+      "",
+      "Routes:",
+      ...(routeLines.length ? routeLines : ["No saved routes yet."]),
+    ].join("\n");
+
+    return {
+      checklist,
+      text,
+      emailRouteCount: emailRoutes.length,
+      manualRouteCount: manualRoutes.length,
+      routeCount: campaignSavedLaunchPacketRoutes.length,
+      visualBriefCount: campaignSavedLaunchPacketVisualBriefs.length,
+      followUpCount: campaignSavedLaunchPacketFollowUps.length,
+    };
+  }, [
+    campaignSavedLaunchPacket.reviewChecklist,
+    campaignSavedLaunchPacketFollowUps.length,
+    campaignSavedLaunchPacketRoutes,
+    campaignSavedLaunchPacketSource.packTitle,
+    campaignSavedLaunchPacketSource.playTitle,
+    campaignSavedLaunchPacketText,
+    campaignSavedLaunchPacketVisualBriefs.length,
+    editingCampaign?.name,
+    hasTemplatePackLaunchPacket,
+  ]);
   const missingCampaignContentChannels = campaignReadinessChannels.filter((channel) => !channel.contentAssetId || !contentById.has(channel.contentAssetId));
   const campaignContentMatchSuggestions = editingCampaign
     ? missingCampaignContentChannels
@@ -29360,6 +29415,55 @@ export default function MarketingAdminPage() {
                                 </button>
                               </div>
                             </div>
+                            {campaignSavedLaunchChecklist ? (
+                              <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/70 p-3" data-testid="marketing-campaign-saved-launch-checklist">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-900">Launch checklist</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                                      Use this short checklist to move from campaign plan to email send, manual handoff, and follow-up tracking.
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => void copyCampaignHandoffText("Launch checklist", campaignSavedLaunchChecklist.text)}
+                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-900 hover:bg-amber-100"
+                                    data-testid="button-marketing-copy-saved-launch-checklist"
+                                  >
+                                    <ClipboardList size={14} /> Copy checklist
+                                  </button>
+                                </div>
+                                <div className="mt-3 grid gap-2 text-xs font-bold text-[#5f4a44] sm:grid-cols-2 xl:grid-cols-5">
+                                  <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                                    <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-amber-900">Routes</span>
+                                    <span className="mt-1 block text-[#241133]">{campaignSavedLaunchChecklist.routeCount}</span>
+                                  </div>
+                                  <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                                    <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-amber-900">Email send</span>
+                                    <span className="mt-1 block text-[#241133]">{campaignSavedLaunchChecklist.emailRouteCount}</span>
+                                  </div>
+                                  <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                                    <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-amber-900">Manual handoff</span>
+                                    <span className="mt-1 block text-[#241133]">{campaignSavedLaunchChecklist.manualRouteCount}</span>
+                                  </div>
+                                  <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                                    <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-amber-900">Creative briefs</span>
+                                    <span className="mt-1 block text-[#241133]">{campaignSavedLaunchChecklist.visualBriefCount}</span>
+                                  </div>
+                                  <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                                    <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-amber-900">Follow-up</span>
+                                    <span className="mt-1 block text-[#241133]">{campaignSavedLaunchChecklist.followUpCount}</span>
+                                  </div>
+                                </div>
+                                <ol className="mt-3 grid gap-2 text-xs font-bold leading-relaxed text-[#5f4a44] xl:grid-cols-2">
+                                  {campaignSavedLaunchChecklist.checklist.slice(0, 6).map((item, index) => (
+                                    <li key={`${item}-${index}`} className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                                      <span className="font-black text-amber-900">{index + 1}.</span> {item}
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+                            ) : null}
                             <div className="mt-3 grid gap-2 xl:grid-cols-2" data-testid="marketing-campaign-saved-launch-packet-routes">
                               {campaignSavedLaunchPacketRoutes.map((route, index) => {
                                 const channel = displayText(route.channel);
