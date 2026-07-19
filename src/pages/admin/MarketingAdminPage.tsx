@@ -963,6 +963,10 @@ type CampaignStudioReusableAssetMatch = {
   reasons: string[];
 };
 
+type CampaignStudioPreflightItem = CampaignReadinessItem & {
+  value: string;
+};
+
 type CampaignStudioFollowUpPlayItem = {
   key: string;
   title: string;
@@ -15566,6 +15570,91 @@ export default function MarketingAdminPage() {
       return candidates[0] ?? null;
     })
     .filter((item): item is CampaignStudioReusableAssetMatch => Boolean(item));
+  const campaignStudioPreflightItems: CampaignStudioPreflightItem[] = [
+    {
+      key: "audience",
+      title: "Audience and consent",
+      value: `${campaignStudioDeliveryIssues.optedIn}/${campaignStudioAudiencePool.length} opted in`,
+      state: campaignStudioPackRecipientCount > 0 && campaignStudioDeliveryIssues.optedOut === 0
+        ? "ready"
+        : campaignStudioPackRecipientCount > 0
+          ? "needs_action"
+          : "blocked",
+      detail: campaignStudioPackRecipientCount > 0
+        ? `${campaignStudioPackRecipientCount} channel recipient snapshot${campaignStudioPackRecipientCount === 1 ? "" : "s"} can be prepared. ${campaignStudioDeliveryIssues.consentReview} need consent review; ${campaignStudioDeliveryIssues.optedOut} opted out.`
+        : "No reachable opted-in route is available for this channel pack.",
+    },
+    {
+      key: "content",
+      title: "Content and reusable assets",
+      value: `${campaignStudioReusableAssetMatches.length}/${campaignStudioSelectedChannels.length} reusable`,
+      state: campaignStudioHasFullAiPack || campaignStudioReusableAssetMatches.length >= campaignStudioSelectedChannels.length
+        ? "ready"
+        : campaignStudioSubjectLength === 0 || campaignStudioBodyWordCount === 0 || !campaignStudioHasCta
+          ? "needs_action"
+          : "planning",
+      detail: campaignStudioHasFullAiPack
+        ? `AI-polished copy is ready for all ${campaignStudioSelectedChannels.length} selected route${campaignStudioSelectedChannels.length === 1 ? "" : "s"}.`
+        : campaignStudioReusableAssetMatches.length
+          ? `${campaignStudioReusableAssetMatches.length} selected route${campaignStudioReusableAssetMatches.length === 1 ? "" : "s"} can reuse saved Source/VYVA content.`
+          : "No reusable saved assets match this pack yet; use AI polish or a template pack.",
+    },
+    {
+      key: "tracking",
+      title: "CTA and tracking",
+      value: `${campaignStudioTrackingLinks.filter((item) => item.url).length}/${campaignStudioTrackingLinks.length} links`,
+      state: campaignStudioTrackingLinks.length > 0 && campaignStudioTrackingLinks.every((item) => item.url) ? "ready" : "needs_action",
+      detail: campaignStudioTrackingLinks.every((item) => item.url)
+        ? "Every selected route has a tracked CTA link."
+        : "Add a CTA URL so every route can use a tracked link.",
+    },
+    {
+      key: "schedule",
+      title: "Schedule and owner",
+      value: campaignStudioSchedule ? formatDate(fromDateTimeLocal(campaignStudioSchedule)) : "No schedule",
+      state: campaignStudioSchedule && campaignStudioOwnerName ? "ready" : "needs_action",
+      detail: campaignStudioSchedule
+        ? `${campaignStudioOwnerName} owns launch and success is measured by ${campaignStudioSuccessMetric}.`
+        : "Choose a practical publish window before creating records.",
+    },
+    {
+      key: "publishing",
+      title: "Publishing route",
+      value: campaignStudioHasEmailChannel ? "Email review" : "Manual handoff",
+      state: campaignStudioSaving || campaignStudioAiRunning || campaignStudioPackRecipientCount === 0
+        ? "blocked"
+        : campaignStudioHasEmailChannel || campaignStudioSelectedChannels.some((channel) => channel !== "email")
+          ? "ready"
+          : "planning",
+      detail: campaignStudioHasEmailChannel
+        ? "Email can be created now, then explicitly reviewed and sent from campaign details."
+        : `${campaignStudioSelectedChannels.filter((channel) => channel !== "email").map((channel) => channelLabel[channel]).join(", ") || "Selected channels"} will create planning records and handoff material.`,
+    },
+  ];
+  const campaignStudioPreflightBlockedCount = campaignStudioPreflightItems.filter((item) => item.state === "blocked").length;
+  const campaignStudioPreflightNeedsActionCount = campaignStudioPreflightItems.filter((item) => item.state === "needs_action").length;
+  const campaignStudioPreflightReadyCount = campaignStudioPreflightItems.filter((item) => item.state === "ready").length;
+  const campaignStudioPreflightState: CampaignReadinessState = campaignStudioPreflightBlockedCount
+    ? "blocked"
+    : campaignStudioPreflightNeedsActionCount
+      ? "needs_action"
+      : "ready";
+  const campaignStudioPreflightText = [
+    "VYVA campaign preflight review",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Owner: ${campaignStudioOwnerName}`,
+    `Schedule: ${campaignStudioOfflineScheduleLabel}`,
+    `Channels: ${formatChannelList(campaignStudioSelectedChannels)}`,
+    `Overall: ${readinessLabel(campaignStudioPreflightState)} (${campaignStudioPreflightReadyCount}/${campaignStudioPreflightItems.length} ready)`,
+    "",
+    ...campaignStudioPreflightItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} | ${item.value} | ${item.detail}`),
+    "",
+    campaignStudioPreflightBlockedCount
+      ? "Do not create/publish yet. Resolve blocked preflight items first."
+      : campaignStudioPreflightNeedsActionCount
+        ? "Can be drafted, but review the needs-action items before final send or manual publishing."
+        : "Ready to create the launch kit, review email sends, and hand off manual channels.",
+  ].join("\n");
   const campaignStudioVisualStyle = campaignStudio.toneId === "expert"
     ? "clean, credible, calm, editorial"
     : campaignStudio.toneId === "direct"
@@ -28728,6 +28817,41 @@ export default function MarketingAdminPage() {
                           No matching saved assets for this route pack yet. Use a template pack or AI draft first, then save it as reusable content.
                         </div>
                       )}
+                    </div>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4" data-testid="marketing-campaign-studio-preflight">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-800">Preflight review</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Know what is safe to create before launch</h3>
+                          <p className="mt-1 text-xs font-bold text-[#6f5f59]">Consent, content reuse, tracking, schedule, owner, and publishing route are checked before the campaign leaves the studio.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Pill className={readinessPillClass(campaignStudioPreflightState)}>
+                            {campaignStudioPreflightReadyCount}/{campaignStudioPreflightItems.length} ready
+                          </Pill>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign preflight review", campaignStudioPreflightText)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-sm font-black text-amber-800 hover:bg-amber-50"
+                            data-testid="button-marketing-campaign-studio-copy-preflight"
+                          >
+                            <Copy size={14} /> Copy preflight
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2 xl:grid-cols-5" data-testid="marketing-campaign-studio-preflight-items">
+                        {campaignStudioPreflightItems.map((item) => (
+                          <article key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-preflight-${item.key}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</p>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <p className="mt-2 text-sm font-black text-[#241133]">{item.value}</p>
+                            <p className="mt-1 line-clamp-3 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.detail}</p>
+                          </article>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-execution-plan">

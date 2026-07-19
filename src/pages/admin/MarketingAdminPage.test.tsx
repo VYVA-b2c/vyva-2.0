@@ -5924,6 +5924,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-reusable-assets")).toHaveTextContent("Reusable assets");
     expect(screen.getByTestId("marketing-campaign-studio-reusable-asset-linkedin")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-campaign-studio-reusable-asset-linkedin")).toHaveTextContent("Imported Source asset");
+    expect(screen.getByTestId("marketing-campaign-studio-preflight")).toHaveTextContent("Preflight review");
+    expect(screen.getByTestId("marketing-campaign-studio-preflight-audience")).toHaveTextContent("Audience and consent");
+    expect(screen.getByTestId("marketing-campaign-studio-preflight-content")).toHaveTextContent("Content and reusable assets");
+    expect(screen.getByTestId("marketing-campaign-studio-preflight-tracking")).toHaveTextContent("CTA and tracking");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-map")).toHaveTextContent("Audience delivery map");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-map-counts")).toHaveTextContent("Opted in");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-map-counts")).toHaveTextContent("Needs review");
@@ -5944,6 +5948,11 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign tracking links"));
     });
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign tracking links copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-preflight"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign preflight review"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign preflight review copied.");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-test-preview-linkedin"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA channel test preview"));
