@@ -24424,6 +24424,39 @@ export default function MarketingAdminPage() {
       setMessage(feedback);
     }
   }
+
+  function openMarketingDashboardAiCreatedCampaign(action: "review" | "email" | "handoff") {
+    const summary = marketingDashboardAiCreatedKitSummary;
+    if (!summary) return;
+
+    const campaign = campaigns.find((item) => item.id === summary.campaignId) ?? null;
+    if (!campaign) {
+      const feedback = "Created campaign is not in the current list yet. Refresh marketing data and try again.";
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    openCampaignForNextAction(campaign);
+    if (action === "email") {
+      setCampaignEmailFeedback("Email send review opened. Check copy, recipients, schedule, and test email before sending.");
+      setMarketingDashboardAiCommandFeedback(`Opened "${summary.campaignName}" for email send review.`);
+      setMessage(`Opened "${summary.campaignName}" for email send review.`);
+      return;
+    }
+
+    if (action === "handoff") {
+      const handoffChannels = summary.routeChannels.filter((channel) => channel !== "email");
+      const handoffLabel = handoffChannels.length ? formatChannelList(handoffChannels) : "manual";
+      setCampaignEmailFeedback(`Manual handoff review opened for ${handoffLabel}. Copy route briefs, log external publishing, and track replies.`);
+      setMarketingDashboardAiCommandFeedback(`Opened "${summary.campaignName}" for ${handoffLabel} handoff review.`);
+      setMessage(`Opened "${summary.campaignName}" for ${handoffLabel} handoff review.`);
+      return;
+    }
+
+    setMarketingDashboardAiCommandFeedback(`Opened "${summary.campaignName}" in campaign details.`);
+    setMessage(`Opened "${summary.campaignName}" in campaign details.`);
+  }
   const marketingOperatorBriefItems: MarketingOperatorBriefItem[] = [
     {
       key: "priority",
@@ -25179,6 +25212,34 @@ export default function MarketingAdminPage() {
                                         : "Log replies and follow-up tasks after send."}
                                     </span>
                                   </div>
+                                </div>
+                                <div className="mt-3 grid gap-2 md:grid-cols-3" data-testid="marketing-ai-command-created-kit-action-buttons">
+                                  <button
+                                    type="button"
+                                    onClick={() => openMarketingDashboardAiCreatedCampaign("review")}
+                                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                                    data-testid="button-marketing-ai-command-open-created-campaign"
+                                  >
+                                    <Eye size={13} /> Open campaign
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openMarketingDashboardAiCreatedCampaign("email")}
+                                    disabled={!marketingDashboardAiCreatedKitSummary.routeChannels.includes("email")}
+                                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 transition hover:bg-emerald-50 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                    data-testid="button-marketing-ai-command-open-email-review"
+                                  >
+                                    <Send size={13} /> Review email send
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openMarketingDashboardAiCreatedCampaign("handoff")}
+                                    disabled={!marketingDashboardAiCreatedKitSummary.routeChannels.some((channel) => channel !== "email")}
+                                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 transition hover:bg-amber-50 focus:outline-none focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                    data-testid="button-marketing-ai-command-open-handoff-review"
+                                  >
+                                    <ClipboardList size={13} /> Prepare handoffs
+                                  </button>
                                 </div>
                               </div>
                             </div>

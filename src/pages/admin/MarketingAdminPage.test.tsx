@@ -1497,6 +1497,20 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-created-kit-next-actions")).toHaveTextContent("Send email safely");
     expect(screen.getByTestId("marketing-ai-command-created-kit-next-actions")).toHaveTextContent("Log LinkedIn handoffs and replies.");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Professional referral webinar campaign plan");
+    expect(screen.getByTestId("marketing-ai-command-created-kit-action-buttons")).toHaveTextContent("Open campaign");
+    expect(screen.getByTestId("marketing-ai-command-created-kit-action-buttons")).toHaveTextContent("Review email send");
+    expect(screen.getByTestId("marketing-ai-command-created-kit-action-buttons")).toHaveTextContent("Prepare handoffs");
+
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-open-email-review"));
+    expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent('Opened "Professional referral webinar campaign plan" for email send review.');
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Email send review opened");
+
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-open-handoff-review"));
+    expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent("LinkedIn handoff review");
+    expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Manual handoff review opened for LinkedIn");
+
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-open-created-campaign"));
+    expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent('Opened "Professional referral webinar campaign plan" in campaign details.');
 
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-customize-pack"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI command matched");
