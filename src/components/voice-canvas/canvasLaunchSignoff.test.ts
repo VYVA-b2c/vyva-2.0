@@ -664,6 +664,36 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects task hub destination fallback rows that do not name the existing destination path", () => {
+    const completed = completedMatrix().replace(
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action or write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback | No external action or write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: fallback must name the disabled destination path",
+    ]);
+  });
+
+  it("rejects stale task hub fallback rows that do not name the safe Concierge path", () => {
+    const completed = completedMatrix().replace(
+      "| Stale or blocked task | Stale or blocked task resumes through safe Concierge task path | Stale or blocked task uses safe fallback with no Canvas rewrite | No write to detail, completion, or confirmation endpoint before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Stale or blocked task | Stale or blocked task resumes through safe Concierge task path | Stale or blocked task uses safe fallback | No write to detail, completion, or confirmation endpoint before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Stale or blocked task: fallback must name the disabled destination path",
+    ]);
+  });
+
   it("rejects ready-for-launch matrices with vague interaction-mode evidence", () => {
     const completed = completedMatrix().replace(
       "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",

@@ -908,7 +908,8 @@ const taskHubDestinationRequirements: Record<
     fallbackWordGroups: [
       ["shopping"],
       ["disabled", "rollout 0", "0%"],
-      ["fallback", "existing"],
+      ["fallback"],
+      ["existing", "previous", "old", "shopping experience"],
     ],
     safeWordGroups: [
       ["no write", "no external action", "not submitted", "without submitting"],
@@ -925,7 +926,8 @@ const taskHubDestinationRequirements: Record<
     fallbackWordGroups: [
       ["medication", "refill"],
       ["disabled", "rollout 0", "0%"],
-      ["fallback", "existing"],
+      ["fallback"],
+      ["existing", "previous", "old", "medication refill", "shopping/support"],
     ],
     safeWordGroups: [
       ["no write", "no external action", "not submitted", "without submitting"],
@@ -943,7 +945,8 @@ const taskHubDestinationRequirements: Record<
       ["provider"],
       ["reply"],
       ["disabled", "rollout 0", "0%"],
-      ["fallback", "existing", "safe concierge task path"],
+      ["fallback"],
+      ["existing", "previous", "safe concierge task path"],
     ],
     safeWordGroups: [
       ["no write", "no external action", "not submitted", "without submitting"],
@@ -957,8 +960,9 @@ const taskHubDestinationRequirements: Record<
       ["resume", "resumed"],
     ],
     fallbackWordGroups: [
-      ["fallback", "existing", "safe concierge task path", "no canvas"],
+      ["fallback", "no canvas", "safe concierge task path"],
       ["stale", "blocked", "disabled", "rollout 0", "safe"],
+      ["existing", "previous", "safe concierge task path", "no canvas"],
     ],
     safeWordGroups: [
       ["no write", "no external action", "not submitted", "without submitting"],
