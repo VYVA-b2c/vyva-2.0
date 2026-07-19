@@ -651,6 +651,24 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch matrices that do not explicitly deny external action before confirmation", () => {
+    const completed = completedMatrix().replace(
+      "No external action before explicit confirmation evidence passed",
+      "External action before explicit confirmation evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: confirmation safety cell must mention no external action before explicit confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
   it("rejects ready-for-launch matrices without explicit recoverable failure retry evidence", () => {
     const completed = completedMatrix().replace(
       "Recoverable failure blocked state offered retry and exit recovery",

@@ -474,7 +474,19 @@ const behaviorChecklistRequirements = [
     description:
       "confirmation safety cell must mention no external action before explicit confirmation",
     wordGroups: [
-      ["no external action", "without external action", "external action"],
+      [
+        "no external action",
+        "without external action",
+        "no write",
+        "no booking",
+        "no call",
+        "no message",
+        "no navigation",
+        "not sent",
+        "not submitted",
+        "nothing sent",
+        "nothing submitted",
+      ],
       ["before"],
       ["explicit confirmation", "confirmation"],
     ],
