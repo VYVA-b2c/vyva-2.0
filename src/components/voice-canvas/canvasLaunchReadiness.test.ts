@@ -223,6 +223,7 @@ describe("Canvas launch readiness manifest", () => {
       "Flag rollback/fallback",
       "No external action before explicit confirmation",
       "Duplicate/stale guard",
+      "resubmission",
       "Senior-friendly copy and what happens next",
       "Privacy-safe analytics",
       "Screen-reader announcements",

@@ -764,6 +764,17 @@ const explicitNoExternalActionEvidenceWords = [
   "without external actions",
 ] as const;
 
+const explicitNoResubmissionEvidenceWords = [
+  "no resubmission",
+  "no resubmissions",
+  "no-resubmission",
+  "without resubmission",
+  "without resubmissions",
+  "not resubmitted",
+  "not automatically resubmitted",
+  "not auto-resubmitted",
+] as const;
+
 const duplicateStaleGuardDescription =
   "duplicate/stale guard cell must mention duplicate prevention and stale response ignoring";
 
@@ -796,48 +807,52 @@ const behaviorChecklistRequirements = [
   {
     columnIndex: 1,
     description:
-      "start/resume cell must mention start, resumed work, and no write evidence",
+      "start/resume cell must mention start, resumed work, no write, and no resubmission evidence",
     wordGroups: [
       ["start", "started"],
       ["resume", "resumed", "restore", "restored"],
       ["preserve", "preserved", "restore", "restored", "same scene", "current scene", "draft"],
       explicitNoWriteEvidenceWords,
+      explicitNoResubmissionEvidenceWords,
       explicitNoExternalActionEvidenceWords,
     ],
   },
   {
     columnIndex: 2,
     description:
-      "app exit/reopen cell must mention app exit/reopen, restored draft, and no write evidence",
+      "app exit/reopen cell must mention app exit/reopen, restored draft, no write, and no resubmission evidence",
     wordGroups: [
       ["app exit", "exit app", "app close", "close app", "leave app"],
       ["reopen", "reopened", "return", "returned"],
       ["restore", "restored", "resume", "resumed", "draft"],
       explicitNoWriteEvidenceWords,
+      explicitNoResubmissionEvidenceWords,
       explicitNoExternalActionEvidenceWords,
     ],
   },
   {
     columnIndex: 3,
     description:
-      "refresh/reconnect cell must mention refresh, reconnect, restored work, and no write evidence",
+      "refresh/reconnect cell must mention refresh, reconnect, restored work, no write, and no resubmission evidence",
     wordGroups: [
       ["refresh"],
       ["reconnect", "reconnected", "network"],
       ["preserve", "preserved", "restore", "restored", "resume", "resumed", "draft"],
       explicitNoWriteEvidenceWords,
+      explicitNoResubmissionEvidenceWords,
       explicitNoExternalActionEvidenceWords,
     ],
   },
   {
     columnIndex: 4,
     description:
-      "voice interruption cell must mention interruption recovery, preserved work, and no write evidence",
+      "voice interruption cell must mention interruption recovery, preserved work, no write, and no resubmission evidence",
     wordGroups: [
       ["interruption", "interrupted", "interrupt"],
       ["recover", "recovery", "resume", "continued", "restored"],
       ["preserve", "preserved", "restore", "restored", "same scene", "current scene", "draft"],
       explicitNoWriteEvidenceWords,
+      explicitNoResubmissionEvidenceWords,
       explicitNoExternalActionEvidenceWords,
     ],
   },
@@ -917,13 +932,14 @@ const behaviorChecklistRequirements = [
   {
     columnIndex: 10,
     description:
-      "recoverable failure retry cell must mention recoverable failure, retry, exit, and no write evidence",
+      "recoverable failure retry cell must mention recoverable failure, retry, exit, no write, and no resubmission evidence",
     wordGroups: [
       ["recoverable"],
       ["failure", "failed", "blocked"],
       ["retry"],
       ["exit", "cancel"],
       explicitNoWriteEvidenceWords,
+      explicitNoResubmissionEvidenceWords,
       explicitNoExternalActionEvidenceWords,
     ],
   },
