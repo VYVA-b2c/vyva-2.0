@@ -5515,6 +5515,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-channels")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-reach")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-ai")).toHaveTextContent("0/1");
+    expect(screen.getByTestId("marketing-campaign-studio-action-queue")).toHaveTextContent("Action queue");
+    expect(screen.getByTestId("marketing-campaign-studio-action-queue")).toHaveTextContent("always has an obvious next click");
+    expect(screen.getByTestId("marketing-campaign-studio-action-queue-copy")).toHaveTextContent("Polish the channel copy");
+    expect(screen.getByTestId("button-marketing-campaign-studio-action-queue-copy")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("marketing-campaign-studio-action-queue-create")).toHaveTextContent("Create campaign records");
+    expect(screen.getByTestId("button-marketing-campaign-studio-action-queue-create")).toHaveTextContent("Create now");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-action-queue"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign action queue"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign action queue copied.");
     expect(screen.getByTestId("marketing-campaign-studio-brief-scorecard")).toHaveTextContent("Brief scorecard");
     expect(screen.getByTestId("marketing-campaign-studio-brief-scorecard")).toHaveTextContent("Checks whether the campaign idea");
     expect(screen.getByTestId("marketing-campaign-studio-brief-scorecard-play")).toHaveTextContent("B2B partner introduction");

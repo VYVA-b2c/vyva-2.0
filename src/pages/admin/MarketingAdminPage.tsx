@@ -15373,6 +15373,29 @@ export default function MarketingAdminPage() {
     ? campaignStudioLaunchSteps.find((step) => step.key === "review")
     : campaignStudioLaunchSteps.find((step) => step.key === "create" && !step.disabled)
       ?? campaignStudioLaunchSteps.find((step) => step.key === "review");
+  const campaignStudioActionQueue = [
+    campaignStudioPrimaryLaunchStep,
+    campaignStudioSecondaryLaunchStep,
+    ...campaignStudioLaunchSteps.filter((step) => step.state === "blocked"),
+    ...campaignStudioLaunchSteps.filter((step) => step.state === "needs_action"),
+    ...campaignStudioLaunchSteps.filter((step) => step.state === "planning"),
+    ...campaignStudioLaunchSteps.filter((step) => step.state === "ready"),
+  ].filter((step): step is CampaignStudioLaunchStep => Boolean(step))
+    .filter((step, index, steps) => steps.findIndex((candidate) => candidate.key === step.key) === index)
+    .slice(0, 4);
+  const campaignStudioActionQueueText = [
+    "VYVA campaign action queue",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Overall readiness: ${campaignStudioReadinessSummary}`,
+    `Recommended next step: ${campaignStudioNextStep}`,
+    "",
+    "Next best actions:",
+    ...campaignStudioActionQueue.map((step, index) => `${index + 1}. ${step.title} (${readinessLabel(step.state)}) - ${step.detail} Action: ${step.actionLabel}.`),
+    "",
+    campaignStudioCreateDisabled
+      ? "Creation is currently blocked until the queue issues are resolved."
+      : "Creation is available, but the queue keeps polish, route, and review work visible before publish/send.",
+  ].join("\n");
   const campaignStudioLaunchAssistantTitle = campaignStudioBlockedCount > 0
     ? "Fix the campaign blocker"
     : campaignStudioPrimaryLaunchStep.key === "reach"
@@ -26403,6 +26426,50 @@ export default function MarketingAdminPage() {
                             <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-action-queue">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Action queue</p>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">
+                              The next few actions are ordered from highest leverage to final review, so the studio always has an obvious next click.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign action queue", campaignStudioActionQueueText)}
+                            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                            data-testid="button-marketing-campaign-studio-copy-action-queue"
+                          >
+                            <Copy size={13} aria-hidden="true" /> Copy actions
+                          </button>
+                        </div>
+                        <div className="mt-3 grid gap-2 xl:grid-cols-4" data-testid="marketing-campaign-studio-action-queue-items">
+                          {campaignStudioActionQueue.map((step, index) => {
+                            const Icon = step.icon;
+                            return (
+                              <article key={step.key} className={`flex min-h-[168px] flex-col justify-between rounded-xl border p-3 ${readinessClass(step.state)}`} data-testid={`marketing-campaign-studio-action-queue-${step.key}`}>
+                                <div>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <Pill className="bg-white text-[#5b4a46]">#{index + 1}</Pill>
+                                    <Pill className={readinessPillClass(step.state)}>{readinessLabel(step.state)}</Pill>
+                                  </div>
+                                  <p className="mt-2 text-sm font-black text-[#241133]">{step.title}</p>
+                                  <p className="mt-1 line-clamp-3 text-xs font-bold leading-relaxed text-[#6b5b54]">{step.detail}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={step.onSelect}
+                                  disabled={step.disabled}
+                                  className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  data-testid={`button-marketing-campaign-studio-action-queue-${step.key}`}
+                                >
+                                  <Icon size={13} aria-hidden="true" /> {step.actionLabel}
+                                </button>
+                              </article>
+                            );
+                          })}
+                        </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-brief-scorecard">
                         <div className="flex flex-wrap items-start justify-between gap-3">
