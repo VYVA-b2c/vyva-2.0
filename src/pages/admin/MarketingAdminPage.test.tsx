@@ -2496,6 +2496,31 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-export-preview-raw-samples")).toHaveTextContent("social_posts");
   });
 
+  it("shows a copyable playbook for curated template packs", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Pack playbook");
+    expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Use Caregiver invite acceptance email first");
+    expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("7 steps");
+    expect(screen.getByTestId("button-marketing-template-pack-copy-playbook-caregiver-invite-activation")).toHaveTextContent("Copy playbook");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-playbook-caregiver-invite-activation"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template pack playbook"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Caregiver invite activation"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Publish checklist:"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Caregiver invite activation playbook copied.");
+  });
+
   it("applies content templates into the draft form", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

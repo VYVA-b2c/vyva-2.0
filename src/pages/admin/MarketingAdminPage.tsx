@@ -7474,6 +7474,42 @@ function templatePackAiCommandText(pack: ContentTemplatePack, templates: Content
   ].join("\n\n");
 }
 
+function templatePackPlaybookText(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+  const channels = Array.from(new Set(templates.map((template) => template.channel)));
+  const audiences = Array.from(new Set(templates.map((template) => template.audienceType)));
+  const categories = Array.from(new Set(templates.map((template) => template.category)));
+  const primaryTemplate = templates.find((template) => template.id === pack.heroTemplateId) ?? templates[0] ?? null;
+  const sequence = pack.sequence.map((step, index) => `${index + 1}. ${step.offset}: ${step.title} on ${channelLabel[step.channel]} - ${step.detail}`);
+  const reusableAssets = templates.slice(0, 8).map((template) => `- ${template.title}: ${channelLabel[template.channel]} / ${template.category} / CTA ${template.ctaLabel || "review"}`);
+
+  return [
+    "VYVA template pack playbook",
+    `Pack: ${pack.title}`,
+    `Best use: ${pack.focus}`,
+    `Audience: ${audiences.map((audience) => audience.toUpperCase()).join(", ") || "Review audience"}`,
+    `Channels: ${channels.map((channel) => channelLabel[channel]).join(", ") || "Review channels"}`,
+    `Campaign types: ${categories.join(", ") || "Reusable campaign"}`,
+    `Hero asset: ${primaryTemplate?.title ?? "Choose one hero template"}`,
+    "",
+    "Recommended operating sequence:",
+    ...sequence,
+    "",
+    "Reusable assets:",
+    ...reusableAssets,
+    "",
+    "AI/operator instructions:",
+    pack.aiPrompt,
+    "Adapt the pack for the chosen audience, keep consent and channel readiness visible, and produce final copy plus manual publishing notes for non-email routes.",
+    "",
+    "Publish checklist:",
+    "1. Confirm audience/list and reachable channel count.",
+    "2. Pick the hero asset and adapt remaining templates to the same offer.",
+    "3. Review merge fields, CTA, visual direction, and owner for every channel.",
+    "4. Create the launch kit in VYVA, then send email only after explicit review/send approval.",
+    "5. For social, phone, print, event, or SMS routes, publish manually and record the outcome.",
+  ].join("\n");
+}
+
 function ContentTemplateVisualPreview({
   template,
   designBrief,
@@ -19265,6 +19301,38 @@ export default function MarketingAdminPage() {
       setContentActionFeedback(feedback);
       setContentFeedback(feedback);
       if (source === "campaign_studio") setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyTemplatePackPlaybook(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+    const label = `${pack.title} playbook`;
+    const text = templatePackPlaybookText(pack, templates);
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the playbook and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
       setMessage(feedback);
     }
   }
@@ -31256,6 +31324,8 @@ export default function MarketingAdminPage() {
                 <div className="grid gap-3 xl:grid-cols-5" data-testid="marketing-template-packs">
                   {contentTemplatePacksWithStats.map(({ pack, templates, heroTemplate, channels, audiences, categories, state }) => {
                     const selected = selectedContentTemplatePack?.id === pack.id;
+                    const sequenceChannels = Array.from(new Set(pack.sequence.map((step) => step.channel)));
+                    const playbookPrimary = heroTemplate ?? templates[0] ?? null;
                     return (
                       <article
                         key={pack.id}
@@ -31291,6 +31361,30 @@ export default function MarketingAdminPage() {
                           >
                             <Sparkles size={14} /> Copy AI command
                           </button>
+                          <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid={`marketing-template-pack-playbook-${pack.id}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Pack playbook</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">
+                                  Use {playbookPrimary?.title ?? "the hero template"} first, then adapt the supporting assets into one consistent campaign.
+                                </p>
+                              </div>
+                              <Pill className="bg-purple-50 text-purple-800">{pack.sequence.length} steps</Pill>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {audiences.map((audience) => <Pill key={audience} className="bg-[#f5eee8] text-[#5b4a46]">{audience.toUpperCase()}</Pill>)}
+                              {sequenceChannels.slice(0, 4).map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void copyTemplatePackPlaybook(pack, templates)}
+                              disabled={contentSaving || templates.length === 0}
+                              className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 hover:bg-purple-100 disabled:cursor-not-allowed disabled:bg-[#f1e8f5] disabled:text-[#9d8ba3]"
+                              data-testid={`button-marketing-template-pack-copy-playbook-${pack.id}`}
+                            >
+                              <ClipboardList size={14} /> Copy playbook
+                            </button>
+                          </div>
                           <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-template-pack-sequence-${pack.id}`}>
                             <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Recommended sequence</p>
                             <div className="mt-2 grid gap-2">
