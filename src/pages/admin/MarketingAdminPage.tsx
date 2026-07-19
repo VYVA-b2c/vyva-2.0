@@ -14,6 +14,7 @@ import {
   FileText,
   Image as ImageIcon,
   Megaphone,
+  Palette,
   Pencil,
   Phone,
   Plus,
@@ -7518,6 +7519,42 @@ function templatePackPlaybookText(pack: ContentTemplatePack, templates: ContentT
     "3. Review merge fields, CTA, visual direction, and owner for every channel.",
     "4. Create the launch kit in VYVA, then send email only after explicit review/send approval.",
     "5. For social, phone, print, event, or SMS routes, publish manually and record the outcome.",
+  ].join("\n");
+}
+
+function templatePackVisualKitText(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+  const channels = Array.from(new Set(templates.map((template) => template.channel)));
+  const visualAssets = templates.slice(0, 10).map((template) => {
+    const designBrief = contentTemplateDesignBrief(template);
+    const palette = contentTemplatePreviewPalette(template);
+    const previewLines = contentTemplatePreviewLines(template, designBrief);
+    return [
+      `- ${template.title} (${channelLabel[template.channel]})`,
+      `  Layout: ${designBrief.layout}`,
+      `  Palette: ${palette.join(", ")}`,
+      designBrief.visual ? `  Visual direction: ${designBrief.visual}` : "",
+      designBrief.structure?.items?.length ? `  Structure: ${designBrief.structure.items.slice(0, 3).join(" / ")}` : "",
+      previewLines.length ? `  Copy spine: ${previewLines.join(" | ")}` : "",
+      template.ctaLabel ? `  CTA: ${template.ctaLabel}${template.ctaUrl ? ` -> ${template.ctaUrl}` : ""}` : "",
+    ].filter(Boolean).join("\n");
+  });
+
+  return [
+    "VYVA template pack visual kit",
+    `Pack: ${pack.title}`,
+    `Focus: ${pack.focus}`,
+    `Channels: ${channels.map((channel) => channelLabel[channel]).join(", ") || "Review channels"}`,
+    "",
+    "Visual system:",
+    "- Keep one campaign spine across every asset.",
+    "- Use warm, practical imagery and avoid clinical claims.",
+    "- Make the CTA visually obvious on every channel.",
+    "- Treat phone, print, and event routes as human handoff materials, not automated sends.",
+    "",
+    "Asset design briefs:",
+    ...visualAssets,
+    "",
+    "AI/design task: Turn this pack into a polished visual campaign kit. Return channel-native layout notes, image prompts, CTA treatment, accessibility notes, and any manual production requirements for social, print, phone, and event routes.",
   ].join("\n");
 }
 
@@ -19724,6 +19761,38 @@ export default function MarketingAdminPage() {
       setMessage(feedback);
     } catch {
       const feedback = `Could not copy ${label}. Select the playbook and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyTemplatePackVisualKit(pack: ContentTemplatePack, templates: ContentTemplate[]) {
+    const label = `${pack.title} visual kit`;
+    const text = templatePackVisualKitText(pack, templates);
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the visual kit and copy it manually.`;
       setContentActionFeedback(feedback);
       setContentFeedback(feedback);
       setMessage(feedback);
@@ -32166,6 +32235,15 @@ export default function MarketingAdminPage() {
                               data-testid={`button-marketing-template-pack-copy-playbook-${pack.id}`}
                             >
                               <ClipboardList size={14} /> Copy playbook
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void copyTemplatePackVisualKit(pack, templates)}
+                              disabled={contentSaving || templates.length === 0}
+                              className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-black text-sky-800 hover:bg-sky-100 disabled:cursor-not-allowed disabled:bg-[#eef4f7] disabled:text-[#8da0aa]"
+                              data-testid={`button-marketing-template-pack-copy-visual-kit-${pack.id}`}
+                            >
+                              <Palette size={14} /> Copy visual kit
                             </button>
                           </div>
                           <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-template-pack-sequence-${pack.id}`}>

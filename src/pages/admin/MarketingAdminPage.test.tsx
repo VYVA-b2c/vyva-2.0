@@ -2557,6 +2557,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Use Caregiver invite acceptance email first");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("7 steps");
     expect(screen.getByTestId("button-marketing-template-pack-copy-playbook-caregiver-invite-activation")).toHaveTextContent("Copy playbook");
+    expect(screen.getByTestId("button-marketing-template-pack-copy-visual-kit-caregiver-invite-activation")).toHaveTextContent("Copy visual kit");
     expect(screen.getByTestId("marketing-template-pack-controls")).toHaveTextContent("Pack chooser");
     expect(screen.getByTestId("select-marketing-template-pack-sort")).toHaveValue("recommended");
     fireEvent.change(screen.getByTestId("select-marketing-template-pack-sort"), { target: { value: "reach" } });
@@ -2573,6 +2574,13 @@ describe("MarketingAdminPage", () => {
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Caregiver invite activation"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Publish checklist:"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Caregiver invite activation playbook copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-visual-kit-caregiver-invite-activation"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template pack visual kit"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Asset design briefs:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI/design task: Turn this pack into a polished visual campaign kit"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Caregiver invite activation visual kit copied.");
   });
 
   it("applies content templates into the draft form", async () => {
