@@ -5,6 +5,7 @@ import { pool } from "../db.js";
 import { authMiddleware, requireUser } from "../middleware/auth.js";
 import { requireEntitlement } from "../middleware/entitlements.js";
 import { withConciergeExecutionTask } from "../../shared/conciergeActionExecution.js";
+import { conciergeTaskNotificationPath } from "../../shared/conciergeTaskLinks.js";
 import {
   CONCIERGE_USE_CASES,
   cancelPendingConciergeAction,
@@ -200,6 +201,7 @@ router.get("/pending", async (req: Request, res: Response) => {
     return res.json({
       items: result.rows.map((row) => ({
         ...row,
+        task_path: conciergeTaskNotificationPath(row.id),
         action_payload: withConciergeExecutionTask({
           useCase: row.use_case,
           payload: row.action_payload,
