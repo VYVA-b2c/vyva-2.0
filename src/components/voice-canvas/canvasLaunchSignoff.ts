@@ -919,10 +919,13 @@ const behaviorChecklistRequirements = [
   {
     columnIndex: 7,
     description:
-      "flag rollback/fallback cell must mention flag rollback, existing fallback, and no write evidence",
+      "flag rollback/fallback cell must mention open-session flag rollback, Canvas closure, existing fallback, and no write evidence",
     wordGroups: [
       ["flag"],
       ["rollback"],
+      ["in-session", "in session", "open session", "during session", "focus", "refresh"],
+      ["canvas"],
+      ["closed", "closes", "disappeared", "disappears", "hidden", "removed", "dismissed"],
       ["fallback"],
       ["existing", "previous", "old", "safe concierge"],
       explicitNoWriteEvidenceWords,

@@ -222,6 +222,7 @@ describe("Canvas launch readiness manifest", () => {
       "Browser back",
       "Cancel/exit",
       "Flag rollback/fallback",
+      "Canvas closed or disappeared",
       "No external action before explicit confirmation",
       "Duplicate/stale guard",
       "resubmission",
