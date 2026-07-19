@@ -638,7 +638,7 @@ type CampaignStudioGeneratedDraft = {
   ctaUrl: string;
   language?: string;
   designJson?: Record<string, unknown>;
-  source?: "template" | "openai" | "fallback";
+  source?: "template" | "openai" | "fallback" | "content";
   note?: string | null;
 };
 
@@ -954,6 +954,13 @@ type CampaignStudioPublishingRunSheetItem = {
   state: CampaignReadinessState;
   text: string;
   icon: LucideIcon;
+};
+
+type CampaignStudioReusableAssetMatch = {
+  channel: Channel;
+  contentAsset: ContentAsset;
+  score: number;
+  reasons: string[];
 };
 
 type CampaignStudioFollowUpPlayItem = {
@@ -15491,6 +15498,74 @@ export default function MarketingAdminPage() {
       text: previewText,
     };
   });
+  const campaignStudioReusableAssetMatches: CampaignStudioReusableAssetMatch[] = campaignStudioChannelDrafts
+    .map(({ channel, draft }) => {
+      const contextTokens = contentMatchTokens([
+        campaignStudioGenerated.campaignName,
+        campaignStudioGenerated.contentTitle,
+        campaignStudioGenerated.objective,
+        draft.contentTitle,
+        draft.subject,
+        draft.body,
+        selectedCampaignStudioPlay.label,
+        selectedCampaignStudioPlay.brief,
+        selectedCampaignStudioPlay.objective,
+        selectedCampaignStudioPlay.categoryId,
+        selectedCampaignStudioTargetAudience?.name ?? "",
+        selectedCampaignStudioTargetAudience?.description ?? "",
+        selectedCampaignStudioTargetAudience?.listType ?? "",
+      ].join(" "));
+      const candidates = content
+        .filter((item) => item.channel === channel && item.status !== "archived" && contentAssetHasCopy(item))
+        .map((contentAsset) => {
+          const assetText = lower([
+            contentAsset.title,
+            contentAsset.subject ?? "",
+            contentAsset.body,
+            contentAsset.htmlBody ?? "",
+            contentAsset.ctaLabel ?? "",
+            contentAsset.ctaUrl ?? "",
+            contentAsset.source,
+            contentAsset.lovableExternalId ?? "",
+            jsonText(contentAsset.designJson),
+            jsonText(contentAsset.metadata),
+          ].join(" "));
+          const matchedTokens = contextTokens.filter((token) => assetText.includes(token));
+          let score = 22 + Math.min(36, matchedTokens.length * 6);
+          const reasons = [`${channelLabel[channel]} asset`];
+          if (matchedTokens.length) reasons.push(`Matches ${matchedTokens.slice(0, 4).join(", ")}`);
+          if (contentAsset.source === "lovable" || contentOriginKey(contentAsset) !== "vyva") {
+            score += 10;
+            reasons.push("Imported Source asset");
+          }
+          if (contentAsset.status === "published" || contentAsset.status === "approved") {
+            score += 6;
+            reasons.push("Already approved");
+          }
+          if (contentAsset.ctaLabel || contentAsset.ctaUrl) {
+            score += 5;
+            reasons.push("CTA ready");
+          }
+          if (contentAsset.hasDesign || Object.keys(contentAsset.designJson ?? {}).length) {
+            score += 4;
+            reasons.push("Design data ready");
+          }
+          if ((contentAsset.mediaAssetCount ?? 0) > 0 || (contentAsset.mediaAssets ?? []).length > 0) {
+            score += 3;
+            reasons.push("Media attached");
+          }
+          return {
+            channel,
+            contentAsset,
+            score: Math.min(score, 99),
+            reasons: reasons.slice(0, 4),
+          };
+        })
+        .filter((item) => item.score >= 30)
+        .sort((a, b) => b.score - a.score || a.contentAsset.title.localeCompare(b.contentAsset.title));
+      return candidates[0] ?? null;
+    })
+    .filter((item): item is CampaignStudioReusableAssetMatch => Boolean(item));
   const campaignStudioVisualStyle = campaignStudio.toneId === "expert"
     ? "clean, credible, calm, editorial"
     : campaignStudio.toneId === "direct"
@@ -18398,6 +18473,42 @@ export default function MarketingAdminPage() {
       },
     }));
     setCampaignStudioFeedback(`Creative variant applied: ${variant.label}.`);
+  }
+
+  function applyCampaignStudioReusableAsset(match: CampaignStudioReusableAssetMatch) {
+    const { channel, contentAsset } = match;
+    const currentDraft = campaignStudioAiDrafts[channel]
+      ?? (channel === campaignStudio.channel
+        ? campaignStudioGenerated
+        : campaignStudioBrief(selectedCampaignStudioPlay, campaignStudio.toneId, campaignStudio.angleId, channel, selectedCampaignStudioTargetAudience));
+    setCampaignStudioAiDrafts((drafts) => ({
+      ...drafts,
+      [channel]: {
+        ...currentDraft,
+        contentTitle: contentAsset.title,
+        subject: contentAsset.subject ?? currentDraft.subject,
+        body: contentAsset.body || currentDraft.body,
+        ctaLabel: contentAsset.ctaLabel || currentDraft.ctaLabel,
+        ctaUrl: contentAsset.ctaUrl || currentDraft.ctaUrl,
+        language: contentAsset.language || currentDraft.language,
+        source: "content",
+        note: `Reusable content asset loaded: ${contentAsset.title}.`,
+        designJson: {
+          ...(currentDraft.designJson ?? {}),
+          ...(contentAsset.designJson ?? {}),
+          reusedContentAssetId: contentAsset.id,
+          reusedContentAssetTitle: contentAsset.title,
+        },
+      },
+    }));
+    if (channel === campaignStudio.channel) {
+      setCampaignStudio((draft) => ({
+        ...draft,
+        ctaLabel: contentAsset.ctaLabel || draft.ctaLabel,
+        ctaUrl: contentAsset.ctaUrl || draft.ctaUrl,
+      }));
+    }
+    setCampaignStudioFeedback(`${channelLabel[channel]} reusable asset loaded: ${contentAsset.title}.`);
   }
 
   function applyCampaignStudioDraft() {
@@ -28560,6 +28671,63 @@ export default function MarketingAdminPage() {
                           </article>
                         ))}
                       </div>
+                    </div>
+
+                    <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4" data-testid="marketing-campaign-studio-reusable-assets">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">Reusable assets</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Use the best saved copy instead of starting again</h3>
+                          <p className="mt-1 text-xs font-bold text-[#65527a]">VYVA matches imported and local content assets to the selected channel pack so campaigns can reuse proven copy, design data, media, and CTAs.</p>
+                        </div>
+                        <Pill className={campaignStudioReusableAssetMatches.length ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                          {campaignStudioReusableAssetMatches.length} match{campaignStudioReusableAssetMatches.length === 1 ? "" : "es"}
+                        </Pill>
+                      </div>
+                      {campaignStudioReusableAssetMatches.length ? (
+                        <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                          {campaignStudioReusableAssetMatches.map((match) => (
+                            <article
+                              key={`${match.channel}-${match.contentAsset.id}`}
+                              className="rounded-xl border border-violet-200 bg-white p-3"
+                              data-testid={`marketing-campaign-studio-reusable-asset-${match.channel}`}
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <Pill className={channelClass(match.channel)}>{channelLabel[match.channel]}</Pill>
+                                  <h4 className="mt-2 truncate text-sm font-black text-[#241133]">{match.contentAsset.title}</h4>
+                                  <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#65527a]">
+                                    {match.contentAsset.subject || firstMeaningfulPreviewLine(match.contentAsset.body)}
+                                  </p>
+                                </div>
+                                <Pill className="bg-violet-50 text-violet-800">{match.score}% fit</Pill>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                {match.reasons.map((reason) => (
+                                  <Pill key={reason} className="bg-[#fffaf4] text-[#5b4a46]">{reason}</Pill>
+                                ))}
+                              </div>
+                              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[11px] font-black text-[#65527a]">
+                                <span className="rounded-lg bg-violet-50 px-2 py-2">{match.contentAsset.hasHtml || match.contentAsset.htmlBody ? "HTML" : "Plain"}</span>
+                                <span className="rounded-lg bg-violet-50 px-2 py-2">{match.contentAsset.hasDesign || Object.keys(match.contentAsset.designJson ?? {}).length ? "Design" : "No design"}</span>
+                                <span className="rounded-lg bg-violet-50 px-2 py-2">{(match.contentAsset.mediaAssetCount ?? 0) || (match.contentAsset.mediaAssets ?? []).length ? "Media" : "No media"}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => applyCampaignStudioReusableAsset(match)}
+                                className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-3 text-xs font-black text-white transition hover:bg-violet-800 focus:outline-none focus:ring-4 focus:ring-violet-100"
+                                data-testid={`button-marketing-campaign-studio-use-reusable-asset-${match.channel}`}
+                              >
+                                <FileText size={13} /> Use this asset
+                              </button>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-xl border border-dashed border-violet-200 bg-white px-4 py-5 text-sm font-bold text-[#65527a]">
+                          No matching saved assets for this route pack yet. Use a template pack or AI draft first, then save it as reusable content.
+                        </div>
+                      )}
                     </div>
 
                     <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-execution-plan">

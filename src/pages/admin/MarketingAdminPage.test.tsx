@@ -5921,11 +5921,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("Sample:");
     expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("CTA:");
+    expect(screen.getByTestId("marketing-campaign-studio-reusable-assets")).toHaveTextContent("Reusable assets");
+    expect(screen.getByTestId("marketing-campaign-studio-reusable-asset-linkedin")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-campaign-studio-reusable-asset-linkedin")).toHaveTextContent("Imported Source asset");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-map")).toHaveTextContent("Audience delivery map");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-map-counts")).toHaveTextContent("Opted in");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-map-counts")).toHaveTextContent("Needs review");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-exclusion-contact-2")).toHaveTextContent("Consent pending");
     expect(screen.getByTestId("marketing-campaign-studio-delivery-exclusion-contact-2")).toHaveTextContent("LinkedIn");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-use-reusable-asset-linkedin"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("LinkedIn reusable asset loaded: Partner post.");
+    expect(screen.getByTestId("marketing-campaign-studio-test-preview-linkedin")).toHaveTextContent("Read more");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-channel-timeline"));
     await waitFor(() => {
