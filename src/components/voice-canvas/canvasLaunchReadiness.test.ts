@@ -64,12 +64,12 @@ describe("Canvas launch readiness manifest", () => {
     for (const flow of canvasLaunchReadinessFlows) {
       if (!flow.featureFlag) continue;
       expect(
-        serverIndex.includes(`app.get("${flow.featureFlag.endpoint}"`),
+        serverFeatureFlags.includes(`endpoint: "${flow.featureFlag.endpoint}"`),
         flow.featureFlag.endpoint,
       ).toBe(true);
       expect(
-        serverIndex.includes(
-          `sendCanvasFeatureFlag(res, "${flow.featureFlag.serverFeatureKey}")`,
+        serverFeatureFlags.includes(
+          `feature: "${flow.featureFlag.serverFeatureKey}"`,
         ),
         `${flow.featureFlag.endpoint}:${flow.featureFlag.serverFeatureKey}`,
       ).toBe(true);
@@ -80,6 +80,9 @@ describe("Canvas launch readiness manifest", () => {
       expect(serverFeatureFlags).toContain(flow.featureFlag.enableEnv);
       expect(serverFeatureFlags).toContain(flow.featureFlag.rolloutEnv);
     }
+    expect(serverIndex).toContain("CANVAS_FEATURE_FLAG_ENDPOINTS.forEach");
+    expect(serverIndex).toContain("app.get(endpoint");
+    expect(serverIndex).toContain("sendCanvasFeatureFlag(res, feature)");
     expect(serverIndex).toContain('res.setHeader("cache-control", "no-store")');
   });
 

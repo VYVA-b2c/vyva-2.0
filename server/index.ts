@@ -114,7 +114,11 @@ import motivationRouter from "./routes/motivation.js";
 import { dbHealthHandler } from "./routes/dbHealth.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
-import { resolveCanvasFeatureFlag, type CanvasFeatureFlagKey } from "./lib/canvasFeatureFlags.js";
+import {
+  CANVAS_FEATURE_FLAG_ENDPOINTS,
+  resolveCanvasFeatureFlag,
+  type CanvasFeatureFlagKey,
+} from "./lib/canvasFeatureFlags.js";
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
 import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
 import { startMarketingEmailScheduler } from "./services/marketingEmailScheduler.js";
@@ -311,13 +315,9 @@ function sendCanvasFeatureFlag(res: express.Response, feature: CanvasFeatureFlag
   return res.json(resolveCanvasFeatureFlag(feature));
 }
 
-app.get("/api/config/features/ride-voice-canvas", (_req, res) => sendCanvasFeatureFlag(res, "ride"));
-app.get("/api/config/features/appointment-voice-canvas", (_req, res) => sendCanvasFeatureFlag(res, "appointment"));
-app.get("/api/config/features/medication-refill-voice-canvas", (_req, res) => sendCanvasFeatureFlag(res, "medicationRefill"));
-app.get("/api/config/features/prescription-follow-up-voice-canvas", (_req, res) => sendCanvasFeatureFlag(res, "prescriptionFollowUp"));
-app.get("/api/config/features/shopping-delivery-voice-canvas", (_req, res) => sendCanvasFeatureFlag(res, "shoppingDelivery"));
-app.get("/api/config/features/home-service-voice-canvas", (_req, res) => sendCanvasFeatureFlag(res, "homeService"));
-app.get("/api/config/features/provider-reply-voice-canvas", (_req, res) => sendCanvasFeatureFlag(res, "providerReply"));
+CANVAS_FEATURE_FLAG_ENDPOINTS.forEach(({ endpoint, feature }) => {
+  app.get(endpoint, (_req, res) => sendCanvasFeatureFlag(res, feature));
+});
 
 app.post("/api/places/autocomplete", async (req, res) => {
   const key = getGooglePlacesApiKey();

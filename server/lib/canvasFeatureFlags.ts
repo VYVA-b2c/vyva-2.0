@@ -31,6 +31,37 @@ export const CANVAS_FEATURE_FLAGS = {
 
 export type CanvasFeatureFlagKey = keyof typeof CANVAS_FEATURE_FLAGS;
 
+export const CANVAS_FEATURE_FLAG_ENDPOINTS = [
+  { endpoint: "/api/config/features/ride-voice-canvas", feature: "ride" },
+  {
+    endpoint: "/api/config/features/appointment-voice-canvas",
+    feature: "appointment",
+  },
+  {
+    endpoint: "/api/config/features/medication-refill-voice-canvas",
+    feature: "medicationRefill",
+  },
+  {
+    endpoint: "/api/config/features/prescription-follow-up-voice-canvas",
+    feature: "prescriptionFollowUp",
+  },
+  {
+    endpoint: "/api/config/features/shopping-delivery-voice-canvas",
+    feature: "shoppingDelivery",
+  },
+  {
+    endpoint: "/api/config/features/home-service-voice-canvas",
+    feature: "homeService",
+  },
+  {
+    endpoint: "/api/config/features/provider-reply-voice-canvas",
+    feature: "providerReply",
+  },
+] as const satisfies readonly {
+  endpoint: string;
+  feature: CanvasFeatureFlagKey;
+}[];
+
 export interface CanvasFeatureFlagPayload {
   enabled: boolean;
   rolloutPercent: number;
