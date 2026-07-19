@@ -16,6 +16,7 @@ import {
   resetConciergeProviderReplyExternalExecution,
 } from "../../shared/conciergeProviderReplyResolution.js";
 import { pendingIdFromConciergeReplyRecipient } from "./conciergeInboundEmailRouting.js";
+import { createConciergeTaskNotificationWithClient } from "./conciergeTaskNotifications.js";
 
 export type ConciergeInboundProviderEmail = {
   channel: "email";
@@ -432,6 +433,18 @@ async function attachWithClient(client: PoolClient, input: Parameters<ConciergeI
       updated_at = now()
     where id = $1::uuid
   `, [input.messageId, input.pending.id, input.matchMethod, input.classification.actionNeeded, input.reviewedBy ?? null]);
+
+  await createConciergeTaskNotificationWithClient(client, {
+    userId: input.pending.userId,
+    pendingId: input.pending.id,
+    inboundMessageId: input.messageId,
+    channel: "email",
+    providerName: input.pending.providerName,
+    summary: typeof input.patch.provider_response_summary === "string"
+      ? input.patch.provider_response_summary
+      : input.classification.summary,
+    actionNeeded: input.patch.provider_task_status === "action_needed",
+  });
   return true;
 }
 

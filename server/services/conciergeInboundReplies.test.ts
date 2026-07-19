@@ -211,6 +211,10 @@ describe("Concierge inbound reply ingestion", () => {
       no_external_action_without_confirmation: true,
     });
     expect(query.mock.calls.some(([sqlValue]) => String(sqlValue).includes("update concierge_pending"))).toBe(true);
+    const notificationCall = query.mock.calls.find(([sqlValue]) => String(sqlValue).includes("insert into concierge_task_notifications"));
+    expect(notificationCall).toBeDefined();
+    expect(notificationCall?.[1]).toContain("ready");
+    expect(notificationCall?.[1]).toContain(`/concierge/tasks/pending%3A${pendingId}`);
     expect(client.release).toHaveBeenCalledOnce();
   });
 });

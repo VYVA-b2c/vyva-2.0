@@ -893,6 +893,7 @@ export const userChannelPreferences = pgTable("user_channel_preferences", {
   fallback_chain:                text("fallback_chain").array().default(["whatsapp_outbound", "voice_outbound"]),
   max_outbound_calls_per_day:    integer("max_outbound_calls_per_day").default(1),
   max_whatsapp_messages_per_day: integer("max_whatsapp_messages_per_day").default(5),
+  concierge_task_notifications_enabled: boolean("concierge_task_notifications_enabled").notNull().default(true),
 });
 
 export const insertUserChannelPreferencesSchema = createInsertSchema(userChannelPreferences).omit({ id: true, updated_at: true });
@@ -2629,6 +2630,37 @@ export const insertConciergeInboundMessageSchema = createInsertSchema(conciergeI
 export type InsertConciergeInboundMessage = z.infer<typeof insertConciergeInboundMessageSchema>;
 export type ConciergeInboundMessage = typeof conciergeInboundMessages.$inferSelect;
 
+export const conciergeTaskNotifications = pgTable("concierge_task_notifications", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  user_id:            text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  pending_id:         uuid("pending_id").notNull().references(() => conciergePending.id, { onDelete: "cascade" }),
+  inbound_message_id: uuid("inbound_message_id").notNull().references(() => conciergeInboundMessages.id, { onDelete: "cascade" }),
+  event_type:         text("event_type").notNull(),
+  title:              text("title").notNull(),
+  body:               text("body").notNull(),
+  task_path:          text("task_path").notNull(),
+  delivery_status:    text("delivery_status").notNull().default("ready"),
+  dedupe_key:         text("dedupe_key").notNull(),
+  read_at:            timestamp("read_at", { withTimezone: true }),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("concierge_task_notifications_dedupe_key_unique").on(t.dedupe_key),
+  uniqueIndex("concierge_task_notifications_inbound_message_unique").on(t.inbound_message_id),
+  index("concierge_task_notifications_user_unread_idx")
+    .on(t.user_id, t.created_at.desc())
+    .where(sql`${t.delivery_status} = 'ready' and ${t.read_at} is null`),
+  index("concierge_task_notifications_pending_idx").on(t.pending_id),
+]);
+
+export const insertConciergeTaskNotificationSchema = createInsertSchema(conciergeTaskNotifications).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type InsertConciergeTaskNotification = z.infer<typeof insertConciergeTaskNotificationSchema>;
+export type ConciergeTaskNotification = typeof conciergeTaskNotifications.$inferSelect;
+
 export const conciergeTaskDrafts = pgTable("concierge_task_drafts", {
   id:                uuid("id").primaryKey().defaultRandom(),
   user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
@@ -3570,6 +3602,9 @@ export const schema = {
   consentAuditLogs,
   userProviders,
   conciergePending,
+  conciergeInboundMessages,
+  conciergeTaskNotifications,
+  conciergeTaskDrafts,
   conciergeSessions,
   appointmentRequests,
   appointmentProviderOptions,

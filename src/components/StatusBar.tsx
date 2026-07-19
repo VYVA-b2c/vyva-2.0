@@ -2,6 +2,7 @@ import { CircleUser } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { useLanguage } from "@/i18n";
+import ConciergeTaskNotificationBell from "./ConciergeTaskNotificationBell";
 
 const StatusBar = ({ wide = false }: { wide?: boolean }) => {
   const navigate = useNavigate();
@@ -30,17 +31,20 @@ const StatusBar = ({ wide = false }: { wide?: boolean }) => {
             <div className="truncate font-body text-[12px] leading-tight text-vyva-text-2">{date}</div>
           </div>
         </div>
-        <button
-          onClick={() => navigate("/settings")}
-          className="vyva-tap flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1.5 hover:bg-vyva-warm min-[390px]:gap-2 min-[390px]:px-3"
-          data-testid="button-my-profile"
-          aria-label={t("nav.myProfile")}
-        >
-          <CircleUser size={20} className="text-vyva-text-2" />
-          <span className="hidden font-body text-[14px] font-semibold text-vyva-text-1 min-[360px]:inline">
-            {t("nav.myProfile")}
-          </span>
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <ConciergeTaskNotificationBell />
+          <button
+            onClick={() => navigate("/settings")}
+            className="vyva-tap flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1.5 hover:bg-vyva-warm min-[390px]:gap-2 min-[390px]:px-3"
+            data-testid="button-my-profile"
+            aria-label={t("nav.myProfile")}
+          >
+            <CircleUser size={20} className="text-vyva-text-2" />
+            <span className="hidden font-body text-[14px] font-semibold text-vyva-text-1 min-[390px]:inline">
+              {t("nav.myProfile")}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );
