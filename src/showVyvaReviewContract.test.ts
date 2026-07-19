@@ -314,6 +314,9 @@ describe("Show VYVA review contract", () => {
       expect(translate(code, "showVyva.evidence.confidence.clear_risk")).not.toBe("showVyva.evidence.confidence.clear_risk");
       expect(translate(code, "showVyva.evidence.confidence.needs_checking")).not.toBe("showVyva.evidence.confidence.needs_checking");
       expect(translate(code, "showVyva.evidence.confidence.not_enough_information")).not.toBe("showVyva.evidence.confidence.not_enough_information");
+      expect(translate(code, "showVyva.history.kicker")).not.toBe("showVyva.history.kicker");
+      expect(translate(code, "showVyva.history.actionSaved")).not.toBe("showVyva.history.actionSaved");
+      expect(translate(code, "showVyva.history.context.provider_deal")).not.toBe("showVyva.history.context.provider_deal");
       expect(translate(code, "showVyva.followUp.action.save_note.label")).not.toBe("showVyva.followUp.action.save_note.label");
       expect(translate(code, "showVyva.followUp.action.do_not_reply.label")).not.toBe("showVyva.followUp.action.do_not_reply.label");
       expect(translate(code, "showVyva.followUp.action.find_alternatives.label")).not.toBe("showVyva.followUp.action.find_alternatives.label");
