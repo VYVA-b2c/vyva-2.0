@@ -946,6 +946,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("Manual social");
     expect(screen.getByTestId("button-marketing-channel-publishing-linkedin")).toHaveTextContent("Partner outreach");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-channel-publishing-plan"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA channel publishing plan"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Email - VYVA send"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn - Manual social"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Every manual publish must be tracked back to the campaign"));
+    expect(screen.getByTestId("marketing-channel-publishing-board-feedback")).toHaveTextContent("Channel publishing plan copied.");
     expect(screen.getByTestId("marketing-audience-summary-actions")).toHaveTextContent("View contacts");
     expect(screen.getByTestId("marketing-audience-summary-actions")).toHaveTextContent("Start campaign");
     fireEvent.click(screen.getByTestId("button-marketing-channel-publishing-linkedin"));

@@ -11484,6 +11484,7 @@ export default function MarketingAdminPage() {
   const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
   const [campaignHandoffCopyFeedback, setCampaignHandoffCopyFeedback] = useState("");
   const [marketingOperatorBriefFeedback, setMarketingOperatorBriefFeedback] = useState("");
+  const [marketingChannelBoardFeedback, setMarketingChannelBoardFeedback] = useState("");
   const [manualPublishDraft, setManualPublishDraft] = useState<ManualPublishTrackerDraft>(() => emptyManualPublishTrackerDraft());
   const [manualPublishSaving, setManualPublishSaving] = useState(false);
   const [manualPublishFeedback, setManualPublishFeedback] = useState("");
@@ -18708,6 +18709,41 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function copyMarketingChannelBoardBrief() {
+    const label = "Channel publishing plan";
+    if (!marketingChannelBoardBriefText.trim()) {
+      const feedback = `${label} is empty.`;
+      setMarketingChannelBoardFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(marketingChannelBoardBriefText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = marketingChannelBoardBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setMarketingChannelBoardFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setMarketingChannelBoardFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
   async function copyContactRelationshipCommandBrief() {
     const label = "Relationship command brief";
     if (!contactRelationshipCommandBriefText.trim()) {
@@ -25214,6 +25250,25 @@ export default function MarketingAdminPage() {
       },
     };
   });
+  const marketingChannelBoardBriefText = [
+    "VYVA channel publishing plan",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    "Purpose: turn every channel route into a clear send, handoff, or content repair task without losing follow-up tracking.",
+    "",
+    ...marketingChannelPublishingBoardItems.map((item, index) => [
+      `${index + 1}. ${item.title} - ${item.modeLabel} (${readinessLabel(item.state)})`,
+      `   Routes: ${item.routeCount}; ready: ${item.contentReadyCount}; gaps: ${item.missingContentCount}; recipients: ${item.recipientCount}; scheduled: ${item.scheduledCount}; tracked results: ${item.manualResultCount}.`,
+      `   Current task: ${item.detail}`,
+      `   Next action: ${item.actionLabel}.`,
+    ].join("\n")),
+    "",
+    "Operator rules:",
+    "- Email can send from VYVA only after final campaign review, saved recipients, and consent checks.",
+    "- WhatsApp, phone, print, event, and social routes remain manual handoffs unless their provider controls are explicitly enabled.",
+    "- Every manual publish must be tracked back to the campaign with outcome, URL/notes, reach, engagement, and follow-up owner.",
+    "- If a channel has gaps, fix or attach content before scheduling.",
+  ].join("\n");
   const marketingOperatorBriefText = [
     "VYVA marketing daily operator brief",
     `Generated: ${formatDate(new Date().toISOString())}`,
@@ -26240,7 +26295,22 @@ export default function MarketingAdminPage() {
                 <SectionCard
                   title="Channel publishing board"
                   subtitle="Route-by-route view of what VYVA can send, what needs a handoff, and what still needs content."
+                  action={(
+                    <button
+                      type="button"
+                      onClick={() => void copyMarketingChannelBoardBrief()}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 transition hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                      data-testid="button-marketing-copy-channel-publishing-plan"
+                    >
+                      <Copy size={13} aria-hidden="true" /> Copy channel plan
+                    </button>
+                  )}
                 >
+                  {marketingChannelBoardFeedback ? (
+                    <p className={`mb-3 rounded-xl px-3 py-2 text-xs font-black ${marketingChannelBoardFeedback.includes("Could not") || marketingChannelBoardFeedback.includes("empty") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite" data-testid="marketing-channel-publishing-board-feedback">
+                      {marketingChannelBoardFeedback}
+                    </p>
+                  ) : null}
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-channel-publishing-board">
                     {marketingChannelPublishingBoardItems.map((item) => (
                       <button
