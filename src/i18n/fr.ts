@@ -1560,6 +1560,7 @@ const fr = {
       error: "Je n'ai pas pu enregistrer cette etape. Reessaie.",
     },
         handoff: { kicker: "Meilleure prochaine etape", explain: "Expliquer", hideExplain: "Masquer explication", actionsTitle: "Choisir une action sure", title: { scam: "Cela semble risque", document: "Cela doit etre verifie", medicine: "Verifier avant usage", health_visual: "Verifier avant agir", home_safety: "Rendre cela plus sur", provider_deal: "Comparer avant de decider" } },
+        evidence: { kicker: "Pourquoi VYVA pense cela", factsFound: "Faits trouves", stillUncertain: "Encore incertain", noFacts: "Aucun fait solide pour le moment.", noUncertainty: "Rien dautre signale dans cet element.", confidence: { clear_risk: "Risque clair", needs_checking: "A verifier", not_enough_information: "Information insuffisante" } },
     contract: {
       finalConfirmation: "VYVA prepare d'abord. Vous confirmez avant tout envoi, achat, reservation, appel, import, soumission ou partage.",
       sections: {

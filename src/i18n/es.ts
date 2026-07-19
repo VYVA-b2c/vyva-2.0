@@ -1722,6 +1722,7 @@ const es = {
       error: "No he podido guardar ese paso. Intentalo de nuevo.",
     },
         handoff: { kicker: "Mejor siguiente paso", explain: "Explicar", hideExplain: "Ocultar explicacion", actionsTitle: "Elige una accion segura", title: { scam: "Esto parece riesgoso", document: "Esto necesita revision", medicine: "Revisar antes de usar", health_visual: "Revisar antes de actuar", home_safety: "Hacer esto mas seguro", provider_deal: "Comparar antes de decidir" } },
+        evidence: { kicker: "Por que VYVA piensa esto", factsFound: "Datos encontrados", stillUncertain: "Aun incierto", noFacts: "Aun no hay un dato solido.", noUncertainty: "Nada mas marcado en este elemento.", confidence: { clear_risk: "Riesgo claro", needs_checking: "Necesita revision", not_enough_information: "Informacion insuficiente" } },
     contract: {
       finalConfirmation: "VYVA prepara primero. Tu confirmas antes de enviar, comprar, reservar, llamar, subir, entregar o compartir nada.",
       sections: {
