@@ -231,6 +231,7 @@ describe("Canvas launch readiness manifest", () => {
       "Cancel/exit",
       "Flag rollback/fallback",
       "Canvas closed or disappeared",
+      "environment artifact/log/dashboard evidence",
       "endpoint payload evidence",
       "endpoint artifact/log/trace evidence",
       "exact endpoint, server key, named fallback path",

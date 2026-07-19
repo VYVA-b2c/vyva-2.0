@@ -125,15 +125,15 @@ function fillEnvironmentRecord(markdown: string): string {
     )
     .replace(
       /^\| Analytics sink reviewed \| .* \|$/m,
-      "| Analytics sink reviewed | Reviewed aggregate launch sink on 2026-07-19 |",
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2026-07-19 |",
     )
     .replace(
       /^\| Initial flag state \| .* \|$/m,
-      "| Initial flag state | Enabled true, rollout 100 for tested flows |",
+      "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows |",
     )
     .replace(
       /^\| Rollback flag state \| .* \|$/m,
-      "| Rollback flag state | Disabled false, rollout 0 verified for fallback |",
+      "| Rollback flag state | Feature flag artifact log on 2026-07-19 shows disabled false, rollout 0 verified for fallback |",
     );
 }
 
@@ -1516,8 +1516,26 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects negative analytics sink review evidence", () => {
     const completed = completedMatrix().replace(
-      "| Analytics sink reviewed | Reviewed aggregate launch sink on 2026-07-19 |",
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2026-07-19 |",
       "| Analytics sink reviewed | Not reviewed by QA on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual(["Analytics sink reviewed"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects environment analytics review evidence without a concrete artifact", () => {
+    const completed = completedMatrix().replace(
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2026-07-19 |",
+      "| Analytics sink reviewed | Reviewed aggregate launch sink on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2697,8 +2715,8 @@ describe("Canvas real-device QA sign-off", () => {
         "| Voice provider/session mode | Live voice session on staging browser unavailable |",
       )
       .replace(
-        "| Initial flag state | Enabled true, rollout 100 for tested flows |",
-        "| Initial flag state | Enabled true, rollout 100 for tested flows but rollout not returned |",
+        "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows |",
+        "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows but rollout not returned |",
       );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2719,8 +2737,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects environment analytics review evidence dated in the future", () => {
     const completed = completedMatrix().replace(
-      "| Analytics sink reviewed | Reviewed aggregate launch sink on 2026-07-19 |",
-      "| Analytics sink reviewed | Reviewed aggregate launch sink on 2099-01-01 |",
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2026-07-19 |",
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2099-01-01 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2738,12 +2756,38 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects ready-for-launch matrices without concrete environment flag states", () => {
     const completed = completedMatrix()
       .replace(
-        "| Initial flag state | Enabled true, rollout 100 for tested flows |",
+        "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows |",
         "| Initial flag state | Feature flags checked for QA |",
       )
       .replace(
-        "| Rollback flag state | Disabled false, rollout 0 verified for fallback |",
+        "| Rollback flag state | Feature flag artifact log on 2026-07-19 shows disabled false, rollout 0 verified for fallback |",
         "| Rollback flag state | Rollback flag checked |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual([
+      "Initial flag state",
+      "Rollback flag state",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects environment flag-state evidence without artifacts or dated proof", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows |",
+        "| Initial flag state | Enabled true, rollout 100 for tested flows |",
+      )
+      .replace(
+        "| Rollback flag state | Feature flag artifact log on 2026-07-19 shows disabled false, rollout 0 verified for fallback |",
+        "| Rollback flag state | Disabled false, rollout 0 verified for fallback |",
       );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);

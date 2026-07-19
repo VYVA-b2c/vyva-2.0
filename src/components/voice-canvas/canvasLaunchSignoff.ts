@@ -346,43 +346,73 @@ function isMeaningfulEnvironmentValue(
         /\breview(ed)?\b/i.test(normalized) &&
         hasNonFutureIsoDateCellFromText(normalized) &&
         !hasFutureIsoDateCellFromText(normalized) &&
+        hasConcreteEnvironmentArtifactLanguage(normalized) &&
         !hasNegativeEvidenceLanguage(normalized)
       );
     case "Initial flag state":
-      return hasAllWordGroups(lower, [
-        ["enabled", "enable"],
-        ["true", "enabled true", "enabled: true", "enabled=true"],
-        [
-          "rollout 100",
-          "rollout: 100",
-          "rollout=100",
-          "rollout percent 100",
-          "rollout percent: 100",
-          "rollout percent=100",
-          "rolloutpercent 100",
-          "rolloutpercent: 100",
-          "rolloutpercent=100",
-          "100%",
-        ],
-      ]);
+      return (
+        hasAllWordGroups(lower, [
+          ["enabled", "enable"],
+          ["true", "enabled true", "enabled: true", "enabled=true"],
+          [
+            "rollout 100",
+            "rollout: 100",
+            "rollout=100",
+            "rollout percent 100",
+            "rollout percent: 100",
+            "rollout percent=100",
+            "rolloutpercent 100",
+            "rolloutpercent: 100",
+            "rolloutpercent=100",
+            "100%",
+          ],
+        ]) &&
+        hasNonFutureIsoDateCellFromText(normalized) &&
+        !hasFutureIsoDateCellFromText(normalized) &&
+        hasConcreteEnvironmentArtifactLanguage(normalized)
+      );
     case "Rollback flag state":
-      return hasAllWordGroups(lower, [
-        ["disabled", "disable"],
-        ["false", "enabled false", "enabled: false", "enabled=false"],
-        [
-          "rollout 0",
-          "rollout: 0",
-          "rollout=0",
-          "rollout percent 0",
-          "rollout percent: 0",
-          "rollout percent=0",
-          "rolloutpercent 0",
-          "rolloutpercent: 0",
-          "rolloutpercent=0",
-          "0%",
-        ],
-      ]);
+      return (
+        hasAllWordGroups(lower, [
+          ["disabled", "disable"],
+          ["false", "enabled false", "enabled: false", "enabled=false"],
+          [
+            "rollout 0",
+            "rollout: 0",
+            "rollout=0",
+            "rollout percent 0",
+            "rollout percent: 0",
+            "rollout percent=0",
+            "rolloutpercent 0",
+            "rolloutpercent: 0",
+            "rolloutpercent=0",
+            "0%",
+          ],
+        ]) &&
+        hasNonFutureIsoDateCellFromText(normalized) &&
+        !hasFutureIsoDateCellFromText(normalized) &&
+        hasConcreteEnvironmentArtifactLanguage(normalized)
+      );
   }
+}
+
+function hasConcreteEnvironmentArtifactLanguage(value: string): boolean {
+  return hasAnyWord(value, [
+    "artifact",
+    "artifacts",
+    "dashboard",
+    "query",
+    "queries",
+    "log",
+    "logs",
+    "trace",
+    "traces",
+    "screenshot",
+    "screen shot",
+    "capture",
+    "captures",
+    "link",
+  ]);
 }
 
 function hasNegativeEnvironmentValueLanguage(value: string): boolean {
