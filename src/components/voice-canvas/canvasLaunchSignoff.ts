@@ -528,7 +528,26 @@ function hasNegativeDeviceCoverageLanguage(value: string): boolean {
     ) ||
     /\b(real|physical|actual|hardware|phone|mobile|tablet|ipad|desktop|laptop|device)\b.{0,30}\b(not available|unavailable|missing|absent)\b/.test(
       normalized,
-    )
+    ) ||
+    /\b(?:did not|does not|doesn't|cannot|can't)\s+(?:load|render|open|work|display|run|complete)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:failed|fails|unable|could not|couldn't)\s+to\s+(?:load|render|open|work|display|run|test|verify|use|complete)\b/.test(
+      normalized,
+    ) ||
+    /\bnot\s+(?:usable|working|loading|rendering|displaying)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:unusable|not usable|not working|broken|crashed|crashing)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:phone|mobile|tablet|ipad|desktop|laptop|device|browser|canvas|page|screen|flow|safari|chrome|edge|firefox)\s+crashes\b/.test(
+      normalized,
+    ) ||
+    (/\b(?:blank|white)\s+screen\b|\bscreen\s+(?:blank|white)\b/.test(
+      normalized,
+    ) &&
+      !/\b(?:no|without)\s+(?:blank|white)\s+screen\b/.test(normalized))
   );
 }
 
