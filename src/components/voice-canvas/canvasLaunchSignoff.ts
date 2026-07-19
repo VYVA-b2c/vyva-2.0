@@ -1179,9 +1179,15 @@ function invalidCopyAccessibilityRows(sections: Map<string, string[][]>): string
 
 function hasNoSensitiveDataLanguage(value: string): boolean {
   const normalized = normalizeCell(value).toLowerCase();
+  const noSensitiveNounPattern =
+    /\b(no|none|zero)\b\W{0,24}\b(transcript|transcripts|text|address|addresses|label|labels|medication|medications|medicine|strength|strengths|quantity|quantities|symptom|symptoms|provider|providers|reply|notes?|reference|references|phone|phones|email|emails|item|items|price|prices|fee|fees|retailer|retailers|date|dates|time|times|identity|identities|contact|contacts|sensitive|forbidden|personal|pii|data|details?)\b/;
+
   return (
-    /\b(no|none|zero|absent|omitted|excluded|redacted)\b/.test(normalized) ||
-    /\bnot (recorded|logged|present|sent|captured|included)\b/.test(normalized)
+    /\bnot (recorded|logged|present|sent|captured|included|stored|retained)\b/.test(
+      normalized,
+    ) ||
+    /\b(absent|omitted|excluded|redacted)\b/.test(normalized) ||
+    noSensitiveNounPattern.test(normalized)
   );
 }
 
