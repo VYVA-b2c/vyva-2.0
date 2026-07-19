@@ -127,7 +127,7 @@ Confirm production or staging analytics receives the required aggregate launch s
 
 Confirm production or staging analytics receives only the allowed Canvas telemetry envelope fields: `name`, `step`, `input`, `attempt`, `restored`, and `revision`.
 
-For final sign-off, each result must state that the forbidden data class was not recorded, logged, sent, captured, or included. Each evidence cell must point to analytics or telemetry review evidence.
+For final sign-off, each result must state that the forbidden data class was not recorded, logged, sent, captured, or included. Each evidence cell must point to dated analytics or telemetry review evidence and state that the sample contained only allowed envelope fields.
 
 | Forbidden data class | Result | Evidence |
 | --- | --- | --- |

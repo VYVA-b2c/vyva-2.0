@@ -1223,6 +1223,21 @@ function hasAnalyticsSignalEvidenceLanguage(value: string): boolean {
   );
 }
 
+function hasAllowedEnvelopeFieldsLanguage(value: string): boolean {
+  return hasAnyWord(value, [
+    "allowed envelope",
+    "allowed envelope fields",
+    "only allowed envelope",
+    "only allowed fields",
+    "closed envelope",
+    "closed event shape",
+    "allowed fields",
+    "name, step, input, attempt, restored, and revision",
+    "name, step, input, attempt, restored, revision",
+    "name step input attempt restored revision",
+  ]);
+}
+
 function invalidAnalyticsSignalRows(sections: Map<string, string[][]>): string[] {
   const rows = new Map(
     (sections.get("Analytics signal review") ?? [])
@@ -1274,9 +1289,13 @@ function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
     if (!hasNoSensitiveDataLanguage(result)) {
       problems.push(`${privacyClass}: result must state sensitive data was absent`);
     }
-    if (!hasAnalyticsEvidenceLanguage(evidence) || !hasDatedEvidenceLanguage(evidence)) {
+    if (
+      !hasAnalyticsEvidenceLanguage(evidence) ||
+      !hasDatedEvidenceLanguage(evidence) ||
+      !hasAllowedEnvelopeFieldsLanguage(evidence)
+    ) {
       problems.push(
-        `${privacyClass}: evidence must reference dated analytics or telemetry review`,
+        `${privacyClass}: evidence must reference dated analytics or telemetry review with only allowed envelope fields`,
       );
     }
   }
