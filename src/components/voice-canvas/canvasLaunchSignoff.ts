@@ -451,10 +451,20 @@ const behaviorChecklistRequirements = [
   },
   {
     columnIndex: 4,
-    description: "voice interruption cell must mention interruption and recovery evidence",
+    description:
+      "voice interruption cell must mention interruption recovery, preserved work, and no write evidence",
     wordGroups: [
       ["interruption", "interrupted", "interrupt"],
-      ["recover", "recovery", "resume", "continued", "preserved"],
+      ["recover", "recovery", "resume", "continued", "restored"],
+      ["preserve", "preserved", "restore", "restored", "same scene", "current scene", "draft"],
+      [
+        "no write",
+        "no external action",
+        "not submitted",
+        "without submitting",
+        "without resubmitting",
+        "without write",
+      ],
     ],
   },
   {
