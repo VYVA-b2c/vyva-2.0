@@ -2615,6 +2615,31 @@ function scheduledTime(value: string | null) {
   return Number.isNaN(time) ? null : time;
 }
 
+function marketingTrackingSlug(value: string, fallback = "vyva-campaign") {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || fallback;
+}
+
+function campaignTrackingUrl(baseUrl: string, campaignName: string, channel: Channel) {
+  const normalizedBaseUrl = baseUrl.trim();
+  if (!normalizedBaseUrl) return "";
+  const params = new URLSearchParams({
+    utm_source: "vyva",
+    utm_medium: channel,
+    utm_campaign: marketingTrackingSlug(campaignName),
+  });
+  try {
+    const url = new URL(normalizedBaseUrl);
+    params.forEach((value, key) => url.searchParams.set(key, value));
+    return url.toString();
+  } catch {
+    return `${normalizedBaseUrl}${normalizedBaseUrl.includes("?") ? "&" : "?"}${params.toString()}`;
+  }
+}
+
 function isScheduledNowOrPast(value: string | null, now = Date.now()) {
   const time = scheduledTime(value);
   return time !== null && time <= now;
@@ -15355,6 +15380,26 @@ export default function MarketingAdminPage() {
   const campaignStudioOfflineCta = campaignStudioGenerated.ctaLabel.trim()
     ? `${campaignStudioGenerated.ctaLabel}${campaignStudioGenerated.ctaUrl.trim() ? ` - ${campaignStudioGenerated.ctaUrl.trim()}` : ""}`
     : "Ask whether they want the next step or more details";
+  const campaignStudioTrackingLinks = campaignStudioSelectedChannels.map((channel) => {
+    const url = campaignTrackingUrl(campaignStudioGenerated.ctaUrl, campaignStudioGenerated.campaignName, channel);
+    return {
+      channel,
+      url,
+      state: url ? "ready" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      route: channel === "email" ? "VYVA email link" : `${channelLabel[channel]} handoff link`,
+      detail: url
+        ? `Use this tracked CTA in the ${channelLabel[channel]} copy or handoff notes.`
+        : "Add a CTA URL to create a trackable publishing link.",
+    };
+  });
+  const campaignStudioTrackingLinksText = [
+    "VYVA campaign tracking links",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Owner: ${campaignStudioOwnerName}`,
+    `Success metric: ${campaignStudioSuccessMetric}`,
+    "",
+    ...campaignStudioTrackingLinks.map((item) => `- ${channelLabel[item.channel]}: ${item.url || "Add CTA URL first"} (${item.route})`),
+  ].join("\n");
   const campaignStudioVisualStyle = campaignStudio.toneId === "expert"
     ? "clean, credible, calm, editorial"
     : campaignStudio.toneId === "direct"
@@ -16029,6 +16074,9 @@ export default function MarketingAdminPage() {
     "Channel execution:",
     ...campaignStudioExecutionPlan.map((item) => `- ${channelLabel[item.channel]}: ${item.sendMode}; ${item.nextAction}; ${item.recipients} planned recipient${item.recipients === 1 ? "" : "s"}.`),
     "",
+    "Tracking links:",
+    ...campaignStudioTrackingLinks.map((item) => `- ${channelLabel[item.channel]}: ${item.url || "Add CTA URL first"}`),
+    "",
     "AI task:",
     "- Improve the campaign so it is clearer, more specific, and easier for an admin to publish.",
     "- Keep the existing audience, consent guardrails, channel routes, and schedule intact.",
@@ -16069,6 +16117,9 @@ export default function MarketingAdminPage() {
     "Channel execution:",
     ...campaignStudioExecutionPlan.map((item) => `- ${channelLabel[item.channel]}: ${item.sendMode}; ${item.nextAction} ${item.recipients} recipient${item.recipients === 1 ? "" : "s"}.`),
     "",
+    "Tracking links:",
+    ...campaignStudioTrackingLinks.map((item) => `- ${channelLabel[item.channel]}: ${item.url || "Add CTA URL first"}`),
+    "",
     `Recommended next step: ${campaignStudioNextStep}`,
   ].join("\n");
   const campaignStudioPublishingChecklistText = [
@@ -16088,6 +16139,9 @@ export default function MarketingAdminPage() {
     "",
     "Channel plan:",
     ...campaignStudioExecutionPlan.map((item) => `- ${channelLabel[item.channel]}: ${item.sendMode}; ${item.nextAction}; planned recipients: ${item.recipients}.`),
+    "",
+    "Tracking links:",
+    ...campaignStudioTrackingLinks.map((item) => `- ${channelLabel[item.channel]}: ${item.url || "Add CTA URL first"}`),
     "",
     "Assets to prepare:",
     ...campaignStudioVisualAssets.map((item) => `- ${item.title} (${item.format}): ${item.detail}`),
@@ -16499,6 +16553,9 @@ export default function MarketingAdminPage() {
     "Launch order:",
     ...campaignStudioLaunchTimeline.map((item, index) => `${index + 1}. ${channelLabel[item.channel]} - ${item.timingLabel}${item.plannedAt ? ` (${formatDate(item.plannedAt)})` : ""}; owner: ${item.owner}; action: ${item.action}`),
     "",
+    "Tracking links:",
+    ...campaignStudioTrackingLinks.map((item) => `- ${channelLabel[item.channel]}: ${item.url || "Add CTA URL first"}`),
+    "",
     "Assets to prepare:",
     ...campaignStudioVisualAssets.map((item) => `- ${item.title} (${item.format}): ${item.detail}`),
     "",
@@ -16531,6 +16588,12 @@ export default function MarketingAdminPage() {
     angle: campaignStudio.angleId,
     primaryChannel: campaignStudio.channel,
     selectedChannels: campaignStudioSelectedChannels,
+    trackingLinks: campaignStudioTrackingLinks.map((item) => ({
+      channel: item.channel,
+      channelLabel: channelLabel[item.channel],
+      url: item.url,
+      route: item.route,
+    })),
     launchPacketText: campaignStudioLaunchPacketText,
     routeSummary: campaignStudioSelectedChannels.map((channel) => channelLabel[channel]).join(" + "),
     executionPlan: campaignStudioExecutionPlan.map((item) => ({
@@ -28259,6 +28322,45 @@ export default function MarketingAdminPage() {
                             <p className="mt-3 line-clamp-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold leading-relaxed text-[#5f5f7a]">
                               {item.detail}
                             </p>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4" data-testid="marketing-campaign-studio-tracking-links">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Tracking links</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Use one CTA, track every route</h3>
+                          <p className="mt-1 text-xs font-bold text-[#587268]">VYVA generates per-channel links from the campaign CTA so email, social, WhatsApp, print, phone, and event handoffs can point to the same destination with cleaner attribution.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Campaign tracking links", campaignStudioTrackingLinksText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-black text-emerald-800 hover:bg-emerald-50"
+                          data-testid="button-marketing-campaign-studio-copy-tracking-links"
+                        >
+                          <Copy size={14} /> Copy links
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-2 xl:grid-cols-3" data-testid="marketing-campaign-studio-tracking-link-items">
+                        {campaignStudioTrackingLinks.map((item) => (
+                          <article
+                            key={item.channel}
+                            className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`}
+                            data-testid={`marketing-campaign-studio-tracking-link-${item.channel}`}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                <p className="mt-2 text-sm font-black text-[#241133]">{item.route}</p>
+                              </div>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <p className="mt-2 line-clamp-2 break-all rounded-lg bg-emerald-50/70 px-3 py-2 text-xs font-semibold leading-relaxed text-[#466056]">
+                              {item.url || "Add CTA URL first"}
+                            </p>
+                            <p className="mt-2 text-xs font-bold leading-relaxed text-[#587268]">{item.detail}</p>
                           </article>
                         ))}
                       </div>

@@ -5669,6 +5669,8 @@ describe("MarketingAdminPage", () => {
     expect(studioAiBrief.value).toContain("Success metric: 10 partner review calls booked");
     expect(studioAiBrief.value).toContain("Recommended next step: Improve with AI if you want a more tailored draft, or create the campaign now.");
     expect(studioAiBrief.value).toContain("Channel execution:");
+    expect(studioAiBrief.value).toContain("Tracking links:");
+    expect(studioAiBrief.value).toContain("utm_medium=linkedin");
     expect(studioAiBrief.value).toContain("AI task:");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-ai-command-brief"));
     await waitFor(() => {
@@ -5719,6 +5721,8 @@ describe("MarketingAdminPage", () => {
     expect(launchPacket.value).toContain("Audience: Partners (B2B)");
     expect(launchPacket.value).toContain("Channel plan:");
     expect(launchPacket.value).toContain("LinkedIn: Manual publishing");
+    expect(launchPacket.value).toContain("Tracking links:");
+    expect(launchPacket.value).toContain("utm_campaign=b2b-partner-introduction");
     expect(launchPacket.value).toContain("Relationship follow-up:");
     expect(launchPacket.value).toContain("Outcome tracking:");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-launch-packet"));
@@ -5909,12 +5913,21 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-linkedin")).toHaveTextContent("Partner owner");
     expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-email")).toHaveTextContent("Primary email send");
     expect(screen.getByTestId("marketing-campaign-studio-channel-timeline-whatsapp")).toHaveTextContent("Direct reply nudge");
+    expect(screen.getByTestId("marketing-campaign-studio-tracking-links")).toHaveTextContent("Use one CTA, track every route");
+    expect(screen.getByTestId("marketing-campaign-studio-tracking-link-linkedin")).toHaveTextContent("utm_source=vyva");
+    expect(screen.getByTestId("marketing-campaign-studio-tracking-link-linkedin")).toHaveTextContent("utm_medium=linkedin");
+    expect(screen.getByTestId("marketing-campaign-studio-tracking-link-email")).toHaveTextContent("VYVA email link");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-channel-timeline"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign launch timeline"));
     });
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Channel launch timeline copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-tracking-links"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign tracking links"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign tracking links copied.");
   });
 
   it("shows a channel route board and updates campaign studio routes", async () => {
