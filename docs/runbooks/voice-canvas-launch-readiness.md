@@ -1,0 +1,107 @@
+# Voice Canvas launch readiness and rollback
+
+This checklist is the final preflight before enabling Canvas-powered Concierge flows for real users. It covers ride, appointment, medication refill, shopping or delivery, provider reply, and task hub resume.
+
+## Launch invariants
+
+- No booking, call, message, navigation, order, refill request, provider reply, completion, or other external action occurs before an explicit final confirmation.
+- A duplicate confirmation is ignored while the first request is in flight.
+- A late or stale response is ignored if the user has retried, edited material details, cancelled, or left the scene.
+- Restored drafts can return to editable or review scenes; restored `waiting`, `saving`, `completing`, or in-flight requests must not resubmit automatically.
+- The visible state and voice state describe the same next step.
+- The user always has a clear exit path.
+- The feature must fail closed to the existing Concierge experience when its flag is off, malformed, or unreachable.
+
+## Runtime controls
+
+| Flow | Endpoint | Enable flag | Rollout flag | Fallback |
+| --- | --- | --- | --- | --- |
+| Ride | `/api/config/features/ride-voice-canvas` | `VYVA_ENABLE_RIDE_VOICE_CANVAS` | `VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing Concierge transport panel |
+| Appointment | `/api/config/features/appointment-voice-canvas` | `VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS` | `VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing appointment panel |
+| Medication refill | `/api/config/features/medication-refill-voice-canvas` | `VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS` | `VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing medication refill shopping/support path |
+| Shopping or delivery | `/api/config/features/shopping-delivery-voice-canvas` | `VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS` | `VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing shopping guide and recommendations |
+| Provider reply | `/api/config/features/provider-reply-voice-canvas` | `VYVA_ENABLE_PROVIDER_REPLY_VOICE_CANVAS` | `VYVA_PROVIDER_REPLY_VOICE_CANVAS_ROLLOUT_PERCENT` | Existing provider reply panel |
+| Task hub resume | Inherits the destination flow controls | No separate flag | No separate rollout | The task hub opens the safe existing destination when a destination Canvas is off |
+
+Start at internal-only, then 5%, 25%, 50%, and 100% only after reviewing scene-only completion, abandonment, retry, blocked, and failure counts.
+
+## Privacy-safe analytics
+
+Allowed Canvas telemetry fields are only:
+
+- `name`
+- `step`
+- `input`
+- `attempt`
+- `restored`
+- `revision`
+
+Never record addresses, saved-place labels, spoken transcripts, typed free text, medication names, provider names, reply bodies, notes, references, dates, times, item names, prices, phone numbers, or personal identifiers in Canvas telemetry.
+
+Canonical launch signals are derived from the closed event shape:
+
+| Launch signal | Source event |
+| --- | --- |
+| Started | `scene_viewed` with `restored: false` |
+| Resumed | `draft_restored`, or `scene_viewed` with `restored: true` |
+| Abandoned | `abandoned` |
+| Blocked | `failed`, `urgent_help_shown`, or a blocked scene view |
+| Confirmed | `confirmation_submitted` |
+| Completed | `completed` |
+
+`saved` is intentionally not treated as completed. Provider reply uses one confirmation to save the reply and a separate confirmation to mark the task complete.
+
+## Real-device QA pass
+
+Run this pass for each flow: ride, appointment, refill, shopping, provider reply, and task hub resume.
+
+1. Open on desktop, tablet, and mobile widths.
+2. Start with touch, complete with keyboard where possible, and repeat with voice commands.
+3. Use Spanish or intentionally long labels and confirm no horizontal overflow or clipped touch target.
+4. Enter partial details, go back, edit, and confirm the entered information is preserved.
+5. Refresh or simulate reconnect while in an editable scene and confirm the draft restores.
+6. Refresh or simulate reconnect while waiting/saving/completing and confirm the request is not resubmitted.
+7. Cancel or exit from each non-terminal scene and confirm no write or external action occurs.
+8. Reach review and confirm no result/reference appears before explicit final confirmation.
+9. Click or speak confirmation twice and confirm only one action attempt is accepted.
+10. Force a recoverable service failure and confirm the blocked state explains what happened and offers retry or exit.
+11. Confirm waiting, blocked, and completed states are announced to assistive technology.
+12. Turn the flow flag off or rollout to zero, focus/refresh the page, and confirm Canvas closes or disappears in favor of the existing experience.
+
+For task hub resume, verify:
+
+- local shopping and refill drafts resume into the destination only while that destination Canvas flag is enabled;
+- pending provider replies and stale pending tasks resume through the safe Concierge task path;
+- completed tasks can be reused as templates without rewriting history;
+- leaving a task detail returns to the task list without calling details, completion, or confirmation endpoints.
+
+## Focused verification commands
+
+Run the focused component/readiness suite:
+
+```bash
+npm run test -- src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx
+```
+
+Run the browser readiness specs:
+
+```bash
+npm run test:e2e -- e2e/voice-canvas-production-readiness.spec.ts e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts e2e/canvas-launch-readiness.spec.ts
+```
+
+Run typecheck before PR:
+
+```bash
+npm run typecheck
+```
+
+## Immediate rollback
+
+1. Set the affected flow enable flag to `false` and its rollout percentage to `0`.
+2. Restart the app process if runtime environment variables are read at process start.
+3. Verify the feature endpoint returns `{ "enabled": false, "rolloutPercent": 0 }`.
+4. Open the affected Concierge entry point and confirm the old interface appears.
+5. Focus or refresh any open session and confirm Canvas closes without submitting in-flight work.
+6. Monitor only privacy-safe aggregate counts: started, resumed, abandoned, blocked, confirmed, completed, retried, and failed.
+
+Rollback immediately for any pre-confirmation external action, duplicate submission, sensitive telemetry field, stale response acceptance, unsafe restore, inaccessible blocked state, or broken fallback.
