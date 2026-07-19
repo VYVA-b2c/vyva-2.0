@@ -37,7 +37,7 @@ The matrix is protected by `src/components/voice-canvas/canvasLaunchSignoff.test
   - Result: 151 tests passed.
 - Browser readiness:
   - `npm run test:e2e -- e2e/voice-canvas-production-readiness.spec.ts e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts e2e/canvas-launch-readiness.spec.ts e2e/task-hub-resume-launch-readiness.spec.ts`
-  - Result: 18 tests passed.
+  - Result: 18 tests passed on the current launch-readiness branch after the latest sign-off gate hardening, with refreshed appointment and refill screenshots under `src/dev/voice-canvas/`.
 - Typecheck:
   - `npm run typecheck`
   - Result: passed.
