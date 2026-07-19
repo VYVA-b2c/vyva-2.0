@@ -9491,6 +9491,14 @@ function contactReachableForChannel(contact: MarketingContact, channel: Channel)
   return Boolean(recipientForChannel(contact, channel));
 }
 
+function campaignStudioDeliveryIssue(contact: MarketingContact, channels: Channel[]) {
+  if (contact.consentStatus === "opted_out") return "Opted out";
+  if (contact.consentStatus !== "opted_in") return `Consent ${contact.consentStatus.replace("_", " ")}`;
+  const hasSelectedRoute = channels.some((channel) => contactReachableForChannel(contact, channel));
+  if (!hasSelectedRoute) return "No selected-channel route";
+  return "";
+}
+
 function recipientSnapshot(contact: MarketingContact) {
   return {
     fullName: contact.fullName,
@@ -15101,6 +15109,25 @@ export default function MarketingAdminPage() {
       samples.push({ contact, channels });
     });
     return samples.slice(0, 5);
+  }, [campaignStudioAudiencePool, campaignStudioSelectedChannels]);
+  const campaignStudioDeliveryIssues = useMemo(() => {
+    const excluded = campaignStudioAudiencePool
+      .map((contact) => ({
+        contact,
+        issue: campaignStudioDeliveryIssue(contact, campaignStudioSelectedChannels),
+        reachableChannels: campaignStudioSelectedChannels.filter((channel) => contactReachableForChannel(contact, channel)),
+      }))
+      .filter((item) => item.issue);
+    const routeMissing = campaignStudioAudiencePool.filter((contact) => (
+      !campaignStudioSelectedChannels.some((channel) => contactReachableForChannel(contact, channel))
+    )).length;
+    return {
+      optedIn: campaignStudioAudiencePool.filter((contact) => contact.consentStatus === "opted_in").length,
+      consentReview: campaignStudioAudiencePool.filter((contact) => contact.consentStatus !== "opted_in" && contact.consentStatus !== "opted_out").length,
+      optedOut: campaignStudioAudiencePool.filter((contact) => contact.consentStatus === "opted_out").length,
+      routeMissing,
+      excluded: excluded.slice(0, 4),
+    };
   }, [campaignStudioAudiencePool, campaignStudioSelectedChannels]);
   const campaignStudioPackRecipientCount = Array.from(campaignStudioRecipientPreviewByChannel.values()).reduce((count, recipients) => count + recipients.length, 0);
   const campaignStudioChannelDrafts = campaignStudioSelectedChannels.map((channel) => ({
@@ -28526,6 +28553,56 @@ export default function MarketingAdminPage() {
                         ) : (
                           <p className="mt-3 rounded-xl border border-dashed border-[#eadfd5] bg-white px-3 py-3 text-sm font-bold text-[#7d6b65]">
                             No reachable contacts for the selected play, audience, and channel pack. Switch the channel pack or audience before creating.
+                          </p>
+                        )}
+                      </div>
+                      <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-campaign-studio-delivery-map">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Audience delivery map</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Shows why contacts may be held back before VYVA saves recipient snapshots.</p>
+                          </div>
+                          <Pill className={campaignStudioDeliveryIssues.consentReview || campaignStudioDeliveryIssues.optedOut || campaignStudioDeliveryIssues.routeMissing ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                            {campaignStudioAudiencePool.length} selected
+                          </Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-4" data-testid="marketing-campaign-studio-delivery-map-counts">
+                          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                            <p className="text-xs font-black uppercase tracking-[0.08em] text-emerald-800">Opted in</p>
+                            <p className="mt-1 text-2xl font-black text-emerald-900">{campaignStudioDeliveryIssues.optedIn}</p>
+                          </div>
+                          <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                            <p className="text-xs font-black uppercase tracking-[0.08em] text-amber-800">Needs review</p>
+                            <p className="mt-1 text-2xl font-black text-amber-900">{campaignStudioDeliveryIssues.consentReview}</p>
+                          </div>
+                          <div className="rounded-xl border border-red-100 bg-red-50 p-3">
+                            <p className="text-xs font-black uppercase tracking-[0.08em] text-red-800">Opted out</p>
+                            <p className="mt-1 text-2xl font-black text-red-900">{campaignStudioDeliveryIssues.optedOut}</p>
+                          </div>
+                          <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                            <p className="text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">No route</p>
+                            <p className="mt-1 text-2xl font-black text-[#241133]">{campaignStudioDeliveryIssues.routeMissing}</p>
+                          </div>
+                        </div>
+                        {campaignStudioDeliveryIssues.excluded.length ? (
+                          <div className="mt-3 grid gap-2" data-testid="marketing-campaign-studio-delivery-map-exclusions">
+                            {campaignStudioDeliveryIssues.excluded.map(({ contact, issue, reachableChannels }) => (
+                              <div key={contact.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2" data-testid={`marketing-campaign-studio-delivery-exclusion-${contact.id}`}>
+                                <span className="min-w-0 text-xs font-black text-[#241133]">
+                                  {contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}
+                                  <span className="ml-2 font-bold text-[#7d6b65]">{issue}</span>
+                                </span>
+                                <span className="flex flex-wrap justify-end gap-1">
+                                  {reachableChannels.length ? reachableChannels.map((channel) => (
+                                    <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                  )) : <Pill className="bg-red-50 text-red-800">No selected route</Pill>}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-800">
+                            Every selected contact is opted in and reachable on at least one selected route.
                           </p>
                         )}
                       </div>

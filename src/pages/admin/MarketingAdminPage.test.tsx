@@ -5917,6 +5917,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-tracking-link-linkedin")).toHaveTextContent("utm_source=vyva");
     expect(screen.getByTestId("marketing-campaign-studio-tracking-link-linkedin")).toHaveTextContent("utm_medium=linkedin");
     expect(screen.getByTestId("marketing-campaign-studio-tracking-link-email")).toHaveTextContent("VYVA email link");
+    expect(screen.getByTestId("marketing-campaign-studio-delivery-map")).toHaveTextContent("Audience delivery map");
+    expect(screen.getByTestId("marketing-campaign-studio-delivery-map-counts")).toHaveTextContent("Opted in");
+    expect(screen.getByTestId("marketing-campaign-studio-delivery-map-counts")).toHaveTextContent("Needs review");
+    expect(screen.getByTestId("marketing-campaign-studio-delivery-exclusion-contact-2")).toHaveTextContent("Consent pending");
+    expect(screen.getByTestId("marketing-campaign-studio-delivery-exclusion-contact-2")).toHaveTextContent("LinkedIn");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-channel-timeline"));
     await waitFor(() => {
