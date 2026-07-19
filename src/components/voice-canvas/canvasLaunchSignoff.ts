@@ -1894,7 +1894,10 @@ function analyticsSignalResultIsSpecific(
   );
 }
 
-function hasAnalyticsSignalEvidenceLanguage(value: string): boolean {
+function hasAnalyticsSignalEvidenceLanguage(
+  signal: CanvasRealDeviceQaAnalyticsSignal,
+  value: string,
+): boolean {
   return (
     hasDatedEvidenceLanguage(value, [
       "analytics",
@@ -1906,8 +1909,9 @@ function hasAnalyticsSignalEvidenceLanguage(value: string): boolean {
       "evidence",
       "counter",
     ]) &&
-    hasAnyWord(value, ["aggregate", "signal", "count"]) &&
-    hasAnyWord(value, ["allowed envelope", "envelope", "privacy-safe"]) &&
+    analyticsSignalSourceIsSpecific(signal, value) &&
+    analyticsSignalResultIsSpecific(signal, value) &&
+    hasAllowedEnvelopeFieldsLanguage(value) &&
     !hasSensitiveDataLeakageLanguage(value)
   );
 }
@@ -2000,9 +2004,9 @@ function invalidAnalyticsSignalRows(sections: Map<string, string[][]>): string[]
         `${signal}: result must mention the aggregate signal/count reviewed with a positive numeric count`,
       );
     }
-    if (!hasAnalyticsSignalEvidenceLanguage(evidence)) {
+    if (!hasAnalyticsSignalEvidenceLanguage(signal, evidence)) {
       problems.push(
-        `${signal}: evidence must reference dated aggregate telemetry with allowed envelope fields`,
+        `${signal}: evidence must include dated source-event, positive aggregate count, and allowed-envelope evidence`,
       );
     }
   }

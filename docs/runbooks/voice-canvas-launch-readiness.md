@@ -55,6 +55,8 @@ Canonical launch signals are derived from the closed event shape:
 
 Use the shared launch telemetry counter/listener only as an aggregate monitor. It may count `started`, `resumed`, `abandoned`, `blocked`, `confirmed`, and `completed`, and its samples must stay limited to the allowed envelope fields above.
 
+For analytics signal rows, the evidence note must include dated source-event, positive aggregate count, and allowed-envelope evidence for the specific launch signal. Generic analytics-review notes do not satisfy launch sign-off.
+
 ## Real-device QA pass
 
 Run this pass for each flow: ride, appointment, refill, shopping, provider reply, and task hub resume.

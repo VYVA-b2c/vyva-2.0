@@ -112,7 +112,7 @@ For final sign-off, each result cell must name the specific behavior checked, no
 
 ## Analytics signal review
 
-Confirm production or staging analytics receives the required aggregate launch signals. For final sign-off, source-event cells must match the canonical mapping, result cells must mention the aggregate signal/count reviewed with a positive numeric count, and evidence must include a dated analytics or telemetry note with only allowed envelope fields and a valid non-future `YYYY-MM-DD` date. Evidence must not say forbidden data was recorded, logged, sent, captured, included, stored, retained, or present. A zero count does not prove the signal was observed.
+Confirm production or staging analytics receives the required aggregate launch signals. For final sign-off, source-event cells must match the canonical mapping, result cells must mention the aggregate signal/count reviewed with a positive numeric count, and evidence must include dated source-event, positive aggregate count, and allowed-envelope evidence with a valid non-future `YYYY-MM-DD` date. Evidence must name the launch signal and its canonical source event so generic analytics-review notes are not enough. Evidence must not say forbidden data was recorded, logged, sent, captured, included, stored, retained, or present. A zero count does not prove the signal was observed.
 
 | Launch signal | Source event verified | Aggregate result | Evidence |
 | --- | --- | --- | --- |

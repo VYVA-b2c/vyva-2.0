@@ -243,6 +243,7 @@ describe("Canvas launch readiness manifest", () => {
       "Spoken transcripts",
       "Typed free text",
       "specific forbidden data class",
+      "dated source-event, positive aggregate count, and allowed-envelope evidence",
       "Addresses or saved-place labels",
       "Medication names, strengths, quantities, or symptoms",
       "Provider names, reply text, notes, references, phone numbers, or emails",
