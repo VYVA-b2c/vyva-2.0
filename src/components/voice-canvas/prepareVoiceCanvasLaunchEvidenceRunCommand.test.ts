@@ -101,6 +101,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
       "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
     );
     expect(result.stdout).toContain(
+      "Fill rollback owner handoff with deployed QA run URL, owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
+    );
+    expect(result.stdout).toContain(
       "Verify refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery with entered information preserved.",
     );
     expect(result.stdout).toContain(
@@ -232,6 +235,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
     );
     expect(summary.checklist.join(" ")).toContain(
       "entry surface evidence from every canonical launch surface",
+    );
+    expect(summary.checklist.join(" ")).toContain(
+      "rollback owner handoff with deployed QA run URL, owner, backup",
     );
     expect(summary.checklist.join(" ")).toContain(
       "refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery",

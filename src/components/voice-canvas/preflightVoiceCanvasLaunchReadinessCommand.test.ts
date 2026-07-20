@@ -129,7 +129,7 @@ function validLaunchRunPlan(
       "Fill recovery behavior evidence from resume, refresh, back, reconnect, interruption, cancel, retry, duplicate, and stale-response coverage.",
       "Fill real-use evidence from real physical phone, tablet, desktop/laptop, voice, touch, and keyboard coverage.",
       "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
-      "Fill rollback owner handoff with owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
+      "Fill rollback owner handoff with deployed QA run URL, owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
       "Execute every flow on real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths.",
       "Verify refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery with entered information preserved.",
       "Verify feature-flag rollback closes or hides Canvas in an open session and restores the named existing fallback path without writes or external actions.",
@@ -266,6 +266,7 @@ function validRollbackOwnerHandoffArtifact(): string {
     "",
     `Reviewed on: ${reviewedOn}`,
     "Reviewer: QA Launch Reviewer",
+    "QA run URL: https://staging.vyva.app",
     "Operations/rollback owner: Ops Launch Owner",
     "Backup owner: Ops Backup Owner",
     "Decision window: launch monitoring window after enablement",
@@ -1934,6 +1935,36 @@ describe("Voice Canvas launch readiness preflight command", () => {
         problems: [],
       });
     }));
+
+  it("rejects rollback owner handoff artifacts from local QA run URLs", () =>
+    withTempRollbackOwnerFile(
+      validRollbackOwnerHandoffArtifact().replace(
+        "QA run URL: https://staging.vyva.app",
+        "QA run URL: http://127.0.0.1:5173",
+      ),
+      (inputPath) => {
+        const result = runPreflight([`--rollback-owner=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          rollbackOwnerEvidence: {
+            readyForLaunchEvidence: boolean;
+            problems: string[];
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.rollbackOwnerEvidence.readyForLaunchEvidence).toBe(false);
+        expect(summary.rollbackOwnerEvidence.problems).toContain(
+          "Rollback owner handoff QA run URL must be a deployed non-local http(s) URL.",
+        );
+        expect(summary.nextActions).toContain(
+          "Fix sanitized rollback owner handoff evidence before launch sign-off.",
+        );
+      },
+    ));
 
   it("rejects unsafe rollback owner handoff artifacts without echoing personal values", () =>
     withTempRollbackOwnerFile(
