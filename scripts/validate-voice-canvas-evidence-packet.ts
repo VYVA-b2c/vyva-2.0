@@ -423,6 +423,7 @@ const evidenceNotePatternRequirements: Record<
     ["aggregate"],
     ["positive"],
     ["allowed envelope"],
+    ["non-identifying allowed values", "non identifying allowed values"],
     ["coveredflows"],
     ["ride"],
     ["appointment"],
@@ -450,6 +451,7 @@ const evidenceNotePatternRequirements: Record<
     ["captured"],
     ["included"],
     ["allowed envelope"],
+    ["non-identifying allowed values", "non identifying allowed values"],
   ],
 };
 

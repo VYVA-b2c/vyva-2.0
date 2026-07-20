@@ -73,7 +73,7 @@ const ARTIFACT_INVENTORY_SIGNAL_ROW =
   "| Analytics signal artifacts | Analytics signal started resumed abandoned blocked confirmed completed evidence | Sanitized analytics dashboard query artifact links for started resumed abandoned blocked confirmed completed signals with no personal details | QA reviewer verified on 2026-07-19 |";
 
 const ARTIFACT_INVENTORY_PRIVACY_ROW =
-  "| Analytics privacy artifacts | Analytics privacy allowed envelope forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact links showing allowed envelope and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |";
+  "| Analytics privacy artifacts | Analytics privacy allowed envelope non-identifying allowed values forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact links showing allowed envelope, non-identifying allowed values, and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |";
 
 const ARTIFACT_INVENTORY_RUN_SHEET_ROW =
   "| Run sheet validation artifacts | Run sheet validation evidence for packet and matrix copy | Sanitized run sheet validation JSON artifact link for run-sheet-summary.json with no personal details | QA reviewer verified on 2026-07-19 |";
@@ -280,27 +280,27 @@ function fillAnalyticsSignalRows(markdown: string): string {
   return markdown
     .replace(
       /^\| Started \| .* \| .* \| .* \|$/m,
-      "| Started | scene_viewed with restored false verified | Started analytics query artifact aggregate signal count 6 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Started scene_viewed restored false aggregate signal count 6 observed with only allowed envelope fields |",
+      "| Started | scene_viewed with restored false verified | Started analytics query artifact aggregate signal count 6 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Started scene_viewed restored false aggregate signal count 6 observed with only allowed envelope fields and non-identifying allowed values |",
     )
     .replace(
       /^\| Resumed \| .* \| .* \| .* \|$/m,
-      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
     )
     .replace(
       /^\| Abandoned \| .* \| .* \| .* \|$/m,
-      "| Abandoned | abandoned source event verified | Abandoned analytics query artifact aggregate signal count 2 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Abandoned abandoned source event aggregate signal count 2 observed with only allowed envelope fields |",
+      "| Abandoned | abandoned source event verified | Abandoned analytics query artifact aggregate signal count 2 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Abandoned abandoned source event aggregate signal count 2 observed with only allowed envelope fields and non-identifying allowed values |",
     )
     .replace(
       /^\| Blocked \| .* \| .* \| .* \|$/m,
-      "| Blocked | failed or urgent_help_shown or blocked scene view verified | Analytics query artifact blocked aggregate signal count 1 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Blocked failed source event aggregate signal count 1 observed with only allowed envelope fields |",
+      "| Blocked | failed or urgent_help_shown or blocked scene view verified | Analytics query artifact blocked aggregate signal count 1 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Blocked failed source event aggregate signal count 1 observed with only allowed envelope fields and non-identifying allowed values |",
     )
     .replace(
       /^\| Confirmed \| .* \| .* \| .* \|$/m,
-      "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields |",
+      "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
     )
     .replace(
       /^\| Completed \| .* \| .* \| .* \|$/m,
-      "| Completed | completed source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed completed source event aggregate signal count 4 observed with only allowed envelope fields |",
+      "| Completed | completed source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed completed source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
     );
 }
 
@@ -452,7 +452,7 @@ function fillPrivacyReviewRows(markdown: string): string {
     (current, privacyClass) =>
       current.replace(
         new RegExp(`^\\| ${escapeRegExp(privacyClass)} \\| .* \\| .* \\|$`, "m"),
-        `| ${privacyClass} | ${privacyClass} absent from analytics sink | Analytics telemetry sample artifact for ${privacyClass} reviewed on 2026-07-19 with only allowed envelope fields |`,
+        `| ${privacyClass} | ${privacyClass} absent from analytics sink | Analytics telemetry sample artifact for ${privacyClass} reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |`,
       ),
     markdown,
   );
@@ -831,7 +831,7 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects evidence artifact inventory references with literal personal data", () => {
     const completed = completedMatrix().replace(
       ARTIFACT_INVENTORY_PRIVACY_ROW,
-      "| Analytics privacy artifacts | Analytics privacy allowed envelope forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact link for qa-person@example.com and 123 Secret Street showing allowed envelope and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |",
+      "| Analytics privacy artifacts | Analytics privacy allowed envelope non-identifying allowed values forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact link for qa-person@example.com and 123 Secret Street showing allowed envelope, non-identifying allowed values, and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2645,7 +2645,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices with vague privacy review rows", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
       "| Typed free text | Passed by QA | Evidence captured by QA |",
     );
 
@@ -2655,7 +2655,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
       "Typed free text: result must name the forbidden data class and state it was absent",
-      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields",
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
@@ -2664,8 +2664,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects privacy review rows with vague no-issue wording", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
-      "| Typed free text | No issue found | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | No issue found | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2682,8 +2682,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects privacy review rows that omit the forbidden data class", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
-      "| Typed free text | No sensitive data recorded in analytics sink | Analytics telemetry sample artifact reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | No sensitive data recorded in analytics sink | Analytics telemetry sample artifact reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2692,7 +2692,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
       "Typed free text: result must name the forbidden data class and state it was absent",
-      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields",
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
@@ -2701,8 +2701,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects privacy review rows that also state sensitive data was logged", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
-      "| Typed free text | Typed free text absent, but typed free text logged in analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | Typed free text absent, but typed free text logged in analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2719,8 +2719,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects privacy evidence that also states sensitive ride details were logged", () => {
     const completed = completedMatrix().replace(
-      "| Ride pickup, dropoff, destination, or route details | Ride pickup, dropoff, destination, or route details absent from analytics sink | Analytics telemetry sample artifact for Ride pickup, dropoff, destination, or route details reviewed on 2026-07-19 with only allowed envelope fields |",
-      "| Ride pickup, dropoff, destination, or route details | Ride pickup, dropoff, destination, or route details absent from analytics sink | Analytics telemetry sample artifact for Ride pickup, dropoff, destination, or route details reviewed on 2026-07-19 with only allowed envelope fields, but pickup destination logged in the sample artifact |",
+      "| Ride pickup, dropoff, destination, or route details | Ride pickup, dropoff, destination, or route details absent from analytics sink | Analytics telemetry sample artifact for Ride pickup, dropoff, destination, or route details reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Ride pickup, dropoff, destination, or route details | Ride pickup, dropoff, destination, or route details absent from analytics sink | Analytics telemetry sample artifact for Ride pickup, dropoff, destination, or route details reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values, but pickup destination logged in the sample artifact |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2728,7 +2728,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
-      "Ride pickup, dropoff, destination, or route details: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields",
+      "Ride pickup, dropoff, destination, or route details: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
@@ -2737,7 +2737,7 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects ready-for-launch matrices without allowed-envelope privacy evidence", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
       "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 |",
     );
 
@@ -2746,7 +2746,25 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
-      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields",
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without non-identifying allowed-values privacy evidence", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
@@ -2755,8 +2773,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects privacy evidence that omits concrete analytics artifacts", () => {
     const completed = completedMatrix().replace(
-      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
-      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2764,13 +2782,13 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidPrivacyRows).toEqual([
-      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields",
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
     ]);
   });
 
   it("rejects ready-for-launch matrices with vague analytics signal rows", () => {
     const completed = completedMatrix().replace(
-      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
       "| Resumed | Passed by QA | Passed by QA | Evidence captured by QA |",
     );
 
@@ -2790,8 +2808,23 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects analytics signal evidence that omits signal-specific source and count details", () => {
     const completed = completedMatrix().replace(
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry aggregate signal query artifact reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: evidence must include dated source-event, positive aggregate count, and allowed-envelope evidence",
+    ]);
+  });
+
+  it("rejects analytics signal evidence without non-identifying allowed values proof", () => {
+    const completed = completedMatrix().replace(
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
       "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields |",
-      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry aggregate signal query artifact reviewed on 2026-07-19 with only allowed envelope fields |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2805,8 +2838,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects analytics signal evidence that omits concrete artifacts", () => {
     const completed = completedMatrix().replace(
-      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields |",
-      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry evidence reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry evidence reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2820,8 +2853,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("accepts terminal pending as a completed launch analytics source", () => {
     const completed = completedMatrix().replace(
-      "| Completed | completed source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed completed source event aggregate signal count 4 observed with only allowed envelope fields |",
-      "| Completed | terminal pending source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed terminal pending source event aggregate signal count 4 observed with only allowed envelope fields |",
+      "| Completed | completed source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed completed source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Completed | terminal pending source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed terminal pending source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2832,8 +2865,8 @@ describe("Canvas real-device QA sign-off", () => {
 
   it("rejects analytics signal evidence that includes sensitive data leakage", () => {
     const completed = completedMatrix().replace(
-      "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields |",
-      "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields and route details captured in the query artifact |",
+      "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values and route details captured in the query artifact |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);

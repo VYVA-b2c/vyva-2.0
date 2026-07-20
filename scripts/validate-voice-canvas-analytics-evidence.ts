@@ -69,6 +69,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
       "coveredFlows must list every launch flow: ride, appointment, refill, shopping, provider_reply, task_hub_resume.",
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
+      "Allowed envelope values must stay non-identifying; step text must not contain addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
       "Every launch signal must have a positive observed sample count: started, resumed, abandoned, blocked, confirmed, completed.",
       "Completed can be proven by completed samples or terminal pending samples.",
       "The command writes only aggregate validation results and never copies raw sample rows into its output.",
@@ -320,6 +321,17 @@ function sampleEnvelopeProblems(
       `Sample ${index + 1} included ${unexpectedFieldCount} field(s) outside the allowed telemetry envelope.`,
     );
   }
+  const unsafeAllowedValueCount = Object.entries(sample).filter(
+    ([key, value]) =>
+      allowedEnvelopeFields.includes(key) &&
+      typeof value === "string" &&
+      metadataLooksUnsafe(value),
+  ).length;
+  if (unsafeAllowedValueCount > 0) {
+    problems.push(
+      `Sample ${index + 1} included ${unsafeAllowedValueCount} allowed envelope value(s) that appear to contain personal or raw captured data.`,
+    );
+  }
 
   if (!isCanvasTelemetryEnvelope(sample)) {
     problems.push(`Sample ${index + 1} is not a valid Canvas telemetry envelope.`);
@@ -344,7 +356,7 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
 
   if (samples.length === 0) {
     problems.push(
-      "Analytics evidence must include sanitized sample envelopes in samples, events, or the top-level array.",
+      "Analytics evidence must include sanitized sample envelopes in samples or events.",
     );
   }
 

@@ -134,7 +134,7 @@ Behavior recovery evidence, reviewed on [YYYY-MM-DD] by [reviewer], artifact [sa
 | Screen-reader announcements fire | Waiting, blocked, and completed states are announced | Pending | Pending |
 | Reduced-motion mode remains calm | Reduced motion is usable and does not rely on animation for meaning | Pending | Pending |
 | Analytics launch signals are present | Started, resumed, abandoned, blocked, confirmed, and completed have positive aggregate counts; completed may use completed or terminal pending source samples | Pending | Pending |
-| Analytics privacy is preserved | Telemetry includes only `name`, `step`, `input`, `attempt`, `restored`, and `revision`, with forbidden data classes absent | Pending | Pending |
+| Analytics privacy is preserved | Telemetry includes only `name`, `step`, `input`, `attempt`, `restored`, and `revision`, with forbidden data classes absent from both fields and values | Pending | Pending |
 
 Use this copy/accessibility evidence template before filling the copy/accessibility rows in this run sheet, the evidence packet, or the QA matrix. Replace bracketed placeholders only. Do not include transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data.
 
@@ -167,7 +167,7 @@ npm run --silent canvas:qa:analytics -- --template
 
 The template is intentionally not launch-ready. Replace the placeholder timestamp, source, zero counts, and empty sample array with real staging or production-like aggregate evidence before validation.
 
-The analytics evidence JSON must include aggregate `coveredFlows` for `ride`, `appointment`, `refill`, `shopping`, `provider_reply`, and `task_hub_resume`; use only synthetic QA telemetry samples; and must not include transcripts, entered text, addresses, dates, names, medication details, provider details, shopping details, contact details, account identifiers, or personal data. The validator output is an aggregate validation artifact only; it does not copy raw sample rows or unexpected values.
+The analytics evidence JSON must include aggregate `coveredFlows` for `ride`, `appointment`, `refill`, `shopping`, `provider_reply`, and `task_hub_resume`; use only synthetic QA telemetry samples; and must not include transcripts, entered text, addresses, dates, names, medication details, provider details, shopping details, contact details, account identifiers, or personal data in allowed fields or values. The validator output is an aggregate validation artifact only; it does not copy raw sample rows, unexpected values, or unsafe allowed values.
 
 Validate the evidence packet before copying packet notes into the final matrix:
 

@@ -2198,6 +2198,7 @@ function hasAnalyticsSignalEvidenceLanguage(
     analyticsSignalSourceIsSpecific(signal, value) &&
     analyticsSignalResultIsSpecific(signal, value) &&
     hasAllowedEnvelopeFieldsLanguage(value) &&
+    hasNonIdentifyingAllowedValuesLanguage(value) &&
     hasConcreteAnalyticsArtifactLanguage(value) &&
     !hasSensitiveDataLeakageLanguage(value)
   );
@@ -2215,6 +2216,17 @@ function hasAllowedEnvelopeFieldsLanguage(value: string): boolean {
     "name, step, input, attempt, restored, and revision",
     "name, step, input, attempt, restored, revision",
     "name step input attempt restored revision",
+  ]);
+}
+
+function hasNonIdentifyingAllowedValuesLanguage(value: string): boolean {
+  return hasAnyWord(value, [
+    "non-identifying allowed values",
+    "non identifying allowed values",
+    "non-identifying values",
+    "non identifying values",
+    "allowed values non-identifying",
+    "allowed values non identifying",
   ]);
 }
 
@@ -2329,11 +2341,12 @@ function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
       !hasAnalyticsEvidenceLanguage(evidence) ||
       !hasDatedEvidenceLanguage(evidence) ||
       !hasAllowedEnvelopeFieldsLanguage(evidence) ||
+      !hasNonIdentifyingAllowedValuesLanguage(evidence) ||
       !hasConcreteAnalyticsArtifactLanguage(evidence) ||
       hasSensitiveDataLeakageLanguage(evidence)
     ) {
       problems.push(
-        `${privacyClass}: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields`,
+        `${privacyClass}: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values`,
       );
     }
   }
@@ -2432,6 +2445,7 @@ const artifactInventoryRequirements: Record<
     ["analytics", "telemetry"],
     ["privacy"],
     ["allowed envelope", "allowed fields", "closed envelope"],
+    ["non-identifying allowed values", "non identifying allowed values"],
     ["forbidden data", "sensitive data"],
     ["absent", "not recorded", "redacted"],
   ],

@@ -143,6 +143,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
     expect(result.stdout).toContain(
       "coveredFlows must list every launch flow",
     );
+    expect(result.stdout).toContain(
+      "Allowed envelope values must stay non-identifying",
+    );
     expect(result.stdout).toContain("never copies raw sample rows");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
@@ -210,7 +213,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
       expect(summary.problems).toEqual(
         expect.arrayContaining([
           "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
-          "Analytics evidence must include sanitized sample envelopes in samples, events, or the top-level array.",
+          "Analytics evidence must include sanitized sample envelopes in samples or events.",
           "started: declared aggregate count must be positive.",
           "completed: sample evidence must include a positive observed count.",
         ]),
@@ -438,6 +441,44 @@ describe("Voice Canvas analytics evidence validator command", () => {
         expect(serialized).not.toContain("private spoken detail");
         expect(serialized).not.toContain("pickupAddress");
         expect(serialized).not.toContain("transcript");
+      },
+    ));
+
+  it("rejects private details inside allowed sample envelope values without copying them", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        samples: [
+          {
+            ...validSamples()[0],
+            step: "route-details-shopping-item-details-retailer-name-profile-id",
+          },
+          ...validSamples().slice(1),
+        ],
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problemCount: number;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problemCount).toBeGreaterThan(0);
+        expect(summary.problems).toContain(
+          "Sample 1 included 1 allowed envelope value(s) that appear to contain personal or raw captured data.",
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("route-details");
+        expect(serialized).not.toContain("shopping-item-details");
+        expect(serialized).not.toContain("retailer-name");
+        expect(serialized).not.toContain("profile-id");
       },
     ));
 

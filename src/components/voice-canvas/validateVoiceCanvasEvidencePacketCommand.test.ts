@@ -454,6 +454,30 @@ describe("Voice Canvas evidence packet validator command", () => {
       },
     ));
 
+  it("rejects analytics evidence note patterns without non-identifying allowed values proof", () =>
+    withTempPacket(
+      completedPacket().replaceAll(" and non-identifying allowed values", ""),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Copy-ready evidence note pattern "Analytics signal" is missing required launch evidence wording.',
+            'Copy-ready evidence note pattern "Analytics privacy" is missing required launch evidence wording.',
+          ]),
+        );
+      },
+    ));
+
   it("rejects rollback owner handoff note patterns without handoff proof", () =>
     withTempPacket(
       completedPacket().replace(
