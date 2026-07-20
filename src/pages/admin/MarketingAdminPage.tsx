@@ -22684,6 +22684,41 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function copyMarketingOperatorChecklist() {
+    const label = "Daily execution checklist";
+    if (!marketingOperatorChecklistText.trim()) {
+      const feedback = `${label} is empty.`;
+      setMarketingOperatorBriefFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(marketingOperatorChecklistText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = marketingOperatorChecklistText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setMarketingOperatorBriefFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setMarketingOperatorBriefFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
   async function copyMarketingChannelBoardBrief() {
     const label = "Channel publishing plan";
     if (!marketingChannelBoardBriefText.trim()) {
@@ -30467,6 +30502,36 @@ export default function MarketingAdminPage() {
     "- Every manual publish must be tracked back to the campaign with outcome, URL/notes, reach, engagement, and follow-up owner.",
     "- If a channel has gaps, fix or attach content before scheduling.",
   ].join("\n");
+  const marketingOperatorChecklistItems = marketingOperatorBriefItems.map((item, index) => ({
+    ...item,
+    step: index + 1,
+    checked: item.state === "ready",
+    checkbox: item.state === "ready" ? "[x]" : "[ ]",
+    owner: item.key === "sync"
+      ? "Admin ops"
+      : item.key === "creative"
+        ? "Creative owner"
+        : item.key === "campaign"
+          ? "Campaign owner"
+          : "Marketing owner",
+  }));
+  const marketingOperatorChecklistText = [
+    "VYVA marketing daily execution checklist",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    ...marketingOperatorChecklistItems.map((item) => [
+      `${item.checkbox} ${item.step}. ${item.title}`,
+      `   State: ${readinessLabel(item.state)} - ${item.value}`,
+      `   Owner: ${item.owner}`,
+      `   Why: ${item.detail}`,
+      `   Do next: ${item.actionLabel}`,
+    ].join("\n")),
+    "",
+    "End-of-day closeout:",
+    "- Save or update any created campaign/content records.",
+    "- Log manual handoffs and outcomes back on the campaign.",
+    "- Leave one clear next action for tomorrow.",
+  ].join("\n");
   const marketingOperatorBriefText = [
     "VYVA marketing daily operator brief",
     `Generated: ${formatDate(new Date().toISOString())}`,
@@ -31490,6 +31555,44 @@ export default function MarketingAdminPage() {
                             </button>
                           );
                         })}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-violet-100 bg-white p-3" data-testid="marketing-operator-checklist">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">Execution checklist</p>
+                            <h4 className="mt-1 text-sm font-black text-[#241133]">Run today in order</h4>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                              A shorter, checkable version of the operator brief for daily follow-through.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyMarketingOperatorChecklist()}
+                            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-800 transition hover:bg-white focus:outline-none focus:ring-4 focus:ring-purple-100"
+                            data-testid="button-marketing-copy-operator-checklist"
+                          >
+                            <Copy size={13} aria-hidden="true" /> Copy checklist
+                          </button>
+                        </div>
+                        <div className="mt-3 grid gap-2">
+                          {marketingOperatorChecklistItems.map((item) => (
+                            <div
+                              key={item.key}
+                              className={`rounded-xl border bg-[#fffaf4] px-3 py-2 ${readinessClass(item.state)}`}
+                              data-testid={`marketing-operator-checklist-${item.key}`}
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-black text-[#241133]">
+                                    {item.checkbox} {item.step}. {item.title}
+                                  </p>
+                                  <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.actionLabel}</p>
+                                </div>
+                                <Pill className={readinessPillClass(item.state)}>{item.value}</Pill>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                     <div className="rounded-xl border border-violet-100 bg-white p-3">

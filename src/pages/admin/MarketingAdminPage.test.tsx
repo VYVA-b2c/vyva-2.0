@@ -2213,10 +2213,19 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-operator-brief")).toHaveTextContent("One work order");
     expect(screen.getByTestId("button-marketing-operator-brief-priority")).toHaveTextContent("Finish Source sync setup");
     expect(screen.getByTestId("button-marketing-operator-brief-creative")).toHaveTextContent("Creative coverage");
+    expect(screen.getByTestId("marketing-operator-checklist")).toHaveTextContent("Execution checklist");
+    expect(screen.getByTestId("marketing-operator-checklist-priority")).toHaveTextContent("Finish Source sync setup");
+    expect(screen.getByTestId("marketing-operator-checklist-sync")).toHaveTextContent("Open sync");
     const operatorBrief = screen.getByTestId("textarea-marketing-operator-brief") as HTMLTextAreaElement;
     expect(operatorBrief.value).toContain("VYVA marketing daily operator brief");
     expect(operatorBrief.value).toContain("Next best move: Finish Source sync setup");
     expect(operatorBrief.value).toContain("Operating rules:");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-operator-checklist"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA marketing daily execution checklist"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("End-of-day closeout"));
+    expect(screen.getByTestId("marketing-operator-brief-feedback")).toHaveTextContent("Daily execution checklist copied.");
     fireEvent.click(screen.getByTestId("button-marketing-copy-operator-brief"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA marketing daily operator brief"));
