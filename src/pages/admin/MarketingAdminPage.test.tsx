@@ -1179,6 +1179,13 @@ describe("MarketingAdminPage", () => {
       configurable: true,
       value: { writeText: commandClipboardWriteText },
     });
+    expect(screen.getByTestId("button-marketing-contact-work-queues-copy-run-sheet")).toHaveTextContent("Copy queue brief");
+    fireEvent.click(screen.getByTestId("button-marketing-contact-work-queues-copy-run-sheet"));
+    await waitFor(() => {
+      expect(commandClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA relationship run sheet"));
+    });
+    expect(commandClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Queue order:"));
+    expect(screen.getByTestId("marketing-contact-work-queues-feedback")).toHaveTextContent("Relationship run sheet copied.");
     fireEvent.click(screen.getByTestId("button-marketing-copy-contact-command-brief"));
     await waitFor(() => {
       expect(commandClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Relationship command brief"));

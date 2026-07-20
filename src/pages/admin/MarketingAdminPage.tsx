@@ -39499,8 +39499,24 @@ export default function MarketingAdminPage() {
                       Turn imported contacts into concrete follow-up lists, then open the right campaign play with channels and AI context pre-selected.
                     </p>
                   </div>
-                  <Pill className="bg-purple-50 text-purple-800">{contactRelationshipWorkQueues.filter((queue) => queue.count > 0).length} active queues</Pill>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill className="bg-purple-50 text-purple-800">{contactRelationshipWorkQueues.filter((queue) => queue.count > 0).length} active queues</Pill>
+                    <button
+                      type="button"
+                      onClick={() => void copyContactRelationshipRunSheet()}
+                      disabled={!contactRelationshipRunSheetText.trim()}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                      data-testid="button-marketing-contact-work-queues-copy-run-sheet"
+                    >
+                      <Sparkles size={13} /> Copy queue brief
+                    </button>
+                  </div>
                 </div>
+                {contactFeedback ? (
+                  <p className={`mt-3 rounded-xl px-4 py-3 text-sm font-bold ${contactFeedback.toLowerCase().includes("copied") || contactFeedback.toLowerCase().includes("created") || contactFeedback.toLowerCase().includes("updated") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} role="status" aria-live="polite" data-testid="marketing-contact-work-queues-feedback">
+                    {contactFeedback}
+                  </p>
+                ) : null}
                 {contactRelationshipPriorityQueue ? (() => {
                   const queue = contactRelationshipPriorityQueue;
                   const Icon = queue.icon;
