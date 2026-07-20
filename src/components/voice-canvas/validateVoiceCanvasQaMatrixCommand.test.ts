@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -144,5 +145,44 @@ describe("Voice Canvas QA matrix validator command", () => {
     expect(summary.message).toBe(
       "Matrix is still pending execution. Fill every row, attach sanitized evidence, and change Status to ready for launch.",
     );
+  });
+
+  it("saves machine-readable JSON to an explicit QA artifact path", () => {
+    const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-qa-"));
+    const outputPath = path.join(tempDir, "qa-summary.json");
+
+    try {
+      const result = runValidator([
+        "--allow-pending",
+        "--json",
+        `--output=${outputPath}`,
+      ]);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(existsSync(outputPath)).toBe(true);
+
+      const stdoutSummary = JSON.parse(result.stdout) as {
+        status: string;
+        acceptedPending: boolean;
+      };
+      const fileSummary = JSON.parse(readFileSync(outputPath, "utf8")) as {
+        status: string;
+        acceptedPending: boolean;
+      };
+
+      expect(fileSummary).toEqual(stdoutSummary);
+      expect(fileSummary.status).toBe("pending execution");
+      expect(fileSummary.acceptedPending).toBe(true);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects output paths outside JSON mode", () => {
+    const result = runValidator(["--allow-pending", "--output=qa-summary.json"]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Use --output only with --json.");
   });
 });

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   CANVAS_REAL_DEVICE_QA_PENDING_STATUS,
@@ -82,11 +82,13 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run canvas:qa:validate",
       "  npm run canvas:qa:validate -- --allow-pending",
       "  npm run --silent canvas:qa:validate -- --allow-pending --json",
+      "  npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas-qa-summary.json",
       "  npm run canvas:qa:validate -- docs/audits/voice-canvas-real-device-qa-matrix.md",
       "",
       "The command exits non-zero unless the matrix is ready for launch.",
       "Use --allow-pending for in-progress review of the committed pending matrix.",
       "Use --json to emit machine-readable summary output for QA artifacts or CI.",
+      "Use --output=<path> with --json to also save the summary to a file.",
     ].join("\n"),
   );
   process.exit(0);
@@ -94,6 +96,16 @@ if (args.includes("--help") || args.includes("-h")) {
 
 const allowPending = args.includes("--allow-pending");
 const jsonOutput = args.includes("--json");
+const outputArg = args.find((arg) => arg.startsWith("--output="));
+const outputPathArg = outputArg?.slice("--output=".length).trim();
+if (outputArg && !outputPathArg) {
+  console.error("Expected --output=<path>.");
+  process.exit(1);
+}
+if (outputPathArg && !jsonOutput) {
+  console.error("Use --output only with --json.");
+  process.exit(1);
+}
 const matrixArg = args.find((arg) => !arg.startsWith("-"));
 const matrixPath = path.resolve(process.cwd(), matrixArg ?? defaultMatrixPath);
 const matrix = readFileSync(matrixPath, "utf8");
@@ -116,30 +128,34 @@ function failureMessage(): string {
 const exitCode = result.readyForLaunch || acceptedPending ? 0 : 1;
 
 if (jsonOutput) {
-  console.log(
-    JSON.stringify(
-      {
-        matrixPath: relativeMatrixPath,
-        status: result.status,
-        state: result.state,
-        readyForLaunch: result.readyForLaunch,
-        incompleteCellCount: result.incompleteCellCount,
-        failingCellCount: result.failingCellCount,
-        pendingSections: pendingSummaries,
-        problemCount: result.problems.length,
-        problems: result.problems,
-        allowPending,
-        acceptedPending,
-        message: result.readyForLaunch
-          ? "Matrix is ready for launch."
-          : acceptedPending
-            ? "Matrix is still pending execution, but its structure is valid."
-            : failureMessage(),
-      },
-      null,
-      2,
-    ),
+  const jsonSummary = JSON.stringify(
+    {
+      matrixPath: relativeMatrixPath,
+      status: result.status,
+      state: result.state,
+      readyForLaunch: result.readyForLaunch,
+      incompleteCellCount: result.incompleteCellCount,
+      failingCellCount: result.failingCellCount,
+      pendingSections: pendingSummaries,
+      problemCount: result.problems.length,
+      problems: result.problems,
+      allowPending,
+      acceptedPending,
+      message: result.readyForLaunch
+        ? "Matrix is ready for launch."
+        : acceptedPending
+          ? "Matrix is still pending execution, but its structure is valid."
+          : failureMessage(),
+    },
+    null,
+    2,
   );
+  if (outputPathArg) {
+    const outputPath = path.resolve(process.cwd(), outputPathArg);
+    mkdirSync(path.dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, `${jsonSummary}\n`);
+  }
+  console.log(jsonSummary);
   process.exit(exitCode);
 }
 

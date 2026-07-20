@@ -137,6 +137,12 @@ For a machine-readable QA artifact, add `--json`:
 npm run --silent canvas:qa:validate -- --allow-pending --json
 ```
 
+To save the JSON summary as a run-specific artifact, add `--output=<path>`:
+
+```bash
+npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas-qa-summary.json
+```
+
 ```bash
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts
 ```
