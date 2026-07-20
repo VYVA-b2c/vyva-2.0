@@ -127,8 +127,10 @@ While the matrix is still pending execution, use the non-launching structure che
 npm run canvas:qa:validate -- --allow-pending
 ```
 
+The structure check is not a launch approval. While the matrix remains pending, the final command without `--allow-pending` is expected to fail.
+
 ```bash
-npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts
+npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts
 ```
 
 If this gate fails, do not enable the feature.
