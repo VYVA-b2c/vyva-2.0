@@ -99,10 +99,10 @@ describe("Voice Canvas evidence packet validator command", () => {
     expect(result.stdout).toContain("Ready for QA matrix sign-off: no");
     expect(result.stdout).toContain("Pending cells by section:");
     expect(result.stdout).toContain(
-      "- Evidence packet inventory: 13 pending cell(s) across 13 row(s)",
+      "- Evidence packet inventory: 14 pending cell(s) across 14 row(s)",
     );
     expect(result.stdout).toContain(
-      "Next evidence area: Evidence packet inventory (13 pending cell(s) across 13 row(s))",
+      "Next evidence area: Evidence packet inventory (14 pending cell(s) across 14 row(s))",
     );
     expect(result.stdout).toContain(
       "Evidence packet is still pending, but its structure is valid.",
@@ -147,20 +147,20 @@ describe("Voice Canvas evidence packet validator command", () => {
     );
     expect(summary.state).toBe("pending");
     expect(summary.readyForLaunchEvidencePacket).toBe(false);
-    expect(summary.incompleteCellCount).toBe(13);
+    expect(summary.incompleteCellCount).toBe(14);
     expect(summary.problemCount).toBe(0);
     expect(summary.acceptedPending).toBe(true);
     expect(summary.pendingSections).toEqual([
       {
         section: "Evidence packet inventory",
-        pendingCells: 13,
-        rowsWithPending: 13,
+        pendingCells: 14,
+        rowsWithPending: 14,
       },
     ]);
     expect(summary.nextPendingSection).toEqual({
       section: "Evidence packet inventory",
-      pendingCells: 13,
-      rowsWithPending: 13,
+      pendingCells: 14,
+      rowsWithPending: 14,
     });
     expect(summary.message).toBe(
       "Evidence packet is still pending, but its structure is valid.",

@@ -80,6 +80,7 @@ export type CanvasRealDeviceQaTaskHubDestinationRow =
 
 export const CANVAS_REAL_DEVICE_QA_REQUIRED_ARTIFACT_INVENTORY_ROWS = [
   "Environment and flag artifacts",
+  "Entry surface artifacts",
   "Real-device screenshots or photos",
   "Interaction recordings or logs",
   "Behavior recovery artifacts",
@@ -2491,6 +2492,12 @@ const artifactInventoryRequirements: Record<
     ["analytics sink", "sink"],
     ["enabled"],
     ["disabled", "rollback"],
+  ],
+  "Entry surface artifacts": [
+    ["entry", "surface"],
+    ["canonical", "manifest"],
+    ["flow"],
+    ["screenshot", "log", "recording", "artifact"],
   ],
   "Real-device screenshots or photos": [
     ["phone", "mobile"],

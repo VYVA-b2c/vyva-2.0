@@ -415,6 +415,7 @@ describe("Canvas launch readiness manifest", () => {
       "dated source-event, positive aggregate count, and allowed-envelope evidence",
       "concrete analytics artifact/query/dashboard/log reference",
       "Evidence artifact inventory",
+      "Entry surface artifacts",
       "sanitized concrete artifacts",
       "Rollback owner handoff artifacts",
       "Rollback owner handoff",
@@ -482,6 +483,7 @@ describe("Canvas launch readiness manifest", () => {
 
     for (const artifactSet of [
       "Environment and flag artifacts",
+      "Entry surface artifacts",
       "Real-device screenshots or photos",
       "Interaction recordings or logs",
       "Behavior recovery artifacts",

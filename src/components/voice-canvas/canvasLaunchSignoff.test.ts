@@ -66,6 +66,9 @@ const TASK_HUB_ENTRY_SURFACE_ROW =
 const ARTIFACT_INVENTORY_ENVIRONMENT_ROW =
   "| Environment and flag artifacts | Environment feature flag analytics sink enabled rollout and disabled rollback evidence | Sanitized environment feature flag artifact log link plus analytics dashboard query with no personal details | QA reviewer verified on 2026-07-19 |";
 
+const ARTIFACT_INVENTORY_ENTRY_SURFACE_ROW =
+  "| Entry surface artifacts | Canonical manifest entry surface flow screenshot log recording artifact evidence | Sanitized entry surface screenshot log recording artifact links for canonical manifest flow surfaces with no personal details | QA reviewer verified on 2026-07-19 |";
+
 const ARTIFACT_INVENTORY_DEVICE_ROW =
   "| Real-device screenshots or photos | Real phone tablet desktop screenshot and photo evidence | Sanitized screenshot and photo artifact links for real phone tablet desktop with no personal details | QA reviewer verified on 2026-07-19 |";
 
@@ -248,6 +251,10 @@ function fillArtifactInventoryRows(markdown: string): string {
     .replace(
       /^\| Environment and flag artifacts \| .* \| .* \| .* \|$/m,
       ARTIFACT_INVENTORY_ENVIRONMENT_ROW,
+    )
+    .replace(
+      /^\| Entry surface artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_ENTRY_SURFACE_ROW,
     )
     .replace(
       /^\| Real-device screenshots or photos \| .* \| .* \| .* \|$/m,
@@ -885,6 +892,21 @@ describe("Canvas real-device QA sign-off", () => {
         expect.stringContaining("evidence artifact inventory row"),
       ]),
     );
+  });
+
+  it("rejects entry surface artifact inventory rows without canonical surface proof", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_ENTRY_SURFACE_ROW,
+      "| Entry surface artifacts | Flow entry evidence reviewed | Sanitized entry screenshot link with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Entry surface artifacts: coverage must name the launch evidence it proves",
+    ]);
   });
 
   it("rejects feature endpoint artifact inventory rows without auth metadata proof", () => {

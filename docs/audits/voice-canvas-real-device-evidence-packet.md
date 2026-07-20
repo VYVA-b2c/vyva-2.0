@@ -29,6 +29,7 @@ For rollback-owner handoff evidence, use `npm run --silent canvas:qa:rollback-ow
 | Artifact set | Suggested sanitized reference | Matrix rows it should prove | Reviewer/date |
 | --- | --- | --- | --- |
 | Environment and flag artifacts | `voice-canvas/env-flags/<YYYY-MM-DD>/enabled-disabled-rollout-log` | Environment record; feature endpoint and rollback checks | Pending |
+| Entry surface artifacts | `voice-canvas/entry-surfaces/<YYYY-MM-DD>/<flow>-canonical-surfaces` | Per-flow entry surface screenshot/log/artifact coverage for every canonical launch surface in the manifest | Pending |
 | Real-device screenshots or photos | `voice-canvas/devices/<YYYY-MM-DD>/<flow>-phone-tablet-desktop` | Device coverage for phone, tablet, and desktop/laptop | Pending |
 | Interaction recordings or logs | `voice-canvas/interactions/<YYYY-MM-DD>/<flow>-voice-touch-keyboard` | Interaction mode coverage for voice, touch, and keyboard | Pending |
 | Behavior recovery artifacts | `voice-canvas/recovery/<YYYY-MM-DD>/<flow>-resume-refresh-reconnect-back-cancel` | Required behavior checklist for resume, app exit/reopen, refresh/reconnect, interruption, browser back, cancel, retry, duplicate/stale guard, and no side effects | Pending |

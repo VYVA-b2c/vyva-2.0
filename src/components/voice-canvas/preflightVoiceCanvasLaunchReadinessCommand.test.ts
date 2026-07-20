@@ -406,10 +406,10 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Run sheet: pending; incomplete 260; problems 0",
     );
     expect(result.stdout).toContain(
-      "QA matrix: pending; incomplete 310; failing/not-ready 0; problems 0",
+      "QA matrix: pending; incomplete 313; failing/not-ready 0; problems 0",
     );
     expect(result.stdout).toContain(
-      "Evidence packet: pending; incomplete 13; problems 0",
+      "Evidence packet: pending; incomplete 14; problems 0",
     );
     expect(result.stdout).toContain(
       "Launch run plan: not provided; date unknown; request headers 0; commands 0; problems 0",
@@ -451,10 +451,10 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain("Evidence packet pending sections:");
     expect(result.stdout).toContain(
-      "- Evidence packet inventory: 13 pending cell(s) across 13 row(s)",
+      "- Evidence packet inventory: 14 pending cell(s) across 14 row(s)",
     );
     expect(result.stdout).toContain(
-      "Evidence packet next evidence area: Evidence packet inventory (13 pending cell(s) across 13 row(s))",
+      "Evidence packet next evidence area: Evidence packet inventory (14 pending cell(s) across 14 row(s))",
     );
     expect(result.stdout).toContain(
       "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
@@ -678,7 +678,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.matrix).toMatchObject({
       state: "pending",
-      incompleteCellCount: 310,
+      incompleteCellCount: 313,
       failingCellCount: 0,
       problemCount: 0,
       problems: [],
@@ -690,13 +690,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.evidencePacket).toMatchObject({
       state: "pending",
-      incompleteCellCount: 13,
+      incompleteCellCount: 14,
       problemCount: 0,
       problems: [],
       nextPendingSection: {
         section: "Evidence packet inventory",
-        pendingCells: 13,
-        rowsWithPending: 13,
+        pendingCells: 14,
+        rowsWithPending: 14,
       },
     });
     expect(summary.launchRunPlan).toEqual({

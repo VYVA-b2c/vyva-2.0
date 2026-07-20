@@ -28,6 +28,7 @@ const requiredSections = [
 
 const requiredInventoryArtifactSets = [
   "Environment and flag artifacts",
+  "Entry surface artifacts",
   "Real-device screenshots or photos",
   "Interaction recordings or logs",
   "Behavior recovery artifacts",
@@ -53,6 +54,12 @@ const inventoryCoverageRequirements: Record<
     ["environment"],
     ["feature"],
     ["rollback"],
+  ],
+  "Entry surface artifacts": [
+    ["entry", "surface"],
+    ["canonical", "manifest"],
+    ["flow"],
+    ["screenshot", "log", "recording", "artifact"],
   ],
   "Real-device screenshots or photos": [
     ["device"],
@@ -1010,7 +1017,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Copy-ready evidence note patterns must keep reference, reviewer/date, privacy, no-side-effect, rollback, accessibility, and analytics wording needed by the final QA matrix.",
       "The final pre-fill checklist must keep the required artifact, device, interaction, rollback, endpoint, task hub, run-sheet validation, analytics, preflight, and privacy checks.",
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
-      "Inventory coverage cells must map each artifact set to the required environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, run-sheet validation, or preflight evidence.",
+      "Inventory coverage cells must map each artifact set to the required environment, entry surface, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, run-sheet validation, or preflight evidence.",
       "Inventory reviewer/date cells must include a non-future YYYY-MM-DD date no older than 7 days and explicit reviewed, verified, validated, approved, or sign-off wording.",
       "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
     ].join("\n"),
