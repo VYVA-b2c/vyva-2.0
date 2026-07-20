@@ -286,6 +286,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
         readyForLaunchEvidence: boolean;
         sampleCount: number;
         problemCount: number;
+        coveredFlows: string[];
       };
       featureEndpointEvidence: {
         enabled: {
@@ -324,12 +325,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
       incompleteCellCount: 11,
       problemCount: 0,
     });
-    expect(summary.analyticsEvidence).toMatchObject({
-      provided: false,
-      readyForLaunchEvidence: false,
-      sampleCount: 0,
-      problemCount: 0,
-    });
+      expect(summary.analyticsEvidence).toMatchObject({
+        provided: false,
+        readyForLaunchEvidence: false,
+        sampleCount: 0,
+        problemCount: 0,
+        coveredFlows: [],
+      });
     expect(summary.featureEndpointEvidence.enabled).toMatchObject({
       provided: false,
       readyForLaunchEvidence: false,
@@ -368,6 +370,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
           readyForLaunchEvidence: boolean;
           sampleCount: number;
           problemCount: number;
+          coveredFlows: string[];
           sampleLaunchSignalCounts: Record<string, number>;
         };
       };
@@ -378,6 +381,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
         readyForLaunchEvidence: true,
         sampleCount: 6,
         problemCount: 0,
+        coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
       });
       expect(summary.analyticsEvidence.sampleLaunchSignalCounts).toMatchObject({
         started: 1,

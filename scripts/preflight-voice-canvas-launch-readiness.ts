@@ -623,6 +623,7 @@ const summary = {
     ),
     sampleCount: numericField(analyticsRun?.summary ?? null, "sampleCount"),
     problemCount: numericField(analyticsRun?.summary ?? null, "problemCount"),
+    coveredFlows: analyticsRun?.summary?.coveredFlows ?? [],
     sampleLaunchSignalCounts:
       analyticsRun?.summary?.sampleLaunchSignalCounts ?? null,
   },
