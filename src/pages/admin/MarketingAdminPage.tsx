@@ -12,13 +12,17 @@ import {
   Eye,
   ExternalLink,
   FileText,
+  Handshake,
+  HeartHandshake,
   Image as ImageIcon,
+  MapPin,
   Megaphone,
   Palette,
   Pencil,
   Phone,
   Plus,
   RefreshCw,
+  Rocket,
   Save,
   Search,
   Send,
@@ -13056,6 +13060,61 @@ export default function MarketingAdminPage() {
       return a.pack.title.localeCompare(b.pack.title);
     });
   }, [content, contacts, contentTemplatePackSort, contentTemplatePacksWithStats, selectedContentTemplatePack?.id]);
+  const smartContentTemplatePackShortcuts = useMemo(() => {
+    const shortcutSeeds: Array<{
+      key: string;
+      title: string;
+      prompt: string;
+      packIds: string[];
+      icon: LucideIcon;
+    }> = [
+      {
+        key: "local-spain",
+        title: "Local Spain activation",
+        prompt: "Spanish local activity, neighbourhood RSVP, QR card, and host handoff.",
+        packIds: ["spain-local-activation", "local-event-operations", "offline-direct-outreach"],
+        icon: MapPin,
+      },
+      {
+        key: "partner-growth",
+        title: "Partner outreach",
+        prompt: "Pharmacy, clinic, agency, residence, or professional partner relationship path.",
+        packIds: ["community-partner-launch", "clinic-pharmacy-referral", "home-care-agency-outreach", "care-home-residence-outreach"],
+        icon: Handshake,
+      },
+      {
+        key: "family-nurture",
+        title: "Family nurture",
+        prompt: "Caregiver activation, digest, routine, referral, and reactivation messages.",
+        packIds: ["caregiver-invite-activation", "monthly-care-digest", "routine-activation", "care-confidence-reactivation"],
+        icon: HeartHandshake,
+      },
+      {
+        key: "full-launch",
+        title: "Full launch",
+        prompt: "Email, direct, social, press, print, event, and operator handoff in one kit.",
+        packIds: ["full-channel-launch-announcement", "press-partner-announcement", "partner-growth"],
+        icon: Rocket,
+      },
+    ];
+    return shortcutSeeds.map((seed) => {
+      type TemplatePackStats = (typeof sortedContentTemplatePacksWithStats)[number];
+      const matches = seed.packIds.reduce<TemplatePackStats[]>((result, packId) => {
+        const match = sortedContentTemplatePacksWithStats.find(({ pack }) => pack.id === packId);
+        if (match) result.push(match);
+        return result;
+      }, []);
+      const primary = matches[0] ?? sortedContentTemplatePacksWithStats[0] ?? null;
+      return {
+        ...seed,
+        primary,
+        matches,
+        channelCount: primary?.sequenceChannels.length || primary?.channels.length || 0,
+        templateCount: primary?.templates.length ?? 0,
+        reachableContactCount: primary?.reachableContactCount ?? 0,
+      };
+    }).filter((item) => item.primary);
+  }, [sortedContentTemplatePacksWithStats]);
   const templatePackRecommendationsForPlay = useCallback((play: CampaignStudioPlay, primaryChannel: Channel, selectedChannels: Channel[]) => {
     const selectedChannelSet = new Set(selectedChannels);
     const preferredPackIdByPlay: Record<string, string> = {
@@ -36911,6 +36970,41 @@ export default function MarketingAdminPage() {
                       <option value="routes">Most channel routes</option>
                     </select>
                   </Field>
+                </div>
+                <div className="mb-4 grid gap-3 xl:grid-cols-4" data-testid="marketing-smart-template-shortcuts">
+                  {smartContentTemplatePackShortcuts.map((shortcut) => {
+                    const Icon = shortcut.icon;
+                    const primary = shortcut.primary;
+                    if (!primary) return null;
+                    return (
+                      <button
+                        key={shortcut.key}
+                        type="button"
+                        onClick={() => {
+                          setContentTemplatePackFilter(primary.pack.id);
+                          setContentTemplateSearch("");
+                          setContentTemplateChannelFilter("all");
+                          setContentTemplateAudienceFilter("all");
+                          setContentTemplateCategoryFilter("all");
+                          setContentActionFeedback(`Smart shortcut selected: ${shortcut.title}. Showing ${primary.pack.title} template pack.`);
+                        }}
+                        className={`min-h-[150px] rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-purple-300 hover:bg-purple-50 ${selectedContentTemplatePack?.id === primary.pack.id ? "border-purple-300 bg-purple-50 ring-4 ring-purple-100" : "border-[#eadfd5] bg-white"}`}
+                        data-testid={`button-marketing-smart-template-shortcut-${shortcut.key}`}
+                      >
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-800">
+                          <Icon size={18} aria-hidden="true" />
+                        </span>
+                        <span className="mt-3 block font-serif text-lg text-[#241133]">{shortcut.title}</span>
+                        <span className="mt-1 block text-xs font-bold leading-relaxed text-[#6f5f59]">{shortcut.prompt}</span>
+                        <span className="mt-3 flex flex-wrap gap-1.5">
+                          <Pill className="bg-purple-50 text-purple-800">{primary.pack.title}</Pill>
+                          <Pill className="bg-emerald-50 text-emerald-800">{shortcut.reachableContactCount} contacts</Pill>
+                          <Pill className="bg-sky-50 text-sky-800">{shortcut.channelCount} routes</Pill>
+                          <Pill className="bg-amber-50 text-amber-800">{shortcut.templateCount} templates</Pill>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="grid gap-3 xl:grid-cols-5" data-testid="marketing-template-packs">
                   {sortedContentTemplatePacksWithStats.map(({ pack, templates, heroTemplate, channels, audiences, categories, state, sequenceChannels, reachableContactCount, existingAssetCount, newAssetCount }) => {

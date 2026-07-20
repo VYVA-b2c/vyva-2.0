@@ -2822,6 +2822,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("select-marketing-template-pack-sort")).toHaveValue("recommended");
     fireEvent.change(screen.getByTestId("select-marketing-template-pack-sort"), { target: { value: "reach" } });
     expect(screen.getByTestId("select-marketing-template-pack-sort")).toHaveValue("reach");
+    expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Local Spain activation");
+    expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Family nurture");
+    expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Full launch");
+    expect(screen.getByTestId("button-marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Spain local activation");
+    fireEvent.click(screen.getByTestId("button-marketing-smart-template-shortcut-local-spain"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Smart shortcut selected: Local Spain activation. Showing Spain local activation template pack.");
+    expect(screen.getByTestId("marketing-template-pack-spain-local-activation")).toHaveTextContent("Viewing");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Kit at a glance");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Reach");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Assets");
