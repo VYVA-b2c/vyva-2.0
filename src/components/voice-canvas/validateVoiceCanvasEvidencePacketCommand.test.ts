@@ -80,6 +80,7 @@ describe("Voice Canvas evidence packet validator command", () => {
     );
     expect(result.stdout).toContain("Inventory coverage cells must map");
     expect(result.stdout).toContain("explicit reviewed, verified");
+    expect(result.stdout).toContain("no older than 7 days");
     expect(result.stdout).toContain("never copy raw artifact-reference values");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -246,7 +247,33 @@ describe("Voice Canvas evidence packet validator command", () => {
         expect(summary.state).toBe("invalid");
         expect(summary.problems).toEqual(
           expect.arrayContaining([
-            'Evidence packet inventory row "Environment and flag artifacts" needs a reviewer, explicit review wording, and non-future YYYY-MM-DD date.',
+            'Evidence packet inventory row "Environment and flag artifacts" needs a reviewer, explicit review wording, and a non-future YYYY-MM-DD date no older than 7 days.',
+          ]),
+        );
+      },
+    ));
+
+  it("rejects stale inventory reviewer/date cells", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "QA Owner reviewed on 2026-07-19",
+        "QA Owner reviewed on 2000-01-01",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Evidence packet inventory row "Environment and flag artifacts" needs a reviewer, explicit review wording, and a non-future YYYY-MM-DD date no older than 7 days.',
           ]),
         );
       },

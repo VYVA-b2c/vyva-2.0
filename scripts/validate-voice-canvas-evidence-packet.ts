@@ -3,6 +3,7 @@ import path from "node:path";
 
 const defaultPacketPath = "docs/audits/voice-canvas-real-device-evidence-packet.md";
 const args = process.argv.slice(2);
+const maxLaunchEvidenceAgeMs = 7 * 24 * 60 * 60 * 1000;
 
 interface PendingSectionSummary {
   section: string;
@@ -595,6 +596,9 @@ function hasValidReviewerDate(value: string): boolean {
     Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
   );
   if (date > todayUtc) return false;
+  if (todayUtc.getTime() - date.getTime() > maxLaunchEvidenceAgeMs) {
+    return false;
+  }
 
   const reviewerPart = normalized.replace(dateMatch[0], "").replace(/[/-]/g, "").trim();
   return (
@@ -815,7 +819,7 @@ function evaluateEvidencePacket(markdown: string) {
         !hasValidReviewerDate(reviewerDate)
       ) {
         problems.push(
-          `Evidence packet inventory row "${artifactSet}" needs a reviewer, explicit review wording, and non-future YYYY-MM-DD date.`,
+          `Evidence packet inventory row "${artifactSet}" needs a reviewer, explicit review wording, and a non-future YYYY-MM-DD date no older than 7 days.`,
         );
       }
     }
@@ -865,7 +869,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "The final pre-fill checklist must keep the required artifact, device, interaction, rollback, endpoint, task hub, run-sheet validation, analytics, preflight, and privacy checks.",
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
       "Inventory coverage cells must map each artifact set to the required environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, run-sheet validation, or preflight evidence.",
-      "Inventory reviewer/date cells must include a non-future YYYY-MM-DD date and explicit reviewed, verified, validated, approved, or sign-off wording.",
+      "Inventory reviewer/date cells must include a non-future YYYY-MM-DD date no older than 7 days and explicit reviewed, verified, validated, approved, or sign-off wording.",
       "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
     ].join("\n"),
   );

@@ -17,7 +17,7 @@ Use `--allow-pending` while gathering artifacts and omit it for the final packet
 - Do not capture spoken transcripts, typed free text, addresses, saved-place labels, medication details, provider names, reply text, notes, references, dates, times, shopping item details, account identifiers, phone numbers, emails, or other personal details.
 - Use synthetic QA data and cropped or redacted screenshots whenever possible.
 - Prefer sanitized artifact names over raw URLs when the destination may expose personal data.
-- Each note and inventory reviewer/date cell must include a non-future `YYYY-MM-DD` date, the reviewer or QA owner, and explicit reviewed, verified, validated, approved, or sign-off wording.
+- Each note and inventory reviewer/date cell must include a non-future `YYYY-MM-DD` date no older than 7 days, the reviewer or QA owner, and explicit reviewed, verified, validated, approved, or sign-off wording.
 - If an artifact accidentally contains personal details, do not link it here or in the QA matrix. Replace it with a sanitized artifact.
 
 ## Evidence packet inventory

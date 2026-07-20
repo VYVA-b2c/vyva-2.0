@@ -96,6 +96,7 @@ export type CanvasRealDeviceQaArtifactInventoryRow =
   (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_ARTIFACT_INVENTORY_ROWS)[number];
 
 export type CanvasRealDeviceQaMatrixState = "pending" | "ready" | "invalid";
+const CANVAS_REAL_DEVICE_QA_MAX_EVIDENCE_AGE_DAYS = 7;
 
 export interface CanvasRealDeviceQaMatrixEvaluation {
   status: string | null;
@@ -186,9 +187,20 @@ function todayIsoDate(): string {
   return `${year}-${month}-${day}`;
 }
 
+function isoDateToUtcMs(value: string): number {
+  return new Date(`${value}T00:00:00.000Z`).getTime();
+}
+
 function isNonFutureIsoDateCell(value: string): boolean {
   const normalized = normalizeCell(value);
   return isIsoDateCell(normalized) && normalized <= todayIsoDate();
+}
+
+function isFreshNonFutureIsoDateCell(value: string): boolean {
+  const normalized = normalizeCell(value);
+  if (!isNonFutureIsoDateCell(normalized)) return false;
+  const maxAgeMs = CANVAS_REAL_DEVICE_QA_MAX_EVIDENCE_AGE_DAYS * 24 * 60 * 60 * 1000;
+  return isoDateToUtcMs(todayIsoDate()) - isoDateToUtcMs(normalized) <= maxAgeMs;
 }
 
 function isApprovedLaunchDecisionCell(value: string): boolean {
@@ -362,7 +374,7 @@ function isMeaningfulEnvironmentValue(
     case "Analytics sink reviewed":
       return (
         /\breview(ed)?\b/i.test(normalized) &&
-        hasNonFutureIsoDateCellFromText(normalized) &&
+        hasFreshNonFutureIsoDateCellFromText(normalized) &&
         !hasFutureIsoDateCellFromText(normalized) &&
         hasConcreteEnvironmentArtifactLanguage(normalized) &&
         !hasNegativeEvidenceLanguage(normalized)
@@ -385,7 +397,7 @@ function isMeaningfulEnvironmentValue(
             "100%",
           ],
         ]) &&
-        hasNonFutureIsoDateCellFromText(normalized) &&
+        hasFreshNonFutureIsoDateCellFromText(normalized) &&
         !hasFutureIsoDateCellFromText(normalized) &&
         hasConcreteEnvironmentArtifactLanguage(normalized)
       );
@@ -407,7 +419,7 @@ function isMeaningfulEnvironmentValue(
             "0%",
           ],
         ]) &&
-        hasNonFutureIsoDateCellFromText(normalized) &&
+        hasFreshNonFutureIsoDateCellFromText(normalized) &&
         !hasFutureIsoDateCellFromText(normalized) &&
         hasConcreteEnvironmentArtifactLanguage(normalized)
       );
@@ -469,6 +481,12 @@ function hasNonFutureIsoDateCellFromText(value: string): boolean {
   );
 }
 
+function hasFreshNonFutureIsoDateCellFromText(value: string): boolean {
+  return (normalizeCell(value).match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? []).some(
+    isFreshNonFutureIsoDateCell,
+  );
+}
+
 function hasFutureIsoDateCellFromText(value: string): boolean {
   const today = todayIsoDate();
   return (normalizeCell(value).match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? []).some(
@@ -500,7 +518,7 @@ function hasDatedEvidenceLanguage(
   ],
 ): boolean {
   return (
-    hasNonFutureIsoDateCellFromText(normalizeCell(value)) &&
+    hasFreshNonFutureIsoDateCellFromText(normalizeCell(value)) &&
     !hasFutureIsoDateCellFromText(normalizeCell(value)) &&
     !hasNegativeEvidenceLanguage(value) &&
     hasAnyWord(value, evidenceWords) &&
@@ -2362,7 +2380,7 @@ function hasConcreteArtifactInventoryReference(value: string): boolean {
 
 function hasArtifactInventoryReviewerDate(value: string): boolean {
   return (
-    hasNonFutureIsoDateCellFromText(value) &&
+    hasFreshNonFutureIsoDateCellFromText(value) &&
     !hasFutureIsoDateCellFromText(value) &&
     hasAnyWord(value, ["qa", "reviewer", "reviewed", "captured", "verified"])
   );
@@ -2446,7 +2464,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
       const signoff = signoffRows.get(role);
       if (!signoff) return false;
       const date = signoff[1] ?? "";
-      return !isPlaceholderCell(date) && !isNonFutureIsoDateCell(date);
+      return !isPlaceholderCell(date) && !isFreshNonFutureIsoDateCell(date);
     });
   const unapprovedRequiredSignoffRoles =
     CANVAS_REAL_DEVICE_QA_REQUIRED_SIGNOFF_ROLES.filter((role) => {
@@ -2628,7 +2646,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     }
     if (invalidRequiredSignoffDateRoles.length > 0) {
       problems.push(
-        `Matrix has required sign-off date(s) that must use YYYY-MM-DD and cannot be in the future: ${invalidRequiredSignoffDateRoles.join(", ")}.`,
+        `Matrix has required sign-off date(s) that must use YYYY-MM-DD, cannot be in the future, and must be no older than 7 days: ${invalidRequiredSignoffDateRoles.join(", ")}.`,
       );
     }
     if (unapprovedRequiredSignoffRoles.length > 0) {

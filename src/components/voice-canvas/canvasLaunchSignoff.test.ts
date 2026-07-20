@@ -3014,4 +3014,32 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidRequiredSignoffNoteRoles).toEqual([]);
     expect(result.problems).toEqual([]);
   });
+
+  it("rejects otherwise complete matrices with stale launch evidence dates", () => {
+    const staleMatrix = completedMatrix().replaceAll("2026-07-19", "2000-01-01");
+    const result = evaluateCanvasRealDeviceQaMatrix(staleMatrix);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual(
+      expect.arrayContaining([
+        "Analytics sink reviewed",
+        "Initial flag state",
+        "Rollback flag state",
+      ]),
+    );
+    expect(result.invalidDeviceCoverageRows.length).toBeGreaterThan(0);
+    expect(result.invalidArtifactInventoryRows.length).toBeGreaterThan(0);
+    expect(result.invalidRequiredSignoffDateRoles).toEqual([
+      "Product",
+      "Engineering",
+      "QA",
+      "Operations/rollback owner",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("must be no older than 7 days"),
+      ]),
+    );
+  });
 });
