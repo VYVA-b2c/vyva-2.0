@@ -82,7 +82,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Default mode accepts a structurally valid pending run sheet, matrix, and packet so QA can capture an in-progress launch artifact.",
       "Pass --features-enabled=<path> and --features-rollback=<path> to validate sanitized endpoint collector artifacts.",
       "Pass --analytics=<path> to validate sanitized analytics evidence in the same aggregate-only snapshot.",
-      "Use --final after real-device evidence is filled; it exits non-zero unless the matrix, packet, enabled endpoint artifact, rollback endpoint artifact, and analytics evidence are ready.",
+      "Use --final after real-device evidence is filled; it exits non-zero unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, and analytics evidence are ready.",
       "Use --json to emit a machine-readable summary for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",

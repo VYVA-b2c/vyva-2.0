@@ -101,6 +101,7 @@ const inventoryCoverageRequirements: Record<
   ],
   "Launch preflight artifacts": [
     ["final"],
+    ["run sheet", "runsheet"],
     ["matrix"],
     ["packet"],
     ["endpoint"],

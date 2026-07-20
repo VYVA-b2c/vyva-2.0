@@ -2333,6 +2333,7 @@ const artifactInventoryRequirements: Record<
   ],
   "Launch preflight artifacts": [
     ["preflight"],
+    ["run sheet", "runsheet"],
     ["matrix"],
     ["packet"],
     ["endpoint"],

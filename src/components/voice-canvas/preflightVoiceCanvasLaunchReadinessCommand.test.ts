@@ -181,6 +181,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
     );
+    expect(result.stdout).toContain(
+      "unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, and analytics evidence are ready",
+    );
     expect(result.stdout).toContain("This preflight is read-only");
     expect(result.stdout).not.toContain("<YYYY-MM-DD>");
   });
