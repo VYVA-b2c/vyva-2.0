@@ -171,6 +171,16 @@ function isGenericCompletedCell(value: string): boolean {
   );
 }
 
+const literalPersonalDataPatterns: readonly RegExp[] = [
+  /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  /\b(?:\+?\d[\s().-]*){10,}\b/,
+];
+
+function hasLiteralPersonalData(value: string): boolean {
+  return literalPersonalDataPatterns.some((pattern) => pattern.test(value));
+}
+
 function parseMarkdownTableRow(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
@@ -301,6 +311,19 @@ function countGenericCompletedCells(tables: readonly MarkdownTable[]): number {
   );
 }
 
+function countLiteralPersonalDataCells(tables: readonly MarkdownTable[]): number {
+  return tables.reduce(
+    (total, table) =>
+      total +
+      table.rows.reduce(
+        (rowTotal, row) =>
+          rowTotal + row.slice(1).filter((cell) => hasLiteralPersonalData(cell)).length,
+        0,
+      ),
+    0,
+  );
+}
+
 function evaluateRunSheet(markdown: string) {
   const problems: string[] = [];
   const tables = parseMarkdownTables(markdown);
@@ -379,6 +402,12 @@ function evaluateRunSheet(markdown: string) {
       `Run sheet contains ${genericCompletedCellCount} filled cell(s) with generic pass text; record specific sanitized evidence instead.`,
     );
   }
+  const literalPersonalDataCellCount = countLiteralPersonalDataCells(tables);
+  if (literalPersonalDataCellCount > 0) {
+    problems.push(
+      `Run sheet contains ${literalPersonalDataCellCount} filled cell(s) that appear to include literal personal data; replace them with sanitized artifact references.`,
+    );
+  }
   const readyForQaRunSheet = problems.length === 0 && incompleteCellCount === 0;
 
   return {
@@ -407,6 +436,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --allow-pending for in-progress review of the committed run-sheet template.",
       "It protects privacy guardrails, environment preflight, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, and closeout checks.",
       "Filled result cells must name specific sanitized evidence or behavior; generic pass/done/OK text is rejected.",
+      "Filled cells must not include literal personal data such as street-address-shaped text, email addresses, or phone numbers.",
       "Use --json to emit machine-readable summary output for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",

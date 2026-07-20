@@ -76,6 +76,7 @@ describe("Voice Canvas run sheet validator command", () => {
     expect(result.stdout).toContain("privacy guardrails");
     expect(result.stdout).toContain("flow/device rows");
     expect(result.stdout).toContain("generic pass/done/OK text is rejected");
+    expect(result.stdout).toContain("street-address-shaped text");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -158,6 +159,38 @@ describe("Voice Canvas run sheet validator command", () => {
       expect(summary.incompleteCellCount).toBe(0);
       expect(summary.problems).toEqual([]);
     }));
+
+  it("rejects run sheets with literal personal data without echoing values", () =>
+    withTempRunSheet(
+      completedRunSheet().replace(
+        "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: real device behavior, rollback, analytics, no personal details, no write, and no external action verified",
+        "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: screenshot includes 123 Secret Street and qa-person@example.com",
+      ),
+      (tempRunSheetPath) => {
+        const result = runValidator([tempRunSheetPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          readyForQaRunSheet: boolean;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.readyForQaRunSheet).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining("literal personal data"),
+          ]),
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("123 Secret Street");
+        expect(serialized).not.toContain("qa-person@example.com");
+      },
+    ));
 
   it("rejects completed run sheets with generic pass-only cells", () =>
     withTempRunSheet(genericCompletedRunSheet(), (tempRunSheetPath) => {
