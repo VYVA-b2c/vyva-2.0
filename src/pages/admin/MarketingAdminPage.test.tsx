@@ -1001,6 +1001,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("4 clicked");
     expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("Review consent");
     expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");
+    expect(screen.getByTestId("marketing-campaign-row-publish-path-campaign-1")).toHaveTextContent("Content");
+    expect(screen.getByTestId("marketing-campaign-row-publish-path-campaign-1")).toHaveTextContent("Linked");
+    expect(screen.getByTestId("marketing-campaign-row-publish-path-campaign-1")).toHaveTextContent("Audience");
+    expect(screen.getByTestId("marketing-campaign-row-publish-path-campaign-1")).toHaveTextContent("Consent");
+    expect(screen.getByTestId("marketing-campaign-row-publish-path-campaign-1")).toHaveTextContent("Send");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-row-copy-next-brief-campaign-1"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign next-action brief"));
@@ -1017,6 +1022,10 @@ describe("MarketingAdminPage", () => {
     expect(within(screen.getByTestId("marketing-campaign-table")).queryByText("Caregiver welcome")).not.toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-2")).toHaveTextContent("Needs content");
     expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-2")).toHaveTextContent("Attach content for LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-row-publish-path-campaign-2")).toHaveTextContent("Content");
+    expect(screen.getByTestId("marketing-campaign-row-publish-path-campaign-2")).toHaveTextContent("Missing LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-row-publish-path-campaign-2")).toHaveTextContent("Handoff");
+    expect(screen.getByTestId("marketing-campaign-row-publish-path-campaign-2")).toHaveTextContent("Blocked");
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner" } });
     fireEvent.click(screen.getByTestId("tab-marketing-journeys"));

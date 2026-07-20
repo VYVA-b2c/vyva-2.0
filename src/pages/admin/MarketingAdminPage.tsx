@@ -218,6 +218,13 @@ type CampaignRowReadiness = {
   totalCount: number;
 };
 
+type CampaignRowPublishPathStep = {
+  key: "content" | "audience" | "timing" | "handoff";
+  label: string;
+  state: CampaignReadinessState;
+  detail: string;
+};
+
 type ContentUsage = {
   key: string;
   kind: "campaign" | "journey";
@@ -9071,6 +9078,67 @@ function campaignRowReadiness(campaign: Campaign, contentById: ReadonlyMap<strin
     readyCount,
     totalCount,
   };
+}
+
+function campaignRowPublishPath(campaign: Campaign, contentById: ReadonlyMap<string, ContentAsset>, audiences: MarketingAudience[], contactByCampaignRecipientId?: ReadonlyMap<string, MarketingContact>): CampaignRowPublishPathStep[] {
+  const targetAudience = campaignTargetAudience(campaign, audiences);
+  const channels = campaign.channels;
+  const missingContentChannels = channels.filter((channel) => !channel.contentAssetId || !contentById.has(channel.contentAssetId));
+  const hasEmailSendPath = channels.some((channel) => channel.channel === "email" && Boolean(channel.contentAssetId && contentById.has(channel.contentAssetId)));
+  const hasManualChannels = channels.some((channel) => channel.channel !== "email" && Boolean(channel.contentAssetId && contentById.has(channel.contentAssetId)));
+  const targetAudienceNeedsMapping = Boolean(targetAudience && targetAudience.memberCount > 0 && targetAudience.mappedMemberCount === 0);
+  const needsRecipients = hasEmailSendPath && campaign.recipientCount <= 0;
+  const emailRecipientConsentReviewCount = hasEmailSendPath
+    ? campaignEmailRecipientConsentReviewCount(campaign, contactByCampaignRecipientId)
+    : 0;
+  const needsSchedule = ["scheduled", "published"].includes(campaign.status) && !campaign.scheduleStartsAt;
+
+  return [
+    {
+      key: "content",
+      label: "Content",
+      state: channels.length === 0 || missingContentChannels.length > 0 ? "blocked" : "ready",
+      detail: channels.length === 0
+        ? "No route"
+        : missingContentChannels.length
+          ? `Missing ${missingContentChannels.map((channel) => channelLabel[channel.channel]).join(", ")}`
+          : "Linked",
+    },
+    {
+      key: "audience",
+      label: "Audience",
+      state: targetAudienceNeedsMapping || needsRecipients || emailRecipientConsentReviewCount > 0 ? "needs_action" : "ready",
+      detail: targetAudienceNeedsMapping
+        ? "Map list"
+        : needsRecipients
+          ? "Snapshot"
+          : emailRecipientConsentReviewCount > 0
+            ? "Consent"
+            : `${campaign.recipientCount} saved`,
+    },
+    {
+      key: "timing",
+      label: "Timing",
+      state: needsSchedule ? "needs_action" : campaign.scheduleStartsAt ? "ready" : "planning",
+      detail: needsSchedule ? "Set time" : campaign.scheduleStartsAt ? formatDate(campaign.scheduleStartsAt) : "Draft window",
+    },
+    {
+      key: "handoff",
+      label: hasEmailSendPath ? "Send" : "Handoff",
+      state: hasEmailSendPath
+        ? emailRecipientConsentReviewCount > 0 || needsRecipients ? "needs_action" : "ready"
+        : hasManualChannels ? "planning" : "blocked",
+      detail: hasEmailSendPath
+        ? emailRecipientConsentReviewCount > 0
+          ? "Review"
+          : needsRecipients
+            ? "Snapshot"
+            : "VYVA email"
+        : hasManualChannels
+          ? "Manual"
+          : "Blocked",
+    },
+  ];
 }
 
 function campaignRowReadinessActionLabel(readiness: CampaignRowReadiness) {
@@ -42067,6 +42135,7 @@ function CampaignTable({
             const metricSummary = metricsByCampaignId.get(campaign.id);
             const manualResults = manualPublishResultsFromMetadata(campaign.metadata);
             const rowReadiness = campaignRowReadiness(campaign, contentById, audiences, contactByCampaignRecipientId);
+            const publishPath = campaignRowPublishPath(campaign, contentById, audiences, contactByCampaignRecipientId);
             const rowNextActionLabel = campaignRowReadinessActionLabel(rowReadiness);
             return (
             <tr
@@ -42156,6 +42225,17 @@ function CampaignTable({
                     <span className="text-xs font-black">{rowReadiness.readyCount}/{rowReadiness.totalCount}</span>
                   </div>
                   <p className="mt-1 text-xs font-bold leading-relaxed">{rowReadiness.detail}</p>
+                  <div className="mt-2 grid gap-1.5" data-testid={`marketing-campaign-row-publish-path-${campaign.id}`}>
+                    {publishPath.map((step) => (
+                      <div key={step.key} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1">
+                        <span className="min-w-0 truncate text-[11px] font-black text-[#241133]">{step.label}</span>
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${step.state === "ready" ? "bg-emerald-500" : step.state === "needs_action" ? "bg-amber-500" : step.state === "planning" ? "bg-blue-500" : "bg-red-500"}`} aria-hidden="true" />
+                          <span className="max-w-[110px] truncate text-[11px] font-bold text-[#6b5b54]">{step.detail}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                   {onEdit ? (
                     <button
                       type="button"
