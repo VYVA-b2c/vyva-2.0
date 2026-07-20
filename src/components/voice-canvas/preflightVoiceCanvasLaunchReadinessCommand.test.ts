@@ -55,6 +55,8 @@ function artifactPathsForRunDate(runDate: string) {
     rollbackEndpoints: `${prefix}-feature-endpoints-rollback-disabled.json`,
     analyticsEvidence: `${prefix}-analytics-evidence.json`,
     analyticsValidation: `${prefix}-analytics-validation.json`,
+    entrySurfaces: `${prefix}-entry-surfaces.md`,
+    entrySurfacesValidation: `${prefix}-entry-surfaces-validation.json`,
     rollbackOwnerHandoff: `${prefix}-rollback-owner-handoff.md`,
     rollbackOwnerValidation: `${prefix}-rollback-owner-validation.json`,
     runSheetSummary: `${prefix}-run-sheet-summary.json`,
@@ -82,6 +84,8 @@ function launchEvidenceCommandsForRun(
     "npm run --silent canvas:qa:features -- --trace-template",
     "npm run --silent canvas:qa:analytics -- --template",
     `npm run --silent canvas:qa:analytics -- --input=${paths.analyticsEvidence} --json --output=${paths.analyticsValidation}`,
+    `npm run --silent canvas:qa:entry-surfaces -- --template --output=${paths.entrySurfaces}`,
+    `npm run --silent canvas:qa:entry-surfaces -- --input=${paths.entrySurfaces} --json --output=${paths.entrySurfacesValidation}`,
     `npm run --silent canvas:qa:rollback-owner -- --template --output=${paths.rollbackOwnerHandoff}`,
     `npm run --silent canvas:qa:rollback-owner -- --input=${paths.rollbackOwnerHandoff} --json --output=${paths.rollbackOwnerValidation}`,
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${paths.runSheetSummary}`,
@@ -541,6 +545,12 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:analytics -- --template",
     );
     expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:entry-surfaces -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md",
+    );
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:entry-surfaces -- --input=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces-validation.json",
+    );
+    expect(result.stdout).toContain(
       "npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md",
     );
     expect(result.stdout).toContain(
@@ -765,6 +775,8 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:features -- --trace-template",
       "npm run --silent canvas:qa:analytics -- --template",
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
+      "npm run --silent canvas:qa:entry-surfaces -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md",
+      "npm run --silent canvas:qa:entry-surfaces -- --input=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces-validation.json",
       "npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md",
       "npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json",
       "npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json",
@@ -849,7 +861,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
           runDate,
           baseUrl: "https://staging.vyva.app",
           requestHeaderCount: 0,
-          commandCount: 12,
+          commandCount: 14,
           flowCount: canvasLaunchReadinessFlows.length,
           canonicalFlowCoverage: canvasLaunchEvidenceFlowCoverage(),
           problemCount: 0,

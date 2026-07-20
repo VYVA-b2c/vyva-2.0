@@ -18,6 +18,7 @@
     "db:lifecycle-contact-cleanup": "node scripts/apply-lifecycle-contact-cleanup.mjs",
     "concierge:email-pilot:check": "tsx scripts/concierge-email-pilot-check.ts",
     "canvas:qa:analytics": "tsx scripts/validate-voice-canvas-analytics-evidence.ts",
+    "canvas:qa:entry-surfaces": "tsx scripts/prepare-voice-canvas-entry-surface-evidence.ts",
     "canvas:qa:features": "tsx scripts/collect-voice-canvas-feature-endpoint-evidence.ts",
     "canvas:qa:packet": "tsx scripts/validate-voice-canvas-evidence-packet.ts",
     "canvas:qa:preflight": "tsx scripts/preflight-voice-canvas-launch-readiness.ts",

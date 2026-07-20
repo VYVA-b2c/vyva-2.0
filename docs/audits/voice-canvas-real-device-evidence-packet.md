@@ -14,7 +14,9 @@ Use `--allow-pending` while gathering artifacts and omit it for the final packet
 
 For analytics evidence, use `npm run --silent canvas:qa:analytics -- --template` as a copy-safe starting shape when needed. The template is intentionally incomplete and must be filled with real staging or production-like aggregate evidence before `canvas:qa:analytics` validation can pass.
 
-For rollback-owner handoff evidence, use `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` as a copy-safe starting artifact. The template must be filled with real owner/backup, decision-window, rollback-trigger, rollback-action, endpoint/fallback/open-session evidence, privacy-boundary, and fallback-readiness proof, then validated with `npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json` before final Operations sign-off. Use the same `YYYY-MM-DD` QA run date across launch run plan, enabled endpoint, rollback endpoint, analytics, rollback-owner handoff, validation, and final preflight artifacts.
+For entry-surface evidence, use `npm run --silent canvas:qa:entry-surfaces -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md` as a copy-safe starting artifact. The template must be filled with deployed QA proof that every canonical launch surface for every flow was exercised, including dated sanitized screenshot, log, recording, capture, photo, or artifact references and no-write/no-external-action proof before explicit confirmation, then validated with `npm run --silent canvas:qa:entry-surfaces -- --input=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces-validation.json` before filling the entry surface artifact inventory row.
+
+For rollback-owner handoff evidence, use `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` as a copy-safe starting artifact. The template must be filled with real owner/backup, decision-window, rollback-trigger, rollback-action, endpoint/fallback/open-session evidence, privacy-boundary, and fallback-readiness proof, then validated with `npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json` before final Operations sign-off. Use the same `YYYY-MM-DD` QA run date across launch run plan, enabled endpoint, rollback endpoint, analytics, entry-surface, rollback-owner handoff, validation, and final preflight artifacts.
 
 ## Privacy rules for every artifact
 
@@ -29,7 +31,7 @@ For rollback-owner handoff evidence, use `npm run --silent canvas:qa:rollback-ow
 | Artifact set | Suggested sanitized reference | Matrix rows it should prove | Reviewer/date |
 | --- | --- | --- | --- |
 | Environment and flag artifacts | `voice-canvas/env-flags/<YYYY-MM-DD>/enabled-disabled-rollout-log` | Environment record; feature endpoint and rollback checks | Pending |
-| Entry surface artifacts | `voice-canvas/entry-surfaces/<YYYY-MM-DD>/<flow>-canonical-surfaces` | Per-flow entry surface screenshot/log/artifact coverage for every canonical launch surface in the manifest | Pending |
+| Entry surface artifacts | `artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md` and `artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces-validation.json` | Per-flow entry surface screenshot/log/artifact coverage for every canonical launch surface in the manifest | Pending |
 | Real-device screenshots or photos | `voice-canvas/devices/<YYYY-MM-DD>/<flow>-phone-tablet-desktop` | Device coverage for phone, tablet, and desktop/laptop | Pending |
 | Interaction recordings or logs | `voice-canvas/interactions/<YYYY-MM-DD>/<flow>-voice-touch-keyboard` | Interaction mode coverage for voice, touch, and keyboard | Pending |
 | Behavior recovery artifacts | `voice-canvas/recovery/<YYYY-MM-DD>/<flow>-resume-refresh-reconnect-back-cancel` | Required behavior checklist for resume, app exit/reopen, refresh/reconnect, interruption, browser back, cancel, retry, duplicate/stale guard, and no side effects | Pending |
@@ -40,8 +42,8 @@ For rollback-owner handoff evidence, use `npm run --silent canvas:qa:rollback-ow
 | Analytics signal artifacts | `voice-canvas/analytics/<YYYY-MM-DD>/analytics-evidence.json` and `voice-canvas/analytics/<YYYY-MM-DD>/analytics-validation.json` | Analytics signal review | Pending |
 | Analytics privacy artifacts | `voice-canvas/privacy/<YYYY-MM-DD>/allowed-envelope-forbidden-data-absent` plus `voice-canvas/analytics/<YYYY-MM-DD>/analytics-validation.json` | Analytics privacy review | Pending |
 | Run sheet validation artifacts | `voice-canvas/run-sheet/<YYYY-MM-DD>/run-sheet-summary.json` | Run sheet validation evidence before copying packet notes into the matrix | Pending |
-| Launch run plan artifacts | `voice-canvas/preflight/<YYYY-MM-DD>/launch-evidence-run.json` | Same date launch artifact run plan for endpoint, analytics, rollback-owner, run-sheet, matrix, packet, and final preflight evidence | Pending |
-| Launch preflight artifacts | `voice-canvas/preflight/<YYYY-MM-DD>/launch-preflight.json` | Final combined local gate for run sheet, matrix, packet, run plan, endpoint, analytics, and rollback-owner handoff evidence | Pending |
+| Launch run plan artifacts | `voice-canvas/preflight/<YYYY-MM-DD>/launch-evidence-run.json` | Same date launch artifact run plan for endpoint, analytics, entry-surface, rollback-owner, run-sheet, matrix, packet, and final preflight evidence | Pending |
+| Launch preflight artifacts | `voice-canvas/preflight/<YYYY-MM-DD>/launch-preflight.json` | Final combined local gate for run sheet, matrix, packet, run plan, endpoint, analytics, entry-surface, and rollback-owner handoff evidence | Pending |
 
 ## Feature endpoint manual trace template
 
@@ -138,6 +140,7 @@ Before changing the QA matrix from `pending execution` to `ready for launch`, co
 - `canvas:qa:packet` validation passed and produced a run-specific `evidence-packet-summary.json` artifact before evidence was copied into the QA matrix;
 - analytics evidence has coveredFlows for ride, appointment, refill, shopping, provider_reply, and task_hub_resume plus positive aggregate counts for started, resumed, abandoned, blocked, confirmed, and completed;
 - `canvas:qa:analytics` validation passed for the sanitized analytics evidence artifact and produced a run-specific validation artifact;
+- `canvas:qa:entry-surfaces` validation passed for the sanitized entry-surface artifact and produced a run-specific validation artifact before entry-surface proof was copied into the packet or QA matrix;
 - `canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json` passed with the run sheet, matrix, packet, launch run plan, enabled endpoint, rollback endpoint, analytics, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;
 - privacy evidence names each forbidden data class and confirms it was absent from the telemetry sample;
 - no artifact link exposes personal details.
