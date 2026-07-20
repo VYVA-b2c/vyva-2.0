@@ -84,6 +84,11 @@ describe("Voice Canvas launch evidence run helper command", () => {
     expect(result.stdout).toContain(
       "Review senior-friendly copy for one clear decision, readable long Spanish labels, waiting/blocked/completed announcements, focus movement, reduced motion, and what-happens-next clarity.",
     );
+    expect(result.stdout).toContain("Flow coverage:");
+    expect(result.stdout).toContain(
+      "Ride Voice Canvas; surfaces voice handoff, /concierge, task hub pending resume",
+    );
+    expect(result.stdout).toContain("feature /api/config/features/ride-voice-canvas");
     expect(result.stdout).toContain("Run final preflight with the same run-date artifact paths.");
     expect(result.stdout).not.toContain("YYYY-MM-DD");
   });
@@ -105,7 +110,19 @@ describe("Voice Canvas launch evidence run helper command", () => {
       baseUrl: string;
       artifactPaths: Record<string, string>;
       commands: string[];
-      flowCoverage: Array<{ id: string; label: string; fallback: string }>;
+      flowCoverage: Array<{
+        id: string;
+        label: string;
+        surfaces: string[];
+        fallback: string;
+        featureFlag: {
+          endpoint: string;
+          serverFeatureKey: string;
+          enableEnv: string;
+          rolloutEnv: string;
+        } | null;
+        telemetryEvent: string | null;
+      }>;
       requestHeaderEnv: string[];
       authenticatedRequest: boolean;
       checklist: string[];
@@ -140,6 +157,25 @@ describe("Voice Canvas launch evidence run helper command", () => {
       "provider_reply",
       "task_hub_resume",
     ]);
+    expect(summary.flowCoverage[0]).toMatchObject({
+      id: "ride",
+      label: "Ride Voice Canvas",
+      surfaces: ["voice handoff", "/concierge", "task hub pending resume"],
+      fallback: "Existing Concierge transport panel",
+      featureFlag: {
+        endpoint: "/api/config/features/ride-voice-canvas",
+        serverFeatureKey: "ride",
+        enableEnv: "VYVA_ENABLE_RIDE_VOICE_CANVAS",
+        rolloutEnv: "VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT",
+      },
+      telemetryEvent: "vyva:ride-canvas-telemetry",
+    });
+    expect(summary.flowCoverage.at(-1)).toMatchObject({
+      id: "task_hub_resume",
+      surfaces: ["/concierge/tasks", "/concierge/tasks/:taskKey", "home resume card"],
+      featureFlag: null,
+      telemetryEvent: null,
+    });
     expect(summary.checklist.join(" ")).toContain(
       "real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths",
     );

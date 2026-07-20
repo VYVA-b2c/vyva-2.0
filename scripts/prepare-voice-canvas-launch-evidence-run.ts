@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { canvasLaunchReadinessFlows } from "../src/components/voice-canvas/canvasLaunchReadiness";
+import { canvasLaunchEvidenceFlowCoverage } from "../src/components/voice-canvas/canvasLaunchReadiness";
 
 const args = process.argv.slice(2);
 const jsonOutput = args.includes("--json");
@@ -198,11 +198,7 @@ if (problems.length > 0) {
 
 const paths = artifactPaths(runDate);
 const commands = launchCommands(runDate, baseUrlArg, requestHeaderEnvArgs);
-const flowCoverage = canvasLaunchReadinessFlows.map((flow) => ({
-  id: flow.id,
-  label: flow.label,
-  fallback: flow.featureFlag?.fallback ?? "destination flow fallback",
-}));
+const flowCoverage = canvasLaunchEvidenceFlowCoverage();
 const checklist = [
   "Collect enabled endpoint evidence before rollback evidence.",
   "Fill analytics evidence from aggregate-only staging or production-like telemetry.",
@@ -265,6 +261,18 @@ for (const command of summary.commands) {
 console.log("Checklist:");
 for (const item of summary.checklist) {
   console.log(`- ${item}`);
+}
+console.log("Flow coverage:");
+for (const flow of summary.flowCoverage) {
+  console.log(
+    [
+      `- ${flow.label}`,
+      `surfaces ${flow.surfaces.join(", ")}`,
+      `fallback ${flow.fallback}`,
+      `feature ${flow.featureFlag?.endpoint ?? "none"}`,
+      `telemetry ${flow.telemetryEvent ?? "none"}`,
+    ].join("; "),
+  );
 }
 console.log("Privacy boundary:");
 for (const item of summary.privacyBoundary) {

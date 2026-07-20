@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { canvasLaunchReadinessFlows } from "../src/components/voice-canvas/canvasLaunchReadiness";
+import {
+  canvasLaunchEvidenceFlowCoverage,
+  canvasLaunchReadinessFlows,
+} from "../src/components/voice-canvas/canvasLaunchReadiness";
 
 const args = process.argv.slice(2);
 const jsonOutput = args.includes("--json");
@@ -270,6 +273,30 @@ function stringArrayField(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringArraysEqual(
+  actual: readonly string[],
+  expected: readonly string[],
+): boolean {
+  return (
+    actual.length === expected.length &&
+    expected.every((entry, index) => actual[index] === entry)
+  );
+}
+
+function featureFlagCoverageMatches(
+  actual: unknown,
+  expected: ReturnType<typeof canvasLaunchEvidenceFlowCoverage>[number]["featureFlag"],
+): boolean {
+  if (!expected) return actual === null;
+  if (!isRecord(actual)) return false;
+  return (
+    actual.endpoint === expected.endpoint &&
+    actual.serverFeatureKey === expected.serverFeatureKey &&
+    actual.enableEnv === expected.enableEnv &&
+    actual.rolloutEnv === expected.rolloutEnv
+  );
 }
 
 function printProblemDetails(label: string, problems: string[]): void {
@@ -936,12 +963,40 @@ function validateLaunchRunPlanArtifact(
       .map((entry) => entry.id)
       .filter((id): id is string => typeof id === "string"),
   );
-  for (const flow of canvasLaunchReadinessFlows) {
+  const expectedFlowCoverage = canvasLaunchEvidenceFlowCoverage();
+  for (const flow of expectedFlowCoverage) {
     if (!coveredFlowIds.has(flow.id)) {
       problems.push(`${flow.label}: launch evidence run plan must include this flow.`);
+      continue;
+    }
+
+    const row = flowCoverage.find((entry) => entry.id === flow.id);
+    if (!row) continue;
+    if (row.label !== flow.label) {
+      problems.push(`${flow.label}: launch evidence run plan label must match the launch manifest.`);
+    }
+    if (!stringArraysEqual(stringArrayField(row, "surfaces"), flow.surfaces)) {
+      problems.push(
+        `${flow.label}: launch evidence run plan must include the canonical entry surfaces.`,
+      );
+    }
+    if (row.fallback !== flow.fallback) {
+      problems.push(
+        `${flow.label}: launch evidence run plan fallback must match the launch manifest.`,
+      );
+    }
+    if (row.telemetryEvent !== flow.telemetryEvent) {
+      problems.push(
+        `${flow.label}: launch evidence run plan telemetry event must match the launch manifest.`,
+      );
+    }
+    if (!featureFlagCoverageMatches(row.featureFlag, flow.featureFlag)) {
+      problems.push(
+        `${flow.label}: launch evidence run plan feature flag details must match the launch manifest.`,
+      );
     }
   }
-  if (flowCoverage.length !== canvasLaunchReadinessFlows.length) {
+  if (flowCoverage.length !== expectedFlowCoverage.length) {
     problems.push("Launch evidence run plan flowCoverage must match the launch flow count.");
   }
 

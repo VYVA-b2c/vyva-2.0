@@ -108,6 +108,18 @@ export interface CanvasLaunchReadinessFlow {
   qaEvidence: Record<CanvasLaunchQaGate, readonly string[]>;
 }
 
+export interface CanvasLaunchEvidenceFlowCoverage {
+  id: CanvasLaunchFlowId;
+  label: string;
+  surfaces: readonly string[];
+  fallback: string;
+  featureFlag: Pick<
+    CanvasLaunchFeatureFlag,
+    "endpoint" | "serverFeatureKey" | "enableEnv" | "rolloutEnv"
+  > | null;
+  telemetryEvent: string | null;
+}
+
 const sharedLaunchRunbook = "docs/runbooks/voice-canvas-launch-readiness.md";
 const sharedLaunchAudit = "docs/audits/voice-canvas-launch-readiness-audit.md";
 const sharedLaunchTelemetry = "src/components/voice-canvas/canvasLaunchTelemetry.ts";
@@ -517,4 +529,22 @@ export function missingCanvasLaunchQaGates(
   return CANVAS_LAUNCH_QA_GATES.filter(
     (gate) => flow.qaEvidence[gate].length === 0,
   );
+}
+
+export function canvasLaunchEvidenceFlowCoverage(): CanvasLaunchEvidenceFlowCoverage[] {
+  return canvasLaunchReadinessFlows.map((flow) => ({
+    id: flow.id,
+    label: flow.label,
+    surfaces: [...flow.surfaces],
+    fallback: flow.featureFlag?.fallback ?? "destination flow fallback",
+    featureFlag: flow.featureFlag
+      ? {
+          endpoint: flow.featureFlag.endpoint,
+          serverFeatureKey: flow.featureFlag.serverFeatureKey,
+          enableEnv: flow.featureFlag.enableEnv,
+          rolloutEnv: flow.featureFlag.rolloutEnv,
+        }
+      : null,
+    telemetryEvent: flow.telemetryEvent,
+  }));
 }

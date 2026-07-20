@@ -11,6 +11,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CANVAS_LAUNCH_FLOW_IDS,
+  canvasLaunchEvidenceFlowCoverage,
   canvasLaunchReadinessFlows,
 } from "./canvasLaunchReadiness";
 import type { CanvasTelemetryEnvelope } from "./canvasPlatform";
@@ -104,11 +105,7 @@ function validLaunchRunPlan(
     requestHeaderEnv: requestHeaderEnvRefs,
     authenticatedRequest: requestHeaderEnvRefs.length > 0,
     commands: launchEvidenceCommandsForRun(runDate, baseUrl, requestHeaderEnvRefs),
-    flowCoverage: canvasLaunchReadinessFlows.map((flow) => ({
-      id: flow.id,
-      label: flow.label,
-      fallback: flow.featureFlag?.fallback ?? "destination flow fallback",
-    })),
+    flowCoverage: canvasLaunchEvidenceFlowCoverage(),
     checklist: [
       "Collect enabled endpoint evidence before rollback evidence.",
       "Fill analytics evidence from aggregate-only staging or production-like telemetry.",
@@ -925,6 +922,59 @@ describe("Voice Canvas launch readiness preflight command", () => {
         );
         expect(summary.nextActions).toContain(
           "Fix the launch evidence run plan before final launch sign-off.",
+        );
+      },
+    );
+  });
+
+  it("rejects launch evidence run plans with drifted flow execution details", () => {
+    const runDate = freshReviewDate();
+    const runPlan = validLaunchRunPlan(runDate);
+    const flowCoverage = canvasLaunchEvidenceFlowCoverage().map((flow) =>
+      flow.id === "ride"
+        ? {
+            ...flow,
+            surfaces: ["/wrong-entry"],
+            fallback: "Wrong fallback panel",
+            featureFlag: flow.featureFlag
+              ? {
+                  ...flow.featureFlag,
+                  endpoint: "/api/config/features/wrong-canvas",
+                }
+              : null,
+            telemetryEvent: "vyva:wrong-canvas-telemetry",
+          }
+        : flow,
+    );
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      {
+        ...runPlan,
+        flowCoverage,
+      },
+      (inputPath) => {
+        const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          launchRunPlan: {
+            readyForLaunchEvidence: boolean;
+            problemCount: number;
+            problems: string[];
+          };
+        };
+
+        expect(summary.launchRunPlan.readyForLaunchEvidence).toBe(false);
+        expect(summary.launchRunPlan.problems).toEqual(
+          expect.arrayContaining([
+            "Ride Voice Canvas: launch evidence run plan must include the canonical entry surfaces.",
+            "Ride Voice Canvas: launch evidence run plan fallback must match the launch manifest.",
+            "Ride Voice Canvas: launch evidence run plan telemetry event must match the launch manifest.",
+            "Ride Voice Canvas: launch evidence run plan feature flag details must match the launch manifest.",
+          ]),
         );
       },
     );

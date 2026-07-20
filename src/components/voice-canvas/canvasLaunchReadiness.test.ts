@@ -272,6 +272,9 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("canvas:qa:rollback-owner");
     expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-enabled.json");
     expect(runbook).toContain("YYYY-MM-DD-launch-evidence-run.json");
+    expect(runbook).toContain("canonical per-flow entry surfaces");
+    expect(runbook).toContain("feature endpoints/server keys");
+    expect(runbook).toContain("telemetry events");
     expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-rollback-disabled.json");
     expect(runbook).toContain("YYYY-MM-DD-analytics-validation.json");
     expect(runbook).toContain("YYYY-MM-DD-rollback-owner-validation.json");
@@ -289,6 +292,9 @@ describe("Canvas launch readiness manifest", () => {
     expect(audit).toContain("scripts/validate-voice-canvas-analytics-evidence.ts");
     expect(audit).toContain("scripts/validate-voice-canvas-evidence-packet.ts");
     expect(audit).toContain("scripts/prepare-voice-canvas-rollback-owner-handoff.ts");
+    expect(audit).toContain("canonical flow entry surfaces");
+    expect(audit).toContain("feature endpoints/server keys");
+    expect(audit).toContain("telemetry events");
     expect(audit).toContain("provider-reply Canvas had client-side rollout wiring but no matching server feature endpoint");
   });
 
