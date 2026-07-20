@@ -18363,6 +18363,57 @@ export default function MarketingAdminPage() {
   const bestContentTemplatePack = bestContentTemplateRecommendation
     ? contentTemplatePacksWithStats.find(({ pack }) => pack.templateIds.includes(bestContentTemplateRecommendation.template.id)) ?? null
     : null;
+  const bestContentTemplateSelectionCoach = useMemo(() => {
+    if (!bestContentTemplateRecommendation) return null;
+
+    const { template, reachable, score, reasons } = bestContentTemplateRecommendation;
+    const designBrief = contentTemplateDesignBrief(template);
+    const readyChecks = [
+      template.channel !== "email" || template.subject ? "Message header ready" : "",
+      template.body ? "Core copy ready" : "",
+      template.ctaLabel && template.ctaUrl ? "CTA ready" : "CTA needs review",
+      designBrief.hasBrief ? "Design direction ready" : "Design direction needs review",
+      template.mediaAssets?.length ? "Media attached" : "No media attached yet",
+    ].filter(Boolean);
+    const reviewChecks = [
+      reachable > 0 ? `${reachable} reachable contact${reachable === 1 ? "" : "s"} on ${channelLabel[template.channel]}` : `No reachable ${channelLabel[template.channel]} contacts yet`,
+      template.channel === "email" && !template.subject ? "Add subject before email use" : "",
+      template.ctaLabel && !template.ctaUrl ? "Add CTA link" : "",
+      bestContentTemplatePack ? `Use with ${bestContentTemplatePack.pack.title} pack` : "Standalone starter",
+    ].filter(Boolean);
+    const why = [
+      ...reasons,
+      bestContentTemplatePack ? `Part of ${bestContentTemplatePack.pack.title}` : "",
+      `Fit score ${score}`,
+    ].filter(Boolean);
+    const briefText = [
+      "VYVA template selection brief",
+      `Use first: ${template.title}`,
+      `Campaign play: ${selectedCampaignStudioPlay.label}`,
+      selectedCampaignStudioTargetAudience ? `Audience/list: ${selectedCampaignStudioTargetAudience.name}` : `Audience: ${template.audienceType.toUpperCase()}`,
+      `Channel: ${channelLabel[template.channel]}`,
+      `Reach: ${reachable} reachable contact${reachable === 1 ? "" : "s"}`,
+      `Why this template: ${why.join("; ")}`,
+      `Ready now: ${readyChecks.join("; ")}`,
+      `Review before publishing: ${reviewChecks.join("; ")}`,
+      template.subject ? `Subject: ${template.subject}` : "",
+      `CTA: ${template.ctaLabel || "Add CTA"}${template.ctaUrl ? ` (${template.ctaUrl})` : ""}`,
+      designBrief.visual ? `Visual direction: ${designBrief.visual}` : "",
+      "Next step: use this template as a content draft or start a campaign from it, then review audience routes and schedule.",
+    ].filter(Boolean).join("\n");
+
+    return {
+      why,
+      readyChecks: readyChecks.slice(0, 4),
+      reviewChecks: reviewChecks.slice(0, 4),
+      briefText,
+    };
+  }, [
+    bestContentTemplatePack,
+    bestContentTemplateRecommendation,
+    selectedCampaignStudioPlay,
+    selectedCampaignStudioTargetAudience,
+  ]);
   const bestCampaignStudioTemplatePack = campaignStudioTemplatePackRecommendations[0] ?? bestContentTemplatePack;
   const recommendedContentLaunchKit = bestCampaignStudioTemplatePack
     ?? contentTemplatePacksWithStats.find(({ templates }) => templates.length > 0)
@@ -22178,6 +22229,45 @@ export default function MarketingAdminPage() {
       setMessage(feedback);
     } catch {
       const feedback = `Could not copy ${label}. Select the visual kit and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyBestContentTemplateSelectionBrief() {
+    const label = "Template selection brief";
+    const text = bestContentTemplateSelectionCoach?.briefText ?? "";
+    if (!text.trim()) {
+      const feedback = "No template selection brief is available yet.";
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the brief and copy it manually.`;
       setContentActionFeedback(feedback);
       setContentFeedback(feedback);
       setMessage(feedback);
@@ -36928,6 +37018,22 @@ export default function MarketingAdminPage() {
                           ))}
                           {bestContentTemplatePack ? <Pill className="bg-purple-50 text-purple-800">Pack: {bestContentTemplatePack.pack.title}</Pill> : null}
                         </div>
+                        {bestContentTemplateSelectionCoach ? (
+                          <div className="mt-4 grid gap-3 rounded-2xl border border-white/80 bg-white/80 p-3 text-xs font-black text-[#5b4a46] md:grid-cols-3" data-testid="marketing-template-selection-coach">
+                            <div>
+                              <p className="text-[11px] uppercase tracking-[0.08em] text-emerald-700">Use this first</p>
+                              <p className="mt-1 leading-relaxed">{bestContentTemplateSelectionCoach.why.slice(0, 2).join(" + ")}</p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] uppercase tracking-[0.08em] text-purple-700">Ready now</p>
+                              <p className="mt-1 leading-relaxed">{bestContentTemplateSelectionCoach.readyChecks.slice(0, 2).join(" + ")}</p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] uppercase tracking-[0.08em] text-amber-700">Check next</p>
+                              <p className="mt-1 leading-relaxed">{bestContentTemplateSelectionCoach.reviewChecks.slice(0, 2).join(" + ")}</p>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="grid gap-2">
                         <button
@@ -36947,6 +37053,15 @@ export default function MarketingAdminPage() {
                           data-testid="button-marketing-matchmaker-use-best"
                         >
                           <Sparkles size={15} /> Use as content draft
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void copyBestContentTemplateSelectionBrief()}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                          disabled={!bestContentTemplateSelectionCoach}
+                          data-testid="button-marketing-matchmaker-copy-selection-brief"
+                        >
+                          <Copy size={15} /> Copy brief
                         </button>
                         {bestContentTemplatePack ? (
                           <button

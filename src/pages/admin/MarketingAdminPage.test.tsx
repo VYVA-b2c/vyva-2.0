@@ -3877,6 +3877,12 @@ describe("MarketingAdminPage", () => {
   });
 
   it("recommends best-fit templates and starts a campaign from the matchmaker", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -3888,6 +3894,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Recommended starter");
     expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("Caregiver education mini-guide");
     expect(screen.getByTestId("marketing-template-matchmaker-brief")).toHaveTextContent("1 reachable via Email");
+    expect(screen.getByTestId("marketing-template-selection-coach")).toHaveTextContent("Use this first");
+    expect(screen.getByTestId("marketing-template-selection-coach")).toHaveTextContent("Ready now");
+    fireEvent.click(screen.getByTestId("button-marketing-matchmaker-copy-selection-brief"));
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template selection brief")));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Use first: Caregiver education mini-guide"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Template selection brief copied.");
+
     fireEvent.click(screen.getByTestId("button-marketing-matchmaker-use-best"));
     expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Caregiver education mini-guide");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Template applied: Caregiver education mini-guide");
