@@ -169,7 +169,7 @@ While the run sheet is being filled, validate its structure with:
 npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json
 ```
 
-Use `--allow-pending` while staging execution is in progress, and omit it after every run-sheet row has a passing result, sanitized artifact reference, and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording dated within the last 7 days. The validator checks privacy guardrails, environment preflight, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, closeout coverage, and stale/future evidence dates before the run sheet is used to fill the packet and matrix.
+Use `--allow-pending` while staging execution is in progress, and omit it after every run-sheet row has a passing result, sanitized artifact reference, and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording dated within the last 7 days. The validator checks privacy guardrails, environment preflight, canonical flow entry surfaces, fallback paths, sanitized artifact categories, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, closeout coverage, and stale/future evidence dates before the run sheet is used to fill the packet and matrix.
 
 1. Open on desktop, tablet, and mobile widths.
 2. Start with touch, complete or safely exit with keyboard where possible, and repeat with voice commands.

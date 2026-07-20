@@ -88,6 +88,9 @@ describe("Voice Canvas run sheet validator command", () => {
     );
     expect(result.stdout).toContain("privacy guardrails");
     expect(result.stdout).toContain("flow/device rows");
+    expect(result.stdout).toContain("canonical flow entry surfaces");
+    expect(result.stdout).toContain("fallback paths");
+    expect(result.stdout).toContain("sanitized artifact categories");
     expect(result.stdout).toContain("generic pass/done/OK text is rejected");
     expect(result.stdout).toContain("no older than 7 days");
     expect(result.stdout).toContain("street-address-shaped text");
@@ -323,6 +326,47 @@ describe("Voice Canvas run sheet validator command", () => {
         expect(summary.state).toBe("invalid");
         expect(summary.problems).toContain(
           "Missing per-flow behavior column: Duplicate prevented and stale response ignored.",
+        );
+      },
+    ));
+
+  it("rejects run sheets with incomplete flow execution checklist details", () =>
+    withTempRunSheet(
+      completedRunSheet()
+        .replace(
+          "voice handoff, `/concierge`, task hub pending resume",
+          "voice handoff",
+        )
+        .replace(
+          "Saved place or new address, date/time, review, explicit confirmation, waiting, completed or blocked",
+          "Ride flow checked",
+        )
+        .replace("Existing Concierge transport panel", "Fallback panel")
+        .replace(
+          "Device screenshots/photos; voice/touch/keyboard recording or log; endpoint rollback trace; analytics signal and privacy query",
+          "Device screenshot only",
+        ),
+      (tempRunSheetPath) => {
+        const result = runValidator([tempRunSheetPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          readyForQaRunSheet: boolean;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.readyForQaRunSheet).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Ride Voice Canvas: flow execution checklist must name every canonical launch entry surface.",
+            "Ride Voice Canvas: flow execution checklist must name the canonical launch path to exercise.",
+            "Ride Voice Canvas: flow execution checklist must name the expected fallback path.",
+            "Ride Voice Canvas: flow execution checklist must name the required sanitized artifact categories.",
+          ]),
         );
       },
     ));

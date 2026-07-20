@@ -255,6 +255,8 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("No booking, call, message");
     expect(runbook).toContain("voice-canvas-launch-readiness-audit.md");
     expect(runbook).toContain("voice-canvas-real-device-run-sheet.md");
+    expect(runbook).toContain("canonical flow entry surfaces");
+    expect(runbook).toContain("sanitized artifact categories");
     expect(runbook).toContain("voice-canvas-real-device-evidence-packet.md");
     expect(runbook).toContain("voice-canvas-real-device-qa-matrix.md");
     expect(runbook).toContain("canvasLaunchSignoff.test.ts");
@@ -283,6 +285,8 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("YYYY-MM-DD-evidence-packet-summary.json");
     expect(audit).toContain("manual real-device/deployed rollback QA still required");
     expect(audit).toContain("voice-canvas-real-device-run-sheet.md");
+    expect(audit).toContain("canonical flow entry surfaces");
+    expect(audit).toContain("sanitized artifact categories");
     expect(audit).toContain("voice-canvas-real-device-evidence-packet.md");
     expect(audit).toContain("voice-canvas-real-device-qa-matrix.md");
     expect(audit).toContain("canvasLaunchSignoff.test.ts");

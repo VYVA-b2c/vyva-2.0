@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { canvasLaunchReadinessFlows } from "../src/components/voice-canvas/canvasLaunchReadiness";
 
 const defaultRunSheetPath = "docs/audits/voice-canvas-real-device-run-sheet.md";
 const args = process.argv.slice(2);
@@ -52,6 +53,14 @@ const requiredBehaviorColumns = [
   "Recoverable failure offered retry and exit",
   "Evidence reference",
   "Reviewer/date",
+] as const;
+
+const requiredFlowExecutionColumns = [
+  "Flow",
+  "Entry surface",
+  "Main path to exercise",
+  "Existing fallback path",
+  "Required sanitized artifacts",
 ] as const;
 
 const requiredCopyAccessibilityAnalyticsColumns = [
@@ -616,6 +625,100 @@ function tableColumnIndex(table: MarkdownTable, header: string): number {
   return table.headers.findIndex((candidate) => normalizeCell(candidate) === header);
 }
 
+function flowExecutionArtifactRequirements(
+  flowId: string,
+): readonly (readonly string[])[] {
+  if (flowId === "task_hub_resume") {
+    return [
+      ["task hub resume"],
+      ["destination fallback"],
+      ["no write", "no-write"],
+      ["no external action", "no-external-action"],
+    ];
+  }
+
+  return [
+    ["device screenshots", "device screenshot", "photos"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["endpoint rollback"],
+    ["analytics signal"],
+    ["privacy query"],
+  ];
+}
+
+function invalidFlowExecutionChecklistRows(
+  table: MarkdownTable | undefined,
+): string[] {
+  if (!table) return [];
+  const problems: string[] = [];
+  const entrySurfaceIndex = tableColumnIndex(table, "Entry surface");
+  const mainPathIndex = tableColumnIndex(table, "Main path to exercise");
+  const fallbackIndex = tableColumnIndex(table, "Existing fallback path");
+  const artifactsIndex = tableColumnIndex(table, "Required sanitized artifacts");
+
+  for (const flow of canvasLaunchReadinessFlows) {
+    const row = table.rows.find(
+      (candidate) => normalizeCell(candidate[0] ?? "") === flow.label,
+    );
+    if (!row) continue;
+
+    if (
+      entrySurfaceIndex >= 0 &&
+      !hasEvidenceTermGroups(
+        row[entrySurfaceIndex] ?? "",
+        flow.surfaces.map((surface) => [surface]),
+      )
+    ) {
+      problems.push(
+        `${flow.label}: flow execution checklist must name every canonical launch entry surface.`,
+      );
+    }
+
+    if (mainPathIndex >= 0) {
+      const mainPathRequirements = flow.featureFlag
+        ? [
+            ["explicit confirmation"],
+            ["waiting"],
+            ["completed", "saved"],
+            ["blocked"],
+          ]
+        : [["resume"], ["stale", "blocked"]];
+      if (!hasEvidenceTermGroups(row[mainPathIndex] ?? "", mainPathRequirements)) {
+        problems.push(
+          `${flow.label}: flow execution checklist must name the canonical launch path to exercise.`,
+        );
+      }
+    }
+
+    const expectedFallback =
+      flow.featureFlag?.fallback ?? "safe existing destination path";
+    if (
+      fallbackIndex >= 0 &&
+      !hasEvidenceTermGroups(row[fallbackIndex] ?? "", [[expectedFallback]])
+    ) {
+      problems.push(
+        `${flow.label}: flow execution checklist must name the expected fallback path.`,
+      );
+    }
+
+    if (
+      artifactsIndex >= 0 &&
+      !hasEvidenceTermGroups(
+        row[artifactsIndex] ?? "",
+        flowExecutionArtifactRequirements(flow.id),
+      )
+    ) {
+      problems.push(
+        `${flow.label}: flow execution checklist must name the required sanitized artifact categories.`,
+      );
+    }
+  }
+
+  return problems;
+}
+
 function invalidBehaviorEvidenceCells(table: MarkdownTable | undefined): string[] {
   if (!table) return [];
   const problems: string[] = [];
@@ -752,11 +855,19 @@ function evaluateRunSheet(markdown: string) {
   }
 
   const flowTable = findTable(tables, "Flow execution checklist");
+  if (flowTable) {
+    for (const column of requiredFlowExecutionColumns) {
+      if (!flowTable.headers.some((header) => normalizeCell(header) === column)) {
+        problems.push(`Missing flow execution checklist column: ${column}.`);
+      }
+    }
+  }
   for (const flow of requiredFlows) {
     if (!hasRequiredRow(flowTable, flow)) {
       problems.push(`Missing flow execution checklist row: ${flow}.`);
     }
   }
+  problems.push(...invalidFlowExecutionChecklistRows(flowTable));
 
   const behaviorTable = findTable(tables, "Per-flow behavior pass");
   if (behaviorTable) {
@@ -855,7 +966,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "",
       "The command exits non-zero unless the run sheet has no pending cells and no structural coverage problems.",
       "Use --allow-pending for in-progress review of the committed run-sheet template.",
-      "It protects privacy guardrails, environment preflight, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, and closeout checks.",
+      "It protects privacy guardrails, environment preflight, canonical flow entry surfaces, fallback paths, sanitized artifact categories, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, and closeout checks.",
       "Filled result cells must name specific sanitized evidence or behavior; generic pass/done/OK text is rejected.",
       "Filled dated evidence cells must use non-future YYYY-MM-DD dates no older than 7 days.",
       "Filled cells must not include literal personal data such as street-address-shaped text, email addresses, phone numbers, transcripts, route details, shopping details, provider details, or account identifiers.",
