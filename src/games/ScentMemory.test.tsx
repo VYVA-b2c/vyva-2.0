@@ -120,6 +120,8 @@ describe("ScentMemory component", () => {
     await flushPromises();
 
     expect(screen.getByRole("heading", { name: "Thanks for sharing that." })).toBeInTheDocument();
+    expect(screen.getByTestId("scent-memory-receipt")).toHaveTextContent("Scent Memory done");
+    expect(screen.getByTestId("scent-memory-receipt")).toHaveTextContent("You can continue when you are ready.");
     expect(apiFetchMock).toHaveBeenLastCalledWith("/api/games/scent-memory/sessions", expect.objectContaining({
       method: "POST",
       body: expect.stringContaining("It reminds me of Saturday mornings."),

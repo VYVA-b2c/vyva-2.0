@@ -170,6 +170,10 @@ describe("Safe-home scan service actions", () => {
     });
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"safe_home\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent("Loose rug");
+    expect(toastMock).toHaveBeenCalledWith({
+      title: "Action prepared",
+      description: "Saved. Continue in Concierge when you are ready.",
+    });
   });
 
   it("saves a care-team call draft from scan findings", async () => {
@@ -194,6 +198,10 @@ describe("Safe-home scan service actions", () => {
       requested_tool: "phone_call",
       user_confirmed: false,
       no_external_action_without_confirmation: true,
+    });
+    expect(toastMock).toHaveBeenCalledWith({
+      title: "Action prepared",
+      description: "Saved. Continue in Concierge when you are ready.",
     });
   });
 

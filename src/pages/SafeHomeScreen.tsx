@@ -47,6 +47,7 @@ import {
 } from "../../shared/showVyvaFlow";
 import { showVyvaReviewContractFromSafeHomeResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
 import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type HomeScan = {
   id: string;
@@ -501,12 +502,18 @@ const SafeHomeScreen = () => {
       hazards: reviewContract.noticed,
       advice: reviewContract.safeNextSteps.join(" "),
     };
+    const preparedReceipt = buildWorkflowReceiptMoment({
+      workflowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+      status: "prepared",
+      capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+      locale: language === "es" ? "es" : "en",
+    });
 
     void saveShowVyvaActionExecutionPlan(plan)
       .then(async () => {
         markShowVyvaReviewHistoryActionSaved(reviewContract, action, plan.targetRoute);
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-        toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+        toast({ title: preparedReceipt.title, description: preparedReceipt.message });
         setResult(null);
         setShowVyvaPasteReview(null);
         if (action.id === "mark_safe_now") {
@@ -575,9 +582,15 @@ const SafeHomeScreen = () => {
             });
             void saveShowVyvaActionExecutionPlan(plan)
               .then(async () => {
+                const preparedReceipt = buildWorkflowReceiptMoment({
+                  workflowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+                  status: "prepared",
+                  capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+                  locale: language === "es" ? "es" : "en",
+                });
                 markShowVyvaReviewHistoryActionSaved(reviewContract, action, plan.targetRoute);
                 await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-                toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+                toast({ title: preparedReceipt.title, description: preparedReceipt.message });
                 if (testIdSuffix === "current") setResult(null);
                 if (action.id === "mark_safe_now") return;
                 navigate(plan.targetRoute, {

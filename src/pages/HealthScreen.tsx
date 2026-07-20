@@ -81,6 +81,8 @@ import {
 } from "../../shared/showVyvaFlow";
 import { showVyvaReviewContractFromHealthResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
 import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
+import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type WoundScan = {
   id: string;
@@ -1954,6 +1956,12 @@ const HealthScreen = () => {
     action: ShowVyvaFollowUpAction,
     contract: ShowVyvaReviewContract,
   ) => {
+    const preparedReceipt = buildWorkflowReceiptMoment({
+      workflowReference: APP_WORKFLOW_REFERENCES.visualScan,
+      status: "prepared",
+      capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+      locale: activeLanguage(appLanguage) === "es" ? "es" : "en",
+    });
     const plan = buildShowVyvaActionExecutionPlan({
       contract,
       action,
@@ -1973,7 +1981,7 @@ const HealthScreen = () => {
       .then(async () => {
         markShowVyvaReviewHistoryActionSaved(contract, action, plan.targetRoute);
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-        toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+        toast({ title: preparedReceipt.title, description: preparedReceipt.message });
         navigate(plan.targetRoute);
       })
       .catch(() => {
