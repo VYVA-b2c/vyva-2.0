@@ -2951,6 +2951,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("AI command ready");
     expect(screen.getByTestId("marketing-template-pathfinder")).toHaveTextContent("Activate families");
     expect(screen.getByTestId("marketing-template-pathfinder")).toHaveTextContent("Build provider referrals");
+    expect(screen.getByTestId("button-marketing-template-pathfinder-copy-brief")).toHaveTextContent("Copy AI brief");
+    fireEvent.click(screen.getByTestId("button-marketing-template-pathfinder-copy-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template pathfinder brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Recommended routes:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Family onboarding"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task:"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Template pathfinder brief copied.");
     expect(screen.getByTestId("marketing-template-command-queue")).toHaveTextContent("Template command queue");
     expect(screen.getByTestId("button-marketing-template-command-recommended-kit")).toHaveTextContent("Create recommended launch kit");
     expect(screen.getByTestId("button-marketing-template-command-customize-kit")).toHaveTextContent("Customize in studio");

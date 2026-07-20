@@ -19035,6 +19035,27 @@ export default function MarketingAdminPage() {
       };
     }).filter((route): route is NonNullable<typeof route> => Boolean(route));
   }, [contacts, contentTemplatePacksWithStats]);
+  const templatePathfinderBriefText = useMemo(() => [
+    "VYVA template pathfinder brief",
+    `Generated: ${new Date().toISOString()}`,
+    `Visible template filters: search "${contentTemplateSearch.trim() || "none"}", channel ${contentTemplateChannelFilter}, audience ${contentTemplateAudienceFilter}, category ${contentTemplateCategoryFilter}.`,
+    `Route count: ${templatePathfinderRoutes.length}`,
+    "",
+    "Recommended routes:",
+    ...templatePathfinderRoutes.map((route, index) => [
+      `${index + 1}. ${route.title}`,
+      `   Pack: ${route.pack.title}`,
+      `   Focus: ${route.pack.focus}`,
+      `   Channels: ${formatChannelList(route.channels)}`,
+      `   Reach: ${route.audienceReach} reachable contact${route.audienceReach === 1 ? "" : "s"}`,
+      `   Templates: ${route.templates.length}`,
+      `   Reasons: ${route.reasons.join(" | ")}`,
+      `   Action: ${route.actionLabel}; then customize or create the launch kit.`,
+    ].join("\n")),
+    "",
+    "AI task:",
+    "Pick the strongest route for the current audience goal, adapt the pack into channel-native copy, identify missing content assets, and return a practical launch sequence with email review plus manual handoff notes for non-email channels.",
+  ].join("\n"), [contentTemplateAudienceFilter, contentTemplateCategoryFilter, contentTemplateChannelFilter, contentTemplateSearch, templatePathfinderRoutes]);
   const leadTemplatePathfinderRoute = templatePathfinderRoutes[0] ?? null;
   const contentTemplateCommandQueue = [
     {
@@ -22818,6 +22839,45 @@ export default function MarketingAdminPage() {
     const text = bestContentTemplateSelectionCoach?.briefText ?? "";
     if (!text.trim()) {
       const feedback = "No template selection brief is available yet.";
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the brief and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyTemplatePathfinderBrief() {
+    const label = "Template pathfinder brief";
+    const text = templatePathfinderBriefText;
+    if (!text.trim()) {
+      const feedback = "No template pathfinder brief is available yet.";
       setContentActionFeedback(feedback);
       setContentFeedback(feedback);
       setMessage(feedback);
@@ -37161,7 +37221,20 @@ export default function MarketingAdminPage() {
               <SectionCard
                 title="Template pathfinder"
                 subtitle="Choose the job first. VYVA filters the long library to the strongest route and can load the pack into studio."
-                action={<Pill className="bg-purple-50 text-purple-800">{templatePathfinderRoutes.length} routes</Pill>}
+                action={(
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill className="bg-purple-50 text-purple-800">{templatePathfinderRoutes.length} routes</Pill>
+                    <button
+                      type="button"
+                      onClick={() => void copyTemplatePathfinderBrief()}
+                      disabled={!templatePathfinderBriefText.trim()}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                      data-testid="button-marketing-template-pathfinder-copy-brief"
+                    >
+                      <Sparkles size={13} /> Copy AI brief
+                    </button>
+                  </div>
+                )}
               >
                 <div className="grid gap-3 xl:grid-cols-5" data-testid="marketing-template-pathfinder">
                   {templatePathfinderRoutes.map((route) => (
