@@ -72,6 +72,9 @@ const ARTIFACT_INVENTORY_SIGNAL_ROW =
 const ARTIFACT_INVENTORY_PRIVACY_ROW =
   "| Analytics privacy artifacts | Analytics privacy allowed envelope forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact links showing allowed envelope and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |";
 
+const ARTIFACT_INVENTORY_RUN_SHEET_ROW =
+  "| Run sheet validation artifacts | Run sheet validation evidence for packet and matrix copy | Sanitized run sheet validation JSON artifact link for run-sheet-summary.json with no personal details | QA reviewer verified on 2026-07-19 |";
+
 const ARTIFACT_INVENTORY_PREFLIGHT_ROW =
   "| Launch preflight artifacts | Launch preflight matrix packet endpoint analytics evidence | Sanitized launch preflight JSON artifact link for matrix packet endpoint analytics gate with no personal details | QA reviewer verified on 2026-07-19 |";
 
@@ -228,6 +231,10 @@ function fillArtifactInventoryRows(markdown: string): string {
     .replace(
       /^\| Analytics privacy artifacts \| .* \| .* \| .* \|$/m,
       ARTIFACT_INVENTORY_PRIVACY_ROW,
+    )
+    .replace(
+      /^\| Run sheet validation artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_RUN_SHEET_ROW,
     )
     .replace(
       /^\| Launch preflight artifacts \| .* \| .* \| .* \|$/m,
@@ -733,7 +740,7 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects ready-for-launch matrices missing an evidence artifact inventory row", () => {
     const completed = removeFirstTableRow(
       completedMatrix(),
-      "Real-device screenshots or photos",
+      "Run sheet validation artifacts",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -741,7 +748,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.missingRequiredMatrixRows).toEqual([
-      "Evidence artifact inventory: Real-device screenshots or photos",
+      "Evidence artifact inventory: Run sheet validation artifacts",
     ]);
   });
 

@@ -373,6 +373,7 @@ describe("Canvas launch readiness manifest", () => {
       "Copy and accessibility artifacts",
       "Analytics signal artifacts",
       "Analytics privacy artifacts",
+      "Run sheet validation artifacts",
     ]) {
       expect(packet).toContain(artifactSet);
     }
@@ -404,7 +405,9 @@ describe("Canvas launch readiness manifest", () => {
       "positive observed sample counts for started, resumed, abandoned, blocked, confirmed, and completed",
       "completed proven by completed or terminal pending samples",
       "`canvas:qa:packet` validation passed",
+      "`canvas:qa:runsheet` validation passed",
       "evidence-packet-summary.json",
+      "run-sheet-summary.json",
     ]) {
       expect(packet).toContain(requiredCopy);
     }
