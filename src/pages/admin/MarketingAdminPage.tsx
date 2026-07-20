@@ -12687,6 +12687,67 @@ export default function MarketingAdminPage() {
     return campaignMatchesSearch && matchesAudience && matchesChannel;
   }), [campaigns, search, audienceFilter, channelFilter, audiences, contentTitleById]);
 
+  const campaignReadinessRows = useMemo(() => visibleCampaigns.map((campaign) => ({
+    campaign,
+    readiness: campaignRowReadiness(campaign, contentById, audiences, contactByCampaignRecipientId),
+  })), [visibleCampaigns, contentById, audiences, contactByCampaignRecipientId]);
+
+  const campaignReadinessOverviewItems = useMemo(() => {
+    const rowsWithLabels = (...labels: string[]) => campaignReadinessRows.filter((item) => labels.includes(item.readiness.label));
+    const stateForRows = (rows: typeof campaignReadinessRows): CampaignReadinessState => {
+      if (rows.some((item) => item.readiness.state === "blocked")) return "blocked";
+      if (rows.some((item) => item.readiness.state === "needs_action")) return "needs_action";
+      if (rows.some((item) => item.readiness.state === "ready")) return "ready";
+      return "planning";
+    };
+    const summaryForRows = (rows: typeof campaignReadinessRows, emptyDetail: string) => {
+      const first = rows[0] ?? null;
+      return {
+        count: rows.length,
+        firstCampaign: first?.campaign ?? null,
+        detail: first ? `First: ${first.campaign.name}. ${first.readiness.detail}` : emptyDetail,
+        state: stateForRows(rows),
+      };
+    };
+    const ready = summaryForRows(rowsWithLabels("Ready to send"), "No campaigns have saved recipients and email content ready.");
+    const setup = summaryForRows(rowsWithLabels("Needs content", "No channels"), "No campaign setup blockers in the current view.");
+    const audience = summaryForRows(rowsWithLabels("Snapshot recipients", "Review consent", "Map audience"), "No audience, recipient, or consent blockers in the current view.");
+    const schedule = summaryForRows(rowsWithLabels("Add schedule"), "No scheduled campaigns are missing a start time.");
+    const handoff = summaryForRows(rowsWithLabels("Manual handoff"), "No planning-only handoffs in the current view.");
+    return [
+      {
+        key: "ready",
+        title: "Ready to send",
+        actionLabel: "Review first",
+        ...ready,
+      },
+      {
+        key: "setup",
+        title: "Needs setup",
+        actionLabel: "Fix first",
+        ...setup,
+      },
+      {
+        key: "audience",
+        title: "Audience and consent",
+        actionLabel: "Open queue",
+        ...audience,
+      },
+      {
+        key: "schedule",
+        title: "Needs schedule",
+        actionLabel: "Set first time",
+        ...schedule,
+      },
+      {
+        key: "handoff",
+        title: "Manual handoff",
+        actionLabel: "Prepare first",
+        ...handoff,
+      },
+    ];
+  }, [campaignReadinessRows]);
+
   const visibleCampaignMetrics = useMemo(() => campaignMetrics.filter((metric) => {
     const campaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
     const metricMatchesSearch = matchesSearch(search, [
@@ -34133,6 +34194,39 @@ export default function MarketingAdminPage() {
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
                 <SectionCard title="Campaign list" subtitle={`${visibleCampaigns.length} visible of ${campaigns.length} campaigns. Click a campaign to open full details.`}>
+                  <div className="mb-4 rounded-2xl border border-purple-100 bg-purple-50/60 p-4" data-testid="marketing-campaign-readiness-overview">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Publishing readiness</p>
+                        <h3 className="mt-1 text-lg font-black text-[#241133]">What needs attention before launch</h3>
+                        <p className="mt-1 text-sm font-bold text-[#6f5f59]">Counts follow the current search and filters, so this is the live working queue.</p>
+                      </div>
+                      <Pill className="bg-white text-purple-800">{visibleCampaigns.length} visible</Pill>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-5">
+                      {campaignReadinessOverviewItems.map((item) => (
+                        <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-readiness-overview-${item.key}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">{item.title}</p>
+                              <p className="mt-1 text-2xl font-black">{item.count}</p>
+                            </div>
+                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                          </div>
+                          <p className="mt-2 min-h-[48px] text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                          <button
+                            type="button"
+                            onClick={() => item.firstCampaign ? openCampaignForNextAction(item.firstCampaign) : undefined}
+                            disabled={campaignSaving || !item.firstCampaign}
+                            className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:border-[#eadfd5] disabled:text-[#9d8b9d]"
+                            data-testid={`button-marketing-campaign-readiness-overview-${item.key}`}
+                          >
+                            <Zap size={13} /> {item.actionLabel}
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
                   <CampaignTable
                     campaigns={visibleCampaigns}
                     contentById={contentById}

@@ -7299,6 +7299,37 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("0");
   });
 
+  it("summarizes campaign readiness queues and opens the first relevant campaign", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-campaign-readiness-overview");
+
+    const readyQueue = within(screen.getByTestId("marketing-campaign-readiness-overview-ready"));
+    expect(readyQueue.getByText("Ready to send")).toBeInTheDocument();
+    expect(readyQueue.getByText("0")).toBeInTheDocument();
+    expect(readyQueue.getByText("No campaigns have saved recipients and email content ready.")).toBeInTheDocument();
+
+    const setupQueue = within(screen.getByTestId("marketing-campaign-readiness-overview-setup"));
+    expect(setupQueue.getByText("Needs setup")).toBeInTheDocument();
+    expect(setupQueue.getByText("1")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-readiness-overview-setup")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-campaign-readiness-overview-setup")).toHaveTextContent("Attach content");
+
+    const audienceQueue = within(screen.getByTestId("marketing-campaign-readiness-overview-audience"));
+    expect(audienceQueue.getByText("Audience and consent")).toBeInTheDocument();
+    expect(audienceQueue.getByText("1")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-readiness-overview-audience")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-campaign-readiness-overview-audience")).toHaveTextContent("needs opted-in consent");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-readiness-overview-setup"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
+    expect(screen.getByText('Opened "Partner outreach" to fix the creative gap: LinkedIn.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-readiness-overview-audience"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByText('Opened "Caregiver welcome" to review email recipient consent before sending.')).toBeInTheDocument();
+  });
+
   it("edits, snapshots recipients for, blocks pending-consent sends, and deletes campaigns", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
