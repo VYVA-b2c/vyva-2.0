@@ -3579,6 +3579,25 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-edit-journey-metadata") as HTMLTextAreaElement).value).toContain("partner-growth");
     expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("template_pack");
     expect((screen.getByTestId("textarea-marketing-journey-step-config-0") as HTMLTextAreaElement).value).toContain("linkedin-partner-demo");
+    expect(screen.getByTestId("marketing-journey-sequence-run-sheet")).toHaveTextContent("Sequence run sheet");
+    expect(screen.getByTestId("marketing-journey-sequence-run-sheet")).toHaveTextContent("3 steps");
+    expect(screen.getByTestId("marketing-journey-sequence-run-sheet")).toHaveTextContent("LinkedIn, WhatsApp, and Email");
+    const journeyRunSheet = screen.getByTestId("textarea-marketing-journey-sequence-run-sheet") as HTMLTextAreaElement;
+    expect(journeyRunSheet.value).toContain("VYVA journey sequence run sheet");
+    expect(journeyRunSheet.value).toContain("Journey: Partner growth journey");
+    expect(journeyRunSheet.value).toContain("1. message via LinkedIn after immediately");
+    expect(journeyRunSheet.value).toContain("3. message via Email after 120h / day 5");
+    expect(journeyRunSheet.value).toContain("AI task:");
+    const journeyRunSheetClipboard = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: journeyRunSheetClipboard },
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-copy-journey-sequence-run-sheet"));
+    await waitFor(() => {
+      expect(journeyRunSheetClipboard).toHaveBeenCalledWith(expect.stringContaining("VYVA journey sequence run sheet"));
+    });
+    expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Journey sequence run sheet copied.");
     expect(screen.getByTestId("button-marketing-draft-journey-step-content")).toHaveTextContent("Draft 3 missing content");
 
     fireEvent.click(screen.getByTestId("button-marketing-draft-journey-step-content"));

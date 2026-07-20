@@ -18484,6 +18484,52 @@ export default function MarketingAdminPage() {
       kind: "save",
     };
   }, [editingJourneyId, journeyEditDraft, missingJourneyStepContentCount]);
+  const journeySequenceRunSheetText = useMemo(() => {
+    const channels = uniqueChannels(journeyEditDraft.steps.map((step) => step.channel));
+    const stepLines = journeyEditDraft.steps.map((step, index) => {
+      const linkedContent = contentAssetByReference(content, step.contentAssetId) ?? contentAssetByReference(content, step.templateRef);
+      const delayHours = nonNegativeInt(step.delayHours);
+      const delayLabel = delayHours === 0
+        ? "immediately"
+        : `${delayHours}h${delayHours % 24 === 0 ? ` / day ${delayHours / 24}` : ""}`;
+      return [
+        `${index + 1}. ${step.kind || "message"} via ${channelLabel[step.channel]} after ${delayLabel}`,
+        `   Status: ${step.status}`,
+        `   Content: ${linkedContent?.title || step.templateRef || step.contentAssetId || "missing"}`,
+        step.notes.trim() ? `   Notes: ${step.notes.trim()}` : "",
+        step.configText.trim() && step.configText.trim() !== "{}" ? "   Config: review step JSON before activation" : "",
+      ].filter(Boolean).join("\n");
+    });
+
+    return [
+      "VYVA journey sequence run sheet",
+      `Journey: ${journeyEditDraft.name.trim() || "Untitled journey"}`,
+      `Status: ${journeyEditDraft.status}`,
+      `Audience: ${journeyEditDraft.audienceType.toUpperCase()}${selectedJourneyTargetAudience ? ` / ${selectedJourneyTargetAudience.name}` : ""}`,
+      `Trigger: ${journeyEditDraft.triggerType.trim() || "not set"}`,
+      `Goal: ${journeyEditDraft.goalType.trim() || "not set"}${journeyEditDraft.exitOnGoal ? " / exit on goal" : ""}`,
+      `Channels: ${channels.length ? formatChannelList(channels) : "none"}`,
+      `Planning readiness: ${journeyCopilotScore}%`,
+      "",
+      "Copilot checks:",
+      ...journeyCopilotChecklist.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+      "",
+      "Step order:",
+      ...(stepLines.length ? stepLines : ["- No steps yet. Add a step before this can become an operating journey."]),
+      "",
+      "Operator rule:",
+      "Treat this as planning until trigger, goal, content, consent, and owner review are clear. Email/WhatsApp can later use VYVA routes; social, phone, print, and event steps remain manual handoffs unless integrations are enabled.",
+      "",
+      "AI task:",
+      "Review this journey sequence. Return the missing setup, suggested step improvements, channel-specific copy notes, and the safest next admin action.",
+    ].join("\n");
+  }, [
+    content,
+    journeyCopilotChecklist,
+    journeyCopilotScore,
+    journeyEditDraft,
+    selectedJourneyTargetAudience,
+  ]);
 
   const campaignDraftEligibleRecipientPreview = useMemo(() => {
     const filter = campaignDraft.recipientFilter.trim().toLowerCase();
@@ -20819,6 +20865,41 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = journeyAiCommandBrief;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setJourneyFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setJourneyFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyJourneySequenceRunSheet() {
+    const label = "Journey sequence run sheet";
+    if (!journeySequenceRunSheetText.trim()) {
+      const feedback = `${label} is empty.`;
+      setJourneyFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(journeySequenceRunSheetText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = journeySequenceRunSheetText;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -34315,6 +34396,39 @@ export default function MarketingAdminPage() {
                       <Field label="Journey metadata JSON">
                         <textarea className={`${textareaClass} min-h-[130px] font-mono text-xs`} value={journeyEditDraft.metadataText} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, metadataText: event.target.value }))} placeholder="{ }" disabled={journeySaving} data-testid="textarea-marketing-edit-journey-metadata" />
                       </Field>
+
+                      <div className="grid gap-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3" data-testid="marketing-journey-sequence-run-sheet">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-indigo-800">Sequence run sheet</p>
+                            <h4 className="mt-1 text-lg font-black text-[#241133]">Review the actual journey order before saving.</h4>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                              One compact handoff for AI review, owner review, or a launch checklist: trigger, goal, channels, readiness, and every step in order.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyJourneySequenceRunSheet()}
+                            disabled={!journeySequenceRunSheetText.trim()}
+                            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-indigo-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid="button-marketing-copy-journey-sequence-run-sheet"
+                          >
+                            <Copy size={13} /> Copy run sheet
+                          </button>
+                        </div>
+                        <div className="grid gap-2 md:grid-cols-4">
+                          <Pill className="bg-white text-indigo-800">{journeyEditDraft.steps.length} step{journeyEditDraft.steps.length === 1 ? "" : "s"}</Pill>
+                          <Pill className="bg-white text-[#241133]">{journeyEditDraft.steps.length ? formatChannelList(uniqueChannels(journeyEditDraft.steps.map((step) => step.channel))) : "No channels"}</Pill>
+                          <Pill className={readinessPillClass(journeyCopilotAction.state)}>{readinessLabel(journeyCopilotAction.state)}</Pill>
+                          <Pill className="bg-white text-[#5b4a46]">{journeyCopilotScore}% ready</Pill>
+                        </div>
+                        <textarea
+                          className={`${textareaClass} min-h-[170px] font-mono text-xs`}
+                          value={journeySequenceRunSheetText}
+                          readOnly
+                          data-testid="textarea-marketing-journey-sequence-run-sheet"
+                        />
+                      </div>
 
                       <div className="grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-journey-steps-builder">
                         <div className="flex flex-wrap items-center justify-between gap-3">
