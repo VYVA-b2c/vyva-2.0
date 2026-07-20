@@ -49,6 +49,20 @@ The final `canvas:qa:preflight -- --final` gate revalidates endpoint artifacts b
 
 Use the enabled and rollback-disabled artifacts in the environment flag rows and feature endpoint rows of the QA matrix. Malformed-config and missing-config fail-closed behavior still require the matching deployment log, trace, or environment artifact.
 
+For the required malformed-config and missing-config trace, use this copy-safe manual evidence shape. Replace bracketed placeholders with artifact references and affirmative observations only; do not paste raw response bodies, environment variable values, screenshots with personal data, or unexpected payload field names:
+
+```text
+Feature endpoint manual trace evidence, reviewed on [YYYY-MM-DD] by [reviewer]:
+- Flow: [flow label]
+- Endpoint: [exact /api/config/features/... endpoint]
+- Server key: [server feature key]
+- Malformed config artifact: [sanitized deployment log/trace/artifact reference]
+- Missing config artifact: [sanitized deployment log/trace/artifact reference]
+- Observed malformed-config behavior: fail-closed disabled false/rollout 0 and [named fallback path] visible
+- Observed missing-config behavior: fail-closed disabled false/rollout 0 and [named fallback path] visible
+- Privacy check: artifact contains no raw response body, unexpected field names, transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data
+```
+
 ## Privacy-safe analytics
 
 Allowed Canvas telemetry fields are only:

@@ -38,6 +38,22 @@ For analytics evidence, use `npm run --silent canvas:qa:analytics -- --template`
 | Run sheet validation artifacts | `voice-canvas/run-sheet/<YYYY-MM-DD>/run-sheet-summary.json` | Run sheet validation evidence before copying packet notes into the matrix | Pending |
 | Launch preflight artifacts | `voice-canvas/preflight/<YYYY-MM-DD>/launch-preflight.json` | Final combined local gate for run sheet, matrix, packet, endpoint, and analytics evidence | Pending |
 
+## Feature endpoint manual trace template
+
+Use this copy-safe shape for malformed-config and missing-config evidence that cannot be collected by `canvas:qa:features`. Replace bracketed placeholders only. Do not include raw response bodies, environment variable values, screenshots with personal data, unexpected payload field names, transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data.
+
+```text
+Feature endpoint manual trace evidence, reviewed on [YYYY-MM-DD] by [reviewer]:
+- Flow: [flow label]
+- Endpoint: [exact /api/config/features/... endpoint]
+- Server key: [server feature key]
+- Malformed config artifact: [sanitized deployment log/trace/artifact reference]
+- Missing config artifact: [sanitized deployment log/trace/artifact reference]
+- Observed malformed-config behavior: fail-closed disabled false/rollout 0 and [named fallback path] visible
+- Observed missing-config behavior: fail-closed disabled false/rollout 0 and [named fallback path] visible
+- Privacy check: artifact contains no raw response body, unexpected field names, transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data
+```
+
 ## Flow packet checklist
 
 Use one flow packet per launch surface.
