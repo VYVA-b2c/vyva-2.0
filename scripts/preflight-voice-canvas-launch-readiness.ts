@@ -17,6 +17,10 @@ const packetPathArg = args
   .find((arg) => arg.startsWith("--packet="))
   ?.slice("--packet=".length)
   .trim();
+const runSheetPathArg = args
+  .find((arg) => arg.startsWith("--runsheet="))
+  ?.slice("--runsheet=".length)
+  .trim();
 const featureEnabledArg = args.find((arg) => arg.startsWith("--features-enabled="));
 const featureEnabledPathArg = featureEnabledArg
   ?.slice("--features-enabled=".length)
@@ -50,6 +54,11 @@ const packetValidatorPath = path.resolve(
   "scripts",
   "validate-voice-canvas-evidence-packet.ts",
 );
+const runSheetValidatorPath = path.resolve(
+  process.cwd(),
+  "scripts",
+  "validate-voice-canvas-run-sheet.ts",
+);
 const analyticsValidatorPath = path.resolve(
   process.cwd(),
   "scripts",
@@ -68,9 +77,9 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
       "  npm run canvas:qa:preflight -- --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
       "  npm run canvas:qa:preflight -- --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
-      "  npm run canvas:qa:preflight -- --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
+      "  npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
       "",
-      "Default mode accepts a structurally valid pending matrix and packet so QA can capture an in-progress launch artifact.",
+      "Default mode accepts a structurally valid pending run sheet, matrix, and packet so QA can capture an in-progress launch artifact.",
       "Pass --features-enabled=<path> and --features-rollback=<path> to validate sanitized endpoint collector artifacts.",
       "Pass --analytics=<path> to validate sanitized analytics evidence in the same aggregate-only snapshot.",
       "Use --final after real-device evidence is filled; it exits non-zero unless the matrix, packet, enabled endpoint artifact, rollback endpoint artifact, and analytics evidence are ready.",
@@ -378,6 +387,7 @@ function validateFeatureEndpointArtifact(
 }
 
 function messagesForNextAction(
+  runSheetRun: ValidatorRun,
   matrixRun: ValidatorRun,
   packetRun: ValidatorRun,
   analyticsRun: ValidatorRun | null,
@@ -385,6 +395,11 @@ function messagesForNextAction(
   rollbackFeatures: FeatureEndpointArtifactValidation,
 ): string[] {
   const messages: string[] = [];
+  const runSheetProblems = numericField(runSheetRun.summary, "problemCount");
+  const runSheetIncomplete = numericField(
+    runSheetRun.summary,
+    "incompleteCellCount",
+  );
   const matrixProblems = numericField(matrixRun.summary, "problemCount");
   const packetProblems = numericField(packetRun.summary, "problemCount");
   const analyticsProblems = numericField(analyticsRun?.summary ?? null, "problemCount");
@@ -392,11 +407,17 @@ function messagesForNextAction(
   const matrixIncomplete = numericField(matrixRun.summary, "incompleteCellCount");
   const packetIncomplete = numericField(packetRun.summary, "incompleteCellCount");
 
+  if (!runSheetRun.summary) {
+    messages.push("Fix the run sheet validator output before using the preflight artifact.");
+  }
   if (!matrixRun.summary) {
     messages.push("Fix the QA matrix validator output before using the preflight artifact.");
   }
   if (!packetRun.summary) {
     messages.push("Fix the evidence packet validator output before using the preflight artifact.");
+  }
+  if (runSheetProblems > 0) {
+    messages.push("Fix real-device run sheet structural or coverage rows before staging QA.");
   }
   if (matrixProblems > 0 || matrixFailing > 0) {
     messages.push("Fix QA matrix structural or failing/not-ready rows before real-user rollout.");
@@ -425,6 +446,9 @@ function messagesForNextAction(
   if (finalGate && !analyticsRun) {
     messages.push("Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.");
   }
+  if (runSheetIncomplete > 0) {
+    messages.push("Execute the real-device run sheet and record sanitized evidence before final launch sign-off.");
+  }
   if (packetIncomplete > 0) {
     messages.push("Fill the sanitized evidence packet artifact references and reviewer/date cells.");
   }
@@ -438,6 +462,9 @@ function messagesForNextAction(
   return messages;
 }
 
+const runSheetRun = runValidator(runSheetValidatorPath, runSheetPathArg, {
+  allowPending: !finalGate,
+});
 const matrixRun = runValidator(matrixValidatorPath, matrixPathArg, {
   allowPending: !finalGate,
 });
@@ -458,15 +485,18 @@ const rollbackFeatures = validateFeatureEndpointArtifact(
   "rollback",
 );
 const readyForLaunch =
+  booleanField(runSheetRun.summary, "readyForQaRunSheet") &&
   booleanField(matrixRun.summary, "readyForLaunch") &&
   booleanField(packetRun.summary, "readyForLaunchEvidencePacket") &&
   enabledFeatures.readyForLaunchEvidence &&
   rollbackFeatures.readyForLaunchEvidence &&
   booleanField(analyticsRun?.summary ?? null, "readyForLaunchEvidence");
 const structuralProblems =
+  !runSheetRun.summary ||
   !matrixRun.summary ||
   !packetRun.summary ||
   (analyticsRun !== null && !analyticsRun.summary) ||
+  numericField(runSheetRun.summary, "problemCount") > 0 ||
   numericField(matrixRun.summary, "problemCount") > 0 ||
   numericField(matrixRun.summary, "failingCellCount") > 0 ||
   numericField(packetRun.summary, "problemCount") > 0 ||
@@ -476,11 +506,13 @@ const structuralProblems =
 const acceptedPending =
   !finalGate &&
   !structuralProblems &&
+  runSheetRun.status === 0 &&
   matrixRun.status === 0 &&
   packetRun.status === 0 &&
   !readyForLaunch;
 const exitCode = readyForLaunch || acceptedPending ? 0 : 1;
 const nextActions = messagesForNextAction(
+  runSheetRun,
   matrixRun,
   packetRun,
   analyticsRun,
@@ -492,6 +524,15 @@ const summary = {
   readyForLaunch,
   finalGate,
   acceptedPending,
+  runSheet: {
+    path: stringField(runSheetRun.summary, "runSheetPath"),
+    state: stringField(runSheetRun.summary, "state"),
+    readyForQaRunSheet: booleanField(runSheetRun.summary, "readyForQaRunSheet"),
+    incompleteCellCount: numericField(runSheetRun.summary, "incompleteCellCount"),
+    problemCount: numericField(runSheetRun.summary, "problemCount"),
+    pendingSections: runSheetRun.summary?.pendingSections ?? [],
+    message: stringField(runSheetRun.summary, "message"),
+  },
   matrix: {
     path: stringField(matrixRun.summary, "matrixPath"),
     status: stringField(matrixRun.summary, "status"),
@@ -571,6 +612,9 @@ if (jsonOutput) {
 console.log("Voice Canvas launch QA preflight");
 console.log(`Final gate mode: ${finalGate ? "yes" : "no"}`);
 console.log(`Ready for launch: ${readyForLaunch ? "yes" : "no"}`);
+console.log(
+  `Run sheet: ${summary.runSheet.state}; incomplete ${summary.runSheet.incompleteCellCount}; problems ${summary.runSheet.problemCount}`,
+);
 console.log(
   `QA matrix: ${summary.matrix.state}; incomplete ${summary.matrix.incompleteCellCount}; failing/not-ready ${summary.matrix.failingCellCount}; problems ${summary.matrix.problemCount}`,
 );

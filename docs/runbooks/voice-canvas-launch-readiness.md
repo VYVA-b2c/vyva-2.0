@@ -97,6 +97,14 @@ Run this pass for each flow: ride, appointment, refill, shopping, provider reply
 
 Before filling the matrix, use `docs/audits/voice-canvas-real-device-run-sheet.md` to execute each flow/device/interaction pass, then use `docs/audits/voice-canvas-real-device-evidence-packet.md` to name sanitized screenshots, photos, recordings, logs, traces, captures, dashboards, queries, or artifact links and map them back to the matrix rows they prove.
 
+While the run sheet is being filled, validate its structure with:
+
+```bash
+npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json
+```
+
+Use `--allow-pending` while staging execution is in progress, and omit it after every run-sheet row has a passing result, sanitized artifact reference, and reviewer/date. The validator checks privacy guardrails, environment preflight, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, and closeout coverage before the run sheet is used to fill the packet and matrix.
+
 1. Open on desktop, tablet, and mobile widths.
 2. Start with touch, complete or safely exit with keyboard where possible, and repeat with voice commands.
 3. Use Spanish or intentionally long labels and confirm labels stay readable or legible with no horizontal overflow, clipping, truncation, or clipped touch target.
