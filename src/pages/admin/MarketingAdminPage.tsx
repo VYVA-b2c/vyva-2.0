@@ -27594,6 +27594,17 @@ export default function MarketingAdminPage() {
     const reachableContacts = matchingContacts.filter((contact) => (
       selectedChannels.some((channel) => contactReachableForChannel(contact, channel))
     )).length;
+    const audienceQuality = {
+      total: matchingContacts.length,
+      optedIn: matchingContacts.filter((contact) => contact.consentStatus === "opted_in").length,
+      needsReview: matchingContacts.filter((contact) => contact.consentStatus !== "opted_in" && contact.consentStatus !== "opted_out").length,
+      optedOut: matchingContacts.filter((contact) => contact.consentStatus === "opted_out").length,
+      noSelectedRoute: matchingContacts.filter((contact) => !selectedChannels.some((channel) => contactReachableForChannel(contact, channel))).length,
+      routeCoverage: selectedChannels.map((channel) => ({
+        channel,
+        count: matchingContacts.filter((contact) => contactReachableForChannel(contact, channel)).length,
+      })),
+    };
     const packMatch = templatePackRecommendationsForPlay(match.play, primaryChannel, selectedChannels)[0] ?? null;
     const channelRoutes = selectedChannels.map((channel) => {
       const capability = sendCapabilityByChannel.get(channel);
@@ -27664,6 +27675,7 @@ export default function MarketingAdminPage() {
       selectedChannels,
       matchingContacts,
       reachableContacts,
+      audienceQuality,
       packMatch,
       channelRoutes,
       publishPath,
@@ -28678,6 +28690,31 @@ export default function MarketingAdminPage() {
                                   ? `${marketingDashboardAiCommandPlan.packMatch.pack.title} (${marketingDashboardAiCommandPlan.packMatch.templates.length} templates)`
                                   : "Best available saved templates"}
                               </span>
+                            </div>
+                            <div className="rounded-lg bg-white px-2.5 py-2 ring-1 ring-[#eadfd5]" data-testid="marketing-ai-command-audience-quality">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-[#7d6b65]">Audience quality</span>
+                                <span className="text-[#241133]">{marketingDashboardAiCommandPlan.audienceQuality.total} matched / {marketingDashboardAiCommandPlan.reachableContacts} reachable</span>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                                <Pill className="bg-emerald-50 text-emerald-800">{marketingDashboardAiCommandPlan.audienceQuality.optedIn} opted in</Pill>
+                                <Pill className={marketingDashboardAiCommandPlan.audienceQuality.needsReview ? "bg-amber-50 text-amber-800" : "bg-[#f8f1eb] text-[#7d6b65]"}>
+                                  {marketingDashboardAiCommandPlan.audienceQuality.needsReview} consent review
+                                </Pill>
+                                <Pill className={marketingDashboardAiCommandPlan.audienceQuality.optedOut ? "bg-red-50 text-red-800" : "bg-[#f8f1eb] text-[#7d6b65]"}>
+                                  {marketingDashboardAiCommandPlan.audienceQuality.optedOut} opted out
+                                </Pill>
+                                <Pill className={marketingDashboardAiCommandPlan.audienceQuality.noSelectedRoute ? "bg-red-50 text-red-800" : "bg-[#f8f1eb] text-[#7d6b65]"}>
+                                  {marketingDashboardAiCommandPlan.audienceQuality.noSelectedRoute} no route
+                                </Pill>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]" data-testid="marketing-ai-command-audience-channel-coverage">
+                                {marketingDashboardAiCommandPlan.audienceQuality.routeCoverage.map((item) => (
+                                  <Pill key={item.channel} className={channelClass(item.channel)}>
+                                    {channelLabel[item.channel]} {item.count}
+                                  </Pill>
+                                ))}
+                              </div>
                             </div>
                           </div>
                           <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffbf7] p-3" data-testid="marketing-ai-command-route-preview">

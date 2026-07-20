@@ -1632,6 +1632,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-route-preview")).toHaveTextContent("Launch route preview");
     expect(screen.getByTestId("marketing-ai-command-route-email")).toHaveTextContent("VYVA send");
     expect(screen.getByTestId("marketing-ai-command-route-linkedin")).toHaveTextContent("Manual handoff");
+    expect(screen.getByTestId("marketing-ai-command-audience-quality")).toHaveTextContent("Audience quality");
+    expect(screen.getByTestId("marketing-ai-command-audience-quality")).toHaveTextContent("1 matched / 1 reachable");
+    expect(screen.getByTestId("marketing-ai-command-audience-quality")).toHaveTextContent("0 opted in");
+    expect(screen.getByTestId("marketing-ai-command-audience-quality")).toHaveTextContent("1 consent review");
+    expect(screen.getByTestId("marketing-ai-command-audience-channel-coverage")).toHaveTextContent("Email 1");
+    expect(screen.getByTestId("marketing-ai-command-audience-channel-coverage")).toHaveTextContent("LinkedIn 1");
     expect(screen.getByTestId("button-marketing-ai-command-copy-route-linkedin")).toHaveTextContent("Copy handoff");
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-copy-route-linkedin"));
     await waitFor(() => {
