@@ -199,7 +199,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "QA matrix: pending; incomplete 283; failing/not-ready 0; problems 0",
     );
     expect(result.stdout).toContain(
-      "Evidence packet: pending; incomplete 10; problems 0",
+      "Evidence packet: pending; incomplete 11; problems 0",
     );
     expect(result.stdout).toContain(
       "Analytics evidence: not provided; samples 0; problems 0",
@@ -313,7 +313,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.evidencePacket).toMatchObject({
       state: "pending",
-      incompleteCellCount: 10,
+      incompleteCellCount: 11,
       problemCount: 0,
     });
     expect(summary.analyticsEvidence).toMatchObject({

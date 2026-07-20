@@ -34,6 +34,7 @@ const requiredInventoryArtifactSets = [
   "Copy and accessibility artifacts",
   "Analytics signal artifacts",
   "Analytics privacy artifacts",
+  "Run sheet validation artifacts",
   "Launch preflight artifacts",
 ] as const;
 
@@ -92,6 +93,11 @@ const inventoryCoverageRequirements: Record<
   "Analytics privacy artifacts": [
     ["analytics"],
     ["privacy"],
+  ],
+  "Run sheet validation artifacts": [
+    ["run sheet"],
+    ["validation"],
+    ["matrix"],
   ],
   "Launch preflight artifacts": [
     ["final"],
@@ -840,9 +846,9 @@ if (args.includes("--help") || args.includes("-h")) {
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
       "Flow packet rows must keep per-flow safety coverage for device classes, interaction modes, review, explicit confirmation, no pre-confirmation side effects, duplicate prevention, stale response handling, and fallback rollback.",
       "Copy-ready evidence note patterns must keep reference, reviewer/date, privacy, no-side-effect, rollback, accessibility, and analytics wording needed by the final QA matrix.",
-      "The final pre-fill checklist must keep the required artifact, device, interaction, rollback, endpoint, task hub, analytics, preflight, and privacy checks.",
+      "The final pre-fill checklist must keep the required artifact, device, interaction, rollback, endpoint, task hub, run-sheet validation, analytics, preflight, and privacy checks.",
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
-      "Inventory coverage cells must map each artifact set to the required environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, or preflight evidence.",
+      "Inventory coverage cells must map each artifact set to the required environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, run-sheet validation, or preflight evidence.",
       "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
     ].join("\n"),
   );
