@@ -34,10 +34,10 @@ if (args.includes("--help") || args.includes("-h")) {
       "",
       "Use --template to print the handoff artifact shape for Operations/rollback owner sign-off.",
       "Use --input=<path> to validate a filled rollback owner handoff artifact.",
-      "The template is intentionally not launch approval until a real rollback owner, backup owner, decision window, rollback trigger, rollback action, endpoint/fallback/open-session evidence, privacy boundary, and fallback readiness are filled from the launch run.",
+      "The template is intentionally not launch approval until a deployed non-local QA run URL, real rollback owner, backup owner, decision window, rollback trigger, rollback action, endpoint/fallback/open-session evidence, privacy boundary, and fallback readiness are filled from the launch run.",
       "The generated template includes only feature names, endpoints, server keys, and named fallback paths from the launch manifest.",
       "Do not add addresses, saved-place labels, spoken transcripts, entered text, medication details, provider details, shopping details, account identifiers, contact details, or personal data.",
-      "Validation requires a non-future reviewed date generated within the last 7 days, no remaining placeholders, all launch feature endpoints/server keys/fallbacks, and concrete endpoint/fallback/open-session/no-side-effect proof wording.",
+      "Validation requires a deployed non-local QA run URL, a non-future reviewed date generated within the last 7 days, no remaining placeholders, all launch feature endpoints/server keys/fallbacks, and concrete endpoint/fallback/open-session/no-side-effect proof wording.",
       "Use --output=<path> with --template to save the Markdown artifact, or with --json to save the validation summary.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
       "This helper never calls feature endpoints, analytics, bookings, calls, messages, navigation, or application data writes.",
@@ -82,6 +82,7 @@ function rollbackOwnerHandoffTemplate(): string {
     "",
     `Reviewed on: [${artifactDatePlaceholder}]`,
     "Reviewer: [reviewer]",
+    "QA run URL: [deployed non-local QA run URL]",
     "Operations/rollback owner: [owner name or team handle]",
     "Backup owner: [backup owner name or team handle]",
     "Decision window: [start/end time or launch-monitoring window]",
@@ -137,11 +138,48 @@ function includesAny(content: string, words: readonly string[]): boolean {
 }
 
 function lineHasFilledValue(content: string, label: string): boolean {
+  const value = lineValue(content, label);
+  return Boolean(value);
+}
+
+function lineValue(content: string, label: string): string | null {
   const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = content.match(new RegExp(`^${escapedLabel}:\\s*(.+)$`, "im"));
-  if (!match) return false;
+  if (!match) return null;
   const value = match[1].trim();
-  return value.length > 0 && !value.includes("[") && !value.includes("]");
+  return value.length > 0 && !value.includes("[") && !value.includes("]")
+    ? value
+    : null;
+}
+
+function isDeployedQaRunUrl(value: string | null): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+    if (
+      host === "localhost" ||
+      host === "0.0.0.0" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".local") ||
+      host.endsWith(".test") ||
+      host.endsWith(".example") ||
+      host.includes("mock")
+    ) {
+      return false;
+    }
+    if (/^10\./.test(host) || /^192\.168\./.test(host)) return false;
+    const private172 = host.match(/^172\.(\d{1,2})\./);
+    if (private172) {
+      const secondOctet = Number(private172[1]);
+      if (secondOctet >= 16 && secondOctet <= 31) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const unsafeFilledArtifactPatterns: readonly RegExp[] = [
@@ -182,6 +220,7 @@ function validateRollbackOwnerHandoff(inputPathArg: string): RollbackOwnerHandof
 
   for (const requiredLine of [
     "Reviewer",
+    "QA run URL",
     "Operations/rollback owner",
     "Backup owner",
     "Decision window",
@@ -193,6 +232,9 @@ function validateRollbackOwnerHandoff(inputPathArg: string): RollbackOwnerHandof
     if (!lineHasFilledValue(content, requiredLine)) {
       problems.push(`Rollback owner handoff artifact must fill ${requiredLine}.`);
     }
+  }
+  if (!isDeployedQaRunUrl(lineValue(content, "QA run URL"))) {
+    problems.push("Rollback owner handoff QA run URL must be a deployed non-local http(s) URL.");
   }
 
   for (const requiredEvidence of [
