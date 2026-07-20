@@ -106,7 +106,7 @@ type MarketingSmartSearchResult = {
   icon: LucideIcon;
   onSelect: () => void;
 };
-type MarketingSavedViewKey = "launch" | "publish" | "relationships" | "audiences" | "consent" | "partner" | "offline" | "templates" | "creative" | "source";
+type MarketingSavedViewKey = "launch" | "publish" | "channels" | "relationships" | "audiences" | "consent" | "partner" | "offline" | "templates" | "creative" | "source";
 type MarketingSavedView = {
   key: MarketingSavedViewKey;
   title: string;
@@ -12215,6 +12215,12 @@ export default function MarketingAdminPage() {
       setActiveTab("calendar");
       setSearch("");
       setMessage("Saved view: publish today. Review scheduled campaigns, due sends, channel handoffs, and launch blockers.");
+      return;
+    }
+    if (viewKey === "channels") {
+      setActiveTab("dashboard");
+      setMarketingChannelBoardFeedback("Saved view: channel command. Review each route for VYVA send, manual handoff, content gaps, and tracking.");
+      setMessage("Saved view: channel command. Use the channel board to decide what sends, what gets handed off, and what still needs content.");
       return;
     }
     if (viewKey === "relationships") {
@@ -27926,6 +27932,14 @@ export default function MarketingAdminPage() {
     + (scheduledEmailCampaignWithoutRecipients ? 1 : 0)
     + manualHandoffCampaigns.length;
   const savedViewRelationshipCount = contactRelationshipPriorityQueue?.count ?? contactRelationshipWorkQueues.reduce((total, queue) => total + queue.count, 0);
+  const savedViewChannelGapCount = campaigns.reduce((total, campaign) => (
+    total + campaign.channels.filter((route) => !channelHasUsableContent(route)).length
+  ), 0);
+  const savedViewManualChannelCount = new Set(campaigns.flatMap((campaign) => (
+    campaign.channels
+      .map((route) => route.channel)
+      .filter((channel) => channel !== "email")
+  ))).size;
   const marketingSavedViews: MarketingSavedView[] = [
     {
       key: "launch",
@@ -27950,6 +27964,18 @@ export default function MarketingAdminPage() {
       className: savedViewPublishCount
         ? "border-amber-100 bg-amber-50 text-amber-950"
         : "border-emerald-100 bg-emerald-50 text-emerald-950",
+    },
+    {
+      key: "channels",
+      title: "Channel command",
+      detail: "Route-by-route send modes, content gaps, manual handoffs, schedules, and outcome tracking.",
+      countLabel: savedViewChannelGapCount
+        ? `${savedViewChannelGapCount} gaps`
+        : `${savedViewManualChannelCount} handoffs`,
+      icon: BarChart3,
+      className: savedViewChannelGapCount
+        ? "border-red-100 bg-red-50 text-red-950"
+        : "border-sky-100 bg-sky-50 text-sky-950",
     },
     {
       key: "relationships",
