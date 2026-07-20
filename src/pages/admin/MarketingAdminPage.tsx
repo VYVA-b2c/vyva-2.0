@@ -976,6 +976,21 @@ type CampaignStudioProductionLoadItem = {
   text: string;
 };
 
+type CampaignStudioTemplateProductionItem = {
+  channel: Channel;
+  title: string;
+  contentType: string;
+  audienceSegment: string;
+  starterTemplateCount: number;
+  savedAssetCount: number;
+  personalizationTokens: string[];
+  subjectPrompt: string;
+  copyPrompt: string;
+  designPrompt: string;
+  state: CampaignReadinessState;
+  text: string;
+};
+
 type CampaignStudioApprovalPackItem = {
   key: string;
   title: string;
@@ -16550,6 +16565,104 @@ export default function MarketingAdminPage() {
     "",
     "AI instruction: create channel-safe variants for each segment while keeping the same offer, CTA, consent posture, and follow-up owner.",
   ].join("\n\n---\n\n");
+  const campaignStudioTemplateProductionItems: CampaignStudioTemplateProductionItem[] = campaignStudioSelectedChannels.map((channel) => {
+    const route = campaignStudioChannelRouteBoard.find((item) => item.channel === channel);
+    const draft = campaignStudioChannelDrafts.find((candidate) => candidate.channel === channel)?.draft ?? campaignStudioGenerated;
+    const segment = campaignStudioSegmentPersonalizationItems.find((item) => item.bestChannel === channel && item.basis === "Market")
+      ?? campaignStudioSegmentPersonalizationItems.find((item) => item.basis === "Market")
+      ?? campaignStudioSegmentPersonalizationItems.find((item) => item.bestChannel === channel)
+      ?? campaignStudioSegmentPersonalizationItems[0]
+      ?? null;
+    const contentType = channel === "email"
+      ? "Email template"
+      : channel === "whatsapp"
+        ? "WhatsApp message"
+        : channel === "sms"
+          ? "SMS copy"
+          : channel === "phone"
+            ? "Call script"
+            : channel === "print"
+              ? "Print layout"
+              : channel === "event"
+                ? "Event host notes"
+                : `${channelLabel[channel]} post`;
+    const personalizationTokens = ["email", "whatsapp", "sms"].includes(channel)
+      ? [
+        "{{first_name}}",
+        selectedCampaignStudioPlay.audienceType === "b2b" ? "{{company_name}}" : "{{elder_name}}",
+        segment?.basis === "Market" ? "{{market}}" : segment?.basis === "Language" ? "{{language}}" : "",
+      ].filter(Boolean)
+      : [];
+    const subjectPrompt = channel === "email"
+      ? `Write 3 subject lines under 55 characters for ${segment?.label ?? campaignStudioOfflineAudienceName}.`
+      : channel === "phone"
+        ? `Write a 12-second opener for ${segment?.label ?? campaignStudioOfflineAudienceName}.`
+        : `Write a native ${channelLabel[channel]} hook for ${segment?.label ?? campaignStudioOfflineAudienceName}.`;
+    const copyPrompt = [
+      `Create ${contentType.toLowerCase()} copy for "${campaignStudioGenerated.campaignName}".`,
+      `Audience: ${segment ? `${segment.basis} ${segment.label}` : campaignStudioOfflineAudienceName}.`,
+      `Tone: ${campaignStudioToneLabel[campaignStudio.toneId]}. Angle: ${campaignStudioAngleOptions.find((item) => item.id === campaignStudio.angleId)?.label ?? "Balanced"}.`,
+      `Base message: ${draft.body || campaignStudioGenerated.body || campaignStudioOfflineMessageLine}.`,
+      `CTA: ${draft.ctaLabel || campaignStudioGenerated.ctaLabel || campaignStudioOfflineCta}.`,
+      personalizationTokens.length ? `Allowed merge tokens: ${personalizationTokens.join(", ")}.` : "No merge tokens; keep this suitable for public/manual use.",
+    ].join(" ");
+    const designPrompt = channel === "email"
+      ? "Include optional hero-image notes, preview text, CTA button copy, and a short plain-text fallback."
+      : ["facebook", "instagram", "linkedin", "tiktok"].includes(channel)
+        ? "Include caption, visual prompt, alt text, hashtags if useful, and a manual reply-follow-up note."
+        : channel === "print"
+          ? "Include layout hierarchy, QR/link block, large-type constraints, and printable handoff notes."
+          : channel === "event"
+            ? "Include host talking points, attendance capture, signage needs, and follow-up message."
+            : "Include handoff notes, reply capture, and opt-out handling where relevant.";
+    const hasDraft = Boolean((draft.body || campaignStudioGenerated.body).trim());
+    const hasRoute = (route?.starterTemplates ?? 0) + (route?.savedAssets ?? 0) > 0;
+    const state: CampaignReadinessState = hasDraft
+      ? hasRoute || draft.source === "openai" || campaignStudioHasFullAiPack ? "ready" : "needs_action"
+      : "blocked";
+    const text = [
+      `${channelLabel[channel]} template production brief`,
+      `Content type: ${contentType}`,
+      `Campaign: ${campaignStudioGenerated.campaignName}`,
+      `Audience segment: ${segment ? `${segment.basis}: ${segment.label}` : campaignStudioOfflineAudienceName}`,
+      `Template coverage: ${route?.starterTemplates ?? 0} starter / ${route?.savedAssets ?? 0} saved`,
+      `Personalization tokens: ${personalizationTokens.length ? personalizationTokens.join(", ") : "none"}`,
+      `Subject/hook prompt: ${subjectPrompt}`,
+      `Copy prompt: ${copyPrompt}`,
+      `Design/publishing prompt: ${designPrompt}`,
+      `State: ${readinessLabel(state)}`,
+    ].join("\n");
+
+    return {
+      channel,
+      title: `${channelLabel[channel]} ${contentType.toLowerCase()}`,
+      contentType,
+      audienceSegment: segment ? `${segment.basis}: ${segment.label}` : campaignStudioOfflineAudienceName,
+      starterTemplateCount: route?.starterTemplates ?? 0,
+      savedAssetCount: route?.savedAssets ?? 0,
+      personalizationTokens,
+      subjectPrompt,
+      copyPrompt,
+      designPrompt,
+      state,
+      text,
+    };
+  });
+  const campaignStudioTemplateProductionState: CampaignReadinessState = campaignStudioTemplateProductionItems.some((item) => item.state === "blocked")
+    ? "blocked"
+    : campaignStudioTemplateProductionItems.some((item) => item.state === "needs_action")
+      ? "needs_action"
+      : "ready";
+  const campaignStudioTemplateProductionText = [
+    [
+      "VYVA campaign template production kit",
+      `Campaign: ${campaignStudioGenerated.campaignName}`,
+      `Audience: ${campaignStudioOfflineAudienceName}`,
+      `Overall: ${readinessLabel(campaignStudioTemplateProductionState)}`,
+    ].join("\n"),
+    ...campaignStudioTemplateProductionItems.map((item) => item.text),
+    "AI instruction: produce attractive, channel-native templates for every route. Keep claims safe, preserve consent posture, use only allowed merge tokens, and return final copy plus design or publishing notes.",
+  ].join("\n\n---\n\n");
   const campaignStudioAudienceRecommendation = campaignStudioAudiencePool.length === 0
     ? "Sync or add contacts before using this play."
     : campaignStudioRecipientPreview.length === 0 && campaignStudioBestChannelReach.count > 0
@@ -17502,6 +17615,25 @@ export default function MarketingAdminPage() {
         text: item.text,
       })),
       text: campaignStudioProductionLoadText,
+    },
+    templateProduction: {
+      state: campaignStudioTemplateProductionState,
+      text: campaignStudioTemplateProductionText,
+      items: campaignStudioTemplateProductionItems.map((item) => ({
+        channel: item.channel,
+        channelLabel: channelLabel[item.channel],
+        title: item.title,
+        contentType: item.contentType,
+        audienceSegment: item.audienceSegment,
+        starterTemplateCount: item.starterTemplateCount,
+        savedAssetCount: item.savedAssetCount,
+        personalizationTokens: item.personalizationTokens,
+        subjectPrompt: item.subjectPrompt,
+        copyPrompt: item.copyPrompt,
+        designPrompt: item.designPrompt,
+        state: item.state,
+        text: item.text,
+      })),
     },
     followUpPlays: campaignStudioFollowUpPlays.map((item) => ({
       key: item.key,
@@ -30050,6 +30182,54 @@ export default function MarketingAdminPage() {
                               <p><span className="font-black text-[#241133]">Effort:</span> {item.estimateMinutes} min</p>
                               <p><span className="font-black text-[#241133]">Needs:</span> {item.requirement}</p>
                               <p><span className="font-black text-[#241133]">Blocker:</span> {item.blocker || "None"}</p>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4" data-testid="marketing-campaign-studio-template-production">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Template production kit</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Turn the plan into attractive channel templates</h3>
+                          <p className="mt-1 text-xs font-bold text-[#536b5e]">
+                            Uses the campaign brief, selected routes, audience segments, and template coverage to create copy/design prompts for every channel.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className={readinessPillClass(campaignStudioTemplateProductionState)}>{readinessLabel(campaignStudioTemplateProductionState)}</Pill>
+                          <Pill className="bg-white text-emerald-900">
+                            {campaignStudioTemplateProductionItems.length} route{campaignStudioTemplateProductionItems.length === 1 ? "" : "s"}
+                          </Pill>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign template production kit", campaignStudioTemplateProductionText)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-black text-emerald-900 hover:bg-emerald-50"
+                            data-testid="button-marketing-campaign-studio-copy-template-production"
+                          >
+                            <Copy size={14} /> Copy kit
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-template-production-items">
+                        {campaignStudioTemplateProductionItems.map((item) => (
+                          <article
+                            key={item.channel}
+                            className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`}
+                            data-testid={`marketing-campaign-studio-template-production-${item.channel}`}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <h4 className="mt-3 text-sm font-black text-[#241133]">{item.contentType}</h4>
+                            <p className="mt-1 text-xs font-black text-emerald-800">{item.audienceSegment}</p>
+                            <div className="mt-3 grid gap-2 rounded-lg bg-emerald-50/70 p-2 text-xs font-bold text-[#405d4c]">
+                              <p><span className="font-black text-[#241133]">Coverage:</span> {item.starterTemplateCount} starter / {item.savedAssetCount} saved</p>
+                              <p><span className="font-black text-[#241133]">Tokens:</span> {item.personalizationTokens.length ? item.personalizationTokens.join(", ") : "None"}</p>
+                              <p className="line-clamp-2"><span className="font-black text-[#241133]">Hook:</span> {item.subjectPrompt}</p>
+                              <p className="line-clamp-3"><span className="font-black text-[#241133]">Design:</span> {item.designPrompt}</p>
                             </div>
                           </article>
                         ))}

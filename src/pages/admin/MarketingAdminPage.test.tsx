@@ -5661,6 +5661,18 @@ describe("MarketingAdminPage", () => {
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn production task"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign production workload copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-template-production")).toHaveTextContent("Template production kit");
+    expect(screen.getByTestId("marketing-campaign-studio-template-production")).toHaveTextContent("Turn the plan into attractive channel templates");
+    expect(screen.getByTestId("marketing-campaign-studio-template-production-linkedin")).toHaveTextContent("LinkedIn post");
+    expect(screen.getByTestId("marketing-campaign-studio-template-production-linkedin")).toHaveTextContent("Market: Spain");
+    expect(screen.getByTestId("marketing-campaign-studio-template-production-linkedin")).toHaveTextContent("Coverage:");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-template-production"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign template production kit"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn template production brief"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI instruction: produce attractive, channel-native templates"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign template production kit copied.");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality")).toHaveTextContent("Copy checks before create");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-subject")).toHaveTextContent("Opening hook");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-cta")).toHaveTextContent("Ready");
@@ -6511,6 +6523,24 @@ describe("MarketingAdminPage", () => {
                 owner: "Partner owner",
                 estimateMinutes: 25,
                 text: expect.stringContaining("Email production task"),
+              }),
+            ]),
+          }),
+          templateProduction: expect.objectContaining({
+            state: "ready",
+            text: expect.stringContaining("VYVA campaign template production kit"),
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                channel: "linkedin",
+                contentType: "LinkedIn post",
+                audienceSegment: "Market: Spain",
+                text: expect.stringContaining("LinkedIn template production brief"),
+              }),
+              expect.objectContaining({
+                channel: "email",
+                contentType: "Email template",
+                personalizationTokens: expect.arrayContaining(["{{first_name}}", "{{company_name}}"]),
+                text: expect.stringContaining("Email template production brief"),
               }),
             ]),
           }),
