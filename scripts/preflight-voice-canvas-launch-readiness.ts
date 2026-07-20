@@ -164,6 +164,7 @@ interface LaunchRunPlanValidation {
   readyForLaunchEvidence: boolean;
   runDate: string;
   baseUrl: string;
+  requestHeaderCount: number;
   commandCount: number;
   flowCount: number;
   problemCount: number;
@@ -601,13 +602,56 @@ function artifactPathsForRunDate(runDate: string): Record<string, string> {
   };
 }
 
-function launchEvidenceCommandsForRun(runDate: string, baseUrl: string): string[] {
+function validateRequestHeaderEnvRefs(values: unknown): string[] {
+  if (values === undefined) return [];
+  if (!Array.isArray(values)) {
+    return ["Launch evidence run plan requestHeaderEnv must be an array when provided."];
+  }
+
+  const problems: string[] = [];
+  for (const value of values) {
+    if (typeof value !== "string") {
+      problems.push("Launch evidence run plan requestHeaderEnv entries must be strings.");
+      continue;
+    }
+    const separatorIndex = value.indexOf(":");
+    if (separatorIndex <= 0 || separatorIndex === value.length - 1) {
+      problems.push(
+        "Launch evidence run plan requestHeaderEnv entries must use Header-Name:ENV_NAME without secret values.",
+      );
+      continue;
+    }
+    const headerName = value.slice(0, separatorIndex).trim();
+    const envName = value.slice(separatorIndex + 1).trim();
+    if (!/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/.test(headerName)) {
+      problems.push("Launch evidence run plan requestHeaderEnv includes an invalid HTTP header name.");
+    }
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(envName)) {
+      problems.push("Launch evidence run plan requestHeaderEnv includes an invalid environment variable name.");
+    }
+  }
+  return problems;
+}
+
+function requestHeaderEnvRefsFromArtifact(artifact: unknown): string[] {
+  if (!isRecord(artifact) || !Array.isArray(artifact.requestHeaderEnv)) return [];
+  return artifact.requestHeaderEnv.filter((entry): entry is string => typeof entry === "string");
+}
+
+function launchEvidenceCommandsForRun(
+  runDate: string,
+  baseUrl: string,
+  requestHeaderEnvRefs: string[] = [],
+): string[] {
   const paths = artifactPathsForRunDate(runDate);
+  const requestHeaderArgs = requestHeaderEnvRefs
+    .map((ref) => ` --request-header-env=${ref}`)
+    .join("");
 
   return [
-    `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=${baseUrl} --json --output=${paths.launchRunPlan}`,
-    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=enabled --json --output=${paths.enabledEndpoints}`,
-    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=rollback-disabled --json --output=${paths.rollbackEndpoints}`,
+    `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=${baseUrl}${requestHeaderArgs} --json --output=${paths.launchRunPlan}`,
+    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=enabled --json --output=${paths.enabledEndpoints}${requestHeaderArgs}`,
+    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=rollback-disabled --json --output=${paths.rollbackEndpoints}${requestHeaderArgs}`,
     "npm run --silent canvas:qa:features -- --trace-template",
     "npm run --silent canvas:qa:analytics -- --template",
     `npm run --silent canvas:qa:analytics -- --input=${paths.analyticsEvidence} --json --output=${paths.analyticsValidation}`,
@@ -630,6 +674,7 @@ function validateLaunchRunPlanArtifact(
       readyForLaunchEvidence: false,
       runDate: "unknown",
       baseUrl: "unknown",
+      requestHeaderCount: 0,
       commandCount: 0,
       flowCount: 0,
       problemCount: 0,
@@ -664,9 +709,11 @@ function validateLaunchRunPlanArtifact(
   const flowCoverage = isRecord(artifact) && Array.isArray(artifact.flowCoverage)
     ? artifact.flowCoverage.filter(isRecord)
     : [];
+  const requestHeaderEnvRefs = requestHeaderEnvRefsFromArtifact(artifact);
   const artifactPaths = isRecord(artifact) && isRecord(artifact.artifactPaths)
     ? artifact.artifactPaths
     : {};
+  problems.push(...validateRequestHeaderEnvRefs(isRecord(artifact) ? artifact.requestHeaderEnv : undefined));
 
   if (!isRecord(artifact)) {
     problems.push("Launch evidence run plan artifact must be a JSON object.");
@@ -707,6 +754,7 @@ function validateLaunchRunPlanArtifact(
     const expectedCommands = launchEvidenceCommandsForRun(
       runDate,
       deployedOrigin.origin,
+      requestHeaderEnvRefs,
     );
     if (
       commands.length !== expectedCommands.length ||
@@ -736,6 +784,7 @@ function validateLaunchRunPlanArtifact(
     readyForLaunchEvidence: problems.length === 0,
     runDate,
     baseUrl,
+    requestHeaderCount: requestHeaderEnvRefs.length,
     commandCount: commands.length,
     flowCount: flowCoverage.length,
     problemCount: problems.length,
@@ -1072,6 +1121,7 @@ const summary = {
     readyForLaunchEvidence: runPlan.readyForLaunchEvidence,
     runDate: runPlan.runDate,
     baseUrl: runPlan.baseUrl,
+    requestHeaderCount: runPlan.requestHeaderCount,
     commandCount: runPlan.commandCount,
     flowCount: runPlan.flowCount,
     problemCount: runPlan.problemCount,
@@ -1167,7 +1217,7 @@ console.log(
   `Evidence packet: ${summary.evidencePacket.state}; incomplete ${summary.evidencePacket.incompleteCellCount}; problems ${summary.evidencePacket.problemCount}`,
 );
 console.log(
-  `Launch run plan: ${summary.launchRunPlan.provided ? (summary.launchRunPlan.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; date ${summary.launchRunPlan.runDate}; commands ${summary.launchRunPlan.commandCount}; problems ${summary.launchRunPlan.problemCount}`,
+  `Launch run plan: ${summary.launchRunPlan.provided ? (summary.launchRunPlan.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; date ${summary.launchRunPlan.runDate}; request headers ${summary.launchRunPlan.requestHeaderCount}; commands ${summary.launchRunPlan.commandCount}; problems ${summary.launchRunPlan.problemCount}`,
 );
 console.log(
   `Analytics evidence: ${summary.analyticsEvidence.provided ? (summary.analyticsEvidence.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; samples ${summary.analyticsEvidence.sampleCount}; problems ${summary.analyticsEvidence.problemCount}`,

@@ -46,6 +46,7 @@ describe("Voice Canvas launch evidence run helper command", () => {
     expect(result.stdout).toContain("Use one run date");
     expect(result.stdout).toContain("performs no network calls");
     expect(result.stdout).toContain("Do not paste addresses");
+    expect(result.stdout).toContain("--request-header-env=Header-Name:ENV_NAME");
   });
 
   it("prints human-readable same-date commands for the full launch evidence run", () => {
@@ -93,6 +94,8 @@ describe("Voice Canvas launch evidence run helper command", () => {
       artifactPaths: Record<string, string>;
       commands: string[];
       flowCoverage: Array<{ id: string; label: string; fallback: string }>;
+      requestHeaderEnv: string[];
+      authenticatedRequest: boolean;
       privacyBoundary: string[];
       sameRunDateRequired: boolean;
     };
@@ -101,6 +104,8 @@ describe("Voice Canvas launch evidence run helper command", () => {
     expect(summary.runDate).toBe(runDate);
     expect(summary.baseUrl).toBe("https://staging.vyva.app");
     expect(summary.sameRunDateRequired).toBe(true);
+    expect(summary.requestHeaderEnv).toEqual([]);
+    expect(summary.authenticatedRequest).toBe(false);
     expect(Object.values(summary.artifactPaths).every((value) => value.includes(runDate))).toBe(
       true,
     );
@@ -124,6 +129,57 @@ describe("Voice Canvas launch evidence run helper command", () => {
     ]);
     expect(summary.privacyBoundary.join(" ")).toContain("No addresses");
     expect(summary.privacyBoundary.join(" ")).toContain("aggregate counts");
+  });
+
+  it("emits authenticated QA gateway header references without credential values", () => {
+    const runDate = dateDaysAgo(0);
+    const secret = "qa-preview-secret-value";
+    const result = runLaunchEvidencePlan([
+      `--date=${runDate}`,
+      "--base-url=https://v2.vyva.life",
+      "--request-header-env=x-qa-preview-bypass:VYVA_QA_PREVIEW_BYPASS",
+      "--json",
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+
+    const summary = JSON.parse(result.stdout) as {
+      baseUrl: string;
+      requestHeaderEnv: string[];
+      authenticatedRequest: boolean;
+      commands: string[];
+    };
+
+    expect(summary.baseUrl).toBe("https://v2.vyva.life");
+    expect(summary.requestHeaderEnv).toEqual([
+      "x-qa-preview-bypass:VYVA_QA_PREVIEW_BYPASS",
+    ]);
+    expect(summary.authenticatedRequest).toBe(true);
+    expect(summary.commands[0]).toContain(
+      "--request-header-env=x-qa-preview-bypass:VYVA_QA_PREVIEW_BYPASS",
+    );
+    expect(summary.commands[1]).toContain(
+      "--request-header-env=x-qa-preview-bypass:VYVA_QA_PREVIEW_BYPASS",
+    );
+    expect(summary.commands[2]).toContain(
+      "--request-header-env=x-qa-preview-bypass:VYVA_QA_PREVIEW_BYPASS",
+    );
+    expect(result.stdout).not.toContain(secret);
+  });
+
+  it("rejects malformed authenticated QA gateway header references", () => {
+    const result = runLaunchEvidencePlan([
+      `--date=${dateDaysAgo(0)}`,
+      "--base-url=https://v2.vyva.life",
+      "--request-header-env=x-qa-preview-bypass",
+      "--json",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(JSON.parse(result.stdout).problems).toContain(
+      "Expected --request-header-env to use Header-Name:ENV_NAME without including the secret value.",
+    );
   });
 
   it("rejects future, stale, and local launch evidence run plans by default", () => {

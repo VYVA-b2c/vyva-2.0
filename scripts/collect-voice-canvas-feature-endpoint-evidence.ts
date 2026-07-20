@@ -33,6 +33,8 @@ interface EndpointEvidenceSummary {
   baseUrl: string;
   scope: string;
   expectedState: ExpectedEndpointState | null;
+  authenticatedRequest: boolean;
+  requestHeaderCount: number;
   endpointCount: number;
   readyForQaEvidence: boolean;
   featureEndpoints: EndpointEvidence[];
@@ -48,6 +50,13 @@ type ExpectedEndpointState = (typeof expectedEndpointStates)[number];
 function readArgValue(name: string): string | undefined {
   const prefix = `${name}=`;
   return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length).trim();
+}
+
+function readArgValues(name: string): string[] {
+  const prefix = `${name}=`;
+  return args
+    .filter((arg) => arg.startsWith(prefix))
+    .map((arg) => arg.slice(prefix.length).trim());
 }
 
 if (args.includes("--help") || args.includes("-h")) {
@@ -72,6 +81,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --json to emit machine-readable endpoint evidence for QA artifacts.",
       "Use --output=<path> with --json to also save the evidence to a file.",
       "Failed endpoint evidence is printed but not saved unless --save-failed is passed for diagnostic artifacts.",
+      "Use --request-header-env=Header-Name:ENV_NAME for authenticated QA or preview gateways; header values are never printed or saved.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
     ].join("\n"),
   );
@@ -86,6 +96,7 @@ const saveFailedOutput = args.includes("--save-failed");
 const traceTemplateOutput = args.includes("--trace-template");
 const outputPathArg = readArgValue("--output");
 const expectedStateArg = readArgValue("--expected-state");
+const requestHeaderEnvArgs = readArgValues("--request-header-env");
 
 function featureEndpointTraceTemplate(): string {
   const lines = [
@@ -181,6 +192,41 @@ function parseBaseUrl(value: string): URL {
   return new URL(parsed.origin);
 }
 
+function parseRequestHeaders(values: string[]): HeadersInit {
+  const headers: Record<string, string> = {};
+
+  for (const value of values) {
+    const separatorIndex = value.indexOf(":");
+    if (separatorIndex <= 0 || separatorIndex === value.length - 1) {
+      console.error(
+        "Expected --request-header-env to use Header-Name:ENV_NAME without including the secret value.",
+      );
+      process.exit(1);
+    }
+
+    const headerName = value.slice(0, separatorIndex).trim();
+    const envName = value.slice(separatorIndex + 1).trim();
+    if (!/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/.test(headerName)) {
+      console.error("Expected --request-header-env to include a valid HTTP header name.");
+      process.exit(1);
+    }
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(envName)) {
+      console.error("Expected --request-header-env to reference a valid environment variable name.");
+      process.exit(1);
+    }
+
+    const headerValue = process.env[envName];
+    if (!headerValue) {
+      console.error(`Missing environment variable for request header: ${envName}.`);
+      process.exit(1);
+    }
+
+    headers[headerName] = headerValue;
+  }
+
+  return headers;
+}
+
 function isLocalOrPlaceholderHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
 
@@ -224,6 +270,7 @@ function payloadRecord(value: unknown): Record<string, unknown> | null {
 async function fetchTextWithTimeout(
   url: URL,
   timeoutMs: number,
+  headers: HeadersInit,
 ): Promise<{
   status: number;
   ok: boolean;
@@ -235,6 +282,7 @@ async function fetchTextWithTimeout(
   try {
     const response = await fetch(url, {
       method: "GET",
+      headers,
       signal: controller.signal,
     });
     return {
@@ -252,6 +300,7 @@ async function collectEndpointEvidence(
   baseUrl: URL,
   flow: FeatureFlaggedCanvasFlow,
   expectedState: ExpectedEndpointState | null,
+  headers: HeadersInit,
 ): Promise<EndpointEvidence> {
   const featureFlag = flow.featureFlag;
   const url = new URL(featureFlag.endpoint, baseUrl);
@@ -259,7 +308,7 @@ async function collectEndpointEvidence(
   const problems: string[] = [];
 
   try {
-    const response = await fetchTextWithTimeout(url, 10_000);
+    const response = await fetchTextWithTimeout(url, 10_000, headers);
     let parsed: unknown = null;
 
     try {
@@ -370,7 +419,11 @@ async function collectEndpointEvidence(
   }
 }
 
-function buildSummary(baseUrl: URL, featureEndpoints: EndpointEvidence[]): EndpointEvidenceSummary {
+function buildSummary(
+  baseUrl: URL,
+  featureEndpoints: EndpointEvidence[],
+  requestHeaderCount: number,
+): EndpointEvidenceSummary {
   const problems = featureEndpoints.flatMap((endpoint) =>
     endpoint.problems.map((problem) => `${endpoint.label}: ${problem}`),
   );
@@ -380,6 +433,8 @@ function buildSummary(baseUrl: URL, featureEndpoints: EndpointEvidence[]): Endpo
     baseUrl: baseUrl.origin,
     scope: "VYVA Canvas Launch Readiness + Real-Use QA v1",
     expectedState,
+    authenticatedRequest: requestHeaderCount > 0,
+    requestHeaderCount,
     endpointCount: featureEndpoints.length,
     readyForQaEvidence: problems.length === 0,
     featureEndpoints,
@@ -424,6 +479,7 @@ function printTextSummary(summary: EndpointEvidenceSummary) {
 
 const expectedState = parseExpectedState(expectedStateArg);
 const baseUrl = parseBaseUrl(baseUrlArg);
+const requestHeaders = parseRequestHeaders(requestHeaderEnvArgs);
 if (outputPathArg) {
   const outputPath = path.resolve(process.cwd(), outputPathArg);
   if (existsSync(outputPath) && !forceOutput) {
@@ -436,10 +492,10 @@ if (outputPathArg) {
 
 const evidence = await Promise.all(
   featureFlaggedFlows().map((flow) =>
-    collectEndpointEvidence(baseUrl, flow, expectedState),
+    collectEndpointEvidence(baseUrl, flow, expectedState, requestHeaders),
   ),
 );
-const summary = buildSummary(baseUrl, evidence);
+const summary = buildSummary(baseUrl, evidence, requestHeaderEnvArgs.length);
 const exitCode = summary.readyForQaEvidence ? 0 : 1;
 
 if (jsonOutput) {

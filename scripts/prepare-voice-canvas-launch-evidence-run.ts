@@ -11,6 +11,9 @@ const baseUrlArg =
   args.find((arg) => arg.startsWith("--base-url="))?.slice("--base-url=".length) ??
   "https://staging.vyva.app";
 const outputArg = args.find((arg) => arg.startsWith("--output="))?.slice("--output=".length);
+const requestHeaderEnvArgs = args
+  .filter((arg) => arg.startsWith("--request-header-env="))
+  .map((arg) => arg.slice("--request-header-env=".length).trim());
 
 const oneDayMs = 24 * 60 * 60 * 1000;
 const maxLaunchEvidenceAgeMs = 7 * oneDayMs;
@@ -29,6 +32,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use one run date for endpoint, analytics, rollback-owner, run-sheet, QA-matrix, packet, and final preflight artifacts.",
       "Do not paste addresses, saved-place labels, transcripts, typed text, medication details, provider details, shopping details, account identifiers, raw endpoint bodies, or personal data into any artifact.",
       "Launch evidence should use a deployed HTTPS staging or production-like origin; local origins require --allow-local for developer smoke planning only.",
+      "Use --request-header-env=Header-Name:ENV_NAME for authenticated QA or preview gateways; only the env var name is saved, never the header value.",
     ].join("\n"),
   );
   process.exit(0);
@@ -95,6 +99,29 @@ function validateBaseUrl(value: string): string[] {
   return problems;
 }
 
+function validateRequestHeaderEnvRefs(values: string[]): string[] {
+  const problems: string[] = [];
+  for (const value of values) {
+    const separatorIndex = value.indexOf(":");
+    if (separatorIndex <= 0 || separatorIndex === value.length - 1) {
+      problems.push(
+        "Expected --request-header-env to use Header-Name:ENV_NAME without including the secret value.",
+      );
+      continue;
+    }
+
+    const headerName = value.slice(0, separatorIndex).trim();
+    const envName = value.slice(separatorIndex + 1).trim();
+    if (!/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/.test(headerName)) {
+      problems.push("Expected --request-header-env to include a valid HTTP header name.");
+    }
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(envName)) {
+      problems.push("Expected --request-header-env to reference a valid environment variable name.");
+    }
+  }
+  return problems;
+}
+
 function artifactPaths(runDate: string) {
   const prefix = `artifacts/voice-canvas/${runDate}`;
   return {
@@ -112,12 +139,15 @@ function artifactPaths(runDate: string) {
   };
 }
 
-function launchCommands(runDate: string, baseUrl: string) {
+function launchCommands(runDate: string, baseUrl: string, requestHeaderEnvRefs: string[]) {
   const paths = artifactPaths(runDate);
+  const requestHeaderArgs = requestHeaderEnvRefs
+    .map((ref) => ` --request-header-env=${ref}`)
+    .join("");
   return [
-    `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=${baseUrl} --json --output=${paths.launchRunPlan}`,
-    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=enabled --json --output=${paths.enabledEndpoints}`,
-    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=rollback-disabled --json --output=${paths.rollbackEndpoints}`,
+    `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=${baseUrl}${requestHeaderArgs} --json --output=${paths.launchRunPlan}`,
+    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=enabled --json --output=${paths.enabledEndpoints}${requestHeaderArgs}`,
+    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=rollback-disabled --json --output=${paths.rollbackEndpoints}${requestHeaderArgs}`,
     "npm run --silent canvas:qa:features -- --trace-template",
     "npm run --silent canvas:qa:analytics -- --template",
     `npm run --silent canvas:qa:analytics -- --input=${paths.analyticsEvidence} --json --output=${paths.analyticsValidation}`,
@@ -131,7 +161,11 @@ function launchCommands(runDate: string, baseUrl: string) {
 }
 
 const runDate = dateArg ?? todayRunDate();
-const problems = [...validateRunDate(runDate), ...validateBaseUrl(baseUrlArg)];
+const problems = [
+  ...validateRunDate(runDate),
+  ...validateBaseUrl(baseUrlArg),
+  ...validateRequestHeaderEnvRefs(requestHeaderEnvArgs),
+];
 
 if (outputArg && !jsonOutput) {
   problems.push("Use --output only with --json so saved run plans stay machine-readable.");
@@ -163,7 +197,7 @@ if (problems.length > 0) {
 }
 
 const paths = artifactPaths(runDate);
-const commands = launchCommands(runDate, baseUrlArg);
+const commands = launchCommands(runDate, baseUrlArg, requestHeaderEnvArgs);
 const flowCoverage = canvasLaunchReadinessFlows.map((flow) => ({
   id: flow.id,
   label: flow.label,
@@ -187,6 +221,8 @@ const summary = {
   baseUrl: baseUrlArg,
   artifactDirectory: `artifacts/voice-canvas`,
   artifactPaths: paths,
+  requestHeaderEnv: requestHeaderEnvArgs,
+  authenticatedRequest: requestHeaderEnvArgs.length > 0,
   commands,
   flowCoverage,
   checklist,
@@ -217,6 +253,7 @@ if (jsonOutput) {
 console.log("Voice Canvas launch evidence run plan");
 console.log(`Run date: ${summary.runDate}`);
 console.log(`Base URL: ${summary.baseUrl}`);
+console.log(`Authenticated request headers: ${summary.requestHeaderEnv.length}`);
 console.log(`Artifact directory: ${summary.artifactDirectory}`);
 console.log("Copy-ready commands:");
 for (const command of summary.commands) {

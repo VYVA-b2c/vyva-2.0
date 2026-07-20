@@ -38,13 +38,20 @@ interface MockEndpointResponse {
   status?: number;
   body: unknown;
   cacheControl?: string;
+  requiredHeader?: {
+    name: string;
+    value: string;
+  };
 }
 
-function runCollector(args: string[] = []): Promise<CommandResult> {
+function runCollector(
+  args: string[] = [],
+  env: NodeJS.ProcessEnv = {},
+): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [tsxCliPath, collectorScriptPath, ...args], {
       cwd: process.cwd(),
-      env: process.env,
+      env: { ...process.env, ...env },
     });
     let stdout = "";
     let stderr = "";
@@ -103,6 +110,18 @@ async function startFeatureServer(responses: Map<string, MockEndpointResponse>) 
       return;
     }
 
+    if (
+      mocked.requiredHeader &&
+      request.headers[mocked.requiredHeader.name.toLowerCase()] !==
+        mocked.requiredHeader.value
+    ) {
+      response.statusCode = 401;
+      response.setHeader("content-type", "application/json");
+      response.setHeader("cache-control", "no-store");
+      response.end(JSON.stringify({ error: "not authenticated" }));
+      return;
+    }
+
     response.statusCode = mocked.status ?? 200;
     response.setHeader("content-type", "application/json");
     response.setHeader("cache-control", mocked.cacheControl ?? "no-store");
@@ -144,6 +163,7 @@ describe("Voice Canvas feature endpoint evidence command", () => {
     expect(result.stdout).toContain("GET requests only");
     expect(result.stdout).toContain("Launch evidence must use HTTPS");
     expect(result.stdout).toContain("Failed endpoint evidence is printed but not saved");
+    expect(result.stdout).toContain("--request-header-env=Header-Name:ENV_NAME");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -204,6 +224,30 @@ describe("Voice Canvas feature endpoint evidence command", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Expected --base-url=<deployed app URL>.");
+  });
+
+  it("rejects request header env args that would expose or omit credentials", async () => {
+    const invalidShape = await runCollector([
+      "--base-url=https://staging.vyva.app",
+      "--json",
+      "--request-header-env=Authorization",
+    ]);
+
+    expect(invalidShape.status).toBe(1);
+    expect(invalidShape.stderr).toContain(
+      "Expected --request-header-env to use Header-Name:ENV_NAME",
+    );
+
+    const missingEnv = await runCollector([
+      "--base-url=https://staging.vyva.app",
+      "--json",
+      "--request-header-env=Authorization:VYVA_MISSING_QA_TOKEN",
+    ]);
+
+    expect(missingEnv.status).toBe(1);
+    expect(missingEnv.stderr).toContain(
+      "Missing environment variable for request header: VYVA_MISSING_QA_TOKEN.",
+    );
   });
 
   it("rejects local hosts unless local smoke mode is explicit", async () => {
@@ -311,6 +355,51 @@ describe("Voice Canvas feature endpoint evidence command", () => {
       for (const endpoint of summary.featureEndpoints) {
         expect(endpoint).toMatchObject({ enabled: true, rolloutPercent: 100 });
       }
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("can collect launch evidence through an authenticated QA gateway without saving credential values", async () => {
+    const secret = "qa-preview-secret-value";
+    const responses = endpointResponsesForState("enabled");
+    for (const response of responses.values()) {
+      response.requiredHeader = {
+        name: "x-qa-preview-bypass",
+        value: secret,
+      };
+    }
+    const server = await startFeatureServer(responses);
+
+    try {
+      const result = await runCollector(
+        [
+          `--base-url=${server.baseUrl}`,
+          "--allow-local",
+          "--expected-state=enabled",
+          "--json",
+          "--request-header-env=x-qa-preview-bypass:VYVA_QA_PREVIEW_BYPASS",
+        ],
+        {
+          VYVA_QA_PREVIEW_BYPASS: secret,
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+
+      const summary = JSON.parse(result.stdout) as {
+        authenticatedRequest: boolean;
+        requestHeaderCount: number;
+        readyForQaEvidence: boolean;
+      };
+      expect(summary.authenticatedRequest).toBe(true);
+      expect(summary.requestHeaderCount).toBe(1);
+      expect(summary.readyForQaEvidence).toBe(true);
+
+      const serialized = JSON.stringify(summary);
+      expect(serialized).not.toContain(secret);
+      expect(result.stdout).not.toContain(secret);
     } finally {
       await server.close();
     }

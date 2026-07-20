@@ -64,13 +64,20 @@ function artifactPathsForRunDate(runDate: string) {
   };
 }
 
-function launchEvidenceCommandsForRun(runDate: string, baseUrl: string): string[] {
+function launchEvidenceCommandsForRun(
+  runDate: string,
+  baseUrl: string,
+  requestHeaderEnvRefs: string[] = [],
+): string[] {
   const paths = artifactPathsForRunDate(runDate);
+  const requestHeaderArgs = requestHeaderEnvRefs
+    .map((ref) => ` --request-header-env=${ref}`)
+    .join("");
 
   return [
-    `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=${baseUrl} --json --output=${paths.launchRunPlan}`,
-    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=enabled --json --output=${paths.enabledEndpoints}`,
-    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=rollback-disabled --json --output=${paths.rollbackEndpoints}`,
+    `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=${baseUrl}${requestHeaderArgs} --json --output=${paths.launchRunPlan}`,
+    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=enabled --json --output=${paths.enabledEndpoints}${requestHeaderArgs}`,
+    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=rollback-disabled --json --output=${paths.rollbackEndpoints}${requestHeaderArgs}`,
     "npm run --silent canvas:qa:features -- --trace-template",
     "npm run --silent canvas:qa:analytics -- --template",
     `npm run --silent canvas:qa:analytics -- --input=${paths.analyticsEvidence} --json --output=${paths.analyticsValidation}`,
@@ -83,14 +90,20 @@ function launchEvidenceCommandsForRun(runDate: string, baseUrl: string): string[
   ];
 }
 
-function validLaunchRunPlan(runDate: string, baseUrl = "https://staging.vyva.app") {
+function validLaunchRunPlan(
+  runDate: string,
+  baseUrl = "https://staging.vyva.app",
+  requestHeaderEnvRefs: string[] = [],
+) {
   return {
     readyForEvidenceRun: true,
     runDate,
     baseUrl,
     artifactDirectory: "artifacts/voice-canvas",
     artifactPaths: artifactPathsForRunDate(runDate),
-    commands: launchEvidenceCommandsForRun(runDate, baseUrl),
+    requestHeaderEnv: requestHeaderEnvRefs,
+    authenticatedRequest: requestHeaderEnvRefs.length > 0,
+    commands: launchEvidenceCommandsForRun(runDate, baseUrl, requestHeaderEnvRefs),
     flowCoverage: canvasLaunchReadinessFlows.map((flow) => ({
       id: flow.id,
       label: flow.label,
@@ -392,7 +405,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Evidence packet: pending; incomplete 13; problems 0",
     );
     expect(result.stdout).toContain(
-      "Launch run plan: not provided; date unknown; commands 0; problems 0",
+      "Launch run plan: not provided; date unknown; request headers 0; commands 0; problems 0",
     );
     expect(result.stdout).toContain(
       "Analytics evidence: not provided; samples 0; problems 0",
@@ -681,6 +694,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       readyForLaunchEvidence: false,
       runDate: "unknown",
       baseUrl: "unknown",
+      requestHeaderCount: 0,
       commandCount: 0,
       flowCount: 0,
       problemCount: 0,
@@ -807,6 +821,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
             readyForLaunchEvidence: boolean;
             runDate: string;
             baseUrl: string;
+            requestHeaderCount: number;
             commandCount: number;
             flowCount: number;
             problemCount: number;
@@ -820,11 +835,50 @@ describe("Voice Canvas launch readiness preflight command", () => {
           readyForLaunchEvidence: true,
           runDate,
           baseUrl: "https://staging.vyva.app",
+          requestHeaderCount: 0,
           commandCount: 12,
           flowCount: canvasLaunchReadinessFlows.length,
           problemCount: 0,
           problems: [],
         });
+      },
+    );
+  });
+
+  it("accepts sanitized authenticated launch evidence run plans without secret values", () => {
+    const runDate = freshReviewDate();
+    const secret = "qa-preview-secret-value";
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      validLaunchRunPlan(runDate, "https://v2.vyva.life", [
+        "x-qa-preview-bypass:VYVA_QA_PREVIEW_BYPASS",
+      ]),
+      (inputPath) => {
+        const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          launchRunPlan: {
+            readyForLaunchEvidence: boolean;
+            baseUrl: string;
+            requestHeaderCount: number;
+            problemCount: number;
+            problems: string[];
+          };
+        };
+
+        expect(summary.launchRunPlan).toMatchObject({
+          readyForLaunchEvidence: true,
+          baseUrl: "https://v2.vyva.life",
+          requestHeaderCount: 1,
+          problemCount: 0,
+          problems: [],
+        });
+        expect(result.stdout).toContain("requestHeaderCount");
+        expect(result.stdout).not.toContain(secret);
       },
     );
   });
