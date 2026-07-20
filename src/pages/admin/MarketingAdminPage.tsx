@@ -731,6 +731,14 @@ type CampaignReadinessItem = {
   state: CampaignReadinessState;
 };
 
+type ContactRelationshipActionKind = "edit_contact" | "build_campaign" | "use_template" | "copy_brief";
+
+type ContactRelationshipActionQueueItem = CampaignReadinessItem & {
+  actionLabel: string;
+  kind: ContactRelationshipActionKind;
+  templateId?: string;
+};
+
 type MarketingActionCenterItem = CampaignReadinessItem & {
   actionLabel: string;
   icon: LucideIcon;
@@ -13303,6 +13311,95 @@ export default function MarketingAdminPage() {
       : contactRelationshipBestTemplate
         ? `Use ${channelLabel[contactRelationshipBestTemplate.channel]} starter`
         : "Build campaign";
+  const contactRelationshipActionQueue = useMemo<ContactRelationshipActionQueueItem[]>(() => {
+    if (!selectedRelationshipContact) return [];
+    const queue: ContactRelationshipActionQueueItem[] = [];
+    if (!contactRelationshipDirectReachable) {
+      queue.push({
+        key: "route",
+        title: "Add a contact route",
+        detail: "Email or WhatsApp is needed before direct outreach or recipient snapshots.",
+        state: "blocked",
+        actionLabel: "Edit contact",
+        kind: "edit_contact",
+      });
+    }
+    if (selectedRelationshipContact.consentStatus !== "opted_in") {
+      queue.push({
+        key: "consent",
+        title: "Review consent",
+        detail: `Current status is ${selectedRelationshipContact.consentStatus}; confirm permission before automated outreach.`,
+        state: "needs_action",
+        actionLabel: "Review contact",
+        kind: "edit_contact",
+      });
+    }
+    if (!contactRelationshipSegmented) {
+      queue.push({
+        key: "segment",
+        title: "Add relationship signals",
+        detail: "Language, market, tags, vertical, or category make templates and targeting smarter.",
+        state: "needs_action",
+        actionLabel: "Edit details",
+        kind: "edit_contact",
+      });
+    }
+    if (contactRelationshipAudiences.length === 0) {
+      queue.push({
+        key: "list",
+        title: "Save as a reusable audience",
+        detail: "Create a contact list so future campaigns can target this relationship cleanly.",
+        state: "needs_action",
+        actionLabel: "Save list + build",
+        kind: "build_campaign",
+      });
+    }
+    if (contactRelationshipBestTemplate) {
+      queue.push({
+        key: "template",
+        title: `Use ${channelLabel[contactRelationshipBestTemplate.channel]} starter`,
+        detail: `${contactRelationshipBestTemplate.title} is the best current fit for this relationship.`,
+        state: contactRelationshipDirectReachable && selectedRelationshipContact.consentStatus === "opted_in" ? "ready" : "planning",
+        actionLabel: "Use starter",
+        kind: "use_template",
+        templateId: contactRelationshipBestTemplate.id,
+      });
+    }
+    if (contactRelationshipBrief) {
+      queue.push({
+        key: "brief",
+        title: "Copy AI relationship brief",
+        detail: "Use the brief to draft a precise message or hand it to another marketer.",
+        state: "planning",
+        actionLabel: "Copy brief",
+        kind: "copy_brief",
+      });
+    }
+    queue.push({
+      key: "campaign",
+      title: "Build focused campaign",
+      detail: contactRelationshipAudiences.length
+        ? "Open the campaign studio with this contact as the audience filter."
+        : "Save a reusable list first, then open the campaign studio.",
+      state: contactRelationshipDirectReachable ? "ready" : "blocked",
+      actionLabel: contactRelationshipAudiences.length ? "Build campaign" : "Save list + build",
+      kind: "build_campaign",
+    });
+    return queue
+      .sort((a, b) => {
+        const weight: Record<CampaignReadinessState, number> = { blocked: 0, needs_action: 1, planning: 2, ready: 3 };
+        if (weight[a.state] !== weight[b.state]) return weight[a.state] - weight[b.state];
+        return a.title.localeCompare(b.title);
+      })
+      .slice(0, 5);
+  }, [
+    contactRelationshipAudiences.length,
+    contactRelationshipBestTemplate,
+    contactRelationshipBrief,
+    contactRelationshipDirectReachable,
+    contactRelationshipSegmented,
+    selectedRelationshipContact,
+  ]);
   const contactRelationshipBriefText = useMemo(() => {
     if (!selectedRelationshipContact || !contactRelationshipBrief) return "";
     const contactName = selectedRelationshipContact.fullName || selectedRelationshipContact.email || selectedRelationshipContact.phoneNumber || "Unnamed contact";
@@ -38092,6 +38189,57 @@ export default function MarketingAdminPage() {
                                     </button>
                                   ) : null}
                                 </div>
+                              </div>
+                            </div>
+                            <div className="mt-4 grid gap-2 rounded-xl border border-violet-100 bg-white p-3" data-testid="marketing-contact-action-queue">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-700">Relationship action queue</p>
+                                  <p className="text-xs font-bold text-[#7d6b65]">Work these in order: fix blockers, then use the best starter or build a focused campaign.</p>
+                                </div>
+                                <Pill className="bg-violet-50 text-violet-800">{contactRelationshipActionQueue.length} next move{contactRelationshipActionQueue.length === 1 ? "" : "s"}</Pill>
+                              </div>
+                              <div className="grid gap-2 xl:grid-cols-2">
+                                {contactRelationshipActionQueue.map((item) => {
+                                  const template = item.templateId ? contentTemplateGallery.find((candidate) => candidate.id === item.templateId) ?? null : null;
+                                  return (
+                                    <article key={item.key} className={`rounded-lg border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-contact-action-queue-${item.key}`}>
+                                      <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <p className="font-black text-[#241133]">{item.title}</p>
+                                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                          </div>
+                                          <p className="mt-1 text-xs font-bold leading-relaxed text-[#5b4a46]">{item.detail}</p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (item.kind === "edit_contact") {
+                                              startContactEdit(selectedRelationshipContact);
+                                              return;
+                                            }
+                                            if (item.kind === "use_template" && template) {
+                                              startRelationshipCampaignFromTemplate(selectedRelationshipContact, template);
+                                              return;
+                                            }
+                                            if (item.kind === "copy_brief") {
+                                              void copyContactRelationshipBrief();
+                                              return;
+                                            }
+                                            void buildCampaignForRelationshipContact(selectedRelationshipContact);
+                                          }}
+                                          disabled={(item.kind === "build_campaign" && (audienceSaving || contactSaving)) || (item.kind === "copy_brief" && !contactRelationshipBriefText.trim())}
+                                          className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                          data-testid={`button-marketing-contact-action-queue-${item.key}`}
+                                        >
+                                          {item.kind === "copy_brief" ? <Copy size={13} /> : item.kind === "edit_contact" ? <Pencil size={13} /> : <Sparkles size={13} />}
+                                          {item.actionLabel}
+                                        </button>
+                                      </div>
+                                    </article>
+                                  );
+                                })}
                               </div>
                             </div>
                             <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="marketing-contact-relationship-channels">
