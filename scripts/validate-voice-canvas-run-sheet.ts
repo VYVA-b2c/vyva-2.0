@@ -320,11 +320,226 @@ function hasAllCoverageTerms(
   value: string,
   requirements: readonly (readonly string[])[],
 ): boolean {
-  const normalized = normalizeCell(value).toLowerCase();
+  const normalized = normalizeEvidenceText(value);
   return requirements.every((terms) =>
-    terms.some((term) => normalized.includes(term.toLowerCase())),
+    terms.some((term) => normalized.includes(normalizeEvidenceText(term))),
   );
 }
+
+function normalizeEvidenceText(value: string): string {
+  return normalizeCell(value).toLowerCase().replace(/[-/]+/g, " ");
+}
+
+function hasEvidenceTermGroup(
+  value: string,
+  terms: readonly string[],
+): boolean {
+  const normalized = normalizeEvidenceText(value);
+  return terms.some((term) => normalized.includes(normalizeEvidenceText(term)));
+}
+
+function hasEvidenceTermGroups(
+  value: string,
+  requirements: readonly (readonly string[])[],
+): boolean {
+  return requirements.every((terms) => hasEvidenceTermGroup(value, terms));
+}
+
+const behaviorCellRequirements: Partial<
+  Record<(typeof requiredBehaviorColumns)[number], readonly (readonly string[])[]>
+> = {
+  "Interaction mode": [["voice"], ["touch"], ["keyboard"]],
+  "Start/resume restored work": [
+    ["start", "resume", "start/resume"],
+    ["restored", "preserved"],
+    ["entered information", "current scene", "current work"],
+    ["no write", "without write"],
+    ["no resubmission", "without resubmission"],
+    ["no external action", "without external action"],
+  ],
+  "App exit/reopen restored draft": [
+    ["app exit", "reopen", "exit/reopen"],
+    ["restored"],
+    ["draft", "entered information"],
+    ["no write", "without write"],
+    ["no resubmission", "without resubmission"],
+    ["no external action", "without external action"],
+  ],
+  "Refresh/reconnect restored work": [
+    ["refresh"],
+    ["reconnect"],
+    ["restored", "preserved"],
+    ["entered information", "work"],
+    ["no write", "without write"],
+    ["no resubmission", "without resubmission"],
+    ["no external action", "without external action"],
+  ],
+  "Voice interruption recovered work": [
+    ["voice interruption", "interruption"],
+    ["recovered", "restored", "preserved"],
+    ["entered information", "work"],
+    ["no write", "without write"],
+    ["no resubmission", "without resubmission"],
+    ["no external action", "without external action"],
+  ],
+  "Browser back preserved or returned safely": [
+    ["browser back", "back"],
+    ["preserved", "returned safely", "safe"],
+    ["entered information", "work"],
+    ["no write", "without write"],
+    ["no external action", "without external action"],
+  ],
+  "Cancel/exit left safely": [
+    ["cancel"],
+    ["exit"],
+    ["left safely", "safe"],
+    ["no write", "without write"],
+    ["no external action", "without external action"],
+  ],
+  "Duplicate prevented and stale response ignored": [
+    ["duplicate"],
+    ["prevented", "blocked", "ignored", "rejected", "discarded"],
+    ["stale"],
+    ["ignored", "rejected", "discarded"],
+  ],
+  "Recoverable failure offered retry and exit": [
+    ["recoverable failure", "failure"],
+    ["retry"],
+    ["exit", "cancel"],
+    ["entered information", "preserved"],
+    ["no write", "without write", "no extra write"],
+    ["no resubmission", "without resubmission"],
+    ["no external action", "without external action"],
+  ],
+  "Evidence reference": [
+    ["artifact", "screenshot", "photo", "recording", "log", "trace"],
+    ["reviewed", "verified", "captured"],
+    ["start", "resume", "start/resume"],
+    ["app exit", "reopen", "exit/reopen"],
+    ["refresh"],
+    ["reconnect"],
+    ["interruption"],
+    ["browser back", "back"],
+    ["cancel"],
+    ["duplicate"],
+    ["stale"],
+    ["retry"],
+    ["no personal details", "no personal data"],
+  ],
+  "Reviewer/date": [["qa", "reviewer"], ["reviewed", "verified", "captured"]],
+};
+
+const confirmationCellRequirements: Record<string, readonly (readonly string[])[]> = {
+  "No external action before explicit confirmation": [
+    ["no external action", "without external action"],
+    ["no write", "without write"],
+    ["booking"],
+    ["call"],
+    ["message"],
+    ["navigation"],
+    ["explicit confirmation"],
+  ],
+  "Explicit confirmation accepted once": [
+    ["explicit confirmation"],
+    ["accepted once", "submitted once", "only once"],
+    ["duplicate", "double"],
+    ["prevented", "blocked", "ignored", "rejected", "discarded"],
+  ],
+  "Waiting state explains what is pending and what has not happened": [
+    ["waiting"],
+    ["pending", "in progress"],
+    ["what has not happened", "has not happened", "not happened"],
+    ["no external action", "without external action"],
+  ],
+  "Completed or blocked result explains what happens next": [
+    ["completed"],
+    ["blocked"],
+    ["what happens next"],
+    ["next"],
+  ],
+  "In-session flag rollback closes or hides Canvas": [
+    ["in-session", "in session"],
+    ["flag rollback", "feature flag rollback"],
+    ["canvas"],
+    ["closes", "closed", "hides", "hidden"],
+  ],
+  "Existing fallback path appears": [
+    ["existing", "previous", "safe"],
+    ["fallback"],
+    ["path", "panel", "experience"],
+    ["appears", "visible", "shown"],
+  ],
+  "No write or external action during rollback": [
+    ["rollback"],
+    ["no write", "without write"],
+    ["no external action", "without external action"],
+  ],
+  "Evidence reference": [
+    ["artifact", "screenshot", "photo", "recording", "log", "trace"],
+    ["reviewed", "verified", "captured"],
+    ["explicit confirmation"],
+    ["waiting"],
+    ["completed"],
+    ["blocked"],
+    ["rollback"],
+    ["fallback"],
+    ["no write", "without write"],
+    ["no external action", "without external action"],
+    ["no personal details", "no personal data"],
+  ],
+  "Reviewer/date": [["qa", "reviewer"], ["reviewed", "verified", "captured"]],
+};
+
+const copyAccessibilityAnalyticsCellRequirements: Record<
+  string,
+  readonly (readonly string[])[]
+> = {
+  "English copy uses one clear decision at a time": [
+    ["one clear decision"],
+    ["flow", "each flow"],
+    ["exit", "safe exit"],
+  ],
+  "Spanish long labels remain readable": [
+    ["spanish"],
+    ["long label", "long labels"],
+    ["readable", "legible"],
+    ["no overflow", "no horizontal overflow", "without overflow"],
+    ["clipping", "no clipping"],
+    ["truncation", "no truncation"],
+  ],
+  "Focus moves meaningfully": [
+    ["focus"],
+    ["scene heading", "primary control"],
+    ["moves", "moved"],
+  ],
+  "Screen-reader announcements fire": [
+    ["screen-reader", "screen reader"],
+    ["announcements", "announced"],
+    ["waiting"],
+    ["blocked"],
+    ["completed"],
+  ],
+  "Reduced-motion mode remains calm": [
+    ["reduced-motion", "reduced motion"],
+    ["calm", "usable"],
+    ["animation"],
+  ],
+  "Analytics launch signals are present": [
+    ["started"],
+    ["resumed"],
+    ["abandoned"],
+    ["blocked"],
+    ["confirmed"],
+    ["completed", "terminal pending"],
+    ["aggregate"],
+    ["positive"],
+  ],
+  "Analytics privacy is preserved": [
+    ["allowed envelope", "only name", "only `name`", "name step input attempt restored revision"],
+    ["forbidden data"],
+    ["absent", "not recorded", "not logged", "not captured", "not included"],
+  ],
+};
 
 function summarizePendingCellsBySection(
   tables: readonly MarkdownTable[],
@@ -397,6 +612,115 @@ function countStaleOrFutureEvidenceDateCells(tables: readonly MarkdownTable[]): 
   );
 }
 
+function tableColumnIndex(table: MarkdownTable, header: string): number {
+  return table.headers.findIndex((candidate) => normalizeCell(candidate) === header);
+}
+
+function invalidBehaviorEvidenceCells(table: MarkdownTable | undefined): string[] {
+  if (!table) return [];
+  const problems: string[] = [];
+
+  for (const [column, requirements] of Object.entries(behaviorCellRequirements)) {
+    const columnIndex = tableColumnIndex(table, column);
+    if (columnIndex < 0) continue;
+
+    for (const row of table.rows) {
+      const value = row[columnIndex] ?? "";
+      if (isPendingCell(value)) continue;
+      if (column === "Reviewer/date" && !hasStaleOrFutureEvidenceDate(value)) {
+        const hasDate = /\b\d{4}-\d{2}-\d{2}\b/.test(value);
+        if (!hasDate) {
+          problems.push(
+            `${row[0] ?? "Unknown flow"} on ${row[1] ?? "unknown device"}: ${column} must include a non-future YYYY-MM-DD date.`,
+          );
+          continue;
+        }
+      }
+      if (!hasEvidenceTermGroups(value, requirements)) {
+        problems.push(
+          `${row[0] ?? "Unknown flow"} on ${row[1] ?? "unknown device"}: ${column} must name the specific real-use evidence it proves.`,
+        );
+      }
+    }
+  }
+
+  return problems;
+}
+
+function invalidConfirmationEvidenceCells(table: MarkdownTable | undefined): string[] {
+  if (!table) return [];
+  const problems: string[] = [];
+
+  for (const [column, requirements] of Object.entries(confirmationCellRequirements)) {
+    const columnIndex = tableColumnIndex(table, column);
+    if (columnIndex < 0) continue;
+
+    for (const row of table.rows) {
+      const value = row[columnIndex] ?? "";
+      if (isPendingCell(value)) continue;
+      if (column === "Reviewer/date" && !/\b\d{4}-\d{2}-\d{2}\b/.test(value)) {
+        problems.push(
+          `${row[0] ?? "Unknown flow"}: ${column} must include a non-future YYYY-MM-DD date.`,
+        );
+        continue;
+      }
+      if (!hasEvidenceTermGroups(value, requirements)) {
+        problems.push(
+          `${row[0] ?? "Unknown flow"}: ${column} must name the specific confirmation or rollback evidence it proves.`,
+        );
+      }
+    }
+  }
+
+  return problems;
+}
+
+function invalidCopyAccessibilityAnalyticsCells(
+  table: MarkdownTable | undefined,
+): string[] {
+  if (!table) return [];
+  const problems: string[] = [];
+  const expectedResultIndex = tableColumnIndex(table, "Expected result");
+  const evidenceReferenceIndex = tableColumnIndex(table, "Evidence reference");
+  const reviewerDateIndex = tableColumnIndex(table, "Reviewer/date");
+
+  for (const row of table.rows) {
+    const check = normalizeCell(row[0] ?? "");
+    const requirements = copyAccessibilityAnalyticsCellRequirements[check];
+    if (!requirements) continue;
+
+    for (const [label, columnIndex] of [
+      ["Expected result", expectedResultIndex],
+      ["Evidence reference", evidenceReferenceIndex],
+    ] as const) {
+      if (columnIndex < 0) continue;
+      const value = row[columnIndex] ?? "";
+      if (isPendingCell(value)) continue;
+      const checkedValue = label === "Expected result" ? `${check} ${value}` : value;
+      if (!hasEvidenceTermGroups(checkedValue, requirements)) {
+        problems.push(
+          `${check}: ${label} must name the specific copy/accessibility/analytics evidence it proves.`,
+        );
+      }
+    }
+
+    if (reviewerDateIndex >= 0) {
+      const reviewerDate = row[reviewerDateIndex] ?? "";
+      if (
+        !isPendingCell(reviewerDate) &&
+        (!/\b\d{4}-\d{2}-\d{2}\b/.test(reviewerDate) ||
+          !hasEvidenceTermGroups(reviewerDate, [["qa", "reviewer"], ["reviewed", "verified", "captured"]]))
+      ) {
+        problems.push(
+          `${check}: Reviewer/date must include reviewer evidence with a non-future YYYY-MM-DD date.`,
+        );
+      }
+    }
+  }
+
+  return problems;
+}
+
 function evaluateRunSheet(markdown: string) {
   const problems: string[] = [];
   const tables = parseMarkdownTables(markdown);
@@ -456,6 +780,7 @@ function evaluateRunSheet(markdown: string) {
       }
     }
   }
+  problems.push(...invalidBehaviorEvidenceCells(behaviorTable));
 
   const confirmationTable = findTable(tables, "Confirmation and rollback pass");
   for (const flow of requiredFlows) {
@@ -463,6 +788,7 @@ function evaluateRunSheet(markdown: string) {
       problems.push(`Missing confirmation and rollback row: ${flow}.`);
     }
   }
+  problems.push(...invalidConfirmationEvidenceCells(confirmationTable));
 
   const copyTable = findTable(tables, "Copy, accessibility, and analytics pass");
   if (copyTable) {
@@ -477,6 +803,7 @@ function evaluateRunSheet(markdown: string) {
       problems.push(`Missing copy/accessibility/analytics row: ${row}.`);
     }
   }
+  problems.push(...invalidCopyAccessibilityAnalyticsCells(copyTable));
 
   const pendingSections = summarizePendingCellsBySection(tables);
   const incompleteCellCount = pendingSections.reduce(

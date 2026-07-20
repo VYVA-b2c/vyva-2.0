@@ -27,6 +27,8 @@ const runSheetPath = path.resolve(
   "audits",
   "voice-canvas-real-device-run-sheet.md",
 );
+const COMPLETED_EVIDENCE_CELL =
+  "Sanitized QA artifact log reviewed by QA reviewer on 2026-07-19: voice touch keyboard evidence; start/resume restored current scene with entered information preserved, no write, no resubmission, no external action; app exit/reopen restored draft with entered information preserved, no write, no resubmission, no external action; refresh and reconnect restored work with entered information preserved, no write, no resubmission, no external action; voice interruption recovered work with entered information preserved, no write, no resubmission, no external action; browser back preserved entered information and returned safely, no write, no external action; cancel and exit left safely, no write, no external action; duplicate confirmation prevented and stale response ignored; recoverable failure offered retry and exit with entered information preserved, no extra write, no resubmission, no external action; no booking, call, message, or navigation before explicit confirmation; explicit confirmation accepted once and duplicate attempt blocked; waiting state explains pending work and what has not happened with no external action; completed and blocked results explain what happens next; in-session feature flag rollback closes Canvas and existing fallback path appears without write or external action; one clear decision for each flow with safe exit; Spanish long labels readable with no overflow, no clipping, and no truncation; focus moved to scene heading or primary control; screen-reader announcements for waiting, blocked, and completed; reduced-motion mode calm and usable without relying on animation; analytics telemetry aggregate positive started, resumed, abandoned, blocked, confirmed, and completed counts; allowed envelope name step input attempt restored revision only and forbidden data absent; no personal details and no personal data verified";
 
 function runValidator(args: string[] = []) {
   return spawnSync(process.execPath, [tsxCliPath, validatorScriptPath, ...args], {
@@ -40,14 +42,25 @@ function committedRunSheet(): string {
 }
 
 function completedRunSheet(): string {
-  return committedRunSheet().replace(
-    /\bPending\b/g,
-    "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: real device behavior, rollback, analytics, no personal details, no write, and no external action verified",
-  );
+  return committedRunSheet().replace(/\bPending\b/g, COMPLETED_EVIDENCE_CELL);
 }
 
 function genericCompletedRunSheet(): string {
   return committedRunSheet().replace(/\bPending\b/g, "Passed by QA on 2026-07-19");
+}
+
+function replaceFirstBehaviorRefreshCell(markdown: string, value: string): string {
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => {
+      if (!line.startsWith("| Ride Voice Canvas | Phone | Voice/touch/keyboard |")) {
+        return line;
+      }
+      const cells = line.split("|");
+      cells[6] = ` ${value} `;
+      return cells.join("|");
+    })
+    .join("\n");
 }
 
 function withTempRunSheet<T>(
@@ -205,7 +218,7 @@ describe("Voice Canvas run sheet validator command", () => {
   it("rejects run sheets with literal personal data without echoing values", () =>
     withTempRunSheet(
       completedRunSheet().replace(
-        "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: real device behavior, rollback, analytics, no personal details, no write, and no external action verified",
+        COMPLETED_EVIDENCE_CELL,
         "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: screenshot includes 123 Secret Street and qa-person@example.com",
       ),
       (tempRunSheetPath) => {
@@ -237,7 +250,7 @@ describe("Voice Canvas run sheet validator command", () => {
   it("rejects run sheets with broader private launch detail labels", () =>
     withTempRunSheet(
       completedRunSheet().replace(
-        "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: real device behavior, rollback, analytics, no personal details, no write, and no external action verified",
+        COMPLETED_EVIDENCE_CELL,
         "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: screenshot-log-route-details-shopping-item-details-retailer-name-profile-id",
       ),
       (tempRunSheetPath) => {
@@ -310,6 +323,33 @@ describe("Voice Canvas run sheet validator command", () => {
         expect(summary.state).toBe("invalid");
         expect(summary.problems).toContain(
           "Missing per-flow behavior column: Duplicate prevented and stale response ignored.",
+        );
+      },
+    ));
+
+  it("rejects filled behavior cells that do not name the specific recovery proof", () =>
+    withTempRunSheet(
+      replaceFirstBehaviorRefreshCell(completedRunSheet(), "connection looked okay"),
+      (tempRunSheetPath) => {
+        const result = runValidator([tempRunSheetPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          readyForQaRunSheet: boolean;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.readyForQaRunSheet).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining(
+              "Refresh/reconnect restored work must name the specific real-use evidence it proves.",
+            ),
+          ]),
         );
       },
     ));
