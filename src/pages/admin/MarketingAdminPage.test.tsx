@@ -1086,6 +1086,18 @@ describe("MarketingAdminPage", () => {
     expect(contentImportCoverage).toHaveTextContent("All exported: body, channel, emailTemplate.previewText, extraSourceOnlyField, id, status, subject, template.html_content, title");
     expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("Source referenced content that was not exported.");
     expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("1 campaign or journey content reference");
+    expect(screen.getByTestId("marketing-missing-content-recovery-ask")).toHaveTextContent("Recovery brief");
+    const missingContentAsk = screen.getByTestId("textarea-marketing-missing-content-ask") as HTMLTextAreaElement;
+    expect(missingContentAsk.value).toContain("VYVA Source content recovery ask");
+    expect(missingContentAsk.value).toContain("Missing references: 1");
+    expect(missingContentAsk.value).toContain("Source reference:");
+    expect(missingContentAsk.value).toContain("Production task:");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-missing-content-ask"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA Source content recovery ask"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Publishing rule:"));
+    expect(screen.getByTestId("marketing-missing-content-ask-feedback")).toHaveTextContent("Source content recovery ask copied.");
     fireEvent.click(screen.getByTestId("button-marketing-show-missing-content"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Source content placeholders");
     expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("Content is loaded, but hidden by filters.");

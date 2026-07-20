@@ -16126,6 +16126,46 @@ export default function MarketingAdminPage() {
     missingSourceReferenceContent.length,
     Math.max(0, importedMissingSourceReferenceCount - sourceRepairedDraftCount),
   );
+  const missingSourceReferenceAskText = [
+    "VYVA Source content recovery ask",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    `Missing references: ${missingSourceReferenceCount}`,
+    `Placeholder records loaded: ${missingSourceReferenceContent.length}`,
+    `Already repaired in VYVA: ${sourceRepairedDraftCount}`,
+    "",
+    "Send this to Source/Lovable or use it as an AI production brief. VYVA preserved placeholder records so campaign and journey links are safe, but these assets still need real copy, HTML, design JSON, CTA, and media references before publishing.",
+    "",
+    "Missing assets:",
+    ...(missingSourceReferenceContent.length
+      ? missingSourceReferenceContent.map((item, index) => {
+        const repairContext = missingLovableRepairContext(item);
+        return [
+          `${index + 1}. ${repairContext.title}`,
+          `   Source reference: ${repairContext.sourceReference}`,
+          `   Source kind: ${repairContext.sourceKind}`,
+          `   Channel: ${repairContext.channelName}`,
+          `   Used by: ${repairContext.whereUsed.length ? repairContext.whereUsed.join("; ") : "Imported campaign or journey reference"}`,
+          `   Required fields: ${repairContext.reviewChecklist.join(", ")}`,
+          `   Source ask: ${repairContext.sourceRequestPrompt.replace(/\n/g, " ")}`,
+        ].join("\n");
+      })
+      : [
+        "1. Placeholder rows not loaded in this response",
+        "   Source reference: not available in VYVA yet",
+        "   Source kind: missing_lovable_reference",
+        "   Channel: unknown",
+        "   Used by: imported campaign or journey reference",
+        "   Required fields: title, subject/body, HTML/design JSON, CTA, media assets",
+        "   Source ask: re-run Source export with full referenced content records, then re-run VYVA sync.",
+      ]),
+    "",
+    "Production task:",
+    "For each missing asset, return channel-native copy, subject/hook where applicable, body or caption, HTML/design JSON where available, CTA label and URL, media/visual references, language, status, and any compliance notes. Keep VYVA warm, practical, consent-aware, and non-clinical.",
+    "",
+    "Publishing rule:",
+    "Do not publish campaigns or journey steps that depend on these placeholders until the content is exported from Source or repaired and reviewed inside VYVA.",
+  ].join("\n");
 
   useEffect(() => {
     if (!selectedContentId || contentIdSet.has(selectedContentId)) return;
@@ -24596,6 +24636,35 @@ export default function MarketingAdminPage() {
     setChannelFilter("all");
     setContentSourceFilter("missing_lovable_reference");
     setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
+  }
+
+  async function copyMissingSourceReferenceAsk() {
+    if (!missingSourceReferenceAskText.trim() || missingSourceReferenceCount === 0) {
+      setContentActionFeedback("No missing Source content ask is available.");
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(missingSourceReferenceAskText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = missingSourceReferenceAskText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+      setContentActionFeedback("Source content recovery ask copied.");
+      setMessage("Source content recovery ask copied.");
+    } catch {
+      setContentActionFeedback("Could not copy the Source content recovery ask. Select the brief and copy it manually.");
+      setMessage("Could not copy the Source content recovery ask.");
+    }
   }
 
   function openMissingLovableContentRepair() {
@@ -38284,19 +38353,53 @@ export default function MarketingAdminPage() {
                         {missingSourceReferenceCount} campaign or journey content reference{missingSourceReferenceCount === 1 ? "" : "s"} arrived without the real body, HTML, design, or media. VYVA kept placeholder records so campaign and journey links do not break, but these need the matching Source export data or a replacement content asset here.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 text-sm font-black text-white"
-                      onClick={() => {
-                        setSearch("");
-                        setChannelFilter("all");
-                        setContentSourceFilter("missing_lovable_reference");
-                        setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
-                      }}
-                      data-testid="button-marketing-show-missing-content"
-                    >
-                      <Search size={15} /> Show placeholders
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-4 text-sm font-black text-amber-900 hover:bg-amber-100"
+                        onClick={() => void copyMissingSourceReferenceAsk()}
+                        disabled={missingSourceReferenceCount === 0}
+                        data-testid="button-marketing-copy-missing-content-ask"
+                      >
+                        <Copy size={15} /> Copy Source ask
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 text-sm font-black text-white"
+                        onClick={() => {
+                          setSearch("");
+                          setChannelFilter("all");
+                          setContentSourceFilter("missing_lovable_reference");
+                          setContentActionFeedback("Showing Source content placeholders that still need real copy/design.");
+                        }}
+                        data-testid="button-marketing-show-missing-content"
+                      >
+                        <Search size={15} /> Show placeholders
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-white p-3" data-testid="marketing-missing-content-recovery-ask">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.1em] text-amber-900">Recovery brief</p>
+                        <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                          Copy this to Source/Lovable or an AI editor to recover every missing asset without breaking campaign links.
+                        </p>
+                      </div>
+                      <Pill className="bg-amber-100 text-amber-900">{missingSourceReferenceCount} missing</Pill>
+                    </div>
+                    <textarea
+                      className="mt-3 min-h-[150px] w-full rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-2 font-mono text-xs font-bold leading-relaxed text-[#5b4a46]"
+                      value={missingSourceReferenceAskText}
+                      readOnly
+                      aria-label="Source content recovery ask"
+                      data-testid="textarea-marketing-missing-content-ask"
+                    />
+                    {contentActionFeedback.includes("Source content recovery ask") ? (
+                      <p className={`mt-2 rounded-xl px-3 py-2 text-xs font-black ${contentActionFeedback.includes("Could not") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite" data-testid="marketing-missing-content-ask-feedback">
+                        {contentActionFeedback}
+                      </p>
+                    ) : null}
                   </div>
                   {missingSourceReferenceContent.length ? (
                     <div className="mt-4 grid gap-3">
