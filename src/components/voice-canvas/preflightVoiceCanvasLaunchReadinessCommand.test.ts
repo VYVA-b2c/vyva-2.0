@@ -38,6 +38,10 @@ function freshGeneratedAt(): string {
   return new Date(Date.now() - 60_000).toISOString();
 }
 
+function generatedAtDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 function freshReviewDate(): string {
   return new Date(Date.now() - 60_000).toISOString().slice(0, 10);
 }
@@ -267,6 +271,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, and rollback owner handoff are ready",
     );
+    expect(result.stdout).toContain(
+      "Final external evidence artifacts must share one QA run date",
+    );
     expect(result.stdout).toContain("generated within the last 7 days");
     expect(result.stdout).toContain("This preflight is read-only");
     expect(result.stdout).not.toContain("<YYYY-MM-DD>");
@@ -299,6 +306,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "Feature endpoints rollback: not provided; endpoints 0; problems 0",
+    );
+    expect(result.stdout).toContain(
+      "External evidence run date: not checked; problems 0",
     );
     expect(result.stdout).toContain("Run sheet pending sections:");
     expect(result.stdout).toContain(
@@ -459,6 +469,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       };
       analyticsEvidence: {
         provided: boolean;
+        generatedAt: string;
         readyForLaunchEvidence: boolean;
         sampleCount: number;
         problemCount: number;
@@ -476,6 +487,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       featureEndpointEvidence: {
         enabled: {
           provided: boolean;
+          generatedAt: string;
           readyForLaunchEvidence: boolean;
           endpointCount: number;
           problemCount: number;
@@ -483,11 +495,19 @@ describe("Voice Canvas launch readiness preflight command", () => {
         };
         rollback: {
           provided: boolean;
+          generatedAt: string;
           readyForLaunchEvidence: boolean;
           endpointCount: number;
           problemCount: number;
           problems: string[];
         };
+      };
+      externalEvidenceDateConsistency: {
+        ready: boolean;
+        checked: boolean;
+        runDate: string;
+        problemCount: number;
+        problems: string[];
       };
       nextActions: string[];
       evidenceCommands: string[];
@@ -533,6 +553,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.analyticsEvidence).toMatchObject({
       provided: false,
+      generatedAt: "unknown",
       readyForLaunchEvidence: false,
       sampleCount: 0,
       problemCount: 0,
@@ -549,8 +570,16 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.featureEndpointEvidence.enabled).toMatchObject({
       provided: false,
+      generatedAt: "unknown",
       readyForLaunchEvidence: false,
       endpointCount: 0,
+      problemCount: 0,
+      problems: [],
+    });
+    expect(summary.externalEvidenceDateConsistency).toEqual({
+      ready: false,
+      checked: false,
+      runDate: "unknown",
       problemCount: 0,
       problems: [],
     });
@@ -721,6 +750,60 @@ describe("Voice Canvas launch readiness preflight command", () => {
         );
         expect(result.stdout).not.toContain("123 Secret Street");
       },
+    ));
+
+  it("rejects final preflight when external evidence artifacts use different QA run dates", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        generatedAt: generatedAtDaysAgo(2),
+      },
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) =>
+        withTempAnalyticsFile(validAnalyticsEvidence(), (analyticsPath) =>
+          withTempRollbackOwnerFile(
+            validRollbackOwnerHandoffArtifact(),
+            (rollbackOwnerPath) => {
+              const result = runPreflight([
+                "--final",
+                `--features-enabled=${enabledPath}`,
+                `--features-rollback=${rollbackPath}`,
+                `--analytics=${analyticsPath}`,
+                `--rollback-owner=${rollbackOwnerPath}`,
+                "--json",
+              ]);
+
+              expect(result.status).toBe(1);
+              expect(result.stderr).toBe("");
+
+              const summary = JSON.parse(result.stdout) as {
+                externalEvidenceDateConsistency: {
+                  ready: boolean;
+                  checked: boolean;
+                  runDate: string;
+                  problemCount: number;
+                  problems: string[];
+                };
+                nextActions: string[];
+              };
+
+              expect(summary.externalEvidenceDateConsistency).toMatchObject({
+                ready: false,
+                checked: true,
+                runDate: "mixed",
+                problemCount: 1,
+              });
+              expect(
+                summary.externalEvidenceDateConsistency.problems.join("\n"),
+              ).toContain(
+                "External launch evidence must share one QA run date",
+              );
+              expect(summary.nextActions).toContain(
+                "Fix external launch evidence dates so endpoint, analytics, and rollback owner artifacts share one QA run date.",
+              );
+            },
+          ),
+        ),
     ));
 
   it("rejects endpoint artifacts that do not prove enabled and rollback states", () =>

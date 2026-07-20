@@ -137,7 +137,7 @@ Validate the filled handoff before final preflight:
 npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json
 ```
 
-The final `canvas:qa:preflight -- --final` command must include `--rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` so launch sign-off fails if the handoff is missing, still has placeholders, omits a feature endpoint/server key/fallback path, is older than 7 days, or appears to include personal details.
+The final `canvas:qa:preflight -- --final` command must include `--rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` so launch sign-off fails if the handoff is missing, still has placeholders, omits a feature endpoint/server key/fallback path, is older than 7 days, or appears to include personal details. The enabled endpoint, rollback endpoint, analytics, and rollback-owner handoff artifacts must share one QA run date.
 
 ## Evidence packet validation
 

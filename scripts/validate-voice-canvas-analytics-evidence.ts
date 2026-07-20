@@ -17,6 +17,7 @@ import type { CanvasLaunchSignal } from "../src/components/voice-canvas/canvasPl
 interface AnalyticsEvidenceSummary {
   inputPath: string;
   readyForLaunchEvidence: boolean;
+  generatedAt: string;
   requiredSignals: readonly CanvasLaunchSignal[];
   allowedEnvelopeFields: readonly string[];
   coveredFlows: readonly CanvasLaunchFlowId[];
@@ -333,6 +334,9 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
   const artifact = parseJsonFile(inputPath);
   const relativeInputPath = path.relative(process.cwd(), inputPath);
   const problems = topLevelProblems(artifact);
+  const generatedAt = isRecord(artifact)
+    ? parseValidNonFutureGeneratedAt(artifact.generatedAt)
+    : null;
   const declaredCounts = extractDeclaredCounts(artifact, problems);
   const coveredFlows = extractCoveredFlows(artifact, problems);
   const samples = normalizeSamples(artifact);
@@ -373,6 +377,7 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
   return {
     inputPath: relativeInputPath,
     readyForLaunchEvidence: problems.length === 0,
+    generatedAt: generatedAt ? generatedAt.toISOString() : "unknown",
     requiredSignals: CANVAS_LAUNCH_SIGNALS,
     allowedEnvelopeFields,
     coveredFlows,

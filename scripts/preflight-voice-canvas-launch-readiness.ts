@@ -93,6 +93,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Pass --features-enabled=<path> and --features-rollback=<path> to validate sanitized endpoint collector artifacts generated within the last 7 days.",
       "Pass --analytics=<path> to validate sanitized analytics evidence generated within the last 7 days in the same aggregate-only snapshot.",
       "Pass --rollback-owner=<path> to validate the sanitized rollback owner handoff artifact generated within the last 7 days.",
+      "Final external evidence artifacts must share one QA run date across enabled endpoints, rollback endpoints, analytics, and rollback owner handoff.",
       "Use --final after real-device evidence is filled; it exits non-zero unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, and rollback owner handoff are ready.",
       "Use --json to emit a machine-readable summary for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
@@ -140,7 +141,16 @@ interface FeatureEndpointArtifactValidation {
   path: string;
   readyForLaunchEvidence: boolean;
   mode: "enabled" | "rollback";
+  generatedAt: string;
   endpointCount: number;
+  problemCount: number;
+  problems: string[];
+}
+
+interface ExternalEvidenceDateConsistency {
+  ready: boolean;
+  checked: boolean;
+  runDate: string;
   problemCount: number;
   problems: string[];
 }
@@ -336,6 +346,7 @@ function validateFeatureEndpointArtifact(
       path: "unknown",
       readyForLaunchEvidence: false,
       mode,
+      generatedAt: "unknown",
       endpointCount: 0,
       problemCount: 0,
       problems: [],
@@ -520,7 +531,88 @@ function validateFeatureEndpointArtifact(
     path: relativePath,
     readyForLaunchEvidence: problems.length === 0,
     mode,
+    generatedAt: generatedAt ? generatedAt.toISOString() : "unknown",
     endpointCount: endpointRows.length,
+    problemCount: problems.length,
+    problems,
+  };
+}
+
+function evidenceDate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parsed = parseValidNonFutureGeneratedAt(trimmed);
+  return parsed ? parsed.toISOString().slice(0, 10) : null;
+}
+
+function validateExternalEvidenceDateConsistency(
+  enabledFeatures: FeatureEndpointArtifactValidation,
+  rollbackFeatures: FeatureEndpointArtifactValidation,
+  analyticsRun: ValidatorRun | null,
+  rollbackOwnerRun: ValidatorRun | null,
+): ExternalEvidenceDateConsistency {
+  const entries = [
+    {
+      label: "enabled feature endpoints",
+      date: evidenceDate(enabledFeatures.generatedAt),
+      provided: enabledFeatures.provided,
+    },
+    {
+      label: "rollback feature endpoints",
+      date: evidenceDate(rollbackFeatures.generatedAt),
+      provided: rollbackFeatures.provided,
+    },
+    {
+      label: "analytics evidence",
+      date: evidenceDate(analyticsRun?.summary?.generatedAt),
+      provided: Boolean(analyticsRun),
+    },
+    {
+      label: "rollback owner handoff",
+      date: evidenceDate(rollbackOwnerRun?.summary?.reviewedOn),
+      provided: Boolean(rollbackOwnerRun),
+    },
+  ];
+
+  const providedEntries = entries.filter((entry) => entry.provided);
+  if (providedEntries.length !== entries.length) {
+    return {
+      ready: false,
+      checked: false,
+      runDate: "unknown",
+      problemCount: 0,
+      problems: [],
+    };
+  }
+
+  const missingDateLabels = providedEntries
+    .filter((entry) => !entry.date)
+    .map((entry) => entry.label);
+  const datedEntries = providedEntries.filter(
+    (entry): entry is { label: string; date: string; provided: boolean } =>
+      Boolean(entry.date),
+  );
+  const uniqueDates = new Set(datedEntries.map((entry) => entry.date));
+  const problems: string[] = [];
+
+  if (missingDateLabels.length > 0) {
+    problems.push(
+      `External launch evidence is missing comparable run dates for ${missingDateLabels.join(", ")}.`,
+    );
+  }
+  if (uniqueDates.size > 1) {
+    problems.push(
+      `External launch evidence must share one QA run date; found ${datedEntries
+        .map((entry) => `${entry.label} ${entry.date}`)
+        .join(", ")}.`,
+    );
+  }
+
+  return {
+    ready: problems.length === 0,
+    checked: true,
+    runDate: uniqueDates.size === 1 ? datedEntries[0]?.date ?? "unknown" : "mixed",
     problemCount: problems.length,
     problems,
   };
@@ -534,6 +626,7 @@ function messagesForNextAction(
   rollbackOwnerRun: ValidatorRun | null,
   enabledFeatures: FeatureEndpointArtifactValidation,
   rollbackFeatures: FeatureEndpointArtifactValidation,
+  externalEvidenceDateConsistency: ExternalEvidenceDateConsistency,
 ): string[] {
   const messages: string[] = [];
   const runSheetProblems = numericField(runSheetRun.summary, "problemCount");
@@ -581,6 +674,9 @@ function messagesForNextAction(
   }
   if (rollbackOwnerProblems > 0) {
     messages.push("Fix sanitized rollback owner handoff evidence before launch sign-off.");
+  }
+  if (externalEvidenceDateConsistency.problemCount > 0) {
+    messages.push("Fix external launch evidence dates so endpoint, analytics, and rollback owner artifacts share one QA run date.");
   }
   if (enabledFeatures.problemCount > 0) {
     messages.push("Fix enabled feature endpoint evidence before launch sign-off.");
@@ -678,6 +774,12 @@ const rollbackFeatures = validateFeatureEndpointArtifact(
   featureRollbackPathArg,
   "rollback",
 );
+const externalEvidenceDateConsistency = validateExternalEvidenceDateConsistency(
+  enabledFeatures,
+  rollbackFeatures,
+  analyticsRun,
+  rollbackOwnerRun,
+);
 const readyForLaunch =
   booleanField(runSheetRun.summary, "readyForQaRunSheet") &&
   booleanField(matrixRun.summary, "readyForLaunch") &&
@@ -685,7 +787,8 @@ const readyForLaunch =
   enabledFeatures.readyForLaunchEvidence &&
   rollbackFeatures.readyForLaunchEvidence &&
   booleanField(analyticsRun?.summary ?? null, "readyForLaunchEvidence") &&
-  booleanField(rollbackOwnerRun?.summary ?? null, "readyForLaunchEvidence");
+  booleanField(rollbackOwnerRun?.summary ?? null, "readyForLaunchEvidence") &&
+  externalEvidenceDateConsistency.ready;
 const structuralProblems =
   !runSheetRun.summary ||
   !matrixRun.summary ||
@@ -699,7 +802,8 @@ const structuralProblems =
   enabledFeatures.problemCount > 0 ||
   rollbackFeatures.problemCount > 0 ||
   numericField(analyticsRun?.summary ?? null, "problemCount") > 0 ||
-  numericField(rollbackOwnerRun?.summary ?? null, "problemCount") > 0;
+  numericField(rollbackOwnerRun?.summary ?? null, "problemCount") > 0 ||
+  (finalGate && externalEvidenceDateConsistency.problemCount > 0);
 const acceptedPending =
   !finalGate &&
   !structuralProblems &&
@@ -716,6 +820,7 @@ const nextActions = messagesForNextAction(
   rollbackOwnerRun,
   enabledFeatures,
   rollbackFeatures,
+  externalEvidenceDateConsistency,
 );
 const evidenceCommands = launchEvidenceCommands();
 
@@ -764,6 +869,7 @@ const summary = {
   analyticsEvidence: {
     provided: Boolean(analyticsPathArg),
     path: stringField(analyticsRun?.summary ?? null, "inputPath"),
+    generatedAt: stringField(analyticsRun?.summary ?? null, "generatedAt"),
     readyForLaunchEvidence: booleanField(
       analyticsRun?.summary ?? null,
       "readyForLaunchEvidence",
@@ -795,6 +901,7 @@ const summary = {
       provided: enabledFeatures.provided,
       path: enabledFeatures.path,
       readyForLaunchEvidence: enabledFeatures.readyForLaunchEvidence,
+      generatedAt: enabledFeatures.generatedAt,
       endpointCount: enabledFeatures.endpointCount,
       problemCount: enabledFeatures.problemCount,
       problems: enabledFeatures.problems,
@@ -803,11 +910,13 @@ const summary = {
       provided: rollbackFeatures.provided,
       path: rollbackFeatures.path,
       readyForLaunchEvidence: rollbackFeatures.readyForLaunchEvidence,
+      generatedAt: rollbackFeatures.generatedAt,
       endpointCount: rollbackFeatures.endpointCount,
       problemCount: rollbackFeatures.problemCount,
       problems: rollbackFeatures.problems,
     },
   },
+  externalEvidenceDateConsistency,
   nextActions,
   evidenceCommands,
   message: readyForLaunch
@@ -858,11 +967,18 @@ console.log(
 console.log(
   `Feature endpoints rollback: ${summary.featureEndpointEvidence.rollback.provided ? (summary.featureEndpointEvidence.rollback.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; endpoints ${summary.featureEndpointEvidence.rollback.endpointCount}; problems ${summary.featureEndpointEvidence.rollback.problemCount}`,
 );
+console.log(
+  `External evidence run date: ${summary.externalEvidenceDateConsistency.checked ? summary.externalEvidenceDateConsistency.runDate : "not checked"}; problems ${summary.externalEvidenceDateConsistency.problemCount}`,
+);
 printProblemDetails("Run sheet", summary.runSheet.problems);
 printProblemDetails("QA matrix", summary.matrix.problems);
 printProblemDetails("Evidence packet", summary.evidencePacket.problems);
 printProblemDetails("Analytics evidence", summary.analyticsEvidence.problems);
 printProblemDetails("Rollback owner evidence", summary.rollbackOwnerEvidence.problems);
+printProblemDetails(
+  "External evidence run date",
+  summary.externalEvidenceDateConsistency.problems,
+);
 printProblemDetails(
   "Feature endpoints enabled",
   summary.featureEndpointEvidence.enabled.problems,
