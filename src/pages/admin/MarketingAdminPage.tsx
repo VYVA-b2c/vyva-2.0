@@ -13511,6 +13511,82 @@ export default function MarketingAdminPage() {
       return a.pack.title.localeCompare(b.pack.title);
     });
   }, [content, contacts, contentTemplatePackSort, contentTemplatePacksWithStats, selectedContentTemplatePack?.id]);
+  const templateCoveragePlan = useMemo(() => {
+    const coverageAudiences: Audience[] = ["b2c", "b2b", "both"];
+    const priorityChannels: Channel[] = ["email", "whatsapp", "linkedin", "facebook", "instagram", "tiktok", "sms", "phone", "print", "event"];
+    const cells = coverageAudiences.flatMap((audience) => priorityChannels.map((channel) => {
+      const directTemplates = contentTemplateGallery.filter((template) => template.channel === channel && template.audienceType === audience);
+      const flexibleTemplates = audience === "both"
+        ? []
+        : contentTemplateGallery.filter((template) => template.channel === channel && template.audienceType === "both");
+      const reusableAssets = content.filter((item) => (
+        item.channel === channel
+        && campaignAllowsContact(audience, item.audienceType)
+        && contentAssetHasCopy(item)
+      )).length;
+      const templateCount = directTemplates.length + flexibleTemplates.length;
+      const count = templateCount + reusableAssets;
+      const state: CampaignReadinessState = count >= 3 ? "ready" : count > 0 ? "planning" : "needs_action";
+      return {
+        key: `${audience}-${channel}`,
+        audience,
+        audienceLabel: audience.toUpperCase(),
+        channel,
+        channelLabel: channelLabel[channel],
+        templateCount,
+        reusableAssets,
+        count,
+        state,
+      };
+    }));
+    const readyCells = cells.filter((cell) => cell.count > 0).length;
+    const strongCells = cells.filter((cell) => cell.count >= 3).length;
+    const gaps = cells.filter((cell) => cell.count === 0).slice(0, TEMPLATE_GAP_BATCH_LIMIT);
+    const weakCells = cells.filter((cell) => cell.count > 0 && cell.count < 3).slice(0, TEMPLATE_GAP_BATCH_LIMIT);
+    const recommendedGaps = gaps.length ? gaps : weakCells;
+    const score = Math.round((readyCells / Math.max(cells.length, 1)) * 100);
+    const state: CampaignReadinessState = score >= 80 ? "ready" : score >= 55 ? "planning" : "needs_action";
+    const summaryRows = coverageAudiences.map((audience) => {
+      const audienceCells = cells.filter((cell) => cell.audience === audience);
+      const covered = audienceCells.filter((cell) => cell.count > 0).length;
+      return {
+        audience,
+        label: audience.toUpperCase(),
+        covered,
+        total: audienceCells.length,
+        state: covered === audienceCells.length ? "ready" as CampaignReadinessState : covered >= Math.ceil(audienceCells.length * 0.6) ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      };
+    });
+    const aiBrief = [
+      "VYVA template gap fill AI brief",
+      `Coverage score: ${score}%`,
+      `Covered combinations: ${readyCells}/${cells.length}`,
+      `Strong combinations: ${strongCells}/${cells.length}`,
+      "",
+      "Create attractive, channel-native templates for these missing or thin routes:",
+      ...recommendedGaps.map((gap, index) => `${index + 1}. ${gap.audienceLabel} ${gap.channelLabel}: write a reusable template with title, subject/headline if needed, body copy, CTA, visual direction, and publishing notes.`),
+      "",
+      "Template quality bar:",
+      "- Make every template useful without extra explanation.",
+      "- Include one clear CTA and one practical proof point.",
+      "- Make social templates native to the platform, not copied email text.",
+      "- Include design direction or media prompt for visual channels.",
+      "- Keep consent-aware wording for direct channels.",
+    ].join("\n");
+
+    return {
+      score,
+      state,
+      readyCells,
+      strongCells,
+      totalCells: cells.length,
+      summaryRows,
+      gaps,
+      weakCells,
+      recommendedGaps,
+      aiBrief,
+    };
+  }, [content]);
   const smartContentTemplatePackShortcuts = useMemo(() => {
     const shortcutSeeds: Array<{
       key: string;
@@ -23830,6 +23906,38 @@ export default function MarketingAdminPage() {
       setContentActionFeedback(feedback);
       setContentFeedback(feedback);
       if (source === "campaign_studio") setCampaignStudioFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyTemplateCoverageGapBrief() {
+    const label = "Template gap fill AI brief";
+    const text = templateCoveragePlan.aiBrief;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the brief and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
       setMessage(feedback);
     }
   }
@@ -38901,6 +39009,77 @@ export default function MarketingAdminPage() {
                       </button>
                     </article>
                   ))}
+                </div>
+              </div>
+
+              <div className={`rounded-2xl border p-4 shadow-sm ${readinessClass(templateCoveragePlan.state)}`} data-testid="marketing-template-coverage-plan">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="max-w-3xl">
+                    <p className="text-xs font-black uppercase tracking-[0.12em]">Template coverage</p>
+                    <h3 className="mt-1 font-serif text-2xl text-[#241133]">Build a balanced library, not just more templates.</h3>
+                    <p className="mt-2 text-sm font-bold leading-relaxed">
+                      VYVA checks every audience and channel route so missing templates are obvious before the team starts planning a campaign.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill className={readinessPillClass(templateCoveragePlan.state)}>{templateCoveragePlan.score}% covered</Pill>
+                    <Pill className="bg-white text-[#5b4a46]">{templateCoveragePlan.readyCells}/{templateCoveragePlan.totalCells} routes</Pill>
+                    <button
+                      type="button"
+                      onClick={() => void copyTemplateCoverageGapBrief()}
+                      disabled={templateCoveragePlan.recommendedGaps.length === 0}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                      data-testid="button-marketing-template-coverage-copy-brief"
+                    >
+                      <Sparkles size={13} /> Copy gap brief
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
+                  <div className="grid gap-2" data-testid="marketing-template-coverage-audiences">
+                    {templateCoveragePlan.summaryRows.map((row) => (
+                      <div key={row.audience} className={`rounded-xl border bg-white p-3 ${readinessClass(row.state)}`} data-testid={`marketing-template-coverage-audience-${row.audience}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-black text-[#241133]">{row.label}</span>
+                          <Pill className={readinessPillClass(row.state)}>{row.covered}/{row.total}</Pill>
+                        </div>
+                        <p className="mt-1 text-xs font-bold text-[#6f5f59]">Audience/channel routes covered.</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-xl border border-white/80 bg-white p-3" data-testid="marketing-template-coverage-gaps">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Next templates to create</p>
+                        <p className="mt-1 text-xs font-bold text-[#6f5f59]">
+                          {templateCoveragePlan.gaps.length
+                            ? `${templateCoveragePlan.gaps.length} empty route${templateCoveragePlan.gaps.length === 1 ? "" : "s"} found.`
+                            : `${templateCoveragePlan.weakCells.length} thin route${templateCoveragePlan.weakCells.length === 1 ? "" : "s"} to strengthen.`}
+                        </p>
+                      </div>
+                      <Pill className="bg-purple-50 text-purple-800">{templateCoveragePlan.strongCells} strong routes</Pill>
+                    </div>
+                    {templateCoveragePlan.recommendedGaps.length ? (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        {templateCoveragePlan.recommendedGaps.map((gap) => (
+                          <div key={gap.key} className={`rounded-xl border p-3 ${readinessClass(gap.state)}`} data-testid={`marketing-template-coverage-gap-${gap.key}`}>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Pill className="bg-white text-[#241133]">{gap.audienceLabel}</Pill>
+                              <Pill className={channelClass(gap.channel)}>{gap.channelLabel}</Pill>
+                            </div>
+                            <p className="mt-2 text-xs font-black text-[#241133]">{gap.count ? "Thin route" : "Missing route"}</p>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                              {gap.templateCount} starter template{gap.templateCount === 1 ? "" : "s"} and {gap.reusableAssets} reusable asset{gap.reusableAssets === 1 ? "" : "s"}.
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-900">
+                        Every audience/channel route has at least one usable template or asset.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 

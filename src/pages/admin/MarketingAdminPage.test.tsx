@@ -3055,6 +3055,34 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-recommended-launch-kit-quality-channels")).toBeInTheDocument();
   });
 
+  it("shows template coverage gaps and copies an AI gap fill brief", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    expect(screen.getByTestId("marketing-template-coverage-plan")).toHaveTextContent("Template coverage");
+    expect(screen.getByTestId("marketing-template-coverage-plan")).toHaveTextContent("Build a balanced library");
+    expect(screen.getByTestId("marketing-template-coverage-audience-b2c")).toHaveTextContent("B2C");
+    expect(screen.getByTestId("marketing-template-coverage-audience-b2b")).toHaveTextContent("B2B");
+    expect(screen.getByTestId("marketing-template-coverage-audience-both")).toHaveTextContent("BOTH");
+    expect(screen.getByTestId("marketing-template-coverage-gaps")).toHaveTextContent("Next templates to create");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-coverage-copy-brief"));
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template gap fill AI brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Template quality bar:"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Template gap fill AI brief copied.");
+  });
+
   it("applies content templates into the draft form", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
