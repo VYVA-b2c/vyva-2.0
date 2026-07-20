@@ -143,6 +143,7 @@ describe("Voice Canvas feature endpoint evidence command", () => {
     expect(result.stdout).toContain("Use --expected-state=enabled");
     expect(result.stdout).toContain("GET requests only");
     expect(result.stdout).toContain("Launch evidence must use HTTPS");
+    expect(result.stdout).toContain("Failed endpoint evidence is printed but not saved");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -371,6 +372,49 @@ describe("Voice Canvas feature endpoint evidence command", () => {
         ]),
       );
     } finally {
+      await server.close();
+    }
+  });
+
+  it("does not save failed endpoint evidence as a launch artifact unless diagnostic saving is explicit", async () => {
+    const server = await startFeatureServer(
+      endpointResponsesForState("rollback-disabled"),
+    );
+    const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-features-"));
+    const outputPath = path.join(tempDir, "feature-endpoints-enabled.json");
+
+    try {
+      const rejected = await runCollector([
+        `--base-url=${server.baseUrl}`,
+        "--allow-local",
+        "--expected-state=enabled",
+        "--json",
+        `--output=${outputPath}`,
+      ]);
+
+      expect(rejected.status).toBe(1);
+      expect(rejected.stderr).toContain(
+        "refusing to save a launch-named artifact",
+      );
+      expect(existsSync(outputPath)).toBe(false);
+      expect(JSON.parse(rejected.stdout).readyForQaEvidence).toBe(false);
+
+      const diagnostic = await runCollector([
+        `--base-url=${server.baseUrl}`,
+        "--allow-local",
+        "--expected-state=enabled",
+        "--json",
+        "--save-failed",
+        `--output=${outputPath}`,
+      ]);
+
+      expect(diagnostic.status).toBe(1);
+      expect(existsSync(outputPath)).toBe(true);
+      expect(JSON.parse(readFileSync(outputPath, "utf8")).readyForQaEvidence).toBe(
+        false,
+      );
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
       await server.close();
     }
   });

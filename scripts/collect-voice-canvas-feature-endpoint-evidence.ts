@@ -71,6 +71,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --expected-state=rollback-disabled for disabled false/rollout 0 rollback evidence.",
       "Use --json to emit machine-readable endpoint evidence for QA artifacts.",
       "Use --output=<path> with --json to also save the evidence to a file.",
+      "Failed endpoint evidence is printed but not saved unless --save-failed is passed for diagnostic artifacts.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
     ].join("\n"),
   );
@@ -81,6 +82,7 @@ const baseUrlArg = readArgValue("--base-url");
 const jsonOutput = args.includes("--json");
 const allowLocal = args.includes("--allow-local");
 const forceOutput = args.includes("--force");
+const saveFailedOutput = args.includes("--save-failed");
 const traceTemplateOutput = args.includes("--trace-template");
 const outputPathArg = readArgValue("--output");
 const expectedStateArg = readArgValue("--expected-state");
@@ -443,7 +445,13 @@ const exitCode = summary.readyForQaEvidence ? 0 : 1;
 if (jsonOutput) {
   const jsonSummary = JSON.stringify(summary, null, 2);
   if (outputPathArg) {
-    writeJsonOutput(outputPathArg, jsonSummary);
+    if (summary.readyForQaEvidence || saveFailedOutput) {
+      writeJsonOutput(outputPathArg, jsonSummary);
+    } else {
+      console.error(
+        "Endpoint evidence is not ready; refusing to save a launch-named artifact. Pass --save-failed only for diagnostic artifacts.",
+      );
+    }
   }
   console.log(jsonSummary);
   process.exitCode = exitCode;
