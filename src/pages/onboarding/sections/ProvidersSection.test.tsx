@@ -151,6 +151,35 @@ describe("ProvidersSection trusted provider setup", () => {
     expect(screen.getByTestId("item-provider-provider-2")).toHaveTextContent("Default");
   });
 
+  it("shows the default provider Concierge will use for the selected category", async () => {
+    renderProvidersSection({ setupFocus: "transport" }, [
+      { name: "Trusted Taxi", role: "transport", phone: "+34 600 111 111", is_trusted: true, is_default: true },
+    ]);
+
+    const summary = await screen.findByTestId("provider-concierge-default-summary");
+    await waitFor(() => expect(summary).toHaveTextContent("Concierge will use Trusted Taxi"));
+    expect(summary).toHaveTextContent("Phone");
+    expect(summary).toHaveTextContent("VYVA still asks before calling, sending, or booking.");
+  });
+
+  it("keeps the default summary actionable when a saved provider needs contact details", async () => {
+    renderProvidersSection({ setupFocus: "doctor_clinic" }, [
+      { name: "Trusted Clinic", role: "doctor_clinic", is_trusted: true, is_default: true },
+    ]);
+
+    const summary = await screen.findByTestId("provider-concierge-default-summary");
+    await waitFor(() => expect(summary).toHaveTextContent("Add a phone, email, WhatsApp, website, or booking link"));
+    expect(summary).toHaveTextContent("No ready default doctor / clinic yet");
+  });
+
+  it("explains the missing-provider setup path before any provider is saved", async () => {
+    renderProvidersSection({ setupFocus: "home_service" });
+
+    const summary = await screen.findByTestId("provider-concierge-default-summary");
+    expect(summary).toHaveTextContent("No ready default home service yet");
+    expect(summary).toHaveTextContent("Choose a saved home service as default, or add one below.");
+  });
+
   it("lets Concierge continue with an existing trusted provider", async () => {
     renderProvidersSection({
       setupFocus: "doctor_clinic",
