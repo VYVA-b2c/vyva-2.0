@@ -1498,6 +1498,7 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByRole("heading", { name: "Marketing" });
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Email launch");
+    expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Publish today");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Consent review");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Offline field run");
@@ -1514,6 +1515,11 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-saved-view-source"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Source sync");
+
+    fireEvent.click(screen.getByTestId("button-marketing-saved-view-publish"));
+    expect(screen.getByTestId("marketing-calendar-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Publishing ops queue");
+    expect(screen.getByText("Saved view: publish today. Review scheduled campaigns, due sends, channel handoffs, and launch blockers.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-saved-view-offline"));
     expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();

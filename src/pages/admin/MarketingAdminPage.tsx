@@ -106,7 +106,7 @@ type MarketingSmartSearchResult = {
   icon: LucideIcon;
   onSelect: () => void;
 };
-type MarketingSavedViewKey = "launch" | "consent" | "partner" | "offline" | "creative" | "source";
+type MarketingSavedViewKey = "launch" | "publish" | "consent" | "partner" | "offline" | "creative" | "source";
 type MarketingSavedView = {
   key: MarketingSavedViewKey;
   title: string;
@@ -12209,6 +12209,12 @@ export default function MarketingAdminPage() {
       setActiveTab("dashboard");
       setChannelFilter("email");
       setMessage("Saved view: email launch cockpit. Review due sends, recipient snapshots, and final send controls.");
+      return;
+    }
+    if (viewKey === "publish") {
+      setActiveTab("calendar");
+      setSearch("");
+      setMessage("Saved view: publish today. Review scheduled campaigns, due sends, channel handoffs, and launch blockers.");
       return;
     }
     if (viewKey === "consent") {
@@ -27884,6 +27890,9 @@ export default function MarketingAdminPage() {
     || Boolean(contact.companyName || contact.roleLabel)
   )).length;
   const savedViewCreativeGapCount = Math.max(missingSourceReferenceCount, contentTemplateGapSuggestions.length);
+  const savedViewPublishCount = dueReadyEmailCampaigns.length
+    + (scheduledEmailCampaignWithoutRecipients ? 1 : 0)
+    + manualHandoffCampaigns.length;
   const marketingSavedViews: MarketingSavedView[] = [
     {
       key: "launch",
@@ -27896,6 +27905,18 @@ export default function MarketingAdminPage() {
           : `${publishingQueueItems.length} queued`,
       icon: Send,
       className: "border-emerald-100 bg-emerald-50 text-emerald-950",
+    },
+    {
+      key: "publish",
+      title: "Publish today",
+      detail: "Calendar-ready sends, manual handoffs, recipient blockers, and due work.",
+      countLabel: savedViewPublishCount
+        ? `${savedViewPublishCount} actions`
+        : "clear",
+      icon: CalendarDays,
+      className: savedViewPublishCount
+        ? "border-amber-100 bg-amber-50 text-amber-950"
+        : "border-emerald-100 bg-emerald-50 text-emerald-950",
     },
     {
       key: "consent",
@@ -28164,7 +28185,7 @@ export default function MarketingAdminPage() {
               </div>
               <Pill className="bg-purple-50 text-purple-800">{marketingSavedViews.length} views</Pill>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
               {marketingSavedViews.map((view) => {
                 const ViewIcon = view.icon;
                 return (
