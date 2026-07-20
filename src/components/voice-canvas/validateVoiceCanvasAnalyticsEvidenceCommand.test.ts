@@ -8,7 +8,10 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS } from "./canvasLaunchReadiness";
+import {
+  CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS,
+  CANVAS_LAUNCH_FLOW_IDS,
+} from "./canvasLaunchReadiness";
 import type { CanvasTelemetryEnvelope } from "./canvasPlatform";
 
 const tsxCliPath = path.resolve(
@@ -82,6 +85,7 @@ function validEvidence() {
   return {
     generatedAt: "2026-07-20T00:00:00.000Z",
     source: "staging synthetic QA analytics export",
+    coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
     counts: {
       started: 2,
       resumed: 1,
@@ -120,6 +124,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
     expect(result.stdout).toContain(
       "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
     );
+    expect(result.stdout).toContain(
+      "coveredFlows must list every launch flow",
+    );
     expect(result.stdout).toContain("never copies raw sample rows");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
@@ -148,6 +155,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
         readyForLaunchEvidence: boolean;
         sampleCount: number;
         allowedEnvelopeFields: string[];
+        coveredFlows: string[];
         sampleLaunchSignalCounts: Record<string, number>;
         declaredCounts: Record<string, number>;
         problems: string[];
@@ -158,6 +166,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
       expect(summary.allowedEnvelopeFields).toEqual([
         ...CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS,
       ]);
+      expect(summary.coveredFlows).toEqual([...CANVAS_LAUNCH_FLOW_IDS]);
       expect(summary.sampleLaunchSignalCounts).toEqual({
         started: 1,
         resumed: 1,
@@ -168,7 +177,51 @@ describe("Voice Canvas analytics evidence validator command", () => {
       });
       expect(summary.declaredCounts.started).toBe(2);
         expect(summary.problems).toEqual([]);
-      }));
+    }));
+
+  it("rejects analytics evidence that does not cover every launch flow", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        coveredFlows: [
+          "ride",
+          "appointment",
+          "refill",
+          "shopping",
+          "123 Secret Street",
+        ],
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          coveredFlows: string[];
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.coveredFlows).toEqual([
+          "ride",
+          "appointment",
+          "refill",
+          "shopping",
+        ]);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "coveredFlows included 1 value(s) outside the launch flow set.",
+            "provider_reply: coveredFlows must include this launch flow.",
+            "task_hub_resume: coveredFlows must include this launch flow.",
+          ]),
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("123 Secret Street");
+      },
+    ));
 
   it("rejects event arrays without dated analytics source metadata", () =>
     withTempJsonFile(validSamples(), (inputPath) => {

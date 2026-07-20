@@ -106,7 +106,7 @@ After exporting sanitized staging analytics evidence, validate it before filling
 npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json
 ```
 
-The analytics evidence JSON must use only synthetic QA telemetry samples and must not include transcripts, entered text, addresses, dates, names, medication details, provider details, shopping details, contact details, account identifiers, or personal data. The validator output is an aggregate validation artifact only; it does not copy raw sample rows.
+The analytics evidence JSON must include aggregate `coveredFlows` for `ride`, `appointment`, `refill`, `shopping`, `provider_reply`, and `task_hub_resume`; use only synthetic QA telemetry samples; and must not include transcripts, entered text, addresses, dates, names, medication details, provider details, shopping details, contact details, account identifiers, or personal data. The validator output is an aggregate validation artifact only; it does not copy raw sample rows or unexpected values.
 
 Validate the evidence packet before copying packet notes into the final matrix:
 

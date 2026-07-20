@@ -8,7 +8,10 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { canvasLaunchReadinessFlows } from "./canvasLaunchReadiness";
+import {
+  CANVAS_LAUNCH_FLOW_IDS,
+  canvasLaunchReadinessFlows,
+} from "./canvasLaunchReadiness";
 import type { CanvasTelemetryEnvelope } from "./canvasPlatform";
 
 const tsxCliPath = path.resolve(
@@ -86,6 +89,7 @@ function validAnalyticsEvidence() {
   return {
     generatedAt: "2026-07-20T00:00:00.000Z",
     source: "staging synthetic QA analytics export",
+    coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
     counts: {
       started: 2,
       resumed: 1,

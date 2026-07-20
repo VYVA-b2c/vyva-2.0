@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS,
+  CANVAS_LAUNCH_FLOW_IDS,
+  type CanvasLaunchFlowId,
 } from "../src/components/voice-canvas/canvasLaunchReadiness";
 import {
   CANVAS_LAUNCH_SIGNALS,
@@ -17,6 +19,7 @@ interface AnalyticsEvidenceSummary {
   readyForLaunchEvidence: boolean;
   requiredSignals: readonly CanvasLaunchSignal[];
   allowedEnvelopeFields: readonly string[];
+  coveredFlows: readonly CanvasLaunchFlowId[];
   sampleCount: number;
   sampleLaunchSignalCounts: CanvasLaunchTelemetryCounts;
   declaredCounts: Partial<CanvasLaunchTelemetryCounts> | null;
@@ -29,6 +32,7 @@ const allowedEnvelopeFields = [...CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS];
 const allowedTopLevelKeys = [
   "generatedAt",
   "source",
+  "coveredFlows",
   "counts",
   "samples",
   "events",
@@ -51,6 +55,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "",
       "The input JSON must be an object with generatedAt, source, samples/events, and optional counts.",
       "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+      "coveredFlows must list every launch flow: ride, appointment, refill, shopping, provider_reply, task_hub_resume.",
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
       "Every launch signal must have a positive observed sample count: started, resumed, abandoned, blocked, confirmed, completed.",
       "Completed can be proven by completed samples or terminal pending samples.",
@@ -144,6 +149,53 @@ function extractDeclaredCounts(
   return counts;
 }
 
+function extractCoveredFlows(
+  artifact: unknown,
+  problems: string[],
+): readonly CanvasLaunchFlowId[] {
+  if (!isRecord(artifact) || !Array.isArray(artifact.coveredFlows)) {
+    problems.push(
+      "Analytics evidence must include coveredFlows with every launch-scoped flow id.",
+    );
+    return [];
+  }
+
+  const expected = new Set<string>(CANVAS_LAUNCH_FLOW_IDS);
+  const covered = new Set<CanvasLaunchFlowId>();
+  let invalidEntryCount = 0;
+  let duplicateEntryCount = 0;
+
+  for (const entry of artifact.coveredFlows) {
+    if (typeof entry !== "string" || !expected.has(entry)) {
+      invalidEntryCount += 1;
+      continue;
+    }
+
+    if (covered.has(entry as CanvasLaunchFlowId)) {
+      duplicateEntryCount += 1;
+      continue;
+    }
+    covered.add(entry as CanvasLaunchFlowId);
+  }
+
+  if (invalidEntryCount > 0) {
+    problems.push(
+      `coveredFlows included ${invalidEntryCount} value(s) outside the launch flow set.`,
+    );
+  }
+  if (duplicateEntryCount > 0) {
+    problems.push(`coveredFlows included ${duplicateEntryCount} duplicate value(s).`);
+  }
+
+  for (const flowId of CANVAS_LAUNCH_FLOW_IDS) {
+    if (!covered.has(flowId)) {
+      problems.push(`${flowId}: coveredFlows must include this launch flow.`);
+    }
+  }
+
+  return CANVAS_LAUNCH_FLOW_IDS.filter((flowId) => covered.has(flowId));
+}
+
 function topLevelProblems(artifact: unknown): string[] {
   if (!isRecord(artifact)) {
     return ["Analytics evidence must be a JSON object."];
@@ -233,6 +285,7 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
   const relativeInputPath = path.relative(process.cwd(), inputPath);
   const problems = topLevelProblems(artifact);
   const declaredCounts = extractDeclaredCounts(artifact, problems);
+  const coveredFlows = extractCoveredFlows(artifact, problems);
   const samples = normalizeSamples(artifact);
   const sampleLaunchSignalCounts = emptyCanvasLaunchTelemetryCounts();
 
@@ -273,6 +326,7 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
     readyForLaunchEvidence: problems.length === 0,
     requiredSignals: CANVAS_LAUNCH_SIGNALS,
     allowedEnvelopeFields,
+    coveredFlows,
     sampleCount: samples.length,
     sampleLaunchSignalCounts,
     declaredCounts,

@@ -356,6 +356,32 @@ describe("Voice Canvas evidence packet validator command", () => {
       },
     ));
 
+  it("rejects analytics evidence note patterns without launch-flow coverage", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "validation confirmed coveredFlows for ride, appointment, refill, shopping, provider_reply, and task_hub_resume plus positive observed sample counts",
+        "validation confirmed positive observed sample counts",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Copy-ready evidence note pattern "Analytics signal" is missing required launch evidence wording.',
+          ]),
+        );
+      },
+    ));
+
   it("rejects final pre-fill checks that omit required launch gates", () =>
     withTempPacket(
       completedPacket().replace(
