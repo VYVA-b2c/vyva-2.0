@@ -817,6 +817,19 @@ type CampaignStudioRecipientMixItem = CampaignAudienceInsightItem & {
   channels?: Channel[];
 };
 
+type CampaignStudioSegmentPersonalizationItem = {
+  key: string;
+  label: string;
+  basis: string;
+  contactCount: number;
+  bestChannel: Channel;
+  opener: string;
+  proofAngle: string;
+  followUp: string;
+  state: CampaignReadinessState;
+  text: string;
+};
+
 type CampaignCreativeQualityItem = {
   key: string;
   title: string;
@@ -16443,6 +16456,100 @@ export default function MarketingAdminPage() {
       detail: `${campaignStudioConsentCounts.review} pending/unknown and ${campaignStudioConsentCounts.optedOut} opted out before any future send.`,
     },
   ];
+  const campaignStudioSegmentOptions = (basis: string, getter: (contact: MarketingContact) => string | null | undefined, limit = 3) => (
+    countedOptions(campaignStudioAudiencePool.map(getter))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+      .slice(0, limit)
+      .map((option) => ({
+        basis,
+        label: option.label,
+        contacts: campaignStudioAudiencePool.filter((contact) => lower(String(getter(contact) ?? "").trim()) === option.value),
+      }))
+  );
+  const campaignStudioSegmentCandidates = [
+    ...campaignStudioSegmentOptions("Market", (contact) => contact.market, 2),
+    ...campaignStudioSegmentOptions("Language", (contact) => contact.language, 2),
+    ...campaignStudioSegmentOptions("Vertical", (contact) => contact.vertical, 3),
+    ...campaignStudioSegmentOptions("Category", (contact) => contact.category, 3),
+    ...campaignStudioSegmentOptions("Role", (contact) => contact.roleLabel, 2),
+    ...campaignStudioSegmentOptions("Organization", (contact) => contact.companyName, 2),
+  ];
+  const campaignStudioSegmentPersonalizationItems: CampaignStudioSegmentPersonalizationItem[] = campaignStudioSegmentCandidates
+    .filter((segment, index, segments) => segment.label && segments.findIndex((candidate) => candidate.basis === segment.basis && candidate.label === segment.label) === index)
+    .sort((a, b) => b.contacts.length - a.contacts.length || a.basis.localeCompare(b.basis))
+    .slice(0, 4)
+    .map((segment) => {
+      const bestChannel = campaignStudioSelectedChannels
+        .map((channel) => ({
+          channel,
+          count: segment.contacts.filter((contact) => contactReachableForChannel(contact, channel)).length,
+        }))
+        .sort((a, b) => (
+          b.count - a.count
+          || (a.channel === campaignStudio.channel ? -1 : b.channel === campaignStudio.channel ? 1 : 0)
+          || campaignStudioSelectedChannels.indexOf(a.channel) - campaignStudioSelectedChannels.indexOf(b.channel)
+          || CHANNELS.indexOf(a.channel) - CHANNELS.indexOf(b.channel)
+        ))[0]?.channel ?? campaignStudio.channel;
+      const sample = segment.contacts[0] ?? campaignStudioAudiencePool[0] ?? null;
+      const sampleName = sample ? contactTokenValue(sample, "first_name") || sample.fullName || sample.email || "there" : "there";
+      const opener = segment.basis === "Market"
+        ? `Hi ${sampleName}, a practical VYVA update for ${segment.label}.`
+        : segment.basis === "Language"
+          ? `Hi ${sampleName}, keep this version reviewed for ${marketingLanguageLabel(segment.label)} speakers.`
+          : segment.basis === "Organization"
+            ? `Hi ${sampleName}, sharing a concise VYVA note for ${segment.label}.`
+            : `Hi ${sampleName}, this is most relevant for ${segment.label}.`;
+      const proofAngle = segment.basis === "Market"
+          ? "Lead with local usefulness, trust, and a simple next step."
+          : segment.basis === "Language"
+            ? "Lead with clarity, plain language, and localization review."
+            : segment.basis === "Role" || segment.basis === "Organization" || selectedCampaignStudioPlay.audienceType === "b2b"
+              ? "Lead with credibility, workflow value, and a clear partner follow-up."
+              : "Lead with the practical benefit and why this group should act now.";
+      const followUp = bestChannel === "email"
+        ? "Review opens/clicks, then follow up with warm replies or high-fit non-responders."
+        : bestChannel === "phone"
+          ? "Call the warmest contacts first and record the next owner."
+          : bestChannel === "whatsapp" || bestChannel === "sms"
+            ? "Send manually only where consent is clear; capture replies and opt-outs."
+            : "Publish manually, save the public URL, and tag warm replies for follow-up.";
+      const reachable = segment.contacts.filter((contact) => contactReachableForChannel(contact, bestChannel)).length;
+      const state: CampaignReadinessState = segment.contacts.length === 0
+        ? "blocked"
+        : reachable > 0
+          ? "ready"
+          : "needs_action";
+      const text = [
+        `${segment.basis}: ${segment.label}`,
+        `Contacts: ${segment.contacts.length}`,
+        `Best route: ${channelLabel[bestChannel]} (${reachable} reachable)`,
+        `Suggested opener: ${opener}`,
+        `Proof angle: ${proofAngle}`,
+        `Follow-up: ${followUp}`,
+      ].join("\n");
+
+      return {
+        key: `${segment.basis.toLowerCase()}-${marketingTrackingSlug(segment.label)}`,
+        label: segment.label,
+        basis: segment.basis,
+        contactCount: segment.contacts.length,
+        bestChannel,
+        opener,
+        proofAngle,
+        followUp,
+        state,
+        text,
+      };
+    });
+  const campaignStudioSegmentPersonalizationText = [
+    "VYVA campaign segment personalization matrix",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${campaignStudioOfflineAudienceName}`,
+    "",
+    ...campaignStudioSegmentPersonalizationItems.map((item) => item.text),
+    "",
+    "AI instruction: create channel-safe variants for each segment while keeping the same offer, CTA, consent posture, and follow-up owner.",
+  ].join("\n\n---\n\n");
   const campaignStudioAudienceRecommendation = campaignStudioAudiencePool.length === 0
     ? "Sync or add contacts before using this play."
     : campaignStudioRecipientPreview.length === 0 && campaignStudioBestChannelReach.count > 0
@@ -17304,6 +17411,22 @@ export default function MarketingAdminPage() {
       recipients: item.recipients,
       recipientCount: item.recipients,
     })),
+    segmentPersonalization: {
+      text: campaignStudioSegmentPersonalizationText,
+      items: campaignStudioSegmentPersonalizationItems.map((item) => ({
+        key: item.key,
+        label: item.label,
+        basis: item.basis,
+        contactCount: item.contactCount,
+        bestChannel: item.bestChannel,
+        bestChannelLabel: channelLabel[item.bestChannel],
+        opener: item.opener,
+        proofAngle: item.proofAngle,
+        followUp: item.followUp,
+        state: item.state,
+        text: item.text,
+      })),
+    },
     launchTimeline: campaignStudioLaunchTimeline.map((item) => ({
       channel: item.channel,
       channelLabel: channelLabel[item.channel],
@@ -29510,6 +29633,69 @@ export default function MarketingAdminPage() {
                             <Sparkles size={13} aria-hidden="true" /> Use {channelLabel[campaignStudioBestChannelReach.channel]} route
                           </button>
                         ) : null}
+                      </div>
+                      <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50/50 p-3" data-testid="marketing-campaign-studio-segment-personalization">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-teal-800">Segment personalization matrix</p>
+                            <p className="mt-1 text-xs font-bold text-[#536f67]">
+                              Turns imported audience fields into segment-specific openers, proof angles, routes, and follow-up notes before copy is finalized.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Pill className={campaignStudioSegmentPersonalizationItems.length ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                              {campaignStudioSegmentPersonalizationItems.length} segment{campaignStudioSegmentPersonalizationItems.length === 1 ? "" : "s"}
+                            </Pill>
+                            <button
+                              type="button"
+                              onClick={() => void copyCampaignStudioOfflineHandoff("Campaign segment personalization matrix", campaignStudioSegmentPersonalizationText)}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 text-xs font-black text-teal-800 hover:bg-teal-50"
+                              data-testid="button-marketing-campaign-studio-copy-segment-personalization"
+                            >
+                              <Copy size={13} /> Copy AI segment brief
+                            </button>
+                          </div>
+                        </div>
+                        {campaignStudioSegmentPersonalizationItems.length ? (
+                          <div className="mt-3 grid gap-2 xl:grid-cols-2" data-testid="marketing-campaign-studio-segment-personalization-items">
+                            {campaignStudioSegmentPersonalizationItems.map((item) => (
+                              <article
+                                key={item.key}
+                                className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`}
+                                data-testid={`marketing-campaign-studio-segment-personalization-${item.key}`}
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <Pill className="bg-teal-50 text-teal-800">{item.basis}</Pill>
+                                    <h4 className="mt-2 text-sm font-black text-[#241133]">{item.label}</h4>
+                                  </div>
+                                  <div className="flex flex-wrap justify-end gap-1.5">
+                                    <Pill className={channelClass(item.bestChannel)}>{channelLabel[item.bestChannel]}</Pill>
+                                    <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                  </div>
+                                </div>
+                                <div className="mt-3 grid gap-2 text-xs font-bold leading-relaxed text-[#536f67]">
+                                  <p className="rounded-lg bg-teal-50/70 px-3 py-2">
+                                    <span className="font-black text-[#241133]">Opener:</span> {item.opener}
+                                  </p>
+                                  <p className="rounded-lg bg-teal-50/70 px-3 py-2">
+                                    <span className="font-black text-[#241133]">Angle:</span> {item.proofAngle}
+                                  </p>
+                                  <p className="rounded-lg bg-teal-50/70 px-3 py-2">
+                                    <span className="font-black text-[#241133]">Follow-up:</span> {item.followUp}
+                                  </p>
+                                </div>
+                                <p className="mt-2 text-[11px] font-black uppercase tracking-[0.08em] text-teal-800">
+                                  {item.contactCount} contact{item.contactCount === 1 ? "" : "s"} in this segment
+                                </p>
+                              </article>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 rounded-xl border border-dashed border-teal-200 bg-white px-3 py-3 text-sm font-bold text-[#536f67]">
+                            No segment fields are available yet. Add market, language, category, vertical, role, or organization data to make campaign variants smarter.
+                          </p>
+                        )}
                       </div>
                       <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-campaign-studio-recipient-mix">
                         <div className="flex flex-wrap items-start justify-between gap-3">

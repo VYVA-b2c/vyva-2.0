@@ -5596,6 +5596,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-consent")).toHaveTextContent("1 pending/unknown and 0 opted out");
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-localization")).toHaveTextContent("Spain 1");
     expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Review 1 unmapped list member from Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-segment-personalization")).toHaveTextContent("Segment personalization matrix");
+    expect(screen.getByTestId("marketing-campaign-studio-segment-personalization-market-spain")).toHaveTextContent("Spain");
+    expect(screen.getByTestId("marketing-campaign-studio-segment-personalization-market-spain")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-segment-personalization-market-spain")).toHaveTextContent("Lead with local usefulness");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-segment-personalization"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign segment personalization matrix"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Market: Spain"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign segment personalization matrix copied.");
     expect(screen.getByTestId("marketing-campaign-studio-recipient-mix")).toHaveTextContent("Recipient mix");
     expect(screen.getByTestId("marketing-campaign-studio-recipient-mix-channel-linkedin")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-studio-recipient-mix-channel-linkedin")).toHaveTextContent("1/1");
@@ -6430,6 +6440,18 @@ describe("MarketingAdminPage", () => {
               recipientCount: 1,
             }),
           ],
+          segmentPersonalization: expect.objectContaining({
+            text: expect.stringContaining("VYVA campaign segment personalization matrix"),
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                basis: "Market",
+                label: "Spain",
+                bestChannel: "linkedin",
+                opener: expect.stringContaining("Spain"),
+                proofAngle: expect.stringContaining("local usefulness"),
+              }),
+            ]),
+          }),
           publishingRunSheets: [
             expect.objectContaining({
               channel: "linkedin",
