@@ -17,10 +17,12 @@ Start at 5%, then 25%, 50%, and 100% only after reviewing completion, abandonmen
 
 ## Immediate rollback
 
-1. Set `VYVA_ENABLE_RIDE_VOICE_CANVAS=false` and restart the application process without rebuilding the client.
-2. Confirm the feature endpoint returns `{ "enabled": false }`.
-3. Open a voice ride handoff and confirm the existing Concierge transport panel appears instead of the Canvas.
-4. Open Canvas sessions fall back on the next ten-second configuration refresh or immediately when the window regains focus. They still cannot act without explicit confirmation during that interval.
+1. Set `VYVA_ENABLE_RIDE_VOICE_CANVAS=false` and `VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT=0`, then restart the application process if runtime configuration is read at process start. Do not rebuild the client for rollback.
+2. Confirm `/api/config/features/ride-voice-canvas` returns `{ "enabled": false, "rolloutPercent": 0 }` with `Cache-Control: no-store`.
+3. Capture sanitized rollback endpoint evidence with `npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json`. The artifact must contain endpoint/status/cache-control/timing plus enabled/rollout payload evidence only; never addresses, saved-place labels, spoken transcripts, entered text, dates, times, or ride details.
+4. Open a voice ride handoff and confirm the existing Concierge transport panel appears instead of the Canvas.
+5. Focus or refresh any open Canvas session and confirm the Canvas closes or hides without a write, booking, call, message, navigation, resubmission, or external action. Sessions still cannot act without explicit confirmation during the short configuration-refresh interval.
+6. Record the fallback and no-side-effect result in `docs/audits/voice-canvas-real-device-run-sheet.md`, `docs/audits/voice-canvas-real-device-evidence-packet.md`, and `docs/audits/voice-canvas-real-device-qa-matrix.md`; final launch sign-off still requires `npm run canvas:qa:preflight -- --final` with enabled and rollback-disabled endpoint artifacts.
 
 ## Failure triage
 

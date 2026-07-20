@@ -86,4 +86,58 @@ describe("Canvas platform cross-flow compliance", () => {
       ).toContain("evidence=sanitized");
     }
   });
+
+  it("keeps per-flow rollback runbooks aligned with launch endpoint evidence", () => {
+    const rollbackRunbooks = [
+      {
+        path: "docs/runbooks/ride-voice-canvas-rollout.md",
+        endpoint: "/api/config/features/ride-voice-canvas",
+        enableEnv: "VYVA_ENABLE_RIDE_VOICE_CANVAS=false",
+        rolloutEnv: "VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT=0",
+        fallback: "existing Concierge transport panel",
+        sensitiveDetail: "addresses",
+      },
+      {
+        path: "docs/runbooks/appointment-voice-canvas-rollout.md",
+        endpoint: "/api/config/features/appointment-voice-canvas",
+        enableEnv: "VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS=false",
+        rolloutEnv: "VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT=0",
+        fallback: "existing appointment panel",
+        sensitiveDetail: "appointment reasons",
+      },
+      {
+        path: "docs/runbooks/medication-refill-voice-canvas-rollout.md",
+        endpoint: "/api/config/features/medication-refill-voice-canvas",
+        enableEnv: "VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS=false",
+        rolloutEnv: "VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT=0",
+        fallback: "existing medication refill shopping/support path",
+        sensitiveDetail: "medication names",
+      },
+    ];
+
+    for (const runbook of rollbackRunbooks) {
+      const source = readFileSync(path.resolve(process.cwd(), runbook.path), "utf8");
+
+      expect(source, runbook.path).toContain("Immediate rollback");
+      expect(source).toContain(runbook.enableEnv);
+      expect(source).toContain(runbook.rolloutEnv);
+      expect(source).toContain(runbook.endpoint);
+      expect(source).toContain('{ "enabled": false, "rolloutPercent": 0 }');
+      expect(source).toContain("Cache-Control: no-store");
+      expect(source).toContain("canvas:qa:features");
+      expect(source).toContain("--expected-state=rollback-disabled");
+      expect(source).toContain("YYYY-MM-DD-feature-endpoints-rollback-disabled.json");
+      expect(source).toContain("sanitized rollback endpoint evidence");
+      expect(source).toContain(runbook.sensitiveDetail);
+      expect(source).toContain(runbook.fallback);
+      expect(source).toContain("Canvas closes or hides");
+      expect(source).toContain("without a write");
+      expect(source).toContain("resubmission");
+      expect(source).toContain("external action");
+      expect(source).toContain("voice-canvas-real-device-run-sheet.md");
+      expect(source).toContain("voice-canvas-real-device-evidence-packet.md");
+      expect(source).toContain("voice-canvas-real-device-qa-matrix.md");
+      expect(source).toContain("canvas:qa:preflight -- --final");
+    }
+  });
 });

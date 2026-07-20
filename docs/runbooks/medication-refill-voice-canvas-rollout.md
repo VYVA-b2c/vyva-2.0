@@ -11,7 +11,17 @@ Urgent language routes to visible urgent-help options. VYVA never silently calls
 - `VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS=true` enables eligibility.
 - `VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT=0..100` controls deterministic rollout.
 - Missing, malformed, or disabled configuration fails closed to the existing refill experience.
-- Set the enable flag to `false` for immediate rollback. Open Canvas sessions close when the client refreshes configuration.
+- `/api/config/features/medication-refill-voice-canvas` must return uncached responses with `Cache-Control: no-store`.
+- Set the enable flag to `false` and rollout percent to `0` for immediate rollback. Open Canvas sessions close when the client refreshes configuration.
+
+## Immediate rollback
+
+1. Set `VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS=false` and `VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT=0`, then restart the process if runtime configuration is read at process start.
+2. Verify `/api/config/features/medication-refill-voice-canvas` reports `{ "enabled": false, "rolloutPercent": 0 }` with `Cache-Control: no-store`.
+3. Capture sanitized rollback endpoint evidence with `npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json`. The artifact must contain endpoint/status/cache-control/timing plus enabled/rollout payload evidence only; never medication names, strengths, quantities, symptoms, pharmacy or provider names, notes, transcripts, entered text, contact details, or preparation references.
+4. Open a medication refill handoff and confirm the existing medication refill shopping/support path appears instead of the Canvas.
+5. Focus or refresh any open Canvas session and confirm the Canvas closes or hides without a write, refill preparation, order, approval, call, message, navigation, resubmission, or external action.
+6. Record the fallback and no-side-effect result in `docs/audits/voice-canvas-real-device-run-sheet.md`, `docs/audits/voice-canvas-real-device-evidence-packet.md`, and `docs/audits/voice-canvas-real-device-qa-matrix.md`; final launch sign-off still requires `npm run canvas:qa:preflight -- --final` with enabled and rollback-disabled endpoint artifacts.
 
 ## Privacy and observation
 
