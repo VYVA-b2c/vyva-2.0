@@ -27,6 +27,14 @@ Current audit status is tracked in `docs/audits/voice-canvas-launch-readiness-au
 
 Start at internal-only, then 5%, 25%, 50%, and 100% only after reviewing scene-only completion, abandonment, retry, blocked, and failure counts.
 
+Dedicated per-flow rollout and rollback notes:
+
+- Ride: `docs/runbooks/ride-voice-canvas-rollout.md`
+- Appointment: `docs/runbooks/appointment-voice-canvas-rollout.md`
+- Medication refill: `docs/runbooks/medication-refill-voice-canvas-rollout.md`
+- Shopping or delivery: `docs/runbooks/shopping-delivery-voice-canvas-rollout.md`
+- Provider reply: `docs/runbooks/provider-reply-voice-canvas-rollout.md`
+
 ## Feature endpoint evidence collection
 
 Before the real-device pass, capture a sanitized deployed endpoint artifact for the enabled rollout state:

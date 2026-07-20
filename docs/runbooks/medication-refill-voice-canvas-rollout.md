@@ -13,6 +13,7 @@ Urgent language routes to visible urgent-help options. VYVA never silently calls
 - Missing, malformed, or disabled configuration fails closed to the existing refill experience.
 - `/api/config/features/medication-refill-voice-canvas` must return uncached responses with `Cache-Control: no-store`.
 - Set the enable flag to `false` and rollout percent to `0` for immediate rollback. Open Canvas sessions close when the client refreshes configuration.
+- Fallback path: Existing medication refill shopping/support path.
 
 ## Immediate rollback
 
@@ -20,12 +21,12 @@ Urgent language routes to visible urgent-help options. VYVA never silently calls
 2. Verify `/api/config/features/medication-refill-voice-canvas` reports `{ "enabled": false, "rolloutPercent": 0 }` with `Cache-Control: no-store`.
 3. Capture sanitized rollback endpoint evidence with `npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json`. The artifact must contain endpoint/status/cache-control/timing plus enabled/rollout payload evidence only; never medication names, strengths, quantities, symptoms, pharmacy or provider names, notes, transcripts, entered text, contact details, or preparation references.
 4. Open a medication refill handoff and confirm the existing medication refill shopping/support path appears instead of the Canvas.
-5. Focus or refresh any open Canvas session and confirm the Canvas closes or hides without a write, refill preparation, order, approval, call, message, navigation, resubmission, or external action.
+5. Focus or refresh any open Canvas session and confirm the Canvas closes or hides without a write, refill preparation, order, approval, call, message, navigation, resubmission, or external action. Confirm it cannot act without explicit confirmation.
 6. Record the fallback and no-side-effect result in `docs/audits/voice-canvas-real-device-run-sheet.md`, `docs/audits/voice-canvas-real-device-evidence-packet.md`, and `docs/audits/voice-canvas-real-device-qa-matrix.md`; final launch sign-off still requires `npm run canvas:qa:preflight -- --final` with enabled and rollback-disabled endpoint artifacts.
 
 ## Privacy and observation
 
-Monitor only the closed events `scene_viewed`, `draft_restored`, `abandoned`, `retried`, `confirmation_submitted`, `completed`, `failed`, and `urgent_help_shown`. Allowed fields are scene step, interaction type, attempt count, and restoration state.
+Telemetry contains only closed events such as `scene_viewed`, `draft_restored`, `abandoned`, `retried`, `confirmation_submitted`, `completed`, `failed`, and `urgent_help_shown`. Allowed fields are scene step, interaction type, attempt count, and restoration state.
 
 Never log medication names, strengths, quantities, provider/pharmacy names, notes, symptoms, transcripts, contact preferences, or preparation references.
 

@@ -23,6 +23,13 @@ const evidencePacketPath =
   "docs/audits/voice-canvas-real-device-evidence-packet.md";
 const realDeviceQaMatrixPath =
   "docs/audits/voice-canvas-real-device-qa-matrix.md";
+const featureRunbooksByFlowId = {
+  ride: "docs/runbooks/ride-voice-canvas-rollout.md",
+  appointment: "docs/runbooks/appointment-voice-canvas-rollout.md",
+  refill: "docs/runbooks/medication-refill-voice-canvas-rollout.md",
+  shopping: "docs/runbooks/shopping-delivery-voice-canvas-rollout.md",
+  provider_reply: "docs/runbooks/provider-reply-voice-canvas-rollout.md",
+} as const;
 
 describe("Canvas launch readiness manifest", () => {
   it("tracks exactly the launch-scoped Canvas flows", () => {
@@ -195,6 +202,37 @@ describe("Canvas launch readiness manifest", () => {
     for (const flow of canvasLaunchReadinessFlows) {
       expect(runbook, flow.label).toContain(flow.label.split(" ")[0]);
       if (flow.featureFlag) {
+        const dedicatedRunbookPath =
+          featureRunbooksByFlowId[
+            flow.id as keyof typeof featureRunbooksByFlowId
+          ];
+        expect(dedicatedRunbookPath, flow.label).toBeTruthy();
+        expect(flow.qaEvidence.rollback_notes).toContain(dedicatedRunbookPath);
+        expect(flow.qaEvidence.feature_flag_fallback).toContain(
+          dedicatedRunbookPath,
+        );
+        expect(runbook).toContain(dedicatedRunbookPath);
+
+        const dedicatedRunbook = readFileSync(
+          path.resolve(process.cwd(), dedicatedRunbookPath),
+          "utf8",
+        );
+        expect(dedicatedRunbook, flow.label).toContain("Immediate rollback");
+        expect(dedicatedRunbook).toContain(flow.featureFlag.endpoint);
+        expect(dedicatedRunbook).toContain(flow.featureFlag.enableEnv);
+        expect(dedicatedRunbook).toContain(flow.featureFlag.rolloutEnv);
+        expect(dedicatedRunbook).toContain(flow.featureFlag.fallback);
+        expect(dedicatedRunbook).toContain("Cache-Control: no-store");
+        expect(dedicatedRunbook).toContain("canvas:qa:features");
+        expect(dedicatedRunbook).toContain("rollback-disabled");
+        expect(dedicatedRunbook).toContain("voice-canvas-real-device-run-sheet.md");
+        expect(dedicatedRunbook).toContain("voice-canvas-real-device-evidence-packet.md");
+        expect(dedicatedRunbook).toContain("voice-canvas-real-device-qa-matrix.md");
+        expect(dedicatedRunbook).toContain("without a write");
+        expect(dedicatedRunbook).toContain("without explicit confirmation");
+        expect(dedicatedRunbook).toContain("Telemetry contains only");
+        expect(dedicatedRunbook).toContain("never");
+
         expect(runbook).toContain(flow.featureFlag.endpoint);
         expect(runbook).toContain(flow.featureFlag.serverFeatureKey);
         expect(runbook).toContain(flow.featureFlag.fallback);

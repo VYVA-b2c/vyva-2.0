@@ -12,6 +12,7 @@ The endpoint `/api/config/features/ride-voice-canvas` reads these runtime settin
 
 - `VYVA_ENABLE_RIDE_VOICE_CANVAS=true` enables eligibility. Any other value is the global kill switch.
 - `VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT=0..100` controls the stable cohort percentage.
+- Fallback path: Existing Concierge transport panel.
 
 Start at 5%, then 25%, 50%, and 100% only after reviewing completion, abandonment, retry, and failure rates. Do not use event payloads to identify individual users.
 
@@ -35,4 +36,4 @@ Start at 5%, then 25%, 50%, and 100% only after reviewing completion, abandonmen
 
 - Run focused component and Concierge tests, typecheck, changed-file lint, and the dedicated Playwright specification.
 - Verify English and Spanish copy at 390 px, 768 px, and desktop widths.
-- Confirm no transport or action request occurs before explicit confirmation.
+- Confirm no transport or action request occurs without explicit confirmation.

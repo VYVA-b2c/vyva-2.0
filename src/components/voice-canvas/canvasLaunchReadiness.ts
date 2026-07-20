@@ -361,20 +361,25 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       waiting_blocked_completed_clarity: [
         "src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx",
-        sharedLaunchRunbook,
+        "docs/runbooks/shopping-delivery-voice-canvas-rollout.md",
       ],
       feature_flag_fallback: [
         "server/lib/canvasFeatureFlags.test.ts",
         ...sharedFeatureEndpointEvidence,
         "src/components/voice-canvas/shoppingCanvasRollout.test.ts",
         "src/pages/ConciergeShoppingScreen.test.tsx",
+        "docs/runbooks/shopping-delivery-voice-canvas-rollout.md",
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/shoppingCanvasTelemetry.ts",
         "src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx",
         ...sharedPrivacyTelemetryEvidence,
       ],
-      rollback_notes: [sharedLaunchRunbook, sharedLaunchAudit],
+      rollback_notes: [
+        "docs/runbooks/shopping-delivery-voice-canvas-rollout.md",
+        sharedLaunchRunbook,
+        sharedLaunchAudit,
+      ],
     },
   },
   {
@@ -426,18 +431,24 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       waiting_blocked_completed_clarity: [
         "src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx",
         "src/pages/ConciergeTaskInboxPage.test.tsx",
+        "docs/runbooks/provider-reply-voice-canvas-rollout.md",
       ],
       feature_flag_fallback: [
         "server/lib/canvasFeatureFlags.test.ts",
         ...sharedFeatureEndpointEvidence,
         "src/components/voice-canvas/providerReplyCanvasRollout.test.ts",
         "src/pages/ConciergeScreen.test.tsx",
+        "docs/runbooks/provider-reply-voice-canvas-rollout.md",
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/providerReplyCanvasTelemetry.ts",
         ...sharedPrivacyTelemetryEvidence,
       ],
-      rollback_notes: [sharedLaunchRunbook, sharedLaunchAudit],
+      rollback_notes: [
+        "docs/runbooks/provider-reply-voice-canvas-rollout.md",
+        sharedLaunchRunbook,
+        sharedLaunchAudit,
+      ],
     },
   },
   {
