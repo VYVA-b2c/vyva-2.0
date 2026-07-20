@@ -195,15 +195,22 @@ function validAnalyticsEvidence() {
   };
 }
 
-function validFeatureEndpointArtifact(mode: "enabled" | "rollback") {
+function validFeatureEndpointArtifact(
+  mode: "enabled" | "rollback",
+  options: { authenticatedRequest?: boolean; requestHeaderCount?: number } = {},
+) {
   const enabled = mode === "enabled";
   const rolloutPercent = mode === "enabled" ? 100 : 0;
+  const authenticatedRequest = options.authenticatedRequest ?? false;
+  const requestHeaderCount = options.requestHeaderCount ?? 0;
 
   return {
     generatedAt: freshGeneratedAt(),
     baseUrl: "https://staging.vyva.app",
     scope: "VYVA Canvas Launch Readiness + Real-Use QA v1",
     expectedState: mode === "enabled" ? "enabled" : "rollback-disabled",
+    authenticatedRequest,
+    requestHeaderCount,
     endpointCount: launchFeatureFlows.length,
     readyForQaEvidence: true,
     problemCount: 0,
@@ -956,17 +963,120 @@ describe("Voice Canvas launch readiness preflight command", () => {
         expect(summary.featureEndpointEvidence.enabled).toMatchObject({
           provided: true,
           readyForLaunchEvidence: true,
+          authenticatedRequest: false,
+          requestHeaderCount: 0,
           endpointCount: launchFeatureFlows.length,
           problemCount: 0,
         });
         expect(summary.featureEndpointEvidence.rollback).toMatchObject({
           provided: true,
           readyForLaunchEvidence: true,
+          authenticatedRequest: false,
+          requestHeaderCount: 0,
           endpointCount: launchFeatureFlows.length,
           problemCount: 0,
         });
       },
     ));
+
+  it("rejects endpoint artifacts that include request header or credential references", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        requestHeaderEnv: ["Authorization:VYVA_QA_TOKEN"],
+      },
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: {
+              readyForLaunchEvidence: boolean;
+              problemCount: number;
+              problems: string[];
+            };
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(false);
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.enabled.problems).toEqual(
+          expect.arrayContaining([
+            "Feature endpoint artifact must not include request header names, cookies, authorization values, or credential references.",
+          ]),
+        );
+        expect(result.stdout).not.toContain("VYVA_QA_TOKEN");
+        expect(summary.nextActions).toContain(
+          "Fix enabled feature endpoint evidence before launch sign-off.",
+        );
+      },
+    ));
+
+  it("rejects endpoint auth metadata that drifts from an authenticated launch run plan", () => {
+    const runDate = freshReviewDate();
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      validLaunchRunPlan(runDate, "https://staging.vyva.app", [
+        "x-qa-preview-bypass:VYVA_QA_PREVIEW_BYPASS",
+      ]),
+      (runPlanPath) =>
+        withTempFeatureEndpointFiles(
+          validFeatureEndpointArtifact("enabled"),
+          validFeatureEndpointArtifact("rollback", {
+            authenticatedRequest: true,
+            requestHeaderCount: 1,
+          }),
+          ({ enabledPath, rollbackPath }) => {
+            const result = runPreflight([
+              `--run-plan=${runPlanPath}`,
+              `--features-enabled=${enabledPath}`,
+              `--features-rollback=${rollbackPath}`,
+              "--json",
+            ]);
+
+            expect(result.status).toBe(1);
+            expect(result.stderr).toBe("");
+
+            const summary = JSON.parse(result.stdout) as {
+              endpointAuthConsistency: {
+                ready: boolean;
+                checked: boolean;
+                requestHeaderCount: number;
+                problemCount: number;
+                problems: string[];
+              };
+              nextActions: string[];
+            };
+
+            expect(summary.endpointAuthConsistency).toMatchObject({
+              ready: false,
+              checked: true,
+              requestHeaderCount: 1,
+            });
+            expect(summary.endpointAuthConsistency.problemCount).toBeGreaterThan(0);
+            expect(summary.endpointAuthConsistency.problems).toEqual(
+              expect.arrayContaining([
+                "enabled feature endpoints: requestHeaderCount must match the launch run plan request header count.",
+                "enabled feature endpoints: authenticatedRequest must be true when the launch run plan uses request headers.",
+              ]),
+            );
+            expect(summary.nextActions).toContain(
+              "Fix endpoint evidence authentication metadata so it matches the launch run plan.",
+            );
+          },
+        ),
+    );
+  });
 
   it("includes sanitized rollback owner handoff artifacts in the preflight summary", () =>
     withTempRollbackOwnerFile(validRollbackOwnerHandoffArtifact(), (inputPath) => {

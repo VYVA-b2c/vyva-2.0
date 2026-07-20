@@ -153,6 +153,8 @@ interface FeatureEndpointArtifactValidation {
   readyForLaunchEvidence: boolean;
   mode: "enabled" | "rollback";
   generatedAt: string;
+  authenticatedRequest: boolean;
+  requestHeaderCount: number;
   endpointCount: number;
   problemCount: number;
   problems: string[];
@@ -175,6 +177,14 @@ interface ExternalEvidenceDateConsistency {
   ready: boolean;
   checked: boolean;
   runDate: string;
+  problemCount: number;
+  problems: string[];
+}
+
+interface EndpointAuthConsistency {
+  ready: boolean;
+  checked: boolean;
+  requestHeaderCount: number;
   problemCount: number;
   problems: string[];
 }
@@ -371,6 +381,8 @@ function validateFeatureEndpointArtifact(
       readyForLaunchEvidence: false,
       mode,
       generatedAt: "unknown",
+      authenticatedRequest: false,
+      requestHeaderCount: 0,
       endpointCount: 0,
       problemCount: 0,
       problems: [],
@@ -446,6 +458,44 @@ function validateFeatureEndpointArtifact(
     (!Array.isArray(artifact.problems) || artifact.problems.length !== 0)
   ) {
     problems.push("Feature endpoint artifact problems must be an empty array.");
+  }
+
+  const authenticatedRequest = isRecord(artifact)
+    ? artifact.authenticatedRequest
+    : undefined;
+  const requestHeaderCount = isRecord(artifact)
+    ? artifact.requestHeaderCount
+    : undefined;
+  if (authenticatedRequest !== undefined && typeof authenticatedRequest !== "boolean") {
+    problems.push("Feature endpoint artifact authenticatedRequest must be boolean when present.");
+  }
+  if (
+    requestHeaderCount !== undefined &&
+    (!Number.isInteger(requestHeaderCount) || requestHeaderCount < 0)
+  ) {
+    problems.push("Feature endpoint artifact requestHeaderCount must be a non-negative integer when present.");
+  }
+  if (authenticatedRequest === true && requestHeaderCount === 0) {
+    problems.push("Feature endpoint artifact authenticatedRequest requires a positive requestHeaderCount.");
+  }
+  if (authenticatedRequest === false && typeof requestHeaderCount === "number" && requestHeaderCount > 0) {
+    problems.push("Feature endpoint artifact unauthenticated requests must not report requestHeaderCount.");
+  }
+  for (const unsafeKey of [
+    "requestHeaderEnv",
+    "requestHeaders",
+    "headers",
+    "authorization",
+    "Authorization",
+    "cookie",
+    "Cookie",
+  ]) {
+    if (isRecord(artifact) && Object.prototype.hasOwnProperty.call(artifact, unsafeKey)) {
+      problems.push(
+        "Feature endpoint artifact must not include request header names, cookies, authorization values, or credential references.",
+      );
+      break;
+    }
   }
 
   const expectedEnabled = mode === "enabled";
@@ -556,6 +606,11 @@ function validateFeatureEndpointArtifact(
     readyForLaunchEvidence: problems.length === 0,
     mode,
     generatedAt: generatedAt ? generatedAt.toISOString() : "unknown",
+    authenticatedRequest: authenticatedRequest === true,
+    requestHeaderCount:
+      typeof requestHeaderCount === "number" && Number.isInteger(requestHeaderCount)
+        ? requestHeaderCount
+        : 0,
     endpointCount: endpointRows.length,
     problemCount: problems.length,
     problems,
@@ -876,6 +931,52 @@ function validateExternalEvidenceDateConsistency(
   };
 }
 
+function validateEndpointAuthConsistency(
+  runPlan: LaunchRunPlanValidation,
+  enabledFeatures: FeatureEndpointArtifactValidation,
+  rollbackFeatures: FeatureEndpointArtifactValidation,
+): EndpointAuthConsistency {
+  if (!runPlan.provided || !enabledFeatures.provided || !rollbackFeatures.provided) {
+    return {
+      ready: false,
+      checked: false,
+      requestHeaderCount: runPlan.requestHeaderCount,
+      problemCount: 0,
+      problems: [],
+    };
+  }
+
+  const problems: string[] = [];
+  for (const [label, artifact] of [
+    ["enabled feature endpoints", enabledFeatures],
+    ["rollback feature endpoints", rollbackFeatures],
+  ] as const) {
+    if (artifact.requestHeaderCount !== runPlan.requestHeaderCount) {
+      problems.push(
+        `${label}: requestHeaderCount must match the launch run plan request header count.`,
+      );
+    }
+    if (runPlan.requestHeaderCount > 0 && !artifact.authenticatedRequest) {
+      problems.push(
+        `${label}: authenticatedRequest must be true when the launch run plan uses request headers.`,
+      );
+    }
+    if (runPlan.requestHeaderCount === 0 && artifact.authenticatedRequest) {
+      problems.push(
+        `${label}: authenticatedRequest must be false when the launch run plan does not use request headers.`,
+      );
+    }
+  }
+
+  return {
+    ready: problems.length === 0,
+    checked: true,
+    requestHeaderCount: runPlan.requestHeaderCount,
+    problemCount: problems.length,
+    problems,
+  };
+}
+
 function messagesForNextAction(
   runSheetRun: ValidatorRun,
   matrixRun: ValidatorRun,
@@ -886,6 +987,7 @@ function messagesForNextAction(
   enabledFeatures: FeatureEndpointArtifactValidation,
   rollbackFeatures: FeatureEndpointArtifactValidation,
   externalEvidenceDateConsistency: ExternalEvidenceDateConsistency,
+  endpointAuthConsistency: EndpointAuthConsistency,
 ): string[] {
   const messages: string[] = [];
   const runSheetProblems = numericField(runSheetRun.summary, "problemCount");
@@ -939,6 +1041,9 @@ function messagesForNextAction(
   }
   if (externalEvidenceDateConsistency.problemCount > 0) {
     messages.push("Fix external launch evidence dates so endpoint, analytics, and rollback owner artifacts share one QA run date.");
+  }
+  if (endpointAuthConsistency.problemCount > 0) {
+    messages.push("Fix endpoint evidence authentication metadata so it matches the launch run plan.");
   }
   if (enabledFeatures.problemCount > 0) {
     messages.push("Fix enabled feature endpoint evidence before launch sign-off.");
@@ -1026,6 +1131,11 @@ const externalEvidenceDateConsistency = validateExternalEvidenceDateConsistency(
   rollbackOwnerRun,
   runPlan,
 );
+const endpointAuthConsistency = validateEndpointAuthConsistency(
+  runPlan,
+  enabledFeatures,
+  rollbackFeatures,
+);
 const readyForLaunch =
   booleanField(runSheetRun.summary, "readyForQaRunSheet") &&
   booleanField(matrixRun.summary, "readyForLaunch") &&
@@ -1035,7 +1145,8 @@ const readyForLaunch =
   rollbackFeatures.readyForLaunchEvidence &&
   booleanField(analyticsRun?.summary ?? null, "readyForLaunchEvidence") &&
   booleanField(rollbackOwnerRun?.summary ?? null, "readyForLaunchEvidence") &&
-  externalEvidenceDateConsistency.ready;
+  externalEvidenceDateConsistency.ready &&
+  endpointAuthConsistency.ready;
 const structuralProblems =
   !runSheetRun.summary ||
   !matrixRun.summary ||
@@ -1051,7 +1162,8 @@ const structuralProblems =
   rollbackFeatures.problemCount > 0 ||
   numericField(analyticsRun?.summary ?? null, "problemCount") > 0 ||
   numericField(rollbackOwnerRun?.summary ?? null, "problemCount") > 0 ||
-  (finalGate && externalEvidenceDateConsistency.problemCount > 0);
+  (finalGate && externalEvidenceDateConsistency.problemCount > 0) ||
+  endpointAuthConsistency.problemCount > 0;
 const acceptedPending =
   !finalGate &&
   !structuralProblems &&
@@ -1070,6 +1182,7 @@ const nextActions = messagesForNextAction(
   enabledFeatures,
   rollbackFeatures,
   externalEvidenceDateConsistency,
+  endpointAuthConsistency,
 );
 const evidenceCommands = launchEvidenceCommands();
 
@@ -1163,6 +1276,8 @@ const summary = {
       path: enabledFeatures.path,
       readyForLaunchEvidence: enabledFeatures.readyForLaunchEvidence,
       generatedAt: enabledFeatures.generatedAt,
+      authenticatedRequest: enabledFeatures.authenticatedRequest,
+      requestHeaderCount: enabledFeatures.requestHeaderCount,
       endpointCount: enabledFeatures.endpointCount,
       problemCount: enabledFeatures.problemCount,
       problems: enabledFeatures.problems,
@@ -1172,12 +1287,15 @@ const summary = {
       path: rollbackFeatures.path,
       readyForLaunchEvidence: rollbackFeatures.readyForLaunchEvidence,
       generatedAt: rollbackFeatures.generatedAt,
+      authenticatedRequest: rollbackFeatures.authenticatedRequest,
+      requestHeaderCount: rollbackFeatures.requestHeaderCount,
       endpointCount: rollbackFeatures.endpointCount,
       problemCount: rollbackFeatures.problemCount,
       problems: rollbackFeatures.problems,
     },
   },
   externalEvidenceDateConsistency,
+  endpointAuthConsistency,
   nextActions,
   evidenceCommands,
   message: readyForLaunch
@@ -1234,6 +1352,9 @@ console.log(
 console.log(
   `External evidence run date: ${summary.externalEvidenceDateConsistency.checked ? summary.externalEvidenceDateConsistency.runDate : "not checked"}; problems ${summary.externalEvidenceDateConsistency.problemCount}`,
 );
+console.log(
+  `Endpoint auth metadata: ${summary.endpointAuthConsistency.checked ? "checked" : "not checked"}; request headers ${summary.endpointAuthConsistency.requestHeaderCount}; problems ${summary.endpointAuthConsistency.problemCount}`,
+);
 printProblemDetails("Run sheet", summary.runSheet.problems);
 printProblemDetails("QA matrix", summary.matrix.problems);
 printProblemDetails("Evidence packet", summary.evidencePacket.problems);
@@ -1243,6 +1364,10 @@ printProblemDetails("Rollback owner evidence", summary.rollbackOwnerEvidence.pro
 printProblemDetails(
   "External evidence run date",
   summary.externalEvidenceDateConsistency.problems,
+);
+printProblemDetails(
+  "Endpoint auth metadata",
+  summary.endpointAuthConsistency.problems,
 );
 printProblemDetails(
   "Feature endpoints enabled",
