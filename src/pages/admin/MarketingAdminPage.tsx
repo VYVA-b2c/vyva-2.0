@@ -1443,7 +1443,7 @@ type CampaignPlannerCopilotAction = CampaignReadinessItem & {
   kind: CampaignPlannerCopilotActionKind;
 };
 
-type CampaignPlannerGuideActionKind = "focus_name" | "focus_content" | "focus_audience" | "focus_preview" | "focus_schedule" | "snapshot_recipients" | "save";
+type CampaignPlannerGuideActionKind = "focus_name" | "focus_content" | "create_content" | "focus_audience" | "focus_preview" | "focus_schedule" | "snapshot_recipients" | "save";
 
 type CampaignPlannerGuideStep = CampaignReadinessItem & {
   actionLabel: string;
@@ -1451,6 +1451,12 @@ type CampaignPlannerGuideStep = CampaignReadinessItem & {
   kind: CampaignPlannerGuideActionKind;
   step: string;
   value: string;
+};
+
+type CampaignPlannerLaunchDecision = CampaignReadinessItem & {
+  actionLabel: string;
+  kind: CampaignPlannerGuideActionKind;
+  metric: string;
 };
 
 type MarketingDashboardAiCreatedKitSummary = {
@@ -18904,6 +18910,84 @@ export default function MarketingAdminPage() {
     campaignDraftRecipientPreview.length,
     campaignDraftSelectedChannels,
   ]);
+  const campaignPlannerLaunchDecision = useMemo<CampaignPlannerLaunchDecision>(() => {
+    if (!campaignDraft.name.trim()) {
+      return {
+        key: "decision-name",
+        title: "Name the campaign first",
+        state: "blocked",
+        detail: "A clear campaign name unlocks useful AI copy, content matching, and a clean campaign record.",
+        actionLabel: "Name campaign",
+        kind: "focus_name",
+        metric: "Draft blocked",
+      };
+    }
+    if (campaignDraftMissingContentChannels.length > 0) {
+      return {
+        key: "decision-content",
+        title: "Create missing route content",
+        state: selectedCampaignDraftContent ? "needs_action" : "blocked",
+        detail: `${formatChannelList(campaignDraftMissingContentChannels)} still need linked content before this can become a complete launch plan.`,
+        actionLabel: campaignDraftMissingContentChannels.length > 1 ? "Create missing assets" : "Create missing asset",
+        kind: "create_content",
+        metric: `${campaignDraftMissingContentChannels.length} content gap${campaignDraftMissingContentChannels.length === 1 ? "" : "s"}`,
+      };
+    }
+    if (campaignDraftEligibleRecipientPreview.length === 0) {
+      return {
+        key: "decision-reach",
+        title: "Fix audience reach",
+        state: "blocked",
+        detail: "No matching contact has a usable route for the selected channels, list, and recipient filter.",
+        actionLabel: "Review audience",
+        kind: "focus_audience",
+        metric: "0 reachable",
+      };
+    }
+    if (campaignDraftConsentReach.optedIn === 0 && campaignDraftConsentReach.needsReview > 0) {
+      return {
+        key: "decision-consent",
+        title: "Review consent before send",
+        state: "needs_action",
+        detail: `${campaignDraftConsentReach.needsReview} reachable contact${campaignDraftConsentReach.needsReview === 1 ? "" : "s"} need consent review. Save as planning if needed, but do not treat this as send-ready.`,
+        actionLabel: "Review audience",
+        kind: "focus_audience",
+        metric: "Consent risk",
+      };
+    }
+    if (!campaignDraft.snapshotRecipients) {
+      return {
+        key: "decision-snapshot",
+        title: "Snapshot this audience",
+        state: "planning",
+        detail: `${campaignDraftEligibleRecipientPreview.length} eligible contact${campaignDraftEligibleRecipientPreview.length === 1 ? "" : "s"} can be saved with the campaign for a real launch list.`,
+        actionLabel: "Snapshot audience",
+        kind: "snapshot_recipients",
+        metric: `${campaignDraftEligibleRecipientPreview.length} eligible`,
+      };
+    }
+    return {
+      key: "decision-save",
+      title: campaignDraft.scheduleStartsAt ? "Ready to create scheduled campaign" : "Ready to create draft campaign",
+      state: campaignDraftReadinessState,
+      detail: campaignDraft.scheduleStartsAt
+        ? "Create the campaign, then open campaign details for final send review or channel handoff."
+        : "Create the draft now, then finish schedule, approvals, and sending from campaign details.",
+      actionLabel: "Add campaign",
+      kind: "save",
+      metric: `${campaignDraftRecipientPreview.length} snapshotted`,
+    };
+  }, [
+    campaignDraft.name,
+    campaignDraft.scheduleStartsAt,
+    campaignDraft.snapshotRecipients,
+    campaignDraftConsentReach,
+    campaignDraftEligibleRecipientPreview.length,
+    campaignDraftMissingContentChannels,
+    campaignDraftReadinessState,
+    campaignDraftRecipientPreview.length,
+    selectedCampaignDraftContent,
+  ]);
   const campaignPlannerAiBrief = useMemo(() => [
     campaignDraft.name,
     campaignDraft.objective,
@@ -19439,6 +19523,10 @@ export default function MarketingAdminPage() {
       setMessage(campaignDraftMissingContentChannels.length
         ? `Review or create content for ${formatChannelList(campaignDraftMissingContentChannels)}.`
         : "Content is linked. Review the selected asset or preview it before saving.");
+      return;
+    }
+    if (kind === "create_content") {
+      void createAndLinkAllMissingCampaignPlannerRouteContent();
       return;
     }
     if (kind === "focus_audience") {
@@ -31863,6 +31951,38 @@ export default function MarketingAdminPage() {
                           </article>
                         );
                       })}
+                    </div>
+                  </div>
+                  <div className={`rounded-2xl border p-4 shadow-sm ${readinessClass(campaignPlannerLaunchDecision.state)}`} data-testid="marketing-campaign-launch-decision">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="max-w-3xl">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] opacity-70">Launch decision</p>
+                        <h3 className="mt-1 text-lg font-black" data-testid="marketing-campaign-launch-decision-title">{campaignPlannerLaunchDecision.title}</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed opacity-85" data-testid="marketing-campaign-launch-decision-detail">{campaignPlannerLaunchDecision.detail}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill className={readinessPillClass(campaignPlannerLaunchDecision.state)}>{campaignPlannerLaunchDecision.metric}</Pill>
+                        {campaignPlannerLaunchDecision.kind === "save" ? (
+                          <button
+                            type="submit"
+                            disabled={campaignSaving || contentSaving}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid="button-marketing-campaign-launch-decision"
+                          >
+                            <Plus size={15} /> {campaignSaving ? "Creating..." : campaignPlannerLaunchDecision.actionLabel}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => runCampaignPlannerGuideAction(campaignPlannerLaunchDecision.kind)}
+                            disabled={campaignSaving || contentSaving}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                            data-testid="button-marketing-campaign-launch-decision"
+                          >
+                            <Sparkles size={15} /> {contentSaving ? "Working..." : campaignPlannerLaunchDecision.actionLabel}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className={`rounded-xl border p-4 shadow-sm ${readinessClass(campaignPlannerCopilotAction.state)}`} data-testid="marketing-campaign-planner-copilot">

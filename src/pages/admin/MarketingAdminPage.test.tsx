@@ -2095,6 +2095,9 @@ describe("MarketingAdminPage", () => {
 
     const launchPath = screen.getByTestId("marketing-campaign-guided-launch-path");
     expect(launchPath).toHaveTextContent("Compose, choose the audience, preview, then schedule or send");
+    expect(screen.getByTestId("marketing-campaign-launch-decision")).toHaveTextContent("Launch decision");
+    expect(screen.getByTestId("marketing-campaign-launch-decision-title")).toHaveTextContent("Name the campaign first");
+    expect(screen.getByTestId("button-marketing-campaign-launch-decision")).toHaveTextContent("Name campaign");
     expect(screen.getByTestId("marketing-campaign-guided-step-compose")).toHaveTextContent("Name the campaign");
     expect(screen.getByTestId("marketing-campaign-guided-step-audience")).toHaveTextContent("eligible");
     expect(screen.getByTestId("marketing-campaign-guided-step-preview")).toHaveTextContent("Email");
@@ -2109,6 +2112,8 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-guided-step-compose")).toHaveTextContent("1/1 content linked");
     });
+    expect(screen.getByTestId("marketing-campaign-launch-decision-title")).toHaveTextContent("Review consent before send");
+    expect(screen.getByTestId("button-marketing-campaign-launch-decision")).toHaveTextContent("Review audience");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-guided-step-audience"));
 
@@ -2116,6 +2121,7 @@ describe("MarketingAdminPage", () => {
       expect(screen.getByTestId("checkbox-marketing-campaign-snapshot")).toBeChecked();
     });
     expect(screen.getByText("Recipient snapshot enabled. Review the count, then preview or save the campaign.")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-launch-decision-title")).toHaveTextContent("Review consent before send");
   });
 
   it("promotes recommended campaigns from the dashboard into the campaign studio", async () => {
@@ -3876,6 +3882,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-audience-reach-consent")).toHaveTextContent("1 need review");
     expect(screen.getByTestId("marketing-campaign-audience-reach-snapshot")).toHaveTextContent("1 on save");
     expect(screen.getByTestId("marketing-campaign-audience-reach-samples")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-launch-decision-title")).toHaveTextContent("Review consent before send");
+    expect(screen.getByTestId("marketing-campaign-launch-decision-detail")).toHaveTextContent("do not treat this as send-ready");
+    expect(screen.getByTestId("button-marketing-campaign-launch-decision")).toHaveTextContent("Review audience");
     expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Start a partner conversation");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Starter loaded: Partner outreach with Partner post");
     expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("Ready to add");
