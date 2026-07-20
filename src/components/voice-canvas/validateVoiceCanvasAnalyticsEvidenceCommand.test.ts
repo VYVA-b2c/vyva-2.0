@@ -314,6 +314,49 @@ describe("Voice Canvas analytics evidence validator command", () => {
       },
     ));
 
+  it("rejects fractional aggregate counts and counts lower than observed samples", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        counts: {
+          started: 1.5,
+          resumed: 1,
+          abandoned: 1,
+          blocked: 1,
+          confirmed: 1,
+          completed: 1,
+        },
+        samples: [
+          ...validSamples(),
+          {
+            name: "confirmation_submitted",
+            step: "review",
+            input: "voice",
+            attempt: 2,
+            restored: false,
+          },
+        ],
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "started: declared count must be a non-negative integer.",
+            "started: declared aggregate count must be positive.",
+            "confirmed: declared aggregate count cannot be lower than observed sample count.",
+          ]),
+        );
+      },
+    ));
+
   it("saves validation JSON while preserving existing artifacts by default", () =>
     withTempJsonFile(validEvidence(), (inputPath) => {
       const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-analytics-out-"));

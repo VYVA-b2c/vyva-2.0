@@ -129,8 +129,13 @@ function extractDeclaredCounts(
   for (const signal of CANVAS_LAUNCH_SIGNALS) {
     const value = artifact.counts[signal];
     if (value === undefined) continue;
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      problems.push(`${signal}: declared count must be a finite number.`);
+    if (
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      !Number.isInteger(value) ||
+      value < 0
+    ) {
+      problems.push(`${signal}: declared count must be a non-negative integer.`);
       continue;
     }
     counts[signal] = value;
@@ -255,6 +260,10 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
       const declaredCount = declaredCounts[signal];
       if (declaredCount === undefined || declaredCount <= 0) {
         problems.push(`${signal}: declared aggregate count must be positive.`);
+      } else if (declaredCount < sampleCount) {
+        problems.push(
+          `${signal}: declared aggregate count cannot be lower than observed sample count.`,
+        );
       }
     }
   }
