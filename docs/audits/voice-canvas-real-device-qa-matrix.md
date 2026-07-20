@@ -25,7 +25,7 @@ The pending-mode validator prints incomplete cells by section, so use that outpu
 
 Use `npm run --silent canvas:qa:validate -- --allow-pending --json` when you need a machine-readable validator artifact for QA dashboards, CI logs, or launch evidence.
 
-Use `npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/<YYYY-MM-DD>-qa-summary.json` to save that summary as a run-specific artifact. Existing output files are preserved by default; pass `--force` only when intentionally replacing an artifact.
+Use `npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json` to save that summary as a run-specific artifact, replacing `YYYY-MM-DD` with the QA run date. Existing output files are preserved by default; pass `--force` only when intentionally replacing an artifact.
 
 For final launch sign-off, run without `--allow-pending` and do not enable Canvas unless it passes:
 

@@ -30,6 +30,20 @@ function runValidator(args: string[] = []) {
 }
 
 describe("Voice Canvas QA matrix validator command", () => {
+  it("prints copy-safe help for run-specific JSON artifacts", () => {
+    const result = runValidator(["--help"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
+    );
+    expect(result.stdout).toContain("pass --force only when intentionally");
+    const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
+    expect(result.stdout).not.toContain(
+      `--output=artifacts/voice-canvas/${unsafeDatePlaceholder}-qa-summary.json`,
+    );
+  });
+
   it("passes the committed pending matrix only in explicit pending-review mode", () => {
     const result = runValidator(["--allow-pending"]);
 

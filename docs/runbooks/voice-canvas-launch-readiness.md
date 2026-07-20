@@ -140,10 +140,10 @@ npm run --silent canvas:qa:validate -- --allow-pending --json
 To save the JSON summary as a run-specific artifact, add `--output=<path>`:
 
 ```bash
-npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/<YYYY-MM-DD>-qa-summary.json
+npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json
 ```
 
-The validator preserves existing output files by default. Use a new run-specific path for each QA pass; pass `--force` only when intentionally replacing an artifact.
+Replace `YYYY-MM-DD` with the QA run date. The validator preserves existing output files by default. Use a new run-specific path for each QA pass; pass `--force` only when intentionally replacing an artifact.
 
 ```bash
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts

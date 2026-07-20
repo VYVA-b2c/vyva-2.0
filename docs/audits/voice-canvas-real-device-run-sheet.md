@@ -91,5 +91,5 @@ Before filling the final QA matrix:
 - Every `Pending` cell above has a passing result, sanitized artifact reference, and reviewer/date.
 - Every artifact reference also appears in `docs/audits/voice-canvas-real-device-evidence-packet.md`.
 - Every launch blocker has either been patched and retested or the feature remains disabled.
-- `npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/<YYYY-MM-DD>-qa-summary.json` has been captured as a QA artifact while the matrix is still pending, using a run-specific output path that did not overwrite an earlier artifact.
+- `npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json` has been captured as a QA artifact while the matrix is still pending, using the QA run date in the output path and not overwriting an earlier artifact.
 - `npm run canvas:qa:validate` passes only after the matrix is complete and marked `ready for launch`.

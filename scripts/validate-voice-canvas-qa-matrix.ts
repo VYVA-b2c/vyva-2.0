@@ -82,7 +82,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run canvas:qa:validate",
       "  npm run canvas:qa:validate -- --allow-pending",
       "  npm run --silent canvas:qa:validate -- --allow-pending --json",
-      "  npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/<YYYY-MM-DD>-qa-summary.json",
+      "  npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
       "  npm run canvas:qa:validate -- docs/audits/voice-canvas-real-device-qa-matrix.md",
       "",
       "The command exits non-zero unless the matrix is ready for launch.",
