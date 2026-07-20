@@ -163,6 +163,14 @@ function isPendingCell(value: string): boolean {
   );
 }
 
+function isGenericCompletedCell(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  if (isPendingCell(normalized)) return false;
+  return /^(?:pass|passed|complete|completed|done|ok|okay|verified|reviewed)(?:\s+by\s+(?:qa|reviewer))?(?:\s+on\s+\d{4}-\d{2}-\d{2})?$/.test(
+    normalized,
+  );
+}
+
 function parseMarkdownTableRow(line: string): string[] | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
@@ -280,6 +288,19 @@ function summarizePendingCellsBySection(
   return [...summaries.values()];
 }
 
+function countGenericCompletedCells(tables: readonly MarkdownTable[]): number {
+  return tables.reduce(
+    (total, table) =>
+      total +
+      table.rows.reduce(
+        (rowTotal, row) =>
+          rowTotal + row.slice(1).filter((cell) => isGenericCompletedCell(cell)).length,
+        0,
+      ),
+    0,
+  );
+}
+
 function evaluateRunSheet(markdown: string) {
   const problems: string[] = [];
   const tables = parseMarkdownTables(markdown);
@@ -352,6 +373,12 @@ function evaluateRunSheet(markdown: string) {
     (total, section) => total + section.pendingCells,
     0,
   );
+  const genericCompletedCellCount = countGenericCompletedCells(tables);
+  if (genericCompletedCellCount > 0) {
+    problems.push(
+      `Run sheet contains ${genericCompletedCellCount} filled cell(s) with generic pass text; record specific sanitized evidence instead.`,
+    );
+  }
   const readyForQaRunSheet = problems.length === 0 && incompleteCellCount === 0;
 
   return {
@@ -379,6 +406,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "The command exits non-zero unless the run sheet has no pending cells and no structural coverage problems.",
       "Use --allow-pending for in-progress review of the committed run-sheet template.",
       "It protects privacy guardrails, environment preflight, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, and closeout checks.",
+      "Filled result cells must name specific sanitized evidence or behavior; generic pass/done/OK text is rejected.",
       "Use --json to emit machine-readable summary output for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",

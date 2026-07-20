@@ -40,6 +40,13 @@ function committedRunSheet(): string {
 }
 
 function completedRunSheet(): string {
+  return committedRunSheet().replace(
+    /\bPending\b/g,
+    "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: real device behavior, rollback, analytics, no personal details, no write, and no external action verified",
+  );
+}
+
+function genericCompletedRunSheet(): string {
   return committedRunSheet().replace(/\bPending\b/g, "Passed by QA on 2026-07-19");
 }
 
@@ -68,6 +75,7 @@ describe("Voice Canvas run sheet validator command", () => {
     );
     expect(result.stdout).toContain("privacy guardrails");
     expect(result.stdout).toContain("flow/device rows");
+    expect(result.stdout).toContain("generic pass/done/OK text is rejected");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -149,6 +157,28 @@ describe("Voice Canvas run sheet validator command", () => {
       expect(summary.readyForQaRunSheet).toBe(true);
       expect(summary.incompleteCellCount).toBe(0);
       expect(summary.problems).toEqual([]);
+    }));
+
+  it("rejects completed run sheets with generic pass-only cells", () =>
+    withTempRunSheet(genericCompletedRunSheet(), (tempRunSheetPath) => {
+      const result = runValidator([tempRunSheetPath, "--json"]);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toBe("");
+
+      const summary = JSON.parse(result.stdout) as {
+        state: string;
+        readyForQaRunSheet: boolean;
+        problems: string[];
+      };
+
+      expect(summary.state).toBe("invalid");
+      expect(summary.readyForQaRunSheet).toBe(false);
+      expect(summary.problems).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("filled cell(s) with generic pass text"),
+        ]),
+      );
     }));
 
   it("rejects run sheets that omit required behavior coverage", () =>
