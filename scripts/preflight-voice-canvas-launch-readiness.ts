@@ -141,6 +141,8 @@ const featureFlaggedFlows = canvasLaunchReadinessFlows.filter(
 );
 const expectedEndpointEvidenceScope = "VYVA Canvas Launch Readiness + Real-Use QA v1";
 const maxLaunchEvidenceAgeMs = 7 * 24 * 60 * 60 * 1000;
+const evidenceArtifactDatePlaceholder = "YYYY-MM-DD";
+const evidenceBaseUrlPlaceholder = "https://staging.vyva.app";
 
 function runValidator(
   scriptPath: string,
@@ -587,6 +589,28 @@ function messagesForNextAction(
   return messages;
 }
 
+function launchEvidenceCommands(): string[] {
+  const artifactPrefix = `artifacts/voice-canvas/${evidenceArtifactDatePlaceholder}`;
+  const enabledEndpointArtifact = `${artifactPrefix}-feature-endpoints-enabled.json`;
+  const rollbackEndpointArtifact = `${artifactPrefix}-feature-endpoints-rollback-disabled.json`;
+  const analyticsEvidenceArtifact = `${artifactPrefix}-analytics-evidence.json`;
+  const analyticsValidationArtifact = `${artifactPrefix}-analytics-validation.json`;
+  const runSheetSummaryArtifact = `${artifactPrefix}-run-sheet-summary.json`;
+  const qaSummaryArtifact = `${artifactPrefix}-qa-summary.json`;
+  const packetSummaryArtifact = `${artifactPrefix}-evidence-packet-summary.json`;
+  const preflightArtifact = `${artifactPrefix}-launch-preflight.json`;
+
+  return [
+    `npm run --silent canvas:qa:features -- --base-url=${evidenceBaseUrlPlaceholder} --expected-state=enabled --json --output=${enabledEndpointArtifact}`,
+    `npm run --silent canvas:qa:features -- --base-url=${evidenceBaseUrlPlaceholder} --expected-state=rollback-disabled --json --output=${rollbackEndpointArtifact}`,
+    `npm run --silent canvas:qa:analytics -- --input=${analyticsEvidenceArtifact} --json --output=${analyticsValidationArtifact}`,
+    `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${runSheetSummaryArtifact}`,
+    `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${qaSummaryArtifact}`,
+    `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${packetSummaryArtifact}`,
+    `npm run --silent canvas:qa:preflight -- --final --features-enabled=${enabledEndpointArtifact} --features-rollback=${rollbackEndpointArtifact} --analytics=${analyticsEvidenceArtifact} --json --output=${preflightArtifact}`,
+  ];
+}
+
 const runSheetRun = runValidator(runSheetValidatorPath, runSheetPathArg, {
   allowPending: !finalGate,
 });
@@ -644,6 +668,7 @@ const nextActions = messagesForNextAction(
   enabledFeatures,
   rollbackFeatures,
 );
+const evidenceCommands = launchEvidenceCommands();
 
 const summary = {
   readyForLaunch,
@@ -720,6 +745,7 @@ const summary = {
     },
   },
   nextActions,
+  evidenceCommands,
   message: readyForLaunch
     ? "Voice Canvas launch evidence gates are ready."
     : acceptedPending
@@ -795,6 +821,10 @@ printPendingSections(
 console.log("Next action:");
 for (const action of nextActions) {
   console.log(`- ${action}`);
+}
+console.log("Copy-ready evidence commands:");
+for (const command of evidenceCommands) {
+  console.log(`- ${command}`);
 }
 console.log(summary.message);
 

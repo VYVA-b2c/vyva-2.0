@@ -288,6 +288,16 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain("QA matrix next evidence area:");
     expect(result.stdout).toContain("Evidence packet pending sections:");
     expect(result.stdout).toContain("Evidence packet next evidence area:");
+    expect(result.stdout).toContain("Copy-ready evidence commands:");
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
+    );
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
+    );
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:preflight -- --final --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+    );
   });
 
   it("emits machine-readable JSON for launch readiness artifacts", () => {
@@ -359,6 +369,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
         };
       };
       nextActions: string[];
+      evidenceCommands: string[];
       message: string;
     };
 
@@ -428,6 +439,15 @@ describe("Voice Canvas launch readiness preflight command", () => {
         "Execute fresh real-device and deployed rollback QA, then fill the QA matrix.",
       ]),
     );
+    expect(summary.evidenceCommands).toEqual([
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
+      "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
+      "npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json",
+      "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
+      "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
+      "npm run --silent canvas:qa:preflight -- --final --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+    ]);
     expect(summary.message).toBe(
       "Voice Canvas launch evidence gates are structurally valid but still pending real-device QA.",
     );
