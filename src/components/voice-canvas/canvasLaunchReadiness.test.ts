@@ -266,10 +266,12 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("prepareVoiceCanvasRollbackOwnerHandoffCommand.test.ts");
     expect(runbook).toContain("preflightVoiceCanvasLaunchReadinessCommand.test.ts");
     expect(runbook).toContain("canvas:qa:features");
+    expect(runbook).toContain("canvas:qa:run");
     expect(runbook).toContain("canvas:qa:analytics");
     expect(runbook).toContain("canvas:qa:packet");
     expect(runbook).toContain("canvas:qa:rollback-owner");
     expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-enabled.json");
+    expect(runbook).toContain("YYYY-MM-DD-launch-evidence-run.json");
     expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-rollback-disabled.json");
     expect(runbook).toContain("YYYY-MM-DD-analytics-validation.json");
     expect(runbook).toContain("YYYY-MM-DD-rollback-owner-validation.json");
@@ -300,6 +302,9 @@ describe("Canvas launch readiness manifest", () => {
     );
     expect(packageJson.scripts["canvas:qa:features"]).toBe(
       "tsx scripts/collect-voice-canvas-feature-endpoint-evidence.ts",
+    );
+    expect(packageJson.scripts["canvas:qa:run"]).toBe(
+      "tsx scripts/prepare-voice-canvas-launch-evidence-run.ts",
     );
     expect(packageJson.scripts["canvas:qa:analytics"]).toBe(
       "tsx scripts/validate-voice-canvas-analytics-evidence.ts",

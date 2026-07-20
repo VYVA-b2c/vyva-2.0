@@ -254,6 +254,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("npm run canvas:qa:preflight -- --final");
     expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
+    );
+    expect(result.stdout).toContain(
       "npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     );
     expect(result.stdout).toContain(
@@ -382,6 +385,18 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain("Evidence packet pending sections:");
     expect(result.stdout).toContain("Evidence packet next evidence area:");
     expect(result.stdout).toContain("Copy-ready evidence commands:");
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
+    );
+    expect(
+      result.stdout.indexOf(
+        "npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
+      ),
+    ).toBeLessThan(
+      result.stdout.indexOf(
+        "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
+      ),
+    );
     expect(result.stdout).toContain(
       "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
     );
@@ -598,6 +613,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       ]),
     );
     expect(summary.evidenceCommands).toEqual([
+      "npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
       "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
       "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
       "npm run --silent canvas:qa:features -- --trace-template",

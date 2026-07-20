@@ -4,6 +4,14 @@ This checklist is the final preflight before enabling Canvas-powered Concierge f
 
 Current audit status is tracked in `docs/audits/voice-canvas-launch-readiness-audit.md`. Execute the staging pass with `docs/audits/voice-canvas-real-device-run-sheet.md`, prepare sanitized evidence references in `docs/audits/voice-canvas-real-device-evidence-packet.md`, then record deployed real-device results in `docs/audits/voice-canvas-real-device-qa-matrix.md`. Do not treat the feature as launch-signed-off until that audit shows the deployed/manual checklist is complete.
 
+Before collecting same-day launch artifacts, generate a dated run plan so every endpoint, analytics, rollback-owner, run-sheet, QA-matrix, packet, and preflight artifact uses the same `YYYY-MM-DD` prefix:
+
+```bash
+npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json
+```
+
+The run-plan helper performs no network calls and writes only the optional JSON run plan. It rejects stale, future, local, or non-HTTPS launch-run settings by default, preserves existing output files unless `--force` is provided, and prints the copy-ready commands for the evidence bundle.
+
 ## Launch invariants
 
 - No booking, call, message, navigation, order, refill request, provider reply, completion, or other external action occurs before an explicit final confirmation.

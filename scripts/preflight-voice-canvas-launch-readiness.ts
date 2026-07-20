@@ -82,6 +82,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Usage:",
       "  npm run canvas:qa:preflight",
       "  npm run canvas:qa:preflight -- --final",
+      "  npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
       "  npm run --silent canvas:qa:preflight -- --json",
       "  npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
       "  npm run canvas:qa:preflight -- --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
@@ -733,6 +734,7 @@ function launchEvidenceCommands(): string[] {
   const preflightArtifact = `${artifactPrefix}-launch-preflight.json`;
 
   return [
+    `npm run --silent canvas:qa:run -- --date=${evidenceArtifactDatePlaceholder} --base-url=${evidenceBaseUrlPlaceholder} --json --output=${artifactPrefix}-launch-evidence-run.json`,
     `npm run --silent canvas:qa:features -- --base-url=${evidenceBaseUrlPlaceholder} --expected-state=enabled --json --output=${enabledEndpointArtifact}`,
     `npm run --silent canvas:qa:features -- --base-url=${evidenceBaseUrlPlaceholder} --expected-state=rollback-disabled --json --output=${rollbackEndpointArtifact}`,
     "npm run --silent canvas:qa:features -- --trace-template",

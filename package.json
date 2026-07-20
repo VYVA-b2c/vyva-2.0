@@ -21,6 +21,7 @@
     "canvas:qa:features": "tsx scripts/collect-voice-canvas-feature-endpoint-evidence.ts",
     "canvas:qa:packet": "tsx scripts/validate-voice-canvas-evidence-packet.ts",
     "canvas:qa:preflight": "tsx scripts/preflight-voice-canvas-launch-readiness.ts",
+    "canvas:qa:run": "tsx scripts/prepare-voice-canvas-launch-evidence-run.ts",
     "canvas:qa:runsheet": "tsx scripts/validate-voice-canvas-run-sheet.ts",
     "canvas:qa:rollback-owner": "tsx scripts/prepare-voice-canvas-rollback-owner-handoff.ts",
     "canvas:qa:validate": "tsx scripts/validate-voice-canvas-qa-matrix.ts",
