@@ -571,9 +571,9 @@ function statusCopy(
   isSpanish: boolean,
 ): string {
   if (group === "completed") return isSpanish ? "Completada" : "Completed";
-  if (providerStatus === "action_needed") return isSpanish ? "Necesita tu respuesta" : "Needs your reply";
+  if (providerStatus === "action_needed") return isSpanish ? "Necesita tu respuesta" : "Needs your answer";
   if (providerStatus === "reply_received") return isSpanish ? "Respuesta recibida" : "Reply received";
-  if (group === "waiting") return isSpanish ? "Esperando respuesta" : "Waiting for reply";
+  if (group === "waiting") return isSpanish ? "Esperando" : "Waiting";
   return isSpanish ? "Necesita tu atencion" : "Needs your attention";
 }
 

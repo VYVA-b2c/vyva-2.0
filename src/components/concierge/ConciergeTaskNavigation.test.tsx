@@ -35,6 +35,27 @@ describe("Concierge task navigation", () => {
     expect(onContinue).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }));
   });
 
+  it("uses the same simple provider reply statuses on the home card", () => {
+    render(
+      <ConciergeHomeTaskOverview
+        activeTask={{
+          id: "task-2",
+          detailPath: "/concierge/tasks/pending%3Atask-2",
+          title: "Answer the clinic",
+          summary: "The clinic needs your policy number.",
+          providerStatus: "action_needed",
+        }}
+        isLoading={false}
+        isSpanish={false}
+        onContinue={vi.fn()}
+        onOpenInbox={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("concierge-home-task-status")).toHaveTextContent("Needs your answer");
+    expect(screen.getByRole("button", { name: /Respond/ })).toBeInTheDocument();
+  });
+
   it("shows Back and the active confirmation stage", () => {
     const onBack = vi.fn();
     render(

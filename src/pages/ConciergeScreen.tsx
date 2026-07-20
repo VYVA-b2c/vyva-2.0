@@ -6830,7 +6830,7 @@ function ProviderReplyPanel({
       <div className="mt-3 border-y border-vyva-border py-4" data-testid="panel-concierge-provider-reply">
         <p className="font-body text-[11px] font-black uppercase text-[#047857]">
           {providerUpdate.status === "action_needed"
-            ? (isSpanish ? "Accion necesaria" : "Action needed")
+            ? (isSpanish ? "Necesita tu respuesta" : "Needs your answer")
             : (isSpanish ? "Respuesta recibida" : "Reply received")}
         </p>
         <p className="mt-2 font-body text-[15px] font-black text-vyva-text-1">

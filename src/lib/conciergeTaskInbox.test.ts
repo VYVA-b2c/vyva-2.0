@@ -78,12 +78,12 @@ describe("Concierge task inbox", () => {
       id: "reply-1",
       draftId: linkedDraft.id,
       pendingId: "reply-1",
-      statusLabel: "Needs your reply",
+      statusLabel: "Needs your answer",
       primaryActionLabel: "Respond",
       reply: "Please confirm your insurance plan.",
       resumePath: `/concierge/task/${linkedDraft.id}`,
     });
-    expect(inbox.waiting[0]).toMatchObject({ statusLabel: "Waiting for reply", primaryActionLabel: "View status" });
+    expect(inbox.waiting[0]).toMatchObject({ statusLabel: "Waiting", primaryActionLabel: "View status" });
     expect(inbox.needs_you[0].continuation).toMatchObject({
       flow: "provider_reply",
       state: "needs_info",
