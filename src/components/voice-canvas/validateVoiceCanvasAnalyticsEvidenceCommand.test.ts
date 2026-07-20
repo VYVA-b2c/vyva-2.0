@@ -34,6 +34,10 @@ function runValidator(args: string[] = []) {
   });
 }
 
+function freshGeneratedAt(): string {
+  return new Date(Date.now() - 60_000).toISOString();
+}
+
 function validSamples(): CanvasTelemetryEnvelope[] {
   return [
     {
@@ -83,7 +87,7 @@ function validSamples(): CanvasTelemetryEnvelope[] {
 
 function validEvidence() {
   return {
-    generatedAt: "2026-07-20T00:00:00.000Z",
+    generatedAt: freshGeneratedAt(),
     source: "staging synthetic QA analytics export",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
     counts: {
@@ -123,6 +127,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
     );
     expect(result.stdout).toContain(
       "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+    );
+    expect(result.stdout).toContain(
+      "generatedAt must be a non-future ISO timestamp no older than 7 days.",
     );
     expect(result.stdout).toContain(
       "coveredFlows must list every launch flow",
@@ -291,6 +298,30 @@ describe("Voice Canvas analytics evidence validator command", () => {
         expect(summary.readyForLaunchEvidence).toBe(false);
         expect(summary.problems).toContain(
           "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
+        );
+      },
+    ));
+
+  it("rejects stale analytics evidence metadata", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        generatedAt: "2000-01-01T00:00:00.000Z",
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problems).toContain(
+          "Analytics evidence generatedAt must be no older than 7 days.",
         );
       },
     ));

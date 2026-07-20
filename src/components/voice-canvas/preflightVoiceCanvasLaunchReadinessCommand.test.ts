@@ -34,6 +34,10 @@ function runPreflight(args: string[] = []) {
   });
 }
 
+function freshGeneratedAt(): string {
+  return new Date(Date.now() - 60_000).toISOString();
+}
+
 const launchFeatureFlows = canvasLaunchReadinessFlows.filter(
   (flow) => flow.featureFlag,
 );
@@ -87,7 +91,7 @@ function validAnalyticsSamples(): CanvasTelemetryEnvelope[] {
 
 function validAnalyticsEvidence() {
   return {
-    generatedAt: "2026-07-20T00:00:00.000Z",
+    generatedAt: freshGeneratedAt(),
     source: "staging synthetic QA analytics export",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
     counts: {
@@ -107,7 +111,7 @@ function validFeatureEndpointArtifact(mode: "enabled" | "rollback") {
   const rolloutPercent = mode === "enabled" ? 100 : 0;
 
   return {
-    generatedAt: "2026-07-20T00:00:00.000Z",
+    generatedAt: freshGeneratedAt(),
     baseUrl: "https://staging.vyva.app",
     scope: "VYVA Canvas Launch Readiness + Real-Use QA v1",
     expectedState: mode === "enabled" ? "enabled" : "rollback-disabled",
@@ -189,6 +193,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, and analytics evidence are ready",
     );
+    expect(result.stdout).toContain("generated within the last 7 days");
     expect(result.stdout).toContain("This preflight is read-only");
     expect(result.stdout).not.toContain("<YYYY-MM-DD>");
   });
@@ -664,6 +669,44 @@ describe("Voice Canvas launch readiness preflight command", () => {
       {
         ...validFeatureEndpointArtifact("enabled"),
         generatedAt: "2999-01-01T00:00:00.000Z",
+      },
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
+            rollback: { readyForLaunchEvidence: boolean; problemCount: number };
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.rollback.readyForLaunchEvidence).toBe(
+          true,
+        );
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.nextActions).toContain(
+          "Fix enabled feature endpoint evidence before launch sign-off.",
+        );
+      },
+    ));
+
+  it("rejects stale endpoint artifacts", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        generatedAt: "2000-01-01T00:00:00.000Z",
       },
       validFeatureEndpointArtifact("rollback"),
       ({ enabledPath, rollbackPath }) => {

@@ -80,8 +80,8 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
       "",
       "Default mode accepts a structurally valid pending run sheet, matrix, and packet so QA can capture an in-progress launch artifact.",
-      "Pass --features-enabled=<path> and --features-rollback=<path> to validate sanitized endpoint collector artifacts.",
-      "Pass --analytics=<path> to validate sanitized analytics evidence in the same aggregate-only snapshot.",
+      "Pass --features-enabled=<path> and --features-rollback=<path> to validate sanitized endpoint collector artifacts generated within the last 7 days.",
+      "Pass --analytics=<path> to validate sanitized analytics evidence generated within the last 7 days in the same aggregate-only snapshot.",
       "Use --final after real-device evidence is filled; it exits non-zero unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, and analytics evidence are ready.",
       "Use --json to emit a machine-readable summary for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
@@ -134,6 +134,7 @@ const featureFlaggedFlows = canvasLaunchReadinessFlows.filter(
   (flow) => flow.featureFlag,
 );
 const expectedEndpointEvidenceScope = "VYVA Canvas Launch Readiness + Real-Use QA v1";
+const maxLaunchEvidenceAgeMs = 7 * 24 * 60 * 60 * 1000;
 
 function runValidator(
   scriptPath: string,
@@ -237,14 +238,14 @@ function parseDeployedOrigin(value: unknown): URL | null {
   }
 }
 
-function hasValidNonFutureGeneratedAt(value: unknown): boolean {
-  if (typeof value !== "string" || value.trim() === "") return false;
+function parseValidNonFutureGeneratedAt(value: unknown): Date | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
   const parsed = new Date(value);
-  return (
+  const valid =
     !Number.isNaN(parsed.getTime()) &&
     parsed.toISOString() === value &&
-    parsed.getTime() <= Date.now()
-  );
+    parsed.getTime() <= Date.now();
+  return valid ? parsed : null;
 }
 
 function validateFeatureEndpointArtifact(
@@ -290,10 +291,15 @@ function validateFeatureEndpointArtifact(
     );
   }
 
-  if (!hasValidNonFutureGeneratedAt(isRecord(artifact) ? artifact.generatedAt : null)) {
+  const generatedAt = parseValidNonFutureGeneratedAt(
+    isRecord(artifact) ? artifact.generatedAt : null,
+  );
+  if (!generatedAt) {
     problems.push(
       "Feature endpoint artifact must include generatedAt as a non-future ISO timestamp.",
     );
+  } else if (Date.now() - generatedAt.getTime() > maxLaunchEvidenceAgeMs) {
+    problems.push("Feature endpoint artifact generatedAt must be no older than 7 days.");
   }
 
   if (

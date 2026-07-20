@@ -37,6 +37,7 @@ const allowedTopLevelKeys = [
   "samples",
   "events",
 ] as const;
+const maxLaunchEvidenceAgeMs = 7 * 24 * 60 * 60 * 1000;
 
 function readArgValue(name: string): string | undefined {
   const prefix = `${name}=`;
@@ -54,6 +55,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "",
       "The input JSON must be an object with generatedAt, source, samples/events, and optional counts.",
+      "generatedAt must be a non-future ISO timestamp no older than 7 days.",
       "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
       "coveredFlows must list every launch flow: ride, appointment, refill, shopping, provider_reply, task_hub_resume.",
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
@@ -212,10 +214,13 @@ function topLevelProblems(artifact: unknown): string[] {
     );
   }
 
-  if (!hasValidNonFutureGeneratedAt(artifact.generatedAt)) {
+  const generatedAt = parseValidNonFutureGeneratedAt(artifact.generatedAt);
+  if (!generatedAt) {
     problems.push(
       "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
     );
+  } else if (Date.now() - generatedAt.getTime() > maxLaunchEvidenceAgeMs) {
+    problems.push("Analytics evidence generatedAt must be no older than 7 days.");
   }
 
   if (!hasConcreteAnalyticsSource(artifact.source)) {
@@ -227,14 +232,14 @@ function topLevelProblems(artifact: unknown): string[] {
   return problems;
 }
 
-function hasValidNonFutureGeneratedAt(value: unknown): boolean {
-  if (typeof value !== "string" || value.trim() === "") return false;
+function parseValidNonFutureGeneratedAt(value: unknown): Date | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
   const parsed = new Date(value);
-  return (
+  const valid =
     !Number.isNaN(parsed.getTime()) &&
     parsed.toISOString() === value &&
-    parsed.getTime() <= Date.now()
-  );
+    parsed.getTime() <= Date.now();
+  return valid ? parsed : null;
 }
 
 function hasConcreteAnalyticsSource(value: unknown): boolean {
