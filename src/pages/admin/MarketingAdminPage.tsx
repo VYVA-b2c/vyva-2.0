@@ -14038,6 +14038,104 @@ export default function MarketingAdminPage() {
     contactRelationshipSegmented,
     selectedRelationshipContact,
   ]);
+  const contactEnrichmentGaps = useMemo<CampaignReadinessItem[]>(() => {
+    if (!selectedRelationshipContact) return [];
+    const gaps: CampaignReadinessItem[] = [];
+    if (!contactRelationshipDirectReachable) {
+      gaps.push({
+        key: "route",
+        title: "Contact route",
+        detail: "Add email, phone, or WhatsApp before direct outreach or scheduled recipient snapshots.",
+        state: "blocked",
+      });
+    }
+    if (selectedRelationshipContact.consentStatus !== "opted_in") {
+      gaps.push({
+        key: "consent",
+        title: "Consent",
+        detail: `Current status is ${selectedRelationshipContact.consentStatus}; confirm permission before campaigns or automations.`,
+        state: "needs_action",
+      });
+    }
+    if (!selectedRelationshipContact.roleLabel && (selectedRelationshipContact.audienceType === "b2b" || selectedRelationshipContact.companyName)) {
+      gaps.push({
+        key: "role",
+        title: "Role / persona",
+        detail: "Add the person's role or buying persona so partner messages can be specific.",
+        state: "needs_action",
+      });
+    }
+    if (!selectedRelationshipContact.companyName && selectedRelationshipContact.audienceType === "b2b") {
+      gaps.push({
+        key: "company",
+        title: "Organization",
+        detail: "Add the company or organization name before B2B outreach.",
+        state: "needs_action",
+      });
+    }
+    if (!selectedRelationshipContact.language) {
+      gaps.push({
+        key: "language",
+        title: "Language",
+        detail: "Add preferred language so content recommendations and AI drafts use the right tone.",
+        state: "planning",
+      });
+    }
+    if (!contactRelationshipSegmented) {
+      gaps.push({
+        key: "segment",
+        title: "Segmentation",
+        detail: "Add market, category, vertical, tags, or list membership to improve targeting.",
+        state: "planning",
+      });
+    }
+    if (!selectedRelationshipContact.profileId && selectedRelationshipContact.audienceType !== "b2b") {
+      gaps.push({
+        key: "profile-link",
+        title: "VYVA profile link",
+        detail: "Link this contact to a profile when it represents an app user or caregiver.",
+        state: "planning",
+      });
+    }
+    return gaps;
+  }, [contactRelationshipDirectReachable, contactRelationshipSegmented, selectedRelationshipContact]);
+  const contactEnrichmentBriefText = useMemo(() => {
+    if (!selectedRelationshipContact) return "";
+    const contactName = selectedRelationshipContact.fullName || selectedRelationshipContact.email || selectedRelationshipContact.phoneNumber || "Unnamed contact";
+    const roleContext = [selectedRelationshipContact.roleLabel, selectedRelationshipContact.companyName].filter(Boolean).join(" at ") || "missing";
+    const segmentContext = [selectedRelationshipContact.market, selectedRelationshipContact.vertical, selectedRelationshipContact.category, selectedRelationshipContact.language].filter(Boolean).join(" / ") || "missing";
+    const tagsContext = selectedRelationshipContact.tags.length ? selectedRelationshipContact.tags.join(", ") : "missing";
+    const listContext = contactRelationshipAudiences.map((audience) => audience.name).join(", ") || selectedRelationshipContact.lists.join(", ") || "missing";
+    const channels = contactRelationshipChannels
+      .filter((item) => item.recipient)
+      .map((item) => `${channelLabel[item.channel]}: ${item.recipient}`);
+    return [
+      "VYVA contact enrichment brief",
+      `Contact: ${contactName}`,
+      `Audience: ${selectedRelationshipContact.audienceType.toUpperCase()}`,
+      `Source: ${selectedRelationshipContact.source}`,
+      `External ID: ${selectedRelationshipContact.lovableExternalId || selectedRelationshipContact.id}`,
+      `Role/company: ${roleContext}`,
+      `Consent: ${selectedRelationshipContact.consentStatus}`,
+      `Channels: ${channels.join(" | ") || "missing"}`,
+      `Segments: ${segmentContext}`,
+      `Tags: ${tagsContext}`,
+      `Lists: ${listContext}`,
+      `Profile link: ${selectedRelationshipContact.profileId || "missing"}`,
+      "",
+      "Missing or weak fields:",
+      ...(contactEnrichmentGaps.length
+        ? contactEnrichmentGaps.map((gap) => `- ${gap.title}: ${gap.detail}`)
+        : ["- No obvious enrichment gaps. Keep details current before outreach."]),
+      "",
+      "AI task: Enrich this contact record for a consent-safe relationship workflow. Return suggested role/persona, company context, market/category/vertical, useful tags, preferred channel, language, and one short relationship note. Do not invent private personal data; mark uncertain guesses as suggestions.",
+    ].join("\n");
+  }, [
+    contactEnrichmentGaps,
+    contactRelationshipAudiences,
+    contactRelationshipChannels,
+    selectedRelationshipContact,
+  ]);
   const contactRelationshipBriefText = useMemo(() => {
     if (!selectedRelationshipContact || !contactRelationshipBrief) return "";
     const contactName = selectedRelationshipContact.fullName || selectedRelationshipContact.email || selectedRelationshipContact.phoneNumber || "Unnamed contact";
@@ -22284,6 +22382,41 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = contactRelationshipBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyContactEnrichmentBrief() {
+    const label = "Contact enrichment brief";
+    if (!contactEnrichmentBriefText.trim()) {
+      const feedback = `${label} is empty.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contactEnrichmentBriefText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contactEnrichmentBriefText;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -40902,6 +41035,57 @@ export default function MarketingAdminPage() {
                                   );
                                 })}
                               </div>
+                            </div>
+                            <div className="mt-4 grid gap-3 rounded-xl border border-blue-100 bg-white p-3" data-testid="marketing-contact-enrichment-brief">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-xs font-black uppercase tracking-[0.12em] text-blue-700">AI enrichment brief</p>
+                                  <p className="text-xs font-bold text-[#7d6b65]">Copy this into AI or use it internally before outreach so missing fields are visible.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                  <Pill className={contactEnrichmentGaps.length ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}>
+                                    {contactEnrichmentGaps.length ? `${contactEnrichmentGaps.length} gap${contactEnrichmentGaps.length === 1 ? "" : "s"}` : "Complete"}
+                                  </Pill>
+                                  <button
+                                    type="button"
+                                    onClick={() => startContactEdit(selectedRelationshipContact)}
+                                    className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 text-xs font-black text-blue-800 hover:bg-blue-50"
+                                    data-testid="button-marketing-edit-contact-enrichment"
+                                  >
+                                    <Pencil size={13} /> Edit fields
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void copyContactEnrichmentBrief()}
+                                    disabled={!contactEnrichmentBriefText.trim()}
+                                    className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                    data-testid="button-marketing-copy-contact-enrichment-brief"
+                                  >
+                                    <Copy size={13} /> Copy AI brief
+                                  </button>
+                                </div>
+                              </div>
+                              {contactEnrichmentGaps.length ? (
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  {contactEnrichmentGaps.map((gap) => (
+                                    <article key={gap.key} className={`rounded-lg border p-3 ${readinessClass(gap.state)}`} data-testid={`marketing-contact-enrichment-gap-${gap.key}`}>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="text-sm font-black text-[#241133]">{gap.title}</p>
+                                        <Pill className={readinessPillClass(gap.state)}>{readinessLabel(gap.state)}</Pill>
+                                      </div>
+                                      <p className="mt-1 text-xs font-bold leading-relaxed text-[#5b4a46]">{gap.detail}</p>
+                                    </article>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">No obvious enrichment gaps. Use the brief for final context before sending.</p>
+                              )}
+                              <textarea
+                                className={`${textareaClass} min-h-[132px] text-xs`}
+                                value={contactEnrichmentBriefText}
+                                readOnly
+                                data-testid="textarea-marketing-contact-enrichment-brief"
+                              />
                             </div>
                             <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="marketing-contact-relationship-channels">
                               {contactRelationshipChannels.map((item) => (
