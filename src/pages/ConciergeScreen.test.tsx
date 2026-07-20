@@ -394,10 +394,10 @@ describe("ConciergeScreen task navigation", () => {
     ]);
     renderScreen(["/concierge"], "home");
 
-    expect(await screen.findByTestId("concierge-home-task-status")).toHaveTextContent("Action needed");
+    expect(await screen.findByTestId("concierge-home-task-status")).toHaveTextContent("Needs input");
     expect(screen.getByTestId("concierge-home-active-task")).toHaveTextContent("Please confirm your insurance plan.");
     expect(screen.getAllByTestId("concierge-home-active-task")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Respond" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Apending-reply");
   });
 
@@ -1089,9 +1089,6 @@ describe("ConciergeScreen action hub", () => {
       at: "2026-07-18T11:00:00.000Z",
     }));
 
-    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "appointment-provider")).toBe(true));
-    const providerScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "appointment-provider")!;
-
     act(() => emitVoiceCanvasResponse({
       sceneId: coverageScene.viewModel.sceneId,
       revision: coverageScene.revision,
@@ -1101,45 +1098,17 @@ describe("ConciergeScreen action hub", () => {
       value: "Private insurance",
       at: "2026-07-18T11:00:01.000Z",
     }));
-    expect(apiFetchMock.mock.calls.filter(([url]) => String(url) === "/api/appointments/requests")).toHaveLength(0);
-
-    act(() => emitVoiceCanvasResponse({
-      sceneId: providerScene.viewModel.sceneId,
-      revision: providerScene.revision,
-      kind: "choice",
-      choiceId: "saved_provider",
-      utterance: "Riverside Clinic",
-      value: "Riverside Clinic",
-      at: "2026-07-18T11:00:02.000Z",
-    }));
-    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "appointment-options")).toBe(true));
-    const optionsScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "appointment-options")!;
-    expect(optionsScene.viewModel.choices?.[0].description).toContain("Tuesday at 10:00");
-
-    act(() => emitVoiceCanvasResponse({
-      sceneId: optionsScene.viewModel.sceneId,
-      revision: optionsScene.revision,
-      kind: "choice",
-      choiceId: "appointment-option-1",
-      utterance: "Riverside Clinic",
-      value: "Riverside Clinic",
-      at: "2026-07-18T11:00:03.000Z",
-    }));
-    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "appointment-review")).toBe(true));
+    await waitFor(() => expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("Riverside Clinic"));
+    expect(apiFetchMock.mock.calls.some(([url, init]) => {
+      if (String(url) !== "/api/appointments/requests") return false;
+      const body = JSON.parse(String(init?.body));
+      return body.preferences?.use_saved_provider === true
+        && body.preferences?.provider_preference === "Riverside Clinic";
+    })).toBe(true);
     expect(contactAttempts).toBe(0);
-
-    const reviewScene = [...scenes].reverse().find((scene) => scene.viewModel.sceneId === "appointment-review")!;
-    expect(reviewScene.viewModel.primaryAction?.label).toBe("Confirm and contact provider");
-    act(() => emitVoiceCanvasResponse({
-      sceneId: reviewScene.viewModel.sceneId,
-      revision: reviewScene.revision,
-      kind: "primary",
-      utterance: "Confirm and contact provider",
-      at: "2026-07-18T11:00:04.000Z",
-    }));
+    fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
     await waitFor(() => expect(contactAttempts).toBe(1));
-    await waitFor(() => expect(scenes.some((scene) => scene.viewModel.sceneId === "appointment-completed")).toBe(true));
     window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
   });
 
@@ -4893,8 +4862,9 @@ describe("ConciergeScreen route prefill", () => {
   });
 
   it("resumes a medical appointment Canvas after trusted provider setup returns", async () => {
-    apiFetchMock.mockImplementation(async (url) => {
-      if (String(url) === "/api/profile") {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target === "/api/profile") {
         return jsonResponse({
           savedProviders: [{
             name: "Harbour Clinic",
@@ -4905,6 +4875,39 @@ describe("ConciergeScreen route prefill", () => {
           serviceReadiness: {
             hasSavedMedicalProvider: true,
           },
+        });
+      }
+      if (target.endsWith("/api/appointments/requests")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.preferences).toMatchObject({
+          use_saved_provider: true,
+          provider_preference: "Harbour Clinic",
+          no_external_action_without_confirmation: true,
+        });
+        return jsonResponse({
+          request: {
+            id: "request-medical-saved-provider",
+            appointment_type: "medical",
+            reason_detail: body.detail,
+            preferences: body.preferences,
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "option-harbour-clinic",
+            provider_id: "provider-harbour",
+            provider_source: "saved",
+            provider_snapshot: {
+              name: "Harbour Clinic",
+              phone: "+34 600 222 333",
+              preferred_channel: "phone",
+            },
+            match_reason: "Saved doctor or clinic",
+            available_channels: ["phone", "manual"],
+            rank: 1,
+            status: "recommended",
+          }],
         });
       }
       return jsonResponse({ items: [] });
@@ -4939,20 +4942,24 @@ describe("ConciergeScreen route prefill", () => {
 
     fireEvent.click(screen.getByTestId("button-provider-resume-continue"));
 
-    await waitFor(() => {
-      const providerScene = scenes.find((scene) => scene.viewModel.sceneId === "appointment-provider");
-      expect(providerScene).toBeDefined();
-      expect(providerScene?.viewModel.choices?.some((choice) => choice.label.includes("Harbour Clinic"))).toBe(true);
-    });
+    await waitFor(() => expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("Harbour Clinic"));
+    expect(apiFetchMock.mock.calls.some(([url, init]) => {
+      if (String(url) !== "/api/appointments/requests") return false;
+      const body = JSON.parse(String(init?.body));
+      return body.preferences?.use_saved_provider === true
+        && body.preferences?.provider_preference === "Harbour Clinic";
+    })).toBe(true);
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm before VYVA acts");
     expect(screen.getByTestId("route-state")).toHaveTextContent("null");
     expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
     window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
   });
 
   it("resumes the same Home Service Canvas after trusted provider setup returns", async () => {
-    apiFetchMock.mockImplementation(async (url) => {
-      if (String(url) === "/api/config/features/home-service-voice-canvas") return jsonResponse({ enabled: true, rolloutPercent: 100 });
-      if (String(url) === "/api/profile") {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target === "/api/config/features/home-service-voice-canvas") return jsonResponse({ enabled: true, rolloutPercent: 100 });
+      if (target === "/api/profile") {
         return jsonResponse({
           street: "10 Garden Lane",
           savedProviders: [{
@@ -4961,6 +4968,38 @@ describe("ConciergeScreen route prefill", () => {
             category: "home_service",
             phone: "+34 600 333 444",
             preferredChannel: "phone",
+          }],
+        });
+      }
+      if (target.endsWith("/api/appointments/requests")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.preferences).toMatchObject({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+          no_external_action_without_confirmation: true,
+        });
+        return jsonResponse({
+          request: {
+            id: "request-home-saved-provider",
+            appointment_type: "home-service",
+            reason_detail: body.detail,
+            preferences: body.preferences,
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "option-trusted-electrician",
+            provider_id: "provider-electrician",
+            provider_source: "saved",
+            provider_snapshot: {
+              name: "Trusted Electrician",
+              phone: "+34 600 333 444",
+              preferred_channel: "phone",
+            },
+            match_reason: "Saved home service provider",
+            available_channels: ["phone", "manual"],
+            rank: 1,
+            status: "recommended",
           }],
         });
       }
@@ -5001,10 +5040,14 @@ describe("ConciergeScreen route prefill", () => {
 
     fireEvent.click(await screen.findByTestId("button-provider-resume-continue"));
     await waitFor(() => {
-      const providerScene = scenes.find((scene) => scene.viewModel.sceneId === "home-service-provider");
-      expect(providerScene).toBeDefined();
-      expect(providerScene?.viewModel.choices?.some((choice) => choice.label === "Trusted Electrician")).toBe(true);
+      expect(apiFetchMock.mock.calls.some(([url]) => String(url) === "/api/appointments/requests")).toBe(true);
     });
+    expect(apiFetchMock.mock.calls.some(([url, init]) => {
+      if (String(url) !== "/api/appointments/requests") return false;
+      const body = JSON.parse(String(init?.body));
+      return body.preferences?.flow_reference === CONCIERGE_FLOW_REFERENCES.homeService
+        && body.preferences?.no_external_action_without_confirmation === true;
+    })).toBe(true);
     expect(screen.getByTestId("route-state")).toHaveTextContent("null");
     window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, handleScene);
   });
