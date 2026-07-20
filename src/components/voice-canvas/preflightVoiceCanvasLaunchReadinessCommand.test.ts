@@ -223,6 +223,21 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "Feature endpoints rollback: not provided; endpoints 0; problems 0",
     );
+    expect(result.stdout).toContain("Run sheet pending sections:");
+    expect(result.stdout).toContain(
+      "- Environment preflight: 12 pending cell(s) across 6 row(s)",
+    );
+    expect(result.stdout).toContain("QA matrix pending sections:");
+    expect(result.stdout).toContain(
+      "- Device coverage: 24 pending cell(s) across 6 row(s)",
+    );
+    expect(result.stdout).toContain(
+      "- Analytics privacy review: 16 pending cell(s) across 8 row(s)",
+    );
+    expect(result.stdout).toContain("Evidence packet pending sections:");
+    expect(result.stdout).toContain(
+      "- Evidence packet inventory: 11 pending cell(s) across 11 row(s)",
+    );
     expect(result.stdout).toContain(
       "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
     );
@@ -258,6 +273,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.",
     );
+    expect(result.stdout).toContain("Run sheet pending sections:");
+    expect(result.stdout).toContain("QA matrix pending sections:");
+    expect(result.stdout).toContain("Evidence packet pending sections:");
   });
 
   it("emits machine-readable JSON for launch readiness artifacts", () => {

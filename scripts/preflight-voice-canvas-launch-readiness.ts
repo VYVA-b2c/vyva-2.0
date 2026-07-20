@@ -130,6 +130,12 @@ interface FeatureEndpointArtifactValidation {
   problems: string[];
 }
 
+interface PendingSectionSummary {
+  section: string;
+  pendingCells: number;
+  rowsWithPending: number;
+}
+
 const featureFlaggedFlows = canvasLaunchReadinessFlows.filter(
   (flow) => flow.featureFlag,
 );
@@ -211,6 +217,30 @@ function printProblemDetails(label: string, problems: string[]): void {
   console.log(`${label} problems:`);
   for (const problem of problems) {
     console.log(`- ${problem}`);
+  }
+}
+
+function pendingSectionSummaries(value: unknown): PendingSectionSummary[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter(
+    (entry): entry is PendingSectionSummary =>
+      isRecord(entry) &&
+      typeof entry.section === "string" &&
+      typeof entry.pendingCells === "number" &&
+      typeof entry.rowsWithPending === "number",
+  );
+}
+
+function printPendingSections(label: string, value: unknown): void {
+  const summaries = pendingSectionSummaries(value);
+  if (summaries.length === 0) return;
+
+  console.log(`${label} pending sections:`);
+  for (const summary of summaries) {
+    console.log(
+      `- ${summary.section}: ${summary.pendingCells} pending cell(s) across ${summary.rowsWithPending} row(s)`,
+    );
   }
 }
 
@@ -731,6 +761,12 @@ printProblemDetails(
 printProblemDetails(
   "Feature endpoints rollback",
   summary.featureEndpointEvidence.rollback.problems,
+);
+printPendingSections("Run sheet", summary.runSheet.pendingSections);
+printPendingSections("QA matrix", summary.matrix.pendingSections);
+printPendingSections(
+  "Evidence packet",
+  summary.evidencePacket.pendingSections,
 );
 console.log("Next action:");
 for (const action of nextActions) {
