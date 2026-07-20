@@ -67,6 +67,24 @@ Use one flow packet per launch surface.
 | Provider Reply Voice Canvas | Real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; provider reply path without exposing provider names or reply text; review and explicit confirmation; no reply, call, message, navigation, completion, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing provider reply panel |
 | Concierge Task Hub Resume | Real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit where supported; local shopping draft, local medication refill draft, pending provider reply task, and stale or blocked task resume; destination flag fallback to named existing paths; no writes or external actions before confirmation |
 
+## Behavior recovery evidence template
+
+Use this copy-safe shape for each behavior recovery artifact before summarizing it in the QA matrix. Replace bracketed placeholders only. Do not include transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data.
+
+```text
+Behavior recovery evidence, reviewed on [YYYY-MM-DD] by [reviewer], artifact [sanitized reference]:
+- Flow/device/input: [flow] / [phone|tablet|desktop] / [voice|touch|keyboard]
+- Start/resume: restored current scene or work with entered information preserved; no write, no resubmission, no external action
+- App exit/reopen: restored draft with entered information preserved; no write, no resubmission, no external action
+- Refresh/reconnect: restored work with entered information preserved; no write, no resubmission, no external action
+- Voice interruption: recovered interrupted work with entered information preserved; no write, no resubmission, no external action
+- Browser back: returned safely or preserved entered information; no write, no external action
+- Cancel/exit: left safely; no write, no external action
+- Duplicate/stale guard: duplicate confirmation/action was prevented, blocked, ignored, rejected, or discarded; stale response was ignored, rejected, or discarded
+- Recoverable failure: retry and exit or cancel were offered with entered information preserved; no extra write, no resubmission, no external action
+- Privacy check: artifact contains no transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data
+```
+
 ## Copy-ready evidence note patterns
 
 Replace bracketed text before copying into the QA matrix.

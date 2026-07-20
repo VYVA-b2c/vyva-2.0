@@ -309,7 +309,7 @@ describe("Voice Canvas run sheet validator command", () => {
 
         expect(summary.state).toBe("invalid");
         expect(summary.problems).toContain(
-          "Per-flow behavior pass is missing required launch-readiness coverage.",
+          "Missing per-flow behavior column: Duplicate prevented and stale response ignored.",
         );
       },
     ));

@@ -76,6 +76,22 @@ For each flow below, test on a real phone, real tablet, and real desktop/laptop.
 
 Use one row per flow and device family if the artifacts differ by device.
 
+For each row, use this copy-safe behavior recovery shape in the evidence reference or linked artifact note. Replace bracketed placeholders only, and do not include transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data:
+
+```text
+Behavior recovery evidence, reviewed on [YYYY-MM-DD] by [reviewer], artifact [sanitized reference]:
+- Flow/device/input: [flow] / [phone|tablet|desktop] / [voice|touch|keyboard]
+- Start/resume: restored current scene or work with entered information preserved; no write, no resubmission, no external action
+- App exit/reopen: restored draft with entered information preserved; no write, no resubmission, no external action
+- Refresh/reconnect: restored work with entered information preserved; no write, no resubmission, no external action
+- Voice interruption: recovered interrupted work with entered information preserved; no write, no resubmission, no external action
+- Browser back: returned safely or preserved entered information; no write, no external action
+- Cancel/exit: left safely; no write, no external action
+- Duplicate/stale guard: duplicate confirmation/action was prevented, blocked, ignored, rejected, or discarded; stale response was ignored, rejected, or discarded
+- Recoverable failure: retry and exit or cancel were offered with entered information preserved; no extra write, no resubmission, no external action
+- Privacy check: artifact contains no transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data
+```
+
 | Flow | Device | Interaction mode | Start/resume restored work | App exit/reopen restored draft | Refresh/reconnect restored work | Voice interruption recovered work | Browser back preserved or returned safely | Cancel/exit left safely | Duplicate prevented and stale response ignored | Recoverable failure offered retry and exit | Evidence reference | Reviewer/date |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Ride Voice Canvas | Phone | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |

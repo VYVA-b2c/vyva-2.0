@@ -38,6 +38,22 @@ const requiredFlows = [
 
 const requiredDeviceRows = ["Phone", "Tablet", "Desktop/laptop"] as const;
 
+const requiredBehaviorColumns = [
+  "Flow",
+  "Device",
+  "Interaction mode",
+  "Start/resume restored work",
+  "App exit/reopen restored draft",
+  "Refresh/reconnect restored work",
+  "Voice interruption recovered work",
+  "Browser back preserved or returned safely",
+  "Cancel/exit left safely",
+  "Duplicate prevented and stale response ignored",
+  "Recoverable failure offered retry and exit",
+  "Evidence reference",
+  "Reviewer/date",
+] as const;
+
 const requiredEnvironmentRows = [
   "Staging or production-like URL is deployed and non-local",
   "Build or commit SHA matches the tested deployment",
@@ -412,6 +428,13 @@ function evaluateRunSheet(markdown: string) {
   }
 
   const behaviorTable = findTable(tables, "Per-flow behavior pass");
+  if (behaviorTable) {
+    for (const column of requiredBehaviorColumns) {
+      if (!behaviorTable.headers.some((header) => normalizeCell(header) === column)) {
+        problems.push(`Missing per-flow behavior column: ${column}.`);
+      }
+    }
+  }
   for (const flow of requiredFlows) {
     for (const device of requiredDeviceRows) {
       const hasRow = Boolean(
