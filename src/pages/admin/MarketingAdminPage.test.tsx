@@ -2466,6 +2466,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-calendar-ai-planner")).toHaveTextContent("Fix content gap");
     expect(screen.getByTestId("marketing-calendar-ai-planner")).toHaveTextContent("Prepare manual handoff");
     expect(screen.getByTestId("marketing-calendar-publish-run-sheet")).toHaveTextContent("Daily publish run sheet");
+    expect(screen.getByTestId("marketing-calendar-ops-queue")).toHaveTextContent("Publishing ops queue");
+    expect(screen.getByTestId("button-marketing-calendar-ops-queue-send-email")).toHaveTextContent("1");
+    expect(screen.getByTestId("button-marketing-calendar-ops-queue-send-email")).toHaveTextContent("Send due email campaigns");
+    expect(screen.getByTestId("button-marketing-calendar-ops-queue-fix-content")).toHaveTextContent("1");
+    expect(screen.getByTestId("button-marketing-calendar-ops-queue-fix-content")).toHaveTextContent("Fix content blockers");
+    expect(screen.getByTestId("button-marketing-calendar-ops-queue-snapshot-recipients")).toHaveTextContent("0");
+    expect(screen.getByTestId("button-marketing-calendar-ops-queue-manual-handoff")).toHaveTextContent("1");
+    expect(screen.getByTestId("button-marketing-calendar-ops-queue-schedule-drafts")).toHaveTextContent("0");
     const publishRunSheet = screen.getByTestId("textarea-marketing-calendar-publish-run-sheet") as HTMLTextAreaElement;
     expect(publishRunSheet.value).toContain("VYVA daily publishing run sheet");
     expect(publishRunSheet.value).toContain("Due email campaigns:");
@@ -2492,6 +2500,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Partner outreach");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+    fireEvent.click(screen.getByTestId("button-marketing-calendar-ops-queue-send-email"));
+
+    expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Caregiver welcome");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     fireEvent.click(screen.getByTestId("button-marketing-calendar-command-due-email"));

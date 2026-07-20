@@ -39990,6 +39990,63 @@ function MarketingCalendarView({
       onSelect: () => onEdit(manualHandoffCampaigns[0]),
     }] : []),
   ].slice(0, 5);
+  const calendarOpsQueue = [
+    {
+      key: "send-email",
+      title: "Send due email campaigns",
+      count: dueEmailCampaigns.length,
+      detail: dueEmailCampaigns.length
+        ? `${dueEmailCampaigns.length} scheduled email campaign${dueEmailCampaigns.length === 1 ? "" : "s"} have recipients and linked content ready.`
+        : "No scheduled email campaign is ready to send now.",
+      state: dueEmailCampaigns.length ? "ready" as CampaignReadinessState : "planning" as CampaignReadinessState,
+      actionLabel: dueEmailCampaigns.length ? "Open first due email" : "Review schedule",
+      campaign: dueEmailCampaigns[0] ?? null,
+    },
+    {
+      key: "fix-content",
+      title: "Fix content blockers",
+      count: missingContentCampaigns.length,
+      detail: missingContentCampaigns.length
+        ? `${missingContentCampaigns.length} campaign${missingContentCampaigns.length === 1 ? "" : "s"} still have a route without linked content.`
+        : "All visible campaign routes have linked content.",
+      state: missingContentCampaigns.length ? "blocked" as CampaignReadinessState : "ready" as CampaignReadinessState,
+      actionLabel: missingContentCampaigns.length ? "Open first blocker" : "Content clear",
+      campaign: missingContentCampaigns[0] ?? null,
+    },
+    {
+      key: "snapshot-recipients",
+      title: "Snapshot recipients",
+      count: scheduledCampaignsWithoutRecipients.length,
+      detail: scheduledCampaignsWithoutRecipients.length
+        ? `${scheduledCampaignsWithoutRecipients.length} scheduled campaign${scheduledCampaignsWithoutRecipients.length === 1 ? "" : "s"} need saved recipient snapshots before launch.`
+        : "Scheduled campaigns with content already have recipient snapshots.",
+      state: scheduledCampaignsWithoutRecipients.length ? "needs_action" as CampaignReadinessState : "ready" as CampaignReadinessState,
+      actionLabel: scheduledCampaignsWithoutRecipients.length ? "Open first snapshot" : "Snapshots clear",
+      campaign: scheduledCampaignsWithoutRecipients[0] ?? null,
+    },
+    {
+      key: "manual-handoff",
+      title: "Prepare manual handoffs",
+      count: manualHandoffCampaigns.length,
+      detail: manualHandoffCampaigns.length
+        ? `${manualHandoffCampaigns.length} campaign${manualHandoffCampaigns.length === 1 ? "" : "s"} need social/offline publish tracking.`
+        : "No social/offline campaigns need handoff prep.",
+      state: manualHandoffCampaigns.length ? "planning" as CampaignReadinessState : "ready" as CampaignReadinessState,
+      actionLabel: manualHandoffCampaigns.length ? "Open first handoff" : "Handoffs clear",
+      campaign: manualHandoffCampaigns[0] ?? null,
+    },
+    {
+      key: "schedule-drafts",
+      title: "Schedule ready drafts",
+      count: unscheduledReadyCampaigns.length,
+      detail: unscheduledReadyCampaigns.length
+        ? `${unscheduledReadyCampaigns.length} unscheduled draft${unscheduledReadyCampaigns.length === 1 ? "" : "s"} already have content and can be placed on the calendar.`
+        : "No ready draft is waiting for a publish window.",
+      state: unscheduledReadyCampaigns.length ? "planning" as CampaignReadinessState : "ready" as CampaignReadinessState,
+      actionLabel: unscheduledReadyCampaigns.length ? "Open first draft" : "Schedule clear",
+      campaign: unscheduledReadyCampaigns[0] ?? null,
+    },
+  ];
   const publishRunSheetText = [
     "VYVA daily publishing run sheet",
     `Generated: ${formatDate(new Date().toISOString())}`,
@@ -40114,6 +40171,41 @@ function MarketingCalendarView({
               {publishRunSheetFeedback}
             </p>
           ) : null}
+        </div>
+        <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-calendar-ops-queue">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Publishing ops queue</p>
+              <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                Counted work list for today: sends, content blockers, snapshots, handoffs, and ready drafts.
+              </p>
+            </div>
+            <Pill className={calendarOpsQueue.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : calendarOpsQueue.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+              {calendarOpsQueue.filter((item) => item.count > 0).length} active
+            </Pill>
+          </div>
+          <div className="mt-3 grid gap-2 xl:grid-cols-5">
+            {calendarOpsQueue.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => item.campaign ? onEdit(item.campaign) : undefined}
+                disabled={!item.campaign}
+                className={`flex min-h-[150px] flex-col rounded-xl border p-3 text-left shadow-sm transition enabled:hover:border-purple-300 enabled:hover:shadow-md disabled:cursor-default ${readinessClass(item.state)}`}
+                data-testid={`button-marketing-calendar-ops-queue-${item.key}`}
+              >
+                <span className="flex items-start justify-between gap-2">
+                  <span className="text-2xl font-black text-[#241133]">{item.count}</span>
+                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                </span>
+                <span className="mt-2 block text-sm font-black text-[#241133]">{item.title}</span>
+                <span className="mt-2 line-clamp-3 block flex-1 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                <span className={`mt-3 inline-flex items-center gap-1 text-xs font-black ${item.campaign ? "text-purple-700" : "text-[#8b7a73]"}`}>
+                  {item.actionLabel} {item.campaign ? <ExternalLink size={12} aria-hidden="true" /> : null}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
         {calendarPlannerItems.length ? (
           <div className="mt-3 grid gap-3 xl:grid-cols-5">
