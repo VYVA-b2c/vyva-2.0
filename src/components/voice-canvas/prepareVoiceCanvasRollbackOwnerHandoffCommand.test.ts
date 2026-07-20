@@ -257,6 +257,23 @@ describe("Voice Canvas rollback owner handoff helper command", () => {
       },
     ));
 
+  it("rejects credential or query-bearing QA run URLs as not rollback owner evidence", () =>
+    withTempMarkdownFile(
+      validRollbackOwnerHandoffArtifact().replace(
+        "QA run URL: https://staging.vyva.app",
+        "QA run URL: https://staging.vyva.app?token=secret",
+      ),
+      (inputPath) => {
+        const result = runRollbackOwnerHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toContain(
+          "Rollback owner handoff QA run URL must be a deployed HTTPS non-local URL.",
+        );
+      },
+    ));
+
   it("rejects unchanged templates and unsafe filled handoff artifacts", () =>
     withTempMarkdownFile(validRollbackOwnerHandoffArtifact(), (inputPath) => {
       const templateResult = runRollbackOwnerHelper(["--template"]);

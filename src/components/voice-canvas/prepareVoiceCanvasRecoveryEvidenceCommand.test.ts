@@ -240,6 +240,25 @@ describe("Voice Canvas recovery behavior evidence helper command", () => {
       },
     ));
 
+  it("rejects credential or query-bearing QA run URLs as not recovery evidence", () =>
+    withTempRecoveryFile(
+      validRecoveryEvidenceArtifact().replace(
+        "QA run URL: https://staging.vyva.app",
+        "QA run URL: https://staging.vyva.app?token=secret",
+      ),
+      (inputPath) => {
+        const result = runRecoveryEvidence([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Recovery behavior evidence QA run URL must be a deployed HTTPS non-local URL.",
+          ]),
+        );
+      },
+    ));
+
   it("rejects personal details without echoing them in problem output", () =>
     withTempRecoveryFile(
       validRecoveryEvidenceArtifact().replace(

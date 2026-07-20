@@ -179,6 +179,7 @@ function isDeployedQaRunUrl(value: string | null): boolean {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
     if (url.protocol !== "https:") return false;
+    if (url.username || url.password || url.search || url.hash) return false;
     if (
       host === "localhost" ||
       host === "0.0.0.0" ||

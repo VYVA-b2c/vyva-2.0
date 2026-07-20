@@ -271,6 +271,23 @@ describe("Voice Canvas real-use evidence helper command", () => {
       },
     ));
 
+  it("rejects credential or query-bearing QA run URLs as not real-use evidence", () =>
+    withTempMarkdownFile(
+      validRealUseEvidenceArtifact().replace(
+        "QA run URL: https://staging.vyva.app",
+        "QA run URL: https://staging.vyva.app?token=secret",
+      ),
+      (inputPath) => {
+        const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Real-use evidence QA run URL must be a deployed HTTPS non-local URL.",
+        );
+      },
+    ));
+
   it("rejects personal details without echoing them in problem output", () =>
     withTempMarkdownFile(
       validRealUseEvidenceArtifact().replace(

@@ -333,6 +333,23 @@ describe("Voice Canvas entry surface evidence helper command", () => {
       },
     ));
 
+  it("rejects credential or query-bearing QA run URLs as not entry-surface evidence", () =>
+    withTempMarkdownFile(
+      validEntrySurfaceEvidenceArtifact().replace(
+        "QA run URL: https://staging.vyva.app",
+        "QA run URL: https://staging.vyva.app?token=secret",
+      ),
+      (inputPath) => {
+        const result = runEntrySurfaceHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Entry surface evidence QA run URL must be a deployed HTTPS non-local URL.",
+        );
+      },
+    ));
+
   it("rejects personal details without echoing them in problem output", () =>
     withTempMarkdownFile(
       validEntrySurfaceEvidenceArtifact().replace(
