@@ -45,7 +45,10 @@ describe("Concierge flow alignment maps", () => {
     for (const flow of providerFlows) {
       expect(flow.savedProviderPrompt).toMatch(/Use the saved/i);
       expect(flow.missingProviderPrompt).toMatch(/choose or add/i);
-      expect(flow.steps.find((step) => step.key === "provider")?.helper).toBe(flow.savedProviderPrompt);
+      const providerStep = flow.steps.find((step) => step.key === "provider");
+      expect(providerStep?.helper).toContain(flow.savedProviderPrompt);
+      expect(providerStep?.helper).toMatch(/If none is saved/i);
+      expect(providerStep?.helper).toMatch(/choose or add/i);
     }
   });
 

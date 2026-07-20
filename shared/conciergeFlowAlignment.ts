@@ -116,7 +116,9 @@ export function buildConciergeFlowMap(flow: ConciergeFlowDefinition): ConciergeF
       {
         key: "provider",
         label: needsProvider ? "Provider" : "Provider if needed",
-        helper: needsProvider ? provider.savedProviderPrompt : provider.missingProviderPrompt,
+        helper: needsProvider
+          ? `${provider.savedProviderPrompt} If none is saved, ${provider.missingProviderPrompt.charAt(0).toLowerCase()}${provider.missingProviderPrompt.slice(1)}`
+          : provider.missingProviderPrompt,
       },
       {
         key: "confirm",
