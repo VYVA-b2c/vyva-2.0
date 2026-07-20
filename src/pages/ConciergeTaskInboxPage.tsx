@@ -618,10 +618,10 @@ function TaskDetail({
             {item.continuation.stateLabel}
           </span>
         </div>
-        <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="min-w-0">
             <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
-              {isSpanish ? "Flujo" : "Flow"}
+              {isSpanish ? "Tipo" : "Task type"}
             </dt>
             <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
               {item.continuation.flowLabel}
@@ -629,18 +629,10 @@ function TaskDetail({
           </div>
           <div className="min-w-0">
             <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
-              {isSpanish ? "Estado" : "State"}
+              {isSpanish ? "Estado" : "Status"}
             </dt>
             <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
               {item.continuation.stateLabel}
-            </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="font-body text-[11px] font-black uppercase text-vyva-text-3">
-              {isSpanish ? "Escena" : "Scene"}
-            </dt>
-            <dd className="mt-1 break-words font-body text-[14px] font-bold text-vyva-text-1">
-              {item.continuation.sceneLabel}
             </dd>
           </div>
         </dl>
