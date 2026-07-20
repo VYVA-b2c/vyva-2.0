@@ -2012,12 +2012,28 @@ function hasLiteralSensitiveDataLeakage(value: string): boolean {
   return literalSensitiveDataPatterns.some((pattern) => pattern.test(value));
 }
 
+const privateDetailArtifactLabelPatterns: readonly RegExp[] = [
+  /\b(?:spoken[-_]transcripts?|voice[-_]transcripts?|typed[-_]free[-_]text|free[-_]text)\b/i,
+  /\b(?:saved[-_]place[-_]labels?|pickup[-_]addresses?|dropoff[-_]addresses?|destination[-_]addresses?|street[-_]addresses?)\b/i,
+  /\b(?:ride[-_]details?|route[-_]details?|pickup[-_]details?|dropoff[-_]details?|destination[-_]details?)\b/i,
+  /\b(?:medication[-_]details?|medication[-_]names?|provider[-_]details?|provider[-_]names?|provider[-_]contacts?|reply[-_]text|reply[-_]body)\b/i,
+  /\b(?:shopping[-_]item[-_]details?|shopping[-_]details?|item[-_]names?|retailer[-_]names?|price[-_]details?|fee[-_]details?)\b/i,
+  /\b(?:contact[-_]details?|account[-_]ids?|user[-_]ids?|profile[-_]ids?|patient[-_]ids?)\b/i,
+];
+
+function hasPrivateDetailArtifactLabelLeakage(value: string): boolean {
+  return privateDetailArtifactLabelPatterns.some((pattern) =>
+    pattern.test(value),
+  );
+}
+
 function hasSensitiveDataLeakageLanguage(value: string): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   const sensitiveNoun = sensitiveDataNounPattern;
   const leakVerb =
     "(?:recorded|logged|sent|captured|include|includes|included|containing|contains|stored|retained|present|shown|shows|displayed|displays|visible|exposed|exposes)";
   const safeAbsenceLanguage = [
+    new RegExp(`\\b(?:no|none|zero|without)\\b.{0,32}\\b${sensitiveNoun}\\b`, "g"),
     new RegExp(`\\b(?:no|none|zero|without)\\b.{0,32}\\b${sensitiveNoun}\\b.{0,32}\\b${leakVerb}\\b`, "g"),
     new RegExp(`\\b${sensitiveNoun}\\b.{0,24}\\b(?:absent|omitted|excluded|redacted)\\b`, "g"),
     new RegExp(`\\b${sensitiveNoun}\\b.{0,24}\\b(?:not|never)\\b.{0,16}\\b${leakVerb}\\b`, "g"),
@@ -2026,6 +2042,7 @@ function hasSensitiveDataLeakageLanguage(value: string): boolean {
 
   return (
     hasLiteralSensitiveDataLeakage(value) ||
+    hasPrivateDetailArtifactLabelLeakage(safeAbsenceLanguage) ||
     new RegExp(`\\b${sensitiveNoun}\\b.{0,32}\\b${leakVerb}\\b`).test(
       safeAbsenceLanguage,
     ) ||

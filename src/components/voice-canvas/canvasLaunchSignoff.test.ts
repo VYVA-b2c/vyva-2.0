@@ -793,6 +793,26 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects evidence artifact inventory references with filename-style private detail labels", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_SIGNAL_ROW,
+      "| Analytics signal artifacts | Analytics signal started resumed abandoned blocked confirmed completed evidence | Sanitized analytics dashboard query artifact link voice-canvas/analytics/2026-07-19/route-details-shopping-item-details-retailer-name-profile-id with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Analytics signal artifacts: reference must name sanitized concrete artifacts with no personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with feature endpoint drift", () => {
     const completed = completedMatrix().replace(
       "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` |",
