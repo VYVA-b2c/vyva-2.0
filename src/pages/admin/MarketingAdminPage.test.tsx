@@ -1638,6 +1638,19 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-audience-quality")).toHaveTextContent("1 consent review");
     expect(screen.getByTestId("marketing-ai-command-audience-channel-coverage")).toHaveTextContent("Email 1");
     expect(screen.getByTestId("marketing-ai-command-audience-channel-coverage")).toHaveTextContent("LinkedIn 1");
+    expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Why VYVA chose this");
+    expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Partner webinar play");
+    expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Partners list");
+    expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("1 matched");
+    expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("1 reachable");
+    expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("2/4 publish steps ready");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-copy-rationale"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA AI recommendation rationale"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Recommended play: Partner webinar"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Signals used"));
+    expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent("AI recommendation rationale copied.");
     expect(screen.getByTestId("button-marketing-ai-command-copy-route-linkedin")).toHaveTextContent("Copy handoff");
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-copy-route-linkedin"));
     await waitFor(() => {

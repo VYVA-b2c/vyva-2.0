@@ -27705,6 +27705,11 @@ export default function MarketingAdminPage() {
       `Tone and angle: ${campaignStudioToneLabel[plan.match.toneId]} / ${plan.angleLabel}`,
       `Template pack: ${packLine}`,
       "",
+      "Why VYVA chose this",
+      ...plan.match.reasons.map((reason) => `- ${reason}`),
+      `- Audience readiness: ${plan.audienceQuality.total} matched, ${plan.reachableContacts} reachable, ${plan.audienceQuality.needsReview} consent review, ${plan.audienceQuality.noSelectedRoute} missing selected route.`,
+      `- Publish route: ${plan.publishPath.filter((item) => item.state === "ready").length} of ${plan.publishPath.length} steps ready.`,
+      "",
       "Channel routes",
       ...routeLines,
       "",
@@ -27713,6 +27718,40 @@ export default function MarketingAdminPage() {
       "- Review email copy and recipients before sending through VYVA.",
       "- Use manual handoff routes for WhatsApp, social, phone, print, or event publishing until provider controls are enabled.",
       "- Track replies, handoff outcomes, and relationship follow-up back on the campaign.",
+    ].join("\n");
+  }, [marketingDashboardAiCommand, marketingDashboardAiCommandPlan]);
+
+  const marketingDashboardAiRationaleText = useMemo(() => {
+    const plan = marketingDashboardAiCommandPlan;
+    if (!plan) return "";
+
+    const audienceName = plan.match.targetAudience?.name ?? `${plan.match.play.audienceType.toUpperCase()} contacts`;
+    const packLine = plan.packMatch
+      ? `${plan.packMatch.pack.title} with ${plan.packMatch.templates.length} reusable template${plan.packMatch.templates.length === 1 ? "" : "s"}`
+      : "No full pack yet; use best saved templates or customize in studio";
+    const routeLine = plan.channelRoutes
+      .map((route) => `${channelLabel[route.channel]}: ${route.mode}, ${route.reachableContacts} reachable, ${readinessLabel(route.state).toLowerCase()}`)
+      .join("; ");
+
+    return [
+      "VYVA AI recommendation rationale",
+      "",
+      `Command: ${marketingDashboardAiCommand.trim()}`,
+      `Recommended play: ${plan.match.play.label}`,
+      `Audience: ${audienceName}`,
+      `Channels: ${formatChannelList(plan.selectedChannels)}`,
+      `Template path: ${packLine}`,
+      "",
+      "Signals used",
+      ...plan.match.reasons.map((reason) => `- ${reason}`),
+      `- ${plan.audienceQuality.total} matched contact${plan.audienceQuality.total === 1 ? "" : "s"}; ${plan.reachableContacts} reachable on selected channels.`,
+      `- ${plan.audienceQuality.needsReview} contact${plan.audienceQuality.needsReview === 1 ? "" : "s"} need consent review; ${plan.audienceQuality.noSelectedRoute} contact${plan.audienceQuality.noSelectedRoute === 1 ? "" : "s"} need a route fix.`,
+      `- Routes: ${routeLine}`,
+      "",
+      "Recommended next action",
+      plan.packMatch
+        ? "Create the launch kit, review email recipients/copy, and copy handoff briefs for non-email channels."
+        : "Open Smart campaign studio, choose or generate templates, then create the launch kit.",
     ].join("\n");
   }, [marketingDashboardAiCommand, marketingDashboardAiCommandPlan]);
 
@@ -27949,6 +27988,41 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = marketingDashboardAiCommandBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyMarketingDashboardAiRationale() {
+    const label = "AI recommendation rationale";
+    if (!marketingDashboardAiRationaleText.trim()) {
+      const feedback = "Type a campaign goal first so VYVA can explain the recommendation.";
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(marketingDashboardAiRationaleText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = marketingDashboardAiRationaleText;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -28802,6 +28876,35 @@ export default function MarketingAdminPage() {
                                   ? `${marketingDashboardAiCommandPlan.packMatch.pack.title} (${marketingDashboardAiCommandPlan.packMatch.templates.length} templates)`
                                   : "Best available saved templates"}
                               </span>
+                            </div>
+                            <div className="rounded-lg border border-violet-100 bg-violet-50/70 px-2.5 py-2" data-testid="marketing-ai-command-rationale">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <span className="block text-[#7d6b65]">Why VYVA chose this</span>
+                                  <span className="mt-1 block text-[#241133]">
+                                    {marketingDashboardAiCommandPlan.match.reasons.slice(0, 3).join(" / ")}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => void copyMarketingDashboardAiRationale()}
+                                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-white px-2.5 text-[11px] font-black text-violet-800 transition hover:bg-violet-50 focus:outline-none focus:ring-4 focus:ring-violet-100"
+                                  data-testid="button-marketing-ai-command-copy-rationale"
+                                >
+                                  <Copy size={12} /> Copy rationale
+                                </button>
+                              </div>
+                              <div className="mt-2 grid gap-1.5 text-[11px] font-black text-[#5b4a46] sm:grid-cols-3">
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-violet-100">
+                                  {marketingDashboardAiCommandPlan.audienceQuality.total} matched
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-violet-100">
+                                  {marketingDashboardAiCommandPlan.reachableContacts} reachable
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-violet-100">
+                                  {marketingDashboardAiCommandPlan.publishPath.filter((item) => item.state === "ready").length}/{marketingDashboardAiCommandPlan.publishPath.length} publish steps ready
+                                </span>
+                              </div>
                             </div>
                             <div className="rounded-lg bg-white px-2.5 py-2 ring-1 ring-[#eadfd5]" data-testid="marketing-ai-command-audience-quality">
                               <div className="flex flex-wrap items-center justify-between gap-2">
