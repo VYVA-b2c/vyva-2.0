@@ -173,6 +173,7 @@ import {
   evaluateConciergeFlowRequirements,
   type ConciergeFlowRequirementKey,
 } from "../../shared/conciergeFlowRequirements";
+import { getConciergeFlowMap } from "../../shared/conciergeFlowAlignment";
 import {
   evaluateConciergeToolReadiness,
   preferredToolFromTransportActions,
@@ -4841,6 +4842,7 @@ type ActiveTaskChecklistItem = {
 type ActiveTaskChecklist = {
   title: string;
   helper: string;
+  flowTitle: string;
   items: ActiveTaskChecklistItem[];
 };
 
@@ -5436,6 +5438,7 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
     providerName: provider,
     summary: item.action_summary,
   });
+  const flowMap = getConciergeFlowMap(requirementStatus.flowReference);
   const providerNotRequired = !requirementStatus.needsProvider && !isProviderSearchPendingAction(item);
   const providerReady = providerNotRequired || Boolean(provider);
   const channel = handoffChannelLabel(item, isSpanish);
@@ -5456,7 +5459,7 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
   const items: ActiveTaskChecklistItem[] = [
     {
       key: "details",
-      label: isSpanish ? "Detalles" : "Details",
+      label: isSpanish ? "Falta" : "Missing",
       value: detailsValue,
       state: hasMissingFormFields ? "needed" : detailsReady ? "done" : "active",
       action: "details",
@@ -5469,7 +5472,7 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
       label: isSpanish ? "Proveedor" : "Provider",
       value: provider || (providerNotRequired
         ? (isSpanish ? "No necesario" : "Not needed")
-        : (isSpanish ? "Por elegir" : "Choose first")),
+        : (isSpanish ? "Elige o anade" : "Choose or add")),
       state: provider ? "done" : providerNotRequired ? "done" : "needed",
       action: providerNotRequired ? undefined : "provider",
       actionLabel: providerNotRequired
@@ -5480,7 +5483,7 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
     },
     {
       key: "contact",
-      label: isSpanish ? "Contacto" : "Contact",
+      label: isSpanish ? "Accion" : "Action",
       value: channel,
       state: channel.toLowerCase().includes("review") || channel.toLowerCase().includes("revision")
         ? "active"
@@ -5505,7 +5508,7 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
 
   items.push({
     key: "confirm",
-    label: isSpanish ? "Confirmar" : "Confirm",
+    label: isSpanish ? "Tu OK" : "Your OK",
     value: item.status === "failed"
       ? (isSpanish ? "Revisar" : "Review needed")
       : isWaitingForProvider
@@ -5541,10 +5544,11 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
   });
 
   return {
-    title: isSpanish ? "Revision rapida" : "Ready check",
+    title: isSpanish ? "Camino claro" : "Clear path",
+    flowTitle: flowMap.title,
     helper: isSpanish
-      ? "Nada se envia, llama o reserva sin tu OK."
-      : "Nothing is sent, called, or booked without your OK.",
+      ? "Solo pedimos lo que falta. Nada sale sin tu OK."
+      : "Only missing info. Nothing goes out without your OK.",
     items,
   };
 }
@@ -5592,6 +5596,7 @@ function ActiveTaskChecklistPanel({
     <div
       className="mt-3 rounded-[18px] border border-vyva-border bg-white p-3"
       data-testid="panel-concierge-flow-checklist"
+      aria-label={checklist.flowTitle}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
