@@ -13192,6 +13192,33 @@ export default function MarketingAdminPage() {
     selectedContactRelationshipScore,
     selectedRelationshipContact,
   ]);
+  const contactRelationshipBestTemplate = contactRelationshipTemplateRecommendations[0]?.template ?? null;
+  const contactRelationshipNextMoveState: CampaignReadinessState = !selectedRelationshipContact
+    ? "planning"
+    : !contactRelationshipDirectReachable || selectedRelationshipContact.consentStatus !== "opted_in"
+      ? "needs_action"
+      : selectedContactRelationshipScore >= 75
+        ? "ready"
+        : "needs_action";
+  const contactRelationshipNextMoveTitle = !selectedRelationshipContact
+    ? "Select a contact"
+    : !contactRelationshipDirectReachable
+      ? "Add a reachable route"
+      : selectedRelationshipContact.consentStatus !== "opted_in"
+        ? "Review consent before outreach"
+        : selectedContactRelationshipScore >= 75
+          ? "Ready for relationship campaign"
+          : "Complete relationship profile";
+  const contactRelationshipNextMoveDetail = contactRelationshipNextActions[0]
+    ?? contactRelationshipBrief?.starter
+    ?? "Choose a template, build a campaign, or add contact details before outreach.";
+  const contactRelationshipNextMoveActionLabel = !selectedRelationshipContact
+    ? "Select contact"
+    : (!contactRelationshipDirectReachable || selectedRelationshipContact.consentStatus !== "opted_in")
+      ? "Review contact"
+      : contactRelationshipBestTemplate
+        ? `Use ${channelLabel[contactRelationshipBestTemplate.channel]} starter`
+        : "Build campaign";
   const contactRelationshipBriefText = useMemo(() => {
     if (!selectedRelationshipContact || !contactRelationshipBrief) return "";
     const contactName = selectedRelationshipContact.fullName || selectedRelationshipContact.email || selectedRelationshipContact.phoneNumber || "Unnamed contact";
@@ -37302,6 +37329,57 @@ export default function MarketingAdminPage() {
                                 </span>
                                 <Pill className={statusClass(selectedRelationshipContact.consentStatus)}>{selectedRelationshipContact.consentStatus}</Pill>
                                 <Pill className="bg-white text-purple-800">{selectedRelationshipContact.audienceType.toUpperCase()}</Pill>
+                              </div>
+                            </div>
+                            <div className={`mt-4 rounded-xl border p-3 ${readinessClass(contactRelationshipNextMoveState)}`} data-testid="marketing-contact-next-move">
+                              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-black uppercase tracking-[0.12em] opacity-75">Best next relationship move</p>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                                    <h4 className="text-base font-black">{contactRelationshipNextMoveTitle}</h4>
+                                    <Pill className={readinessPillClass(contactRelationshipNextMoveState)}>{readinessLabel(contactRelationshipNextMoveState)}</Pill>
+                                  </div>
+                                  <p className="mt-1 text-sm font-bold leading-relaxed opacity-85">{contactRelationshipNextMoveDetail}</p>
+                                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
+                                    <Pill className="bg-white text-purple-800">{selectedContactRelationshipScore}% ready</Pill>
+                                    {contactRelationshipBrief ? (
+                                      <Pill className={channelClass(contactRelationshipBrief.primaryChannel)}>{channelLabel[contactRelationshipBrief.primaryChannel]}</Pill>
+                                    ) : null}
+                                    <Pill className="bg-white text-[#5b4a46]">{contactRelationshipAudiences.length} list match{contactRelationshipAudiences.length === 1 ? "" : "es"}</Pill>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (!selectedRelationshipContact) return;
+                                      if (!contactRelationshipDirectReachable || selectedRelationshipContact.consentStatus !== "opted_in") {
+                                        startContactEdit(selectedRelationshipContact);
+                                        return;
+                                      }
+                                      if (contactRelationshipBestTemplate) {
+                                        startRelationshipCampaignFromTemplate(selectedRelationshipContact, contactRelationshipBestTemplate);
+                                        return;
+                                      }
+                                      void buildCampaignForRelationshipContact(selectedRelationshipContact);
+                                    }}
+                                    disabled={contactSaving || audienceSaving}
+                                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                    data-testid="button-marketing-contact-next-move"
+                                  >
+                                    {contactRelationshipNextMoveActionLabel}
+                                  </button>
+                                  {contactRelationshipFollowUpKitText ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyContactRelationshipFollowUpKit()}
+                                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 hover:bg-purple-50"
+                                      data-testid="button-marketing-contact-next-move-copy-kit"
+                                    >
+                                      <Copy size={14} /> Copy kit
+                                    </button>
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
                             <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="marketing-contact-relationship-channels">
