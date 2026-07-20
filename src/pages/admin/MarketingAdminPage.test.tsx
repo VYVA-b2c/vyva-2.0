@@ -1263,6 +1263,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Partner outreach for Partner at Moka Digital with Spain / healthcare / lead.");
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Connect it to "Partner outreach" or create a focused Partners follow-up.');
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Review consent: pending.");
+    expect(screen.getByTestId("marketing-contact-next-message")).toHaveTextContent("Next message preview");
+    expect(screen.getByTestId("marketing-contact-next-message")).toHaveTextContent("Community partner introduction email");
+    expect(screen.getByTestId("marketing-contact-next-message")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-contact-next-message")).toHaveTextContent("Review consent before sending: pending.");
     expect(screen.getByTestId("marketing-contact-follow-up-kit")).toHaveTextContent("Relationship follow-up kit");
     expect(screen.getByTestId("marketing-contact-follow-up-step-first-touch")).toHaveTextContent("First touch");
     expect(screen.getByTestId("marketing-contact-follow-up-step-first-touch")).toHaveTextContent("Email");
@@ -1281,6 +1285,13 @@ describe("MarketingAdminPage", () => {
     expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Contact: Hassan Partner"));
     expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Turn this relationship brief into the next best contact-specific message"));
     expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Relationship brief copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-contact-next-message"));
+    await waitFor(() => {
+      expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA next relationship message"));
+    });
+    expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Contact: Hassan Partner"));
+    expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Recipient: hassan@example.com"));
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Relationship message copied.");
     fireEvent.click(screen.getByTestId("button-marketing-contact-action-queue-brief"));
     await waitFor(() => {
       expect(relationshipClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Turn this relationship brief into the next best contact-specific message"));

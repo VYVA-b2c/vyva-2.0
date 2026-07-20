@@ -13526,6 +13526,52 @@ export default function MarketingAdminPage() {
     selectedContactRelationshipScore,
     selectedRelationshipContact,
   ]);
+  const contactRelationshipNextMessage = useMemo(() => {
+    if (!selectedRelationshipContact || !contactRelationshipBestTemplate) return null;
+    const contactName = selectedRelationshipContact.fullName || selectedRelationshipContact.email || selectedRelationshipContact.phoneNumber || "Unnamed contact";
+    const recipient = recipientForChannel(selectedRelationshipContact, contactRelationshipBestTemplate.channel) || "No direct route yet";
+    const subject = personalizePreview(contactRelationshipBestTemplate.subject || contactRelationshipBestTemplate.title, selectedRelationshipContact);
+    const body = personalizePreview(contactRelationshipBestTemplate.body || contactRelationshipBestTemplate.description || contactRelationshipBrief?.opener || "", selectedRelationshipContact);
+    const cta = [
+      contactRelationshipBestTemplate.ctaLabel,
+      contactRelationshipBestTemplate.ctaUrl,
+    ].filter(Boolean).join(" - ") || "No CTA set";
+    const consentNote = selectedRelationshipContact.consentStatus === "opted_in"
+      ? "Consent is opted in."
+      : `Review consent before sending: ${selectedRelationshipContact.consentStatus}.`;
+    const routeNote = recipient === "No direct route yet"
+      ? `Add a ${channelLabel[contactRelationshipBestTemplate.channel]} route before sending.`
+      : `Send via ${channelLabel[contactRelationshipBestTemplate.channel]} to ${recipient}.`;
+    const text = [
+      "VYVA next relationship message",
+      `Contact: ${contactName}`,
+      `Channel: ${channelLabel[contactRelationshipBestTemplate.channel]}`,
+      `Recipient: ${recipient}`,
+      `Template: ${contactRelationshipBestTemplate.title}`,
+      `Consent: ${selectedRelationshipContact.consentStatus}`,
+      "",
+      `Subject: ${subject}`,
+      "",
+      "Body:",
+      body || contactRelationshipBrief?.opener || "Write one concise, useful relationship message.",
+      "",
+      `CTA: ${cta}`,
+      "",
+      `Operator note: ${consentNote} ${routeNote}`,
+    ].join("\n");
+
+    return {
+      channel: contactRelationshipBestTemplate.channel,
+      recipient,
+      subject,
+      body,
+      cta,
+      consentNote,
+      routeNote,
+      templateTitle: contactRelationshipBestTemplate.title,
+      text,
+    };
+  }, [contactRelationshipBestTemplate, contactRelationshipBrief, selectedRelationshipContact]);
 
   const visibleAudiences = useMemo(() => audiences.filter((audience) => {
     return matchesSearch(search, [
@@ -21401,6 +21447,41 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = contactRelationshipFollowUpKitText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyContactRelationshipNextMessage() {
+    const label = "Relationship message";
+    if (!contactRelationshipNextMessage?.text.trim()) {
+      const feedback = `${label} is empty.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contactRelationshipNextMessage.text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contactRelationshipNextMessage.text;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -39423,6 +39504,36 @@ export default function MarketingAdminPage() {
                                   <p><span className="font-black text-[#241133]">Opener:</span> {contactRelationshipBrief.opener}</p>
                                   <p><span className="font-black text-[#241133]">Follow-up:</span> {contactRelationshipBrief.followUp}</p>
                                   <p className="rounded-lg bg-[#fff7ed] px-3 py-2 text-amber-900"><span className="font-black">Watch:</span> {contactRelationshipBrief.risk}</p>
+                                </div>
+                              </div>
+                            ) : null}
+                            {contactRelationshipNextMessage ? (
+                              <div className="grid gap-3 rounded-xl border border-emerald-100 bg-white p-3" data-testid="marketing-contact-next-message">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-700">Next message preview</p>
+                                    <p className="mt-1 text-sm font-black text-[#241133]">{contactRelationshipNextMessage.templateTitle}</p>
+                                  </div>
+                                  <div className="flex flex-wrap items-center justify-end gap-2">
+                                    <Pill className={channelClass(contactRelationshipNextMessage.channel)}>{channelLabel[contactRelationshipNextMessage.channel]}</Pill>
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyContactRelationshipNextMessage()}
+                                      className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-800"
+                                      data-testid="button-marketing-copy-contact-next-message"
+                                    >
+                                      <Copy size={13} /> Copy message
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="grid gap-2 text-xs font-bold leading-relaxed text-[#5b4a46]">
+                                  <p><span className="font-black text-[#241133]">To:</span> {contactRelationshipNextMessage.recipient}</p>
+                                  <p><span className="font-black text-[#241133]">Subject:</span> {contactRelationshipNextMessage.subject}</p>
+                                  <p className="rounded-lg bg-[#f8fff9] px-3 py-2 text-[#241133]">{firstPreviewLine(contactRelationshipNextMessage.body)}</p>
+                                  <p><span className="font-black text-[#241133]">CTA:</span> {contactRelationshipNextMessage.cta}</p>
+                                  <p className="rounded-lg bg-[#fff7ed] px-3 py-2 text-amber-900">
+                                    <span className="font-black">Operator note:</span> {contactRelationshipNextMessage.consentNote} {contactRelationshipNextMessage.routeNote}
+                                  </p>
                                 </div>
                               </div>
                             ) : null}
