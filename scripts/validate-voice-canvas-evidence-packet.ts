@@ -585,7 +585,10 @@ function hasValidReviewerDate(value: string): boolean {
   if (date > todayUtc) return false;
 
   const reviewerPart = normalized.replace(dateMatch[0], "").replace(/[/-]/g, "").trim();
-  return reviewerPart.length >= 2;
+  return (
+    reviewerPart.length >= 2 &&
+    /\b(reviewed|verified|approved|signed off|sign-off|validated)\b/i.test(normalized)
+  );
 }
 
 function artifactReferenceHasPlaceholder(value: string): boolean {
@@ -800,7 +803,7 @@ function evaluateEvidencePacket(markdown: string) {
         !hasValidReviewerDate(reviewerDate)
       ) {
         problems.push(
-          `Evidence packet inventory row "${artifactSet}" needs a reviewer and non-future YYYY-MM-DD date.`,
+          `Evidence packet inventory row "${artifactSet}" needs a reviewer, explicit review wording, and non-future YYYY-MM-DD date.`,
         );
       }
     }
@@ -850,6 +853,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "The final pre-fill checklist must keep the required artifact, device, interaction, rollback, endpoint, task hub, run-sheet validation, analytics, preflight, and privacy checks.",
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
       "Inventory coverage cells must map each artifact set to the required environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, run-sheet validation, or preflight evidence.",
+      "Inventory reviewer/date cells must include a non-future YYYY-MM-DD date and explicit reviewed, verified, validated, approved, or sign-off wording.",
       "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
     ].join("\n"),
   );

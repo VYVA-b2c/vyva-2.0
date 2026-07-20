@@ -41,7 +41,7 @@ function committedPacket(): string {
 
 function completedPacket(): string {
   return committedPacket()
-    .replace(/\|\s*Pending\s*\|/g, "| QA Owner / 2026-07-19 |")
+    .replace(/\|\s*Pending\s*\|/g, "| QA Owner reviewed on 2026-07-19 |")
     .replace(/<YYYY-MM-DD>/g, "2026-07-19")
     .replace(/\bYYYY-MM-DD\b/g, "2026-07-19")
     .replace(/<flow>/g, "ride");
@@ -79,6 +79,7 @@ describe("Voice Canvas evidence packet validator command", () => {
       "concrete dated sanitized artifact paths or links",
     );
     expect(result.stdout).toContain("Inventory coverage cells must map");
+    expect(result.stdout).toContain("explicit reviewed, verified");
     expect(result.stdout).toContain("never copy raw artifact-reference values");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -220,6 +221,32 @@ describe("Voice Canvas evidence packet validator command", () => {
         expect(summary.problems).toEqual(
           expect.arrayContaining([
             'Evidence packet inventory row "Interaction recordings or logs" needs a concrete dated sanitized artifact reference or link.',
+          ]),
+        );
+      },
+    ));
+
+  it("rejects inventory reviewer/date cells without explicit review wording", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "QA Owner reviewed on 2026-07-19",
+        "QA Owner / 2026-07-19",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Evidence packet inventory row "Environment and flag artifacts" needs a reviewer, explicit review wording, and non-future YYYY-MM-DD date.',
           ]),
         );
       },
