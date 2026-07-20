@@ -330,6 +330,9 @@ const evidenceNotePatternRequirements: Record<
     ["rollback"],
     ["fallback"],
     ["sanitized"],
+    ["expected-state"],
+    ["cache-control"],
+    ["no-store"],
   ],
   "Task hub destination fallback": [
     ["reference"],
@@ -411,6 +414,7 @@ const finalPrefillChecklistRequirements: readonly (readonly string[])[] = [
   ["fallback"],
   ["canvas:qa:features"],
   ["deployed url"],
+  ["expected-state"],
   ["task hub"],
   ["local shopping"],
   ["local medication"],
