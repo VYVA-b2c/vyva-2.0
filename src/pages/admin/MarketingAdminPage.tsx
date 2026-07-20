@@ -571,6 +571,24 @@ type CampaignLaunchMode = {
   channels: Channel[];
 };
 
+type CampaignLaunchModeInsight = {
+  mode: CampaignLaunchMode;
+  linkedPack: {
+    pack: ContentTemplatePack;
+    templates: ContentTemplate[];
+    channels: Channel[];
+    state: CampaignReadinessState;
+  } | null;
+  play: CampaignStudioPlay;
+  targetAudience: MarketingAudience | null;
+  selectedChannels: Channel[];
+  reachableContacts: number;
+  templateCount: number;
+  routeCount: number;
+  score: number;
+  state: CampaignReadinessState;
+};
+
 type CampaignGoalPreset = {
   id: string;
   title: string;
@@ -13193,6 +13211,49 @@ export default function MarketingAdminPage() {
       templateCount,
       state,
     };
+  }), [audiences, contacts, contentTemplatePacksWithStats]);
+  const campaignLaunchModeInsights = useMemo<CampaignLaunchModeInsight[]>(() => campaignLaunchModes.map((mode) => {
+    const quickStart = campaignIntentQuickStarts.find((item) => item.id === mode.quickStartId);
+    const play = campaignIntentPlay(quickStart?.brief ?? mode.detail);
+    const linkedPack = contentTemplatePacksWithStats.find(({ pack }) => pack.id === mode.templatePackId) ?? null;
+    const selectedChannels = uniqueChannels([...mode.channels, ...(linkedPack?.channels ?? [])]);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const matchingContacts = contacts.filter((contact) => (
+      campaignAllowsContact(play.audienceType, contact.audienceType)
+      && contactMatchesAudienceList(contact, targetAudience)
+    ));
+    const reachableContacts = matchingContacts.filter((contact) => (
+      selectedChannels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+    )).length;
+    const templateCount = linkedPack?.templates.length ?? 0;
+    const routeCount = selectedChannels.length;
+    const score = (
+      reachableContacts * 5
+      + templateCount * 3
+      + routeCount * 2
+      + (linkedPack ? 12 : 0)
+      + (selectedChannels.includes("email") ? 4 : 0)
+    );
+    const state: CampaignReadinessState = reachableContacts > 0 && templateCount > 0
+      ? "ready"
+      : templateCount > 0 || reachableContacts > 0 ? "planning" : "needs_action";
+    return {
+      mode,
+      linkedPack,
+      play,
+      targetAudience,
+      selectedChannels,
+      reachableContacts,
+      templateCount,
+      routeCount,
+      score,
+      state,
+    };
+  }).sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
+    if (b.templateCount !== a.templateCount) return b.templateCount - a.templateCount;
+    return a.mode.title.localeCompare(b.mode.title);
   }), [audiences, contacts, contentTemplatePacksWithStats]);
   const visibleContentTemplates = useMemo(() => contentTemplateGallery.filter((template) => {
     const matchesText = matchesSearch(contentTemplateSearch, [
@@ -30672,6 +30733,49 @@ export default function MarketingAdminPage() {
                               </button>
                             );
                           })}
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3" data-testid="marketing-campaign-launch-ai-recommendations">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-900">AI recommended path</p>
+                            <p className="mt-1 text-xs font-bold text-[#5d6b61]">
+                              Ranked from your reachable contacts, available templates, and channel coverage.
+                            </p>
+                          </div>
+                          <Pill className="bg-white text-emerald-800">{campaignLaunchModeInsights.length} paths scored</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 xl:grid-cols-3">
+                          {campaignLaunchModeInsights.slice(0, 3).map((insight, index) => (
+                            <article
+                              key={insight.mode.id}
+                              className={`rounded-xl border bg-white p-3 ${readinessClass(insight.state)}`}
+                              data-testid={`marketing-campaign-launch-ai-recommendation-${insight.mode.id}`}
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-[11px] font-black uppercase tracking-[0.1em] text-emerald-900">Recommendation {index + 1}</p>
+                                  <h4 className="mt-1 font-black text-[#241133]">{insight.mode.title}</h4>
+                                </div>
+                                <Pill className={readinessPillClass(insight.state)}>{readinessLabel(insight.state)}</Pill>
+                              </div>
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-[#5d6b61]">{insight.mode.detail}</p>
+                              <div className="mt-3 grid gap-1 rounded-lg border border-emerald-100 bg-emerald-50/70 px-2 py-2 text-[11px] font-black text-[#244437]">
+                                <span>{insight.reachableContacts} reachable contact{insight.reachableContacts === 1 ? "" : "s"}</span>
+                                <span>{insight.templateCount} starter template{insight.templateCount === 1 ? "" : "s"}</span>
+                                <span>{insight.routeCount} route{insight.routeCount === 1 ? "" : "s"}</span>
+                                <span>{insight.targetAudience ? `Best list: ${insight.targetAudience.name}` : "Best list: none yet"}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => applyCampaignLaunchMode(insight.mode)}
+                                className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white hover:bg-emerald-800"
+                                data-testid={`button-marketing-campaign-launch-ai-recommendation-${insight.mode.id}`}
+                              >
+                                <Sparkles size={13} /> Use this path
+                              </button>
+                            </article>
+                          ))}
                         </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-launch-mode-chooser">

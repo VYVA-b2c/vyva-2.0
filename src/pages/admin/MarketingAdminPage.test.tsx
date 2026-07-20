@@ -5897,6 +5897,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-launch-mode-chooser")).toHaveTextContent("Press / partner announcement");
     expect(screen.getByTestId("marketing-campaign-launch-mode-pack-community-partner-launch")).toHaveTextContent("Template pack: Community partner launch");
     expect(screen.getByTestId("marketing-campaign-launch-mode-pack-community-partner-launch")).toHaveTextContent("6 starter templates");
+    expect(screen.getByTestId("marketing-campaign-launch-ai-recommendations")).toHaveTextContent("AI recommended path");
+    expect(screen.getByTestId("marketing-campaign-launch-ai-recommendations")).toHaveTextContent("Ranked from your reachable contacts");
+    expect(screen.getByTestId("marketing-campaign-launch-ai-recommendation-full-channel-launch")).toHaveTextContent("Full-channel launch packet");
+    expect(screen.getByTestId("marketing-campaign-launch-ai-recommendation-full-channel-launch")).toHaveTextContent("10 starter templates");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-ai-recommendation-full-channel-launch"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Full-channel launch packet with Full-channel launch announcement template pack.");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("TikTok");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-mode-community-partner-launch"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Community partner launch with Community partner launch template pack.");
     expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
