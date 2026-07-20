@@ -484,6 +484,11 @@ const SafeHomeScreen = () => {
       state: {
         returnTo: "/safe-home",
         notice: t("safeHome.actions.careTeamSetupNotice", "Add someone trusted for safety moments. VYVA will bring you back afterwards."),
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+          setupFocus: "trusted_contact",
+          setupReason: t("safeHome.actions.careTeamSetupReason", "Ask someone trusted to help with safety moments."),
+        },
       },
     });
   };
@@ -570,6 +575,8 @@ const SafeHomeScreen = () => {
           <div className="mb-3">
             <ProviderSetupFallbackPanel
               testId={`panel-safe-home-contact-setup-fallback-${testIdSuffix}`}
+              workflowReference={CONCIERGE_FLOW_REFERENCES.safeHomeSupport}
+              returnTo="/safe-home"
               title={t("safeHome.actions.contactFallbackTitle", "Need a safety contact first?")}
               description={t("safeHome.actions.contactFallbackDescription", "Save a care-team contact, ask VYVA for home-safety options, or ask someone trusted to help set it up.")}
               addLabel={t("safeHome.actions.contactFallbackAdd", "Add my safety contact")}

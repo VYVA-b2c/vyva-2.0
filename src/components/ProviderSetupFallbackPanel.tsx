@@ -1,8 +1,14 @@
 import { MapPin, UserRoundPlus, UsersRound } from "lucide-react";
+import {
+  type WorkflowReference,
+  workflowSetupFallbackChoices,
+} from "../../shared/workflowRegistry";
 
 type ProviderSetupFallbackPanelProps = {
   title: string;
   description: string;
+  workflowReference?: WorkflowReference;
+  returnTo?: string;
   addLabel?: string;
   findLabel?: string;
   helperLabel?: string;
@@ -16,20 +22,26 @@ type ProviderSetupFallbackPanelProps = {
 export default function ProviderSetupFallbackPanel({
   title,
   description,
-  addLabel = "Add my usual provider",
-  findLabel = "Help me find nearby options",
-  helperLabel = "Ask family/caregiver to help",
+  workflowReference,
+  returnTo,
+  addLabel,
+  findLabel,
+  helperLabel,
   confirmation = "VYVA still asks before calling, booking, or sharing details.",
   onAddProvider,
   onFindOptions,
   onAskHelper,
   testId = "panel-provider-setup-fallback",
 }: ProviderSetupFallbackPanelProps) {
+  const workflowChoices = workflowReference ? workflowSetupFallbackChoices(workflowReference, { returnTo }) : [];
+  const addChoice = workflowChoices.find((choice) => choice.kind === "add_provider" || choice.kind === "add_trusted_contact");
+  const findChoice = workflowChoices.find((choice) => choice.kind === "find_options");
+  const helperChoice = workflowChoices.find((choice) => choice.kind === "ask_family");
   const actions = [
-    { id: "add", label: addLabel, Icon: UserRoundPlus, onClick: onAddProvider },
-    { id: "find", label: findLabel, Icon: MapPin, onClick: onFindOptions },
-    { id: "helper", label: helperLabel, Icon: UsersRound, onClick: onAskHelper },
-  ];
+    { id: "add", label: addLabel ?? addChoice?.label ?? "Add my usual provider", detail: addChoice?.description, Icon: UserRoundPlus, onClick: onAddProvider, visible: !workflowReference || Boolean(addChoice) },
+    { id: "find", label: findLabel ?? findChoice?.label ?? "Help me find nearby options", detail: findChoice?.description, Icon: MapPin, onClick: onFindOptions, visible: !workflowReference || Boolean(findChoice) },
+    { id: "helper", label: helperLabel ?? helperChoice?.label ?? "Ask family/caregiver to help", detail: helperChoice?.description, Icon: UsersRound, onClick: onAskHelper, visible: !workflowReference || Boolean(helperChoice) },
+  ].filter((action) => action.visible && action.label);
 
   return (
     <section
@@ -46,11 +58,12 @@ export default function ProviderSetupFallbackPanel({
         </div>
       </div>
       <div className="mt-3 grid gap-2 lg:grid-cols-3">
-        {actions.map(({ id, label, Icon, onClick }) => (
+        {actions.map(({ id, label, detail, Icon, onClick }) => (
           <button
             key={id}
             type="button"
             onClick={onClick}
+            title={detail}
             className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-3 font-body text-[13px] font-black text-vyva-purple transition active:scale-[0.98]"
             data-testid={`${testId}-${id}`}
           >

@@ -2,7 +2,9 @@ import { CONCIERGE_FLOW_REFERENCES } from "./conciergeFlowRegistry";
 import {
   APP_WORKFLOW_REFERENCES,
   WORKFLOW_ACTION_LEVELS,
+  WORKFLOW_DEFINITIONS,
   workflowActionLevelForReference,
+  workflowReadinessChecklistRows,
   type WorkflowActionLevel,
   type WorkflowReference,
 } from "./workflowRegistry";
@@ -539,6 +541,9 @@ export interface CrossAppWorkflowAuditValidationResult {
   entriesWithoutNextStep: string[];
   reusableFlowsWithoutEntries: string[];
   prioritiesWithoutIncompleteEntries: string[];
+  unknownReferences: string[];
+  externalActionReferencesWithoutReadiness: string[];
+  completeEntriesWithReadinessAttention: string[];
 }
 
 function duplicates(values: readonly string[]): string[] {
@@ -553,11 +558,14 @@ function duplicates(values: readonly string[]): string[] {
 
 export function validateCrossAppWorkflowCompletionAudit(): CrossAppWorkflowAuditValidationResult {
   const auditIds = new Set(CROSS_APP_WORKFLOW_COMPLETION_AUDIT.map((entry) => entry.id));
+  const knownReferences = new Set<WorkflowReference>(WORKFLOW_DEFINITIONS.map((workflow) => workflow.reference));
+  const readinessRows = new Map(workflowReadinessChecklistRows().map((row) => [row.reference, row]));
   const incompleteIds = new Set(
     CROSS_APP_WORKFLOW_COMPLETION_AUDIT
       .filter((entry) => entry.status !== "complete")
       .map((entry) => entry.id),
   );
+  const allAuditReferences = CROSS_APP_WORKFLOW_COMPLETION_AUDIT.flatMap((entry) => entry.references);
 
   return {
     duplicateEntryIds: duplicates(CROSS_APP_WORKFLOW_COMPLETION_AUDIT.map((entry) => entry.id)),
@@ -576,6 +584,23 @@ export function validateCrossAppWorkflowCompletionAudit(): CrossAppWorkflowAudit
     prioritiesWithoutIncompleteEntries: CROSS_APP_WORKFLOW_NEXT_IMPLEMENTATION_ORDER
       .filter((priority) => !priority.auditEntryIds.some((entryId) => incompleteIds.has(entryId)))
       .map((priority) => priority.id),
+    unknownReferences: allAuditReferences
+      .filter((reference) => !knownReferences.has(reference))
+      .map(String),
+    externalActionReferencesWithoutReadiness: [...new Set(allAuditReferences)]
+      .filter((reference) => workflowActionLevelForReference(reference) === "external_action")
+      .filter((reference) => {
+        const readiness = readinessRows.get(reference);
+        return !readiness || readiness.needsAttention.length > 0;
+      })
+      .map(String),
+    completeEntriesWithReadinessAttention: CROSS_APP_WORKFLOW_COMPLETION_AUDIT
+      .filter((entry) => entry.status === "complete")
+      .filter((entry) => entry.references.some((reference) => {
+        const readiness = readinessRows.get(reference);
+        return !readiness || readiness.needsAttention.length > 0;
+      }))
+      .map((entry) => entry.id),
   };
 }
 

@@ -82,6 +82,7 @@ import {
 } from "../../shared/showVyvaFlow";
 import { showVyvaReviewContractFromHealthResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
 import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
 import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
@@ -1868,8 +1869,13 @@ const HealthScreen = () => {
     navigate("/onboarding/profile/providers", {
       state: {
         setupFocus: "doctor_clinic",
-        returnTo: "/health",
+        returnTo: "/health/doctor",
         notice: t("health.seeDoctor.providerSetupNotice", "Add your usual doctor or clinic. VYVA will bring you back to Health afterwards."),
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+          setupFocus: "doctor_clinic",
+          setupReason: t("health.seeDoctor.providerHelperReason", "Ask someone you trust to help save your usual doctor or clinic."),
+        },
       },
     });
   };
@@ -1890,8 +1896,9 @@ const HealthScreen = () => {
   const askHelperForDoctorSetup = () => {
     navigate("/onboarding/profile/care-team", {
       state: {
-        returnTo: "/health",
+        returnTo: "/health/doctor",
         providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
           setupFocus: "doctor_clinic",
           setupReason: t("health.seeDoctor.providerHelperReason", "Ask someone you trust to help save your usual doctor or clinic."),
         },
@@ -3904,6 +3911,8 @@ const HealthScreen = () => {
                   {!hasDoctorContact ? (
                     <ProviderSetupFallbackPanel
                       testId="panel-health-doctor-setup-fallback"
+                      workflowReference={APP_WORKFLOW_REFERENCES.doctorNextStep}
+                      returnTo="/health/doctor"
                       title={t("health.seeDoctor.providerFallbackTitle", "Need a doctor or clinic first?")}
                       description={t("health.seeDoctor.providerFallbackDescription", "Save your usual contact, ask VYVA to find options, or let a trusted helper set it up.")}
                       addLabel={t("health.seeDoctor.providerFallbackAdd", "Add my usual doctor")}
