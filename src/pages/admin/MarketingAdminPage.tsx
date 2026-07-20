@@ -902,6 +902,10 @@ type CampaignStudioLaunchTimelineItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignDraftLaunchTimelineItem = CampaignStudioLaunchTimelineItem & {
+  contentTitle: string;
+};
+
 type CampaignStudioLaunchBriefItem = {
   key: string;
   title: string;
@@ -18915,6 +18919,32 @@ export default function MarketingAdminPage() {
     channel,
     count: campaignDraftEligibleRecipientPreview.filter((contact) => Boolean(recipientForChannel(contact, channel))).length,
   })), [campaignDraftEligibleRecipientPreview, campaignDraftSelectedChannels]);
+  const campaignDraftLaunchTimeline = useMemo<CampaignDraftLaunchTimelineItem[]>(() => {
+    const schedule = fromDateTimeLocal(campaignDraft.scheduleStartsAt);
+    return campaignDraftLaunchPreviewItems
+      .map((item) => {
+        const timing = campaignStudioLaunchTimingByChannel[item.channel];
+        const plannedAt = schedule ? offsetSchedule(campaignDraft.scheduleStartsAt, timing.offsetHours) : null;
+        return {
+          key: item.channel,
+          channel: item.channel,
+          title: timing.title,
+          offsetHours: timing.offsetHours,
+          timingLabel: launchTimingLabel(timing.offsetHours),
+          plannedAt,
+          owner: timing.owner,
+          action: timing.action,
+          detail: item.nextAction,
+          recipients: item.channel === "print" || item.channel === "event"
+            ? campaignDraftEligibleRecipientPreview.length
+            : campaignDraftEligibleRecipientPreview.filter((contact) => Boolean(recipientForChannel(contact, item.channel))).length,
+          route: item.mode,
+          state: item.state,
+          contentTitle: item.contentAsset?.title ?? `No ${channelLabel[item.channel]} content linked yet`,
+        };
+      })
+      .sort((a, b) => a.offsetHours - b.offsetHours);
+  }, [campaignDraft.scheduleStartsAt, campaignDraftEligibleRecipientPreview, campaignDraftLaunchPreviewItems]);
   const campaignDraftConsentReach = useMemo(() => ({
     optedIn: campaignDraftEligibleRecipientPreview.filter((contact) => contact.consentStatus === "opted_in").length,
     needsReview: campaignDraftEligibleRecipientPreview.filter((contact) => contact.consentStatus !== "opted_in" && contact.consentStatus !== "opted_out").length,
@@ -33449,6 +33479,44 @@ export default function MarketingAdminPage() {
                                   <Eye size={12} /> Preview
                                 </button>
                               ) : null}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {campaignDraftLaunchTimeline.length ? (
+                    <div className="rounded-xl border border-purple-100 bg-white p-4 shadow-sm" data-testid="marketing-campaign-draft-launch-timeline">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Launch order</p>
+                          <h3 className="mt-1 text-base font-black text-[#241133]">Channel-by-channel operator plan</h3>
+                          <p className="mt-1 text-xs font-bold text-[#6b5b54]">
+                            This turns the selected routes into a practical order with owners, content, recipients, and send mode before the campaign is saved.
+                          </p>
+                        </div>
+                        <Pill className="bg-purple-50 text-purple-800">
+                          {campaignDraft.scheduleStartsAt ? "Timed from schedule" : "Set schedule to anchor dates"}
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                        {campaignDraftLaunchTimeline.map((item, index) => (
+                          <article key={item.channel} className={`grid gap-3 rounded-xl border p-3 md:grid-cols-[44px_minmax(0,1fr)_150px] md:items-start ${readinessClass(item.state)}`} data-testid={`marketing-campaign-draft-launch-timeline-${item.channel}`}>
+                            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-sm font-black text-purple-700 shadow-sm">{index + 1}</span>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                <Pill className={readinessPillClass(item.state)}>{item.route}</Pill>
+                              </div>
+                              <h4 className="mt-2 text-sm font-black text-[#241133]">{item.title}</h4>
+                              <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.contentTitle}</p>
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-[#7d6b65]">{item.action}</p>
+                            </div>
+                            <div className="rounded-lg border border-white/70 bg-white/80 p-2 text-xs font-bold text-[#5b4a46]">
+                              <p className="font-black text-[#241133]">{item.timingLabel}</p>
+                              <p className="mt-1">{item.plannedAt ? formatDate(item.plannedAt) : "No date yet"}</p>
+                              <p className="mt-2">{item.owner}</p>
+                              <p className="mt-1">{item.recipients} recipient{item.recipients === 1 ? "" : "s"}</p>
                             </div>
                           </article>
                         ))}

@@ -4093,6 +4093,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-channel-packs")).toHaveTextContent("2 routes");
     expect(screen.getByTestId("marketing-campaign-draft-readiness-channels")).toHaveTextContent("LinkedIn and Email");
     expect(screen.getByTestId("marketing-campaign-draft-readiness-channel")).toHaveTextContent("LinkedIn and Email will be saved for planning or manual handoff");
+    expect(screen.getByTestId("marketing-campaign-draft-launch-timeline")).toHaveTextContent("Launch order");
+    expect(screen.getByTestId("marketing-campaign-draft-launch-timeline")).toHaveTextContent("Channel-by-channel operator plan");
+    expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-linkedin")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-linkedin")).toHaveTextContent("Partner proof post");
+    expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-linkedin")).toHaveTextContent("Partner owner");
+    expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-linkedin")).toHaveTextContent("1 recipient");
+    expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-email")).toHaveTextContent("2");
+    expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-email")).toHaveTextContent("Primary email send");
+    expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-email")).toHaveTextContent("VYVA send");
     expect(screen.getByTestId("marketing-campaign-planner-copilot-next-action")).toHaveTextContent("Ready to add");
     expect(screen.getByTestId("button-marketing-campaign-planner-copilot-action")).toHaveTextContent("Add campaign");
     expect(screen.getByTestId("marketing-campaign-planner-launch-brief")).toHaveTextContent("AI launch brief");
