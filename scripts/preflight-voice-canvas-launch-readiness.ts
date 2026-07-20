@@ -498,7 +498,9 @@ function messagesForNextAction(
     messages.push("Execute the real-device run sheet and record sanitized evidence before final launch sign-off.");
   }
   if (packetIncomplete > 0) {
-    messages.push("Fill the sanitized evidence packet artifact references and reviewer/date cells.");
+    messages.push(
+      "Fill the sanitized evidence packet artifact references and reviewer/date cells with explicit reviewed, verified, validated, approved, or sign-off wording.",
+    );
   }
   if (matrixIncomplete > 0) {
     messages.push("Execute real-device and deployed rollback QA, then fill the QA matrix.");

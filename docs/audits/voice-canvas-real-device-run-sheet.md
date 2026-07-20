@@ -37,7 +37,7 @@ Capture feature endpoint evidence from the deployed URL before filling the flag 
 npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json
 ```
 
-Replace `YYYY-MM-DD` with the QA run date and replace the base URL with the tested staging or production-like origin. Capture a second artifact after rollback using a distinct path such as `artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json`. The collector performs GET requests only, rejects local/private/placeholder hosts by default, preserves existing files unless `--force` is explicit, and records only sanitized endpoint status plus `enabled` and `rolloutPercent`.
+Replace `YYYY-MM-DD` with the QA run date and replace the base URL with the tested staging or production-like origin. Capture a second artifact after rollback using a distinct path such as `artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json`. The collector performs GET requests only, rejects local/private/placeholder hosts by default, preserves existing files unless `--force` is explicit, and records only sanitized endpoint status, cache-control, timing, `enabled`, `rolloutPercent`, recognized payload keys, and unexpected-key count. Launch evidence must show `Cache-Control: no-store` and an integer `rolloutPercent` from 0 through 100.
 
 ## Flow execution checklist
 
@@ -114,13 +114,13 @@ Validate the evidence packet before copying packet notes into the final matrix:
 npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json
 ```
 
-Use a distinct run-specific output path and do not overwrite an earlier artifact. Omit `--allow-pending` for the final packet gate after every packet inventory row has a sanitized artifact reference and reviewer/date.
+Use a distinct run-specific output path and do not overwrite an earlier artifact. Omit `--allow-pending` for the final packet gate after every packet inventory row has a sanitized artifact reference and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording.
 
 ## Run-sheet closeout
 
 Before filling the final QA matrix:
 
-- Every `Pending` cell above has a passing result, sanitized artifact reference, and reviewer/date.
+- Every `Pending` cell above has a passing result, sanitized artifact reference, and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording. Do not use generic closeout notes such as `pass`, `done`, or `OK`, and do not include street-address-shaped text, phone numbers, emails, or other personal details.
 - Every artifact reference also appears in `docs/audits/voice-canvas-real-device-evidence-packet.md`.
 - Every launch blocker has either been patched and retested or the feature remains disabled.
 - `npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json` and a distinct rollback-disabled endpoint artifact have been captured from the deployed URL without overwriting an earlier artifact.

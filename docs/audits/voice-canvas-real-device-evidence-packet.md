@@ -17,7 +17,7 @@ Use `--allow-pending` while gathering artifacts and omit it for the final packet
 - Do not capture spoken transcripts, typed free text, addresses, saved-place labels, medication details, provider names, reply text, notes, references, dates, times, shopping item details, account identifiers, phone numbers, emails, or other personal details.
 - Use synthetic QA data and cropped or redacted screenshots whenever possible.
 - Prefer sanitized artifact names over raw URLs when the destination may expose personal data.
-- Each note must include a non-future `YYYY-MM-DD` date and the reviewer or QA owner.
+- Each note and inventory reviewer/date cell must include a non-future `YYYY-MM-DD` date, the reviewer or QA owner, and explicit reviewed, verified, validated, approved, or sign-off wording.
 - If an artifact accidentally contains personal details, do not link it here or in the QA matrix. Replace it with a sanitized artifact.
 
 ## Evidence packet inventory
@@ -68,7 +68,7 @@ Replace bracketed text before copying into the QA matrix.
 
 Before changing the QA matrix from `pending execution` to `ready for launch`, confirm:
 
-- every packet row above has a sanitized artifact reference and reviewer/date;
+- every packet row above has a sanitized artifact reference and a reviewer/date cell with explicit reviewed, verified, validated, approved, or sign-off wording;
 - every launch flow has real phone, tablet, and desktop/laptop evidence;
 - every launch flow has voice, touch, and keyboard completion or safe-exit evidence where supported;
 - rollback evidence names the actual fallback path for each feature-flagged flow;

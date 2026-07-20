@@ -216,7 +216,8 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("canvas:qa:features");
     expect(runbook).toContain("canvas:qa:analytics");
     expect(runbook).toContain("canvas:qa:packet");
-    expect(runbook).toContain("YYYY-MM-DD-feature-endpoints.json");
+    expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-enabled.json");
+    expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-rollback-disabled.json");
     expect(runbook).toContain("YYYY-MM-DD-analytics-validation.json");
     expect(runbook).toContain("YYYY-MM-DD-evidence-packet-summary.json");
     expect(audit).toContain("manual real-device/deployed rollback QA still required");
@@ -330,7 +331,8 @@ describe("Canvas launch readiness manifest", () => {
       "--json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
-      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints.json",
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
       "validateVoiceCanvasRunSheetCommand.test.ts",
@@ -483,7 +485,8 @@ describe("Canvas launch readiness manifest", () => {
       "Analytics launch signals are present",
       "Analytics privacy is preserved",
       "only `name`, `step`, `input`, `attempt`, `restored`, and `revision`",
-      "records only sanitized endpoint status plus `enabled` and `rolloutPercent`",
+      "records only sanitized endpoint status, cache-control, timing, `enabled`, `rolloutPercent`, recognized payload keys, and unexpected-key count",
+      "Launch evidence must show `Cache-Control: no-store` and an integer `rolloutPercent` from 0 through 100",
       "does not copy raw sample rows",
       "completed may use completed or terminal pending source samples",
     ]) {

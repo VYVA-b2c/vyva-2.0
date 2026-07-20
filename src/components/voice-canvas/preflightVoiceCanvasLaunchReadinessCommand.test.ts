@@ -234,7 +234,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Execute the real-device run sheet and record sanitized evidence before final launch sign-off.",
     );
     expect(result.stdout).toContain(
-      "Fill the sanitized evidence packet artifact references and reviewer/date cells.",
+      "Fill the sanitized evidence packet artifact references and reviewer/date cells with explicit reviewed, verified, validated, approved, or sign-off wording.",
     );
     expect(result.stdout).toContain(
       "Execute real-device and deployed rollback QA, then fill the QA matrix.",
@@ -340,7 +340,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(summary.nextActions).toEqual(
       expect.arrayContaining([
         "Execute the real-device run sheet and record sanitized evidence before final launch sign-off.",
-        "Fill the sanitized evidence packet artifact references and reviewer/date cells.",
+        "Fill the sanitized evidence packet artifact references and reviewer/date cells with explicit reviewed, verified, validated, approved, or sign-off wording.",
         "Execute real-device and deployed rollback QA, then fill the QA matrix.",
       ]),
     );

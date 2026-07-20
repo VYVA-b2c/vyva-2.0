@@ -109,7 +109,7 @@ describe("Voice Canvas evidence packet validator command", () => {
     expect(result.stdout).toContain("State: pending");
     expect(result.stdout).toContain("Ready for QA matrix sign-off: no");
     expect(result.stderr).toContain(
-      "Evidence packet is still pending. Fill artifact references and reviewer/date cells before final matrix sign-off.",
+      "Evidence packet is still pending. Fill artifact references and reviewer/date cells with explicit reviewed, verified, validated, approved, or sign-off wording before final matrix sign-off.",
     );
   });
 

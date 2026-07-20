@@ -885,7 +885,7 @@ const acceptedPending =
 function failureMessage(): string {
   if (result.problemCount > 0) return "Evidence packet is not ready.";
   if (result.state === "pending") {
-    return "Evidence packet is still pending. Fill artifact references and reviewer/date cells before final matrix sign-off.";
+    return "Evidence packet is still pending. Fill artifact references and reviewer/date cells with explicit reviewed, verified, validated, approved, or sign-off wording before final matrix sign-off.";
   }
   return "Evidence packet is not ready.";
 }
@@ -963,7 +963,7 @@ if (result.problemCount > 0) {
   }
 } else if (result.state === "pending") {
   console.error(
-    "Evidence packet is still pending. Fill artifact references and reviewer/date cells before final matrix sign-off.",
+    "Evidence packet is still pending. Fill artifact references and reviewer/date cells with explicit reviewed, verified, validated, approved, or sign-off wording before final matrix sign-off.",
   );
 } else {
   console.error("Evidence packet is not ready.");

@@ -29,10 +29,16 @@ Start at internal-only, then 5%, 25%, 50%, and 100% only after reviewing scene-o
 
 ## Feature endpoint evidence collection
 
-Before the real-device pass, capture a sanitized deployed endpoint artifact for the current flag state:
+Before the real-device pass, capture a sanitized deployed endpoint artifact for the enabled rollout state:
 
 ```bash
-npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints.json
+npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json
+```
+
+Then apply rollback flags and capture a second disabled/rollout-0 artifact with a distinct path:
+
+```bash
+npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json
 ```
 
 Replace `YYYY-MM-DD` with the QA run date and replace `https://staging.vyva.app` with the deployed staging or production-like origin being tested. The command performs GET requests only. It rejects localhost, private-network, `.local`, `.test`, `.example`, and placeholder hosts unless `--allow-local` is explicitly passed for developer smoke checks, so real launch evidence cannot be accidentally captured from a local app. Existing output files are preserved by default; pass `--force` only when intentionally replacing a run-specific artifact.
@@ -41,7 +47,7 @@ The artifact stores only the launch-scoped endpoint, server key, HTTP status, `c
 
 The final `canvas:qa:preflight -- --final` gate revalidates endpoint artifacts before launch sign-off. It rejects hand-made or developer-smoke artifacts that do not include the launch-readiness scope, a non-future ISO `generatedAt` timestamp, a deployed non-local `baseUrl`, and per-flow endpoint URLs that match the tested deployed origin.
 
-Capture separate artifacts for the initial enabled rollout state and the rollback disabled/rollout-0 state, using distinct paths such as `artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json` and `artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json`. Use those artifacts in the environment flag rows and feature endpoint rows of the QA matrix. Malformed-config and missing-config fail-closed behavior still require the matching deployment log, trace, or environment artifact.
+Use the enabled and rollback-disabled artifacts in the environment flag rows and feature endpoint rows of the QA matrix. Malformed-config and missing-config fail-closed behavior still require the matching deployment log, trace, or environment artifact.
 
 ## Privacy-safe analytics
 
@@ -103,7 +109,7 @@ While the run sheet is being filled, validate its structure with:
 npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json
 ```
 
-Use `--allow-pending` while staging execution is in progress, and omit it after every run-sheet row has a passing result, sanitized artifact reference, and reviewer/date. The validator checks privacy guardrails, environment preflight, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, and closeout coverage before the run sheet is used to fill the packet and matrix.
+Use `--allow-pending` while staging execution is in progress, and omit it after every run-sheet row has a passing result, sanitized artifact reference, and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording. The validator checks privacy guardrails, environment preflight, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, and closeout coverage before the run sheet is used to fill the packet and matrix.
 
 1. Open on desktop, tablet, and mobile widths.
 2. Start with touch, complete or safely exit with keyboard where possible, and repeat with voice commands.
