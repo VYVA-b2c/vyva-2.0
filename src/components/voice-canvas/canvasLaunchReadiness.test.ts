@@ -253,6 +253,7 @@ describe("Canvas launch readiness manifest", () => {
       "concrete analytics artifact/query/dashboard/log reference",
       "Evidence artifact inventory",
       "sanitized concrete artifacts",
+      "canvas:qa:validate",
       "Addresses or saved-place labels",
       "Medication names, strengths, quantities, or symptoms",
       "Provider names, reply text, notes, references, phone numbers, or emails",

@@ -13,6 +13,18 @@ Environment analytics sink review must point to dated concrete dashboard/query/l
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts
 ```
 
+While this matrix is still being filled, run:
+
+```bash
+npm run canvas:qa:validate -- --allow-pending
+```
+
+For final launch sign-off, run without `--allow-pending` and do not enable Canvas unless it passes:
+
+```bash
+npm run canvas:qa:validate
+```
+
 ## Environment record
 
 For final sign-off, use launch-specific values here: a deployed non-local `http` or `https` environment URL, a build or commit SHA, named browser versions, the live non-mock voice session mode, an affirmative analytics review note with a valid non-future `YYYY-MM-DD` date, and concrete enabled/disabled rollout states. Analytics sink reviewed must point to dated concrete dashboard/query/log/artifact evidence. Initial flag state must explicitly state enabled true and rollout 100 with dated feature-flag artifact/log evidence; rollback flag state must explicitly state disabled false and rollout 0 with dated feature-flag artifact/log evidence. The environment URL must not be localhost, loopback, private-network, `.local`, `.test`, `.example`, mock, or other non-deployed evidence. Environment values must be affirmative and must not say the test account, browser, voice session, provider, environment, URL, commit/build, analytics sink, flag, rollout, or payload was missing, unavailable, unreachable, not returned, not reviewed, not verified, or not working.

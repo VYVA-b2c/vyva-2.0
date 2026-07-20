@@ -118,6 +118,16 @@ For final sign-off rows, notes must be concrete and role-specific: Product cover
 Run the sign-off gate after filling the matrix:
 
 ```bash
+npm run canvas:qa:validate
+```
+
+While the matrix is still pending execution, use the non-launching structure check:
+
+```bash
+npm run canvas:qa:validate -- --allow-pending
+```
+
+```bash
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts
 ```
 
