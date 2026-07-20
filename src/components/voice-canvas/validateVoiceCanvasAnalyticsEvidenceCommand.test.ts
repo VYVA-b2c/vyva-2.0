@@ -117,6 +117,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
     expect(result.stdout).toContain(
       "Completed can be proven by completed samples or terminal pending samples.",
     );
+    expect(result.stdout).toContain(
+      "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+    );
     expect(result.stdout).toContain("never copies raw sample rows");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
@@ -164,8 +167,56 @@ describe("Voice Canvas analytics evidence validator command", () => {
         completed: 1,
       });
       expect(summary.declaredCounts.started).toBe(2);
-      expect(summary.problems).toEqual([]);
+        expect(summary.problems).toEqual([]);
+      }));
+
+  it("rejects event arrays without dated analytics source metadata", () =>
+    withTempJsonFile(validSamples(), (inputPath) => {
+      const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toBe("");
+
+      const summary = JSON.parse(result.stdout) as {
+        readyForLaunchEvidence: boolean;
+        sampleCount: number;
+        problems: string[];
+      };
+
+      expect(summary.readyForLaunchEvidence).toBe(false);
+      expect(summary.sampleCount).toBe(0);
+      expect(summary.problems).toEqual(
+        expect.arrayContaining(["Analytics evidence must be a JSON object."]),
+      );
     }));
+
+  it("rejects local or undated analytics source metadata", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        generatedAt: "not-a-timestamp",
+        source: "localhost developer smoke fixture",
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Analytics evidence must include generatedAt as an ISO timestamp.",
+            "Analytics evidence source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+          ]),
+        );
+      },
+    ));
 
   it("rejects unexpected sample fields without copying field names or values", () =>
     withTempJsonFile(

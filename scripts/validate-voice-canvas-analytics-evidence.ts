@@ -49,7 +49,8 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json",
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "",
-      "The input JSON may be an array of Canvas telemetry envelopes, or an object with samples/events and optional counts.",
+      "The input JSON must be an object with generatedAt, source, samples/events, and optional counts.",
+      "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
       "Every launch signal must have a positive observed sample count: started, resumed, abandoned, blocked, confirmed, completed.",
       "Completed can be proven by completed samples or terminal pending samples.",
@@ -97,7 +98,6 @@ function parseJsonFile(inputPath: string): unknown {
 }
 
 function normalizeSamples(artifact: unknown): unknown[] {
-  if (Array.isArray(artifact)) return artifact;
   if (!isRecord(artifact)) return [];
 
   const samples: unknown[] = [];
@@ -140,19 +140,50 @@ function extractDeclaredCounts(
 }
 
 function topLevelProblems(artifact: unknown): string[] {
-  if (Array.isArray(artifact)) return [];
   if (!isRecord(artifact)) {
-    return ["Analytics evidence must be a JSON array or object."];
+    return ["Analytics evidence must be a JSON object."];
   }
 
+  const problems: string[] = [];
   const unexpectedTopLevelKeyCount = Object.keys(artifact).filter(
     (key) => !allowedTopLevelKeys.includes(key as (typeof allowedTopLevelKeys)[number]),
   ).length;
 
-  if (unexpectedTopLevelKeyCount === 0) return [];
-  return [
-    `Evidence artifact included ${unexpectedTopLevelKeyCount} top-level key(s) outside the allowed schema.`,
-  ];
+  if (unexpectedTopLevelKeyCount > 0) {
+    problems.push(
+      `Evidence artifact included ${unexpectedTopLevelKeyCount} top-level key(s) outside the allowed schema.`,
+    );
+  }
+
+  if (!hasValidGeneratedAt(artifact.generatedAt)) {
+    problems.push("Analytics evidence must include generatedAt as an ISO timestamp.");
+  }
+
+  if (!hasConcreteAnalyticsSource(artifact.source)) {
+    problems.push(
+      "Analytics evidence source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+    );
+  }
+
+  return problems;
+}
+
+function hasValidGeneratedAt(value: unknown): boolean {
+  if (typeof value !== "string" || value.trim() === "") return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
+}
+
+function hasConcreteAnalyticsSource(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const normalized = value.toLowerCase().trim();
+  if (normalized.length < 8) return false;
+  if (/\b(localhost|local only|developer smoke|mock|fixture|fake)\b/.test(normalized)) {
+    return false;
+  }
+  return /\b(staging|production|prod|dashboard|query|export|log|artifact)\b/.test(
+    normalized,
+  );
 }
 
 function sampleEnvelopeProblems(
