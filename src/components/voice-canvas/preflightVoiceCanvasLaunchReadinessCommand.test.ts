@@ -209,10 +209,10 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Run sheet: pending; incomplete 260; problems 0",
     );
     expect(result.stdout).toContain(
-      "QA matrix: pending; incomplete 286; failing/not-ready 0; problems 0",
+      "QA matrix: pending; incomplete 289; failing/not-ready 0; problems 0",
     );
     expect(result.stdout).toContain(
-      "Evidence packet: pending; incomplete 11; problems 0",
+      "Evidence packet: pending; incomplete 12; problems 0",
     );
     expect(result.stdout).toContain(
       "Analytics evidence: not provided; samples 0; problems 0",
@@ -242,10 +242,10 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain("Evidence packet pending sections:");
     expect(result.stdout).toContain(
-      "- Evidence packet inventory: 11 pending cell(s) across 11 row(s)",
+      "- Evidence packet inventory: 12 pending cell(s) across 12 row(s)",
     );
     expect(result.stdout).toContain(
-      "Evidence packet next evidence area: Evidence packet inventory (11 pending cell(s) across 11 row(s))",
+      "Evidence packet next evidence area: Evidence packet inventory (12 pending cell(s) across 12 row(s))",
     );
     expect(result.stdout).toContain(
       "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
@@ -413,7 +413,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.matrix).toMatchObject({
       state: "pending",
-      incompleteCellCount: 286,
+      incompleteCellCount: 289,
       failingCellCount: 0,
       problemCount: 0,
       problems: [],
@@ -425,13 +425,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.evidencePacket).toMatchObject({
       state: "pending",
-      incompleteCellCount: 11,
+      incompleteCellCount: 12,
       problemCount: 0,
       problems: [],
       nextPendingSection: {
         section: "Evidence packet inventory",
-        pendingCells: 11,
-        rowsWithPending: 11,
+        pendingCells: 12,
+        rowsWithPending: 12,
       },
     });
     expect(summary.analyticsEvidence).toMatchObject({

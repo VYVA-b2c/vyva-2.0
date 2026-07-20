@@ -78,6 +78,8 @@ Per-flow rollout runbooks now include a copy-safe rollback owner handoff templat
 
 Final Operations/rollback-owner sign-off validation now rejects generic rollback approval unless the note names owner and backup, decision window, rollback trigger, enable-false or rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, and privacy boundary evidence.
 
+Evidence packet and QA matrix artifact inventories now include a required rollback owner handoff artifact row, so Operations sign-off evidence has a concrete sanitized artifact reference instead of living only in final-note prose.
+
 Privacy review rows now require the result and evidence to name the specific forbidden data class; generic no-sensitive-data wording is rejected.
 
 Device coverage evidence now requires dated real phone, tablet, and desktop/laptop coverage plus screenshot, photo, or artifact evidence with no transcripts, entered text, addresses, or personal details; generic prose-only device evidence, generic screenshot evidence, and sensitive artifact evidence are rejected.

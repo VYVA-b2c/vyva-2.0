@@ -63,6 +63,9 @@ const ARTIFACT_INVENTORY_FEATURE_ROW =
 const ARTIFACT_INVENTORY_TASK_HUB_ROW =
   "| Task hub resume artifacts | Task hub resume fallback no write and no external action evidence | Sanitized task hub resume fallback log artifact links showing no write and no external action with no personal details | QA reviewer verified on 2026-07-19 |";
 
+const ARTIFACT_INVENTORY_ROLLBACK_OWNER_ROW =
+  "| Rollback owner handoff artifacts | Rollback owner backup decision trigger endpoint fallback open-session privacy boundary evidence | Sanitized rollback owner handoff artifact links for endpoint fallback open-session evidence with no personal details | QA reviewer verified on 2026-07-19 |";
+
 const ARTIFACT_INVENTORY_COPY_ROW =
   "| Copy and accessibility artifacts | Copy accessibility screen-reader focus Spanish long label evidence | Sanitized copy accessibility screenshot and screen-reader artifact links for focus and Spanish long label evidence with no personal details | QA reviewer verified on 2026-07-19 |";
 
@@ -219,6 +222,10 @@ function fillArtifactInventoryRows(markdown: string): string {
     .replace(
       /^\| Task hub resume artifacts \| .* \| .* \| .* \|$/m,
       ARTIFACT_INVENTORY_TASK_HUB_ROW,
+    )
+    .replace(
+      /^\| Rollback owner handoff artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_ROLLBACK_OWNER_ROW,
     )
     .replace(
       /^\| Copy and accessibility artifacts \| .* \| .* \| .* \|$/m,

@@ -190,6 +190,7 @@ For final sign-off, every row must name the covered launch evidence, point to sa
 | Behavior recovery artifacts | Pending | Pending | Pending |
 | Feature endpoint artifacts | Pending | Pending | Pending |
 | Task hub resume artifacts | Pending | Pending | Pending |
+| Rollback owner handoff artifacts | Pending | Pending | Pending |
 | Copy and accessibility artifacts | Pending | Pending | Pending |
 | Analytics signal artifacts | Pending | Pending | Pending |
 | Analytics privacy artifacts | Pending | Pending | Pending |
