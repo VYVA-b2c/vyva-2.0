@@ -37,6 +37,7 @@ const requiredInventoryArtifactSets = [
   "Analytics signal artifacts",
   "Analytics privacy artifacts",
   "Run sheet validation artifacts",
+  "Launch run plan artifacts",
   "Launch preflight artifacts",
 ] as const;
 
@@ -112,11 +113,18 @@ const inventoryCoverageRequirements: Record<
     ["validation"],
     ["matrix"],
   ],
+  "Launch run plan artifacts": [
+    ["launch"],
+    ["run plan", "launch-evidence-run"],
+    ["same", "date"],
+    ["artifact"],
+  ],
   "Launch preflight artifacts": [
     ["final"],
     ["run sheet", "runsheet"],
     ["matrix"],
     ["packet"],
+    ["run plan", "launch-evidence-run"],
     ["endpoint"],
     ["analytics"],
   ],
@@ -469,6 +477,8 @@ const finalPrefillChecklistRequirements: readonly (readonly string[])[] = [
   ["run-sheet-summary.json"],
   ["canvas:qa:packet"],
   ["evidence-packet-summary.json"],
+  ["run plan", "launch-evidence-run"],
+  ["--run-plan"],
   ["analytics"],
   ["coveredflows"],
   ["started"],

@@ -35,7 +35,7 @@ Use `npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY
 
 Use `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` to prepare the sanitized rollback owner handoff artifact, then validate the filled handoff with `npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json` before filling the rollback owner handoff artifact inventory row and Operations/rollback owner final sign-off.
 
-Final preflight must include `--rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` with the enabled endpoint, rollback endpoint, and analytics artifacts so launch sign-off fails if the rollback owner handoff is missing or invalid. Those external evidence artifacts must share one QA run date.
+Final preflight must include `--run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json` and `--rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` with the enabled endpoint, rollback endpoint, and analytics artifacts so launch sign-off fails if the run plan is missing or drifted, or if the rollback owner handoff is missing or invalid. Those external evidence artifacts must share one QA run date.
 
 Use `npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json` after filling `docs/audits/voice-canvas-real-device-evidence-packet.md` and before copying evidence into this matrix. The packet validator confirms required inventory, flow, and evidence-note rows remain present; reports pending packet cells by section; preserves existing output unless `--force` is explicit; and rejects unsafe artifact references without copying raw artifact-reference values into output.
 
@@ -201,6 +201,7 @@ For final sign-off, every row must name the covered launch evidence, point to sa
 | Analytics signal artifacts | Pending | Pending | Pending |
 | Analytics privacy artifacts | Pending | Pending | Pending |
 | Run sheet validation artifacts | Pending | Pending | Pending |
+| Launch run plan artifacts | Pending | Pending | Pending |
 | Launch preflight artifacts | Pending | Pending | Pending |
 
 ## Final sign-off

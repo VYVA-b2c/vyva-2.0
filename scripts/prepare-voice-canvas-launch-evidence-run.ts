@@ -115,6 +115,7 @@ function artifactPaths(runDate: string) {
 function launchCommands(runDate: string, baseUrl: string) {
   const paths = artifactPaths(runDate);
   return [
+    `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=${baseUrl} --json --output=${paths.launchRunPlan}`,
     `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=enabled --json --output=${paths.enabledEndpoints}`,
     `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=rollback-disabled --json --output=${paths.rollbackEndpoints}`,
     "npm run --silent canvas:qa:features -- --trace-template",
@@ -125,7 +126,7 @@ function launchCommands(runDate: string, baseUrl: string) {
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${paths.runSheetSummary}`,
     `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${paths.qaMatrixSummary}`,
     `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${paths.evidencePacketSummary}`,
-    `npm run --silent canvas:qa:preflight -- --final --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
+    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
   ];
 }
 

@@ -90,6 +90,7 @@ export const CANVAS_REAL_DEVICE_QA_REQUIRED_ARTIFACT_INVENTORY_ROWS = [
   "Analytics signal artifacts",
   "Analytics privacy artifacts",
   "Run sheet validation artifacts",
+  "Launch run plan artifacts",
   "Launch preflight artifacts",
 ] as const;
 
@@ -2397,11 +2398,18 @@ const artifactInventoryRequirements: Record<
     ["matrix"],
     ["packet"],
   ],
+  "Launch run plan artifacts": [
+    ["launch"],
+    ["run plan", "launch-evidence-run"],
+    ["same", "date"],
+    ["artifact"],
+  ],
   "Launch preflight artifacts": [
     ["preflight"],
     ["run sheet", "runsheet"],
     ["matrix"],
     ["packet"],
+    ["run plan", "launch-evidence-run"],
     ["endpoint"],
     ["analytics"],
   ],

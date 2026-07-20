@@ -96,10 +96,10 @@ describe("Voice Canvas evidence packet validator command", () => {
     expect(result.stdout).toContain("Ready for QA matrix sign-off: no");
     expect(result.stdout).toContain("Pending cells by section:");
     expect(result.stdout).toContain(
-      "- Evidence packet inventory: 12 pending cell(s) across 12 row(s)",
+      "- Evidence packet inventory: 13 pending cell(s) across 13 row(s)",
     );
     expect(result.stdout).toContain(
-      "Next evidence area: Evidence packet inventory (12 pending cell(s) across 12 row(s))",
+      "Next evidence area: Evidence packet inventory (13 pending cell(s) across 13 row(s))",
     );
     expect(result.stdout).toContain(
       "Evidence packet is still pending, but its structure is valid.",
@@ -144,20 +144,20 @@ describe("Voice Canvas evidence packet validator command", () => {
     );
     expect(summary.state).toBe("pending");
     expect(summary.readyForLaunchEvidencePacket).toBe(false);
-    expect(summary.incompleteCellCount).toBe(12);
+    expect(summary.incompleteCellCount).toBe(13);
     expect(summary.problemCount).toBe(0);
     expect(summary.acceptedPending).toBe(true);
     expect(summary.pendingSections).toEqual([
       {
         section: "Evidence packet inventory",
-        pendingCells: 12,
-        rowsWithPending: 12,
+        pendingCells: 13,
+        rowsWithPending: 13,
       },
     ]);
     expect(summary.nextPendingSection).toEqual({
       section: "Evidence packet inventory",
-      pendingCells: 12,
-      rowsWithPending: 12,
+      pendingCells: 13,
+      rowsWithPending: 13,
     });
     expect(summary.message).toBe(
       "Evidence packet is still pending, but its structure is valid.",
@@ -483,7 +483,7 @@ describe("Voice Canvas evidence packet validator command", () => {
   it("rejects final pre-fill checks that omit required launch gates", () =>
     withTempPacket(
       completedPacket().replace(
-        "- `canvas:qa:preflight -- --final` passed with the run sheet, matrix, packet, enabled endpoint, rollback endpoint, analytics, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;",
+        /- `canvas:qa:preflight -- --final --run-plan=artifacts\/voice-canvas\/\d{4}-\d{2}-\d{2}-launch-evidence-run\.json` passed with the run sheet, matrix, packet, launch run plan, enabled endpoint, rollback endpoint, analytics, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;/,
         "- final launch review completed;",
       ),
       (tempPacketPath) => {

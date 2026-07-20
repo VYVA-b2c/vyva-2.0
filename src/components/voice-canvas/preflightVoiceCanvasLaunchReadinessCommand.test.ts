@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -44,6 +45,73 @@ function generatedAtDaysAgo(days: number): string {
 
 function freshReviewDate(): string {
   return new Date(Date.now() - 60_000).toISOString().slice(0, 10);
+}
+
+function artifactPathsForRunDate(runDate: string) {
+  const prefix = `artifacts/voice-canvas/${runDate}`;
+  return {
+    enabledEndpoints: `${prefix}-feature-endpoints-enabled.json`,
+    rollbackEndpoints: `${prefix}-feature-endpoints-rollback-disabled.json`,
+    analyticsEvidence: `${prefix}-analytics-evidence.json`,
+    analyticsValidation: `${prefix}-analytics-validation.json`,
+    rollbackOwnerHandoff: `${prefix}-rollback-owner-handoff.md`,
+    rollbackOwnerValidation: `${prefix}-rollback-owner-validation.json`,
+    runSheetSummary: `${prefix}-run-sheet-summary.json`,
+    qaMatrixSummary: `${prefix}-qa-summary.json`,
+    evidencePacketSummary: `${prefix}-evidence-packet-summary.json`,
+    launchPreflight: `${prefix}-launch-preflight.json`,
+    launchRunPlan: `${prefix}-launch-evidence-run.json`,
+  };
+}
+
+function launchEvidenceCommandsForRun(runDate: string, baseUrl: string): string[] {
+  const paths = artifactPathsForRunDate(runDate);
+
+  return [
+    `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=${baseUrl} --json --output=${paths.launchRunPlan}`,
+    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=enabled --json --output=${paths.enabledEndpoints}`,
+    `npm run --silent canvas:qa:features -- --base-url=${baseUrl} --expected-state=rollback-disabled --json --output=${paths.rollbackEndpoints}`,
+    "npm run --silent canvas:qa:features -- --trace-template",
+    "npm run --silent canvas:qa:analytics -- --template",
+    `npm run --silent canvas:qa:analytics -- --input=${paths.analyticsEvidence} --json --output=${paths.analyticsValidation}`,
+    `npm run --silent canvas:qa:rollback-owner -- --template --output=${paths.rollbackOwnerHandoff}`,
+    `npm run --silent canvas:qa:rollback-owner -- --input=${paths.rollbackOwnerHandoff} --json --output=${paths.rollbackOwnerValidation}`,
+    `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${paths.runSheetSummary}`,
+    `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${paths.qaMatrixSummary}`,
+    `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${paths.evidencePacketSummary}`,
+    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
+  ];
+}
+
+function validLaunchRunPlan(runDate: string, baseUrl = "https://staging.vyva.app") {
+  return {
+    readyForEvidenceRun: true,
+    runDate,
+    baseUrl,
+    artifactDirectory: "artifacts/voice-canvas",
+    artifactPaths: artifactPathsForRunDate(runDate),
+    commands: launchEvidenceCommandsForRun(runDate, baseUrl),
+    flowCoverage: canvasLaunchReadinessFlows.map((flow) => ({
+      id: flow.id,
+      label: flow.label,
+      fallback: flow.featureFlag?.fallback ?? "destination flow fallback",
+    })),
+    checklist: [
+      "Collect enabled endpoint evidence before rollback evidence.",
+      "Fill analytics evidence from aggregate-only staging or production-like telemetry.",
+      "Fill rollback owner handoff with owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
+      "Execute the run sheet across real phone, tablet, and desktop/laptop sessions.",
+      "Copy only sanitized artifact references into the evidence packet and QA matrix.",
+      "Run final preflight with the same run-date artifact paths.",
+    ],
+    privacyBoundary: [
+      "No addresses, saved-place labels, transcripts, typed text, medication details, provider details, shopping details, contact details, account identifiers, raw endpoint bodies, or personal data.",
+      "Use aggregate counts, allowed Canvas telemetry envelope fields, sanitized screenshots/photos/logs, and dated artifact references only.",
+    ],
+    sameRunDateRequired: true,
+    message:
+      "Voice Canvas launch evidence run plan is ready. Use these same-date paths for final evidence collection.",
+  };
 }
 
 const launchFeatureFlows = canvasLaunchReadinessFlows.filter(
@@ -247,6 +315,28 @@ function withTempRollbackOwnerFile<T>(
   }
 }
 
+function withLaunchRunPlanArtifact<T>(
+  runDate: string,
+  value: unknown,
+  callback: (inputPath: string) => T,
+): T {
+  const relativePath = artifactPathsForRunDate(runDate).launchRunPlan;
+  const inputPath = path.resolve(process.cwd(), relativePath);
+
+  if (existsSync(inputPath)) {
+    throw new Error(`Refusing to overwrite existing test launch run plan: ${relativePath}`);
+  }
+
+  mkdirSync(path.dirname(inputPath), { recursive: true });
+  writeFileSync(inputPath, `${JSON.stringify(value, null, 2)}\n`);
+
+  try {
+    return callback(relativePath);
+  } finally {
+    rmSync(inputPath, { force: true });
+  }
+}
+
 describe("Voice Canvas launch readiness preflight command", () => {
   it("prints a copy-safe preflight runbook", () => {
     const result = runPreflight(["--help"]);
@@ -269,10 +359,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run canvas:qa:preflight -- --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md",
     );
     expect(result.stdout).toContain(
+      "npm run canvas:qa:preflight -- --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
+    );
+    expect(result.stdout).toContain(
       "npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
     );
     expect(result.stdout).toContain(
-      "unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, and rollback owner handoff are ready",
+      "unless the run sheet, matrix, packet, launch run plan, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, and rollback owner handoff are ready",
     );
     expect(result.stdout).toContain(
       "Final external evidence artifacts must share one QA run date",
@@ -293,10 +386,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Run sheet: pending; incomplete 260; problems 0",
     );
     expect(result.stdout).toContain(
-      "QA matrix: pending; incomplete 289; failing/not-ready 0; problems 0",
+      "QA matrix: pending; incomplete 292; failing/not-ready 0; problems 0",
     );
     expect(result.stdout).toContain(
-      "Evidence packet: pending; incomplete 12; problems 0",
+      "Evidence packet: pending; incomplete 13; problems 0",
+    );
+    expect(result.stdout).toContain(
+      "Launch run plan: not provided; date unknown; commands 0; problems 0",
     );
     expect(result.stdout).toContain(
       "Analytics evidence: not provided; samples 0; problems 0",
@@ -332,10 +428,10 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain("Evidence packet pending sections:");
     expect(result.stdout).toContain(
-      "- Evidence packet inventory: 12 pending cell(s) across 12 row(s)",
+      "- Evidence packet inventory: 13 pending cell(s) across 13 row(s)",
     );
     expect(result.stdout).toContain(
-      "Evidence packet next evidence area: Evidence packet inventory (12 pending cell(s) across 12 row(s))",
+      "Evidence packet next evidence area: Evidence packet inventory (13 pending cell(s) across 13 row(s))",
     );
     expect(result.stdout).toContain(
       "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
@@ -371,6 +467,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "Provide --features-rollback=<path> for the rollback-disabled feature endpoint collector artifact before final launch sign-off.",
+    );
+    expect(result.stdout).toContain(
+      "Provide --run-plan=<path> for the same-date launch evidence run plan before final launch sign-off.",
     );
     expect(result.stdout).toContain(
       "Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.",
@@ -434,7 +533,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       ),
     );
     expect(result.stdout).toContain(
-      "npm run --silent canvas:qa:preflight -- --final --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     );
   });
 
@@ -481,6 +580,16 @@ describe("Voice Canvas launch readiness preflight command", () => {
           pendingCells: number;
           rowsWithPending: number;
         };
+      };
+      launchRunPlan: {
+        provided: boolean;
+        readyForLaunchEvidence: boolean;
+        runDate: string;
+        baseUrl: string;
+        commandCount: number;
+        flowCount: number;
+        problemCount: number;
+        problems: string[];
       };
       analyticsEvidence: {
         provided: boolean;
@@ -545,7 +654,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.matrix).toMatchObject({
       state: "pending",
-      incompleteCellCount: 289,
+      incompleteCellCount: 292,
       failingCellCount: 0,
       problemCount: 0,
       problems: [],
@@ -557,14 +666,25 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.evidencePacket).toMatchObject({
       state: "pending",
-      incompleteCellCount: 12,
+      incompleteCellCount: 13,
       problemCount: 0,
       problems: [],
       nextPendingSection: {
         section: "Evidence packet inventory",
-        pendingCells: 12,
-        rowsWithPending: 12,
+        pendingCells: 13,
+        rowsWithPending: 13,
       },
+    });
+    expect(summary.launchRunPlan).toEqual({
+      provided: false,
+      path: "unknown",
+      readyForLaunchEvidence: false,
+      runDate: "unknown",
+      baseUrl: "unknown",
+      commandCount: 0,
+      flowCount: 0,
+      problemCount: 0,
+      problems: [],
     });
     expect(summary.analyticsEvidence).toMatchObject({
       provided: false,
@@ -624,7 +744,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
-      "npm run --silent canvas:qa:preflight -- --final --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     ]);
     expect(summary.message).toBe(
       "Voice Canvas launch evidence gates are structurally valid but still pending real-device QA.",
@@ -667,6 +787,84 @@ describe("Voice Canvas launch readiness preflight command", () => {
         completed: 1,
       });
     }));
+
+  it("includes sanitized launch evidence run plans in the preflight summary", () => {
+    const runDate = freshReviewDate();
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      validLaunchRunPlan(runDate),
+      (inputPath) => {
+        const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          launchRunPlan: {
+            provided: boolean;
+            path: string;
+            readyForLaunchEvidence: boolean;
+            runDate: string;
+            baseUrl: string;
+            commandCount: number;
+            flowCount: number;
+            problemCount: number;
+            problems: string[];
+          };
+        };
+
+        expect(summary.launchRunPlan).toMatchObject({
+          provided: true,
+          path: path.normalize(artifactPathsForRunDate(runDate).launchRunPlan),
+          readyForLaunchEvidence: true,
+          runDate,
+          baseUrl: "https://staging.vyva.app",
+          commandCount: 12,
+          flowCount: canvasLaunchReadinessFlows.length,
+          problemCount: 0,
+          problems: [],
+        });
+      },
+    );
+  });
+
+  it("rejects launch evidence run plans that drift from the canonical evidence bundle", () => {
+    const runDate = freshReviewDate();
+    const runPlan = validLaunchRunPlan(runDate);
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      {
+        ...runPlan,
+        commands: runPlan.commands.slice(1),
+      },
+      (inputPath) => {
+        const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          launchRunPlan: {
+            readyForLaunchEvidence: boolean;
+            problemCount: number;
+            problems: string[];
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.launchRunPlan.readyForLaunchEvidence).toBe(false);
+        expect(summary.launchRunPlan.problemCount).toBeGreaterThan(0);
+        expect(summary.launchRunPlan.problems.join("\n")).toContain(
+          "Launch evidence run plan commands must match the canonical same-date evidence bundle.",
+        );
+        expect(summary.nextActions).toContain(
+          "Fix the launch evidence run plan before final launch sign-off.",
+        );
+      },
+    );
+  });
 
   it("includes sanitized feature endpoint artifacts in the preflight summary", () =>
     withTempFeatureEndpointFiles(

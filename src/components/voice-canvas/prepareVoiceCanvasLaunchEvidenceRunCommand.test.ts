@@ -104,9 +104,15 @@ describe("Voice Canvas launch evidence run helper command", () => {
     expect(Object.values(summary.artifactPaths).every((value) => value.includes(runDate))).toBe(
       true,
     );
-    expect(summary.commands).toHaveLength(11);
+    expect(summary.commands).toHaveLength(12);
+    expect(summary.commands[0]).toBe(
+      `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/${runDate}-launch-evidence-run.json`,
+    );
     expect(summary.commands.join("\n")).toContain(
       `--features-enabled=artifacts/voice-canvas/${runDate}-feature-endpoints-enabled.json`,
+    );
+    expect(summary.commands.join("\n")).toContain(
+      `--final --run-plan=artifacts/voice-canvas/${runDate}-launch-evidence-run.json`,
     );
     expect(summary.flowCoverage.map((flow) => flow.id)).toEqual([
       "ride",

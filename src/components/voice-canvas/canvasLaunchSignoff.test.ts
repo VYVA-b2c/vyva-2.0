@@ -78,8 +78,11 @@ const ARTIFACT_INVENTORY_PRIVACY_ROW =
 const ARTIFACT_INVENTORY_RUN_SHEET_ROW =
   "| Run sheet validation artifacts | Run sheet validation evidence for packet and matrix copy | Sanitized run sheet validation JSON artifact link for run-sheet-summary.json with no personal details | QA reviewer verified on 2026-07-19 |";
 
+const ARTIFACT_INVENTORY_RUN_PLAN_ROW =
+  "| Launch run plan artifacts | Launch run plan same date artifact evidence | Sanitized launch-evidence-run JSON artifact link for same date evidence bundle with no personal details | QA reviewer verified on 2026-07-19 |";
+
 const ARTIFACT_INVENTORY_PREFLIGHT_ROW =
-  "| Launch preflight artifacts | Launch preflight run sheet matrix packet endpoint analytics evidence | Sanitized launch preflight JSON artifact link for run sheet matrix packet endpoint analytics gate with no personal details | QA reviewer verified on 2026-07-19 |";
+  "| Launch preflight artifacts | Launch preflight run sheet matrix packet run plan endpoint analytics evidence | Sanitized launch preflight JSON artifact link for run sheet matrix packet run plan endpoint analytics gate with no personal details | QA reviewer verified on 2026-07-19 |";
 
 function behaviorChecklistRow(
   flow: string,
@@ -242,6 +245,10 @@ function fillArtifactInventoryRows(markdown: string): string {
     .replace(
       /^\| Run sheet validation artifacts \| .* \| .* \| .* \|$/m,
       ARTIFACT_INVENTORY_RUN_SHEET_ROW,
+    )
+    .replace(
+      /^\| Launch run plan artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_RUN_PLAN_ROW,
     )
     .replace(
       /^\| Launch preflight artifacts \| .* \| .* \| .* \|$/m,
