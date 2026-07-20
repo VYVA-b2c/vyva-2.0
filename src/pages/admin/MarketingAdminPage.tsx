@@ -106,7 +106,7 @@ type MarketingSmartSearchResult = {
   icon: LucideIcon;
   onSelect: () => void;
 };
-type MarketingSavedViewKey = "launch" | "publish" | "relationships" | "consent" | "partner" | "offline" | "templates" | "creative" | "source";
+type MarketingSavedViewKey = "launch" | "publish" | "relationships" | "audiences" | "consent" | "partner" | "offline" | "templates" | "creative" | "source";
 type MarketingSavedView = {
   key: MarketingSavedViewKey;
   title: string;
@@ -12227,6 +12227,13 @@ export default function MarketingAdminPage() {
         setContactView("contacts");
         setMessage("Saved view: relationship queue. Import or create contacts to start relationship work.");
       }
+      return;
+    }
+    if (viewKey === "audiences") {
+      setActiveTab("contacts");
+      setContactView("lists");
+      setAudienceFeedback("Saved view: audience builder. Review list health, use recipes, then launch a campaign from the best audience.");
+      setMessage("Saved view: audience builder. Build reusable lists before publishing campaigns.");
       return;
     }
     if (viewKey === "consent") {
@@ -27914,6 +27921,7 @@ export default function MarketingAdminPage() {
   )).length;
   const savedViewCreativeGapCount = Math.max(missingSourceReferenceCount, contentTemplateGapSuggestions.length);
   const savedViewTemplateCount = contentTemplateGallery.length + contentTemplateGapSuggestions.length;
+  const savedViewAudienceCount = audiences.length + audienceRecipes.filter((recipe) => recipe.contacts.length > 0).length;
   const savedViewPublishCount = dueReadyEmailCampaigns.length
     + (scheduledEmailCampaignWithoutRecipients ? 1 : 0)
     + manualHandoffCampaigns.length;
@@ -27953,6 +27961,18 @@ export default function MarketingAdminPage() {
       icon: UsersRound,
       className: savedViewRelationshipCount
         ? "border-violet-100 bg-violet-50 text-violet-950"
+        : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46]",
+    },
+    {
+      key: "audiences",
+      title: "Audience builder",
+      detail: "Reusable lists, recipes, member mapping, AI strategy briefs, and campaign launch checks.",
+      countLabel: savedViewAudienceCount
+        ? `${savedViewAudienceCount} lists`
+        : "starter",
+      icon: ClipboardList,
+      className: savedViewAudienceCount
+        ? "border-indigo-100 bg-indigo-50 text-indigo-950"
         : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46]",
     },
     {

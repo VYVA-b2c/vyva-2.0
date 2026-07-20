@@ -1500,6 +1500,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Email launch");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Publish today");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Relationship queue");
+    expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Audience builder");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Consent review");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Offline field run");
@@ -1527,6 +1528,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Showing "B2B partner nurture" queue: 1 partner.');
     expect(screen.getByText("Saved view: relationship queue. B2B partner nurture is ready for review.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-marketing-saved-view-audiences"));
+    expect(screen.getByTestId("button-marketing-lists-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("marketing-audience-builder")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent("Saved view: audience builder.");
 
     fireEvent.click(screen.getByTestId("button-marketing-saved-view-offline"));
     expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
