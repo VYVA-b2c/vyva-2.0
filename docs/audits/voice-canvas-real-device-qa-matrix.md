@@ -10,7 +10,7 @@ Keep `Status` as **pending execution** until this matrix is fully filled. For fi
 Environment analytics sink review must point to dated concrete dashboard/query/log/artifact evidence, and initial plus rollback flag-state cells must include dated feature-flag artifact/log evidence proving the enabled and rollout values. This environment artifact/log/dashboard evidence must be concrete; prose-only reviewed or verified environment wording does not satisfy launch sign-off.
 
 ```bash
-npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts
+npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts
 ```
 
 While this matrix is still being filled, run:
