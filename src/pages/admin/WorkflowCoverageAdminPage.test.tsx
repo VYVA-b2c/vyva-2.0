@@ -108,6 +108,8 @@ describe("WorkflowCoverageAdminPage", () => {
     expect(within(visualScan).getByText(visualScanWorkflow?.nextStep ?? "")).toBeInTheDocument();
     expect(within(visualScan).getByText(/Ask before uploading/i)).toBeInTheDocument();
     expect(within(visualScan).getByText("Visual Scan")).toBeInTheDocument();
+    expect(within(visualScan).getByText("Receipt moment")).toBeInTheDocument();
+    expect(within(visualScan).getByText("Action prepared")).toBeInTheDocument();
   });
 
   it("filters workflows by area and search text", () => {

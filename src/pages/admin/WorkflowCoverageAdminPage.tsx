@@ -21,6 +21,7 @@ import {
   workflowCoverageState,
 } from "../../../shared/workflowRegistry";
 import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../../shared/homeFastHelpSync";
+import { buildWorkflowReceiptMoment } from "../../../shared/workflowReceiptMoments";
 
 type DomainFilter = "all" | WorkflowDomain;
 type CoverageFilter = "all" | "incomplete" | WorkflowCoverageState;
@@ -175,6 +176,7 @@ function WorkflowRow({
 }) {
   const state = workflowCoverageState(workflow.status);
   const level = actions[0]?.actionLevel ?? "guided";
+  const receiptPreview = buildWorkflowReceiptMoment({ workflowReference: workflow.reference });
 
   return (
     <article
@@ -206,7 +208,7 @@ function WorkflowRow({
         </code>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+      <div className="mt-4 grid gap-3 lg:grid-cols-4">
         <div className="rounded-[12px] bg-[#fbf8f5] p-3">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">Next step</p>
           <p className="mt-1 text-sm font-bold text-[#2f2135]">{workflow.nextStep ?? "Keep current flow available."}</p>
@@ -218,6 +220,11 @@ function WorkflowRow({
         <div className="rounded-[12px] bg-[#fbf8f5] p-3">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">Done when</p>
           <p className="mt-1 text-sm font-bold text-[#2f2135]">{workflow.completionState}</p>
+        </div>
+        <div className="rounded-[12px] bg-[#fbf8f5] p-3">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">Receipt moment</p>
+          <p className="mt-1 text-sm font-bold text-[#2f2135]">{receiptPreview.title}</p>
+          <p className="mt-1 text-xs font-bold text-[#7d6b65]">{receiptPreview.primaryActionLabel}</p>
         </div>
       </div>
 
