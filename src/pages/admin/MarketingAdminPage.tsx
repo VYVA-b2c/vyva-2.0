@@ -42621,6 +42621,70 @@ function MarketingCalendarView({
       campaign: unscheduledReadyCampaigns[0] ?? null,
     },
   ];
+  const campaignsWithTrackedResults = campaigns.filter((campaign) => {
+    const metricSummary = metricsByCampaignId.get(campaign.id);
+    const manualSummary = summarizeManualPublishResults(manualPublishResultsFromMetadata(campaign.metadata));
+    return Boolean(metricSummary?.metricCount || manualSummary.count);
+  });
+  const campaignNeedingFollowUp = campaignsWithTrackedResults.find((campaign) => {
+    const metricSummary = metricsByCampaignId.get(campaign.id);
+    const manualSummary = summarizeManualPublishResults(manualPublishResultsFromMetadata(campaign.metadata));
+    return manualSummary.followUps > 0 || (metricSummary?.replied ?? 0) > 0 || (metricSummary?.clicked ?? 0) > 0 || manualSummary.engagements > 0;
+  }) ?? campaignsWithTrackedResults[0] ?? manualHandoffCampaigns[0] ?? dueEmailCampaigns[0] ?? null;
+  const campaignNeedingOutcome = manualHandoffCampaigns.find((campaign) => summarizeManualPublishResults(manualPublishResultsFromMetadata(campaign.metadata)).count === 0)
+    ?? manualHandoffCampaigns[0]
+    ?? null;
+  const postLaunchAudienceCampaign = campaignNeedingFollowUp ?? scheduledCampaignsWithoutRecipients[0] ?? unscheduledReadyCampaigns[0] ?? null;
+  const postLaunchLoopItems = [
+    {
+      key: "capture-outcome",
+      title: "Capture publish outcome",
+      value: campaignNeedingOutcome ? "Open tracker" : "No handoff",
+      detail: campaignNeedingOutcome
+        ? `Record where "${campaignNeedingOutcome.name}" was published, who saw it, and whether it needs follow-up.`
+        : "No social, print, phone, event, or offline handoff is waiting for outcome tracking.",
+      state: campaignNeedingOutcome ? "planning" as CampaignReadinessState : "ready" as CampaignReadinessState,
+      actionLabel: campaignNeedingOutcome ? "Open campaign" : "Clear",
+      icon: ClipboardList,
+      campaign: campaignNeedingOutcome,
+    },
+    {
+      key: "review-results",
+      title: "Review engagement",
+      value: campaignsWithTrackedResults.length ? `${campaignsWithTrackedResults.length} tracked` : "No results",
+      detail: campaignNeedingFollowUp
+        ? `Use "${campaignNeedingFollowUp.name}" results to decide who gets the next relationship touch.`
+        : "No imported metrics or manual outcomes are available yet.",
+      state: campaignsWithTrackedResults.length ? "ready" as CampaignReadinessState : "planning" as CampaignReadinessState,
+      actionLabel: campaignNeedingFollowUp ? "Open results" : "Waiting",
+      icon: BarChart3,
+      campaign: campaignNeedingFollowUp,
+    },
+    {
+      key: "relationship-follow-up",
+      title: "Start relationship follow-up",
+      value: campaignNeedingFollowUp ? "Next touch" : "No signal",
+      detail: campaignNeedingFollowUp
+        ? `Open "${campaignNeedingFollowUp.name}" and build the responder, clicker, or warm-contact follow-up from real signals.`
+        : "Run or track a campaign first so the follow-up is based on actual engagement.",
+      state: campaignNeedingFollowUp ? "needs_action" as CampaignReadinessState : "planning" as CampaignReadinessState,
+      actionLabel: campaignNeedingFollowUp ? "Build follow-up" : "Waiting",
+      icon: HeartHandshake,
+      campaign: campaignNeedingFollowUp,
+    },
+    {
+      key: "next-audience",
+      title: "Clean the next audience",
+      value: postLaunchAudienceCampaign ? `${postLaunchAudienceCampaign.recipientCount} saved` : "No list",
+      detail: postLaunchAudienceCampaign
+        ? `Check recipients and routes for "${postLaunchAudienceCampaign.name}" before the next send or handoff.`
+        : "Create or sync a campaign audience before planning the next relationship move.",
+      state: postLaunchAudienceCampaign ? "planning" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      actionLabel: postLaunchAudienceCampaign ? "Open audience" : "Create audience",
+      icon: UsersRound,
+      campaign: postLaunchAudienceCampaign,
+    },
+  ];
   const publishRunSheetText = [
     "VYVA daily publishing run sheet",
     `Generated: ${formatDate(new Date().toISOString())}`,
@@ -42655,6 +42719,9 @@ function MarketingCalendarView({
     missingContentCampaigns.length ? `- Fix content gaps: ${missingContentCampaigns.map((campaign) => campaign.name).join(", ")}.` : "- No visible campaign content gaps.",
     scheduledCampaignsWithoutRecipients.length ? `- Snapshot recipients: ${scheduledCampaignsWithoutRecipients.map((campaign) => campaign.name).join(", ")}.` : "- No scheduled campaigns are missing saved recipients.",
     unscheduledReadyCampaigns.length ? `- Schedule ready drafts: ${unscheduledReadyCampaigns.map((campaign) => campaign.name).join(", ")}.` : "- No unscheduled ready drafts.",
+    "",
+    "After launch:",
+    postLaunchLoopItems.map((item, index) => `- ${index + 1}. ${item.title}: ${item.campaign ? item.campaign.name : item.detail}`).join("\n"),
     "",
     "Operating rule: email can be sent from VYVA after review; social, phone, print, event, SMS, and WhatsApp remain manual or planning handoffs unless their provider route is explicitly enabled.",
   ].join("\n");
@@ -42779,6 +42846,49 @@ function MarketingCalendarView({
                 </span>
               </button>
             ))}
+          </div>
+        </div>
+        <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3" data-testid="marketing-calendar-post-launch-loop">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">After launch loop</p>
+              <p className="mt-1 text-xs font-bold leading-relaxed text-[#5b4a46]">
+                Publishing is not the finish line. Capture outcomes, read the signals, and turn warm responses into the next relationship move.
+              </p>
+            </div>
+            <Pill className={campaignNeedingFollowUp ? "bg-emerald-100 text-emerald-900" : "bg-white text-[#7d6b65]"}>
+              {campaignsWithTrackedResults.length} tracked
+            </Pill>
+          </div>
+          <div className="mt-3 grid gap-2 xl:grid-cols-4">
+            {postLaunchLoopItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => item.campaign ? onEdit(item.campaign) : undefined}
+                  disabled={!item.campaign}
+                  className={`flex min-h-[150px] flex-col rounded-xl border bg-white p-3 text-left shadow-sm transition enabled:hover:border-emerald-300 enabled:hover:shadow-md disabled:cursor-default ${readinessClass(item.state)}`}
+                  data-testid={`button-marketing-calendar-post-launch-${item.key}`}
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="flex items-center gap-2">
+                      <span className="grid h-8 w-8 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm">
+                        <Icon size={15} aria-hidden="true" />
+                      </span>
+                      <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-700 text-[11px] font-black text-white">{index + 1}</span>
+                    </span>
+                    <Pill className={readinessPillClass(item.state)}>{item.value}</Pill>
+                  </span>
+                  <span className="mt-2 block text-sm font-black text-[#241133]">{item.title}</span>
+                  <span className="mt-2 line-clamp-3 block flex-1 text-xs font-bold leading-relaxed text-[#5b4a46]">{item.detail}</span>
+                  <span className={`mt-3 inline-flex items-center gap-1 text-xs font-black ${item.campaign ? "text-emerald-800" : "text-[#8b7a73]"}`}>
+                    {item.actionLabel} {item.campaign ? <ExternalLink size={12} aria-hidden="true" /> : null}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
         {calendarPlannerItems.length ? (
