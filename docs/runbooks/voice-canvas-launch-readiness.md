@@ -207,6 +207,8 @@ For final sign-off rows, notes must be concrete and role-specific: Product cover
 
 Per-flow rollback runbooks include a copy-safe rollback owner handoff template. Before enabling any percentage rollout, fill that handoff in the launch record with owner/backup, decision window, trigger, rollback action, sanitized endpoint/fallback/open-session evidence, and privacy boundary. Do not launch with an unnamed rollback owner.
 
+Use the rollback owner handoff copy-ready evidence note in `docs/audits/voice-canvas-real-device-evidence-packet.md` before filling the Operations/rollback owner final sign-off. It requires owner and backup, decision window, rollback trigger, enable-false or disabled rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness.
+
 Run the sign-off gate after filling the matrix:
 
 ```bash

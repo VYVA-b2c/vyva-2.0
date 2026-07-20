@@ -80,6 +80,8 @@ Final Operations/rollback-owner sign-off validation now rejects generic rollback
 
 Evidence packet and QA matrix artifact inventories now include a required rollback owner handoff artifact row, so Operations sign-off evidence has a concrete sanitized artifact reference instead of living only in final-note prose.
 
+Evidence packet copy-ready note patterns now include the Operations rollback-owner handoff, and packet validation rejects patterns that omit backup owner, decision window, rollback trigger, enable-false/rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed/hidden behavior, privacy boundary, or fallback readiness.
+
 Privacy review rows now require the result and evidence to name the specific forbidden data class; generic no-sensitive-data wording is rejected.
 
 Device coverage evidence now requires dated real phone, tablet, and desktop/laptop coverage plus screenshot, photo, or artifact evidence with no transcripts, entered text, addresses, or personal details; generic prose-only device evidence, generic screenshot evidence, and sensitive artifact evidence are rejected.

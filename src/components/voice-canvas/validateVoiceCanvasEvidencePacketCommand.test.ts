@@ -428,6 +428,32 @@ describe("Voice Canvas evidence packet validator command", () => {
       },
     ));
 
+  it("rejects rollback owner handoff note patterns without handoff proof", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "Operations/rollback owner and backup owner, decision window, rollback trigger, enable false or disabled rollout 0 rollback action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness were confirmed.",
+        "Operations rollback was confirmed.",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Copy-ready evidence note pattern "Rollback owner handoff" is missing required launch evidence wording.',
+          ]),
+        );
+      },
+    ));
+
   it("rejects analytics evidence note patterns without launch-flow coverage", () =>
     withTempPacket(
       completedPacket().replace(
