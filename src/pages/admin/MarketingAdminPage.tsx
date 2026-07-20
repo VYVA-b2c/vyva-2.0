@@ -36977,32 +36977,60 @@ export default function MarketingAdminPage() {
                     const primary = shortcut.primary;
                     if (!primary) return null;
                     return (
-                      <button
+                      <article
                         key={shortcut.key}
-                        type="button"
-                        onClick={() => {
-                          setContentTemplatePackFilter(primary.pack.id);
-                          setContentTemplateSearch("");
-                          setContentTemplateChannelFilter("all");
-                          setContentTemplateAudienceFilter("all");
-                          setContentTemplateCategoryFilter("all");
-                          setContentActionFeedback(`Smart shortcut selected: ${shortcut.title}. Showing ${primary.pack.title} template pack.`);
-                        }}
-                        className={`min-h-[150px] rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-purple-300 hover:bg-purple-50 ${selectedContentTemplatePack?.id === primary.pack.id ? "border-purple-300 bg-purple-50 ring-4 ring-purple-100" : "border-[#eadfd5] bg-white"}`}
-                        data-testid={`button-marketing-smart-template-shortcut-${shortcut.key}`}
+                        className={`flex min-h-[220px] flex-col justify-between rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-purple-300 hover:bg-purple-50 ${selectedContentTemplatePack?.id === primary.pack.id ? "border-purple-300 bg-purple-50 ring-4 ring-purple-100" : "border-[#eadfd5] bg-white"}`}
+                        data-testid={`marketing-smart-template-shortcut-${shortcut.key}`}
                       >
-                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-800">
-                          <Icon size={18} aria-hidden="true" />
-                        </span>
-                        <span className="mt-3 block font-serif text-lg text-[#241133]">{shortcut.title}</span>
-                        <span className="mt-1 block text-xs font-bold leading-relaxed text-[#6f5f59]">{shortcut.prompt}</span>
-                        <span className="mt-3 flex flex-wrap gap-1.5">
-                          <Pill className="bg-purple-50 text-purple-800">{primary.pack.title}</Pill>
-                          <Pill className="bg-emerald-50 text-emerald-800">{shortcut.reachableContactCount} contacts</Pill>
-                          <Pill className="bg-sky-50 text-sky-800">{shortcut.channelCount} routes</Pill>
-                          <Pill className="bg-amber-50 text-amber-800">{shortcut.templateCount} templates</Pill>
-                        </span>
-                      </button>
+                        <div>
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-800">
+                            <Icon size={18} aria-hidden="true" />
+                          </span>
+                          <h4 className="mt-3 font-serif text-lg text-[#241133]">{shortcut.title}</h4>
+                          <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{shortcut.prompt}</p>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            <Pill className="bg-purple-50 text-purple-800">{primary.pack.title}</Pill>
+                            <Pill className="bg-emerald-50 text-emerald-800">{shortcut.reachableContactCount} contacts</Pill>
+                            <Pill className="bg-sky-50 text-sky-800">{shortcut.channelCount} routes</Pill>
+                            <Pill className="bg-amber-50 text-amber-800">{shortcut.templateCount} templates</Pill>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setContentTemplatePackFilter(primary.pack.id);
+                              setContentTemplateSearch("");
+                              setContentTemplateChannelFilter("all");
+                              setContentTemplateAudienceFilter("all");
+                              setContentTemplateCategoryFilter("all");
+                              setContentActionFeedback(`Smart shortcut selected: ${shortcut.title}. Showing ${primary.pack.title} template pack.`);
+                            }}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50"
+                            data-testid={`button-marketing-smart-template-shortcut-${shortcut.key}`}
+                          >
+                            <Search size={13} /> Open pack
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => loadContentTemplatePackInStudio(primary.pack, primary.heroTemplate, primary.channels)}
+                            disabled={contentSaving}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-[#241133] px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid={`button-marketing-smart-template-shortcut-studio-${shortcut.key}`}
+                          >
+                            <Sparkles size={13} /> Customize
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void createCampaignPlanFromTemplatePack(primary.pack, primary.templates, primary.heroTemplate)}
+                            disabled={contentSaving || campaignSaving || primary.templates.length === 0}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid={`button-marketing-smart-template-shortcut-create-${shortcut.key}`}
+                          >
+                            <Zap size={13} /> Create kit
+                          </button>
+                        </div>
+                      </article>
                     );
                   })}
                 </div>

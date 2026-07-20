@@ -2826,7 +2826,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Family nurture");
     expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Full launch");
-    expect(screen.getByTestId("button-marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Spain local activation");
+    expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Customize");
+    expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Create kit");
+    expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Spain local activation");
+    expect(screen.getByTestId("button-marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Open pack");
     fireEvent.click(screen.getByTestId("button-marketing-smart-template-shortcut-local-spain"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Smart shortcut selected: Local Spain activation. Showing Spain local activation template pack.");
     expect(screen.getByTestId("marketing-template-pack-spain-local-activation")).toHaveTextContent("Viewing");
