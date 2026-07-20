@@ -5630,6 +5630,16 @@ describe("MarketingAdminPage", () => {
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn creative direction"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign creative direction board copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-brand-review")).toHaveTextContent("Brand review board");
+    expect(screen.getByTestId("marketing-campaign-studio-brand-review-brand")).toHaveTextContent("Brand fit");
+    expect(screen.getByTestId("marketing-campaign-studio-brand-review-claims")).toHaveTextContent("No risky claim flagged");
+    expect(screen.getByTestId("marketing-campaign-studio-brand-review-channels")).toHaveTextContent("1 route");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-brand-review"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign brand review board"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Reviewer instruction"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign brand review board copied.");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality")).toHaveTextContent("Copy checks before create");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-subject")).toHaveTextContent("Opening hook");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-cta")).toHaveTextContent("Ready");
@@ -6433,6 +6443,24 @@ describe("MarketingAdminPage", () => {
               text: expect.stringContaining("Email creative direction"),
             }),
           ],
+          brandReview: expect.objectContaining({
+            state: "ready",
+            text: expect.stringContaining("VYVA campaign brand review board"),
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                key: "brand",
+                title: "Brand fit",
+              }),
+              expect.objectContaining({
+                key: "claims",
+                value: "No risky claim flagged",
+              }),
+              expect.objectContaining({
+                key: "handoff",
+                title: "Production handoff",
+              }),
+            ]),
+          }),
         },
         targetAudience: {
           name: "Partners",

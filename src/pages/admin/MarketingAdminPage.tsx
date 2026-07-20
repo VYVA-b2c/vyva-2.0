@@ -943,6 +943,15 @@ type CampaignStudioCreativeDirectionItem = {
   text: string;
 };
 
+type CampaignStudioBrandReviewItem = {
+  key: string;
+  title: string;
+  value: string;
+  detail: string;
+  state: CampaignReadinessState;
+  text: string;
+};
+
 type CampaignStudioApprovalPackItem = {
   key: string;
   title: string;
@@ -15964,6 +15973,76 @@ export default function MarketingAdminPage() {
     "",
     ...campaignStudioCreativeDirections.map((item) => item.text),
   ].join("\n\n---\n\n");
+  const campaignStudioClaimRisk = /\b(cure|diagnose|guarantee|prevent dementia|medical advice|treatment plan)\b/i.test([
+    campaignStudioGenerated.subject,
+    campaignStudioGenerated.body,
+    campaignStudioGenerated.ctaLabel,
+  ].join(" "));
+  const campaignStudioBrandReviewItems: CampaignStudioBrandReviewItem[] = [
+    {
+      key: "brand",
+      title: "Brand fit",
+      value: campaignStudioVisualStyle,
+      state: "ready",
+      detail: "Keeps the route calm, useful, human, and recognizably VYVA instead of generic marketing copy.",
+      text: `Brand fit: use a ${campaignStudioVisualStyle} look with VYVA purple accents, clear spacing, and a practical care-team feel.`,
+    },
+    {
+      key: "claims",
+      title: "Consent-safe claims",
+      value: campaignStudioClaimRisk ? "Review language" : "No risky claim flagged",
+      state: campaignStudioClaimRisk ? "needs_action" : "ready",
+      detail: campaignStudioClaimRisk
+        ? "The draft may imply clinical, diagnostic, or guaranteed outcomes. Review before any public route."
+        : "The draft reads as practical support rather than a medical promise.",
+      text: campaignStudioClaimRisk
+        ? "Claims review: remove clinical, diagnostic, guaranteed, or treatment-style wording before publishing."
+        : "Claims review: keep language practical, non-clinical, consent-aware, and focused on support or coordination.",
+    },
+    {
+      key: "readability",
+      title: "Readability",
+      value: `${campaignStudioBodyWordCount} words`,
+      state: campaignStudioBodyWordCount === 0 || campaignStudioBodyWordCount > 180 ? "needs_action" : "ready",
+      detail: campaignStudioBodyWordCount === 0
+        ? "Add body copy before handing this to a designer, sender, or publisher."
+        : campaignStudioBodyWordCount > 180
+          ? "Trim or split the message so older adults, families, and busy partners can scan it quickly."
+          : "Good length for a clear first creative route.",
+      text: `Readability review: ${campaignStudioBodyWordCount} words. Keep the first visible message short, direct, and easy to scan.`,
+    },
+    {
+      key: "channels",
+      title: "Channel consistency",
+      value: `${campaignStudioSelectedChannels.length} route${campaignStudioSelectedChannels.length === 1 ? "" : "s"}`,
+      state: campaignStudioCreativeDirections.every((item) => item.state !== "blocked") ? "ready" : "blocked",
+      detail: "Every selected channel should carry the same offer, CTA, consent posture, and follow-up owner.",
+      text: `Channel consistency: keep ${formatChannelList(campaignStudioSelectedChannels)} aligned around "${campaignStudioGenerated.ctaLabel || campaignStudioOfflineCta}" and the same follow-up owner.`,
+    },
+    {
+      key: "handoff",
+      title: "Production handoff",
+      value: `${campaignStudioCreativeDirections.length} briefs`,
+      state: campaignStudioCreativeDirections.length ? "ready" : "blocked",
+      detail: "Design, publishing, and manual channel owners get a compact brief before work leaves the studio.",
+      text: `Production handoff: use the ${campaignStudioCreativeDirections.length} creative direction brief${campaignStudioCreativeDirections.length === 1 ? "" : "s"} plus the channel publishing guide before launch.`,
+    },
+  ];
+  const campaignStudioBrandReviewState: CampaignReadinessState = campaignStudioBrandReviewItems.some((item) => item.state === "blocked")
+    ? "blocked"
+    : campaignStudioBrandReviewItems.some((item) => item.state === "needs_action")
+      ? "needs_action"
+      : "ready";
+  const campaignStudioBrandReviewText = [
+    "VYVA campaign brand review board",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${campaignStudioOfflineAudienceName}`,
+    `Overall: ${readinessLabel(campaignStudioBrandReviewState)}`,
+    "",
+    ...campaignStudioBrandReviewItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} | ${item.value} | ${item.detail}\n  ${item.text}`),
+    "",
+    "Reviewer instruction: approve only when the campaign is clear, consent-safe, readable, visually consistent, and has a named owner for follow-up.",
+  ].join("\n");
   const campaignStudioCreativeQualityItems: CampaignCreativeQualityItem[] = [
     {
       key: "subject",
@@ -17163,6 +17242,18 @@ export default function MarketingAdminPage() {
       state: item.state,
       text: item.text,
     })),
+    brandReview: {
+      state: campaignStudioBrandReviewState,
+      items: campaignStudioBrandReviewItems.map((item) => ({
+        key: item.key,
+        title: item.title,
+        value: item.value,
+        detail: item.detail,
+        state: item.state,
+        text: item.text,
+      })),
+      text: campaignStudioBrandReviewText,
+    },
     followUpPlays: campaignStudioFollowUpPlays.map((item) => ({
       key: item.key,
       title: item.title,
@@ -29568,6 +29659,41 @@ export default function MarketingAdminPage() {
                               <p><span className="font-black text-[#241133]">Style:</span> {item.style}</p>
                               <p><span className="font-black text-[#241133]">Handoff:</span> {item.productionNote}</p>
                             </div>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/40 p-4" data-testid="marketing-campaign-studio-brand-review">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-fuchsia-800">Brand review board</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Check it before it leaves VYVA</h3>
+                          <p className="mt-1 text-xs font-bold text-[#66506b]">
+                            A reviewer-friendly pass for brand fit, claims, readability, channel consistency, and production handoff.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className={readinessPillClass(campaignStudioBrandReviewState)}>{readinessLabel(campaignStudioBrandReviewState)}</Pill>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign brand review board", campaignStudioBrandReviewText)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-fuchsia-200 bg-white px-3 text-sm font-black text-fuchsia-800 hover:bg-fuchsia-50"
+                            data-testid="button-marketing-campaign-studio-copy-brand-review"
+                          >
+                            <Copy size={14} /> Copy review board
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2 xl:grid-cols-5" data-testid="marketing-campaign-studio-brand-review-items">
+                        {campaignStudioBrandReviewItems.map((item) => (
+                          <article key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-brand-review-${item.key}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-xs font-black uppercase tracking-[0.08em] opacity-80">{item.title}</p>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <p className="mt-2 text-sm font-black text-[#241133]">{item.value}</p>
+                            <p className="mt-2 line-clamp-4 text-xs font-bold leading-relaxed text-[#66506b]">{item.detail}</p>
                           </article>
                         ))}
                       </div>
