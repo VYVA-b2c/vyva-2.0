@@ -2838,6 +2838,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Assets");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Email send");
     expect(screen.getByTestId("marketing-template-pack-kit-glance-caregiver-invite-activation")).toHaveTextContent("Manual handoff");
+    expect(screen.getByTestId("marketing-template-pack-visual-kit-caregiver-invite-activation")).toHaveTextContent("Visual kit preview");
+    expect(screen.getByTestId("marketing-template-pack-visual-kit-caregiver-invite-activation")).toHaveTextContent("Hero asset");
+    expect(screen.getByTestId("marketing-template-pack-visual-kit-caregiver-invite-activation")).toHaveTextContent("Caregiver invite acceptance email");
+    expect(screen.getByTestId("marketing-template-pack-visual-kit-caregiver-invite-activation")).toHaveTextContent("Email");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-copy-playbook-caregiver-invite-activation"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template pack playbook"));

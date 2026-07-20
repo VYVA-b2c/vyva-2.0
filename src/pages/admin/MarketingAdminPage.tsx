@@ -37187,6 +37187,12 @@ export default function MarketingAdminPage() {
                     const playbookPrimary = heroTemplate ?? templates[0] ?? null;
                     const emailRouteCount = sequenceChannels.filter((channel) => channel === "email").length;
                     const manualRouteCount = sequenceChannels.filter((channel) => channel !== "email").length;
+                    const visualKitPreviewTemplates = [
+                      ...(playbookPrimary ? [playbookPrimary] : []),
+                      ...templates.filter((template) => template.id !== playbookPrimary?.id),
+                    ].slice(0, 3);
+                    const visualKitPrimaryBrief = playbookPrimary ? contentTemplateDesignBrief(playbookPrimary) : null;
+                    const visualKitPrimaryPalette = playbookPrimary ? contentTemplatePreviewPalette(playbookPrimary) : [];
                     return (
                       <article
                         key={pack.id}
@@ -37254,6 +37260,48 @@ export default function MarketingAdminPage() {
                             >
                               <Palette size={14} /> Copy visual kit
                             </button>
+                          </div>
+                          <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/60 p-3" data-testid={`marketing-template-pack-visual-kit-${pack.id}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-sky-900">Visual kit preview</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed text-[#52656f]">
+                                  Hero asset, channel-native production notes, palette, and the first assets to brief for design or AI image generation.
+                                </p>
+                              </div>
+                              <Pill className="bg-white text-sky-800">{visualKitPreviewTemplates.length} brief{visualKitPreviewTemplates.length === 1 ? "" : "s"}</Pill>
+                            </div>
+                            {playbookPrimary ? (
+                              <div className="mt-3 rounded-lg border border-sky-100 bg-white px-3 py-2 text-xs font-bold text-[#52656f]">
+                                <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-sky-800">Hero asset</span>
+                                <span className="mt-1 block text-[#241133]">{playbookPrimary.title}</span>
+                                <span className="mt-1 block">{visualKitPrimaryBrief?.layout ?? `${channelLabel[playbookPrimary.channel]} layout`} / {visualKitPrimaryBrief?.visual || playbookPrimary.description}</span>
+                                {visualKitPrimaryPalette.length ? (
+                                  <span className="mt-2 flex gap-1.5" aria-label="Hero palette">
+                                    {visualKitPrimaryPalette.slice(0, 4).map((color) => (
+                                      <span key={`${pack.id}-${color}`} className="h-4 w-8 rounded-full border border-white shadow-sm" style={{ backgroundColor: color }} />
+                                    ))}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                            <div className="mt-2 grid gap-2">
+                              {visualKitPreviewTemplates.map((template) => {
+                                const designBrief = contentTemplateDesignBrief(template);
+                                return (
+                                  <div key={`${pack.id}-${template.id}-visual`} className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <Pill className={channelClass(template.channel)}>{channelLabel[template.channel]}</Pill>
+                                      <Pill className="bg-[#f5eee8] text-[#5b4a46]">{displayText(designBrief.layout) || "layout"}</Pill>
+                                    </div>
+                                    <p className="mt-1 text-xs font-black text-[#241133]">{template.title}</p>
+                                    <p className="mt-0.5 line-clamp-2 text-xs font-semibold leading-relaxed text-[#6f5f59]">
+                                      {designBrief.visual || displayText(recordValue(template.designJson).visualPrompt) || template.description}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                           <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`marketing-template-pack-sequence-${pack.id}`}>
                             <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Recommended sequence</p>
