@@ -815,6 +815,8 @@ const ProvidersSection = () => {
 
   const categoryLabel = activeCategoryDef?.label ?? "provider";
   const visibleProviders = providers.filter((provider) => provider.category === activeCategory);
+  const defaultProvider = visibleProviders.find((provider) => provider.is_default) ?? null;
+  const defaultProviderReadiness = defaultProvider ? savedProviderContactReadiness(defaultProvider) : null;
 
   return (
     <div className="min-h-screen bg-vyva-cream flex flex-col">
@@ -860,6 +862,39 @@ const ProvidersSection = () => {
             setSearchKey((k) => k + 1);
           }}
         />
+
+        <section
+          className="rounded-[18px] border border-vyva-border bg-white px-4 py-4 shadow-sm"
+          data-testid="provider-concierge-default-summary"
+        >
+          <div className="flex items-start gap-3">
+            <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] ${
+              defaultProviderReadiness?.conciergeUsable
+                ? "bg-[#ECFDF5]"
+                : "bg-[#FFF7ED]"
+            }`}>
+              <ShieldCheck
+                size={18}
+                className={defaultProviderReadiness?.conciergeUsable ? "text-[#047857]" : "text-[#9A3412]"}
+                aria-hidden="true"
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="font-body text-[13px] font-black text-vyva-text-1">
+                {defaultProviderReadiness?.conciergeUsable && defaultProvider
+                  ? `Concierge will use ${defaultProvider.name}`
+                  : `No ready default ${categoryLabel.toLowerCase()} yet`}
+              </p>
+              <p className="mt-1 font-body text-[12px] font-semibold leading-relaxed text-vyva-text-2">
+                {defaultProviderReadiness?.conciergeUsable
+                  ? `${defaultProviderReadiness.label}. VYVA still asks before calling, sending, or booking.`
+                  : defaultProvider
+                    ? "Add a phone, email, WhatsApp, website, or booking link so Concierge can use this provider after your OK."
+                    : `Choose a saved ${categoryLabel.toLowerCase()} as default, or add one below.`}
+              </p>
+            </div>
+          </div>
+        </section>
 
         {setupNotice ? (
           <div
