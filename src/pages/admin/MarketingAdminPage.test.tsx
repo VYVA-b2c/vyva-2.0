@@ -1499,6 +1499,7 @@ describe("MarketingAdminPage", () => {
     await screen.findByRole("heading", { name: "Marketing" });
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Email launch");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Publish today");
+    expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Relationship queue");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Consent review");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Offline field run");
@@ -1520,6 +1521,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-calendar-tab")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Publishing ops queue");
     expect(screen.getByText("Saved view: publish today. Review scheduled campaigns, due sends, channel handoffs, and launch blockers.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-marketing-saved-view-relationships"));
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Showing "B2B partner nurture" queue: 1 partner.');
+    expect(screen.getByText("Saved view: relationship queue. B2B partner nurture is ready for review.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-saved-view-offline"));
     expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();

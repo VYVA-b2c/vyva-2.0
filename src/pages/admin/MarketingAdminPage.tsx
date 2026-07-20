@@ -106,7 +106,7 @@ type MarketingSmartSearchResult = {
   icon: LucideIcon;
   onSelect: () => void;
 };
-type MarketingSavedViewKey = "launch" | "publish" | "consent" | "partner" | "offline" | "creative" | "source";
+type MarketingSavedViewKey = "launch" | "publish" | "relationships" | "consent" | "partner" | "offline" | "creative" | "source";
 type MarketingSavedView = {
   key: MarketingSavedViewKey;
   title: string;
@@ -12215,6 +12215,18 @@ export default function MarketingAdminPage() {
       setActiveTab("calendar");
       setSearch("");
       setMessage("Saved view: publish today. Review scheduled campaigns, due sends, channel handoffs, and launch blockers.");
+      return;
+    }
+    if (viewKey === "relationships") {
+      const queue = contactRelationshipPriorityQueue;
+      if (queue) {
+        showContactWorkQueue(queue);
+        setMessage(`Saved view: relationship queue. ${queue.title} is ready for review.`);
+      } else {
+        setActiveTab("contacts");
+        setContactView("contacts");
+        setMessage("Saved view: relationship queue. Import or create contacts to start relationship work.");
+      }
       return;
     }
     if (viewKey === "consent") {
@@ -27893,6 +27905,7 @@ export default function MarketingAdminPage() {
   const savedViewPublishCount = dueReadyEmailCampaigns.length
     + (scheduledEmailCampaignWithoutRecipients ? 1 : 0)
     + manualHandoffCampaigns.length;
+  const savedViewRelationshipCount = contactRelationshipPriorityQueue?.count ?? contactRelationshipWorkQueues.reduce((total, queue) => total + queue.count, 0);
   const marketingSavedViews: MarketingSavedView[] = [
     {
       key: "launch",
@@ -27917,6 +27930,18 @@ export default function MarketingAdminPage() {
       className: savedViewPublishCount
         ? "border-amber-100 bg-amber-50 text-amber-950"
         : "border-emerald-100 bg-emerald-50 text-emerald-950",
+    },
+    {
+      key: "relationships",
+      title: "Relationship queue",
+      detail: "Highest-priority contacts for consent, enrichment, follow-up, or partner nurture.",
+      countLabel: savedViewRelationshipCount
+        ? `${savedViewRelationshipCount} contacts`
+        : "empty",
+      icon: UsersRound,
+      className: savedViewRelationshipCount
+        ? "border-violet-100 bg-violet-50 text-violet-950"
+        : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46]",
     },
     {
       key: "consent",
