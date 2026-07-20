@@ -38,6 +38,10 @@ function freshGeneratedAt(): string {
   return new Date(Date.now() - 60_000).toISOString();
 }
 
+function freshReviewDate(): string {
+  return new Date(Date.now() - 60_000).toISOString().slice(0, 10);
+}
+
 const launchFeatureFlows = canvasLaunchReadinessFlows.filter(
   (flow) => flow.featureFlag,
 );
@@ -139,6 +143,58 @@ function validFeatureEndpointArtifact(mode: "enabled" | "rollback") {
   };
 }
 
+function validRollbackOwnerHandoffArtifact(): string {
+  const reviewedOn = freshReviewDate();
+  const lines = [
+    "# Voice Canvas rollback owner handoff artifact",
+    "",
+    "Use this copy-safe artifact for final Operations/rollback owner sign-off. Replace bracketed placeholders only after the deployed launch run is reviewed.",
+    "",
+    "Do not paste addresses, saved-place labels, spoken transcripts, entered text, medication details, provider details, shopping details, account identifiers, contact details, screenshots with personal data, raw endpoint bodies, unexpected payload field names, or personal data.",
+    "",
+    `Reviewed on: ${reviewedOn}`,
+    "Reviewer: QA Launch Reviewer",
+    "Operations/rollback owner: Ops Launch Owner",
+    "Backup owner: Ops Backup Owner",
+    "Decision window: launch monitoring window after enablement",
+    "Rollback trigger: any confirmed Canvas confusion, stale response, duplicate action, privacy, or fallback readiness issue",
+    "Rollback action: enable false and disabled rollout 0 action available for all Canvas flags",
+    "Privacy boundary: sanitized artifact references only with no personal details",
+    "Fallback readiness: existing Concierge fallback verified and ready",
+    "",
+    "## Required sanitized evidence",
+    "",
+    "- Enabled endpoint artifact: artifacts/voice-canvas/2026-07-20-feature-endpoints-enabled.json verified endpoint evidence",
+    "- Rollback-disabled endpoint artifact: artifacts/voice-canvas/2026-07-20-feature-endpoints-rollback-disabled.json verified rollback-disabled endpoint evidence",
+    "- Fallback visibility artifact: artifacts/voice-canvas/2026-07-20-fallback-visibility.md verified fallback visibility",
+    "- Open-session Canvas closed or hidden artifact: artifacts/voice-canvas/2026-07-20-open-session-rollback.md verified open-session Canvas closed or hidden behavior",
+    "- No-write/no-resubmission/no-external-action evidence: artifacts/voice-canvas/2026-07-20-no-side-effects.md verified no-write no-resubmission no-external-action behavior",
+    "",
+    "## Launch manifest coverage",
+  ];
+
+  for (const flow of launchFeatureFlows) {
+    lines.push(
+      "",
+      `### ${flow.label}`,
+      "",
+      `- Endpoint: ${flow.featureFlag!.endpoint}`,
+      `- Server key: ${flow.featureFlag!.serverFeatureKey}`,
+      `- Named fallback path: ${flow.featureFlag!.fallback}`,
+      "- Handoff confirmation: owner and backup can disable this flag, verify rollback-disabled endpoint payload, confirm Canvas closed or hidden in an open session, and confirm the named fallback path is visible",
+    );
+  }
+
+  lines.push(
+    "",
+    "## Copy-ready final sign-off note",
+    "",
+    `Operations/rollback owner sign-off, reviewed on ${reviewedOn} by QA Launch Reviewer: rollback owner Ops Launch Owner and backup owner Ops Backup Owner confirmed the decision window launch monitoring window after enablement, rollback trigger any confirmed Canvas confusion or privacy issue, enable false or disabled rollout 0 rollback action for all Canvas flags, sanitized endpoint/fallback/open-session evidence artifacts/voice-canvas/2026-07-20-rollback-owner-handoff.md, Canvas closed or hidden behavior, privacy boundary, no write, no resubmission, no external action, and fallback readiness before launch.`,
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
 function withTempAnalyticsFile<T>(
   value: unknown,
   callback: (inputPath: string) => T,
@@ -172,6 +228,21 @@ function withTempFeatureEndpointFiles<T>(
   }
 }
 
+function withTempRollbackOwnerFile<T>(
+  value: string,
+  callback: (inputPath: string) => T,
+): T {
+  const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-preflight-rollback-owner-"));
+  const inputPath = path.join(tempDir, "rollback-owner-handoff.md");
+  writeFileSync(inputPath, value);
+
+  try {
+    return callback(inputPath);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 describe("Voice Canvas launch readiness preflight command", () => {
   it("prints a copy-safe preflight runbook", () => {
     const result = runPreflight(["--help"]);
@@ -188,10 +259,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run canvas:qa:preflight -- --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
     );
     expect(result.stdout).toContain(
+      "npm run canvas:qa:preflight -- --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md",
+    );
+    expect(result.stdout).toContain(
       "npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
     );
     expect(result.stdout).toContain(
-      "unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, and analytics evidence are ready",
+      "unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, and rollback owner handoff are ready",
     );
     expect(result.stdout).toContain("generated within the last 7 days");
     expect(result.stdout).toContain("This preflight is read-only");
@@ -216,6 +290,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "Analytics evidence: not provided; samples 0; problems 0",
+    );
+    expect(result.stdout).toContain(
+      "Rollback owner evidence: not provided; reviewed unknown; problems 0",
     );
     expect(result.stdout).toContain(
       "Feature endpoints enabled: not provided; endpoints 0; problems 0",
@@ -285,6 +362,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.",
     );
+    expect(result.stdout).toContain(
+      "Provide --rollback-owner=<path> for the sanitized rollback owner handoff artifact before final launch sign-off.",
+    );
     expect(result.stdout).toContain("Run sheet pending sections:");
     expect(result.stdout).toContain("Run sheet next evidence area:");
     expect(result.stdout).toContain("QA matrix pending sections:");
@@ -316,6 +396,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md",
     );
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json",
+    );
     expect(
       result.stdout.indexOf(
         "npm run --silent canvas:qa:analytics -- --template",
@@ -326,7 +409,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       ),
     );
     expect(result.stdout).toContain(
-      "npm run --silent canvas:qa:preflight -- --final --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     );
   });
 
@@ -381,6 +464,14 @@ describe("Voice Canvas launch readiness preflight command", () => {
         problemCount: number;
         problems: string[];
         coveredFlows: string[];
+      };
+      rollbackOwnerEvidence: {
+        provided: boolean;
+        readyForLaunchEvidence: boolean;
+        reviewedOn: string;
+        requiredFlowCount: number;
+        problemCount: number;
+        problems: string[];
       };
       featureEndpointEvidence: {
         enabled: {
@@ -448,6 +539,14 @@ describe("Voice Canvas launch readiness preflight command", () => {
       problems: [],
       coveredFlows: [],
     });
+    expect(summary.rollbackOwnerEvidence).toMatchObject({
+      provided: false,
+      readyForLaunchEvidence: false,
+      reviewedOn: "unknown",
+      requiredFlowCount: 0,
+      problemCount: 0,
+      problems: [],
+    });
     expect(summary.featureEndpointEvidence.enabled).toMatchObject({
       provided: false,
       readyForLaunchEvidence: false,
@@ -476,10 +575,11 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:analytics -- --template",
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md",
+      "npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json",
       "npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
-      "npm run --silent canvas:qa:preflight -- --final --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     ]);
     expect(summary.message).toBe(
       "Voice Canvas launch evidence gates are structurally valid but still pending real-device QA.",
@@ -568,6 +668,58 @@ describe("Voice Canvas launch readiness preflight command", () => {
           endpointCount: launchFeatureFlows.length,
           problemCount: 0,
         });
+      },
+    ));
+
+  it("includes sanitized rollback owner handoff artifacts in the preflight summary", () =>
+    withTempRollbackOwnerFile(validRollbackOwnerHandoffArtifact(), (inputPath) => {
+      const result = runPreflight([`--rollback-owner=${inputPath}`, "--json"]);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+
+      const summary = JSON.parse(result.stdout) as {
+        acceptedPending: boolean;
+        rollbackOwnerEvidence: {
+          provided: boolean;
+          readyForLaunchEvidence: boolean;
+          reviewedOn: string;
+          requiredFlowCount: number;
+          problemCount: number;
+          problems: string[];
+        };
+      };
+
+      expect(summary.acceptedPending).toBe(true);
+      expect(summary.rollbackOwnerEvidence).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+        reviewedOn: freshReviewDate(),
+        requiredFlowCount: launchFeatureFlows.length,
+        problemCount: 0,
+        problems: [],
+      });
+    }));
+
+  it("rejects unsafe rollback owner handoff artifacts without echoing personal values", () =>
+    withTempRollbackOwnerFile(
+      validRollbackOwnerHandoffArtifact().replace(
+        "sanitized artifact references only with no personal details",
+        "sanitized artifact references include 123 Secret Street",
+      ),
+      (inputPath) => {
+        const result = runPreflight([`--rollback-owner=${inputPath}`]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).toContain("Rollback owner evidence problems:");
+        expect(result.stdout).toContain(
+          "Rollback owner handoff artifact appears to include personal details.",
+        );
+        expect(result.stdout).toContain(
+          "Fix sanitized rollback owner handoff evidence before launch sign-off.",
+        );
+        expect(result.stdout).not.toContain("123 Secret Street");
       },
     ));
 
@@ -1086,5 +1238,12 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(enabledResult.stderr).toContain("Expected --features-enabled=<path>.");
     expect(rollbackResult.status).toBe(1);
     expect(rollbackResult.stderr).toContain("Expected --features-rollback=<path>.");
+  });
+
+  it("rejects empty rollback owner handoff artifact paths", () => {
+    const result = runPreflight(["--rollback-owner="]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Expected --rollback-owner=<path>.");
   });
 });

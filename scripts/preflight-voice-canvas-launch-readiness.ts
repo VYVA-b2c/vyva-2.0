@@ -36,6 +36,10 @@ const analyticsPathArg = args
   .find((arg) => arg.startsWith("--analytics="))
   ?.slice("--analytics=".length)
   .trim();
+const rollbackOwnerArg = args.find((arg) => arg.startsWith("--rollback-owner="));
+const rollbackOwnerPathArg = rollbackOwnerArg
+  ?.slice("--rollback-owner=".length)
+  .trim();
 
 const tsxCliPath = path.resolve(
   process.cwd(),
@@ -64,6 +68,11 @@ const analyticsValidatorPath = path.resolve(
   "scripts",
   "validate-voice-canvas-analytics-evidence.ts",
 );
+const rollbackOwnerValidatorPath = path.resolve(
+  process.cwd(),
+  "scripts",
+  "prepare-voice-canvas-rollback-owner-handoff.ts",
+);
 
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
@@ -77,12 +86,14 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
       "  npm run canvas:qa:preflight -- --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
       "  npm run canvas:qa:preflight -- --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
+      "  npm run canvas:qa:preflight -- --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md",
       "  npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
       "",
       "Default mode accepts a structurally valid pending run sheet, matrix, and packet so QA can capture an in-progress launch artifact.",
       "Pass --features-enabled=<path> and --features-rollback=<path> to validate sanitized endpoint collector artifacts generated within the last 7 days.",
       "Pass --analytics=<path> to validate sanitized analytics evidence generated within the last 7 days in the same aggregate-only snapshot.",
-      "Use --final after real-device evidence is filled; it exits non-zero unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, and analytics evidence are ready.",
+      "Pass --rollback-owner=<path> to validate the sanitized rollback owner handoff artifact generated within the last 7 days.",
+      "Use --final after real-device evidence is filled; it exits non-zero unless the run sheet, matrix, packet, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, and rollback owner handoff are ready.",
       "Use --json to emit a machine-readable summary for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
@@ -106,6 +117,10 @@ if (featureRollbackArg && !featureRollbackPathArg) {
 }
 if (analyticsArg && !analyticsPathArg) {
   console.error("Expected --analytics=<path>.");
+  process.exit(1);
+}
+if (rollbackOwnerArg && !rollbackOwnerPathArg) {
+  console.error("Expected --rollback-owner=<path>.");
   process.exit(1);
 }
 if (outputPathArg && !jsonOutput) {
@@ -516,6 +531,7 @@ function messagesForNextAction(
   matrixRun: ValidatorRun,
   packetRun: ValidatorRun,
   analyticsRun: ValidatorRun | null,
+  rollbackOwnerRun: ValidatorRun | null,
   enabledFeatures: FeatureEndpointArtifactValidation,
   rollbackFeatures: FeatureEndpointArtifactValidation,
 ): string[] {
@@ -528,6 +544,10 @@ function messagesForNextAction(
   const matrixProblems = numericField(matrixRun.summary, "problemCount");
   const packetProblems = numericField(packetRun.summary, "problemCount");
   const analyticsProblems = numericField(analyticsRun?.summary ?? null, "problemCount");
+  const rollbackOwnerProblems = numericField(
+    rollbackOwnerRun?.summary ?? null,
+    "problemCount",
+  );
   const matrixFailing = numericField(matrixRun.summary, "failingCellCount");
   const matrixIncomplete = numericField(matrixRun.summary, "incompleteCellCount");
   const packetIncomplete = numericField(packetRun.summary, "incompleteCellCount");
@@ -553,8 +573,14 @@ function messagesForNextAction(
   if (analyticsRun && !analyticsRun.summary) {
     messages.push("Fix the analytics validator output before using the preflight artifact.");
   }
+  if (rollbackOwnerRun && !rollbackOwnerRun.summary) {
+    messages.push("Fix the rollback owner handoff validator output before using the preflight artifact.");
+  }
   if (analyticsProblems > 0) {
     messages.push("Fix sanitized analytics evidence before launch sign-off.");
+  }
+  if (rollbackOwnerProblems > 0) {
+    messages.push("Fix sanitized rollback owner handoff evidence before launch sign-off.");
   }
   if (enabledFeatures.problemCount > 0) {
     messages.push("Fix enabled feature endpoint evidence before launch sign-off.");
@@ -570,6 +596,9 @@ function messagesForNextAction(
   }
   if (finalGate && !analyticsRun) {
     messages.push("Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.");
+  }
+  if (finalGate && !rollbackOwnerRun) {
+    messages.push("Provide --rollback-owner=<path> for the sanitized rollback owner handoff artifact before final launch sign-off.");
   }
   if (runSheetIncomplete > 0) {
     messages.push("Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.");
@@ -601,6 +630,7 @@ function launchEvidenceCommands(): string[] {
   const analyticsEvidenceArtifact = `${artifactPrefix}-analytics-evidence.json`;
   const analyticsValidationArtifact = `${artifactPrefix}-analytics-validation.json`;
   const rollbackOwnerHandoffArtifact = `${artifactPrefix}-rollback-owner-handoff.md`;
+  const rollbackOwnerValidationArtifact = `${artifactPrefix}-rollback-owner-validation.json`;
   const runSheetSummaryArtifact = `${artifactPrefix}-run-sheet-summary.json`;
   const qaSummaryArtifact = `${artifactPrefix}-qa-summary.json`;
   const packetSummaryArtifact = `${artifactPrefix}-evidence-packet-summary.json`;
@@ -613,10 +643,11 @@ function launchEvidenceCommands(): string[] {
     "npm run --silent canvas:qa:analytics -- --template",
     `npm run --silent canvas:qa:analytics -- --input=${analyticsEvidenceArtifact} --json --output=${analyticsValidationArtifact}`,
     `npm run --silent canvas:qa:rollback-owner -- --template --output=${rollbackOwnerHandoffArtifact}`,
+    `npm run --silent canvas:qa:rollback-owner -- --input=${rollbackOwnerHandoffArtifact} --json --output=${rollbackOwnerValidationArtifact}`,
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${runSheetSummaryArtifact}`,
     `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${qaSummaryArtifact}`,
     `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${packetSummaryArtifact}`,
-    `npm run --silent canvas:qa:preflight -- --final --features-enabled=${enabledEndpointArtifact} --features-rollback=${rollbackEndpointArtifact} --analytics=${analyticsEvidenceArtifact} --json --output=${preflightArtifact}`,
+    `npm run --silent canvas:qa:preflight -- --final --features-enabled=${enabledEndpointArtifact} --features-rollback=${rollbackEndpointArtifact} --analytics=${analyticsEvidenceArtifact} --rollback-owner=${rollbackOwnerHandoffArtifact} --json --output=${preflightArtifact}`,
   ];
 }
 
@@ -634,6 +665,11 @@ const analyticsRun = analyticsPathArg
       allowPending: false,
     })
   : null;
+const rollbackOwnerRun = rollbackOwnerPathArg
+  ? runValidator(rollbackOwnerValidatorPath, `--input=${rollbackOwnerPathArg}`, {
+      allowPending: false,
+    })
+  : null;
 const enabledFeatures = validateFeatureEndpointArtifact(
   featureEnabledPathArg,
   "enabled",
@@ -648,19 +684,22 @@ const readyForLaunch =
   booleanField(packetRun.summary, "readyForLaunchEvidencePacket") &&
   enabledFeatures.readyForLaunchEvidence &&
   rollbackFeatures.readyForLaunchEvidence &&
-  booleanField(analyticsRun?.summary ?? null, "readyForLaunchEvidence");
+  booleanField(analyticsRun?.summary ?? null, "readyForLaunchEvidence") &&
+  booleanField(rollbackOwnerRun?.summary ?? null, "readyForLaunchEvidence");
 const structuralProblems =
   !runSheetRun.summary ||
   !matrixRun.summary ||
   !packetRun.summary ||
   (analyticsRun !== null && !analyticsRun.summary) ||
+  (rollbackOwnerRun !== null && !rollbackOwnerRun.summary) ||
   numericField(runSheetRun.summary, "problemCount") > 0 ||
   numericField(matrixRun.summary, "problemCount") > 0 ||
   numericField(matrixRun.summary, "failingCellCount") > 0 ||
   numericField(packetRun.summary, "problemCount") > 0 ||
   enabledFeatures.problemCount > 0 ||
   rollbackFeatures.problemCount > 0 ||
-  numericField(analyticsRun?.summary ?? null, "problemCount") > 0;
+  numericField(analyticsRun?.summary ?? null, "problemCount") > 0 ||
+  numericField(rollbackOwnerRun?.summary ?? null, "problemCount") > 0;
 const acceptedPending =
   !finalGate &&
   !structuralProblems &&
@@ -674,6 +713,7 @@ const nextActions = messagesForNextAction(
   matrixRun,
   packetRun,
   analyticsRun,
+  rollbackOwnerRun,
   enabledFeatures,
   rollbackFeatures,
 );
@@ -735,6 +775,21 @@ const summary = {
     sampleLaunchSignalCounts:
       analyticsRun?.summary?.sampleLaunchSignalCounts ?? null,
   },
+  rollbackOwnerEvidence: {
+    provided: Boolean(rollbackOwnerPathArg),
+    path: stringField(rollbackOwnerRun?.summary ?? null, "inputPath"),
+    readyForLaunchEvidence: booleanField(
+      rollbackOwnerRun?.summary ?? null,
+      "readyForLaunchEvidence",
+    ),
+    reviewedOn: stringField(rollbackOwnerRun?.summary ?? null, "reviewedOn"),
+    requiredFlowCount: numericField(
+      rollbackOwnerRun?.summary ?? null,
+      "requiredFlowCount",
+    ),
+    problemCount: numericField(rollbackOwnerRun?.summary ?? null, "problemCount"),
+    problems: stringArrayField(rollbackOwnerRun?.summary ?? null, "problems"),
+  },
   featureEndpointEvidence: {
     enabled: {
       provided: enabledFeatures.provided,
@@ -795,6 +850,9 @@ console.log(
   `Analytics evidence: ${summary.analyticsEvidence.provided ? (summary.analyticsEvidence.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; samples ${summary.analyticsEvidence.sampleCount}; problems ${summary.analyticsEvidence.problemCount}`,
 );
 console.log(
+  `Rollback owner evidence: ${summary.rollbackOwnerEvidence.provided ? (summary.rollbackOwnerEvidence.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; reviewed ${summary.rollbackOwnerEvidence.reviewedOn}; problems ${summary.rollbackOwnerEvidence.problemCount}`,
+);
+console.log(
   `Feature endpoints enabled: ${summary.featureEndpointEvidence.enabled.provided ? (summary.featureEndpointEvidence.enabled.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; endpoints ${summary.featureEndpointEvidence.enabled.endpointCount}; problems ${summary.featureEndpointEvidence.enabled.problemCount}`,
 );
 console.log(
@@ -804,6 +862,7 @@ printProblemDetails("Run sheet", summary.runSheet.problems);
 printProblemDetails("QA matrix", summary.matrix.problems);
 printProblemDetails("Evidence packet", summary.evidencePacket.problems);
 printProblemDetails("Analytics evidence", summary.analyticsEvidence.problems);
+printProblemDetails("Rollback owner evidence", summary.rollbackOwnerEvidence.problems);
 printProblemDetails(
   "Feature endpoints enabled",
   summary.featureEndpointEvidence.enabled.problems,

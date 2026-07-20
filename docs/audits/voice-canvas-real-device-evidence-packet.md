@@ -14,7 +14,7 @@ Use `--allow-pending` while gathering artifacts and omit it for the final packet
 
 For analytics evidence, use `npm run --silent canvas:qa:analytics -- --template` as a copy-safe starting shape when needed. The template is intentionally incomplete and must be filled with real staging or production-like aggregate evidence before `canvas:qa:analytics` validation can pass.
 
-For rollback-owner handoff evidence, use `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` as a copy-safe starting artifact. The template must be filled with real owner/backup, decision-window, rollback-trigger, rollback-action, endpoint/fallback/open-session evidence, privacy-boundary, and fallback-readiness proof before final Operations sign-off.
+For rollback-owner handoff evidence, use `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` as a copy-safe starting artifact. The template must be filled with real owner/backup, decision-window, rollback-trigger, rollback-action, endpoint/fallback/open-session evidence, privacy-boundary, and fallback-readiness proof, then validated with `npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json` before final Operations sign-off.
 
 ## Privacy rules for every artifact
 
@@ -39,7 +39,7 @@ For rollback-owner handoff evidence, use `npm run --silent canvas:qa:rollback-ow
 | Analytics signal artifacts | `voice-canvas/analytics/<YYYY-MM-DD>/analytics-evidence.json` and `voice-canvas/analytics/<YYYY-MM-DD>/analytics-validation.json` | Analytics signal review | Pending |
 | Analytics privacy artifacts | `voice-canvas/privacy/<YYYY-MM-DD>/allowed-envelope-forbidden-data-absent` plus `voice-canvas/analytics/<YYYY-MM-DD>/analytics-validation.json` | Analytics privacy review | Pending |
 | Run sheet validation artifacts | `voice-canvas/run-sheet/<YYYY-MM-DD>/run-sheet-summary.json` | Run sheet validation evidence before copying packet notes into the matrix | Pending |
-| Launch preflight artifacts | `voice-canvas/preflight/<YYYY-MM-DD>/launch-preflight.json` | Final combined local gate for run sheet, matrix, packet, endpoint, and analytics evidence | Pending |
+| Launch preflight artifacts | `voice-canvas/preflight/<YYYY-MM-DD>/launch-preflight.json` | Final combined local gate for run sheet, matrix, packet, endpoint, analytics, and rollback-owner handoff evidence | Pending |
 
 ## Feature endpoint manual trace template
 
@@ -136,6 +136,6 @@ Before changing the QA matrix from `pending execution` to `ready for launch`, co
 - `canvas:qa:packet` validation passed and produced a run-specific `evidence-packet-summary.json` artifact before evidence was copied into the QA matrix;
 - analytics evidence has coveredFlows for ride, appointment, refill, shopping, provider_reply, and task_hub_resume plus positive aggregate counts for started, resumed, abandoned, blocked, confirmed, and completed;
 - `canvas:qa:analytics` validation passed for the sanitized analytics evidence artifact and produced a run-specific validation artifact;
-- `canvas:qa:preflight -- --final` passed with the run sheet, matrix, packet, enabled endpoint, rollback endpoint, and analytics artifact paths and produced a run-specific launch preflight artifact;
+- `canvas:qa:preflight -- --final` passed with the run sheet, matrix, packet, enabled endpoint, rollback endpoint, analytics, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;
 - privacy evidence names each forbidden data class and confirms it was absent from the telemetry sample;
 - no artifact link exposes personal details.

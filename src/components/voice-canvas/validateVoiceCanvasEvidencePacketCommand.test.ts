@@ -483,7 +483,7 @@ describe("Voice Canvas evidence packet validator command", () => {
   it("rejects final pre-fill checks that omit required launch gates", () =>
     withTempPacket(
       completedPacket().replace(
-        "- `canvas:qa:preflight -- --final` passed with the run sheet, matrix, packet, enabled endpoint, rollback endpoint, and analytics artifact paths and produced a run-specific launch preflight artifact;",
+        "- `canvas:qa:preflight -- --final` passed with the run sheet, matrix, packet, enabled endpoint, rollback endpoint, analytics, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;",
         "- final launch review completed;",
       ),
       (tempPacketPath) => {

@@ -131,6 +131,14 @@ npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice
 
 Fill it only with the real launch owner/backup, decision window, rollback trigger, rollback action, endpoint/fallback/open-session evidence, privacy boundary, and fallback readiness. Do not add personal data.
 
+Validate the filled handoff before final preflight:
+
+```bash
+npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json
+```
+
+The final `canvas:qa:preflight -- --final` command must include `--rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` so launch sign-off fails if the handoff is missing, still has placeholders, omits a feature endpoint/server key/fallback path, is older than 7 days, or appears to include personal details.
+
 ## Evidence packet validation
 
 After filling `docs/audits/voice-canvas-real-device-evidence-packet.md` and before copying evidence into the final QA matrix, validate the packet:
@@ -217,7 +225,7 @@ For final sign-off rows, notes must be concrete and role-specific: Product cover
 
 Per-flow rollback runbooks include a copy-safe rollback owner handoff template. Before enabling any percentage rollout, fill that handoff in the launch record with owner/backup, decision window, trigger, rollback action, sanitized endpoint/fallback/open-session evidence, and privacy boundary. Do not launch with an unnamed rollback owner.
 
-Use the rollback owner handoff copy-ready evidence note in `docs/audits/voice-canvas-real-device-evidence-packet.md` and the `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` helper before filling the Operations/rollback owner final sign-off. It requires owner and backup, decision window, rollback trigger, enable-false or disabled rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness.
+Use the rollback owner handoff copy-ready evidence note in `docs/audits/voice-canvas-real-device-evidence-packet.md`, the `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` helper, and the `npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json` validation artifact before filling the Operations/rollback owner final sign-off. It requires owner and backup, decision window, rollback trigger, enable-false or disabled rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness.
 
 Run the sign-off gate after filling the matrix:
 
@@ -248,7 +256,7 @@ npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts
 Replace `YYYY-MM-DD` with the QA run date. The validator preserves existing output files by default. Use a new run-specific path for each QA pass; pass `--force` only when intentionally replacing an artifact.
 
 ```bash
-npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasAnalyticsEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasRunSheetCommand.test.ts src/components/voice-canvas/validateVoiceCanvasEvidencePacketCommand.test.ts src/components/voice-canvas/preflightVoiceCanvasLaunchReadinessCommand.test.ts
+npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasAnalyticsEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasRunSheetCommand.test.ts src/components/voice-canvas/validateVoiceCanvasEvidencePacketCommand.test.ts src/components/voice-canvas/prepareVoiceCanvasRollbackOwnerHandoffCommand.test.ts src/components/voice-canvas/preflightVoiceCanvasLaunchReadinessCommand.test.ts
 ```
 
 If this gate fails, do not enable the feature.
@@ -258,7 +266,7 @@ If this gate fails, do not enable the feature.
 Run the focused component/readiness suite:
 
 ```bash
-npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasAnalyticsEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasRunSheetCommand.test.ts src/components/voice-canvas/validateVoiceCanvasEvidencePacketCommand.test.ts src/components/voice-canvas/preflightVoiceCanvasLaunchReadinessCommand.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx
+npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasAnalyticsEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasRunSheetCommand.test.ts src/components/voice-canvas/validateVoiceCanvasEvidencePacketCommand.test.ts src/components/voice-canvas/prepareVoiceCanvasRollbackOwnerHandoffCommand.test.ts src/components/voice-canvas/preflightVoiceCanvasLaunchReadinessCommand.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx
 ```
 
 Run the browser readiness specs:
