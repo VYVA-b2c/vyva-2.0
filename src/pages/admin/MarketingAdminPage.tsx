@@ -106,7 +106,7 @@ type MarketingSmartSearchResult = {
   icon: LucideIcon;
   onSelect: () => void;
 };
-type MarketingSavedViewKey = "launch" | "consent" | "partner" | "creative" | "source";
+type MarketingSavedViewKey = "launch" | "consent" | "partner" | "offline" | "creative" | "source";
 type MarketingSavedView = {
   key: MarketingSavedViewKey;
   title: string;
@@ -12224,6 +12224,18 @@ export default function MarketingAdminPage() {
       setSearch("partner");
       setContactFeedback("Saved view: B2B partner outreach contacts.");
       setMessage("Saved view: partner outreach.");
+      return;
+    }
+    if (viewKey === "offline") {
+      const offlineMode = campaignLaunchModes.find((mode) => mode.id === "local-offline");
+      setActiveTab("dashboard");
+      setChannelFilter("event");
+      if (offlineMode) {
+        applyCampaignLaunchMode(offlineMode);
+        setMessage("Saved view: offline field run. Local event, print, SMS, WhatsApp, and handoff routes are loaded in the studio.");
+      } else {
+        setMessage("Saved view: offline field run.");
+      }
       return;
     }
     if (viewKey === "creative") {
@@ -27902,6 +27914,14 @@ export default function MarketingAdminPage() {
       countLabel: `${savedViewB2bCount} B2B`,
       icon: UsersRound,
       className: "border-blue-100 bg-blue-50 text-blue-950",
+    },
+    {
+      key: "offline",
+      title: "Offline field run",
+      detail: "Local event, print, SMS, WhatsApp, and human handoff planning.",
+      countLabel: "field kit",
+      icon: Waypoints,
+      className: "border-orange-100 bg-orange-50 text-orange-950",
     },
     {
       key: "creative",
