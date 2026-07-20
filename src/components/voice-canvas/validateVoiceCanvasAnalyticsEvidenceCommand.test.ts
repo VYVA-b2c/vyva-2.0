@@ -129,6 +129,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
       "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
     );
     expect(result.stdout).toContain(
+      "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
+    );
+    expect(result.stdout).toContain(
       "generatedAt must be a non-future ISO timestamp no older than 7 days.",
     );
     expect(result.stdout).toContain(
@@ -362,6 +365,39 @@ describe("Voice Canvas analytics evidence validator command", () => {
         expect(serialized).not.toContain("private spoken detail");
         expect(serialized).not.toContain("pickupAddress");
         expect(serialized).not.toContain("transcript");
+      },
+    ));
+
+  it("rejects source metadata that names private launch details without echoing it", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        source:
+          "staging-dashboard-export-shopping-item-details-retailer-name-route-details-profile-id",
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problemCount: number;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problemCount).toBeGreaterThan(0);
+        expect(summary.problems).toContain(
+          "Analytics evidence source appears to include personal or raw captured data.",
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("shopping-item-details");
+        expect(serialized).not.toContain("retailer-name");
+        expect(serialized).not.toContain("route-details");
+        expect(serialized).not.toContain("profile-id");
       },
     ));
 

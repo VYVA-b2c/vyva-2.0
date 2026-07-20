@@ -38,6 +38,12 @@ const allowedTopLevelKeys = [
   "events",
 ] as const;
 const maxLaunchEvidenceAgeMs = 7 * 24 * 60 * 60 * 1000;
+const unsafeAnalyticsMetadataPatterns: readonly RegExp[] = [
+  /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  /\b(?:\+?\d[\s().-]*){10,}\b/,
+  /\b(?:transcript|spoken transcript|typed free text|free text|saved-place label|saved place label|pickup address|dropoff address|destination address|street address|ride details|route details|pickup details|dropoff details|destination details|appointment date|appointment time|date\/time details|medication name|medication details|provider name|provider details|provider contact|reply text|reply body|shopping item|shopping details|item name|retailer name|price|fee|contact details|account id|user id|profile id|patient id)\b/i,
+];
 
 function readArgValue(name: string): string | undefined {
   const prefix = `${name}=`;
@@ -57,6 +63,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "The input JSON must be an object with generatedAt, source, samples/events, and optional counts.",
       "generatedAt must be a non-future ISO timestamp no older than 7 days.",
       "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+      "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
       "coveredFlows must list every launch flow: ride, appointment, refill, shopping, provider_reply, task_hub_resume.",
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
       "Every launch signal must have a positive observed sample count: started, resumed, abandoned, blocked, confirmed, completed.",
@@ -223,7 +230,11 @@ function topLevelProblems(artifact: unknown): string[] {
     problems.push("Analytics evidence generatedAt must be no older than 7 days.");
   }
 
-  if (!hasConcreteAnalyticsSource(artifact.source)) {
+  if (metadataLooksUnsafe(artifact.source)) {
+    problems.push(
+      "Analytics evidence source appears to include personal or raw captured data.",
+    );
+  } else if (!hasConcreteAnalyticsSource(artifact.source)) {
     problems.push(
       "Analytics evidence source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
     );
@@ -251,6 +262,14 @@ function hasConcreteAnalyticsSource(value: unknown): boolean {
   }
   return /\b(staging|production|prod|dashboard|query|export|log|artifact)\b/.test(
     normalized,
+  );
+}
+
+function metadataLooksUnsafe(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const filenameFriendlyValue = value.replace(/[-_]+/g, " ");
+  return unsafeAnalyticsMetadataPatterns.some(
+    (pattern) => pattern.test(value) || pattern.test(filenameFriendlyValue),
   );
 }
 
