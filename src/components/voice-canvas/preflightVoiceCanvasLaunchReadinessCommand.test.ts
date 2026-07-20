@@ -55,6 +55,8 @@ function artifactPathsForRunDate(runDate: string) {
     rollbackEndpoints: `${prefix}-feature-endpoints-rollback-disabled.json`,
     analyticsEvidence: `${prefix}-analytics-evidence.json`,
     analyticsValidation: `${prefix}-analytics-validation.json`,
+    copyEvidence: `${prefix}-copy-clarity.md`,
+    copyValidation: `${prefix}-copy-clarity-validation.json`,
     realUseEvidence: `${prefix}-real-use-coverage.md`,
     realUseValidation: `${prefix}-real-use-validation.json`,
     entrySurfaces: `${prefix}-entry-surfaces.md`,
@@ -86,6 +88,8 @@ function launchEvidenceCommandsForRun(
     "npm run --silent canvas:qa:features -- --trace-template",
     "npm run --silent canvas:qa:analytics -- --template",
     `npm run --silent canvas:qa:analytics -- --input=${paths.analyticsEvidence} --json --output=${paths.analyticsValidation}`,
+    `npm run --silent canvas:qa:copy -- --template --output=${paths.copyEvidence}`,
+    `npm run --silent canvas:qa:copy -- --input=${paths.copyEvidence} --json --output=${paths.copyValidation}`,
     `npm run --silent canvas:qa:real-use -- --template --output=${paths.realUseEvidence}`,
     `npm run --silent canvas:qa:real-use -- --input=${paths.realUseEvidence} --json --output=${paths.realUseValidation}`,
     `npm run --silent canvas:qa:entry-surfaces -- --template --output=${paths.entrySurfaces}`,
@@ -95,7 +99,7 @@ function launchEvidenceCommandsForRun(
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${paths.runSheetSummary}`,
     `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${paths.qaMatrixSummary}`,
     `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${paths.evidencePacketSummary}`,
-    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --real-use=${paths.realUseEvidence} --entry-surfaces=${paths.entrySurfaces} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
+    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --copy=${paths.copyEvidence} --real-use=${paths.realUseEvidence} --entry-surfaces=${paths.entrySurfaces} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
   ];
 }
 
@@ -117,6 +121,7 @@ function validLaunchRunPlan(
     checklist: [
       "Collect enabled endpoint evidence before rollback evidence.",
       "Fill analytics evidence from aggregate-only staging or production-like telemetry.",
+      "Fill copy clarity evidence from senior-friendly copy, what-happens-next, long-label, focus, announcement, and reduced-motion review.",
       "Fill real-use evidence from real physical phone, tablet, desktop/laptop, voice, touch, and keyboard coverage.",
       "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
       "Fill rollback owner handoff with owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
@@ -395,6 +400,43 @@ function validRealUseEvidenceArtifact(): string {
   return `${lines.join("\n")}\n`;
 }
 
+function validCopyEvidenceArtifact(): string {
+  const reviewedOn = freshReviewDate();
+  const lines = [
+    "# Voice Canvas copy clarity evidence artifact",
+    "",
+    "Use this copy-safe artifact to prove every Canvas launch flow is senior-friendly, shows one clear decision at a time, explains what happens next, and remains accessible with long translated labels.",
+    "",
+    "Do not paste addresses, saved-place labels, spoken transcripts, entered text, medication details, provider details, shopping details, account identifiers, contact details, screenshots with personal data, raw endpoint bodies, unexpected payload field names, or personal data.",
+    "",
+    `Reviewed on: ${reviewedOn}`,
+    "Reviewer: QA Launch Reviewer",
+    "QA run URL: https://staging.vyva.app",
+    "Commit/build: aabbccddeeff",
+    "Privacy boundary: sanitized artifact references only with no personal details",
+    "",
+    "## Copy clarity checklist",
+    "",
+    "| Flow | Senior-friendly copy | What happens next | Long translated labels | Accessibility announcements | Evidence reference | Reviewer/date |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+  ];
+
+  for (const flow of canvasLaunchReadinessFlows) {
+    lines.push(
+      `| ${flow.label} | warm plain senior-friendly restrained copy with one clear decision at a time | what happens next is clear for primary action, secondary back cancel exit, waiting, blocked, and completed states | long translated Spanish labels wrap without overflow on mobile, tablet, and desktop | focus moves meaningfully; screen reader announces waiting, blocked, and completed; reduced motion respected | artifacts/voice-canvas/${reviewedOn}/${flow.id}-copy-clarity-accessibility-screenshot-capture-review-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
+    );
+  }
+
+  lines.push(
+    "",
+    "## Copy-ready evidence packet note",
+    "",
+    `Copy clarity reviewed on ${reviewedOn} by QA Launch Reviewer: every launch flow used warm plain senior-friendly restrained copy, showed one clear decision at a time, explained what happens next for primary, secondary/back/cancel/exit, waiting, blocked, and completed states, handled long translated Spanish labels without overflow, moved focus meaningfully, announced waiting/blocked/completed states to screen readers, respected reduced motion, and used sanitized dated copy/accessibility artifact references only.`,
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
 function withTempAnalyticsFile<T>(
   value: unknown,
   callback: (inputPath: string) => T,
@@ -434,6 +476,21 @@ function withTempRealUseFile<T>(
 ): T {
   const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-preflight-real-use-"));
   const inputPath = path.join(tempDir, "real-use.md");
+  writeFileSync(inputPath, value);
+
+  try {
+    return callback(inputPath);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function withTempCopyFile<T>(
+  value: string,
+  callback: (inputPath: string) => T,
+): T {
+  const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-preflight-copy-"));
+  const inputPath = path.join(tempDir, "copy-clarity.md");
   writeFileSync(inputPath, value);
 
   try {
@@ -511,6 +568,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run canvas:qa:preflight -- --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
     );
     expect(result.stdout).toContain(
+      "npm run canvas:qa:preflight -- --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md",
+    );
+    expect(result.stdout).toContain(
       "npm run canvas:qa:preflight -- --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md",
     );
     expect(result.stdout).toContain(
@@ -529,7 +589,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
     );
     expect(result.stdout).toContain(
-      "unless the run sheet, matrix, packet, launch run plan, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, real-use evidence, entry surface evidence, and rollback owner handoff are ready",
+      "unless the run sheet, matrix, packet, launch run plan, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, copy clarity evidence, real-use evidence, entry surface evidence, and rollback owner handoff are ready",
     );
     expect(result.stdout).toContain(
       "Final external evidence artifacts must share one QA run date",
@@ -560,6 +620,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "Analytics evidence: not provided; samples 0; problems 0",
+    );
+    expect(result.stdout).toContain(
+      "Copy clarity evidence: not provided; reviewed unknown; copy rows 0; problems 0",
     );
     expect(result.stdout).toContain(
       "Rollback owner evidence: not provided; reviewed unknown; problems 0",
@@ -642,6 +705,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.",
     );
     expect(result.stdout).toContain(
+      "Provide --copy=<path> for the sanitized copy clarity evidence artifact before final launch sign-off.",
+    );
+    expect(result.stdout).toContain(
       "Provide --rollback-owner=<path> for the sanitized rollback owner handoff artifact before final launch sign-off.",
     );
     expect(result.stdout).toContain("Run sheet pending sections:");
@@ -685,6 +751,12 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:analytics -- --template",
     );
     expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:copy -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md",
+    );
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:copy -- --input=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity-validation.json",
+    );
+    expect(result.stdout).toContain(
       "npm run --silent canvas:qa:real-use -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md",
     );
     expect(result.stdout).toContain(
@@ -712,7 +784,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       ),
     );
     expect(result.stdout).toContain(
-      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     );
   });
 
@@ -779,6 +851,15 @@ describe("Voice Canvas launch readiness preflight command", () => {
         problemCount: number;
         problems: string[];
         coveredFlows: string[];
+      };
+      copyEvidence: {
+        provided: boolean;
+        readyForLaunchEvidence: boolean;
+        reviewedOn: string;
+        requiredFlowCount: number;
+        requiredCopyRowCount: number;
+        problemCount: number;
+        problems: string[];
       };
       rollbackOwnerEvidence: {
         provided: boolean;
@@ -877,6 +958,15 @@ describe("Voice Canvas launch readiness preflight command", () => {
       problems: [],
       coveredFlows: [],
     });
+    expect(summary.copyEvidence).toMatchObject({
+      provided: false,
+      readyForLaunchEvidence: false,
+      reviewedOn: "unknown",
+      requiredFlowCount: 0,
+      requiredCopyRowCount: 0,
+      problemCount: 0,
+      problems: [],
+    });
     expect(summary.rollbackOwnerEvidence).toMatchObject({
       provided: false,
       readyForLaunchEvidence: false,
@@ -921,6 +1011,8 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:features -- --trace-template",
       "npm run --silent canvas:qa:analytics -- --template",
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
+      "npm run --silent canvas:qa:copy -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md",
+      "npm run --silent canvas:qa:copy -- --input=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity-validation.json",
       "npm run --silent canvas:qa:real-use -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md",
       "npm run --silent canvas:qa:real-use -- --input=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-real-use-validation.json",
       "npm run --silent canvas:qa:entry-surfaces -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md",
@@ -930,7 +1022,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
-      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     ]);
     expect(summary.message).toBe(
       "Voice Canvas launch evidence gates are structurally valid but still pending real-device QA.",
@@ -1009,7 +1101,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
           runDate,
           baseUrl: "https://staging.vyva.app",
           requestHeaderCount: 0,
-          commandCount: 16,
+          commandCount: 18,
           flowCount: canvasLaunchReadinessFlows.length,
           canonicalFlowCoverage: canvasLaunchEvidenceFlowCoverage(),
           problemCount: 0,
@@ -1360,6 +1452,60 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
   });
 
+  it("includes sanitized copy clarity artifacts in the preflight summary", () =>
+    withTempCopyFile(validCopyEvidenceArtifact(), (inputPath) => {
+      const result = runPreflight([`--copy=${inputPath}`, "--json"]);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+
+      const summary = JSON.parse(result.stdout) as {
+        acceptedPending: boolean;
+        copyEvidence: {
+          provided: boolean;
+          readyForLaunchEvidence: boolean;
+          reviewedOn: string;
+          requiredFlowCount: number;
+          requiredCopyRowCount: number;
+          problemCount: number;
+          problems: string[];
+        };
+      };
+
+      expect(summary.acceptedPending).toBe(true);
+      expect(summary.copyEvidence).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+        reviewedOn: freshReviewDate(),
+        requiredFlowCount: canvasLaunchReadinessFlows.length,
+        requiredCopyRowCount: canvasLaunchReadinessFlows.length,
+        problemCount: 0,
+        problems: [],
+      });
+    }));
+
+  it("rejects unsafe copy clarity artifacts without echoing personal values", () =>
+    withTempCopyFile(
+      validCopyEvidenceArtifact().replace(
+        "sanitized artifact references only with no personal details",
+        "sanitized artifact references include 123 Secret Street",
+      ),
+      (inputPath) => {
+        const result = runPreflight([`--copy=${inputPath}`]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).toContain("Copy clarity evidence problems:");
+        expect(result.stdout).toContain(
+          "Copy clarity evidence artifact appears to include personal details.",
+        );
+        expect(result.stdout).toContain(
+          "Fix sanitized copy clarity evidence before launch sign-off.",
+        );
+        expect(result.stdout).not.toContain("123 Secret Street");
+      },
+    ));
+
   it("includes sanitized real-use artifacts in the preflight summary", () =>
     withTempRealUseFile(validRealUseEvidenceArtifact(), (inputPath) => {
       const result = runPreflight([`--real-use=${inputPath}`, "--json"]);
@@ -1534,51 +1680,54 @@ describe("Voice Canvas launch readiness preflight command", () => {
       validFeatureEndpointArtifact("rollback"),
       ({ enabledPath, rollbackPath }) =>
         withTempAnalyticsFile(validAnalyticsEvidence(), (analyticsPath) =>
-          withTempRealUseFile(validRealUseEvidenceArtifact(), (realUsePath) =>
-            withTempEntrySurfaceFile(validEntrySurfaceEvidenceArtifact(), (entrySurfacePath) =>
-              withTempRollbackOwnerFile(
-                validRollbackOwnerHandoffArtifact(),
-                (rollbackOwnerPath) => {
-                  const result = runPreflight([
-                    "--final",
-                    `--features-enabled=${enabledPath}`,
-                    `--features-rollback=${rollbackPath}`,
-                    `--analytics=${analyticsPath}`,
-                    `--real-use=${realUsePath}`,
-                    `--entry-surfaces=${entrySurfacePath}`,
-                    `--rollback-owner=${rollbackOwnerPath}`,
-                    "--json",
-                  ]);
+          withTempCopyFile(validCopyEvidenceArtifact(), (copyPath) =>
+            withTempRealUseFile(validRealUseEvidenceArtifact(), (realUsePath) =>
+              withTempEntrySurfaceFile(validEntrySurfaceEvidenceArtifact(), (entrySurfacePath) =>
+                withTempRollbackOwnerFile(
+                  validRollbackOwnerHandoffArtifact(),
+                  (rollbackOwnerPath) => {
+                    const result = runPreflight([
+                      "--final",
+                      `--features-enabled=${enabledPath}`,
+                      `--features-rollback=${rollbackPath}`,
+                      `--analytics=${analyticsPath}`,
+                      `--copy=${copyPath}`,
+                      `--real-use=${realUsePath}`,
+                      `--entry-surfaces=${entrySurfacePath}`,
+                      `--rollback-owner=${rollbackOwnerPath}`,
+                      "--json",
+                    ]);
 
-                  expect(result.status).toBe(1);
-                  expect(result.stderr).toBe("");
+                    expect(result.status).toBe(1);
+                    expect(result.stderr).toBe("");
 
-                  const summary = JSON.parse(result.stdout) as {
-                    externalEvidenceDateConsistency: {
-                      ready: boolean;
-                      checked: boolean;
-                      runDate: string;
-                      problemCount: number;
-                      problems: string[];
+                    const summary = JSON.parse(result.stdout) as {
+                      externalEvidenceDateConsistency: {
+                        ready: boolean;
+                        checked: boolean;
+                        runDate: string;
+                        problemCount: number;
+                        problems: string[];
+                      };
+                      nextActions: string[];
                     };
-                    nextActions: string[];
-                  };
 
-                  expect(summary.externalEvidenceDateConsistency).toMatchObject({
-                    ready: false,
-                    checked: true,
-                    runDate: "mixed",
-                    problemCount: 1,
-                  });
-                  expect(
-                    summary.externalEvidenceDateConsistency.problems.join("\n"),
-                  ).toContain(
-                    "External launch evidence must share one QA run date",
-                  );
-                  expect(summary.nextActions).toContain(
-                    "Fix external launch evidence dates so endpoint, analytics, real-use, entry surface, and rollback owner artifacts share one QA run date.",
-                  );
-                },
+                    expect(summary.externalEvidenceDateConsistency).toMatchObject({
+                      ready: false,
+                      checked: true,
+                      runDate: "mixed",
+                      problemCount: 1,
+                    });
+                    expect(
+                      summary.externalEvidenceDateConsistency.problems.join("\n"),
+                    ).toContain(
+                      "External launch evidence must share one QA run date",
+                    );
+                    expect(summary.nextActions).toContain(
+                      "Fix external launch evidence dates so endpoint, analytics, copy clarity, real-use, entry surface, and rollback owner artifacts share one QA run date.",
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -2090,6 +2239,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Expected --analytics=<path>.");
+  });
+
+  it("rejects empty copy clarity artifact paths", () => {
+    const result = runPreflight(["--copy="]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Expected --copy=<path>.");
   });
 
   it("rejects empty real-use artifact paths", () => {
