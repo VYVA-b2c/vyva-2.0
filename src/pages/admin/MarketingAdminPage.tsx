@@ -19643,6 +19643,27 @@ export default function MarketingAdminPage() {
     const reusableAssets = recommendedContentLaunchKit.templates.filter((template) => (
       content.some((item) => contentAssetMatchesTemplatePack(item, recommendedContentLaunchKit.pack, template))
     )).length;
+    const templateCount = Math.max(recommendedContentLaunchKit.templates.length, 1);
+    const templatesWithCopy = recommendedContentLaunchKit.templates.filter((template) => (
+      template.body.trim().length >= 80
+      || template.htmlBody?.trim()
+      || template.subject.trim().length >= 20
+    )).length;
+    const templatesWithDesign = recommendedContentLaunchKit.templates.filter((template) => (
+      Object.keys(template.designJson ?? {}).length > 0
+      || Boolean(template.htmlBody?.trim())
+      || Boolean(template.mediaAssets?.length)
+    )).length;
+    const templatesWithCta = recommendedContentLaunchKit.templates.filter((template) => Boolean(template.ctaLabel.trim())).length;
+    const coveredChannels = routeChannels.filter((channel) => (
+      recommendedContentLaunchKit.templates.some((template) => template.channel === channel)
+    )).length;
+    const qualityScore = Math.round(
+      (templatesWithCopy / templateCount) * 30
+      + (templatesWithDesign / templateCount) * 25
+      + (templatesWithCta / templateCount) * 20
+      + (coveredChannels / Math.max(routeChannels.length, 1)) * 25,
+    );
 
     return {
       reachableContacts,
@@ -19650,6 +19671,15 @@ export default function MarketingAdminPage() {
       newAssets: Math.max(recommendedContentLaunchKit.templates.length - reusableAssets, 0),
       emailRoutes: routeChannels.filter((channel) => channel === "email").length,
       manualRoutes: routeChannels.filter((channel) => channel !== "email").length,
+      qualityScore,
+      qualityLabel: qualityScore >= 85 ? "Production strong" : qualityScore >= 65 ? "Needs polish" : "Draft only",
+      qualityState: qualityScore >= 85 ? "ready" as CampaignReadinessState : qualityScore >= 65 ? "needs_action" as CampaignReadinessState : "planning" as CampaignReadinessState,
+      qualityGates: [
+        { key: "copy", label: "Copy", value: `${templatesWithCopy}/${recommendedContentLaunchKit.templates.length}` },
+        { key: "design", label: "Design", value: `${templatesWithDesign}/${recommendedContentLaunchKit.templates.length}` },
+        { key: "cta", label: "CTA", value: `${templatesWithCta}/${recommendedContentLaunchKit.templates.length}` },
+        { key: "channels", label: "Channel coverage", value: `${coveredChannels}/${routeChannels.length || recommendedContentLaunchKit.channels.length || 1}` },
+      ],
     };
   }, [contacts, content, recommendedContentLaunchKit]);
   const templatePathfinderRoutes = useMemo(() => {
@@ -38924,6 +38954,27 @@ export default function MarketingAdminPage() {
                             <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2">
                               <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Manual handoff</span>
                               <span className="mt-1 block text-[#241133]">{recommendedContentLaunchKitPreview.manualRoutes} route{recommendedContentLaunchKitPreview.manualRoutes === 1 ? "" : "s"}</span>
+                            </div>
+                          </div>
+                          <div className={`mt-3 rounded-xl border p-3 ${readinessClass(recommendedContentLaunchKitPreview.qualityState)}`} data-testid="marketing-recommended-launch-kit-quality">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="text-[11px] font-black uppercase tracking-[0.12em]">Production quality</p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed">
+                                  Copy, visual direction, CTA, and channel coverage before creating campaign records.
+                                </p>
+                              </div>
+                              <Pill className={readinessPillClass(recommendedContentLaunchKitPreview.qualityState)}>
+                                {recommendedContentLaunchKitPreview.qualityScore}% {recommendedContentLaunchKitPreview.qualityLabel}
+                              </Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                              {recommendedContentLaunchKitPreview.qualityGates.map((gate) => (
+                                <div key={gate.key} className="rounded-lg bg-white/80 px-3 py-2 text-xs font-black ring-1 ring-current/10" data-testid={`marketing-recommended-launch-kit-quality-${gate.key}`}>
+                                  <span className="block text-[10px] uppercase tracking-[0.08em] opacity-80">{gate.label}</span>
+                                  <span className="mt-1 block text-[#241133]">{gate.value}</span>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         </div>

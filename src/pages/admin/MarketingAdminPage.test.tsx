@@ -3037,6 +3037,24 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Caregiver invite activation visual kit copied.");
   });
 
+  it("scores recommended launch kit production quality before creating campaign records", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    const quality = screen.getByTestId("marketing-recommended-launch-kit-quality");
+    expect(quality).toHaveTextContent("Production quality");
+    expect(quality).toHaveTextContent("Copy");
+    expect(quality).toHaveTextContent("Design");
+    expect(quality).toHaveTextContent("CTA");
+    expect(quality).toHaveTextContent("Channel coverage");
+    expect(screen.getByTestId("marketing-recommended-launch-kit-quality-copy")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-recommended-launch-kit-quality-design")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-recommended-launch-kit-quality-cta")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-recommended-launch-kit-quality-channels")).toBeInTheDocument();
+  });
+
   it("applies content templates into the draft form", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
