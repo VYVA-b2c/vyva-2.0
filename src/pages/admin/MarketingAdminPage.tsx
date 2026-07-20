@@ -1409,6 +1409,21 @@ type ContactRelationshipCadenceLane = {
   aiPrompt: string;
 };
 
+type ContactRelationshipDailyTask = {
+  key: string;
+  label: string;
+  title: string;
+  detail: string;
+  state: CampaignReadinessState;
+  queue: ContactRelationshipWorkQueue | null;
+  contact: MarketingContact | null;
+  channels: Channel[];
+  operatorNote: string;
+  primaryLabel: string;
+  secondaryLabel: string;
+  secondaryAction: "list" | "studio";
+};
+
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
@@ -14454,6 +14469,93 @@ export default function MarketingAdminPage() {
       },
     ];
   }, [contactRelationshipPriorityQueue, contactRelationshipWorkQueues]);
+  const contactRelationshipDailyTasks = useMemo<ContactRelationshipDailyTask[]>(() => {
+    const queueByKey = new Map(contactRelationshipWorkQueues.map((queue) => [queue.key, queue]));
+    const firstPriority = contactRelationshipPriorityContacts[0]?.contact ?? null;
+    const contactName = (contact: MarketingContact | null) => contact?.fullName || contact?.email || contact?.phoneNumber || contact?.whatsappNumber || "No contact selected";
+    const consentQueue = queueByKey.get("consent-cleanup") ?? null;
+    const segmentationQueue = queueByKey.get("segmentation-gaps") ?? null;
+    const relationshipQueue = [
+      queueByKey.get("partner-nurture") ?? null,
+      queueByKey.get("family-onboarding") ?? null,
+      queueByKey.get("local-market") ?? null,
+    ].find((queue) => Boolean(queue?.count)) ?? contactRelationshipPriorityQueue ?? null;
+
+    const tasks: ContactRelationshipDailyTask[] = [
+      {
+        key: "first-contact",
+        label: "First 15 minutes",
+        title: firstPriority ? `Inspect ${contactName(firstPriority)}` : "Pick the first relationship contact",
+        detail: firstPriority
+          ? "Open the contact, confirm consent, channel route, segment context, and the best next message before building a campaign."
+          : "Import or filter contacts, then use the priority queue to choose the first relationship action.",
+        state: firstPriority ? "needs_action" : "planning",
+        queue: contactRelationshipPriorityQueue,
+        contact: firstPriority,
+        channels: contactRelationshipPriorityContacts[0]?.reachableChannels ?? contactRelationshipPriorityQueue?.channels ?? ["email"],
+        operatorNote: contactRelationshipPriorityContacts[0]?.nextStep ?? "Choose a queue, inspect one contact, then create the first human-safe play.",
+        primaryLabel: "Inspect contact",
+        secondaryLabel: contactRelationshipPriorityQueue?.studioLabel ?? "Open play",
+        secondaryAction: "studio",
+      },
+      {
+        key: "consent-route",
+        label: "Before outreach",
+        title: consentQueue?.count ? "Clear consent blockers" : "Consent is clear",
+        detail: consentQueue?.count
+          ? `Review ${consentQueue.countLabel} before sending or snapshotting recipients.`
+          : "Visible contacts are not blocked by consent cleanup right now.",
+        state: consentQueue?.count ? "needs_action" : "ready",
+        queue: consentQueue,
+        contact: consentQueue?.sampleContact ?? null,
+        channels: consentQueue?.channels ?? ["email", "whatsapp"],
+        operatorNote: consentQueue?.sampleContact
+          ? `Start with ${contactName(consentQueue.sampleContact)}.`
+          : "Keep opted-out contacts excluded from campaign snapshots.",
+        primaryLabel: consentQueue?.showLabel ?? "Review consent",
+        secondaryLabel: "Build review list",
+        secondaryAction: "list",
+      },
+      {
+        key: "launch-play",
+        label: "This week",
+        title: relationshipQueue?.count ? relationshipQueue.title : "Prepare the next relationship play",
+        detail: relationshipQueue?.count
+          ? `Turn ${relationshipQueue.countLabel} into a focused, channel-aware campaign plan.`
+          : "Enrich contacts and confirm routes before launching a relationship play.",
+        state: relationshipQueue?.count ? relationshipQueue.state : "planning",
+        queue: relationshipQueue,
+        contact: relationshipQueue?.sampleContact ?? null,
+        channels: relationshipQueue?.channels ?? ["email", "whatsapp"],
+        operatorNote: relationshipQueue?.sampleContact
+          ? `First sample: ${contactName(relationshipQueue.sampleContact)}.`
+          : "Use a saved list once the queue has enough signal.",
+        primaryLabel: relationshipQueue?.showLabel ?? "Review queue",
+        secondaryLabel: relationshipQueue?.studioLabel ?? "Open campaign play",
+        secondaryAction: "studio",
+      },
+      {
+        key: "data-quality",
+        label: "Pre-publish",
+        title: segmentationQueue?.count ? "Fix targeting gaps" : "Targeting data looks usable",
+        detail: segmentationQueue?.count
+          ? `Resolve ${segmentationQueue.countLabel} so AI and campaign filters do not rely on a broad audience.`
+          : "Segments, lists, or source context are strong enough for the current view.",
+        state: segmentationQueue?.count ? "needs_action" : "ready",
+        queue: segmentationQueue,
+        contact: segmentationQueue?.sampleContact ?? null,
+        channels: segmentationQueue?.channels ?? ["email"],
+        operatorNote: segmentationQueue?.sampleContact
+          ? `Enrich ${contactName(segmentationQueue.sampleContact)} first.`
+          : "Keep language, market, role, list, and source tags fresh.",
+        primaryLabel: segmentationQueue?.showLabel ?? "Review gaps",
+        secondaryLabel: "Build quality list",
+        secondaryAction: "list",
+      },
+    ];
+
+    return tasks;
+  }, [contactRelationshipPriorityContacts, contactRelationshipPriorityQueue, contactRelationshipWorkQueues]);
   const contactRelationshipCommandBriefText = useMemo(() => {
     const activeQueues = contactRelationshipWorkQueues.filter((queue) => queue.count > 0);
     const sourceQueues = activeQueues.length ? activeQueues : contactRelationshipWorkQueues;
@@ -39989,6 +40091,69 @@ export default function MarketingAdminPage() {
                               data-testid={`button-marketing-contact-cadence-${lane.secondaryAction}-${lane.key}`}
                             >
                               <Sparkles size={13} /> {lane.secondaryLabel}
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/50 p-3 shadow-sm" data-testid="marketing-contact-daily-desk">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-900">Today's relationship desk</p>
+                      <p className="mt-1 text-sm font-black text-[#241133]">A simple operator queue: inspect one person, clear blockers, then build the right play.</p>
+                    </div>
+                    <Pill className="bg-white text-amber-900">{contactRelationshipDailyTasks.filter((task) => task.state !== "ready").length} needs action</Pill>
+                  </div>
+                  <div className="mt-3 grid gap-3 xl:grid-cols-4">
+                    {contactRelationshipDailyTasks.map((task) => {
+                      const primaryDisabled = !task.queue || task.queue.count === 0;
+                      const runPrimaryAction = () => {
+                        if (task.contact) {
+                          selectRelationshipContact(task.contact);
+                          return;
+                        }
+                        if (task.queue) showContactWorkQueue(task.queue);
+                      };
+                      const runSecondaryAction = () => {
+                        if (!task.queue) return;
+                        if (task.secondaryAction === "list") {
+                          buildAudienceFromContactWorkQueue(task.queue);
+                        } else {
+                          loadContactWorkQueueInStudio(task.queue);
+                        }
+                      };
+                      return (
+                        <article key={task.key} className={`flex min-h-[240px] flex-col rounded-xl border p-3 ${readinessClass(task.state)}`} data-testid={`marketing-contact-daily-task-${task.key}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">{task.label}</p>
+                            <Pill className={readinessPillClass(task.state)}>{readinessLabel(task.state)}</Pill>
+                          </div>
+                          <p className="mt-3 text-sm font-black text-[#241133]">{task.title}</p>
+                          <p className="mt-2 flex-1 text-xs font-bold leading-relaxed text-[#5b4a46]">{task.detail}</p>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {task.channels.map((channel) => <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>)}
+                          </div>
+                          <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-bold leading-relaxed text-amber-950">{task.operatorNote}</p>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              onClick={runPrimaryAction}
+                              disabled={primaryDisabled && !task.contact}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-900 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                              data-testid={`button-marketing-contact-daily-primary-${task.key}`}
+                            >
+                              <Eye size={13} /> {task.primaryLabel}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={runSecondaryAction}
+                              disabled={!task.queue || task.queue.count === 0}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid={`button-marketing-contact-daily-secondary-${task.key}`}
+                            >
+                              <Sparkles size={13} /> {task.secondaryLabel}
                             </button>
                           </div>
                         </article>

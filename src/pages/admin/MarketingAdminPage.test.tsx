@@ -1171,6 +1171,15 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-contact-priority-shortlist-inspect-contact-2"));
     expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Viewing relationship for "Hassan Partner".');
     expect(screen.getByTestId("marketing-contact-relationship-panel")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-contact-daily-desk")).toHaveTextContent("Today's relationship desk");
+    expect(screen.getByTestId("marketing-contact-daily-task-first-contact")).toHaveTextContent("Inspect Hassan Partner");
+    expect(screen.getByTestId("marketing-contact-daily-task-consent-route")).toHaveTextContent("Clear consent blockers");
+    expect(screen.getByTestId("marketing-contact-daily-task-launch-play")).toHaveTextContent("B2B partner nurture");
+    expect(screen.getByTestId("marketing-contact-daily-task-data-quality")).toHaveTextContent("Fix targeting gaps");
+    expect(screen.getByTestId("button-marketing-contact-daily-primary-first-contact")).toHaveTextContent("Inspect contact");
+    expect(screen.getByTestId("button-marketing-contact-daily-secondary-launch-play")).toHaveTextContent("Open partner play");
+    fireEvent.click(screen.getByTestId("button-marketing-contact-daily-primary-first-contact"));
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Viewing relationship for "Hassan Partner".');
     expect(screen.getByTestId("marketing-contact-operating-path")).toHaveTextContent("Daily relationship path");
     expect(screen.getByTestId("marketing-contact-operating-path-consent")).toHaveTextContent("Clean consent");
     expect(screen.getByTestId("marketing-contact-operating-path-segment")).toHaveTextContent("Sharpen segments");
