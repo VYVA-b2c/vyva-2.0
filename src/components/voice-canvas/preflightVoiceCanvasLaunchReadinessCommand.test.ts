@@ -296,6 +296,18 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
     );
     expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:analytics -- --template",
+    );
+    expect(
+      result.stdout.indexOf(
+        "npm run --silent canvas:qa:analytics -- --template",
+      ),
+    ).toBeLessThan(
+      result.stdout.indexOf(
+        "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
+      ),
+    );
+    expect(result.stdout).toContain(
       "npm run --silent canvas:qa:preflight -- --final --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     );
   });
@@ -442,6 +454,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(summary.evidenceCommands).toEqual([
       "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
       "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
+      "npm run --silent canvas:qa:analytics -- --template",
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
