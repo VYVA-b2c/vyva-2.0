@@ -3118,6 +3118,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-pack-offline-direct-outreach")).toHaveTextContent("Offline and direct outreach");
     expect(screen.getByTestId("marketing-template-pack-offline-direct-outreach")).toHaveTextContent("8 templates");
     expect(screen.getByTestId("marketing-template-pack-offline-direct-outreach")).toHaveTextContent("AI pack prompt");
+    expect(screen.getByTestId("marketing-template-pack-spain-local-activation")).toHaveTextContent("Spain local activation");
+    expect(screen.getByTestId("marketing-template-pack-spain-local-activation")).toHaveTextContent("6 templates");
+    expect(screen.getByTestId("marketing-template-pack-spain-local-activation")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-local-event-relationship"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Local event relationship template pack");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event invite email");
@@ -3194,6 +3197,32 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Offline and direct outreach pack into the campaign studio");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-spain-local-activation"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Spain local activation template pack");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("ES local family invite email");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("ES WhatsApp RSVP nudge");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("ES SMS day-before reminder");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("ES community carousel");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("ES counter card QR copy");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("ES host run sheet");
+    expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
+    expect(screen.getByTestId("marketing-template-pack-sequence-spain-local-activation")).toHaveTextContent("Invitacion local");
+    expect(screen.getByTestId("marketing-template-pack-sequence-spain-local-activation")).toHaveTextContent("Guia anfitrion");
+
+    fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-spain-local-activation"));
+    expect(screen.getByTestId("select-marketing-campaign-studio-channel")).toHaveValue("email");
+    expect(screen.getByTestId("select-marketing-campaign-studio-tone")).toHaveValue("warm");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Spain local activation");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Instagram");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Loaded Spain local activation pack into the campaign studio");
     fireEvent.click(screen.getByTestId("button-marketing-clear-template-filters"));
 
     expect(screen.getByTestId("marketing-template-pack-care-confidence-reactivation")).toHaveTextContent("Care confidence reactivation");
