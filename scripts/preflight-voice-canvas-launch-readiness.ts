@@ -211,6 +211,15 @@ if (outputPathArg && !jsonOutput) {
   console.error("Use --output only with --json.");
   process.exit(1);
 }
+if (jsonOutput && outputPathArg && !forceOutput) {
+  const outputPath = path.resolve(process.cwd(), outputPathArg);
+  if (existsSync(outputPath)) {
+    console.error(
+      `Output file already exists. Use a run-specific path or pass --force to overwrite: ${path.relative(process.cwd(), outputPath)}`,
+    );
+    process.exit(1);
+  }
+}
 
 interface ValidatorRun {
   status: number | null;

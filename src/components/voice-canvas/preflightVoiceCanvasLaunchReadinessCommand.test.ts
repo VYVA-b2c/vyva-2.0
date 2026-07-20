@@ -2477,15 +2477,6 @@ describe("Voice Canvas launch readiness preflight command", () => {
     const outputPath = path.join(tempDir, "launch-preflight.json");
 
     try {
-      const first = runPreflight(["--json", `--output=${outputPath}`]);
-
-      expect(first.status).toBe(0);
-      expect(first.stderr).toBe("");
-      expect(existsSync(outputPath)).toBe(true);
-      expect(JSON.parse(readFileSync(outputPath, "utf8"))).toEqual(
-        JSON.parse(first.stdout),
-      );
-
       writeFileSync(outputPath, '{"existing":true}\n');
       const preserved = runPreflight(["--json", `--output=${outputPath}`]);
 
@@ -2502,8 +2493,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
       ]);
 
       expect(forced.status).toBe(0);
+      expect(forced.stderr).toBe("");
+      expect(existsSync(outputPath)).toBe(true);
       expect(JSON.parse(readFileSync(outputPath, "utf8")).acceptedPending).toBe(
         true,
+      );
+      expect(JSON.parse(readFileSync(outputPath, "utf8"))).toEqual(
+        JSON.parse(forced.stdout),
       );
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
