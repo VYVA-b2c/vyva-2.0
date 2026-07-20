@@ -12748,6 +12748,25 @@ export default function MarketingAdminPage() {
     ];
   }, [campaignReadinessRows]);
 
+  const campaignReadinessQueueBrief = useMemo(() => [
+    "VYVA campaign readiness queue",
+    `Generated: ${new Date().toISOString()}`,
+    `Visible campaigns: ${visibleCampaigns.length} of ${campaigns.length}`,
+    `Search/filter: ${search.trim() || "none"} / channel ${channelFilter} / audience ${audienceFilter}`,
+    "",
+    "Queues:",
+    ...campaignReadinessOverviewItems.map((item) => [
+      `- ${item.title}: ${item.count}`,
+      item.firstCampaign ? `  First campaign: ${item.firstCampaign.name}` : "  First campaign: none",
+      `  State: ${readinessLabel(item.state)}`,
+      `  Detail: ${item.detail}`,
+      `  Action: ${item.actionLabel}`,
+    ].join("\n")),
+    "",
+    "AI/admin instruction:",
+    "Prioritize blocked campaigns first, then audience/consent, then schedule gaps, then ready sends and manual handoffs. For each campaign, suggest the shortest next action and any copy/content/recipient fix needed before launch.",
+  ].join("\n"), [audienceFilter, campaignReadinessOverviewItems, campaigns.length, channelFilter, search, visibleCampaigns.length]);
+
   const visibleCampaignMetrics = useMemo(() => campaignMetrics.filter((metric) => {
     const campaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
     const metricMatchesSearch = matchesSearch(search, [
@@ -34201,8 +34220,24 @@ export default function MarketingAdminPage() {
                         <h3 className="mt-1 text-lg font-black text-[#241133]">What needs attention before launch</h3>
                         <p className="mt-1 text-sm font-bold text-[#6f5f59]">Counts follow the current search and filters, so this is the live working queue.</p>
                       </div>
-                      <Pill className="bg-white text-purple-800">{visibleCampaigns.length} visible</Pill>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill className="bg-white text-purple-800">{visibleCampaigns.length} visible</Pill>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignHandoffText("Campaign readiness queue brief", campaignReadinessQueueBrief)}
+                          disabled={!campaignReadinessQueueBrief.trim()}
+                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          data-testid="button-marketing-campaign-readiness-copy-brief"
+                        >
+                          <Sparkles size={13} /> Copy queue brief
+                        </button>
+                      </div>
                     </div>
+                    {campaignHandoffCopyFeedback ? (
+                      <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800" role="status" aria-live="polite" data-testid="marketing-campaign-readiness-copy-feedback">
+                        {campaignHandoffCopyFeedback}
+                      </p>
+                    ) : null}
                     <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-5">
                       {campaignReadinessOverviewItems.map((item) => (
                         <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-readiness-overview-${item.key}`}>

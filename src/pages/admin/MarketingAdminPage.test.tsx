@@ -7300,9 +7300,15 @@ describe("MarketingAdminPage", () => {
   });
 
   it("summarizes campaign readiness queues and opens the first relevant campaign", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
     renderPage();
 
     await screen.findByTestId("marketing-campaign-readiness-overview");
+    expect(screen.getByTestId("button-marketing-campaign-readiness-copy-brief")).toHaveTextContent("Copy queue brief");
 
     const readyQueue = within(screen.getByTestId("marketing-campaign-readiness-overview-ready"));
     expect(readyQueue.getByText("Ready to send")).toBeInTheDocument();
@@ -7320,6 +7326,15 @@ describe("MarketingAdminPage", () => {
     expect(audienceQueue.getByText("1")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-readiness-overview-audience")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-campaign-readiness-overview-audience")).toHaveTextContent("needs opted-in consent");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-readiness-copy-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign readiness queue"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("- Needs setup: 1"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("First campaign: Partner outreach"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI/admin instruction:"));
+    expect(screen.getByTestId("marketing-campaign-readiness-copy-feedback")).toHaveTextContent("Campaign readiness queue brief copied.");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-readiness-overview-setup"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
