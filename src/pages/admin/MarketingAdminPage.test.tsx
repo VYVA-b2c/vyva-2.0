@@ -1742,6 +1742,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-audience-quality")).toHaveTextContent("1 consent review");
     expect(screen.getByTestId("marketing-ai-command-audience-channel-coverage")).toHaveTextContent("Email 1");
     expect(screen.getByTestId("marketing-ai-command-audience-channel-coverage")).toHaveTextContent("LinkedIn 1");
+    expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("Launch confidence");
+    expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("74% Review first");
+    expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("Professional referral webinar templates matched");
+    expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("1 reachable contact");
+    expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("1 consent review");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Why VYVA chose this");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Partner webinar play");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Partners list");

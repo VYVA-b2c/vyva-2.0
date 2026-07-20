@@ -29681,6 +29681,33 @@ export default function MarketingAdminPage() {
         state: "planning",
       },
     ];
+    const readyPublishSteps = publishPath.filter((item) => item.state === "ready").length;
+    const usableRouteCount = channelRoutes.filter((route) => route.state !== "blocked").length;
+    let confidenceScore = Math.min(100, Math.max(0, (
+      (packMatch ? 20 : 0)
+      + (reachableContacts > 0 ? 20 : 0)
+      + (audienceQuality.optedIn > 0 ? 15 : audienceQuality.needsReview > 0 ? 7 : 0)
+      + (blockedRouteCount === 0 ? 15 : Math.max(0, 10 - blockedRouteCount * 5))
+      + Math.round((readyPublishSteps / publishPath.length) * 20)
+      + (emailRouteReady ? 10 : usableRouteCount > 0 ? 5 : 0)
+    )));
+    if (audienceQuality.needsReview > 0) confidenceScore = Math.min(confidenceScore, 74);
+    if (audienceQuality.noSelectedRoute > 0 || blockedRouteCount > 0) confidenceScore = Math.min(confidenceScore, 49);
+    if (reachableContacts === 0) confidenceScore = Math.min(confidenceScore, 29);
+    const confidenceState: CampaignReadinessState = confidenceScore >= 80
+      ? "ready"
+      : confidenceScore >= 55
+        ? "needs_action"
+        : confidenceScore >= 30
+          ? "planning"
+          : "blocked";
+    const confidenceReasons = [
+      packMatch ? `${packMatch.pack.title} templates matched` : "Template pack needs selection",
+      reachableContacts > 0 ? `${reachableContacts} reachable contact${reachableContacts === 1 ? "" : "s"}` : "No reachable contacts yet",
+      audienceQuality.needsReview > 0 ? `${audienceQuality.needsReview} consent review` : audienceQuality.optedIn > 0 ? `${audienceQuality.optedIn} opted-in contact${audienceQuality.optedIn === 1 ? "" : "s"}` : "Consent needs review",
+      blockedRouteCount > 0 ? `${blockedRouteCount} blocked route${blockedRouteCount === 1 ? "" : "s"}` : `${usableRouteCount} usable route${usableRouteCount === 1 ? "" : "s"}`,
+      emailRouteReady ? "Email can send through VYVA after review" : "Routes are handoff/planning first",
+    ];
     return {
       match,
       primaryChannel,
@@ -29691,6 +29718,12 @@ export default function MarketingAdminPage() {
       packMatch,
       channelRoutes,
       publishPath,
+      confidence: {
+        score: confidenceScore,
+        state: confidenceState,
+        label: confidenceScore >= 80 ? "Launch-ready" : confidenceScore >= 55 ? "Review first" : confidenceScore >= 30 ? "Planning only" : "Blocked",
+        reasons: confidenceReasons,
+      },
       angleLabel: campaignStudioAngleOptions.find((item) => item.id === match.angleId)?.label ?? match.angleId,
     };
   }, [audiences, contacts, marketingDashboardAiCommand, sendCapabilityByChannel, templatePackRecommendationsForPlay]);
@@ -31037,6 +31070,21 @@ export default function MarketingAdminPage() {
                             <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-2.5 py-2 ring-1 ring-[#eadfd5]">
                               <span>Tone</span>
                               <span className="text-right text-[#241133]">{campaignStudioToneLabel[marketingDashboardAiCommandPlan.match.toneId]} / {marketingDashboardAiCommandPlan.angleLabel}</span>
+                            </div>
+                            <div className={`rounded-lg border px-2.5 py-2 ${readinessClass(marketingDashboardAiCommandPlan.confidence.state)}`} data-testid="marketing-ai-command-launch-confidence">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-[11px] font-black uppercase tracking-[0.1em]">Launch confidence</span>
+                                <Pill className={readinessPillClass(marketingDashboardAiCommandPlan.confidence.state)}>
+                                  {marketingDashboardAiCommandPlan.confidence.score}% {marketingDashboardAiCommandPlan.confidence.label}
+                                </Pill>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-black">
+                                {marketingDashboardAiCommandPlan.confidence.reasons.map((reason) => (
+                                  <span key={reason} className="rounded-full bg-white/80 px-2 py-1 ring-1 ring-current/10">
+                                    {reason}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                             <div className="rounded-lg bg-white px-2.5 py-2 ring-1 ring-[#eadfd5]">
                               <span className="block text-[#7d6b65]">Template pack</span>
