@@ -1003,6 +1003,18 @@ type CampaignStudioChannelCopyItem = {
   text: string;
 };
 
+type CampaignStudioDistributionChecklistItem = {
+  channel: Channel;
+  title: string;
+  destination: string;
+  owner: string;
+  timing: string;
+  checklist: string[];
+  proofToCapture: string;
+  state: CampaignReadinessState;
+  text: string;
+};
+
 type CampaignStudioApprovalPackItem = {
   key: string;
   title: string;
@@ -15677,6 +15689,79 @@ export default function MarketingAdminPage() {
     "",
     ...campaignStudioChannelCopyItems.map((item) => item.text),
   ].join("\n\n---\n\n");
+  const campaignStudioDistributionChecklistItems: CampaignStudioDistributionChecklistItem[] = campaignStudioChannelDrafts.map(({ channel, recipients }) => {
+    const timeline = campaignStudioLaunchTimeline.find((item) => item.channel === channel);
+    const copyItem = campaignStudioChannelCopyItems.find((item) => item.channel === channel);
+    const trackingLink = campaignStudioTrackingLinks.find((item) => item.channel === channel)?.url ?? "";
+    const hasCopy = Boolean(copyItem?.bodyPreview && copyItem.bodyPreview !== "No preview line yet.");
+    const destination = channel === "email"
+      ? "VYVA campaign details > Email send review"
+      : channel === "whatsapp"
+        ? "Approved WhatsApp business workflow"
+        : channel === "sms"
+          ? "Approved SMS workflow"
+          : channel === "phone"
+            ? "Concierge call queue or sales call sheet"
+            : channel === "print"
+              ? "Flyer, one-pager, or QR print handoff"
+              : channel === "event"
+                ? "Event listing, host script, and local partner brief"
+                : `${channelLabel[channel]} post composer`;
+    const proofToCapture = channel === "email"
+      ? "Send count, opens, clicks, replies, opt-outs, and any follow-up task."
+      : channel === "whatsapp"
+        ? "Published batch/contact count, replies, opt-outs, and warm follow-ups."
+        : channel === "sms"
+          ? "Sent count, replies, failed numbers, opt-outs, and follow-up queue."
+          : channel === "phone"
+            ? "Calls attempted, conversations, objections, next steps, and owner."
+            : channel === "print"
+              ? "Where it was placed/shared, QR/link clicks, partner feedback, and replenishment date."
+              : channel === "event"
+                ? "Listing URL, RSVP count, attendees, partner notes, and follow-up owner."
+                : "Published URL, impressions/views if available, comments/replies, saves, and follow-up owner.";
+    const checklist = [
+      "Review final copy and CTA against the audience.",
+      trackingLink ? `Use tracked CTA: ${trackingLink}` : "Add or confirm a trackable CTA before publishing.",
+      `Publish in: ${destination}.`,
+      `Capture proof: ${proofToCapture}`,
+    ];
+    const state: CampaignReadinessState = !hasCopy
+      ? "blocked"
+      : recipients > 0 || channel === "print" || channel === "event"
+        ? "ready"
+        : "needs_action";
+    const text = [
+      `${channelLabel[channel]} distribution checklist`,
+      `Campaign: ${campaignStudioGenerated.campaignName}`,
+      `Owner: ${timeline?.owner ?? campaignStudioOwnerName}`,
+      `Timing: ${timeline?.timingLabel ?? campaignStudioOfflineScheduleLabel}`,
+      `Destination: ${destination}`,
+      `Status: ${readinessLabel(state)}`,
+      "",
+      ...checklist.map((step, index) => `${index + 1}. ${step}`),
+    ].join("\n");
+    return {
+      channel,
+      title: `${channelLabel[channel]} publishing checklist`,
+      destination,
+      owner: timeline?.owner ?? campaignStudioOwnerName,
+      timing: timeline?.timingLabel ?? campaignStudioOfflineScheduleLabel,
+      checklist,
+      proofToCapture,
+      state,
+      text,
+    };
+  });
+  const campaignStudioDistributionChecklistText = [
+    "VYVA campaign distribution checklist",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Owner: ${campaignStudioOwnerName}`,
+    `Schedule: ${campaignStudioOfflineScheduleLabel}`,
+    `Channels: ${formatChannelList(campaignStudioSelectedChannels)}`,
+    "",
+    ...campaignStudioDistributionChecklistItems.map((item) => item.text),
+  ].join("\n\n---\n\n");
   const campaignStudioTestPreviewItems = campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {
     const channelRecipients = campaignStudioRecipientPreviewByChannel.get(channel) ?? [];
     const sampleContact = channelRecipients[0] ?? campaignStudioPersonalizationContact;
@@ -17671,6 +17756,21 @@ export default function MarketingAdminPage() {
         bodyPreview: item.bodyPreview,
         cta: item.cta,
         publishNote: item.publishNote,
+        state: item.state,
+        text: item.text,
+      })),
+    },
+    distributionChecklist: {
+      text: campaignStudioDistributionChecklistText,
+      items: campaignStudioDistributionChecklistItems.map((item) => ({
+        channel: item.channel,
+        channelLabel: channelLabel[item.channel],
+        title: item.title,
+        destination: item.destination,
+        owner: item.owner,
+        timing: item.timing,
+        checklist: item.checklist,
+        proofToCapture: item.proofToCapture,
         state: item.state,
         text: item.text,
       })),
@@ -30254,6 +30354,50 @@ export default function MarketingAdminPage() {
                             >
                               <Copy size={14} /> Copy {channelLabel[item.channel]}
                             </button>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4" data-testid="marketing-campaign-studio-distribution-checklist">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Distribution checklist</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Where to publish and what proof to capture</h3>
+                          <p className="mt-1 text-xs font-bold text-[#536f67]">
+                            Turns each selected route into an operator checklist: destination, timing, tracked CTA, and the relationship signal to record afterward.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Campaign distribution checklist", campaignStudioDistributionChecklistText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-black text-emerald-800 hover:bg-emerald-50"
+                          data-testid="button-marketing-campaign-studio-copy-distribution-checklist"
+                        >
+                          <Copy size={14} /> Copy checklist
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-distribution-checklist-items">
+                        {campaignStudioDistributionChecklistItems.map((item) => (
+                          <article key={item.channel} className={`flex min-h-[290px] flex-col rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-distribution-checklist-${item.channel}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <h4 className="mt-3 text-sm font-black text-[#241133]">{item.title}</h4>
+                            <div className="mt-3 grid gap-2 rounded-lg bg-emerald-50/70 p-2 text-xs font-bold leading-relaxed text-[#536f67]">
+                              <p><span className="font-black text-[#241133]">Destination:</span> {item.destination}</p>
+                              <p><span className="font-black text-[#241133]">Owner:</span> {item.owner}</p>
+                              <p><span className="font-black text-[#241133]">Timing:</span> {item.timing}</p>
+                            </div>
+                            <ol className="mt-3 grid gap-1.5 text-xs font-bold leading-relaxed text-[#536f67]">
+                              {item.checklist.map((step, index) => (
+                                <li key={`${item.channel}-step-${index}`} className="rounded-lg bg-white/80 px-2 py-1.5">
+                                  {index + 1}. {step}
+                                </li>
+                              ))}
+                            </ol>
+                            <p className="mt-3 rounded-lg bg-white/80 p-2 text-xs font-black leading-relaxed text-emerald-800">{item.proofToCapture}</p>
                           </article>
                         ))}
                       </div>

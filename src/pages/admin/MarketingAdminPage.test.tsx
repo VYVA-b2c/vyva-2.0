@@ -5645,6 +5645,17 @@ describe("MarketingAdminPage", () => {
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Publishing note: Publish manually in LinkedIn"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign channel copy board copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-distribution-checklist")).toHaveTextContent("Distribution checklist");
+    expect(screen.getByTestId("marketing-campaign-studio-distribution-checklist")).toHaveTextContent("Where to publish and what proof to capture");
+    expect(screen.getByTestId("marketing-campaign-studio-distribution-checklist-linkedin")).toHaveTextContent("LinkedIn publishing checklist");
+    expect(screen.getByTestId("marketing-campaign-studio-distribution-checklist-linkedin")).toHaveTextContent("LinkedIn post composer");
+    expect(screen.getByTestId("marketing-campaign-studio-distribution-checklist-linkedin")).toHaveTextContent("Published URL");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-distribution-checklist"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign distribution checklist"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn distribution checklist"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign distribution checklist copied.");
     expect(screen.getByTestId("marketing-campaign-studio-creative-direction")).toHaveTextContent("Creative direction board");
     expect(screen.getByTestId("marketing-campaign-studio-creative-direction-linkedin")).toHaveTextContent("LinkedIn creative direction");
     expect(screen.getByTestId("marketing-campaign-studio-creative-direction-linkedin")).toHaveTextContent("Visual:");
@@ -6490,6 +6501,24 @@ describe("MarketingAdminPage", () => {
                 channel: "email",
                 title: "Email copy block",
                 text: expect.stringContaining("Email campaign copy block"),
+              }),
+            ]),
+          }),
+          distributionChecklist: expect.objectContaining({
+            text: expect.stringContaining("VYVA campaign distribution checklist"),
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                channel: "linkedin",
+                title: "LinkedIn publishing checklist",
+                destination: "LinkedIn post composer",
+                proofToCapture: expect.stringContaining("Published URL"),
+                text: expect.stringContaining("LinkedIn distribution checklist"),
+              }),
+              expect.objectContaining({
+                channel: "email",
+                title: "Email publishing checklist",
+                destination: "VYVA campaign details > Email send review",
+                text: expect.stringContaining("Email distribution checklist"),
               }),
             ]),
           }),
