@@ -662,6 +662,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
     );
     expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:preflight -- --final --date=YYYY-MM-DD --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+    );
+    expect(result.stdout).toContain(
       "npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     );
     expect(result.stdout).toContain(

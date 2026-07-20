@@ -129,6 +129,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run canvas:qa:preflight -- --final",
       "  npm run canvas:qa:preflight -- --final --date=YYYY-MM-DD",
       "  npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
+      "  npm run --silent canvas:qa:preflight -- --final --date=YYYY-MM-DD --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
       "  npm run --silent canvas:qa:preflight -- --json",
       "  npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
       "  npm run canvas:qa:preflight -- --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
