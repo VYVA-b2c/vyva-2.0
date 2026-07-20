@@ -6067,6 +6067,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-launch-ai-explainer-title")).toHaveTextContent("Full-channel launch packet");
     expect(screen.getByTestId("marketing-campaign-launch-ai-explainer-detail")).toHaveTextContent("starter templates");
     expect(screen.getByTestId("marketing-campaign-launch-ai-explainer-signals")).toHaveTextContent("Next click");
+    expect(screen.getByTestId("marketing-campaign-launch-recipe")).toHaveTextContent("Quick launch recipe");
+    expect(screen.getByTestId("marketing-campaign-launch-recipe")).toHaveTextContent("Full-channel launch announcement");
+    expect(screen.getByTestId("marketing-campaign-launch-recipe")).toHaveTextContent("Launch order");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-launch-recipe"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA recommended launch recipe"));
+    });
+    expect(screen.getByTestId("marketing-campaign-launch-recipe-feedback")).toHaveTextContent("Recommended launch recipe copied.");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-ai-explainer"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Full-channel launch packet with Full-channel launch announcement template pack.");
     expect(screen.getByTestId("marketing-campaign-launch-ai-recommendation-full-channel-launch")).toHaveTextContent("Full-channel launch packet");

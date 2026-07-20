@@ -584,6 +584,7 @@ type CampaignLaunchModeInsight = {
     pack: ContentTemplatePack;
     templates: ContentTemplate[];
     channels: Channel[];
+    heroTemplate: ContentTemplate | null;
     state: CampaignReadinessState;
   } | null;
   play: CampaignStudioPlay;
@@ -12485,6 +12486,7 @@ export default function MarketingAdminPage() {
   const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
   const [campaignHandoffCopyFeedback, setCampaignHandoffCopyFeedback] = useState("");
   const [campaignPerformanceLearningFeedback, setCampaignPerformanceLearningFeedback] = useState("");
+  const [campaignLaunchRecipeFeedback, setCampaignLaunchRecipeFeedback] = useState("");
   const [marketingOperatorBriefFeedback, setMarketingOperatorBriefFeedback] = useState("");
   const [marketingChannelBoardFeedback, setMarketingChannelBoardFeedback] = useState("");
   const [manualPublishDraft, setManualPublishDraft] = useState<ManualPublishTrackerDraft>(() => emptyManualPublishTrackerDraft());
@@ -13625,6 +13627,39 @@ export default function MarketingAdminPage() {
     return a.mode.title.localeCompare(b.mode.title);
   }), [audiences, contacts, contentTemplatePacksWithStats]);
   const campaignLaunchTopInsight = campaignLaunchModeInsights[0] ?? null;
+  const campaignLaunchTopRecipe = useMemo(() => {
+    if (!campaignLaunchTopInsight) return null;
+    const packTitle = campaignLaunchTopInsight.linkedPack?.pack.title ?? "No matched template pack";
+    const heroTemplate = campaignLaunchTopInsight.linkedPack?.heroTemplate?.title ?? campaignLaunchTopInsight.play.contentTitle;
+    const routeList = campaignLaunchTopInsight.selectedChannels.length
+      ? campaignLaunchTopInsight.selectedChannels.map((channel) => (
+        `- ${channelLabel[channel]}: ${channel === "email" ? "VYVA-send review, test, then explicit send." : "Manual handoff, publish outside VYVA, then record outcome."}`
+      )).join("\n")
+      : "- No route selected yet.";
+    return [
+      "VYVA recommended launch recipe",
+      "",
+      `Path: ${campaignLaunchTopInsight.mode.title}`,
+      `Audience: ${campaignLaunchTopInsight.targetAudience?.name ?? "All eligible contacts"} (${campaignLaunchTopInsight.reachableContacts} reachable)`,
+      `Template pack: ${packTitle}`,
+      `Hero template: ${heroTemplate}`,
+      `Primary play: ${campaignLaunchTopInsight.play.label}`,
+      `Channels: ${formatChannelList(campaignLaunchTopInsight.selectedChannels)}`,
+      `Creates: ${campaignLaunchTopInsight.mode.creates}`,
+      "",
+      "Route plan:",
+      routeList,
+      "",
+      "Launch order:",
+      "1. Open this path and review the campaign studio route.",
+      "2. Create or attach content for every selected channel.",
+      "3. Snapshot recipients before any send or handoff.",
+      "4. Send email only after test/final review; publish other channels manually.",
+      "5. Record outcomes and start the relationship follow-up loop.",
+      "",
+      `Next click: ${campaignLaunchTopInsight.mode.nextStep}`,
+    ].join("\n");
+  }, [campaignLaunchTopInsight]);
   const visibleContentTemplates = useMemo(() => contentTemplateGallery.filter((template) => {
     const matchesText = matchesSearch(contentTemplateSearch, [
       template.id,
@@ -22419,6 +22454,11 @@ export default function MarketingAdminPage() {
   async function copyCampaignPerformanceLearningBrief() {
     const copied = await copyCampaignHandoffText("Performance learning brief", campaignPerformanceLearning.brief);
     setCampaignPerformanceLearningFeedback(copied ? "Performance learning brief copied." : "Could not copy the performance learning brief.");
+  }
+
+  async function copyCampaignLaunchRecipe() {
+    const copied = await copyCampaignHandoffText("Recommended launch recipe", campaignLaunchTopRecipe ?? "");
+    setCampaignLaunchRecipeFeedback(copied ? "Recommended launch recipe copied." : "Could not copy the recommended launch recipe.");
   }
 
   async function copyCampaignStudioOfflineHandoff(label: string, text: string) {
@@ -31904,6 +31944,43 @@ export default function MarketingAdminPage() {
                                   <p className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-900">Next click</p>
                                   <p className="mt-1 text-xs font-black text-[#244437]">{campaignLaunchTopInsight.mode.nextStep}</p>
                                 </div>
+                              </div>
+                              <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3" data-testid="marketing-campaign-launch-recipe">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-900">Quick launch recipe</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-[#5d6b61]">
+                                      A copy-ready launch brief for the next admin step, with route handling and review order included.
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => void copyCampaignLaunchRecipe()}
+                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50"
+                                    data-testid="button-marketing-copy-launch-recipe"
+                                  >
+                                    <Copy size={13} aria-hidden="true" /> Copy recipe
+                                  </button>
+                                </div>
+                                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                                  <div className="rounded-lg bg-white px-3 py-2">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-900">Pack</p>
+                                    <p className="mt-1 text-xs font-black text-[#244437]">{campaignLaunchTopInsight.linkedPack?.pack.title ?? "No matched template pack"}</p>
+                                  </div>
+                                  <div className="rounded-lg bg-white px-3 py-2">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-900">Hero template</p>
+                                    <p className="mt-1 text-xs font-black text-[#244437]">{campaignLaunchTopInsight.linkedPack?.heroTemplate?.title ?? campaignLaunchTopInsight.play.contentTitle}</p>
+                                  </div>
+                                  <div className="rounded-lg bg-white px-3 py-2">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-900">Launch order</p>
+                                    <p className="mt-1 text-xs font-black text-[#244437]">Review, content, recipients, send or handoff, learn.</p>
+                                  </div>
+                                </div>
+                                {campaignLaunchRecipeFeedback ? (
+                                  <p className="mt-2 text-xs font-black text-emerald-800" data-testid="marketing-campaign-launch-recipe-feedback">
+                                    {campaignLaunchRecipeFeedback}
+                                  </p>
+                                ) : null}
                               </div>
                             </div>
                             <button
