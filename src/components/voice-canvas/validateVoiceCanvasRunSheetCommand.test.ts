@@ -98,6 +98,9 @@ describe("Voice Canvas run sheet validator command", () => {
       "- Per-flow behavior pass: 180 pending cell(s) across 18 row(s)",
     );
     expect(result.stdout).toContain(
+      "Next evidence area: Per-flow behavior pass (180 pending cell(s) across 18 row(s))",
+    );
+    expect(result.stdout).toContain(
       "Run sheet is still pending, but its structure is valid.",
     );
   });
@@ -125,6 +128,11 @@ describe("Voice Canvas run sheet validator command", () => {
       problemCount: number;
       acceptedPending: boolean;
       pendingSections: Array<{ section: string; pendingCells: number }>;
+      nextPendingSection: {
+        section: string;
+        pendingCells: number;
+        rowsWithPending: number;
+      };
     };
 
     expect(summary.state).toBe("pending");
@@ -141,6 +149,11 @@ describe("Voice Canvas run sheet validator command", () => {
         },
       ]),
     );
+    expect(summary.nextPendingSection).toEqual({
+      section: "Per-flow behavior pass",
+      pendingCells: 180,
+      rowsWithPending: 18,
+    });
   });
 
   it("passes a completed run sheet", () =>

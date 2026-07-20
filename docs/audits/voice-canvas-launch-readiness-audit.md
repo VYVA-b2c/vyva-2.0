@@ -84,6 +84,8 @@ Browser screenshot evidence now uses sanitized dev-harness labels for ride, appo
 
 The platform compliance suite now includes a static browser-evidence guard: launch screenshot specs that write artifacts under `src/dev/voice-canvas/` must use sanitized evidence mode, and the task-hub screenshot fixture must keep generic saved-source, prepared-line, saved-care, and long-label placeholders.
 
+Run-sheet, evidence-packet, QA-matrix, and combined preflight validators now surface the largest pending section as the next evidence area. This keeps in-progress QA output actionable while still preserving the final gate behavior that blocks launch until all real-device, endpoint, analytics, packet, matrix, and sign-off evidence is complete.
+
 ## Requirement audit
 
 | Requirement | Evidence now in repo | Status |
@@ -128,6 +130,11 @@ The platform compliance suite now includes a static browser-evidence guard: laun
 - Screenshot evidence compliance guard:
   - `npm run test -- src/components/voice-canvas/canvasPlatformCompliance.test.ts`
   - Result: 14 tests passed after adding static coverage that keeps launch browser screenshot specs tied to sanitized evidence fixtures.
+- Validator next-evidence-area guidance:
+  - `npm run test -- src/components/voice-canvas/validateVoiceCanvasRunSheetCommand.test.ts src/components/voice-canvas/validateVoiceCanvasEvidencePacketCommand.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/preflightVoiceCanvasLaunchReadinessCommand.test.ts`
+  - Result: 58 tests passed after adding next-pending-section JSON and human-readable output to the run-sheet, packet, matrix, and combined preflight validators.
+  - `npm run canvas:qa:preflight -- --final`
+  - Result: correctly failed final launch mode and surfaced the largest pending sections: run-sheet per-flow behavior pass, QA-matrix required behavior checklist, and evidence-packet inventory.
 - Pending matrix validation command:
   - `npm run canvas:qa:validate -- --allow-pending`
   - Result: passed after adding the endpoint evidence collector for the committed pending matrix structure with 286 incomplete cells and 0 failing/not-ready cells, and prints pending cells by section for manual QA execution. `npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json` also saves a machine-readable summary for QA artifacts or CI logs while preserving existing artifact files by default; a dated temporary JSON artifact smoke passed and was cleaned up. `src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts` also proves the final launch command fails the pending matrix when `--allow-pending` is omitted. Final launch sign-off must run `npm run canvas:qa:validate` without `--allow-pending` after deployed real-device evidence is filled.

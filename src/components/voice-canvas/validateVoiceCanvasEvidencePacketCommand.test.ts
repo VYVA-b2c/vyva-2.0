@@ -99,6 +99,9 @@ describe("Voice Canvas evidence packet validator command", () => {
       "- Evidence packet inventory: 11 pending cell(s) across 11 row(s)",
     );
     expect(result.stdout).toContain(
+      "Next evidence area: Evidence packet inventory (11 pending cell(s) across 11 row(s))",
+    );
+    expect(result.stdout).toContain(
       "Evidence packet is still pending, but its structure is valid.",
     );
   });
@@ -128,6 +131,11 @@ describe("Voice Canvas evidence packet validator command", () => {
       problemCount: number;
       acceptedPending: boolean;
       pendingSections: Array<{ section: string; pendingCells: number }>;
+      nextPendingSection: {
+        section: string;
+        pendingCells: number;
+        rowsWithPending: number;
+      };
       message: string;
     };
 
@@ -146,6 +154,11 @@ describe("Voice Canvas evidence packet validator command", () => {
         rowsWithPending: 11,
       },
     ]);
+    expect(summary.nextPendingSection).toEqual({
+      section: "Evidence packet inventory",
+      pendingCells: 11,
+      rowsWithPending: 11,
+    });
     expect(summary.message).toBe(
       "Evidence packet is still pending, but its structure is valid.",
     );

@@ -900,6 +900,9 @@ const result = evaluateEvidencePacket(packet);
 const relativePacketPath = path.relative(process.cwd(), packetPath);
 const acceptedPending =
   allowPending && result.state === "pending" && result.problemCount === 0;
+const nextPendingSection = [...result.pendingSections].sort(
+  (a, b) => b.pendingCells - a.pendingCells,
+)[0];
 
 function failureMessage(): string {
   if (result.problemCount > 0) return "Evidence packet is not ready.";
@@ -919,6 +922,7 @@ if (jsonOutput) {
       readyForLaunchEvidencePacket: result.readyForLaunchEvidencePacket,
       incompleteCellCount: result.incompleteCellCount,
       pendingSections: result.pendingSections,
+      nextPendingSection: nextPendingSection ?? null,
       problemCount: result.problemCount,
       problems: result.problems,
       allowPending,
@@ -961,6 +965,11 @@ if (result.pendingSections.length > 0) {
   for (const summary of result.pendingSections) {
     console.log(
       `- ${summary.section}: ${summary.pendingCells} pending cell(s) across ${summary.rowsWithPending} row(s)`,
+    );
+  }
+  if (nextPendingSection) {
+    console.log(
+      `Next evidence area: ${nextPendingSection.section} (${nextPendingSection.pendingCells} pending cell(s) across ${nextPendingSection.rowsWithPending} row(s))`,
     );
   }
 }

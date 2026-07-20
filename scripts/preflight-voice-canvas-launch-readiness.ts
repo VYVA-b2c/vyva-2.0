@@ -232,7 +232,11 @@ function pendingSectionSummaries(value: unknown): PendingSectionSummary[] {
   );
 }
 
-function printPendingSections(label: string, value: unknown): void {
+function printPendingSections(
+  label: string,
+  value: unknown,
+  nextValue: unknown,
+): void {
   const summaries = pendingSectionSummaries(value);
   if (summaries.length === 0) return;
 
@@ -240,6 +244,14 @@ function printPendingSections(label: string, value: unknown): void {
   for (const summary of summaries) {
     console.log(
       `- ${summary.section}: ${summary.pendingCells} pending cell(s) across ${summary.rowsWithPending} row(s)`,
+    );
+  }
+  const nextSection = pendingSectionSummaries(
+    Array.isArray(nextValue) ? nextValue : nextValue ? [nextValue] : [],
+  )[0];
+  if (nextSection) {
+    console.log(
+      `${label} next evidence area: ${nextSection.section} (${nextSection.pendingCells} pending cell(s) across ${nextSection.rowsWithPending} row(s))`,
     );
   }
 }
@@ -645,6 +657,7 @@ const summary = {
     problemCount: numericField(runSheetRun.summary, "problemCount"),
     problems: stringArrayField(runSheetRun.summary, "problems"),
     pendingSections: runSheetRun.summary?.pendingSections ?? [],
+    nextPendingSection: runSheetRun.summary?.nextPendingSection ?? null,
     message: stringField(runSheetRun.summary, "message"),
   },
   matrix: {
@@ -657,6 +670,7 @@ const summary = {
     problemCount: numericField(matrixRun.summary, "problemCount"),
     problems: stringArrayField(matrixRun.summary, "problems"),
     pendingSections: matrixRun.summary?.pendingSections ?? [],
+    nextPendingSection: matrixRun.summary?.nextPendingSection ?? null,
     message: stringField(matrixRun.summary, "message"),
   },
   evidencePacket: {
@@ -670,6 +684,7 @@ const summary = {
     problemCount: numericField(packetRun.summary, "problemCount"),
     problems: stringArrayField(packetRun.summary, "problems"),
     pendingSections: packetRun.summary?.pendingSections ?? [],
+    nextPendingSection: packetRun.summary?.nextPendingSection ?? null,
     message: stringField(packetRun.summary, "message"),
   },
   analyticsEvidence: {
@@ -762,11 +777,20 @@ printProblemDetails(
   "Feature endpoints rollback",
   summary.featureEndpointEvidence.rollback.problems,
 );
-printPendingSections("Run sheet", summary.runSheet.pendingSections);
-printPendingSections("QA matrix", summary.matrix.pendingSections);
+printPendingSections(
+  "Run sheet",
+  summary.runSheet.pendingSections,
+  summary.runSheet.nextPendingSection,
+);
+printPendingSections(
+  "QA matrix",
+  summary.matrix.pendingSections,
+  summary.matrix.nextPendingSection,
+);
 printPendingSections(
   "Evidence packet",
   summary.evidencePacket.pendingSections,
+  summary.evidencePacket.nextPendingSection,
 );
 console.log("Next action:");
 for (const action of nextActions) {

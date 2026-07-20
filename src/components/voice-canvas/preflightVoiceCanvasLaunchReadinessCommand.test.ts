@@ -227,6 +227,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "- Environment preflight: 12 pending cell(s) across 6 row(s)",
     );
+    expect(result.stdout).toContain(
+      "Run sheet next evidence area: Per-flow behavior pass (180 pending cell(s) across 18 row(s))",
+    );
     expect(result.stdout).toContain("QA matrix pending sections:");
     expect(result.stdout).toContain(
       "- Device coverage: 24 pending cell(s) across 6 row(s)",
@@ -234,9 +237,15 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "- Analytics privacy review: 16 pending cell(s) across 8 row(s)",
     );
+    expect(result.stdout).toContain(
+      "QA matrix next evidence area: Required behavior checklist (78 pending cell(s) across 6 row(s))",
+    );
     expect(result.stdout).toContain("Evidence packet pending sections:");
     expect(result.stdout).toContain(
       "- Evidence packet inventory: 11 pending cell(s) across 11 row(s)",
+    );
+    expect(result.stdout).toContain(
+      "Evidence packet next evidence area: Evidence packet inventory (11 pending cell(s) across 11 row(s))",
     );
     expect(result.stdout).toContain(
       "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
@@ -274,8 +283,11 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.",
     );
     expect(result.stdout).toContain("Run sheet pending sections:");
+    expect(result.stdout).toContain("Run sheet next evidence area:");
     expect(result.stdout).toContain("QA matrix pending sections:");
+    expect(result.stdout).toContain("QA matrix next evidence area:");
     expect(result.stdout).toContain("Evidence packet pending sections:");
+    expect(result.stdout).toContain("Evidence packet next evidence area:");
   });
 
   it("emits machine-readable JSON for launch readiness artifacts", () => {
@@ -294,18 +306,33 @@ describe("Voice Canvas launch readiness preflight command", () => {
         failingCellCount: number;
         problemCount: number;
         problems: string[];
+        nextPendingSection: {
+          section: string;
+          pendingCells: number;
+          rowsWithPending: number;
+        };
       };
       runSheet: {
         state: string;
         incompleteCellCount: number;
         problemCount: number;
         problems: string[];
+        nextPendingSection: {
+          section: string;
+          pendingCells: number;
+          rowsWithPending: number;
+        };
       };
       evidencePacket: {
         state: string;
         incompleteCellCount: number;
         problemCount: number;
         problems: string[];
+        nextPendingSection: {
+          section: string;
+          pendingCells: number;
+          rowsWithPending: number;
+        };
       };
       analyticsEvidence: {
         provided: boolean;
@@ -343,6 +370,11 @@ describe("Voice Canvas launch readiness preflight command", () => {
       incompleteCellCount: 260,
       problemCount: 0,
       problems: [],
+      nextPendingSection: {
+        section: "Per-flow behavior pass",
+        pendingCells: 180,
+        rowsWithPending: 18,
+      },
     });
     expect(summary.matrix).toMatchObject({
       state: "pending",
@@ -350,12 +382,22 @@ describe("Voice Canvas launch readiness preflight command", () => {
       failingCellCount: 0,
       problemCount: 0,
       problems: [],
+      nextPendingSection: {
+        section: "Required behavior checklist",
+        pendingCells: 78,
+        rowsWithPending: 6,
+      },
     });
     expect(summary.evidencePacket).toMatchObject({
       state: "pending",
       incompleteCellCount: 11,
       problemCount: 0,
       problems: [],
+      nextPendingSection: {
+        section: "Evidence packet inventory",
+        pendingCells: 11,
+        rowsWithPending: 11,
+      },
     });
     expect(summary.analyticsEvidence).toMatchObject({
       provided: false,

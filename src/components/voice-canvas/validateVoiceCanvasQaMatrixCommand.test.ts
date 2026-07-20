@@ -58,6 +58,9 @@ describe("Voice Canvas QA matrix validator command", () => {
       "- Required behavior checklist: 78 pending cell(s) across 6 row(s)",
     );
     expect(result.stdout).toContain(
+      "Next evidence area: Required behavior checklist (78 pending cell(s) across 6 row(s))",
+    );
+    expect(result.stdout).toContain(
       "- Final sign-off: 16 pending cell(s) across 4 row(s)",
     );
     expect(result.stdout).toContain(
@@ -74,6 +77,9 @@ describe("Voice Canvas QA matrix validator command", () => {
     expect(result.stdout).toContain("Pending cells by section:");
     expect(result.stdout).toContain(
       "- Evidence artifact inventory: 33 pending cell(s) across 11 row(s)",
+    );
+    expect(result.stdout).toContain(
+      "Next evidence area: Required behavior checklist (78 pending cell(s) across 6 row(s))",
     );
     expect(result.stderr).toContain(
       "Matrix is still pending execution. Fill every row, attach sanitized evidence, and change Status to ready for launch.",
@@ -98,6 +104,11 @@ describe("Voice Canvas QA matrix validator command", () => {
         pendingCells: number;
         rowsWithPending: number;
       }>;
+      nextPendingSection: {
+        section: string;
+        pendingCells: number;
+        rowsWithPending: number;
+      };
       problemCount: number;
       problems: string[];
       allowPending: boolean;
@@ -134,6 +145,11 @@ describe("Voice Canvas QA matrix validator command", () => {
         },
       ]),
     );
+    expect(summary.nextPendingSection).toEqual({
+      section: "Required behavior checklist",
+      pendingCells: 78,
+      rowsWithPending: 6,
+    });
     expect(summary.message).toBe(
       "Matrix is still pending execution, but its structure is valid.",
     );
@@ -150,6 +166,11 @@ describe("Voice Canvas QA matrix validator command", () => {
       acceptedPending: boolean;
       message: string;
       pendingSections: Array<{ section: string; pendingCells: number }>;
+      nextPendingSection: {
+        section: string;
+        pendingCells: number;
+        rowsWithPending: number;
+      };
     };
 
     expect(summary.readyForLaunch).toBe(false);
@@ -162,6 +183,11 @@ describe("Voice Canvas QA matrix validator command", () => {
         }),
       ]),
     );
+    expect(summary.nextPendingSection).toEqual({
+      section: "Required behavior checklist",
+      pendingCells: 78,
+      rowsWithPending: 6,
+    });
     expect(summary.message).toBe(
       "Matrix is still pending execution. Fill every row, attach sanitized evidence, and change Status to ready for launch.",
     );

@@ -118,6 +118,9 @@ const acceptedPending =
   allowPending &&
   result.status === CANVAS_REAL_DEVICE_QA_PENDING_STATUS &&
   result.problems.length === 0;
+const nextPendingSection = [...pendingSummaries].sort(
+  (a, b) => b.pendingCells - a.pendingCells,
+)[0];
 
 function failureMessage(): string {
   if (result.problems.length > 0) return "Matrix is not ready for launch.";
@@ -139,6 +142,7 @@ if (jsonOutput) {
       incompleteCellCount: result.incompleteCellCount,
       failingCellCount: result.failingCellCount,
       pendingSections: pendingSummaries,
+      nextPendingSection: nextPendingSection ?? null,
       problemCount: result.problems.length,
       problems: result.problems,
       allowPending,
@@ -179,6 +183,11 @@ if (pendingSummaries.length > 0) {
   for (const summary of pendingSummaries) {
     console.log(
       `- ${summary.section}: ${summary.pendingCells} pending cell(s) across ${summary.rowsWithPending} row(s)`,
+    );
+  }
+  if (nextPendingSection) {
+    console.log(
+      `Next evidence area: ${nextPendingSection.section} (${nextPendingSection.pendingCells} pending cell(s) across ${nextPendingSection.rowsWithPending} row(s))`,
     );
   }
 }
