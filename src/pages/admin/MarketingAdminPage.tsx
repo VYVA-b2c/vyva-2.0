@@ -13726,6 +13726,68 @@ export default function MarketingAdminPage() {
     contactRelationshipPriorityQueue,
     contactRelationshipWorkQueues,
   ]);
+  const contactRelationshipRunSheetText = useMemo(() => {
+    const priorityQueue = contactRelationshipPriorityQueue;
+    const activeQueues = contactRelationshipWorkQueues.filter((queue) => queue.count > 0);
+    const sourceQueues = activeQueues.length ? activeQueues : contactRelationshipWorkQueues;
+    const ownerLine = priorityQueue?.sampleContact
+      ? `First contact to inspect: ${priorityQueue.sampleContact.fullName || priorityQueue.sampleContact.email || priorityQueue.sampleContact.phoneNumber}`
+      : "First contact to inspect: choose the first reachable contact in the priority queue.";
+    const queueLines = sourceQueues
+      .slice()
+      .sort((a, b) => {
+        const rank = (queue: ContactRelationshipWorkQueue) => (queue.state === "ready" ? 3 : queue.state === "needs_action" ? 2 : queue.state === "planning" ? 1 : 0);
+        return rank(b) - rank(a) || b.count - a.count || a.title.localeCompare(b.title);
+      })
+      .map((queue, index) => {
+        const contactLabel = queue.sampleContact?.fullName || queue.sampleContact?.email || queue.sampleContact?.phoneNumber || "No sample contact";
+        return [
+          `${index + 1}. ${queue.title} - ${queue.countLabel}`,
+          `   Status: ${readinessLabel(queue.state)}`,
+          `   Route: ${formatChannelList(queue.channels)}`,
+          `   First action: ${queue.count ? queue.studioLabel : "Enrich contacts before outreach"}`,
+          `   Sample: ${contactLabel}`,
+        ].join("\n");
+      });
+    const cadenceLines = contactRelationshipCadenceLanes.map((lane) => [
+      `- ${lane.label}: ${lane.title}`,
+      `  Do: ${lane.secondaryLabel}`,
+      `  Contact: ${lane.contact?.fullName || lane.contact?.email || lane.contact?.phoneNumber || "No contact selected"}`,
+    ].join("\n"));
+
+    return [
+      "VYVA relationship run sheet",
+      `Audience view: ${contactHealthTotal} contacts`,
+      `Relationship score: ${contactRelationshipScore}%`,
+      `Reachable now: ${contactHealthDirectReachable}/${contactHealthTotal}`,
+      `Consent reviews: ${contactHealthNeedsConsent}`,
+      `Segmentation gaps: ${Math.max(contactHealthTotal - contactHealthSegmented, 0)}`,
+      "",
+      "Priority move:",
+      priorityQueue
+        ? `${priorityQueue.title} - ${priorityQueue.countLabel} - ${priorityQueue.studioLabel}`
+        : "No priority queue yet. Import contacts, confirm consent, then create the first relationship list.",
+      ownerLine,
+      "",
+      "Work today:",
+      ...(cadenceLines.length ? cadenceLines : ["- No cadence lanes yet."]),
+      "",
+      "Queue order:",
+      ...(queueLines.length ? queueLines : ["1. No queue data yet."]),
+      "",
+      "Operating rule:",
+      "Review consent before outreach. Use email and WhatsApp for direct sends. Treat LinkedIn, Facebook, Instagram, and TikTok as manual planning channels until provider integrations are enabled.",
+    ].join("\n");
+  }, [
+    contactHealthDirectReachable,
+    contactHealthNeedsConsent,
+    contactHealthSegmented,
+    contactHealthTotal,
+    contactRelationshipCadenceLanes,
+    contactRelationshipPriorityQueue,
+    contactRelationshipScore,
+    contactRelationshipWorkQueues,
+  ]);
   const contactRelationshipOperatingLanes = useMemo(() => {
     const queueByKey = new Map(contactRelationshipWorkQueues.map((queue) => [queue.key, queue]));
     const consentQueue = queueByKey.get("consent-cleanup") ?? null;
@@ -20617,6 +20679,41 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = contactRelationshipCommandBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyContactRelationshipRunSheet() {
+    const label = "Relationship run sheet";
+    if (!contactRelationshipRunSheetText.trim()) {
+      const feedback = `${label} is empty.`;
+      setContactFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contactRelationshipRunSheetText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contactRelationshipRunSheetText;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -37009,6 +37106,38 @@ export default function MarketingAdminPage() {
                     value={contactRelationshipCommandBriefText}
                     readOnly
                     data-testid="textarea-marketing-contact-command-brief"
+                  />
+                </div>
+                <div className="mt-3 grid gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 shadow-sm xl:grid-cols-[1fr_minmax(320px,0.8fr)]" data-testid="marketing-contact-relationship-run-sheet">
+                  <div>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Relationship run sheet</p>
+                        <p className="mt-1 text-sm font-black text-[#241133]">A short operator checklist for the current audience view.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void copyContactRelationshipRunSheet()}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800"
+                        data-testid="button-marketing-copy-contact-relationship-run-sheet"
+                      >
+                        <Copy size={13} /> Copy run sheet
+                      </button>
+                    </div>
+                    <div className="mt-3 grid gap-2 md:grid-cols-3">
+                      <Pill className="bg-white text-emerald-800">Priority: {contactRelationshipPriorityQueue?.title ?? "None"}</Pill>
+                      <Pill className="bg-white text-[#241133]">{contactRelationshipWorkQueues.filter((queue) => queue.count > 0).length} active queues</Pill>
+                      <Pill className={contactHealthNeedsConsent ? "bg-amber-50 text-amber-900" : "bg-white text-emerald-800"}>{contactHealthNeedsConsent} consent reviews</Pill>
+                    </div>
+                    <p className="mt-3 text-xs font-bold leading-relaxed text-[#5b4a46]">
+                      Use this as the daily handoff: what queue to work first, who to inspect, which channels to use, and what must stay manual.
+                    </p>
+                  </div>
+                  <textarea
+                    className={`${textareaClass} min-h-[170px] text-xs`}
+                    value={contactRelationshipRunSheetText}
+                    readOnly
+                    data-testid="textarea-marketing-contact-relationship-run-sheet"
                   />
                 </div>
                 <div className="mt-3 grid gap-3 xl:grid-cols-5">

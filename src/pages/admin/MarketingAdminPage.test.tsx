@@ -1176,6 +1176,18 @@ describe("MarketingAdminPage", () => {
       expect(commandClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Relationship command brief"));
     });
     expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Relationship command brief copied.");
+    expect(screen.getByTestId("marketing-contact-relationship-run-sheet")).toHaveTextContent("Relationship run sheet");
+    expect(screen.getByTestId("marketing-contact-relationship-run-sheet")).toHaveTextContent("Priority: B2B partner nurture");
+    const relationshipRunSheet = screen.getByTestId("textarea-marketing-contact-relationship-run-sheet") as HTMLTextAreaElement;
+    expect(relationshipRunSheet.value).toContain("VYVA relationship run sheet");
+    expect(relationshipRunSheet.value).toContain("Priority move:");
+    expect(relationshipRunSheet.value).toContain("B2B partner nurture");
+    expect(relationshipRunSheet.value).toContain("Operating rule:");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-contact-relationship-run-sheet"));
+    await waitFor(() => {
+      expect(commandClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA relationship run sheet"));
+    });
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Relationship run sheet copied.");
     fireEvent.click(screen.getByTestId("button-marketing-contact-work-queue-show-partner-nurture"));
     expect(screen.getByTestId("select-marketing-contact-list-filter")).toHaveValue("all");
     expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Showing "B2B partner nurture" queue: 1 partner.');
