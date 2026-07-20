@@ -773,6 +773,26 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects evidence artifact inventory references with literal personal data", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_PRIVACY_ROW,
+      "| Analytics privacy artifacts | Analytics privacy allowed envelope forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact link for qa-person@example.com and 123 Secret Street showing allowed envelope and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Analytics privacy artifacts: reference must name sanitized concrete artifacts with no personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch matrices with feature endpoint drift", () => {
     const completed = completedMatrix().replace(
       "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` |",

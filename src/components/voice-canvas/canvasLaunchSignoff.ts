@@ -1984,6 +1984,16 @@ function hasNoSensitiveDataLanguage(value: string): boolean {
 const sensitiveDataNounPattern =
   "(?:transcripts?|spoken transcripts?|typed free text|free text|text|addresses?|saved-place labels?|saved-place contents?|saved places?|saved-place names?|place labels?|place names?|labels?|pickups?|pick-ups?|dropoffs?|drop-offs?|destinations?|routes?|locations?|coordinates?|ride details?|medications?|medicine|strengths?|quantities?|symptoms?|providers?|provider names?|reply text|replies|notes?|references?|phone numbers?|phones?|emails?|items?|prices?|fees?|retailers?|dates?|times?|identities|contacts?|sensitive|forbidden|personal|pii|data|details?)";
 
+const literalSensitiveDataPatterns: readonly RegExp[] = [
+  /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  /\b(?:\+?\d[\s().-]*){10,}\b/,
+];
+
+function hasLiteralSensitiveDataLeakage(value: string): boolean {
+  return literalSensitiveDataPatterns.some((pattern) => pattern.test(value));
+}
+
 function hasSensitiveDataLeakageLanguage(value: string): boolean {
   const normalized = normalizeCell(value).toLowerCase();
   const sensitiveNoun = sensitiveDataNounPattern;
@@ -1997,6 +2007,7 @@ function hasSensitiveDataLeakageLanguage(value: string): boolean {
   ].reduce((current, pattern) => current.replace(pattern, " "), normalized);
 
   return (
+    hasLiteralSensitiveDataLeakage(value) ||
     new RegExp(`\\b${sensitiveNoun}\\b.{0,32}\\b${leakVerb}\\b`).test(
       safeAbsenceLanguage,
     ) ||
