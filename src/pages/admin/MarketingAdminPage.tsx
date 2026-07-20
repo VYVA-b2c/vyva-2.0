@@ -24174,6 +24174,13 @@ export default function MarketingAdminPage() {
     : recordArray(campaignStudioSavedLaunchKit.followUpPlays);
   const campaignSavedLaunchPacketRunSheets = recordArray(campaignStudioSavedLaunchKit.publishingRunSheets);
   const campaignSavedLaunchPacketApprovalPack = recordArray(campaignStudioSavedLaunchKit.approvalPack);
+  const campaignSavedDistributionChecklist = recordValue(campaignStudioSavedLaunchKit.distributionChecklist);
+  const campaignSavedDistributionChecklistItems = recordArray(campaignSavedDistributionChecklist.items);
+  const campaignSavedDistributionChecklistText = displayText(campaignSavedDistributionChecklist.text)
+    || campaignSavedDistributionChecklistItems
+      .map((item) => displayText(item.text))
+      .filter(Boolean)
+      .join("\n\n---\n\n");
   const campaignSavedLaunchPacketRunSheetText = campaignSavedLaunchPacketRunSheets
     .map((item) => displayText(item.text))
     .filter(Boolean)
@@ -32516,6 +32523,63 @@ export default function MarketingAdminPage() {
                                     })}
                                   </div>
                                 ) : null}
+                              </div>
+                            ) : null}
+                            {campaignSavedDistributionChecklistItems.length ? (
+                              <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3" data-testid="marketing-campaign-saved-distribution-checklist">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Distribution checklist</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-emerald-900">
+                                      Saved publishing instructions for each route: destination, owner, timing, proof to capture, and manual handoff steps.
+                                    </p>
+                                  </div>
+                                  {campaignSavedDistributionChecklistText ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyCampaignHandoffText("Saved distribution checklist", campaignSavedDistributionChecklistText)}
+                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:bg-emerald-100"
+                                      data-testid="button-marketing-copy-saved-distribution-checklist"
+                                    >
+                                      <Copy size={14} /> Copy distribution
+                                    </button>
+                                  ) : null}
+                                </div>
+                                <div className="mt-3 grid gap-2 xl:grid-cols-2" data-testid="marketing-campaign-saved-distribution-checklist-items">
+                                  {campaignSavedDistributionChecklistItems.map((item, index) => {
+                                    const channel = displayText(item.channel);
+                                    const typedChannel = CHANNELS.includes(channel as Channel) ? channel as Channel : null;
+                                    const itemText = displayText(item.text);
+                                    return (
+                                      <div key={`${channel || "distribution"}-${index}`} className="rounded-lg border border-emerald-100 bg-white p-3" data-testid={`marketing-campaign-saved-distribution-${channel || index}`}>
+                                        <div className="flex flex-wrap items-start justify-between gap-2">
+                                          <div>
+                                            <Pill className={typedChannel ? channelClass(typedChannel) : "bg-emerald-50 text-emerald-800"}>{displayText(item.channelLabel) || channel || "Channel"}</Pill>
+                                            <p className="mt-2 text-sm font-black text-[#241133]">{displayText(item.title) || "Publishing checklist"}</p>
+                                          </div>
+                                          {itemText ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => void copyCampaignHandoffText(`${displayText(item.channelLabel) || channel || "Channel"} distribution checklist`, itemText)}
+                                              className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg bg-emerald-700 px-2 text-[11px] font-black text-white hover:bg-emerald-800"
+                                              data-testid={`button-marketing-copy-saved-distribution-${channel || index}`}
+                                            >
+                                              <Copy size={12} /> Copy
+                                            </button>
+                                          ) : null}
+                                        </div>
+                                        <div className="mt-2 grid gap-1.5 text-xs font-bold leading-relaxed text-[#536f67]">
+                                          <p><span className="font-black text-[#241133]">Destination:</span> {displayText(item.destination) || "Review publishing destination"}</p>
+                                          <p><span className="font-black text-[#241133]">Owner:</span> {displayText(item.owner) || "Campaign owner"}</p>
+                                          <p><span className="font-black text-[#241133]">Timing:</span> {displayText(item.timing) || "Review schedule"}</p>
+                                        </div>
+                                        <p className="mt-2 rounded-lg bg-emerald-50 px-2 py-1.5 text-xs font-black leading-relaxed text-emerald-800">
+                                          {displayText(item.proofToCapture) || "Capture published URL, replies, engagement, and follow-up owner."}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             ) : null}
                             {campaignSavedLaunchPacketFollowUps.length ? (

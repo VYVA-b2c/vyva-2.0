@@ -6322,6 +6322,11 @@ describe("MarketingAdminPage", () => {
   });
 
   it("creates linked campaign and content directly from the smart studio", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
     renderPage();
 
     expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
@@ -6635,6 +6640,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-saved-run-sheet-list")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("marketing-campaign-saved-run-sheet-list")).toHaveTextContent("Email review and send");
     expect(screen.getByTestId("marketing-campaign-saved-approval-pack")).toHaveTextContent("Approval brief");
+    expect(screen.getByTestId("marketing-campaign-saved-distribution-checklist")).toHaveTextContent("Distribution checklist");
+    expect(screen.getByTestId("marketing-campaign-saved-distribution-checklist-items")).toHaveTextContent("LinkedIn publishing checklist");
+    expect(screen.getByTestId("marketing-campaign-saved-distribution-checklist-items")).toHaveTextContent("LinkedIn post composer");
+    expect(screen.getByTestId("marketing-campaign-saved-distribution-checklist-items")).toHaveTextContent("Email publishing checklist");
+    expect(screen.getByTestId("marketing-campaign-saved-distribution-checklist-items")).toHaveTextContent("VYVA campaign details > Email send review");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-saved-distribution-checklist"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign distribution checklist"));
+    });
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Saved distribution checklist copied.");
     expect(screen.getByTestId("button-marketing-copy-saved-run-sheet-linkedin")).toBeInTheDocument();
     expect((screen.getByTestId("textarea-marketing-campaign-saved-launch-packet") as HTMLTextAreaElement).value).toContain("VYVA campaign launch packet");
     expect((screen.getByTestId("textarea-marketing-campaign-saved-launch-packet") as HTMLTextAreaElement).value).toContain("Channel plan:");
