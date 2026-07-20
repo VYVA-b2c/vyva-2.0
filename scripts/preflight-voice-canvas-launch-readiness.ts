@@ -16,6 +16,11 @@ const packetPathArg = args
   .find((arg) => arg.startsWith("--packet="))
   ?.slice("--packet=".length)
   .trim();
+const analyticsArg = args.find((arg) => arg.startsWith("--analytics="));
+const analyticsPathArg = args
+  .find((arg) => arg.startsWith("--analytics="))
+  ?.slice("--analytics=".length)
+  .trim();
 
 const tsxCliPath = path.resolve(
   process.cwd(),
@@ -34,6 +39,11 @@ const packetValidatorPath = path.resolve(
   "scripts",
   "validate-voice-canvas-evidence-packet.ts",
 );
+const analyticsValidatorPath = path.resolve(
+  process.cwd(),
+  "scripts",
+  "validate-voice-canvas-analytics-evidence.ts",
+);
 
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
@@ -45,10 +55,12 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run canvas:qa:preflight -- --final",
       "  npm run --silent canvas:qa:preflight -- --json",
       "  npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "  npm run canvas:qa:preflight -- --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
       "  npm run canvas:qa:preflight -- --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
       "",
       "Default mode accepts a structurally valid pending matrix and packet so QA can capture an in-progress launch artifact.",
-      "Use --final after real-device evidence is filled; it exits non-zero unless both gates are ready.",
+      "Pass --analytics=<path> to validate sanitized analytics evidence in the same aggregate-only snapshot.",
+      "Use --final after real-device evidence is filled; it exits non-zero unless both gates are ready and analytics evidence is supplied.",
       "Use --json to emit a machine-readable summary for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
@@ -60,6 +72,10 @@ if (args.includes("--help") || args.includes("-h")) {
 
 if (outputArg && !outputPathArg) {
   console.error("Expected --output=<path>.");
+  process.exit(1);
+}
+if (analyticsArg && !analyticsPathArg) {
+  console.error("Expected --analytics=<path>.");
   process.exit(1);
 }
 if (outputPathArg && !jsonOutput) {
@@ -77,12 +93,13 @@ interface ValidatorRun {
 function runValidator(
   scriptPath: string,
   artifactPath: string | undefined,
+  options: { allowPending: boolean },
 ): ValidatorRun {
   const validatorArgs = [
     tsxCliPath,
     scriptPath,
     ...(artifactPath ? [artifactPath] : []),
-    ...(finalGate ? [] : ["--allow-pending"]),
+    ...(options.allowPending ? ["--allow-pending"] : []),
     "--json",
   ];
   const result = spawnSync(process.execPath, validatorArgs, {
@@ -131,10 +148,12 @@ function stringField(
 function messagesForNextAction(
   matrixRun: ValidatorRun,
   packetRun: ValidatorRun,
+  analyticsRun: ValidatorRun | null,
 ): string[] {
   const messages: string[] = [];
   const matrixProblems = numericField(matrixRun.summary, "problemCount");
   const packetProblems = numericField(packetRun.summary, "problemCount");
+  const analyticsProblems = numericField(analyticsRun?.summary ?? null, "problemCount");
   const matrixFailing = numericField(matrixRun.summary, "failingCellCount");
   const matrixIncomplete = numericField(matrixRun.summary, "incompleteCellCount");
   const packetIncomplete = numericField(packetRun.summary, "incompleteCellCount");
@@ -151,6 +170,15 @@ function messagesForNextAction(
   if (packetProblems > 0) {
     messages.push("Fix evidence packet structural or privacy-safety rows before copying evidence into the matrix.");
   }
+  if (analyticsRun && !analyticsRun.summary) {
+    messages.push("Fix the analytics validator output before using the preflight artifact.");
+  }
+  if (analyticsProblems > 0) {
+    messages.push("Fix sanitized analytics evidence before launch sign-off.");
+  }
+  if (finalGate && !analyticsRun) {
+    messages.push("Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.");
+  }
   if (packetIncomplete > 0) {
     messages.push("Fill the sanitized evidence packet artifact references and reviewer/date cells.");
   }
@@ -164,17 +192,29 @@ function messagesForNextAction(
   return messages;
 }
 
-const matrixRun = runValidator(matrixValidatorPath, matrixPathArg);
-const packetRun = runValidator(packetValidatorPath, packetPathArg);
+const matrixRun = runValidator(matrixValidatorPath, matrixPathArg, {
+  allowPending: !finalGate,
+});
+const packetRun = runValidator(packetValidatorPath, packetPathArg, {
+  allowPending: !finalGate,
+});
+const analyticsRun = analyticsPathArg
+  ? runValidator(analyticsValidatorPath, `--input=${analyticsPathArg}`, {
+      allowPending: false,
+    })
+  : null;
 const readyForLaunch =
   booleanField(matrixRun.summary, "readyForLaunch") &&
-  booleanField(packetRun.summary, "readyForLaunchEvidencePacket");
+  booleanField(packetRun.summary, "readyForLaunchEvidencePacket") &&
+  booleanField(analyticsRun?.summary ?? null, "readyForLaunchEvidence");
 const structuralProblems =
   !matrixRun.summary ||
   !packetRun.summary ||
+  (analyticsRun !== null && !analyticsRun.summary) ||
   numericField(matrixRun.summary, "problemCount") > 0 ||
   numericField(matrixRun.summary, "failingCellCount") > 0 ||
-  numericField(packetRun.summary, "problemCount") > 0;
+  numericField(packetRun.summary, "problemCount") > 0 ||
+  numericField(analyticsRun?.summary ?? null, "problemCount") > 0;
 const acceptedPending =
   !finalGate &&
   !structuralProblems &&
@@ -182,7 +222,7 @@ const acceptedPending =
   packetRun.status === 0 &&
   !readyForLaunch;
 const exitCode = readyForLaunch || acceptedPending ? 0 : 1;
-const nextActions = messagesForNextAction(matrixRun, packetRun);
+const nextActions = messagesForNextAction(matrixRun, packetRun, analyticsRun);
 
 const summary = {
   readyForLaunch,
@@ -210,6 +250,18 @@ const summary = {
     problemCount: numericField(packetRun.summary, "problemCount"),
     pendingSections: packetRun.summary?.pendingSections ?? [],
     message: stringField(packetRun.summary, "message"),
+  },
+  analyticsEvidence: {
+    provided: Boolean(analyticsPathArg),
+    path: stringField(analyticsRun?.summary ?? null, "inputPath"),
+    readyForLaunchEvidence: booleanField(
+      analyticsRun?.summary ?? null,
+      "readyForLaunchEvidence",
+    ),
+    sampleCount: numericField(analyticsRun?.summary ?? null, "sampleCount"),
+    problemCount: numericField(analyticsRun?.summary ?? null, "problemCount"),
+    sampleLaunchSignalCounts:
+      analyticsRun?.summary?.sampleLaunchSignalCounts ?? null,
   },
   nextActions,
   message: readyForLaunch
@@ -244,6 +296,9 @@ console.log(
 );
 console.log(
   `Evidence packet: ${summary.evidencePacket.state}; incomplete ${summary.evidencePacket.incompleteCellCount}; problems ${summary.evidencePacket.problemCount}`,
+);
+console.log(
+  `Analytics evidence: ${summary.analyticsEvidence.provided ? (summary.analyticsEvidence.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; samples ${summary.analyticsEvidence.sampleCount}; problems ${summary.analyticsEvidence.problemCount}`,
 );
 console.log("Next action:");
 for (const action of nextActions) {
