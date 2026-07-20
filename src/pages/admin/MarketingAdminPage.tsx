@@ -17314,6 +17314,64 @@ export default function MarketingAdminPage() {
     },
   ];
   const campaignStudioFollowUpPlaybookText = campaignStudioFollowUpPlays.map((item) => item.text).join("\n\n---\n\n");
+  const campaignStudioSectionMapItems = [
+    {
+      key: "audience",
+      title: "Audience",
+      targetTestId: "marketing-campaign-studio-delivery-map",
+      value: `${campaignStudioAudiencePool.length} selected`,
+      detail: `${campaignStudioDeliveryIssues.optedIn} opted in; ${campaignStudioDeliveryIssues.routeMissing} missing route.`,
+      state: campaignStudioPackRecipientCount > 0 ? "ready" as const : "blocked" as const,
+    },
+    {
+      key: "creative",
+      title: "Creative",
+      targetTestId: "marketing-campaign-studio-creative-variants",
+      value: campaignStudioHasFullAiPack ? "AI ready" : "Draft ready",
+      detail: campaignStudioHasFullAiPack
+        ? "Every selected route has AI-polished copy."
+        : "Use variants, direction, and quality checks before launch.",
+      state: campaignStudioHasFullAiPack ? "ready" as const : "planning" as const,
+    },
+    {
+      key: "templates",
+      title: "Templates",
+      targetTestId: "marketing-campaign-studio-template-production",
+      value: `${campaignStudioTemplateProductionItems.length} route${campaignStudioTemplateProductionItems.length === 1 ? "" : "s"}`,
+      detail: "Prompts and merge tokens for attractive channel-native templates.",
+      state: campaignStudioTemplateProductionState,
+    },
+    {
+      key: "preflight",
+      title: "Preflight",
+      targetTestId: "marketing-campaign-studio-preflight",
+      value: `${campaignStudioPreflightReadyCount}/${campaignStudioPreflightItems.length}`,
+      detail: "Consent, content, tracking, schedule, and publishing checks.",
+      state: campaignStudioPreflightState,
+    },
+    {
+      key: "publishing",
+      title: "Publishing",
+      targetTestId: "marketing-campaign-studio-publishing-assistant",
+      value: `${campaignStudioPublishingRunSheets.length} route${campaignStudioPublishingRunSheets.length === 1 ? "" : "s"}`,
+      detail: campaignStudioHasEmailChannel ? "Email review plus manual channel run sheets." : "Manual run sheets for non-email routes.",
+      state: campaignStudioPublishingRunSheets.some((item) => item.state === "blocked") ? "blocked" as const : "ready" as const,
+    },
+    {
+      key: "follow-up",
+      title: "Follow-up",
+      targetTestId: "marketing-campaign-studio-follow-up-loop",
+      value: `${campaignStudioFollowUpPlays.length} play${campaignStudioFollowUpPlays.length === 1 ? "" : "s"}`,
+      detail: "Reply, click, silent-contact, and opt-out relationship actions.",
+      state: campaignStudioFollowUpPlays.length ? "ready" as const : "planning" as const,
+    },
+  ];
+  const jumpToCampaignStudioSection = (targetTestId: string) => {
+    const target = document.querySelector(`[data-testid="${targetTestId}"]`);
+    if (target instanceof HTMLElement) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
   const campaignStudioRelationshipGoal = selectedCampaignStudioPlay.audienceType === "b2b"
     ? "partner conversation, referral path, demo request, or useful introduction"
     : selectedCampaignStudioPlay.audienceType === "b2c"
@@ -28515,6 +28573,38 @@ export default function MarketingAdminPage() {
                             <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</p>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-section-map">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Studio section map</p>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#7d6b65]">
+                              Jump straight to the part of the campaign that needs work: audience, creative, templates, preflight, publishing, or follow-up.
+                            </p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">{campaignStudioSectionMapItems.length} workflow areas</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-6" data-testid="marketing-campaign-studio-section-map-items">
+                          {campaignStudioSectionMapItems.map((item) => (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() => jumpToCampaignStudioSection(item.targetTestId)}
+                              className={`min-h-[134px] rounded-xl border p-3 text-left transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(item.state)}`}
+                              data-testid={`button-marketing-campaign-studio-section-${item.key}`}
+                            >
+                              <span className="flex items-start justify-between gap-2">
+                                <span className="text-xs font-black uppercase tracking-[0.1em] opacity-80">{item.title}</span>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </span>
+                              <span className="mt-3 block text-lg font-black text-[#241133]">{item.value}</span>
+                              <span className="mt-1 line-clamp-3 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                              <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                                Jump there <ExternalLink size={12} aria-hidden="true" />
+                              </span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div className="mt-4 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-studio-action-queue">
                         <div className="flex flex-wrap items-start justify-between gap-3">
