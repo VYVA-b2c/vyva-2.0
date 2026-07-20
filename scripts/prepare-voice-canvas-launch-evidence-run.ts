@@ -29,7 +29,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
       "",
       "The run plan performs no network calls and writes only when --output is provided.",
-      "Use one run date for endpoint, analytics, rollback-owner, run-sheet, QA-matrix, packet, and final preflight artifacts.",
+      "Use one run date for endpoint, analytics, entry-surface, rollback-owner, run-sheet, QA-matrix, packet, and final preflight artifacts.",
       "Do not paste addresses, saved-place labels, transcripts, typed text, medication details, provider details, shopping details, account identifiers, raw endpoint bodies, or personal data into any artifact.",
       "Launch evidence should use a deployed HTTPS staging or production-like origin; local origins require --allow-local for developer smoke planning only.",
       "Use --request-header-env=Header-Name:ENV_NAME for authenticated QA or preview gateways; only the env var name is saved, never the header value.",
@@ -129,6 +129,8 @@ function artifactPaths(runDate: string) {
     rollbackEndpoints: `${prefix}-feature-endpoints-rollback-disabled.json`,
     analyticsEvidence: `${prefix}-analytics-evidence.json`,
     analyticsValidation: `${prefix}-analytics-validation.json`,
+    entrySurfaces: `${prefix}-entry-surfaces.md`,
+    entrySurfacesValidation: `${prefix}-entry-surfaces-validation.json`,
     rollbackOwnerHandoff: `${prefix}-rollback-owner-handoff.md`,
     rollbackOwnerValidation: `${prefix}-rollback-owner-validation.json`,
     runSheetSummary: `${prefix}-run-sheet-summary.json`,
@@ -151,12 +153,14 @@ function launchCommands(runDate: string, baseUrl: string, requestHeaderEnvRefs: 
     "npm run --silent canvas:qa:features -- --trace-template",
     "npm run --silent canvas:qa:analytics -- --template",
     `npm run --silent canvas:qa:analytics -- --input=${paths.analyticsEvidence} --json --output=${paths.analyticsValidation}`,
+    `npm run --silent canvas:qa:entry-surfaces -- --template --output=${paths.entrySurfaces}`,
+    `npm run --silent canvas:qa:entry-surfaces -- --input=${paths.entrySurfaces} --json --output=${paths.entrySurfacesValidation}`,
     `npm run --silent canvas:qa:rollback-owner -- --template --output=${paths.rollbackOwnerHandoff}`,
     `npm run --silent canvas:qa:rollback-owner -- --input=${paths.rollbackOwnerHandoff} --json --output=${paths.rollbackOwnerValidation}`,
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${paths.runSheetSummary}`,
     `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${paths.qaMatrixSummary}`,
     `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${paths.evidencePacketSummary}`,
-    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
+    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --entry-surfaces=${paths.entrySurfaces} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
   ];
 }
 
@@ -202,6 +206,7 @@ const flowCoverage = canvasLaunchEvidenceFlowCoverage();
 const checklist = [
   "Collect enabled endpoint evidence before rollback evidence.",
   "Fill analytics evidence from aggregate-only staging or production-like telemetry.",
+  "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
   "Fill rollback owner handoff with owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
   "Execute every flow on real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths.",
   "Verify refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery with entered information preserved.",
