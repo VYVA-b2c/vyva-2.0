@@ -72,6 +72,18 @@ describe("Voice Canvas launch evidence run helper command", () => {
     expect(result.stdout).toContain(
       `artifacts/voice-canvas/${runDate}-launch-preflight.json`,
     );
+    expect(result.stdout).toContain(
+      "Execute every flow on real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths.",
+    );
+    expect(result.stdout).toContain(
+      "Verify refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery with entered information preserved.",
+    );
+    expect(result.stdout).toContain(
+      "Verify feature-flag rollback closes or hides Canvas in an open session and restores the named existing fallback path without writes or external actions.",
+    );
+    expect(result.stdout).toContain(
+      "Review senior-friendly copy for one clear decision, readable long Spanish labels, waiting/blocked/completed announcements, focus movement, reduced motion, and what-happens-next clarity.",
+    );
     expect(result.stdout).toContain("Run final preflight with the same run-date artifact paths.");
     expect(result.stdout).not.toContain("YYYY-MM-DD");
   });
@@ -96,6 +108,7 @@ describe("Voice Canvas launch evidence run helper command", () => {
       flowCoverage: Array<{ id: string; label: string; fallback: string }>;
       requestHeaderEnv: string[];
       authenticatedRequest: boolean;
+      checklist: string[];
       privacyBoundary: string[];
       sameRunDateRequired: boolean;
     };
@@ -127,6 +140,18 @@ describe("Voice Canvas launch evidence run helper command", () => {
       "provider_reply",
       "task_hub_resume",
     ]);
+    expect(summary.checklist.join(" ")).toContain(
+      "real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths",
+    );
+    expect(summary.checklist.join(" ")).toContain(
+      "refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery",
+    );
+    expect(summary.checklist.join(" ")).toContain(
+      "feature-flag rollback closes or hides Canvas in an open session",
+    );
+    expect(summary.checklist.join(" ")).toContain(
+      "one clear decision, readable long Spanish labels, waiting/blocked/completed announcements",
+    );
     expect(summary.privacyBoundary.join(" ")).toContain("No addresses");
     expect(summary.privacyBoundary.join(" ")).toContain("aggregate counts");
   });

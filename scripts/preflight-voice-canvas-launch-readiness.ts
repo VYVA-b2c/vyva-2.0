@@ -693,6 +693,102 @@ function requestHeaderEnvRefsFromArtifact(artifact: unknown): string[] {
   return artifact.requestHeaderEnv.filter((entry): entry is string => typeof entry === "string");
 }
 
+const requiredLaunchRunPlanChecklistGroups: Array<{
+  label: string;
+  wordGroups: readonly (readonly string[])[];
+}> = [
+  {
+    label: "real phone, tablet, desktop/laptop, voice, touch, and keyboard coverage",
+    wordGroups: [
+      ["phone", "mobile"],
+      ["tablet"],
+      ["desktop", "laptop"],
+      ["voice"],
+      ["touch"],
+      ["keyboard"],
+    ],
+  },
+  {
+    label:
+      "refresh, back, app exit/reopen, reconnect, interruption, cancel/exit, retry, and duplicate/stale recovery",
+    wordGroups: [
+      ["refresh"],
+      ["back"],
+      ["app exit", "reopen"],
+      ["reconnect"],
+      ["interruption", "interrupt"],
+      ["cancel", "exit"],
+      ["retry"],
+      ["duplicate"],
+      ["stale"],
+      ["preserved", "preserve"],
+    ],
+  },
+  {
+    label: "open-session feature-flag rollback fallback without side effects",
+    wordGroups: [
+      ["feature-flag", "feature flag"],
+      ["rollback"],
+      ["open session", "open-session"],
+      ["closed", "closes", "hidden", "hides"],
+      ["fallback"],
+      ["without writes", "without write", "no writes", "no write"],
+      [
+        "without external actions",
+        "without external action",
+        "no external actions",
+        "no external action",
+        "external actions",
+        "external action",
+      ],
+    ],
+  },
+  {
+    label:
+      "senior-friendly copy, Spanish long labels, announcements, focus, reduced motion, and what happens next",
+    wordGroups: [
+      ["one clear decision"],
+      ["spanish"],
+      ["long label", "long labels", "long spanish label", "long spanish labels"],
+      ["waiting"],
+      ["blocked"],
+      ["completed"],
+      ["announcement", "announcements"],
+      ["focus"],
+      ["reduced motion", "reduced-motion"],
+      ["what-happens-next", "what happens next"],
+    ],
+  },
+  {
+    label: "privacy-safe aggregate analytics evidence",
+    wordGroups: [
+      ["analytics"],
+      ["aggregate"],
+      ["telemetry"],
+    ],
+  },
+];
+
+function normalizeRunPlanText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[-/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasRunPlanWord(value: string, words: readonly string[]): boolean {
+  const normalized = normalizeRunPlanText(value);
+  return words.some((word) => normalized.includes(normalizeRunPlanText(word)));
+}
+
+function hasRunPlanWordGroups(
+  value: string,
+  wordGroups: readonly (readonly string[])[],
+): boolean {
+  return wordGroups.every((words) => hasRunPlanWord(value, words));
+}
+
 function launchEvidenceCommandsForRun(
   runDate: string,
   baseUrl: string,
@@ -761,6 +857,9 @@ function validateLaunchRunPlanArtifact(
   const commands = isRecord(artifact) && Array.isArray(artifact.commands)
     ? artifact.commands.filter((entry): entry is string => typeof entry === "string")
     : [];
+  const checklist = isRecord(artifact) && Array.isArray(artifact.checklist)
+    ? artifact.checklist.filter((entry): entry is string => typeof entry === "string")
+    : [];
   const flowCoverage = isRecord(artifact) && Array.isArray(artifact.flowCoverage)
     ? artifact.flowCoverage.filter(isRecord)
     : [];
@@ -816,6 +915,19 @@ function validateLaunchRunPlanArtifact(
       expectedCommands.some((command, index) => commands[index] !== command)
     ) {
       problems.push("Launch evidence run plan commands must match the canonical same-date evidence bundle.");
+    }
+  }
+
+  if (!isRecord(artifact) || !Array.isArray(artifact.checklist)) {
+    problems.push("Launch evidence run plan must include a checklist array.");
+  } else {
+    const checklistText = checklist.join(" ");
+    for (const requirement of requiredLaunchRunPlanChecklistGroups) {
+      if (!hasRunPlanWordGroups(checklistText, requirement.wordGroups)) {
+        problems.push(
+          `Launch evidence run plan checklist must require ${requirement.label}.`,
+        );
+      }
     }
   }
 

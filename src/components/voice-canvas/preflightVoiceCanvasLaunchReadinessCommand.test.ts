@@ -113,7 +113,10 @@ function validLaunchRunPlan(
       "Collect enabled endpoint evidence before rollback evidence.",
       "Fill analytics evidence from aggregate-only staging or production-like telemetry.",
       "Fill rollback owner handoff with owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
-      "Execute the run sheet across real phone, tablet, and desktop/laptop sessions.",
+      "Execute every flow on real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths.",
+      "Verify refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery with entered information preserved.",
+      "Verify feature-flag rollback closes or hides Canvas in an open session and restores the named existing fallback path without writes or external actions.",
+      "Review senior-friendly copy for one clear decision, readable long Spanish labels, waiting/blocked/completed announcements, focus movement, reduced motion, and what-happens-next clarity.",
       "Copy only sanitized artifact references into the evidence packet and QA matrix.",
       "Run final preflight with the same run-date artifact paths.",
     ],
@@ -919,6 +922,52 @@ describe("Voice Canvas launch readiness preflight command", () => {
         expect(summary.launchRunPlan.problemCount).toBeGreaterThan(0);
         expect(summary.launchRunPlan.problems.join("\n")).toContain(
           "Launch evidence run plan commands must match the canonical same-date evidence bundle.",
+        );
+        expect(summary.nextActions).toContain(
+          "Fix the launch evidence run plan before final launch sign-off.",
+        );
+      },
+    );
+  });
+
+  it("rejects launch evidence run plans that omit real-use QA checklist obligations", () => {
+    const runDate = freshReviewDate();
+    const runPlan = validLaunchRunPlan(runDate);
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      {
+        ...runPlan,
+        checklist: [
+          "Collect enabled endpoint evidence before rollback evidence.",
+          "Fill analytics evidence from aggregate-only staging or production-like telemetry.",
+          "Copy sanitized artifact references into the evidence packet and QA matrix.",
+        ],
+      },
+      (inputPath) => {
+        const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          launchRunPlan: {
+            readyForLaunchEvidence: boolean;
+            problemCount: number;
+            problems: string[];
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.launchRunPlan.readyForLaunchEvidence).toBe(false);
+        expect(summary.launchRunPlan.problemCount).toBeGreaterThan(0);
+        expect(summary.launchRunPlan.problems).toEqual(
+          expect.arrayContaining([
+            "Launch evidence run plan checklist must require real phone, tablet, desktop/laptop, voice, touch, and keyboard coverage.",
+            "Launch evidence run plan checklist must require refresh, back, app exit/reopen, reconnect, interruption, cancel/exit, retry, and duplicate/stale recovery.",
+            "Launch evidence run plan checklist must require open-session feature-flag rollback fallback without side effects.",
+            "Launch evidence run plan checklist must require senior-friendly copy, Spanish long labels, announcements, focus, reduced motion, and what happens next.",
+          ]),
         );
         expect(summary.nextActions).toContain(
           "Fix the launch evidence run plan before final launch sign-off.",

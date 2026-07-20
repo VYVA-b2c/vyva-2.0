@@ -207,7 +207,10 @@ const checklist = [
   "Collect enabled endpoint evidence before rollback evidence.",
   "Fill analytics evidence from aggregate-only staging or production-like telemetry.",
   "Fill rollback owner handoff with owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
-  "Execute the run sheet across real phone, tablet, and desktop/laptop sessions.",
+  "Execute every flow on real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths.",
+  "Verify refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery with entered information preserved.",
+  "Verify feature-flag rollback closes or hides Canvas in an open session and restores the named existing fallback path without writes or external actions.",
+  "Review senior-friendly copy for one clear decision, readable long Spanish labels, waiting/blocked/completed announcements, focus movement, reduced motion, and what-happens-next clarity.",
   "Copy only sanitized artifact references into the evidence packet and QA matrix.",
   "Run final preflight with the same run-date artifact paths.",
 ];
