@@ -153,6 +153,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Pass --entry-surfaces=<path> to validate sanitized canonical entry surface evidence generated within the last 7 days.",
       "Pass --rollback-owner=<path> to validate the sanitized rollback owner handoff artifact generated within the last 7 days.",
       "Final external evidence artifacts must share one QA run date across enabled endpoints, rollback endpoints, analytics, copy clarity, recovery behavior, real-use evidence, entry surfaces, and rollback owner handoff.",
+      "Final external evidence artifacts with QA URLs must share one deployed QA origin across endpoint, copy clarity, recovery behavior, real-use, entry surface, rollback owner, and launch run plan artifacts.",
       "Use --final --date=YYYY-MM-DD after real-device evidence is filled; it exits non-zero unless the run sheet, matrix, packet, launch run plan, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, copy clarity evidence, recovery behavior evidence, real-use evidence, entry surface evidence, and rollback owner handoff are ready.",
       "Use --json to emit a machine-readable summary for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
@@ -233,6 +234,7 @@ interface FeatureEndpointArtifactValidation {
   path: string;
   readyForLaunchEvidence: boolean;
   mode: "enabled" | "rollback";
+  baseUrl: string;
   generatedAt: string;
   authenticatedRequest: boolean;
   requestHeaderCount: number;
@@ -259,6 +261,14 @@ interface ExternalEvidenceDateConsistency {
   ready: boolean;
   checked: boolean;
   runDate: string;
+  problemCount: number;
+  problems: string[];
+}
+
+interface ExternalEvidenceOriginConsistency {
+  ready: boolean;
+  checked: boolean;
+  origin: string;
   problemCount: number;
   problems: string[];
 }
@@ -487,6 +497,7 @@ function validateFeatureEndpointArtifact(
       path: "unknown",
       readyForLaunchEvidence: false,
       mode,
+      baseUrl: "unknown",
       generatedAt: "unknown",
       authenticatedRequest: false,
       requestHeaderCount: 0,
@@ -516,7 +527,10 @@ function validateFeatureEndpointArtifact(
     problems.push("Feature endpoint artifact must include featureEndpoints array.");
   }
 
-  const deployedOrigin = parseDeployedOrigin(isRecord(artifact) ? artifact.baseUrl : null);
+  const baseUrl = isRecord(artifact) && typeof artifact.baseUrl === "string"
+    ? artifact.baseUrl
+    : "unknown";
+  const deployedOrigin = parseDeployedOrigin(baseUrl);
   if (!deployedOrigin) {
     problems.push(
       "Feature endpoint artifact must include a deployed HTTPS non-local baseUrl origin.",
@@ -712,6 +726,7 @@ function validateFeatureEndpointArtifact(
     path: relativePath,
     readyForLaunchEvidence: problems.length === 0,
     mode,
+    baseUrl,
     generatedAt: generatedAt ? generatedAt.toISOString() : "unknown",
     authenticatedRequest: authenticatedRequest === true,
     requestHeaderCount:
@@ -1225,6 +1240,113 @@ function validateExternalEvidenceDateConsistency(
   };
 }
 
+function evidenceOrigin(value: unknown): string | null {
+  return parseDeployedOrigin(value)?.origin ?? null;
+}
+
+function validateExternalEvidenceOriginConsistency(
+  enabledFeatures: FeatureEndpointArtifactValidation,
+  rollbackFeatures: FeatureEndpointArtifactValidation,
+  copyRun: ValidatorRun | null,
+  recoveryRun: ValidatorRun | null,
+  realUseRun: ValidatorRun | null,
+  entrySurfacesRun: ValidatorRun | null,
+  rollbackOwnerRun: ValidatorRun | null,
+  runPlan: LaunchRunPlanValidation,
+): ExternalEvidenceOriginConsistency {
+  const requiredEntries = [
+    {
+      label: "enabled feature endpoints",
+      origin: evidenceOrigin(enabledFeatures.baseUrl),
+      provided: enabledFeatures.provided,
+    },
+    {
+      label: "rollback feature endpoints",
+      origin: evidenceOrigin(rollbackFeatures.baseUrl),
+      provided: rollbackFeatures.provided,
+    },
+    {
+      label: "copy clarity evidence",
+      origin: evidenceOrigin(copyRun?.summary?.qaRunUrl),
+      provided: Boolean(copyRun),
+    },
+    {
+      label: "recovery behavior evidence",
+      origin: evidenceOrigin(recoveryRun?.summary?.qaRunUrl),
+      provided: Boolean(recoveryRun),
+    },
+    {
+      label: "real-use evidence",
+      origin: evidenceOrigin(realUseRun?.summary?.qaRunUrl),
+      provided: Boolean(realUseRun),
+    },
+    {
+      label: "entry surface evidence",
+      origin: evidenceOrigin(entrySurfacesRun?.summary?.qaRunUrl),
+      provided: Boolean(entrySurfacesRun),
+    },
+    {
+      label: "rollback owner handoff",
+      origin: evidenceOrigin(rollbackOwnerRun?.summary?.qaRunUrl),
+      provided: Boolean(rollbackOwnerRun),
+    },
+  ];
+  const entries = runPlan.provided
+    ? [
+        {
+          label: "launch run plan",
+          origin: evidenceOrigin(runPlan.baseUrl),
+          provided: runPlan.provided,
+        },
+        ...requiredEntries,
+      ]
+    : requiredEntries;
+
+  const requiredProvidedEntries = requiredEntries.filter((entry) => entry.provided);
+  if (requiredProvidedEntries.length !== requiredEntries.length) {
+    return {
+      ready: false,
+      checked: false,
+      origin: "unknown",
+      problemCount: 0,
+      problems: [],
+    };
+  }
+
+  const providedEntries = entries.filter((entry) => entry.provided);
+  const missingOriginLabels = providedEntries
+    .filter((entry) => !entry.origin)
+    .map((entry) => entry.label);
+  const originatedEntries = providedEntries.filter(
+    (entry): entry is { label: string; origin: string; provided: boolean } =>
+      Boolean(entry.origin),
+  );
+  const uniqueOrigins = new Set(originatedEntries.map((entry) => entry.origin));
+  const problems: string[] = [];
+
+  if (missingOriginLabels.length > 0) {
+    problems.push(
+      `External launch evidence is missing comparable deployed origins for ${missingOriginLabels.join(", ")}.`,
+    );
+  }
+  if (uniqueOrigins.size > 1) {
+    problems.push(
+      `External launch evidence must share one deployed QA origin; found ${originatedEntries
+        .map((entry) => `${entry.label} ${entry.origin}`)
+        .join(", ")}.`,
+    );
+  }
+
+  return {
+    ready: problems.length === 0,
+    checked: true,
+    origin:
+      uniqueOrigins.size === 1 ? originatedEntries[0]?.origin ?? "unknown" : "mixed",
+    problemCount: problems.length,
+    problems,
+  };
+}
+
 function validateEndpointAuthConsistency(
   runPlan: LaunchRunPlanValidation,
   enabledFeatures: FeatureEndpointArtifactValidation,
@@ -1285,6 +1407,7 @@ function messagesForNextAction(
   enabledFeatures: FeatureEndpointArtifactValidation,
   rollbackFeatures: FeatureEndpointArtifactValidation,
   externalEvidenceDateConsistency: ExternalEvidenceDateConsistency,
+  externalEvidenceOriginConsistency: ExternalEvidenceOriginConsistency,
   endpointAuthConsistency: EndpointAuthConsistency,
 ): string[] {
   const messages: string[] = [];
@@ -1375,6 +1498,9 @@ function messagesForNextAction(
   }
   if (externalEvidenceDateConsistency.problemCount > 0) {
     messages.push("Fix external launch evidence dates so endpoint, analytics, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one QA run date.");
+  }
+  if (externalEvidenceOriginConsistency.problemCount > 0) {
+    messages.push("Fix external launch evidence origins so endpoint, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one deployed QA origin.");
   }
   if (endpointAuthConsistency.problemCount > 0) {
     messages.push("Fix endpoint evidence authentication metadata so it matches the launch run plan.");
@@ -1535,6 +1661,16 @@ const externalEvidenceDateConsistency = validateExternalEvidenceDateConsistency(
   rollbackOwnerRun,
   runPlan,
 );
+const externalEvidenceOriginConsistency = validateExternalEvidenceOriginConsistency(
+  enabledFeatures,
+  rollbackFeatures,
+  copyRun,
+  recoveryRun,
+  realUseRun,
+  entrySurfacesRun,
+  rollbackOwnerRun,
+  runPlan,
+);
 const endpointAuthConsistency = validateEndpointAuthConsistency(
   runPlan,
   enabledFeatures,
@@ -1554,6 +1690,7 @@ const readyForLaunch =
   booleanField(entrySurfacesRun?.summary ?? null, "readyForLaunchEvidence") &&
   booleanField(rollbackOwnerRun?.summary ?? null, "readyForLaunchEvidence") &&
   externalEvidenceDateConsistency.ready &&
+  externalEvidenceOriginConsistency.ready &&
   endpointAuthConsistency.ready;
 const structuralProblems =
   !runSheetRun.summary ||
@@ -1579,6 +1716,7 @@ const structuralProblems =
   numericField(entrySurfacesRun?.summary ?? null, "problemCount") > 0 ||
   numericField(rollbackOwnerRun?.summary ?? null, "problemCount") > 0 ||
   (finalGate && externalEvidenceDateConsistency.problemCount > 0) ||
+  (finalGate && externalEvidenceOriginConsistency.problemCount > 0) ||
   endpointAuthConsistency.problemCount > 0;
 const acceptedPending =
   !finalGate &&
@@ -1602,6 +1740,7 @@ const nextActions = messagesForNextAction(
   enabledFeatures,
   rollbackFeatures,
   externalEvidenceDateConsistency,
+  externalEvidenceOriginConsistency,
   endpointAuthConsistency,
 );
 const evidenceCommands = launchEvidenceCommands();
@@ -1680,6 +1819,7 @@ const summary = {
   copyEvidence: {
     provided: Boolean(effectiveCopyPathArg),
     path: stringField(copyRun?.summary ?? null, "inputPath"),
+    qaRunUrl: stringField(copyRun?.summary ?? null, "qaRunUrl"),
     readyForLaunchEvidence: booleanField(
       copyRun?.summary ?? null,
       "readyForLaunchEvidence",
@@ -1699,6 +1839,7 @@ const summary = {
   recoveryEvidence: {
     provided: Boolean(effectiveRecoveryPathArg),
     path: stringField(recoveryRun?.summary ?? null, "inputPath"),
+    qaRunUrl: stringField(recoveryRun?.summary ?? null, "qaRunUrl"),
     readyForLaunchEvidence: booleanField(
       recoveryRun?.summary ?? null,
       "readyForLaunchEvidence",
@@ -1718,6 +1859,7 @@ const summary = {
   realUseEvidence: {
     provided: Boolean(effectiveRealUsePathArg),
     path: stringField(realUseRun?.summary ?? null, "inputPath"),
+    qaRunUrl: stringField(realUseRun?.summary ?? null, "qaRunUrl"),
     readyForLaunchEvidence: booleanField(
       realUseRun?.summary ?? null,
       "readyForLaunchEvidence",
@@ -1741,6 +1883,7 @@ const summary = {
   entrySurfaceEvidence: {
     provided: Boolean(effectiveEntrySurfacesPathArg),
     path: stringField(entrySurfacesRun?.summary ?? null, "inputPath"),
+    qaRunUrl: stringField(entrySurfacesRun?.summary ?? null, "qaRunUrl"),
     readyForLaunchEvidence: booleanField(
       entrySurfacesRun?.summary ?? null,
       "readyForLaunchEvidence",
@@ -1763,6 +1906,7 @@ const summary = {
   rollbackOwnerEvidence: {
     provided: Boolean(effectiveRollbackOwnerPathArg),
     path: stringField(rollbackOwnerRun?.summary ?? null, "inputPath"),
+    qaRunUrl: stringField(rollbackOwnerRun?.summary ?? null, "qaRunUrl"),
     readyForLaunchEvidence: booleanField(
       rollbackOwnerRun?.summary ?? null,
       "readyForLaunchEvidence",
@@ -1780,6 +1924,7 @@ const summary = {
       provided: enabledFeatures.provided,
       path: enabledFeatures.path,
       readyForLaunchEvidence: enabledFeatures.readyForLaunchEvidence,
+      baseUrl: enabledFeatures.baseUrl,
       generatedAt: enabledFeatures.generatedAt,
       authenticatedRequest: enabledFeatures.authenticatedRequest,
       requestHeaderCount: enabledFeatures.requestHeaderCount,
@@ -1791,6 +1936,7 @@ const summary = {
       provided: rollbackFeatures.provided,
       path: rollbackFeatures.path,
       readyForLaunchEvidence: rollbackFeatures.readyForLaunchEvidence,
+      baseUrl: rollbackFeatures.baseUrl,
       generatedAt: rollbackFeatures.generatedAt,
       authenticatedRequest: rollbackFeatures.authenticatedRequest,
       requestHeaderCount: rollbackFeatures.requestHeaderCount,
@@ -1800,6 +1946,7 @@ const summary = {
     },
   },
   externalEvidenceDateConsistency,
+  externalEvidenceOriginConsistency,
   endpointAuthConsistency,
   nextActions,
   evidenceCommands,
@@ -1871,6 +2018,9 @@ console.log(
   `External evidence run date: ${summary.externalEvidenceDateConsistency.checked ? summary.externalEvidenceDateConsistency.runDate : "not checked"}; problems ${summary.externalEvidenceDateConsistency.problemCount}`,
 );
 console.log(
+  `External evidence origin: ${summary.externalEvidenceOriginConsistency.checked ? summary.externalEvidenceOriginConsistency.origin : "not checked"}; problems ${summary.externalEvidenceOriginConsistency.problemCount}`,
+);
+console.log(
   `Endpoint auth metadata: ${summary.endpointAuthConsistency.checked ? "checked" : "not checked"}; request headers ${summary.endpointAuthConsistency.requestHeaderCount}; problems ${summary.endpointAuthConsistency.problemCount}`,
 );
 printProblemDetails("Run sheet", summary.runSheet.problems);
@@ -1886,6 +2036,10 @@ printProblemDetails("Rollback owner evidence", summary.rollbackOwnerEvidence.pro
 printProblemDetails(
   "External evidence run date",
   summary.externalEvidenceDateConsistency.problems,
+);
+printProblemDetails(
+  "External evidence origin",
+  summary.externalEvidenceOriginConsistency.problems,
 );
 printProblemDetails(
   "Endpoint auth metadata",

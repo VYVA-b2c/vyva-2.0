@@ -11,6 +11,7 @@ interface CopyEvidenceSummary {
   inputPath: string;
   readyForLaunchEvidence: boolean;
   reviewedOn: string;
+  qaRunUrl: string;
   requiredFlowCount: number;
   requiredCopyRowCount: number;
   problemCount: number;
@@ -381,6 +382,7 @@ function validateCopyEvidence(inputPathArg: string): CopyEvidenceSummary {
     inputPath: relativeInputPath,
     readyForLaunchEvidence: problems.length === 0,
     reviewedOn: reviewedDate ? reviewedDate.toISOString().slice(0, 10) : "unknown",
+    qaRunUrl: lineValue(content, "QA run URL") ?? "unknown",
     requiredFlowCount: canvasLaunchReadinessFlows.length,
     requiredCopyRowCount: canvasLaunchReadinessFlows.length,
     problemCount: problems.length,

@@ -11,6 +11,7 @@ interface RollbackOwnerHandoffSummary {
   inputPath: string;
   readyForLaunchEvidence: boolean;
   reviewedOn: string;
+  qaRunUrl: string;
   requiredFlowCount: number;
   problemCount: number;
   problems: string[];
@@ -298,6 +299,7 @@ function validateRollbackOwnerHandoff(inputPathArg: string): RollbackOwnerHandof
     inputPath: relativeInputPath,
     readyForLaunchEvidence: problems.length === 0,
     reviewedOn: reviewedDate ? reviewedDate.toISOString().slice(0, 10) : "unknown",
+    qaRunUrl: lineValue(content, "QA run URL") ?? "unknown",
     requiredFlowCount: canvasLaunchReadinessFlows.filter((flow) => flow.featureFlag)
       .length,
     problemCount: problems.length,

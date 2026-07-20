@@ -11,6 +11,7 @@ interface RealUseEvidenceSummary {
   inputPath: string;
   readyForLaunchEvidence: boolean;
   reviewedOn: string;
+  qaRunUrl: string;
   requiredFlowCount: number;
   requiredDeviceRowCount: number;
   requiredInteractionRowCount: number;
@@ -450,6 +451,7 @@ function validateRealUseEvidence(inputPathArg: string): RealUseEvidenceSummary {
     inputPath: relativeInputPath,
     readyForLaunchEvidence: problems.length === 0,
     reviewedOn: reviewedDate ? reviewedDate.toISOString().slice(0, 10) : "unknown",
+    qaRunUrl: lineValue(content, "QA run URL") ?? "unknown",
     requiredFlowCount: canvasLaunchReadinessFlows.length,
     requiredDeviceRowCount: canvasLaunchReadinessFlows.length,
     requiredInteractionRowCount: canvasLaunchReadinessFlows.length,

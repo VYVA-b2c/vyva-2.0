@@ -726,6 +726,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain(
       "Final external evidence artifacts must share one QA run date",
     );
+    expect(result.stdout).toContain(
+      "Final external evidence artifacts with QA URLs must share one deployed QA origin",
+    );
     expect(result.stdout).toContain("generated within the last 7 days");
     expect(result.stdout).toContain("This preflight is read-only");
     expect(result.stdout).not.toContain("<YYYY-MM-DD>");
@@ -770,6 +773,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "External evidence run date: not checked; problems 0",
+    );
+    expect(result.stdout).toContain(
+      "External evidence origin: not checked; problems 0",
     );
     expect(result.stdout).toContain("Run sheet pending sections:");
     expect(result.stdout).toContain(
@@ -1051,6 +1057,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
         problemCount: number;
         problems: string[];
       };
+      externalEvidenceOriginConsistency: {
+        ready: boolean;
+        checked: boolean;
+        origin: string;
+        problemCount: number;
+        problems: string[];
+      };
       nextActions: string[];
       evidenceCommands: string[];
       message: string;
@@ -1157,6 +1170,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
       problemCount: 0,
       problems: [],
     });
+    expect(summary.externalEvidenceOriginConsistency).toEqual({
+      ready: false,
+      checked: false,
+      origin: "unknown",
+      problemCount: 0,
+      problems: [],
+    });
     expect(summary.featureEndpointEvidence.rollback).toMatchObject({
       provided: false,
       readyForLaunchEvidence: false,
@@ -1231,6 +1251,12 @@ describe("Voice Canvas launch readiness preflight command", () => {
           runDate: string;
           problemCount: number;
         };
+        externalEvidenceOriginConsistency: {
+          checked: boolean;
+          ready: boolean;
+          origin: string;
+          problemCount: number;
+        };
       };
 
       expect(summary.launchBundleDate).toBe(runDate);
@@ -1276,6 +1302,12 @@ describe("Voice Canvas launch readiness preflight command", () => {
         checked: true,
         ready: true,
         runDate,
+        problemCount: 0,
+      });
+      expect(summary.externalEvidenceOriginConsistency).toMatchObject({
+        checked: true,
+        ready: true,
+        origin: "https://staging.vyva.app",
         problemCount: 0,
       });
     });
@@ -2018,6 +2050,74 @@ describe("Voice Canvas launch readiness preflight command", () => {
                     },
                   ),
                 ),
+              ),
+            ),
+          ),
+        ),
+    ));
+
+  it("rejects final preflight when external evidence artifacts use different QA origins", () =>
+    withTempFeatureEndpointFiles(
+      validFeatureEndpointArtifact("enabled"),
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) =>
+        withTempAnalyticsFile(validAnalyticsEvidence(), (analyticsPath) =>
+          withTempCopyFile(validCopyEvidenceArtifact(), (copyPath) =>
+            withTempRecoveryFile(validRecoveryEvidenceArtifact(), (recoveryPath) =>
+              withTempRealUseFile(
+                validRealUseEvidenceArtifact().replace(
+                  "QA run URL: https://staging.vyva.app",
+                  "QA run URL: https://qa-other.vyva.app",
+                ),
+                (realUsePath) =>
+                  withTempEntrySurfaceFile(validEntrySurfaceEvidenceArtifact(), (entrySurfacePath) =>
+                    withTempRollbackOwnerFile(
+                      validRollbackOwnerHandoffArtifact(),
+                      (rollbackOwnerPath) => {
+                        const result = runPreflight([
+                          "--final",
+                          `--features-enabled=${enabledPath}`,
+                          `--features-rollback=${rollbackPath}`,
+                          `--analytics=${analyticsPath}`,
+                          `--copy=${copyPath}`,
+                          `--recovery=${recoveryPath}`,
+                          `--real-use=${realUsePath}`,
+                          `--entry-surfaces=${entrySurfacePath}`,
+                          `--rollback-owner=${rollbackOwnerPath}`,
+                          "--json",
+                        ]);
+
+                        expect(result.status).toBe(1);
+                        expect(result.stderr).toBe("");
+
+                        const summary = JSON.parse(result.stdout) as {
+                          externalEvidenceOriginConsistency: {
+                            ready: boolean;
+                            checked: boolean;
+                            origin: string;
+                            problemCount: number;
+                            problems: string[];
+                          };
+                          nextActions: string[];
+                        };
+
+                        expect(summary.externalEvidenceOriginConsistency).toMatchObject({
+                          ready: false,
+                          checked: true,
+                          origin: "mixed",
+                          problemCount: 1,
+                        });
+                        expect(
+                          summary.externalEvidenceOriginConsistency.problems.join("\n"),
+                        ).toContain(
+                          "External launch evidence must share one deployed QA origin",
+                        );
+                        expect(summary.nextActions).toContain(
+                          "Fix external launch evidence origins so endpoint, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one deployed QA origin.",
+                        );
+                      },
+                    ),
+                  ),
               ),
             ),
           ),
