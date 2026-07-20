@@ -8251,6 +8251,37 @@ function templatePackAiCommandText(pack: ContentTemplatePack, templates: Content
   ].join("\n\n");
 }
 
+function contentTemplatePolishCommandText(template: ContentTemplate) {
+  const designBrief = contentTemplateDesignBrief(template);
+  const design = recordValue(template.designJson);
+  const palette = contentTemplatePreviewPalette(template);
+  const mediaAssets = template.mediaAssets ?? [];
+  const structure = designBrief.structure
+    ? `${designBrief.structure.label}: ${designBrief.structure.items.join(" / ")}`
+    : "No structure blocks yet";
+  const mergeFields = templateDesignItems(design.mergeFields, 8);
+
+  return [
+    "VYVA single-template polish command",
+    `Template: ${template.title}`,
+    `Audience: ${template.audienceType.toUpperCase()}`,
+    `Channel: ${channelLabel[template.channel]}`,
+    `Category: ${template.category}`,
+    `Purpose: ${template.description}`,
+    template.subject ? `Subject/headline: ${template.subject}` : "Subject/headline: create a channel-native hook",
+    `Body/copy:\n${template.body || "Write concise body copy."}`,
+    template.ctaLabel ? `CTA: ${template.ctaLabel}${template.ctaUrl ? ` -> ${template.ctaUrl}` : ""}` : "CTA: recommend one clear next action",
+    template.htmlBody ? `HTML/source: available (${template.htmlBody.length} chars)` : "HTML/source: create if this is an email or landing asset",
+    `Design tags: ${designBrief.tags.join(" | ") || "No design tags yet"}`,
+    `Visual direction: ${designBrief.visual || "Recommend a clean VYVA visual direction"}`,
+    `Structure: ${structure}`,
+    `Palette: ${palette.join(", ")}`,
+    `Merge fields: ${mergeFields.join(", ") || "None"}`,
+    `Media assets: ${mediaAssets.length ? JSON.stringify(mediaAssets, null, 2) : "No media attached yet"}`,
+    "AI task: Turn this starter into a polished, publish-ready asset. Return final copy, visual/layout guidance, accessibility notes, personalization fields, compliance/consent checks, and the exact handoff steps for publishing in this channel. Keep it warm, practical, non-clinical, and unmistakably VYVA.",
+  ].join("\n\n");
+}
+
 function templatePackPlaybookText(pack: ContentTemplatePack, templates: ContentTemplate[]) {
   const channels = Array.from(new Set(templates.map((template) => template.channel)));
   const audiences = Array.from(new Set(templates.map((template) => template.audienceType)));
@@ -23669,6 +23700,38 @@ export default function MarketingAdminPage() {
       setMessage(feedback);
     } catch {
       const feedback = `Could not copy ${label}. Select the brief and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyContentTemplatePolishCommand(template: ContentTemplate) {
+    const label = `${template.title} polish command`;
+    const text = contentTemplatePolishCommandText(template);
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the command and copy it manually.`;
       setContentActionFeedback(feedback);
       setContentFeedback(feedback);
       setMessage(feedback);
@@ -39416,7 +39479,7 @@ export default function MarketingAdminPage() {
                             </div>
                           ) : null}
                         </div>
-                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                        <div className="mt-4 grid gap-2 sm:grid-cols-3">
                           <button
                             type="button"
                             onClick={() => applyContentTemplate(template)}
@@ -39434,6 +39497,15 @@ export default function MarketingAdminPage() {
                             data-testid={`button-marketing-start-campaign-template-${template.id}`}
                           >
                             <Megaphone size={14} /> Start campaign
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void copyContentTemplatePolishCommand(template)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-800 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                            disabled={contentSaving}
+                            data-testid={`button-marketing-polish-content-template-${template.id}`}
+                          >
+                            <Sparkles size={14} /> Polish prompt
                           </button>
                         </div>
                       </article>
