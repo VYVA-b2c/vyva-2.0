@@ -1375,6 +1375,11 @@ type AudienceLaunchChecklistItem = {
   detail: string;
 };
 
+type AudienceCleanupKit = {
+  items: CampaignReadinessItem[];
+  promptText: string;
+};
+
 type ContentTemplateRecommendation = {
   template: ContentTemplate;
   score: number;
@@ -11030,6 +11035,85 @@ function audienceLaunchChecklist(audience: MarketingAudience, strategy: Audience
         : `${channelLabel[strategy.primaryChannel]} is recommended, but fix reach/consent before publishing.`,
     },
   ];
+}
+
+function audienceCleanupKit(audience: MarketingAudience, strategy: AudienceStrategyBrief): AudienceCleanupKit {
+  const mappedContacts = strategy.mappedContacts;
+  const routeGapContacts = mappedContacts.filter((contact) => !recipientForChannel(contact, "email") && !recipientForChannel(contact, "whatsapp"));
+  const consentGapContacts = mappedContacts.filter((contact) => contact.consentStatus !== "opted_in");
+  const segmentationGapContacts = mappedContacts.filter((contact) => !(
+    contact.language
+    || contact.category
+    || contact.vertical
+    || contact.market
+    || contact.tags.length
+    || contact.lists.length
+  ));
+  const roleGapContacts = mappedContacts.filter((contact) => (
+    (contact.audienceType === "b2b" || Boolean(contact.companyName))
+    && !contact.roleLabel
+  ));
+  const contactLabel = (contact: MarketingContact) => contact.fullName || contact.email || contact.phoneNumber || contact.whatsappNumber || contact.lovableExternalId || contact.id;
+  const sampleList = (contacts: MarketingContact[]) => contacts.slice(0, 3).map(contactLabel).join("; ") || "none";
+  const items: CampaignReadinessItem[] = [
+    {
+      key: "unmapped",
+      title: "Map imported members",
+      detail: audience.unmappedContactExternalIds.length
+        ? `${audience.unmappedContactExternalIds.length} imported member ID${audience.unmappedContactExternalIds.length === 1 ? "" : "s"} still need matching before reliable snapshots.`
+        : "Imported members are mapped to marketing contacts.",
+      state: audience.unmappedContactExternalIds.length ? "needs_action" : "ready",
+    },
+    {
+      key: "route",
+      title: "Add reachable routes",
+      detail: routeGapContacts.length
+        ? `${routeGapContacts.length} mapped contact${routeGapContacts.length === 1 ? "" : "s"} need email or WhatsApp. Sample: ${sampleList(routeGapContacts)}.`
+        : "Every mapped contact has email or WhatsApp.",
+      state: routeGapContacts.length ? "blocked" : "ready",
+    },
+    {
+      key: "consent",
+      title: "Review consent",
+      detail: consentGapContacts.length
+        ? `${consentGapContacts.length} mapped contact${consentGapContacts.length === 1 ? "" : "s"} need consent review. Sample: ${sampleList(consentGapContacts)}.`
+        : "Mapped contacts are opted in.",
+      state: consentGapContacts.length ? "needs_action" : "ready",
+    },
+    {
+      key: "segments",
+      title: "Enrich segments",
+      detail: segmentationGapContacts.length
+        ? `${segmentationGapContacts.length} mapped contact${segmentationGapContacts.length === 1 ? "" : "s"} need language, market, category, vertical, tags, or list detail.`
+        : "Mapped contacts have usable segmentation signals.",
+      state: segmentationGapContacts.length ? "planning" : "ready",
+    },
+    {
+      key: "roles",
+      title: "Sharpen B2B roles",
+      detail: roleGapContacts.length
+        ? `${roleGapContacts.length} partner contact${roleGapContacts.length === 1 ? "" : "s"} need role/persona context.`
+        : "B2B contacts have role context or do not need it.",
+      state: roleGapContacts.length ? "planning" : "ready",
+    },
+  ];
+  const promptText = [
+    `VYVA audience cleanup kit: ${audience.name}`,
+    `Readiness: ${readinessLabel(strategy.state)} (${strategy.score}%)`,
+    `Members: ${strategy.mappedContacts.length}/${strategy.totalMembers} mapped; ${strategy.reachableContacts.length} reachable`,
+    `Unmapped IDs: ${audience.unmappedContactExternalIds.slice(0, 8).join(", ") || "none"}`,
+    `Consent review samples: ${sampleList(consentGapContacts)}`,
+    `Route gap samples: ${sampleList(routeGapContacts)}`,
+    `Segmentation gap samples: ${sampleList(segmentationGapContacts)}`,
+    `Role gap samples: ${sampleList(roleGapContacts)}`,
+    "",
+    "Cleanup actions:",
+    ...items.map((item) => `- ${item.title}: ${item.detail}`),
+    "",
+    "AI task: Turn this into a practical cleanup plan before the next campaign. Return who to fix first, which fields to enrich, which contacts should be excluded from live sends, and the safest campaign route once cleanup is complete. Do not invent private personal data.",
+  ].join("\n");
+
+  return { items, promptText };
 }
 
 function valueMatchesFilter(value: string | null | undefined, filter: string) {
@@ -25819,6 +25903,41 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = strategy.promptText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyAudienceCleanupKit(kit: AudienceCleanupKit) {
+    const label = "Audience cleanup kit";
+    if (!kit.promptText.trim()) {
+      const feedback = `${label} is empty.`;
+      setAudienceFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(kit.promptText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = kit.promptText;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -41829,6 +41948,7 @@ export default function MarketingAdminPage() {
                         const timelineParts = recordTimelineParts(audience);
                         const strategy = audienceStrategyBrief(audience, contacts);
                         const launchChecklist = audienceLaunchChecklist(audience, strategy);
+                        const cleanupKit = audienceCleanupKit(audience, strategy);
                         return (
                           <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                             <div className="flex items-start justify-between gap-3">
@@ -41929,6 +42049,42 @@ export default function MarketingAdminPage() {
                                     </div>
                                   );
                                 })}
+                              </div>
+                              <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 p-3" data-testid={`marketing-audience-cleanup-kit-${audience.id}`}>
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-sm font-black text-[#241133]">Audience cleanup kit</p>
+                                    <p className="mt-1 text-xs font-bold text-[#6f5f59]">Use this before publishing so the list has clean routes, consent, and segmentation.</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => void copyAudienceCleanupKit(cleanupKit)}
+                                    className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 text-xs font-black text-blue-800"
+                                    data-testid={`button-marketing-copy-audience-cleanup-kit-${audience.id}`}
+                                  >
+                                    <Copy size={13} /> Copy cleanup
+                                  </button>
+                                </div>
+                                <div className="mt-3 grid gap-2 xl:grid-cols-5" data-testid={`marketing-audience-cleanup-kit-items-${audience.id}`}>
+                                  {cleanupKit.items.map((item) => (
+                                    <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-audience-cleanup-kit-${audience.id}-${item.key}`}>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <p className="text-xs font-black uppercase tracking-[0.1em] opacity-75">{item.title}</p>
+                                        <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                      </div>
+                                      <p className="mt-1 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                                <details className="mt-2 rounded-lg border border-blue-100 bg-white px-3 py-2">
+                                  <summary className="cursor-pointer text-xs font-black text-blue-800">Cleanup prompt</summary>
+                                  <textarea
+                                    className={`${textareaClass} mt-2 min-h-[120px] font-mono text-xs`}
+                                    readOnly
+                                    value={cleanupKit.promptText}
+                                    data-testid={`textarea-marketing-audience-cleanup-kit-${audience.id}`}
+                                  />
+                                </details>
                               </div>
                               <details className="mt-2 rounded-lg border border-[#eadfd5] bg-[#fffaf4] px-3 py-2">
                                 <summary className="cursor-pointer text-xs font-black text-purple-700">AI brief text</summary>

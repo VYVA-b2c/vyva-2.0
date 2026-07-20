@@ -1434,6 +1434,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-launch-checklist-audience-1-reach")).toHaveTextContent("Ready");
     expect(screen.getByTestId("marketing-audience-launch-checklist-audience-1-consent")).toHaveTextContent("Needs action");
     expect(screen.getByTestId("marketing-audience-launch-checklist-audience-1-route")).toHaveTextContent("Needs action");
+    expect(screen.getByTestId("marketing-audience-cleanup-kit-audience-1")).toHaveTextContent("Audience cleanup kit");
+    expect(screen.getByTestId("marketing-audience-cleanup-kit-audience-1-unmapped")).toHaveTextContent("1 imported member ID");
+    expect(screen.getByTestId("marketing-audience-cleanup-kit-audience-1-route")).toHaveTextContent("Every mapped contact has email or WhatsApp.");
+    expect(screen.getByTestId("marketing-audience-cleanup-kit-audience-1-consent")).toHaveTextContent("1 mapped contact need consent review");
+    const audienceCleanupKit = screen.getByTestId("textarea-marketing-audience-cleanup-kit-audience-1") as HTMLTextAreaElement;
+    expect(audienceCleanupKit.value).toContain("VYVA audience cleanup kit: Partners");
+    expect(audienceCleanupKit.value).toContain("Cleanup actions:");
+    expect(audienceCleanupKit.value).toContain("AI task: Turn this into a practical cleanup plan");
     const audienceStrategyBrief = screen.getByTestId("textarea-marketing-audience-strategy-audience-1") as HTMLTextAreaElement;
     expect(audienceStrategyBrief.value).toContain("VYVA audience strategy brief: Partners");
     expect(audienceStrategyBrief.value).toContain("Audience fit: B2B");
@@ -1447,6 +1455,12 @@ describe("MarketingAdminPage", () => {
       expect(audienceClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA audience strategy brief: Partners"));
     });
     expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent("Audience strategy brief copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-audience-cleanup-kit-audience-1"));
+    await waitFor(() => {
+      expect(audienceClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA audience cleanup kit: Partners"));
+    });
+    expect(audienceClipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Turn this into a practical cleanup plan"));
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent("Audience cleanup kit copied.");
     fireEvent.click(screen.getByTestId("button-marketing-build-audience-campaign-audience-1"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Audience loaded: Partners.");
     expect(screen.getByTestId("select-marketing-campaign-studio-target-audience")).toHaveValue("audience-1");
