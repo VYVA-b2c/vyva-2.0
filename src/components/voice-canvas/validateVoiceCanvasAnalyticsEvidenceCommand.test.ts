@@ -88,6 +88,7 @@ function validSamples(): CanvasTelemetryEnvelope[] {
 function validEvidence() {
   return {
     generatedAt: freshGeneratedAt(),
+    qaRunUrl: "https://staging.vyva.app",
     source: "staging synthetic QA analytics export",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
     counts: {
@@ -141,6 +142,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
       "generatedAt must be a non-future ISO timestamp no older than 7 days.",
     );
     expect(result.stdout).toContain(
+      "qaRunUrl must be the deployed non-local QA run URL that produced the aggregate evidence.",
+    );
+    expect(result.stdout).toContain(
       "coveredFlows must list every launch flow",
     );
     expect(result.stdout).toContain(
@@ -162,6 +166,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
 
     const template = JSON.parse(templateResult.stdout) as {
       generatedAt: string;
+      qaRunUrl: string;
       source: string;
       coveredFlows: string[];
       counts: Record<string, number>;
@@ -170,6 +175,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
 
     expect(template).toEqual({
       generatedAt: "REPLACE_WITH_NON_FUTURE_ISO_TIMESTAMP_WITHIN_7_DAYS",
+      qaRunUrl: "REPLACE_WITH_DEPLOYED_NON_LOCAL_QA_RUN_URL",
       source: "REPLACE_WITH_STAGING_DASHBOARD_QUERY_OR_EXPORT_REFERENCE",
       coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
       counts: {
@@ -213,6 +219,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
       expect(summary.problems).toEqual(
         expect.arrayContaining([
           "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
+          "Analytics evidence qaRunUrl must be a deployed HTTPS non-local QA run URL.",
           "Analytics evidence must include sanitized sample envelopes in samples or events.",
           "started: declared aggregate count must be positive.",
           "completed: sample evidence must include a positive observed count.",
@@ -239,6 +246,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
 
       const summary = JSON.parse(result.stdout) as {
         readyForLaunchEvidence: boolean;
+        qaRunUrl: string;
         sampleCount: number;
         allowedEnvelopeFields: string[];
         coveredFlows: string[];
@@ -248,6 +256,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
       };
 
       expect(summary.readyForLaunchEvidence).toBe(true);
+      expect(summary.qaRunUrl).toBe("https://staging.vyva.app");
       expect(summary.sampleCount).toBe(6);
       expect(summary.allowedEnvelopeFields).toEqual([
         ...CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS,
@@ -262,7 +271,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
         completed: 1,
       });
       expect(summary.declaredCounts.started).toBe(2);
-        expect(summary.problems).toEqual([]);
+      expect(summary.problems).toEqual([]);
     }));
 
   it("rejects analytics evidence that does not cover every launch flow", () =>
@@ -352,6 +361,34 @@ describe("Voice Canvas analytics evidence validator command", () => {
           expect.arrayContaining([
             "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
             "Analytics evidence source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+          ]),
+        );
+      },
+    ));
+
+  it("rejects local or mock analytics QA run URLs", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        qaRunUrl: "https://mock-staging.vyva.app",
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          qaRunUrl: string;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.qaRunUrl).toBe("https://mock-staging.vyva.app");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Analytics evidence qaRunUrl must be a deployed HTTPS non-local QA run URL.",
           ]),
         );
       },

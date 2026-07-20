@@ -18,6 +18,7 @@ interface AnalyticsEvidenceSummary {
   inputPath: string;
   readyForLaunchEvidence: boolean;
   generatedAt: string;
+  qaRunUrl: string;
   requiredSignals: readonly CanvasLaunchSignal[];
   allowedEnvelopeFields: readonly string[];
   coveredFlows: readonly CanvasLaunchFlowId[];
@@ -32,6 +33,7 @@ const args = process.argv.slice(2);
 const allowedEnvelopeFields = [...CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS];
 const allowedTopLevelKeys = [
   "generatedAt",
+  "qaRunUrl",
   "source",
   "coveredFlows",
   "counts",
@@ -62,9 +64,10 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json",
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "",
-      "Use --template to print a privacy-safe JSON skeleton. The template is intentionally not launch-ready until generatedAt, source, counts, and sanitized sample envelopes are filled from real staging or production-like aggregate evidence.",
-      "The input JSON must be an object with generatedAt, source, samples/events, and optional counts.",
+      "Use --template to print a privacy-safe JSON skeleton. The template is intentionally not launch-ready until generatedAt, qaRunUrl, source, counts, and sanitized sample envelopes are filled from real staging or production-like aggregate evidence.",
+      "The input JSON must be an object with generatedAt, qaRunUrl, source, samples/events, and optional counts.",
       "generatedAt must be a non-future ISO timestamp no older than 7 days.",
+      "qaRunUrl must be the deployed non-local QA run URL that produced the aggregate evidence.",
       "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
       "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
       "coveredFlows must list every launch flow: ride, appointment, refill, shopping, provider_reply, task_hub_resume.",
@@ -90,6 +93,7 @@ const outputPathArg = readArgValue("--output");
 function analyticsEvidenceTemplate() {
   return {
     generatedAt: "REPLACE_WITH_NON_FUTURE_ISO_TIMESTAMP_WITHIN_7_DAYS",
+    qaRunUrl: "REPLACE_WITH_DEPLOYED_NON_LOCAL_QA_RUN_URL",
     source: "REPLACE_WITH_STAGING_DASHBOARD_QUERY_OR_EXPORT_REFERENCE",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
     counts: {
@@ -267,6 +271,12 @@ function topLevelProblems(artifact: unknown): string[] {
     );
   }
 
+  if (!isDeployedQaRunUrl(artifact.qaRunUrl)) {
+    problems.push(
+      "Analytics evidence qaRunUrl must be a deployed HTTPS non-local QA run URL.",
+    );
+  }
+
   return problems;
 }
 
@@ -278,6 +288,40 @@ function parseValidNonFutureGeneratedAt(value: unknown): Date | null {
     parsed.toISOString() === value &&
     parsed.getTime() <= Date.now();
   return valid ? parsed : null;
+}
+
+function isDeployedQaRunUrl(value: unknown): boolean {
+  if (typeof value !== "string" || value.trim() === "") return false;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (url.protocol !== "https:") return false;
+    if (url.username || url.password || url.search || url.hash) return false;
+    if (
+      host === "localhost" ||
+      host === "::1" ||
+      host === "0.0.0.0" ||
+      host === "example.com" ||
+      host.includes("mock") ||
+      host.endsWith(".localhost") ||
+      host.endsWith(".local") ||
+      host.endsWith(".test") ||
+      host.endsWith(".example")
+    ) {
+      return false;
+    }
+    if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)) {
+      return false;
+    }
+    const private172 = host.match(/^172\.(\d{1,2})\./);
+    if (private172) {
+      const secondOctet = Number(private172[1]);
+      if (secondOctet >= 16 && secondOctet <= 31) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function hasConcreteAnalyticsSource(value: unknown): boolean {
@@ -390,6 +434,9 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
     inputPath: relativeInputPath,
     readyForLaunchEvidence: problems.length === 0,
     generatedAt: generatedAt ? generatedAt.toISOString() : "unknown",
+    qaRunUrl: isRecord(artifact) && typeof artifact.qaRunUrl === "string"
+      ? artifact.qaRunUrl
+      : "unknown",
     requiredSignals: CANVAS_LAUNCH_SIGNALS,
     allowedEnvelopeFields,
     coveredFlows,

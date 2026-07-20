@@ -153,7 +153,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Pass --entry-surfaces=<path> to validate sanitized canonical entry surface evidence generated within the last 7 days.",
       "Pass --rollback-owner=<path> to validate the sanitized rollback owner handoff artifact generated within the last 7 days.",
       "Final external evidence artifacts must share one QA run date across enabled endpoints, rollback endpoints, analytics, copy clarity, recovery behavior, real-use evidence, entry surfaces, and rollback owner handoff.",
-      "Final external evidence artifacts with QA URLs must share one deployed QA origin across endpoint, copy clarity, recovery behavior, real-use, entry surface, rollback owner, and launch run plan artifacts.",
+      "Final external evidence artifacts with QA URLs must share one deployed QA origin across endpoint, analytics, copy clarity, recovery behavior, real-use, entry surface, rollback owner, and launch run plan artifacts.",
       "Use --final --date=YYYY-MM-DD after real-device evidence is filled; it exits non-zero unless the run sheet, matrix, packet, launch run plan, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, copy clarity evidence, recovery behavior evidence, real-use evidence, entry surface evidence, and rollback owner handoff are ready.",
       "Use --json to emit a machine-readable summary for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
@@ -1247,6 +1247,7 @@ function evidenceOrigin(value: unknown): string | null {
 function validateExternalEvidenceOriginConsistency(
   enabledFeatures: FeatureEndpointArtifactValidation,
   rollbackFeatures: FeatureEndpointArtifactValidation,
+  analyticsRun: ValidatorRun | null,
   copyRun: ValidatorRun | null,
   recoveryRun: ValidatorRun | null,
   realUseRun: ValidatorRun | null,
@@ -1264,6 +1265,11 @@ function validateExternalEvidenceOriginConsistency(
       label: "rollback feature endpoints",
       origin: evidenceOrigin(rollbackFeatures.baseUrl),
       provided: rollbackFeatures.provided,
+    },
+    {
+      label: "analytics evidence",
+      origin: evidenceOrigin(analyticsRun?.summary?.qaRunUrl),
+      provided: Boolean(analyticsRun),
     },
     {
       label: "copy clarity evidence",
@@ -1500,7 +1506,7 @@ function messagesForNextAction(
     messages.push("Fix external launch evidence dates so endpoint, analytics, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one QA run date.");
   }
   if (externalEvidenceOriginConsistency.problemCount > 0) {
-    messages.push("Fix external launch evidence origins so endpoint, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one deployed QA origin.");
+    messages.push("Fix external launch evidence origins so endpoint, analytics, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one deployed QA origin.");
   }
   if (endpointAuthConsistency.problemCount > 0) {
     messages.push("Fix endpoint evidence authentication metadata so it matches the launch run plan.");
@@ -1664,6 +1670,7 @@ const externalEvidenceDateConsistency = validateExternalEvidenceDateConsistency(
 const externalEvidenceOriginConsistency = validateExternalEvidenceOriginConsistency(
   enabledFeatures,
   rollbackFeatures,
+  analyticsRun,
   copyRun,
   recoveryRun,
   realUseRun,
@@ -1805,6 +1812,7 @@ const summary = {
     provided: Boolean(effectiveAnalyticsPathArg),
     path: stringField(analyticsRun?.summary ?? null, "inputPath"),
     generatedAt: stringField(analyticsRun?.summary ?? null, "generatedAt"),
+    qaRunUrl: stringField(analyticsRun?.summary ?? null, "qaRunUrl"),
     readyForLaunchEvidence: booleanField(
       analyticsRun?.summary ?? null,
       "readyForLaunchEvidence",

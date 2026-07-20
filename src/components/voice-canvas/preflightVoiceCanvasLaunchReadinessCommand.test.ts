@@ -220,6 +220,7 @@ function validAnalyticsSamples(): CanvasTelemetryEnvelope[] {
 function validAnalyticsEvidence() {
   return {
     generatedAt: freshGeneratedAt(),
+    qaRunUrl: "https://staging.vyva.app",
     source: "staging synthetic QA analytics export",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
     counts: {
@@ -1000,6 +1001,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       analyticsEvidence: {
         provided: boolean;
         generatedAt: string;
+        qaRunUrl: string;
         readyForLaunchEvidence: boolean;
         sampleCount: number;
         problemCount: number;
@@ -1123,6 +1125,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(summary.analyticsEvidence).toMatchObject({
       provided: false,
       generatedAt: "unknown",
+      qaRunUrl: "unknown",
       readyForLaunchEvidence: false,
       sampleCount: 0,
       problemCount: 0,
@@ -1325,6 +1328,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
         analyticsEvidence: {
           provided: boolean;
           readyForLaunchEvidence: boolean;
+          qaRunUrl: string;
           sampleCount: number;
           problemCount: number;
           coveredFlows: string[];
@@ -1336,6 +1340,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       expect(summary.analyticsEvidence).toMatchObject({
         provided: true,
         readyForLaunchEvidence: true,
+        qaRunUrl: "https://staging.vyva.app",
         sampleCount: 6,
         problemCount: 0,
         coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
@@ -2113,7 +2118,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
                           "External launch evidence must share one deployed QA origin",
                         );
                         expect(summary.nextActions).toContain(
-                          "Fix external launch evidence origins so endpoint, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one deployed QA origin.",
+                          "Fix external launch evidence origins so endpoint, analytics, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one deployed QA origin.",
                         );
                       },
                     ),
