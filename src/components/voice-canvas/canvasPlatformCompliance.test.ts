@@ -113,6 +113,22 @@ describe("Canvas platform cross-flow compliance", () => {
         fallback: "existing medication refill shopping/support path",
         sensitiveDetail: "medication names",
       },
+      {
+        path: "docs/runbooks/shopping-delivery-voice-canvas-rollout.md",
+        endpoint: "/api/config/features/shopping-delivery-voice-canvas",
+        enableEnv: "VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS=false",
+        rolloutEnv: "VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT=0",
+        fallback: "Existing shopping guide and recommendations",
+        sensitiveDetail: "shopping items",
+      },
+      {
+        path: "docs/runbooks/provider-reply-voice-canvas-rollout.md",
+        endpoint: "/api/config/features/provider-reply-voice-canvas",
+        enableEnv: "VYVA_ENABLE_PROVIDER_REPLY_VOICE_CANVAS=false",
+        rolloutEnv: "VYVA_PROVIDER_REPLY_VOICE_CANVAS_ROLLOUT_PERCENT=0",
+        fallback: "Existing provider reply panel",
+        sensitiveDetail: "provider names",
+      },
     ];
 
     for (const runbook of rollbackRunbooks) {
@@ -138,6 +154,18 @@ describe("Canvas platform cross-flow compliance", () => {
       expect(source).toContain("voice-canvas-real-device-evidence-packet.md");
       expect(source).toContain("voice-canvas-real-device-qa-matrix.md");
       expect(source).toContain("canvas:qa:preflight -- --final");
+      expect(source).toContain("same-date launch evidence bundle");
+      expect(source).toContain("run plan");
+      expect(source).toContain("enabled and rollback-disabled endpoint artifacts");
+      expect(source).toContain("analytics");
+      expect(source).toContain("copy clarity");
+      expect(source).toContain("recovery behavior");
+      expect(source).toContain("real-use");
+      expect(source).toContain("entry-surface");
+      expect(source).toContain("rollback-owner handoff artifacts");
+      expect(source).not.toContain(
+        "final launch sign-off still requires `npm run canvas:qa:preflight -- --final` with enabled and rollback-disabled endpoint artifacts.",
+      );
     }
   });
 });
