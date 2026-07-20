@@ -11943,6 +11943,7 @@ export default function MarketingAdminPage() {
   const [syncState, setSyncState] = useState<SyncState>(emptySync);
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
+  const [syncSetupRunSheetFeedback, setSyncSetupRunSheetFeedback] = useState("");
   const [exportPreview, setExportPreview] = useState<SourceExportPreview | null>(null);
   const [lastSourceReviewSummary, setLastSourceReviewSummary] = useState<Record<string, unknown> | null>(null);
   const [lastSourceReviewMode, setLastSourceReviewMode] = useState<"preview" | "sync" | null>(null);
@@ -24330,6 +24331,41 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function copySourceSyncSetupRunSheet() {
+    const label = "Source sync setup run sheet";
+    if (!sourceSyncSetupRunSheetText.trim()) {
+      const feedback = `${label} is empty.`;
+      setSyncSetupRunSheetFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(sourceSyncSetupRunSheetText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = sourceSyncSetupRunSheetText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setSyncSetupRunSheetFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setSyncSetupRunSheetFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
   const syncBlockedReason = !syncState.configured
     ? "Set VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY before running a sync. The default Source export endpoint is already built in, and can be overridden with VYVA_MARKETING_EXPORT_URL."
     : syncState.canRunSync === false
@@ -24366,16 +24402,74 @@ export default function MarketingAdminPage() {
     ...action,
     onSelect: () => openSourceReviewAction(action),
   }));
-  const emailScheduler = syncState.emailScheduler ?? summary.emailScheduler ?? emptySummary.emailScheduler ?? {
+  const emailScheduler = useMemo(() => syncState.emailScheduler ?? summary.emailScheduler ?? emptySummary.emailScheduler ?? {
     enabled: false,
     intervalMinutes: 5,
     initialDelaySeconds: 30,
     actor: "marketing-email-scheduler",
-  };
+  }, [summary.emailScheduler, syncState.emailScheduler]);
   const syncDiagnostics = syncState.diagnostics;
-  const tokenAliasPresent = syncDiagnostics?.tokenAliasPresent ?? {};
-  const urlAliasPresent = syncDiagnostics?.urlAliasPresent ?? {};
+  const tokenAliasPresent = useMemo(() => syncDiagnostics?.tokenAliasPresent ?? {}, [syncDiagnostics?.tokenAliasPresent]);
+  const urlAliasPresent = useMemo(() => syncDiagnostics?.urlAliasPresent ?? {}, [syncDiagnostics?.urlAliasPresent]);
   const yesNo = (value: boolean | undefined) => value ? "yes" : "no";
+  const sourceSyncSetupRunSheetText = useMemo(() => {
+    const latestRun = syncState.runs[0] ?? null;
+    const latestSucceededRun = syncState.runs.find((run) => run.status === "succeeded") ?? null;
+    const imported = latestSucceededRun ? syncCountItems(latestSucceededRun.summary, "imported") : [];
+    const importedLine = imported.length
+      ? imported.map((item) => `${item.label}: ${item.value}`).join(", ")
+      : "No successful import counts yet.";
+    const nextAction = !syncState.configured
+      ? "Add VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY to production secrets, then republish and check this panel again."
+      : syncState.canRunSync === false
+        ? `Ask ${syncState.requiredRunnerEmail || "the super admin"} to run the sync from this Settings tab.`
+        : latestRun?.status === "failed"
+          ? "Open the latest failed run, fix the endpoint/token/export response, then run the one-way sync again."
+          : latestSucceededRun
+            ? "Review the imported data shortcuts, then open Content, Contacts, Campaigns, Journeys, and Calendar to verify rows landed correctly."
+            : "Click Check Source export first, then Run one-way sync.";
+
+    return [
+      "VYVA Source sync setup run sheet",
+      `Mode: ${syncState.mode}`,
+      `Configured: ${yesNo(syncState.configured)}`,
+      `Can current admin run sync: ${yesNo(syncState.canRunSync !== false)}`,
+      `Required runner: ${syncState.requiredRunnerEmail || "not restricted"}`,
+      `Endpoint: ${syncState.apiUrl ?? "Default Source export endpoint"}`,
+      `Endpoint source: ${syncDiagnostics?.apiUrlSource ?? "unknown"}${syncDiagnostics?.hasDefaultEndpoint ? " / built-in default available" : ""}`,
+      `Bearer token available: ${yesNo(syncDiagnostics?.hasBearerToken)}`,
+      `VYVA_MARKETING_EXPORT_TOKEN: ${yesNo(tokenAliasPresent.VYVA_MARKETING_EXPORT_TOKEN)}`,
+      `SOURCE_MARKETING_API_KEY: ${yesNo(tokenAliasPresent.SOURCE_MARKETING_API_KEY)}`,
+      `VYVA_MARKETING_EXPORT_URL: ${yesNo(urlAliasPresent.VYVA_MARKETING_EXPORT_URL)}`,
+      `SOURCE_MARKETING_API_URL: ${yesNo(urlAliasPresent.SOURCE_MARKETING_API_URL)}`,
+      `Token source: ${syncDiagnostics?.tokenSource ?? "none"}`,
+      `Sync API build: ${syncState.backendBuild ?? "unavailable"}`,
+      "",
+      "Email scheduler:",
+      `Enabled: ${yesNo(emailScheduler.enabled)}`,
+      `Interval: ${emailScheduler.intervalMinutes} minutes`,
+      `Startup delay: ${emailScheduler.initialDelaySeconds} seconds`,
+      `Actor: ${emailScheduler.actor}`,
+      "",
+      "Latest run:",
+      latestRun
+        ? `${latestRun.status} at ${formatDate(latestRun.createdAt)}${latestRun.error ? ` - ${latestRun.error}` : ""}`
+        : "No Source sync runs yet.",
+      `Latest successful imported counts: ${importedLine}`,
+      "",
+      "Next action:",
+      nextAction,
+      "",
+      "Guardrail:",
+      "This sync is one-way into VYVA. Do not overwrite Source from VYVA. Email can send through VYVA after review; social/offline routes remain planning or manual handoff until integrations are enabled.",
+    ].join("\n");
+  }, [
+    emailScheduler,
+    syncDiagnostics,
+    syncState,
+    tokenAliasPresent,
+    urlAliasPresent,
+  ]);
   const testEmailDisabled = !editingCampaign || testEmailSending || !draftEmailChannel?.contentAssetId;
   const hasUnsavedCampaignSendChanges = Boolean(editingCampaign && (
     campaignEditDraft.name !== editingCampaign.name ||
@@ -38637,6 +38731,38 @@ export default function MarketingAdminPage() {
                           : "Manual Run due emails button only. Set MARKETING_EMAIL_SCHEDULER_ENABLED=true to automate scheduled email campaigns."}
                       </p>
                       <p className="mt-1 text-xs font-bold text-[#8b7a73]">Actor: {emailScheduler.actor}</p>
+                    </div>
+                    <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3" data-testid="marketing-source-sync-setup-run-sheet">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-blue-800">Setup run sheet</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">Copy this when sync setup, publish, or permissions need debugging.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copySourceSyncSetupRunSheet()}
+                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 text-xs font-black text-blue-800"
+                          data-testid="button-marketing-copy-source-sync-setup-run-sheet"
+                        >
+                          <Copy size={13} /> Copy setup
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-3">
+                        <Pill className={syncState.configured ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}>{syncState.configured ? "Configured" : "Needs token"}</Pill>
+                        <Pill className={syncState.canRunSync === false ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}>{syncState.canRunSync === false ? "Super admin only" : "Runner ready"}</Pill>
+                        <Pill className={emailScheduler.enabled ? "bg-emerald-50 text-emerald-800" : "bg-white text-[#5b4a46]"}>{emailScheduler.enabled ? "Auto email scheduler" : "Manual due-email run"}</Pill>
+                      </div>
+                      <textarea
+                        className={`${textareaClass} mt-3 min-h-[160px] font-mono text-xs`}
+                        value={sourceSyncSetupRunSheetText}
+                        readOnly
+                        data-testid="textarea-marketing-source-sync-setup-run-sheet"
+                      />
+                      {syncSetupRunSheetFeedback ? (
+                        <p className={`mt-2 rounded-xl px-3 py-2 text-xs font-black ${syncSetupRunSheetFeedback.includes("Could not") || syncSetupRunSheetFeedback.includes("empty") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite" data-testid="marketing-source-sync-setup-run-sheet-feedback">
+                          {syncSetupRunSheetFeedback}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">

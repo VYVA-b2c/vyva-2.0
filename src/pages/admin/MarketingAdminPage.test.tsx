@@ -1245,7 +1245,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-contact-next-move")).toHaveTextContent("Review contact");
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Consent review first");
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Primary route: Email");
-    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Start with "Press and partner announcement email" on Email.');
+    expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Start with "Community partner introduction email" on Email.');
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Partner outreach for Partner at Moka Digital with Spain / healthcare / lead.");
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent('Connect it to "Partner outreach" or create a focused Partners follow-up.');
     expect(screen.getByTestId("marketing-contact-relationship-brief")).toHaveTextContent("Review consent: pending.");
@@ -1277,19 +1277,19 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-contact-name")).toHaveValue("Hassan Partner");
     fireEvent.click(screen.getByTestId("button-marketing-cancel-contact"));
     expect(screen.getByTestId("marketing-contact-template-recommendations")).toHaveTextContent("Suggested templates");
-    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp partner proof nudge");
-    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("WhatsApp ready");
-    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("B2B relationship match");
-    expect(screen.getByTestId("marketing-contact-template-whatsapp-partner-proof-nudge")).toHaveTextContent("Partner-ready");
+    expect(screen.getByTestId("marketing-contact-template-email-community-partner-introduction")).toHaveTextContent("Community partner introduction email");
+    expect(screen.getByTestId("marketing-contact-template-email-community-partner-introduction")).toHaveTextContent("Email ready");
+    expect(screen.getByTestId("marketing-contact-template-email-community-partner-introduction")).toHaveTextContent("B2B relationship match");
+    expect(screen.getByTestId("marketing-contact-template-email-community-partner-introduction")).toHaveTextContent("Partner-ready");
     expect(screen.queryByTestId("marketing-contact-template-linkedin-family-proof-article")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-marketing-use-contact-template-whatsapp-partner-proof-nudge"));
-    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Template "WhatsApp partner proof nudge" applied for Hassan Partner.');
-    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("WhatsApp partner proof nudge campaign");
-    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("whatsapp");
+    fireEvent.click(screen.getByTestId("button-marketing-use-contact-template-email-community-partner-introduction"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Template "Community partner introduction email" applied for Hassan Partner.');
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Community partner introduction email campaign");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
     expect(screen.getByTestId("input-marketing-campaign-recipient-filter")).toHaveValue("hassan@example.com");
     let relationshipCampaignIntent = (screen.getByTestId("textarea-marketing-campaign-intent") as HTMLTextAreaElement).value;
     expect(relationshipCampaignIntent).toContain("Relationship campaign for Hassan Partner.");
-    expect(relationshipCampaignIntent).toContain('Starter template: "WhatsApp partner proof nudge" on WhatsApp.');
+    expect(relationshipCampaignIntent).toContain('Starter template: "Community partner introduction email" on Email.');
     expect(relationshipCampaignIntent).toContain("Consent status: pending.");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     fireEvent.click(screen.getByTestId("button-marketing-view-contact-contact-2"));
@@ -1378,6 +1378,24 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Disabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Manual Run due emails button only");
+    expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Setup run sheet");
+    expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Needs token");
+    expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Manual due-email run");
+    const syncSetupRunSheet = screen.getByTestId("textarea-marketing-source-sync-setup-run-sheet") as HTMLTextAreaElement;
+    expect(syncSetupRunSheet.value).toContain("VYVA Source sync setup run sheet");
+    expect(syncSetupRunSheet.value).toContain("Configured: no");
+    expect(syncSetupRunSheet.value).toContain("Next action:");
+    expect(syncSetupRunSheet.value).toContain("Add VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY");
+    clipboardWriteText.mockClear();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-copy-source-sync-setup-run-sheet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA Source sync setup run sheet"));
+    });
+    expect(screen.getByTestId("marketing-source-sync-setup-run-sheet-feedback")).toHaveTextContent("Source sync setup run sheet copied.");
     expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Dataset: live");
     expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Exported at");
     expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Endpoint: https://source.example.test");
